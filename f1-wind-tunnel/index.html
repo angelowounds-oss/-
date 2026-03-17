@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>F1 Wind Tunnel — WebGPU LBM CFD</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- WebGPU 시뮬레이션 캔버스 -->
+  <canvas id="gpu-canvas" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;"></canvas>
+
+  <!-- Three.js 차량 모델 캔버스 -->
+  <canvas id="three-canvas" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none;"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-title">F1 Wind Tunnel — 3D LBM CFD</div>
+    <div class="hud-stat">FPS: <span id="fps">--</span></div>
+    <div class="hud-stat">Re: <span id="reynolds">--</span></div>
+    <div class="hud-stat">Grid: <span id="grid-info">256×128×64</span></div>
+    <div class="hud-stat">Compute: <span id="compute-time">--</span>ms</div>
+  </div>
+
+  <!-- 제어 패널 -->
+  <div id="controls">
+    <div class="control-group">
+      <label>Wind Speed</label>
+      <input type="range" id="wind-speed" min="0.01" max="0.20" step="0.005" value="0.10">
+      <span id="wind-val">0.10</span>
+    </div>
+    <div class="control-group">
+      <label>Viscosity (τ)</label>
+      <input type="range" id="tau" min="0.51" max="2.0" step="0.01" value="0.80">
+      <span id="tau-val">0.80</span>
+    </div>
+    <div class="control-group">
+      <label>Spoiler Angle</label>
+      <input type="range" id="spoiler" min="-5" max="30" step="1" value="15">
+      <span id="spoiler-val">15°</span>
+    </div>
+    <div class="control-group">
+      <label>Slice Plane</label>
+      <select id="slice-plane">
+        <option value="xz">Horizontal (XZ)</option>
+        <option value="yz">Vertical (YZ)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 범례 -->
+  <div id="legend">
+    <div class="legend-label">Velocity Magnitude</div>
+    <div class="legend-bar"></div>
+    <div class="legend-range">
+      <span>Low</span>
+      <span>High</span>
+    </div>
+  </div>
+
+  <!-- CDN Scripts (UMD 빌드, file:// 호환) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.165.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- 애플리케이션 스크립트 -->
+  <script src="js/wgsl-shaders.js"></script>
+  <script src="js/lbm-3d.js"></script>
+  <script src="js/car.js"></script>
+  <script src="js/visualization.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
