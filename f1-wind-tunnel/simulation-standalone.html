@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>F1 Wind Tunnel — WebGPU LBM CFD</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #0f0; }
+    canvas { display: block; touch-action: none; }
+    #hud {
+      position: fixed; top: 12px; left: 12px;
+      background: rgba(0,0,0,0.85); border: 1px solid rgba(0,255,0,0.3);
+      border-radius: 6px; padding: 12px; font-size: 12px; color: #0f0;
+      backdrop-filter: blur(4px); z-index: 10; pointer-events: none; min-width: 200px;
+    }
+    .hud-title { font-weight: bold; font-size: 14px; margin-bottom: 8px; text-shadow: 0 0 4px #0f0; }
+    .hud-stat { margin: 4px 0; font-size: 11px; }
+    #fps, #reynolds, #compute-time { color: #0ff; font-weight: bold; }
+    #controls {
+      position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,20,0.9); border: 1px solid rgba(0,100,255,0.4);
+      border-radius: 8px; padding: 12px; display: flex; gap: 16px;
+      align-items: center; backdrop-filter: blur(8px); z-index: 10;
+      flex-wrap: wrap; max-width: 90vw;
+    }
+    .control-group { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .control-group label { color: #0ff; font-weight: bold; min-width: 80px; }
+    .control-group span { color: #0f0; min-width: 50px; text-align: right; }
+    input[type="range"] {
+      width: 80px; height: 6px; border-radius: 3px;
+      background: rgba(0,100,255,0.3); outline: none;
+      -webkit-appearance: none; appearance: none; accent-color: #00ff00; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: #00ff00; cursor: pointer; box-shadow: 0 0 4px #00ff00;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 50%; background: #00ff00;
+      cursor: pointer; border: none; box-shadow: 0 0 4px #00ff00;
+    }
+    select {
+      padding: 4px 6px; background: rgba(0,50,100,0.7);
+      border: 1px solid rgba(0,100,255,0.4); color: #0f0;
+      border-radius: 3px; font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer;
+    }
+    select option { background: #001a33; color: #0f0; }
+    #legend {
+      position: fixed; top: 50%; right: 12px; transform: translateY(-50%);
+      background: rgba(0,0,0,0.85); border: 1px solid rgba(0,255,0,0.3);
+      border-radius: 6px; padding: 8px; font-size: 10px; color: #0f0;
+      backdrop-filter: blur(4px); z-index: 10; pointer-events: none;
+    }
+    .legend-label { text-align: center; margin-bottom: 6px; font-weight: bold; }
+    .legend-bar {
+      width: 30px; height: 120px;
+      background: linear-gradient(to top, #ff2200, #ffff00, #00ff88, #00ffff, #0044ff);
+      border: 1px solid rgba(0,255,0,0.3); border-radius: 2px; margin: 4px 0;
+    }
+    .legend-range { display: flex; justify-content: space-between; font-size: 9px; color: #0ff; width: 30px; }
+    #webgpu-error {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: rgba(0,0,0,0.95); border: 2px solid #f00; border-radius: 12px;
+      padding: 24px; text-align: center; z-index: 100; max-width: 400px;
+      color: #f88; font-size: 14px;
+    }
+    #webgpu-error h2 { color: #f44; margin-bottom: 12px; }
+    @media (max-width: 768px) {
+      #controls { bottom: 8px; left: 8px; right: 8px; transform: none; flex-direction: column; gap: 8px; padding: 8px; }
+      .control-group { width: 100%; justify-content: space-between; }
+      input[type="range"] { flex: 1; }
+      #legend { display: none; }
+      #hud { font-size: 10px; padding: 8px; min-width: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gpu-canvas" style="position:absolute;top:0;left:0;width:100vw;height:100vh;"></canvas>
+  <canvas id="three-canvas" style="position:absolute;top:0;left:0;width:100vw;height:100vh;pointer-events:none;"></canvas>
+
+  <div id="hud">
+    <div class="hud-title">F1 Wind Tunnel — 3D LBM CFD</div>
+    <div class="hud-stat">FPS: <span id="fps">--</span></div>
+    <div class="hud-stat">Re: <span id="reynolds">--</span></div>
+    <div class="hud-stat">Grid: <span id="grid-info">--</span></div>
+    <div class="hud-stat">Compute: <span id="compute-time">--</span>ms</div>
+  </div>
+
+  <div id="controls">
+    <div class="control-group">
+      <label>Wind Speed</label>
+      <input type="range" id="wind-speed" min="0.01" max="0.20" step="0.005" value="0.10">
+      <span id="wind-val">0.100</span>
+    </div>
+    <div class="control-group">
+      <label>Viscosity (τ)</label>
+      <input type="range" id="tau" min="0.51" max="2.0" step="0.01" value="0.80">
+      <span id="tau-val">0.80</span>
+    </div>
+    <div class="control-group">
+      <label>Spoiler Angle</label>
+      <input type="range" id="spoiler" min="-5" max="30" step="1" value="15">
+      <span id="spoiler-val">15°</span>
+    </div>
+    <div class="control-group">
+      <label>Slice Plane</label>
+      <select id="slice-plane">
+        <option value="xz">Horizontal (XZ)</option>
+        <option value="yz">Vertical (YZ)</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="legend">
+    <div class="legend-label">Velocity</div>
+    <div class="legend-bar"></div>
+    <div class="legend-range"><span>Low</span><span>High</span></div>
+  </div>
+
+  <div id="webgpu-error">
+    <h2>⚠ WebGPU Not Supported</h2>
+    <p>Please use <strong>Chrome 113+</strong> or <strong>Safari 18+</strong>.</p>
+    <p style="margin-top:8px;font-size:12px;color:#aaa;">iOS: Safari 18+ &nbsp;|&nbsp; Android: Chrome 113+</p>
+  </div>
+
+  <!-- Three.js CDN — works with file:// protocol -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.165.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+  'use strict';
+
+  /* =====================================================================
+   * WGSL Shaders — D3Q19 LBM + Smagorinsky LES
+   * Grid dimensions injected at shader creation time via template literals
+   * ===================================================================== */
+  const WGSL = {
+    getLBMCompute(GW, GH, GD) {
+      return `
+struct Uniforms {
+  wind_speed : f32,
+  tau_laminar: f32,
+  cs_smag    : f32,
+  padding    : f32,
+}
+
+@group(0) @binding(0) var<storage, read_write> fA       : array<vec4f>;
+@group(0) @binding(1) var<storage, read_write> fB       : array<vec4f>;
+@group(0) @binding(2) var<storage, read_write> macroVars: array<vec4f>;
+@group(0) @binding(3) var<storage, read>       boundary : array<u32>;
+@group(0) @binding(4) var<uniform>             params   : Uniforms;
+
+const GW  : u32 = ${GW}u;
+const GH  : u32 = ${GH}u;
+const GD  : u32 = ${GD}u;
+const CS2 : f32 = 0.33333333;
+
+const C: array<vec3i, 19> = array<vec3i, 19>(
+  vec3i( 0, 0, 0),
+  vec3i( 1, 0, 0), vec3i(-1, 0, 0), vec3i( 0, 1, 0), vec3i( 0,-1, 0),
+  vec3i( 0, 0, 1), vec3i( 0, 0,-1),
+  vec3i( 1, 1, 0), vec3i(-1,-1, 0), vec3i( 1,-1, 0), vec3i(-1, 1, 0),
+  vec3i( 1, 0, 1), vec3i(-1, 0,-1), vec3i( 1, 0,-1), vec3i(-1, 0, 1),
+  vec3i( 0, 1, 1), vec3i( 0,-1,-1), vec3i( 0, 1,-1), vec3i( 0,-1, 1)
+);
+
+const WGT: array<f32, 19> = array<f32, 19>(
+  0.33333333,
+  0.05555556, 0.05555556, 0.05555556, 0.05555556, 0.05555556, 0.05555556,
+  0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778,
+  0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778
+);
+
+const OPP: array<u32, 19> = array<u32, 19>(
+  0u, 2u, 1u, 4u, 3u, 6u, 5u, 8u, 7u, 10u, 9u, 12u, 11u, 14u, 13u, 16u, 15u, 18u, 17u
+);
+
+fn cell(x: u32, y: u32, z: u32) -> u32 { return x + y*GW + z*GW*GH; }
+
+fn readF(idx: u32, i: u32) -> f32 {
+  let v = fA[idx*5u + i/4u];
+  let c = i % 4u;
+  if (c == 0u) { return v.x; }
+  if (c == 1u) { return v.y; }
+  if (c == 2u) { return v.z; }
+  return v.w;
+}
+
+fn writeF(idx: u32, i: u32, val: f32) {
+  let ci = idx*5u + i/4u;
+  let c  = i % 4u;
+  if      (c == 0u) { fB[ci].x = val; }
+  else if (c == 1u) { fB[ci].y = val; }
+  else if (c == 2u) { fB[ci].z = val; }
+  else              { fB[ci].w = val; }
+}
+
+fn feq(i: u32, rho: f32, u: vec3f) -> f32 {
+  let ci = vec3f(f32(C[i].x), f32(C[i].y), f32(C[i].z));
+  let cu = dot(ci, u);
+  return WGT[i] * rho * (1.0 + 3.0*cu + 4.5*cu*cu - 1.5*dot(u,u));
+}
+
+@compute @workgroup_size(8, 8, 4)
+fn lbm_step(@builtin(global_invocation_id) id: vec3u) {
+  let x = id.x; let y = id.y; let z = id.z;
+  if (x >= GW || y >= GH || z >= GD) { return; }
+
+  let idx    = cell(x, y, z);
+  let bflags = boundary[idx];
+  let solid  = (bflags & 1u) != 0u;
+  let inlet  = (bflags & 2u) != 0u;
+  let outlet = (bflags & 4u) != 0u;
+
+  var f: array<f32, 19>;
+  for (var i = 0u; i < 19u; i++) { f[i] = readF(idx, i); }
+
+  var rho = 0.0; var ux = 0.0; var uy = 0.0; var uz = 0.0;
+  for (var i = 0u; i < 19u; i++) {
+    rho += f[i];
+    ux  += f32(C[i].x) * f[i];
+    uy  += f32(C[i].y) * f[i];
+    uz  += f32(C[i].z) * f[i];
+  }
+  rho = max(rho, 1e-6);
+  let u = vec3f(ux/rho, uy/rho, uz/rho);
+
+  if (solid) {
+    for (var i = 0u; i < 19u; i++) { writeF(idx, i, f[OPP[i]]); }
+    macroVars[idx] = vec4f(rho, 0.0, 0.0, 0.0);
+    return;
+  }
+
+  if (inlet) {
+    let uIn = vec3f(params.wind_speed, 0.0, 0.0);
+    for (var i = 0u; i < 19u; i++) { writeF(idx, i, feq(i, 1.0, uIn)); }
+    macroVars[idx] = vec4f(1.0, params.wind_speed, 0.0, 0.0);
+    return;
+  }
+
+  if (outlet && x > 0u) {
+    let src = cell(x-1u, y, z);
+    var r2=0.0; var ux2=0.0; var uy2=0.0; var uz2=0.0;
+    for (var i = 0u; i < 19u; i++) {
+      let fi = readF(src, i);
+      writeF(idx, i, fi);
+      r2+=fi; ux2+=f32(C[i].x)*fi; uy2+=f32(C[i].y)*fi; uz2+=f32(C[i].z)*fi;
+    }
+    r2 = max(r2, 1e-6);
+    macroVars[idx] = vec4f(r2, ux2/r2, uy2/r2, uz2/r2);
+    return;
+  }
+
+  // Smagorinsky LES: effective tau
+  var fneqSq = 0.0;
+  for (var i = 0u; i < 19u; i++) {
+    let fn_ = f[i] - feq(i, rho, u);
+    fneqSq += fn_ * fn_;
+  }
+  let S_mag   = sqrt(max(fneqSq, 0.0)) / (rho*CS2 + 1e-6);
+  let nu_turb = params.cs_smag * params.cs_smag * S_mag;
+  let tau_eff = clamp(params.tau_laminar + nu_turb/CS2, 0.51, 10.0);
+
+  for (var i = 0u; i < 19u; i++) {
+    let sx = u32(i32(x) - C[i].x);
+    let sy = u32(i32(y) - C[i].y);
+    let sz = u32(i32(z) - C[i].z);
+    let sX = select(sx, 0u, sx >= GW);
+    let sY = select(sy, 0u, sy >= GH);
+    let sZ = select(sz, 0u, sz >= GD);
+    let fi  = readF(cell(sX, sY, sZ), i);
+    writeF(idx, i, fi - (fi - feq(i, rho, u)) / tau_eff);
+  }
+  macroVars[idx] = vec4f(rho, u.x, u.y, u.z);
+}
+`;
+    },
+
+    getLBMInit(GW, GH, GD) {
+      return `
+@group(0) @binding(0) var<storage, read_write> fA: array<vec4f>;
+
+const CI: array<vec3i, 19> = array<vec3i, 19>(
+  vec3i( 0, 0, 0),
+  vec3i( 1, 0, 0), vec3i(-1, 0, 0), vec3i( 0, 1, 0), vec3i( 0,-1, 0),
+  vec3i( 0, 0, 1), vec3i( 0, 0,-1),
+  vec3i( 1, 1, 0), vec3i(-1,-1, 0), vec3i( 1,-1, 0), vec3i(-1, 1, 0),
+  vec3i( 1, 0, 1), vec3i(-1, 0,-1), vec3i( 1, 0,-1), vec3i(-1, 0, 1),
+  vec3i( 0, 1, 1), vec3i( 0,-1,-1), vec3i( 0, 1,-1), vec3i( 0,-1, 1)
+);
+const WI: array<f32, 19> = array<f32, 19>(
+  0.33333333,
+  0.05555556, 0.05555556, 0.05555556, 0.05555556, 0.05555556, 0.05555556,
+  0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778,
+  0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778, 0.02777778
+);
+
+fn feq_i(i: u32, rho: f32, u: vec3f) -> f32 {
+  let ci = vec3f(f32(CI[i].x), f32(CI[i].y), f32(CI[i].z));
+  let cu = dot(ci, u);
+  return WI[i] * rho * (1.0 + 3.0*cu + 4.5*cu*cu - 1.5*dot(u,u));
+}
+
+@compute @workgroup_size(8, 8, 4)
+fn init(@builtin(global_invocation_id) id: vec3u) {
+  let GWL = ${GW}u; let GHL = ${GH}u; let GDL = ${GD}u;
+  let x = id.x; let y = id.y; let z = id.z;
+  if (x >= GWL || y >= GHL || z >= GDL) { return; }
+  let idx = x + y*GWL + z*GWL*GHL;
+  let u   = vec3f(0.1, 0.0, 0.0);
+  for (var i = 0u; i < 19u; i++) {
+    let v  = feq_i(i, 1.0, u);
+    let ci = idx*5u + i/4u;
+    let cc = i % 4u;
+    if      (cc == 0u) { fA[ci].x = v; }
+    else if (cc == 1u) { fA[ci].y = v; }
+    else if (cc == 2u) { fA[ci].z = v; }
+    else               { fA[ci].w = v; }
+  }
+}
+`;
+    }
+  };
+
+  /* =====================================================================
+   * LBM3D — WebGPU D3Q19 Simulation Engine
+   * ===================================================================== */
+  class LBM3D {
+    constructor(canvas, W, H, D) {
+      this.canvas   = canvas;
+      this.W = W; this.H = H; this.D = D;
+      this.gridSize = W * H * D;
+
+      this.device = null; this.queue = null;
+      this.computePipeline = null; this.initPipeline = null;
+      this.bufferF_A = null; this.bufferF_B = null;
+      this.bufferMacroVars = null; this.bufferBoundary = null; this.bufferParams = null;
+      this.bindGroupA = null; this.bindGroupB = null; this.bindGroupInit = null;
+
+      this.windSpeed = 0.1; this.tauLaminar = 0.8; this.cSmag = 0.1;
+      this.stepCount = 0; this.lastStepTime = 0;
+
+      this.ready = this._init();
+    }
+
+    async _init() {
+      const adapter = await navigator.gpu?.requestAdapter();
+      if (!adapter) throw new Error('WebGPU not supported');
+
+      this.device = await adapter.requestDevice();
+      this.queue  = this.device.queue;
+
+      const initMod    = this.device.createShaderModule({ code: WGSL.getLBMInit(this.W, this.H, this.D) });
+      const computeMod = this.device.createShaderModule({ code: WGSL.getLBMCompute(this.W, this.H, this.D) });
+
+      [this.initPipeline, this.computePipeline] = await Promise.all([
+        this.device.createComputePipelineAsync({ layout: 'auto', compute: { module: initMod,    entryPoint: 'init'     } }),
+        this.device.createComputePipelineAsync({ layout: 'auto', compute: { module: computeMod, entryPoint: 'lbm_step' } })
+      ]);
+
+      this._createBuffers();
+      this._initializeDistributions();
+      console.log(`LBM3D ready: ${this.W}x${this.H}x${this.D}`);
+    }
+
+    _createBuffers() {
+      const dev  = this.device;
+      const fSz  = this.gridSize * 5 * 16;
+
+      this.bufferF_A = dev.createBuffer({ size: fSz, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, mappedAtCreation: true });
+      new Float32Array(this.bufferF_A.getMappedRange()).fill(0);
+      this.bufferF_A.unmap();
+
+      this.bufferF_B = dev.createBuffer({ size: fSz, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
+
+      this.bufferMacroVars = dev.createBuffer({ size: this.gridSize * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+
+      this.bufferBoundary = dev.createBuffer({ size: this.gridSize * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+      new Uint32Array(this.bufferBoundary.getMappedRange()).fill(0);
+      this.bufferBoundary.unmap();
+
+      this.bufferParams = dev.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+      new Float32Array(this.bufferParams.getMappedRange()).set([this.windSpeed, this.tauLaminar, this.cSmag, 0]);
+      this.bufferParams.unmap();
+
+      this.bindGroupInit = dev.createBindGroup({
+        layout: this.initPipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: this.bufferF_A } }]
+      });
+
+      const mkGroup = (src, dst) => dev.createBindGroup({
+        layout: this.computePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: src } },
+          { binding: 1, resource: { buffer: dst } },
+          { binding: 2, resource: { buffer: this.bufferMacroVars } },
+          { binding: 3, resource: { buffer: this.bufferBoundary } },
+          { binding: 4, resource: { buffer: this.bufferParams } }
+        ]
+      });
+      this.bindGroupA = mkGroup(this.bufferF_A, this.bufferF_B);
+      this.bindGroupB = mkGroup(this.bufferF_B, this.bufferF_A);
+    }
+
+    _initializeDistributions() {
+      const enc  = this.device.createCommandEncoder();
+      const pass = enc.beginComputePass();
+      pass.setPipeline(this.initPipeline);
+      pass.setBindGroup(0, this.bindGroupInit);
+      pass.dispatchWorkgroups(Math.ceil(this.W/8), Math.ceil(this.H/8), Math.ceil(this.D/4));
+      pass.end();
+      this.queue.submit([enc.finish()]);
+    }
+
+    setBoundaryData(arr) {
+      if (arr.length !== this.gridSize) { console.error('Boundary size mismatch'); return; }
+      this.queue.writeBuffer(this.bufferBoundary, 0, arr);
+    }
+
+    setParameters(windSpeed, tau, cSmag) {
+      this.windSpeed = windSpeed; this.tauLaminar = tau; this.cSmag = cSmag;
+      this.queue.writeBuffer(this.bufferParams, 0, new Float32Array([windSpeed, tau, cSmag, 0]));
+    }
+
+    step() {
+      const enc  = this.device.createCommandEncoder();
+      const pass = enc.beginComputePass();
+      pass.setPipeline(this.computePipeline);
+      pass.setBindGroup(0, this.stepCount % 2 === 0 ? this.bindGroupA : this.bindGroupB);
+      pass.dispatchWorkgroups(Math.ceil(this.W/8), Math.ceil(this.H/8), Math.ceil(this.D/4));
+      pass.end();
+      const t0 = performance.now();
+      this.queue.submit([enc.finish()]);
+      this.lastStepTime = performance.now() - t0;
+      this.stepCount++;
+    }
+
+    async readMacroVars() {
+      const size    = this.gridSize * 16;
+      const staging = this.device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+      const enc = this.device.createCommandEncoder();
+      enc.copyBufferToBuffer(this.bufferMacroVars, 0, staging, 0, size);
+      this.queue.submit([enc.finish()]);
+      await staging.mapAsync(GPUMapMode.READ);
+      const data = new Float32Array(staging.getMappedRange()).slice();
+      staging.unmap(); staging.destroy();
+      return data;
+    }
+
+    async readSlice(type = 'xz', sliceIdx = null) {
+      const data = await this.readMacroVars();
+      if (type === 'xz') {
+        const y   = sliceIdx ?? Math.floor(this.H / 2);
+        const out = new Float32Array(this.W * this.D * 4);
+        for (let x = 0; x < this.W; x++)
+          for (let z = 0; z < this.D; z++) {
+            const s = (x + y*this.W + z*this.W*this.H) * 4;
+            const d = (x + z*this.W) * 4;
+            out[d]=data[s]; out[d+1]=data[s+1]; out[d+2]=data[s+2]; out[d+3]=data[s+3];
+          }
+        return out;
+      } else {
+        const x   = sliceIdx ?? Math.floor(this.W / 2);
+        const out = new Float32Array(this.H * this.D * 4);
+        for (let y = 0; y < this.H; y++)
+          for (let z = 0; z < this.D; z++) {
+            const s = (x + y*this.W + z*this.W*this.H) * 4;
+            const d = (y + z*this.H) * 4;
+            out[d]=data[s]; out[d+1]=data[s+1]; out[d+2]=data[s+2]; out[d+3]=data[s+3];
+          }
+        return out;
+      }
+    }
+
+    getLastStepTime() { return this.lastStepTime; }
+  }
+
+  /* =====================================================================
+   * CarUtils — F1 geometry: LBM boundary rasterization + Three.js model
+   * ===================================================================== */
+  const CarUtils = {
+    buildBoundary3D(W, H, D, angle = 15) {
+      const boundary = new Uint32Array(W * H * D);
+      const sx=4/W, sy=2/H, sz=4/D, ox=-2, oy=-1, oz=-3;
+
+      const inBody = (wx, wy, wz) => {
+        const dx=(wx)/0.35, dy=(wy-0.3)/0.25, dz=(wz+0.5)/1.8;
+        return dx*dx+dy*dy+dz*dz < 1.0;
+      };
+      const inFW = (wx, wy, wz) => wx>1.8&&wx<2.3&&wy>-0.3&&wy<0.1&&wz>-1.0&&wz<1.0;
+      const inRW = (wx, wy, wz) => {
+        const ar=angle*Math.PI/180;
+        const rz=wz+1.8, ry=wy-0.9;
+        const rzr=rz*Math.cos(ar)-ry*Math.sin(ar), ryr=rz*Math.sin(ar)+ry*Math.cos(ar);
+        return wx>-2.0&&wx<-1.5&&ryr>-0.05&&ryr<0.08&&rzr>-0.8&&rzr<0.8;
+      };
+      const inSph = (wx,wy,wz,cx,cy,cz,r) => {
+        const dx=wx-cx,dy=wy-cy,dz=wz-cz; return dx*dx+dy*dy+dz*dz<r*r;
+      };
+      const inSP = (wx,wy,wz,s) => {
+        const px=s>0?0.4:-0.4;
+        return Math.abs(wx-px)<0.3&&wy>-0.2&&wy<0.4&&wz>-1.0&&wz<1.5;
+      };
+
+      for (let x=0;x<W;x++) for (let y=0;y<H;y++) for (let z=0;z<D;z++) {
+        const i=x+y*W+z*W*H;
+        const wx=x*sx+ox, wy=y*sy+oy, wz=z*sz+oz;
+        let f=0;
+        if (x===0)     f|=2;
+        if (x===W-1)   f|=4;
+        if (y===0||y===H-1) f|=1;
+        if (!f&&(inBody(wx,wy,wz)||inFW(wx,wy,wz)||inRW(wx,wy,wz)||
+          inSph(wx,wy,wz,1.5,-0.4,-1.7,0.35)||inSph(wx,wy,wz,-1.5,-0.4,-1.7,0.35)||
+          inSph(wx,wy,wz,1.5,-0.4,1.4,0.35)||inSph(wx,wy,wz,-1.5,-0.4,1.4,0.35)||
+          inSP(wx,wy,wz,1)||inSP(wx,wy,wz,-1))) f|=1;
+        boundary[i]=f;
+      }
+      return boundary;
+    },
+
+    buildF1Car() {
+      const car = new THREE.Group();
+      const red = new THREE.MeshPhysicalMaterial({ color:0xcc0000, metalness:0.3, roughness:0.4, clearcoat:1.0, clearcoatRoughness:0.1 });
+      const blk = new THREE.MeshPhysicalMaterial({ color:0x1a1a1a, metalness:0.2, roughness:0.8 });
+      const tir = new THREE.MeshStandardMaterial({ color:0x111111, roughness:0.9 });
+
+      const bodyG = new THREE.CapsuleGeometry(0.35, 3.2, 8, 16); bodyG.rotateZ(Math.PI/2);
+      car.add(new THREE.Mesh(bodyG, red));
+
+      const noseG = new THREE.ConeGeometry(0.12, 1.2, 8); noseG.rotateZ(-Math.PI/2);
+      const nose = new THREE.Mesh(noseG, red); nose.position.set(2.2,0,0); car.add(nose);
+
+      const fw = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.04,1.8), blk); fw.position.set(2,-0.3,0); car.add(fw);
+
+      const rwg = new THREE.Group(); rwg.position.set(-1.8,0.9,0);
+      rwg.add(new THREE.Mesh(new THREE.BoxGeometry(0.5,0.05,1.6), blk));
+      for (const z of [-0.82,0.82]) { const ep=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.4,0.04),blk); ep.position.z=z; rwg.add(ep); }
+      car.add(rwg); car.rearWingGroup = rwg;
+
+      for (const [x,y,z] of [[1.5,-0.4,0.85],[1.5,-0.4,-0.85],[-1.2,-0.4,0.85],[-1.2,-0.4,-0.85]]) {
+        const tg = new THREE.TorusGeometry(0.33,0.13,8,16); tg.rotateY(Math.PI/2);
+        const tm = new THREE.Mesh(tg, tir); tm.position.set(x,y,z); car.add(tm);
+      }
+
+      for (const z of [0.4,-0.4]) { const sm=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.3,0.35),red); sm.position.set(-0.2,-0.1,z); car.add(sm); }
+
+      const haloG = new THREE.TorusGeometry(0.3,0.025,8,24,Math.PI);
+      const halo  = new THREE.Mesh(haloG, blk); halo.position.set(0.3,0.45,0); car.add(halo);
+
+      return car;
+    },
+
+    updateSpoilerAngle(carGroup, deg) {
+      if (carGroup.rearWingGroup)
+        carGroup.rearWingGroup.rotation.x = THREE.MathUtils.degToRad(deg);
+    }
+  };
+
+  /* =====================================================================
+   * VisualizationUtils — velocity colormap slice + particle streamlines
+   * ===================================================================== */
+  class VizSlice {
+    constructor(scene, W, H, D) {
+      this.scene=scene; this.W=W; this.H=H; this.D=D;
+      this.sliceType='xz'; this.mesh=null; this.tex=null; this.cvs=null;
+      this._init();
+    }
+    _init() {
+      const xz = this.sliceType==='xz';
+      this.cvs = document.createElement('canvas');
+      this.cvs.width  = xz ? this.W : this.H;
+      this.cvs.height = this.D;
+      this.tex = new THREE.CanvasTexture(this.cvs);
+      this.tex.minFilter = THREE.NearestFilter;
+      this.tex.magFilter = THREE.NearestFilter;
+      const geo = new THREE.PlaneGeometry(xz?4:2, 4);
+      const mat = new THREE.MeshBasicMaterial({ map:this.tex, transparent:true, opacity:0.85, depthWrite:false });
+      this.mesh = new THREE.Mesh(geo, mat);
+      if (xz) { this.mesh.rotation.x=-Math.PI/2; this.mesh.position.y=0; }
+      this.mesh.renderOrder = -1;
+      this.scene.add(this.mesh);
+    }
+    renderSlice(data) {
+      const ctx = this.cvs.getContext('2d');
+      const img = ctx.createImageData(this.cvs.width, this.cvs.height);
+      const px  = img.data;
+      const n   = data.length / 4;
+      for (let i=0; i<n; i++) {
+        const ux=data[i*4+1], uy=data[i*4+2], uz=data[i*4+3];
+        const t = Math.min(Math.sqrt(ux*ux+uy*uy+uz*uz)/0.3, 1.0);
+        let r,g,b;
+        if      (t<0.25) { const f=t/0.25;        r=0;     g=f*255;   b=255; }
+        else if (t<0.50) { const f=(t-0.25)/0.25; r=0;     g=255;     b=(1-f)*255; }
+        else if (t<0.75) { const f=(t-0.50)/0.25; r=f*255; g=255;     b=0; }
+        else             { const f=(t-0.75)/0.25; r=255;   g=(1-f)*255; b=0; }
+        const j=i*4; px[j]=r|0; px[j+1]=g|0; px[j+2]=b|0; px[j+3]=200;
+      }
+      ctx.putImageData(img,0,0);
+      this.tex.needsUpdate=true;
+    }
+    setSliceType(type) {
+      if (type===this.sliceType) return;
+      this.sliceType=type; this.scene.remove(this.mesh); this._init();
+    }
+  }
+
+  class ParticleCloud {
+    constructor(scene, count=3000) {
+      this.scene=scene; this.count=count;
+      this.data=new Float32Array(count*3);
+      this._init();
+    }
+    _init() {
+      for (let i=0;i<this.count;i++) {
+        this.data[i*3+0]=Math.random()*4-2;
+        this.data[i*3+1]=Math.random()*2-1;
+        this.data[i*3+2]=Math.random()*4-3;
+      }
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(this.data,3));
+      const mat=new THREE.PointsMaterial({ size:0.025, sizeAttenuation:true, transparent:true, opacity:0.7, color:0x00ff88 });
+      this.pts=new THREE.Points(geo,mat);
+      this.scene.add(this.pts);
+    }
+    update(macroVars, W, H, D, dt=0.01) {
+      const scx=4/W, scy=2/H, scz=4/D, ox=-2, oy=-1, oz=-3;
+      for (let i=0;i<this.count;i++) {
+        const x=this.data[i*3+0], y=this.data[i*3+1], z=this.data[i*3+2];
+        const gx=Math.floor((x-ox)/scx), gy=Math.floor((y-oy)/scy), gz=Math.floor((z-oz)/scz);
+        if (gx<0||gx>=W||gy<0||gy>=H||gz<0||gz>=D) {
+          this.data[i*3+0]=-2; this.data[i*3+1]=Math.random()*2-1; this.data[i*3+2]=-2.9+Math.random()*0.2;
+          continue;
+        }
+        const idx=(gx+gy*W+gz*W*H)*4;
+        if (idx+3>=macroVars.length) continue;
+        this.data[i*3+0]+=macroVars[idx+1]*scx*dt*12;
+        this.data[i*3+1]+=macroVars[idx+2]*scy*dt*12;
+        this.data[i*3+2]+=macroVars[idx+3]*scz*dt*12;
+      }
+      this.pts.geometry.attributes.position.needsUpdate=true;
+    }
+  }
+
+  /* =====================================================================
+   * Main — Application entry point
+   * ===================================================================== */
+  const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 0;
+  const GW = isMobile ? 128 : 256;
+  const GH = isMobile ?  64 : 128;
+  const GD = isMobile ?  32 :  64;
+
+  let lbm, scene, camera, renderer, carGroup, vizSlice, particles, controls;
+  let frameCount=0, lastFpsTime=0, fps=0;
+  const state = { windSpeed:0.1, tau:0.8, cSmag:0.1, spoilerAngle:15, sliceType:'xz' };
+
+  async function init() {
+    document.getElementById('grid-info').textContent = `${GW}×${GH}×${GD}`;
+
+    const gpuCanvas   = document.getElementById('gpu-canvas');
+    const threeCanvas = document.getElementById('three-canvas');
+
+    try {
+      lbm = new LBM3D(gpuCanvas, GW, GH, GD);
+      await lbm.ready;
+    } catch(e) {
+      console.error(e);
+      document.getElementById('webgpu-error').style.display = 'block';
+      return;
+    }
+
+    // Three.js scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000a1a);
+    scene.fog = new THREE.Fog(0x000a1a, 20, 80);
+
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(3, 2, 4);
+    camera.lookAt(0, 0, -0.5);
+
+    renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, antialias: !isMobile, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const dl = new THREE.DirectionalLight(0xffffff, 1.2);
+    dl.position.set(5, 10, 5);
+    scene.add(dl);
+
+    const grid = new THREE.GridHelper(10, 20, 0x222244, 0x111133);
+    grid.position.y = -1;
+    scene.add(grid);
+
+    carGroup = CarUtils.buildF1Car();
+    scene.add(carGroup);
+
+    vizSlice  = new VizSlice(scene, GW, GH, GD);
+    particles = new ParticleCloud(scene, isMobile ? 1000 : 3000);
+
+    // OrbitControls on gpuCanvas (the event-receiving bottom layer)
+    controls = new THREE.OrbitControls(camera, gpuCanvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, -0.5);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Set LBM boundary + params
+    const boundary = CarUtils.buildBoundary3D(GW, GH, GD, state.spoilerAngle);
+    lbm.setBoundaryData(boundary);
+    lbm.setParameters(state.windSpeed, state.tau, state.cSmag);
+
+    // Wire up UI controls
+    document.getElementById('wind-speed').addEventListener('input', e => {
+      state.windSpeed = parseFloat(e.target.value);
+      document.getElementById('wind-val').textContent = state.windSpeed.toFixed(3);
+      lbm.setParameters(state.windSpeed, state.tau, state.cSmag);
+    });
+    document.getElementById('tau').addEventListener('input', e => {
+      state.tau = parseFloat(e.target.value);
+      document.getElementById('tau-val').textContent = state.tau.toFixed(2);
+      lbm.setParameters(state.windSpeed, state.tau, state.cSmag);
+    });
+    document.getElementById('spoiler').addEventListener('input', e => {
+      state.spoilerAngle = parseInt(e.target.value);
+      document.getElementById('spoiler-val').textContent = state.spoilerAngle + '°';
+      lbm.setBoundaryData(CarUtils.buildBoundary3D(GW, GH, GD, state.spoilerAngle));
+      CarUtils.updateSpoilerAngle(carGroup, state.spoilerAngle);
+    });
+    document.getElementById('slice-plane').addEventListener('change', e => {
+      state.sliceType = e.target.value;
+      vizSlice.setSliceType(state.sliceType);
+    });
+
+    animate();
+  }
+
+  const SUBSTEPS = isMobile ? 5 : 10;
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    for (let i = 0; i < SUBSTEPS; i++) lbm.step();
+
+    if (frameCount % 5 === 0) {
+      lbm.readSlice(state.sliceType).then(d => vizSlice.renderSlice(d));
+      lbm.readMacroVars().then(d => particles.update(d, GW, GH, GD, 0.01));
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+
+    frameCount++;
+    const now = performance.now();
+    if (now - lastFpsTime >= 1000) { fps = frameCount; frameCount = 0; lastFpsTime = now; }
+    if (frameCount % 10 === 0) {
+      document.getElementById('fps').textContent = fps;
+      const nu = (state.tau - 0.5) / 3.0;
+      document.getElementById('reynolds').textContent = ((state.windSpeed * 50) / (nu + 0.001)).toFixed(0);
+      document.getElementById('compute-time').textContent = lbm.getLastStepTime().toFixed(2);
+    }
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', init);
+  else
+    init().catch(console.error);
+  </script>
+</body>
+</html>
