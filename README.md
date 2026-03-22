@@ -16,3 +16,8 @@ Open `index.html` directly in a modern browser.
 ## Product lock
 
 See `PRODUCT_LOCK.md` for the locked product goals, quality gates, and readiness checklist.
+
+
+## Reference board
+
+See `REFERENCE_BOARD.md` for the ongoing real-world design references guiding future refinement passes.

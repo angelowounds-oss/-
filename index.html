@@ -541,6 +541,10 @@
         staticTriangles.push(...capsuleMesh(vec(0, 232, 66), vec(1, 0, 0), 34, 118, 22, 6, colors.alloyDark, 0.96, 0.28));
         staticTriangles.push(...boxMesh(vec(0, 218, 16), vec(126, 58, 196), colors.block2, 0.95, 0.22));
         staticTriangles.push(...capsuleMesh(vec(0, 250, 16), vec(0, 1, 0), 24, 16, 18, 5, colors.accent, 0.96, 0.25));
+        staticTriangles.push(...cylinderMesh(vec(-54, 212, -50), vec(-0.68, -0.2, -0.18), 13, 102, 16, colors.alloyDark, 0.96, true, 0.22));
+        staticTriangles.push(...cylinderMesh(vec(54, 212, -50), vec(0.68, -0.2, -0.18), 13, 102, 16, colors.alloyDark, 0.96, true, 0.22));
+        staticTriangles.push(...cylinderMesh(vec(-54, 212, 82), vec(-0.68, -0.2, 0.12), 13, 108, 16, colors.alloyDark, 0.96, true, 0.22));
+        staticTriangles.push(...cylinderMesh(vec(54, 212, 82), vec(0.68, -0.2, 0.12), 13, 108, 16, colors.alloyDark, 0.96, true, 0.22));
 
         staticTriangles.push(...capsuleMesh(vec(0, 10, engine.shellLength * 0.5 + 30), vec(0,0,1), 60, 34, 24, 6, colors.alloyDark, 0.95, 0.24));
         staticTriangles.push(...capsuleMesh(vec(0, 16, -engine.shellLength * 0.5 - 24), vec(0,0,1), 50, 22, 18, 5, colors.alloyDark, 0.95, 0.24));
@@ -675,18 +679,35 @@
         ctx.globalAlpha = 1;
       }
 
-      function drawGlow() {
-        const intensity = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
-        const anchor = project(vec(0, 186, 0));
-        const radius = 96 + intensity * 74;
-        const glow = ctx.createRadialGradient(anchor.x, anchor.y, 0, anchor.x, anchor.y, radius);
-        glow.addColorStop(0, `rgba(255,107,44,${0.1 + intensity * 0.14})`);
-        glow.addColorStop(0.55, `rgba(139,215,255,${0.05 + intensity * 0.10})`);
+      function glowAt(anchor3d, radius, inner, outer) {
+        const p = project(anchor3d);
+        const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+        glow.addColorStop(0, inner);
+        glow.addColorStop(0.55, outer);
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(anchor.x, anchor.y, radius, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      function drawGlow() {
+        const intensity = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        glowAt(vec(0, 186, 0), 96 + intensity * 74, `rgba(255,107,44,${0.1 + intensity * 0.14})`, `rgba(139,215,255,${0.05 + intensity * 0.10})`);
+      }
+
+      function drawIgnitionPulse() {
+        const t = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        if (t < 0.08) return;
+        for (const cyl of cylinders) {
+          const phase = (state.engineAngle + cyl.phase) % (Math.PI * 2);
+          const pulse = Math.exp(-Math.pow(Math.min(phase, Math.PI * 2 - phase) / 0.34, 2));
+          if (pulse < 0.1) continue;
+          const axis = norm(vec(cyl.bank * Math.cos(engine.bankHalfAngle), Math.sin(engine.bankHalfAngle), 0));
+          const anchor = add(vec(cyl.bank * 148, 132, cyl.z), mul(axis, 22));
+          const alpha = 0.08 + pulse * (0.14 + t * 0.24);
+          glowAt(anchor, 22 + pulse * 20, `rgba(255,107,44,${alpha})`, `rgba(255,209,102,${alpha * 0.7})`);
+        }
       }
 
       function drawCallout(anchor3d, title, side = 'right', tint = 'rgba(255,255,255,0.82)') {
@@ -755,6 +776,7 @@
         drawGlow();
         const tris = buildFrameTriangles();
         renderTriangles(tris);
+        drawIgnitionPulse();
         drawLabels();
       }
 
