@@ -784,6 +784,94 @@
         ctx.restore();
       }
 
+      function drawGauge() {
+        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const cx = state.width - Math.min(104, state.width * 0.16);
+        const cy = state.height - Math.min(116, state.height * 0.15);
+        const radius = Math.min(64, Math.min(state.width, state.height) * 0.105);
+        const start = Math.PI * 0.86;
+        const end = Math.PI * 2.14;
+        const current = mix(start, end, rpmT);
+
+        ctx.save();
+        ctx.lineCap = 'round';
+
+        const plate = ctx.createRadialGradient(cx - radius * 0.28, cy - radius * 0.38, radius * 0.12, cx, cy, radius * 1.28);
+        plate.addColorStop(0, 'rgba(255,255,255,0.18)');
+        plate.addColorStop(0.3, 'rgba(18,24,34,0.94)');
+        plate.addColorStop(1, 'rgba(4,6,10,0.84)');
+        ctx.fillStyle = plate;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 1.08, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = radius * 0.18;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, start, end);
+        ctx.stroke();
+
+        const ring = ctx.createConicGradient(current - Math.PI * 0.5, cx, cy);
+        ring.addColorStop(0, 'rgba(139,215,255,0.95)');
+        ring.addColorStop(0.45, 'rgba(255,209,102,0.98)');
+        ring.addColorStop(0.82, 'rgba(255,107,44,0.98)');
+        ring.addColorStop(1, 'rgba(255,107,44,0.45)');
+        ctx.strokeStyle = ring;
+        ctx.lineWidth = radius * 0.18;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, start, current);
+        ctx.stroke();
+
+        for (let i = 0; i <= 6; i++) {
+          const t = i / 6;
+          const a = mix(start, end, t);
+          const inner = radius * 0.72;
+          const outer = radius * (t >= 5 / 6 ? 1.06 : 0.98);
+          const alpha = t >= 5 / 6 ? 0.92 : 0.52;
+          ctx.strokeStyle = t >= 5 / 6 ? 'rgba(255,107,44,0.95)' : `rgba(255,255,255,${alpha})`;
+          ctx.lineWidth = t % 3 === 0 ? 2.6 : 1.6;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+          ctx.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
+          ctx.stroke();
+        }
+
+        const needleGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.15);
+        needleGlow.addColorStop(0, `rgba(255,107,44,${0.12 + rpmT * 0.16})`);
+        needleGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = needleGlow;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(current);
+        ctx.fillStyle = 'rgba(255,245,236,0.96)';
+        ctx.beginPath();
+        ctx.moveTo(-5, -5);
+        ctx.lineTo(radius * 0.82, 0);
+        ctx.lineTo(-5, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.11, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(239,244,250,0.92)';
+        ctx.font = `700 ${Math.round(radius * 0.28)}px Inter, system-ui, sans-serif`;
+        ctx.fillText(`${Math.round(state.rpmCurrent / 100) / 10}k`, cx, cy + radius * 0.36);
+        ctx.font = `600 ${Math.round(radius * 0.16)}px Inter, system-ui, sans-serif`;
+        ctx.fillStyle = 'rgba(139,215,255,0.82)';
+        ctx.fillText('RPM', cx, cy + radius * 0.58);
+        ctx.restore();
+      }
+
       function resetCamera() {
         state.yaw = cameraHome.yaw;
         state.pitch = cameraHome.pitch;
