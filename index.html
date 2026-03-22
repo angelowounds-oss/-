@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>V8 Motion Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-0: #03050a;
+      --bg-1: #0b1018;
+      --panel: rgba(11, 15, 24, 0.72);
+      --panel-border: rgba(255,255,255,0.08);
+      --text: #eff4fa;
+      --muted: rgba(239,244,250,0.66);
+      --accent: #ff6b2c;
+      --accent-2: #ffd166;
+      --accent-3: #8bd7ff;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(255,255,255,0.08), transparent 22%),
+        radial-gradient(circle at 50% 120%, rgba(139, 215, 255, 0.10), transparent 36%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-0) 70%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      touch-action: none;
+    }
+
+    #app { position: relative; width: 100%; height: 100%; }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    .hud {
+      position: absolute;
+      inset: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) 0;
+      padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .card {
+      pointer-events: auto;
+      background: linear-gradient(180deg, rgba(17, 24, 35, 0.82), rgba(8, 12, 19, 0.72));
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .title-card {
+      max-width: min(75vw, 380px);
+      padding: 16px 18px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-3);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 6vw, 36px);
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .stats-card {
+      min-width: 132px;
+      padding: 14px 16px;
+      text-align: right;
+    }
+
+    .label {
+      margin: 0;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .value {
+      margin: 7px 0 0;
+      font-size: clamp(24px, 6vw, 40px);
+      line-height: 1;
+      font-weight: 750;
+      letter-spacing: -0.05em;
+    }
+
+    .band {
+      margin: 8px 0 0;
+      color: var(--accent-2);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .bottom {
+      display: grid;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .hints {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      padding: 0 2px;
+    }
+
+    .controls {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .controls-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .mode {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .range-wrap { display: grid; gap: 10px; }
+
+    input[type="range"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+      margin: 0;
+      touch-action: pan-y;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 14px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(139,215,255,0.8), rgba(255,107,44,0.84) 68%, rgba(255,209,102,0.94));
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.16), inset 0 -1px 2px rgba(0,0,0,0.45);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 30px;
+      height: 30px;
+      margin-top: -8px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.84);
+      background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.98), rgba(255,255,255,0.25) 42%, rgba(255,107,44,0.98));
+      box-shadow: 0 8px 24px rgba(255,107,44,0.34), 0 2px 4px rgba(0,0,0,0.42);
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 14px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(139,215,255,0.8), rgba(255,107,44,0.84) 68%, rgba(255,209,102,0.94));
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.84);
+      background: rgba(255,107,44,0.98);
+    }
+
+    .scale {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    @media (min-width: 768px) {
+      .hud { padding: 24px; }
+      .bottom { max-width: 680px; }
+      .controls { padding: 18px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="viewport" aria-label="3D V8 engine interactive viewport"></canvas>
+    <div class="hud">
+      <div class="row">
+        <section class="card title-card">
+          <p class="eyebrow">Single-file • Mobile-first • High fidelity</p>
+          <h1>V8 Motion Lab</h1>
+          <p class="subtitle">현대적 퍼포먼스 V8 엔진의 외형과 내부 메커니즘을 함께 보여주는 컷어웨이 인터랙티브입니다.</p>
+        </section>
+        <section class="card stats-card">
+          <p class="label">Engine speed</p>
+          <p class="value"><span id="rpmValue">900</span> RPM</p>
+          <p class="band" id="rpmBand">Idle</p>
+        </section>
+      </div>
+
+      <div class="bottom">
+        <div class="hints">
+          <span>Swipe to orbit the engine</span>
+          <span>Slide to change revs</span>
+        </div>
+        <section class="card controls">
+          <div class="controls-head">
+            <p class="label">RPM Control</p>
+            <p class="mode">Modern flat-plane performance V8</p>
+          </div>
+          <div class="range-wrap">
+            <input id="rpmSlider" type="range" min="700" max="8500" step="10" value="900" aria-label="RPM control" />
+            <div class="scale">
+              <span>700</span>
+              <span>3000</span>
+              <span>5500</span>
+              <span>8500</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('viewport');
+      const ctx = canvas.getContext('2d', { alpha: true });
+      const slider = document.getElementById('rpmSlider');
+      const rpmValue = document.getElementById('rpmValue');
+      const rpmBand = document.getElementById('rpmBand');
+
+      const DPR_CAP = 2;
+      const state = {
+        width: 0,
+        height: 0,
+        dpr: 1,
+        lastTime: performance.now(),
+        yaw: -0.74,
+        pitch: -0.21,
+        distance: 1080,
+        rpmCurrent: 900,
+        rpmTarget: 900,
+        engineAngle: 0,
+        dragging: false,
+        lastX: 0,
+        lastY: 0,
+        yawVelocity: 0,
+        pitchVelocity: 0,
+      };
+
+      const engine = {
+        bankHalfAngle: Math.PI / 4,
+        crankRadius: 56,
+        rodLength: 176,
+        boreSpacing: 96,
+        pistonRadius: 27,
+        pistonHeight: 44,
+        shellLength: 470,
+        shellWidth: 334,
+        shellHeight: 210,
+        bankX: 122,
+        headY: 178,
+      };
+
+      const colors = {
+        dark: '#11161e',
+        block: '#59626d',
+        block2: '#7b8591',
+        alloy: '#c9d1db',
+        alloyDark: '#7d8793',
+        cover: '#171b22',
+        accent: '#ff6b2c',
+        steel: '#eef4fb',
+        brass: '#c69552',
+        blue: '#8bd7ff',
+        glass: 'rgba(188, 208, 228, 0.10)',
+      };
+
+      const cylinders = Array.from({ length: 8 }, (_, i) => {
+        const bank = i < 4 ? -1 : 1;
+        const row = i % 4;
+        return {
+          bank,
+          row,
+          z: -engine.shellLength * 0.34 + row * engine.boreSpacing,
+          phase: [0, Math.PI, Math.PI / 2, 3 * Math.PI / 2][row] + (bank > 0 ? Math.PI : 0),
+        };
+      });
+
+      const staticTriangles = [];
+      const lightDir = norm([0.44, -0.68, 0.58]);
+
+      function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+      function mix(a, b, t) { return a + (b - a) * t; }
+      function vec(x, y, z) { return [x, y, z]; }
+      function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+      function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+      function mul(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+      function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+      function cross(a, b) { return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+      function len(v) { return Math.hypot(v[0], v[1], v[2]); }
+      function norm(v) { const l = len(v) || 1; return [v[0]/l, v[1]/l, v[2]/l]; }
+
+      function rotX(v, a) {
+        const c = Math.cos(a), s = Math.sin(a);
+        return [v[0], v[1] * c - v[2] * s, v[1] * s + v[2] * c];
+      }
+      function rotY(v, a) {
+        const c = Math.cos(a), s = Math.sin(a);
+        return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c];
+      }
+      function rotZ(v, a) {
+        const c = Math.cos(a), s = Math.sin(a);
+        return [v[0] * c - v[1] * s, v[0] * s + v[1] * c, v[2]];
+      }
+
+      function cameraTransform(v) {
+        return rotX(rotY(v, state.yaw), state.pitch);
+      }
+
+      function project(v) {
+        const p = cameraTransform(v);
+        const depth = p[2] + state.distance;
+        const z = Math.max(160, depth);
+        const scale = 1080 / z;
+        return {
+          x: state.width * 0.5 + p[0] * scale,
+          y: state.height * 0.5 + p[1] * scale,
+          z,
+          scale,
+          cam: p,
+        };
+      }
+
+      function shade(hex, amount) {
+        const n = parseInt(hex.replace('#', ''), 16);
+        const r = clamp(((n >> 16) & 255) + amount, 0, 255);
+        const g = clamp(((n >> 8) & 255) + amount, 0, 255);
+        const b = clamp((n & 255) + amount, 0, 255);
+        return `rgb(${r|0}, ${g|0}, ${b|0})`;
+      }
+
+      function tri(a, b, c, color, alpha = 1, glossy = 0.18) {
+        return { a, b, c, color, alpha, glossy };
+      }
+
+      function pushMesh(target, triangles, transform) {
+        for (const t of triangles) {
+          target.push(tri(transform(t.a), transform(t.b), transform(t.c), t.color, t.alpha, t.glossy));
+        }
+      }
+
+      function boxMesh(center, size, color, alpha = 1, glossy = 0.15) {
+        const [cx, cy, cz] = center;
+        const [sx, sy, sz] = size;
+        const x = sx / 2, y = sy / 2, z = sz / 2;
+        const p = [
+          vec(cx - x, cy - y, cz - z), vec(cx + x, cy - y, cz - z), vec(cx + x, cy + y, cz - z), vec(cx - x, cy + y, cz - z),
+          vec(cx - x, cy - y, cz + z), vec(cx + x, cy - y, cz + z), vec(cx + x, cy + y, cz + z), vec(cx - x, cy + y, cz + z)
+        ];
+        const faces = [
+          [0,1,2,3], [4,5,6,7], [0,1,5,4], [3,2,6,7], [1,2,6,5], [0,3,7,4]
+        ];
+        const tris = [];
+        for (const [a,b,c,d] of faces) {
+          tris.push(tri(p[a], p[b], p[c], color, alpha, glossy));
+          tris.push(tri(p[a], p[c], p[d], color, alpha, glossy));
+        }
+        return tris;
+      }
+
+      function cylinderMesh(center, axis, radius, lengthValue, radialSegments, color, alpha = 1, caps = true, glossy = 0.22) {
+        const dir = norm(axis);
+        const ref = Math.abs(dir[1]) > 0.85 ? vec(1,0,0) : vec(0,1,0);
+        const u = norm(cross(dir, ref));
+        const v = norm(cross(dir, u));
+        const half = lengthValue / 2;
+        const start = add(center, mul(dir, -half));
+        const end = add(center, mul(dir, half));
+        const ringsStart = [];
+        const ringsEnd = [];
+        for (let i = 0; i < radialSegments; i++) {
+          const a = (i / radialSegments) * Math.PI * 2;
+          const rim = add(mul(u, Math.cos(a) * radius), mul(v, Math.sin(a) * radius));
+          ringsStart.push(add(start, rim));
+          ringsEnd.push(add(end, rim));
+        }
+        const tris = [];
+        for (let i = 0; i < radialSegments; i++) {
+          const n = (i + 1) % radialSegments;
+          tris.push(tri(ringsStart[i], ringsStart[n], ringsEnd[n], color, alpha, glossy));
+          tris.push(tri(ringsStart[i], ringsEnd[n], ringsEnd[i], color, alpha, glossy));
+          if (caps) {
+            tris.push(tri(start, ringsStart[n], ringsStart[i], color, alpha, glossy * 0.7));
+            tris.push(tri(end, ringsEnd[i], ringsEnd[n], color, alpha, glossy * 0.7));
+          }
+        }
+        return tris;
+      }
+
+      function latheMesh(profile, radialSegments, transform, color, alpha = 1, glossy = 0.2) {
+        const tris = [];
+        for (let i = 0; i < radialSegments; i++) {
+          const a0 = (i / radialSegments) * Math.PI * 2;
+          const a1 = ((i + 1) / radialSegments) * Math.PI * 2;
+          for (let j = 0; j < profile.length - 1; j++) {
+            const [r0, z0] = profile[j];
+            const [r1, z1] = profile[j + 1];
+            const p00 = transform(vec(Math.cos(a0) * r0, Math.sin(a0) * r0, z0));
+            const p10 = transform(vec(Math.cos(a1) * r0, Math.sin(a1) * r0, z0));
+            const p01 = transform(vec(Math.cos(a0) * r1, Math.sin(a0) * r1, z1));
+            const p11 = transform(vec(Math.cos(a1) * r1, Math.sin(a1) * r1, z1));
+            tris.push(tri(p00, p10, p11, color, alpha, glossy));
+            tris.push(tri(p00, p11, p01, color, alpha, glossy));
+          }
+        }
+        return tris;
+      }
+
+      function capsuleMesh(center, axis, radius, bodyLength, radialSegments, capSteps, color, alpha = 1, glossy = 0.24) {
+        const profile = [];
+        for (let i = 0; i <= capSteps; i++) {
+          const t = i / capSteps;
+          const ang = -Math.PI / 2 + t * Math.PI / 2;
+          profile.push([Math.cos(ang) * radius, -bodyLength / 2 + Math.sin(ang) * radius]);
+        }
+        profile.push([radius, bodyLength / 2]);
+        for (let i = 1; i <= capSteps; i++) {
+          const t = i / capSteps;
+          const ang = t * Math.PI / 2;
+          profile.push([Math.cos(ang) * radius, bodyLength / 2 + Math.sin(ang) * radius]);
+        }
+        const dir = norm(axis);
+        const ref = Math.abs(dir[1]) > 0.85 ? vec(1,0,0) : vec(0,1,0);
+        const u = norm(cross(dir, ref));
+        const v = norm(cross(dir, u));
+        return latheMesh(profile, radialSegments, (p) => add(center, add(add(mul(u, p[0]), mul(v, p[1])), mul(dir, p[2]))), color, alpha, glossy);
+      }
+
+      function roundedPlate(center, w, h, t, radius, color, alpha = 1) {
+        const tris = [];
+        const bodyW = w - radius * 2;
+        const bodyH = h - radius * 2;
+        tris.push(...boxMesh(center, vec(bodyW, t, h), color, alpha));
+        tris.push(...boxMesh(center, vec(w, t, bodyH), color, alpha));
+        const corners = [
+          vec(center[0] - bodyW / 2, center[1], center[2] - bodyH / 2),
+          vec(center[0] + bodyW / 2, center[1], center[2] - bodyH / 2),
+          vec(center[0] + bodyW / 2, center[1], center[2] + bodyH / 2),
+          vec(center[0] - bodyW / 2, center[1], center[2] + bodyH / 2),
+        ];
+        for (const c of corners) tris.push(...cylinderMesh(c, vec(0,1,0), radius, t, 14, color, alpha));
+        return tris;
+      }
+
+      function buildStaticEngine() {
+        staticTriangles.length = 0;
+        staticTriangles.push(...boxMesh(vec(0, 24, 0), vec(engine.shellWidth, 186, engine.shellLength), colors.dark, 1, 0.14));
+        staticTriangles.push(...boxMesh(vec(0, -48, 0), vec(engine.shellWidth - 20, 48, engine.shellLength - 26), colors.block, 1, 0.12));
+        staticTriangles.push(...roundedPlate(vec(0, 90, 0), 250, 96, 54, 18, colors.block2, 0.92));
+
+        for (const sign of [-1, 1]) {
+          const bankX = sign * 116;
+          staticTriangles.push(...capsuleMesh(vec(bankX, 181, 0), vec(0, 0, 1), 42, engine.shellLength - 100, 22, 6, colors.cover, 1, 0.3));
+          staticTriangles.push(...capsuleMesh(vec(bankX, 150, 0), vec(0, 0, 1), 56, engine.shellLength - 76, 20, 5, colors.alloyDark, 0.92, 0.22));
+          staticTriangles.push(...cylinderMesh(vec(sign * 142, 126, -140), vec(1,0,0), 10, 40, 12, colors.accent, 0.7, true, 0.1));
+          staticTriangles.push(...cylinderMesh(vec(sign * 142, 126, -42), vec(1,0,0), 10, 40, 12, colors.accent, 0.7, true, 0.1));
+          staticTriangles.push(...cylinderMesh(vec(sign * 142, 126, 54), vec(1,0,0), 10, 40, 12, colors.accent, 0.7, true, 0.1));
+          staticTriangles.push(...cylinderMesh(vec(sign * 142, 126, 150), vec(1,0,0), 10, 40, 12, colors.accent, 0.7, true, 0.1));
+        }
+
+        staticTriangles.push(...capsuleMesh(vec(0, 232, -36), vec(1, 0, 0), 34, 118, 22, 6, colors.alloyDark, 0.96, 0.28));
+        staticTriangles.push(...capsuleMesh(vec(0, 232, 66), vec(1, 0, 0), 34, 118, 22, 6, colors.alloyDark, 0.96, 0.28));
+        staticTriangles.push(...boxMesh(vec(0, 218, 16), vec(126, 58, 196), colors.block2, 0.95, 0.22));
+        staticTriangles.push(...capsuleMesh(vec(0, 250, 16), vec(0, 1, 0), 24, 16, 18, 5, colors.accent, 0.96, 0.25));
+
+        staticTriangles.push(...capsuleMesh(vec(0, 10, engine.shellLength * 0.5 + 30), vec(0,0,1), 60, 34, 24, 6, colors.alloyDark, 0.95, 0.24));
+        staticTriangles.push(...capsuleMesh(vec(0, 16, -engine.shellLength * 0.5 - 24), vec(0,0,1), 50, 22, 18, 5, colors.alloyDark, 0.95, 0.24));
+
+        const cutawayShell = [];
+        for (const sign of [-1, 1]) {
+          const shellAlpha = sign < 0 ? 0.18 : 0.34;
+          cutawayShell.push(...capsuleMesh(vec(sign * 102, 136, 0), vec(sign * 0.72, 0.68, 0), 44, engine.shellLength - 92, 16, 4, colors.alloy, shellAlpha, 0.18));
+        }
+        staticTriangles.push(...cutawayShell);
+      }
+
+      function pistonAssembly(cyl) {
+        const axis = norm(vec(cyl.bank * Math.cos(engine.bankHalfAngle), Math.sin(engine.bankHalfAngle), 0));
+        const base = vec(cyl.bank * engine.bankX, 6, cyl.z);
+        const a = state.engineAngle + cyl.phase;
+        const crank = vec(Math.cos(a) * engine.crankRadius, Math.sin(a) * engine.crankRadius, cyl.z);
+        const radial = dot(sub(crank, base), axis);
+        const perp = sub(sub(crank, base), mul(axis, radial));
+        const perpLen = len(perp);
+        const slide = radial + Math.sqrt(Math.max(engine.rodLength * engine.rodLength - perpLen * perpLen, 0.0001));
+        const pin = add(base, mul(axis, slide));
+        const rodVec = sub(pin, crank);
+        const rodMid = mul(add(crank, pin), 0.5);
+        return { axis, base, crank, pin, rodVec, rodMid };
+      }
+
+      function cylinderShell(center, axis, lengthValue, radius, color, alpha) {
+        return cylinderMesh(center, axis, radius, lengthValue, 20, color, alpha, false, 0.14);
+      }
+
+      function drawGround(intensity) {
+        const y = state.height * 0.785;
+        const shadow = ctx.createRadialGradient(state.width * 0.5, y, 0, state.width * 0.5, y, state.width * 0.24);
+        shadow.addColorStop(0, `rgba(0,0,0,${0.36 + intensity * 0.12})`);
+        shadow.addColorStop(0.5, `rgba(0,0,0,${0.18 + intensity * 0.08})`);
+        shadow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = shadow;
+        ctx.beginPath();
+        ctx.ellipse(state.width * 0.5, y, state.width * 0.24, state.height * 0.06, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawBackground() {
+        ctx.clearRect(0, 0, state.width, state.height);
+        const bg = ctx.createLinearGradient(0, 0, 0, state.height);
+        bg.addColorStop(0, '#0d121b');
+        bg.addColorStop(0.55, '#070a11');
+        bg.addColorStop(1, '#030508');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, state.width, state.height);
+
+        const radial = ctx.createRadialGradient(state.width * 0.5, state.height * 0.42, 80, state.width * 0.5, state.height * 0.5, Math.max(state.width, state.height) * 0.75);
+        radial.addColorStop(0, 'rgba(139,215,255,0.08)');
+        radial.addColorStop(0.38, 'rgba(255,107,44,0.04)');
+        radial.addColorStop(1, 'rgba(0,0,0,0.6)');
+        ctx.fillStyle = radial;
+        ctx.fillRect(0, 0, state.width, state.height);
+      }
+
+      function buildFrameTriangles() {
+        const tris = [];
+        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const vibe = vec(
+          Math.sin(state.lastTime * 0.0047) * (1.1 + rpmT * 1.9),
+          Math.cos(state.lastTime * 0.0039) * (0.8 + rpmT * 1.3),
+          0
+        );
+
+        for (const t of staticTriangles) {
+          tris.push(tri(add(t.a, vibe), add(t.b, vibe), add(t.c, vibe), t.color, t.alpha, t.glossy));
+        }
+
+        tris.push(...boxMesh(add(vec(-34, 0, 0), vibe), vec(68, 24, engine.shellLength + 40), colors.brass, 1, 0.18));
+
+        for (const cyl of cylinders) {
+          const ps = pistonAssembly(cyl);
+          const shellCenter = add(add(ps.base, mul(ps.axis, 82)), vibe);
+          if (!(cyl.bank < 0 && cyl.row < 3)) {
+            tris.push(...cylinderShell(shellCenter, ps.axis, 124, engine.pistonRadius + 8, colors.alloy, cyl.bank < 0 ? 0.14 : 0.28));
+          }
+          tris.push(...cylinderMesh(add(ps.pin, vibe), ps.axis, engine.pistonRadius, engine.pistonHeight, 18, colors.steel, 1, true, 0.35));
+          tris.push(...cylinderMesh(add(ps.rodMid, vibe), ps.rodVec, 10.5, len(ps.rodVec), 16, colors.alloy, 1, true, 0.28));
+          tris.push(...cylinderMesh(add(ps.crank, vibe), vec(1,0,0), 11, 34, 14, colors.brass, 1, true, 0.16));
+          tris.push(...cylinderMesh(add(ps.pin, add(vibe, mul(ps.axis, 34))), vec(0, 0, 1), 8, 22, 12, colors.accent, 0.75, true, 0.12));
+        }
+
+        return tris;
+      }
+
+      function bandLabel(rpm) {
+        if (rpm < 1200) return 'Idle';
+        if (rpm < 3000) return 'Low range';
+        if (rpm < 5500) return 'Mid range';
+        return 'High rev';
+      }
+
+      function renderTriangles(tris) {
+        const drawList = [];
+        for (const t of tris) {
+          const pa = project(t.a), pb = project(t.b), pc = project(t.c);
+          const ab = sub(pb.cam, pa.cam);
+          const ac = sub(pc.cam, pa.cam);
+          const camNormal = cross(ab, ac);
+          if (camNormal[2] >= 0) continue;
+          const worldNormal = norm(cross(sub(t.b, t.a), sub(t.c, t.a)));
+          const lit = clamp(0.22 + Math.max(0, dot(worldNormal, lightDir)) * 0.88, 0.16, 1);
+          const spec = Math.pow(Math.max(0, dot(worldNormal, norm([0.22, -0.2, 1]))), 10) * 255 * t.glossy;
+          const shadeAmount = Math.round((lit - 0.5) * 110 + spec);
+          drawList.push({
+            pts: [pa, pb, pc],
+            z: (pa.z + pb.z + pc.z) / 3,
+            fill: t.color.startsWith('#') ? shade(t.color, shadeAmount) : t.color,
+            alpha: t.alpha,
+          });
+        }
+        drawList.sort((a, b) => b.z - a.z);
+        for (const item of drawList) {
+          ctx.globalAlpha = item.alpha;
+          ctx.beginPath();
+          ctx.moveTo(item.pts[0].x, item.pts[0].y);
+          ctx.lineTo(item.pts[1].x, item.pts[1].y);
+          ctx.lineTo(item.pts[2].x, item.pts[2].y);
+          ctx.closePath();
+          ctx.fillStyle = item.fill;
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+          ctx.lineWidth = 0.65;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawGlow() {
+        const intensity = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const anchor = project(vec(0, 186, 0));
+        const radius = 96 + intensity * 74;
+        const glow = ctx.createRadialGradient(anchor.x, anchor.y, 0, anchor.x, anchor.y, radius);
+        glow.addColorStop(0, `rgba(255,107,44,${0.1 + intensity * 0.14})`);
+        glow.addColorStop(0.55, `rgba(139,215,255,${0.05 + intensity * 0.10})`);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(anchor.x, anchor.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawLabels() {
+        const p1 = project(vec(0, 272, 16));
+        const p2 = project(vec(154, 168, 128));
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = '600 12px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.86)';
+        ctx.fillText('DOHC', p1.x, p1.y);
+        ctx.fillStyle = 'rgba(139,215,255,0.92)';
+        ctx.fillText('cutaway', p2.x, p2.y);
+        ctx.restore();
+      }
+
+      function update(dt) {
+        state.rpmTarget = +slider.value;
+        state.rpmCurrent = mix(state.rpmCurrent, state.rpmTarget, 1 - Math.exp(-dt * 5.6));
+        const omega = state.rpmCurrent * Math.PI * 2 / 60;
+        state.engineAngle = (state.engineAngle + omega * dt) % (Math.PI * 2);
+        rpmValue.textContent = Math.round(state.rpmCurrent);
+        rpmBand.textContent = bandLabel(state.rpmCurrent);
+
+        if (!state.dragging) {
+          state.yaw += state.yawVelocity * dt;
+          state.pitch += state.pitchVelocity * dt;
+          state.yawVelocity *= Math.exp(-dt * 5.4);
+          state.pitchVelocity *= Math.exp(-dt * 5.4);
+          state.yaw += dt * 0.05;
+        }
+
+        state.pitch = clamp(state.pitch, -0.72, 0.1);
+      }
+
+      function render() {
+        drawBackground();
+        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        drawGround(rpmT);
+        drawGlow();
+        const tris = buildFrameTriangles();
+        renderTriangles(tris);
+        drawLabels();
+      }
+
+      function frame(now) {
+        const dt = Math.min((now - state.lastTime) / 1000, 0.033);
+        state.lastTime = now;
+        update(dt);
+        render();
+        requestAnimationFrame(frame);
+      }
+
+      function resize() {
+        state.dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+        state.width = window.innerWidth;
+        state.height = window.innerHeight;
+        canvas.width = Math.round(state.width * state.dpr);
+        canvas.height = Math.round(state.height * state.dpr);
+        ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+      }
+
+      function pointerStart(x, y) {
+        state.dragging = true;
+        state.lastX = x;
+        state.lastY = y;
+        state.yawVelocity = 0;
+        state.pitchVelocity = 0;
+      }
+      function pointerMove(x, y) {
+        if (!state.dragging) return;
+        const dx = x - state.lastX;
+        const dy = y - state.lastY;
+        state.lastX = x;
+        state.lastY = y;
+        state.yaw += dx * 0.0058;
+        state.pitch += dy * 0.0034;
+        state.pitch = clamp(state.pitch, -0.72, 0.1);
+        state.yawVelocity = dx * 0.015;
+        state.pitchVelocity = dy * 0.009;
+      }
+      function pointerEnd() { state.dragging = false; }
+
+      canvas.addEventListener('pointerdown', (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        pointerStart(e.clientX, e.clientY);
+      });
+      canvas.addEventListener('pointermove', (e) => pointerMove(e.clientX, e.clientY));
+      canvas.addEventListener('pointerup', pointerEnd);
+      canvas.addEventListener('pointercancel', pointerEnd);
+      canvas.addEventListener('pointerleave', pointerEnd);
+      window.addEventListener('resize', resize, { passive: true });
+
+      buildStaticEngine();
+      resize();
+      requestAnimationFrame((t) => {
+        state.lastTime = t;
+        frame(t);
+      });
+    })();
+  </script>
+</body>
+</html>
