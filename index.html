@@ -720,6 +720,37 @@
         }
       }
 
+      function drawHeatBloom() {
+        const t = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        if (t < 0.14) return;
+        const center = project(vec(0, 224, 14));
+        const rx = 80 + t * 42;
+        const ry = 28 + t * 16;
+        const grad = ctx.createRadialGradient(center.x, center.y - 12, 0, center.x, center.y - 12, rx);
+        grad.addColorStop(0, `rgba(255,150,72,${0.04 + t * 0.08})`);
+        grad.addColorStop(0.42, `rgba(255,209,102,${0.03 + t * 0.05})`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(center.x, center.y - 12, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawExhaustPulse() {
+        const t = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        if (t < 0.1) return;
+        for (const cyl of cylinders) {
+          const phase = (state.engineAngle + cyl.phase + Math.PI * 0.25) % (Math.PI * 2);
+          const pulse = Math.exp(-Math.pow(Math.min(phase, Math.PI * 2 - phase) / 0.4, 2));
+          if (pulse < 0.08) continue;
+          const x = cyl.bank * 212;
+          const y = 54 + cyl.row * -6;
+          const z = cyl.z + (cyl.row - 1.5) * 8;
+          const alpha = 0.04 + pulse * (0.10 + t * 0.18);
+          glowAt(vec(x, y, z), 16 + pulse * 22, `rgba(255,120,32,${alpha})`, `rgba(255,209,102,${alpha * 0.7})`);
+        }
+      }
+
       function drawCallout(anchor3d, title, side = 'right', tint = 'rgba(255,255,255,0.82)') {
         const p = project(anchor3d);
         const dir = side === 'right' ? 1 : -1;
@@ -787,10 +818,13 @@
         const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
         drawGround(rpmT);
         drawGlow();
+        drawHeatBloom();
         const tris = buildFrameTriangles();
         renderTriangles(tris);
         drawIgnitionPulse();
+        drawExhaustPulse();
         drawLabels();
+        drawGauge();
       }
 
       function frame(now) {
