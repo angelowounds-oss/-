@@ -288,6 +288,7 @@
       const slider = document.getElementById('rpmSlider');
       const rpmValue = document.getElementById('rpmValue');
       const rpmBand = document.getElementById('rpmBand');
+      const app = document.getElementById('app');
 
       const DPR_CAP = 2;
       const state = {
@@ -545,6 +546,9 @@
         staticTriangles.push(...cylinderMesh(vec(54, 212, -50), vec(0.68, -0.2, -0.18), 13, 102, 16, colors.alloyDark, 0.96, true, 0.22));
         staticTriangles.push(...cylinderMesh(vec(-54, 212, 82), vec(-0.68, -0.2, 0.12), 13, 108, 16, colors.alloyDark, 0.96, true, 0.22));
         staticTriangles.push(...cylinderMesh(vec(54, 212, 82), vec(0.68, -0.2, 0.12), 13, 108, 16, colors.alloyDark, 0.96, true, 0.22));
+        staticTriangles.push(...boxMesh(vec(0, 190, 14), vec(34, 40, 212), colors.cover, 0.92, 0.2));
+        staticTriangles.push(...cylinderMesh(vec(-112, 118, 6), vec(0, 0, 1), 6, 328, 12, colors.accent, 0.82, true, 0.1));
+        staticTriangles.push(...cylinderMesh(vec(112, 118, 6), vec(0, 0, 1), 6, 328, 12, colors.accent, 0.82, true, 0.1));
 
         staticTriangles.push(...capsuleMesh(vec(0, 10, engine.shellLength * 0.5 + 30), vec(0,0,1), 60, 34, 24, 6, colors.alloyDark, 0.95, 0.24));
         staticTriangles.push(...capsuleMesh(vec(0, 16, -engine.shellLength * 0.5 - 24), vec(0,0,1), 50, 22, 18, 5, colors.alloyDark, 0.95, 0.24));
@@ -652,14 +656,20 @@
           const camNormal = cross(ab, ac);
           if (camNormal[2] >= 0) continue;
           const worldNormal = norm(cross(sub(t.b, t.a), sub(t.c, t.a)));
-          const lit = clamp(0.22 + Math.max(0, dot(worldNormal, lightDir)) * 0.88, 0.16, 1);
-          const spec = Math.pow(Math.max(0, dot(worldNormal, norm([0.22, -0.2, 1]))), 10) * 255 * t.glossy;
-          const shadeAmount = Math.round((lit - 0.5) * 110 + spec);
+          const key = Math.max(0, dot(worldNormal, lightDir));
+          const fill = Math.max(0, dot(worldNormal, norm([-0.18, -0.12, 0.92])));
+          const rim = Math.pow(1 - Math.max(0, Math.abs(dot(worldNormal, norm([0, 0, 1])))), 2.3);
+          const lit = clamp(0.18 + key * 0.72 + fill * 0.18 + rim * 0.22, 0.16, 1.12);
+          const spec = Math.pow(Math.max(0, dot(worldNormal, norm([0.22, -0.2, 1]))), 12) * 255 * t.glossy;
+          const depth = (pa.z + pb.z + pc.z) / 3;
+          const fog = clamp((depth - 760) / 860, 0, 0.22);
+          const shadeAmount = Math.round((lit - 0.5) * 110 + spec - fog * 70);
           drawList.push({
             pts: [pa, pb, pc],
-            z: (pa.z + pb.z + pc.z) / 3,
+            z: depth,
             fill: t.color.startsWith('#') ? shade(t.color, shadeAmount) : t.color,
-            alpha: t.alpha,
+            alpha: t.alpha * (1 - fog * 0.55),
+            edgeAlpha: t.alpha < 0.4 ? 0.18 : 0.05,
           });
         }
         drawList.sort((a, b) => b.z - a.z);
@@ -672,8 +682,8 @@
           ctx.closePath();
           ctx.fillStyle = item.fill;
           ctx.fill();
-          ctx.strokeStyle = 'rgba(255,255,255,0.045)';
-          ctx.lineWidth = 0.65;
+          ctx.strokeStyle = `rgba(255,255,255,${item.edgeAlpha})`;
+          ctx.lineWidth = item.edgeAlpha > 0.1 ? 0.95 : 0.65;
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
@@ -756,7 +766,10 @@
         const omega = state.rpmCurrent * Math.PI * 2 / 60;
         state.engineAngle = (state.engineAngle + omega * dt) % (Math.PI * 2);
         rpmValue.textContent = Math.round(state.rpmCurrent);
-        rpmBand.textContent = bandLabel(state.rpmCurrent);
+        const band = bandLabel(state.rpmCurrent);
+        rpmBand.textContent = band;
+        rpmBand.style.color = state.rpmCurrent > 5500 ? 'rgba(255,107,44,0.96)' : state.rpmCurrent > 3000 ? 'rgba(255,209,102,0.96)' : 'rgba(139,215,255,0.9)';
+        app.style.filter = state.rpmCurrent > 6500 ? 'saturate(1.08) contrast(1.02)' : 'none';
 
         if (!state.dragging) {
           state.yaw += state.yawVelocity * dt;
