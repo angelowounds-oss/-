@@ -51,6 +51,7 @@
       justify-content: space-between;
       gap: 12px;
       align-items: flex-start;
+      flex-wrap: wrap;
     }
 
     .card {
@@ -117,6 +118,46 @@
       text-align: right;
     }
 
+    .status-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      border-radius: 999px;
+      align-self: flex-start;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(255,107,44,0.92) 58%, rgba(255,107,44,0.2));
+      box-shadow: 0 0 18px rgba(255,107,44,0.48);
+      flex: 0 0 auto;
+    }
+
+    .status-copy {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .status-title {
+      margin: 0;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-value {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      white-space: nowrap;
+    }
+
     .label {
       margin: 0;
       font-size: 11px;
@@ -161,6 +202,35 @@
       padding: 16px;
       display: grid;
       gap: 14px;
+    }
+
+    .controls-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .scene-note {
+      margin: 0;
+      color: rgba(255,255,255,0.86);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .reset-btn {
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      color: rgba(255,255,255,0.92);
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      font: 600 12px/1 Inter, system-ui, sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
     }
 
     .controls-head {
@@ -233,6 +303,44 @@
       .bottom { max-width: 680px; }
       .controls { padding: 18px 20px; }
     }
+
+    @media (max-width: 640px) {
+      .hud {
+        padding: 14px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+        gap: 12px;
+      }
+
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .title-card,
+      .stats-card {
+        max-width: none;
+        width: 100%;
+      }
+
+      .stats-card {
+        text-align: left;
+      }
+
+      .status-card {
+        width: fit-content;
+        max-width: 100%;
+      }
+
+      .hints,
+      .controls-head,
+      .controls-meta {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .mode {
+        font-size: 13px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -255,6 +363,13 @@
           <p class="value"><span id="rpmValue">900</span> RPM</p>
           <p class="band" id="rpmBand">Idle</p>
         </section>
+        <section class="card status-card" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div class="status-copy">
+            <p class="status-title">Scene state</p>
+            <p class="status-value" id="sceneState">Studio idle</p>
+          </div>
+        </section>
       </div>
 
       <div class="bottom">
@@ -266,6 +381,10 @@
           <div class="controls-head">
             <p class="label">RPM Control</p>
             <p class="mode">Modern flat-plane performance V8</p>
+          </div>
+          <div class="controls-meta">
+            <p class="scene-note" id="sceneNote">Idle lighting emphasizes the cutaway and valvetrain silhouette.</p>
+            <button class="reset-btn" id="resetViewBtn" type="button">Reset view</button>
           </div>
           <div class="range-wrap">
             <input id="rpmSlider" type="range" min="700" max="8500" step="10" value="900" aria-label="RPM control" />
@@ -288,6 +407,9 @@
       const slider = document.getElementById('rpmSlider');
       const rpmValue = document.getElementById('rpmValue');
       const rpmBand = document.getElementById('rpmBand');
+      const sceneState = document.getElementById('sceneState');
+      const sceneNote = document.getElementById('sceneNote');
+      const resetViewBtn = document.getElementById('resetViewBtn');
       const app = document.getElementById('app');
 
       const DPR_CAP = 2;
@@ -610,6 +732,26 @@
         ctx.fillRect(0, 0, state.width, state.height);
       }
 
+      function drawAtmosphere(intensity) {
+        const halo = ctx.createRadialGradient(state.width * 0.5, state.height * 0.48, 0, state.width * 0.5, state.height * 0.5, state.width * 0.34);
+        halo.addColorStop(0, `rgba(255,107,44,${0.04 + intensity * 0.08})`);
+        halo.addColorStop(0.4, `rgba(139,215,255,${0.04 + intensity * 0.09})`);
+        halo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, state.width, state.height);
+
+        const streakAlpha = 0.025 + intensity * 0.08;
+        ctx.strokeStyle = `rgba(255,255,255,${streakAlpha})`;
+        ctx.lineWidth = 1 + intensity * 1.8;
+        for (let i = 0; i < 3; i++) {
+          const offset = i * 28;
+          ctx.beginPath();
+          ctx.moveTo(state.width * 0.18, state.height * (0.24 + i * 0.11));
+          ctx.quadraticCurveTo(state.width * 0.5, state.height * 0.18 + offset * 0.1, state.width * 0.82, state.height * (0.22 + i * 0.13));
+          ctx.stroke();
+        }
+      }
+
       function buildFrameTriangles() {
         const tris = [];
         const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
@@ -704,6 +846,24 @@
       function drawGlow() {
         const intensity = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
         glowAt(vec(0, 186, 0), 96 + intensity * 74, `rgba(255,107,44,${0.1 + intensity * 0.14})`, `rgba(139,215,255,${0.05 + intensity * 0.10})`);
+      }
+
+      function drawOrbitRing() {
+        const p = project(vec(0, 32, 0));
+        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const rx = 170 * p.scale + rpmT * 12;
+        const ry = 36 * p.scale + rpmT * 4;
+        const ring = ctx.createLinearGradient(p.x - rx, p.y, p.x + rx, p.y);
+        ring.addColorStop(0, 'rgba(139,215,255,0)');
+        ring.addColorStop(0.18, `rgba(139,215,255,${0.12 + rpmT * 0.08})`);
+        ring.addColorStop(0.5, `rgba(255,209,102,${0.14 + rpmT * 0.12})`);
+        ring.addColorStop(0.82, `rgba(255,107,44,${0.12 + rpmT * 0.12})`);
+        ring.addColorStop(1, 'rgba(255,107,44,0)');
+        ctx.strokeStyle = ring;
+        ctx.lineWidth = 1.4 + rpmT * 1.6;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       function drawIgnitionPulse() {
@@ -888,6 +1048,12 @@
         const band = bandLabel(state.rpmCurrent);
         rpmBand.textContent = band;
         rpmBand.style.color = state.rpmCurrent > 5500 ? 'rgba(255,107,44,0.96)' : state.rpmCurrent > 3000 ? 'rgba(255,209,102,0.96)' : 'rgba(139,215,255,0.9)';
+        sceneState.textContent = state.rpmCurrent > 6200 ? 'Attack mode' : state.rpmCurrent > 3200 ? 'Loaded sweep' : 'Studio idle';
+        sceneNote.textContent = state.rpmCurrent > 6200
+          ? 'High revs push the ignition glow, exhaust pulse, and tach sweep into the red zone.'
+          : state.rpmCurrent > 3200
+            ? 'Mid-range revs make the crank motion and shell cutaway read more clearly.'
+            : 'Idle lighting emphasizes the cutaway and valvetrain silhouette.';
         app.style.filter = state.rpmCurrent > 6500 ? 'saturate(1.08) contrast(1.02)' : 'none';
 
         if (!state.dragging) {
@@ -904,11 +1070,13 @@
       function render() {
         drawBackground();
         const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        drawAtmosphere(rpmT);
         drawGround(rpmT);
         drawGlow();
         drawHeatBloom();
         const tris = buildFrameTriangles();
         renderTriangles(tris);
+        drawOrbitRing();
         drawIgnitionPulse();
         drawExhaustPulse();
         drawLabels();
@@ -965,6 +1133,7 @@
       canvas.addEventListener('pointercancel', pointerEnd);
       canvas.addEventListener('pointerleave', pointerEnd);
       window.addEventListener('resize', resize, { passive: true });
+      resetViewBtn.addEventListener('click', resetCamera);
 
       buildStaticEngine();
       resize();
