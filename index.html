@@ -387,12 +387,12 @@
             <button class="reset-btn" id="resetViewBtn" type="button">Reset view</button>
           </div>
           <div class="range-wrap">
-            <input id="rpmSlider" type="range" min="700" max="8500" step="10" value="900" aria-label="RPM control" />
+            <input id="rpmSlider" type="range" min="0" max="12000" step="10" value="900" aria-label="RPM control" />
             <div class="scale">
-              <span>700</span>
-              <span>3000</span>
-              <span>5500</span>
-              <span>8500</span>
+              <span>0</span>
+              <span>4000</span>
+              <span>8000</span>
+              <span>12000</span>
             </div>
           </div>
         </section>
@@ -411,6 +411,9 @@
       const sceneNote = document.getElementById('sceneNote');
       const resetViewBtn = document.getElementById('resetViewBtn');
       const app = document.getElementById('app');
+
+      const RPM_MIN = 0;
+      const RPM_MAX = 12000;
 
       const DPR_CAP = 2;
       const state = {
@@ -717,7 +720,7 @@
 
       function buildFrameTriangles() {
         const tris = [];
-        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const rpmT = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         const vibe = vec(
           Math.sin(state.lastTime * 0.0047) * (1.1 + rpmT * 1.9),
           Math.cos(state.lastTime * 0.0039) * (0.8 + rpmT * 1.3),
@@ -729,6 +732,21 @@
         }
 
         tris.push(...boxMesh(add(vec(-34, 0, 0), vibe), vec(68, 24, engine.shellLength + 40), colors.brass, 1, 0.18));
+        tris.push(...cylinderMesh(add(vec(0, -16, 0), vibe), vec(0, 0, 1), 13, engine.shellLength + 132, 24, colors.steel, 0.98, true, 0.4));
+        const shaftSpin = state.engineAngle * 2;
+        const spokeLen = 54;
+        const frontHub = add(vec(0, -16, engine.shellLength * 0.5 + 76), vibe);
+        const rearHub = add(vec(0, -16, -engine.shellLength * 0.5 - 58), vibe);
+        for (const hub of [frontHub, rearHub]) {
+          for (let i = 0; i < 3; i++) {
+            const a = shaftSpin + i * (Math.PI * 2 / 3);
+            const b = a + Math.PI;
+            const p0 = add(hub, vec(Math.cos(a) * spokeLen, Math.sin(a) * spokeLen, 0));
+            const p1 = add(hub, vec(Math.cos(b) * spokeLen, Math.sin(b) * spokeLen, 0));
+            tris.push(...cylinderMesh(hub, sub(p0, p1), 4.8, spokeLen * 2, 12, colors.steel, 0.96, true, 0.34));
+          }
+          tris.push(...cylinderMesh(hub, vec(0, 0, 1), 30, 16, 20, colors.alloyDark, 0.96, true, 0.26));
+        }
 
         for (const cyl of cylinders) {
           const ps = pistonAssembly(cyl);
@@ -746,9 +764,10 @@
       }
 
       function bandLabel(rpm) {
-        if (rpm < 1200) return 'Idle';
-        if (rpm < 3000) return 'Low range';
-        if (rpm < 5500) return 'Mid range';
+        if (rpm < 120) return 'Stopped';
+        if (rpm < 1800) return 'Idle';
+        if (rpm < 5000) return 'Low range';
+        if (rpm < 8500) return 'Mid range';
         return 'High rev';
       }
 
@@ -765,10 +784,11 @@
           const fill = Math.max(0, dot(worldNormal, norm([-0.18, -0.12, 0.92])));
           const rim = Math.pow(1 - Math.max(0, Math.abs(dot(worldNormal, norm([0, 0, 1])))), 2.3);
           const lit = clamp(0.18 + key * 0.72 + fill * 0.18 + rim * 0.22, 0.16, 1.12);
-          const spec = Math.pow(Math.max(0, dot(worldNormal, norm([0.22, -0.2, 1]))), 12) * 255 * t.glossy;
+          const spec = Math.pow(Math.max(0, dot(worldNormal, norm([0.22, -0.2, 1]))), 14) * 290 * t.glossy;
           const depth = (pa.z + pb.z + pc.z) / 3;
           const fog = clamp((depth - 760) / 860, 0, 0.22);
-          const shadeAmount = Math.round((lit - 0.5) * 110 + spec - fog * 70);
+          const brushed = Math.sin((pa.cam[0] + pb.cam[0] + pc.cam[0]) * 0.05) * 7;
+          const shadeAmount = Math.round((lit - 0.5) * 122 + spec + brushed - fog * 70);
           drawList.push({
             pts: [pa, pb, pc],
             z: depth,
@@ -807,13 +827,13 @@
       }
 
       function drawGlow() {
-        const intensity = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const intensity = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         glowAt(vec(0, 186, 0), 96 + intensity * 74, `rgba(255,107,44,${0.1 + intensity * 0.14})`, `rgba(139,215,255,${0.05 + intensity * 0.10})`);
       }
 
       function drawOrbitRing() {
         const p = project(vec(0, 32, 0));
-        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const rpmT = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         const rx = 170 * p.scale + rpmT * 12;
         const ry = 36 * p.scale + rpmT * 4;
         const ring = ctx.createLinearGradient(p.x - rx, p.y, p.x + rx, p.y);
@@ -830,7 +850,7 @@
       }
 
       function drawIgnitionPulse() {
-        const t = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const t = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         if (t < 0.08) return;
         for (const cyl of cylinders) {
           const phase = (state.engineAngle + cyl.phase) % (Math.PI * 2);
@@ -840,11 +860,29 @@
           const anchor = add(vec(cyl.bank * 148, 132, cyl.z), mul(axis, 22));
           const alpha = 0.08 + pulse * (0.14 + t * 0.24);
           glowAt(anchor, 22 + pulse * 20, `rgba(255,107,44,${alpha})`, `rgba(255,209,102,${alpha * 0.7})`);
+          if (pulse > 0.34) {
+            const shock = project(anchor);
+            const burst = 14 + pulse * (30 + t * 34);
+            ctx.strokeStyle = `rgba(255,236,200,${0.16 + pulse * 0.28})`;
+            ctx.lineWidth = 1.2 + pulse * 2.6;
+            ctx.beginPath();
+            ctx.arc(shock.x, shock.y, burst, 0, Math.PI * 2);
+            ctx.stroke();
+
+            const plume = ctx.createRadialGradient(shock.x, shock.y, 0, shock.x, shock.y, burst * 1.7);
+            plume.addColorStop(0, `rgba(255,250,220,${0.12 + pulse * 0.24})`);
+            plume.addColorStop(0.35, `rgba(255,170,80,${0.12 + pulse * 0.2})`);
+            plume.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = plume;
+            ctx.beginPath();
+            ctx.arc(shock.x, shock.y, burst * 1.7, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
 
       function drawHeatBloom() {
-        const t = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const t = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         if (t < 0.14) return;
         const center = project(vec(0, 224, 14));
         const rx = 80 + t * 42;
@@ -860,7 +898,7 @@
       }
 
       function drawExhaustPulse() {
-        const t = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const t = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         if (t < 0.1) return;
         for (const cyl of cylinders) {
           const phase = (state.engineAngle + cyl.phase + Math.PI * 0.25) % (Math.PI * 2);
@@ -908,7 +946,7 @@
       }
 
       function drawGauge() {
-        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const rpmT = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         const cx = state.width - Math.min(104, state.width * 0.16);
         const cy = state.height - Math.min(116, state.height * 0.15);
         const radius = Math.min(64, Math.min(state.width, state.height) * 0.105);
@@ -1010,14 +1048,16 @@
         rpmValue.textContent = Math.round(state.rpmCurrent);
         const band = bandLabel(state.rpmCurrent);
         rpmBand.textContent = band;
-        rpmBand.style.color = state.rpmCurrent > 5500 ? 'rgba(255,107,44,0.96)' : state.rpmCurrent > 3000 ? 'rgba(255,209,102,0.96)' : 'rgba(139,215,255,0.9)';
-        sceneState.textContent = state.rpmCurrent > 6200 ? 'Attack mode' : state.rpmCurrent > 3200 ? 'Loaded sweep' : 'Studio idle';
-        sceneNote.textContent = state.rpmCurrent > 6200
+        rpmBand.style.color = state.rpmCurrent > 8500 ? 'rgba(255,107,44,0.96)' : state.rpmCurrent > 5000 ? 'rgba(255,209,102,0.96)' : 'rgba(139,215,255,0.9)';
+        sceneState.textContent = state.rpmCurrent > 9000 ? 'Attack mode' : state.rpmCurrent > 4500 ? 'Loaded sweep' : state.rpmCurrent < 120 ? 'Engine stop' : 'Studio idle';
+        sceneNote.textContent = state.rpmCurrent > 9000
           ? 'High revs push the ignition glow, exhaust pulse, and tach sweep into the red zone.'
-          : state.rpmCurrent > 3200
+          : state.rpmCurrent > 4500
             ? 'Mid-range revs make the crank motion and shell cutaway read more clearly.'
-            : 'Idle lighting emphasizes the cutaway and valvetrain silhouette.';
-        app.style.filter = state.rpmCurrent > 6500 ? 'saturate(1.08) contrast(1.02)' : 'none';
+            : state.rpmCurrent < 120
+              ? 'Engine is stopped. Raise RPM to restart combustion and shaft motion.'
+              : 'Idle lighting emphasizes the cutaway and valvetrain silhouette.';
+        app.style.filter = state.rpmCurrent > 9500 ? 'saturate(1.14) contrast(1.06)' : state.rpmCurrent > 6500 ? 'saturate(1.08) contrast(1.02)' : 'none';
 
         if (!state.dragging) {
           state.yaw += state.yawVelocity * dt;
@@ -1032,7 +1072,7 @@
 
       function render() {
         drawBackground();
-        const rpmT = clamp((state.rpmCurrent - 700) / (8500 - 700), 0, 1);
+        const rpmT = clamp((state.rpmCurrent - RPM_MIN) / (RPM_MAX - RPM_MIN), 0, 1);
         drawAtmosphere(rpmT);
         drawGround(rpmT);
         drawGlow();
