@@ -680,6 +680,11 @@
         for (const z of [-74, 6, 86]) {
           staticTriangles.push(...capsuleMesh(vec(0, 204, z), vec(1, 0, 0), 18, 144, 20, 5, colors.cover, 0.94, 0.24));
         }
+        for (const x of [-28, 28]) {
+          staticTriangles.push(...cylinderMesh(vec(x, 212, -64), vec(x * 0.018, -0.32, -0.94), 10, 104, 18, colors.alloyDark, 0.95, true, 0.24));
+          staticTriangles.push(...cylinderMesh(vec(x, 214, 10), vec(x * 0.014, -0.26, -0.96), 10, 116, 18, colors.alloyDark, 0.95, true, 0.24));
+          staticTriangles.push(...cylinderMesh(vec(x, 214, 88), vec(x * 0.01, -0.2, -0.98), 10, 108, 18, colors.alloyDark, 0.95, true, 0.24));
+        }
         staticTriangles.push(...cylinderMesh(vec(-54, 212, -50), vec(-0.68, -0.2, -0.18), 13, 102, 16, colors.alloyDark, 0.96, true, 0.22));
         staticTriangles.push(...cylinderMesh(vec(54, 212, -50), vec(0.68, -0.2, -0.18), 13, 102, 16, colors.alloyDark, 0.96, true, 0.22));
         staticTriangles.push(...cylinderMesh(vec(-54, 212, 82), vec(-0.68, -0.2, 0.12), 13, 108, 16, colors.alloyDark, 0.96, true, 0.22));
@@ -695,6 +700,14 @@
         staticTriangles.push(...capsuleMesh(vec(0, -10, -engine.shellLength * 0.5 - 18), vec(0,0,1), 56, 36, 20, 5, colors.block2, 0.94, 0.16));
         staticTriangles.push(...capsuleMesh(vec(0, 16, -engine.shellLength * 0.5 - 24), vec(0,0,1), 50, 22, 18, 5, colors.alloyDark, 0.95, 0.24));
         staticTriangles.push(...cylinderMesh(vec(0, 0, engine.shellLength * 0.5 + 54), vec(0,0,1), 28, 18, 20, colors.brass, 0.95, true, 0.18));
+
+        for (const sign of [-1, 1]) {
+          staticTriangles.push(...cylinderMesh(vec(sign * 188, 54, -138), vec(sign * 0.86, -0.18, 0.3), 18, 74, 18, colors.alloyDark, 0.94, true, 0.16));
+          staticTriangles.push(...cylinderMesh(vec(sign * 196, 28, -56), vec(sign * 0.92, -0.1, 0.1), 16, 84, 18, colors.alloyDark, 0.94, true, 0.16));
+          staticTriangles.push(...cylinderMesh(vec(sign * 198, 18, 32), vec(sign * 0.94, -0.06, -0.08), 16, 88, 18, colors.alloyDark, 0.94, true, 0.16));
+          staticTriangles.push(...cylinderMesh(vec(sign * 188, 36, 126), vec(sign * 0.86, -0.14, -0.26), 18, 74, 18, colors.alloyDark, 0.94, true, 0.16));
+          staticTriangles.push(...capsuleMesh(vec(sign * 214, 30, 12), vec(0, 0, 1), 24, 242, 20, 5, colors.cover, sign < 0 ? 0.16 : 0.34, 0.14));
+        }
 
         const cutawayShell = [];
         for (const sign of [-1, 1]) {
