@@ -38,18 +38,18 @@ let viewingTodoId = null;
 
 // ===== Priority/Category Config =====
 const PRIORITIES = {
-  high:   { label: 'High',   color: '#ff3b30', icon: 'arrow-up' },
-  medium: { label: 'Medium', color: '#ff9500', icon: 'minus' },
-  low:    { label: 'Low',    color: '#007aff', icon: 'arrow-down' }
+  high:   { label: '높음',   color: '#ff3b30', icon: 'arrow-up' },
+  medium: { label: '보통', color: '#ff9500', icon: 'minus' },
+  low:    { label: '낮음',    color: '#007aff', icon: 'arrow-down' }
 };
 
 const CATEGORIES = {
-  Personal: { color: '#af52de', icon: 'person' },
-  Work:     { color: '#007aff', icon: 'briefcase' },
-  Shopping: { color: '#34c759', icon: 'cart' },
-  Health:   { color: '#ff2d55', icon: 'heart' },
-  Finance:  { color: '#ff9500', icon: 'dollar' },
-  Other:    { color: '#8e8e93', icon: 'tag' }
+  '개인': { color: '#af52de', icon: 'person' },
+  '업무': { color: '#007aff', icon: 'briefcase' },
+  '쇼핑': { color: '#34c759', icon: 'cart' },
+  '건강': { color: '#ff2d55', icon: 'heart' },
+  '재정': { color: '#ff9500', icon: 'dollar' },
+  '기타': { color: '#8e8e93', icon: 'tag' }
 };
 
 // ===== DOM References =====
@@ -118,11 +118,11 @@ function formatDate(dateStr) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-  if (dateDay < today) return 'Overdue';
+  if (dateDay < today) return '기한 초과';
   if (dateDay.getTime() === today.getTime()) {
-    return 'Today ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return '오늘 ' + date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   }
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
 function getDueBadgeColor(dateStr, isCompleted) {
@@ -162,12 +162,12 @@ function renderTodoList() {
 
     if (todos.length === 0 && !hasSearch) {
       icon.innerHTML = '<path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>';
-      title.textContent = 'No Todos Yet';
-      subtitle.textContent = 'Tap + to add your first todo';
+      title.textContent = '할 일이 없습니다';
+      subtitle.textContent = '+ 버튼을 눌러 첫 번째 할 일을 추가하세요';
     } else {
       icon.innerHTML = '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>';
-      title.textContent = 'No Results';
-      subtitle.textContent = 'Try adjusting your filters';
+      title.textContent = '결과 없음';
+      subtitle.textContent = '필터를 조정해 보세요';
     }
     return;
   }
@@ -229,17 +229,17 @@ function showDetail(todoId) {
 
   const p = PRIORITIES[todo.priority] || PRIORITIES.medium;
   const statusColor = todo.isCompleted ? '#34c759' : '#ff9500';
-  const statusLabel = todo.isCompleted ? 'Completed' : 'Active';
+  const statusLabel = todo.isCompleted ? '완료' : '진행중';
 
   let metaCards = `
     <div class="meta-card glass-card">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="${statusColor}"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      <div class="meta-label">Status</div>
+      <div class="meta-label">상태</div>
       <div class="meta-value">${statusLabel}</div>
     </div>
     <div class="meta-card glass-card">
       ${priorityIconSVG(todo.priority, 24)}
-      <div class="meta-label">Priority</div>
+      <div class="meta-label">우선순위</div>
       <div class="meta-value">${p.label}</div>
     </div>
   `;
@@ -247,12 +247,12 @@ function showDetail(todoId) {
   if (todo.dueDate) {
     const isOverdue = !todo.isCompleted && new Date(todo.dueDate) < new Date();
     const dueColor = isOverdue ? '#ff3b30' : '#007aff';
-    const dateFormatted = new Date(todo.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
-      ' ' + new Date(todo.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateFormatted = new Date(todo.dueDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', year: 'numeric' }) +
+      ' ' + new Date(todo.dueDate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
     metaCards += `
       <div class="meta-card glass-card">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${dueColor}" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <div class="meta-label">Due Date</div>
+        <div class="meta-label">마감일</div>
         <div class="meta-value">${dateFormatted}</div>
       </div>
     `;
@@ -263,18 +263,18 @@ function showDetail(todoId) {
     metaCards += `
       <div class="meta-card glass-card">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="${cat.color}"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/></svg>
-        <div class="meta-label">Category</div>
+        <div class="meta-label">카테고리</div>
         <div class="meta-value">${todo.category}</div>
       </div>
     `;
   }
 
-  const createdFormatted = new Date(todo.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
-    ' ' + new Date(todo.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const createdFormatted = new Date(todo.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', year: 'numeric' }) +
+    ' ' + new Date(todo.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   metaCards += `
     <div class="meta-card glass-card">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <div class="meta-label">Created</div>
+      <div class="meta-label">생성일</div>
       <div class="meta-value">${createdFormatted}</div>
     </div>
   `;
@@ -283,7 +283,7 @@ function showDetail(todoId) {
     `<div class="detail-notes">${escapeHTML(todo.notes)}</div>` : '';
 
   const toggleBtnClass = todo.isCompleted ? 'undo' : 'complete';
-  const toggleLabel = todo.isCompleted ? 'Mark as Active' : 'Mark as Complete';
+  const toggleLabel = todo.isCompleted ? '진행중으로 변경' : '완료로 표시';
   const toggleIcon = todo.isCompleted ?
     `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 119 9 9.75 9.75 0 01-6.74-2.74L3 21"/><path d="M3 14V21h7"/></svg>` :
     `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/></svg>`;
@@ -323,7 +323,7 @@ function openModal(todoId = null) {
   editingTodoId = todoId;
   const todo = todoId ? todos.find(t => t.id === todoId) : null;
 
-  $('#modal-title').textContent = todo ? 'Edit Todo' : 'New Todo';
+  $('#modal-title').textContent = todo ? '할 일 편집' : '새로운 할 일';
   $('#todo-title').value = todo ? todo.title : '';
   $('#todo-notes').value = todo ? (todo.notes || '') : '';
   $('#has-due-date').checked = !!(todo && todo.dueDate);
@@ -672,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delete all
   $('#delete-all-btn').addEventListener('click', () => {
-    showConfirm('Delete All Todos?', 'This cannot be undone.', 'Delete All', () => {
+    showConfirm('모든 할 일을 삭제할까요?', '이 작업은 되돌릴 수 없습니다.', '모두 삭제', () => {
       todos = [];
       saveTodos(todos);
       renderTodoList();
