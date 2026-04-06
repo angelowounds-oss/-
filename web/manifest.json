@@ -1,11 +1,11 @@
 {
-  "name": "My Todos",
-  "short_name": "Todos",
-  "description": "A beautiful todo app for iPhone",
+  "name": "할 일",
+  "short_name": "할 일",
+  "description": "아이폰을 위한 할 일 관리 앱",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
+  "background_color": "#f2f2f7",
+  "theme_color": "#f2f2f7",
   "orientation": "portrait",
   "icons": [
     {

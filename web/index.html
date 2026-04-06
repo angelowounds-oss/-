@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>My Todos</title>
+  <title>할 일</title>
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#1a1a2e">
+  <meta name="theme-color" content="#f2f2f7">
 
   <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="My Todos">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="할 일">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 
   <link rel="stylesheet" href="css/style.css">
@@ -22,7 +22,7 @@
     <!-- ===== Todo List View ===== -->
     <div id="todo-view" class="view active">
       <header class="nav-header">
-        <h1>My Todos</h1>
+        <h1>할 일</h1>
         <div class="header-actions">
           <button id="sort-btn" class="icon-btn" aria-label="Sort">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>
@@ -36,19 +36,19 @@
       <!-- Search -->
       <div class="search-container">
         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="search" id="search-input" placeholder="Search todos..." autocomplete="off">
+        <input type="search" id="search-input" placeholder="검색..." autocomplete="off">
       </div>
 
       <!-- Filter Bar -->
       <div class="filter-bar">
         <div class="filter-chips" id="filter-chips">
-          <button class="chip active" data-filter="all">All</button>
-          <button class="chip" data-filter="active">Active</button>
-          <button class="chip" data-filter="completed">Done</button>
+          <button class="chip active" data-filter="all">전체</button>
+          <button class="chip" data-filter="active">진행중</button>
+          <button class="chip" data-filter="completed">완료</button>
           <span class="chip-divider"></span>
-          <button class="chip priority-chip" data-priority="high" style="--chip-color: #ff3b30">High</button>
-          <button class="chip priority-chip" data-priority="medium" style="--chip-color: #ff9500">Medium</button>
-          <button class="chip priority-chip" data-priority="low" style="--chip-color: #007aff">Low</button>
+          <button class="chip priority-chip" data-priority="high" style="--chip-color: #ff3b30">높음</button>
+          <button class="chip priority-chip" data-priority="medium" style="--chip-color: #ff9500">보통</button>
+          <button class="chip priority-chip" data-priority="low" style="--chip-color: #007aff">낮음</button>
         </div>
       </div>
 
@@ -56,10 +56,10 @@
       <div id="sort-menu" class="sort-menu hidden">
         <div class="sort-menu-backdrop"></div>
         <div class="sort-menu-content glass-card">
-          <button class="sort-option active" data-sort="createdAt">Date Added</button>
-          <button class="sort-option" data-sort="dueDate">Due Date</button>
-          <button class="sort-option" data-sort="priority">Priority</button>
-          <button class="sort-option" data-sort="title">Title</button>
+          <button class="sort-option active" data-sort="createdAt">추가된 날짜</button>
+          <button class="sort-option" data-sort="dueDate">마감일</button>
+          <button class="sort-option" data-sort="priority">우선순위</button>
+          <button class="sort-option" data-sort="title">제목</button>
         </div>
       </div>
 
@@ -70,8 +70,8 @@
       <div id="empty-state" class="empty-state hidden">
         <div class="glass-card empty-card">
           <svg id="empty-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-          <p id="empty-title" class="empty-title">No Todos Yet</p>
-          <p id="empty-subtitle" class="empty-subtitle">Tap + to add your first todo</p>
+          <p id="empty-title" class="empty-title">할 일이 없습니다</p>
+          <p id="empty-subtitle" class="empty-subtitle">+ 버튼을 눌러 첫 번째 할 일을 추가하세요</p>
         </div>
       </div>
     </div>
@@ -79,26 +79,26 @@
     <!-- ===== Settings View ===== -->
     <div id="settings-view" class="view">
       <header class="nav-header">
-        <h1>Settings</h1>
+        <h1>설정</h1>
       </header>
       <div class="settings-content">
         <div class="glass-card">
           <div class="setting-row">
             <div class="setting-label">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
-              <span>Default Priority</span>
+              <span>기본 우선순위</span>
             </div>
             <select id="default-priority">
-              <option value="low">Low</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High</option>
+              <option value="low">낮음</option>
+              <option value="medium" selected>보통</option>
+              <option value="high">높음</option>
             </select>
           </div>
           <div class="setting-divider"></div>
           <div class="setting-row">
             <div class="setting-label">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><circle cx="12" cy="12" r="10"/></svg>
-              <span>Haptic Feedback</span>
+              <span>햅틱 피드백</span>
             </div>
             <label class="toggle">
               <input type="checkbox" id="haptic-toggle" checked>
@@ -111,7 +111,7 @@
           <div class="setting-row">
             <div class="setting-label">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><circle cx="12" cy="12" r="10"/></svg>
-              <span>Version</span>
+              <span>버전</span>
             </div>
             <span class="setting-value">1.0</span>
           </div>
@@ -119,7 +119,7 @@
           <div class="setting-row">
             <div class="setting-label">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-              <span>Build</span>
+              <span>빌드</span>
             </div>
             <span class="setting-value">1</span>
           </div>
@@ -128,14 +128,14 @@
         <div class="glass-card">
           <button id="delete-all-btn" class="danger-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-            <span>Delete All Todos</span>
+            <span>모든 할 일 삭제</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2" opacity="0.6"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
 
         <div class="settings-footer">
-          <p class="footer-title">TodoApp</p>
-          <p class="footer-subtitle">Built with HTML, CSS & JavaScript</p>
+          <p class="footer-title">할 일</p>
+          <p class="footer-subtitle">HTML, CSS & JavaScript로 제작</p>
         </div>
       </div>
     </div>
@@ -146,8 +146,8 @@
         <button id="detail-back" class="icon-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <h1>Detail</h1>
-        <button id="detail-edit" class="text-btn">Edit</button>
+        <h1>상세</h1>
+        <button id="detail-edit" class="text-btn">편집</button>
       </header>
       <div id="detail-content" class="detail-content"></div>
     </div>
@@ -156,47 +156,47 @@
     <div id="modal-overlay" class="modal-overlay hidden">
       <div class="modal-container">
         <header class="modal-header">
-          <button id="modal-cancel" class="text-btn">Cancel</button>
-          <h2 id="modal-title">New Todo</h2>
-          <button id="modal-save" class="text-btn bold" disabled>Save</button>
+          <button id="modal-cancel" class="text-btn">취소</button>
+          <h2 id="modal-title">새로운 할 일</h2>
+          <button id="modal-save" class="text-btn bold" disabled>저장</button>
         </header>
         <div class="modal-body">
           <!-- Title -->
           <div class="glass-card">
             <label class="field-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
-              Title
+              제목
             </label>
-            <input type="text" id="todo-title" placeholder="What needs to be done?" maxlength="200">
+            <input type="text" id="todo-title" placeholder="무엇을 해야 하나요?" maxlength="200">
           </div>
 
           <!-- Notes -->
           <div class="glass-card">
             <label class="field-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-              Notes
+              메모
             </label>
-            <textarea id="todo-notes" placeholder="Add notes (optional)" rows="3"></textarea>
+            <textarea id="todo-notes" placeholder="메모 추가 (선택사항)" rows="3"></textarea>
           </div>
 
           <!-- Priority -->
           <div class="glass-card">
             <label class="field-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
-              Priority
+              우선순위
             </label>
             <div class="priority-options" id="priority-options">
               <button class="priority-option" data-priority="low" style="--p-color: #007aff">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/></svg>
-                <span>Low</span>
+                <span>낮음</span>
               </button>
               <button class="priority-option selected" data-priority="medium" style="--p-color: #ff9500">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                <span>Medium</span>
+                <span>보통</span>
               </button>
               <button class="priority-option" data-priority="high" style="--p-color: #ff3b30">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 8 16 12"/></svg>
-                <span>High</span>
+                <span>높음</span>
               </button>
             </div>
           </div>
@@ -206,7 +206,7 @@
             <div class="field-row">
               <label class="field-label">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Due Date
+                마감일
               </label>
               <label class="toggle">
                 <input type="checkbox" id="has-due-date">
@@ -222,16 +222,16 @@
           <div class="glass-card">
             <label class="field-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7" stroke="white" stroke-width="2"/></svg>
-              Category
+              카테고리
             </label>
             <div class="category-chips" id="category-chips">
-              <button class="cat-chip selected" data-category="">None</button>
-              <button class="cat-chip" data-category="Personal" style="--cat-color: #af52de">Personal</button>
-              <button class="cat-chip" data-category="Work" style="--cat-color: #007aff">Work</button>
-              <button class="cat-chip" data-category="Shopping" style="--cat-color: #34c759">Shopping</button>
-              <button class="cat-chip" data-category="Health" style="--cat-color: #ff2d55">Health</button>
-              <button class="cat-chip" data-category="Finance" style="--cat-color: #ff9500">Finance</button>
-              <button class="cat-chip" data-category="Other" style="--cat-color: #8e8e93">Other</button>
+              <button class="cat-chip selected" data-category="">없음</button>
+              <button class="cat-chip" data-category="개인" style="--cat-color: #af52de">개인</button>
+              <button class="cat-chip" data-category="업무" style="--cat-color: #007aff">업무</button>
+              <button class="cat-chip" data-category="쇼핑" style="--cat-color: #34c759">쇼핑</button>
+              <button class="cat-chip" data-category="건강" style="--cat-color: #ff2d55">건강</button>
+              <button class="cat-chip" data-category="재정" style="--cat-color: #ff9500">재정</button>
+              <button class="cat-chip" data-category="기타" style="--cat-color: #8e8e93">기타</button>
             </div>
           </div>
 
@@ -240,7 +240,7 @@
             <div class="field-row">
               <label class="field-label">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#34c759"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                Mark as Complete
+                완료로 표시
               </label>
               <label class="toggle">
                 <input type="checkbox" id="todo-completed">
@@ -255,11 +255,11 @@
     <!-- ===== Delete Confirm ===== -->
     <div id="confirm-overlay" class="modal-overlay hidden">
       <div class="confirm-dialog glass-card">
-        <h3 id="confirm-title">Delete All Todos?</h3>
-        <p id="confirm-message">This cannot be undone.</p>
+        <h3 id="confirm-title">모든 할 일을 삭제할까요?</h3>
+        <p id="confirm-message">이 작업은 되돌릴 수 없습니다.</p>
         <div class="confirm-actions">
-          <button id="confirm-cancel" class="confirm-btn">Cancel</button>
-          <button id="confirm-ok" class="confirm-btn danger">Delete All</button>
+          <button id="confirm-cancel" class="confirm-btn">취소</button>
+          <button id="confirm-ok" class="confirm-btn danger">모두 삭제</button>
         </div>
       </div>
     </div>
@@ -268,11 +268,11 @@
     <nav class="tab-bar">
       <button class="tab active" data-tab="todo-view">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        <span>Todos</span>
+        <span>할 일</span>
       </button>
       <button class="tab" data-tab="settings-view">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        <span>Settings</span>
+        <span>설정</span>
       </button>
     </nav>
   </div>
