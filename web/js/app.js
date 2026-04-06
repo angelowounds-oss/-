@@ -361,6 +361,33 @@ function updateLiveTimer() {
   }
 }
 
+// ===== Quick Add (LiveNote style) =====
+function quickAddTodo() {
+  const input = $('#quick-add-input');
+  const title = input.value.trim();
+  if (!title) return;
+
+  const newId = generateId();
+  lastAddedId = newId;
+  todos.push({
+    id: newId,
+    title,
+    notes: '',
+    isCompleted: false,
+    priority: settings.defaultPriority,
+    dueDate: null,
+    category: null,
+    createdAt: new Date().toISOString()
+  });
+
+  saveTodos(todos);
+  haptic();
+  input.value = '';
+  $('#quick-add-send').classList.add('hidden');
+  renderTodoList();
+  scheduleDeadlineNotifications();
+}
+
 // ===== Detail View =====
 function showDetail(todoId) {
   const todo = todos.find(t => t.id === todoId);
@@ -743,11 +770,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Add button
+  // Add button -> focus quick-add input
   $('#add-btn').addEventListener('click', () => {
-    openModal();
+    const input = $('#quick-add-input');
+    input.focus();
     haptic();
   });
+
+  // Quick-add input
+  const quickAddInput = $('#quick-add-input');
+  const quickAddSend = $('#quick-add-send');
+
+  quickAddInput.addEventListener('input', () => {
+    quickAddSend.classList.toggle('hidden', !quickAddInput.value.trim());
+  });
+
+  quickAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && quickAddInput.value.trim()) {
+      e.preventDefault();
+      quickAddTodo();
+    }
+  });
+
+  quickAddSend.addEventListener('click', quickAddTodo);
 
   // Sort button -> action sheet
   $('#sort-btn').addEventListener('click', () => {
