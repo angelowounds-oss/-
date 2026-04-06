@@ -1,28 +1,24 @@
-// ===== Data Layer =====
+// ========================================
+// Todo App — Full rewrite
+// Ref: Reminders, Things 3, Todoist, TickTick
+// ========================================
+
 const STORAGE_KEY = 'todo-app-data';
 const SETTINGS_KEY = 'todo-app-settings';
 
 function loadTodos() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
 }
-
-function saveTodos(todos) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-}
+function saveTodos(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
 function loadSettings() {
-  try {
-    return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || { defaultPriority: 'medium', haptics: true, notifications: false };
-  } catch { return { defaultPriority: 'medium', haptics: true, notifications: false }; }
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || { defaultPriority: 'medium', haptics: true, notifications: false }; }
+  catch { return { defaultPriority: 'medium', haptics: true, notifications: false }; }
 }
+function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
 
-function saveSettings(settings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-}
-
-function generateId() {
+function genId() {
   return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
@@ -30,520 +26,338 @@ function generateId() {
 let todos = loadTodos();
 let settings = loadSettings();
 let currentFilter = 'all';
-let currentPriorityFilter = null;
 let currentSort = 'createdAt';
-let searchQuery = '';
-let editingTodoId = null;
-let viewingTodoId = null;
+let editingId = null;
+let viewingId = null;
 let lastAddedId = null;
-let liveTimerInterval = null;
 
-// ===== Priority/Category Config =====
-const PRIORITIES = {
-  high:   { label: '높음',   color: '#ff3b30', icon: 'arrow-up' },
-  medium: { label: '보통', color: '#ff9500', icon: 'minus' },
-  low:    { label: '낮음',    color: '#007aff', icon: 'arrow-down' }
+const PRI = {
+  high:   { label: '높음',   color: '#ff3b30' },
+  medium: { label: '보통', color: '#ff9500' },
+  low:    { label: '낮음',    color: '#007aff' }
+};
+const CATS = {
+  '개인': '#af52de', '업무': '#007aff', '쇼핑': '#34c759',
+  '건강': '#ff2d55', '재정': '#ff9500'
 };
 
-const CATEGORIES = {
-  '개인': { color: '#af52de', icon: 'person' },
-  '업무': { color: '#007aff', icon: 'briefcase' },
-  '쇼핑': { color: '#34c759', icon: 'cart' },
-  '건강': { color: '#ff2d55', icon: 'heart' },
-  '재정': { color: '#ff9500', icon: 'dollar' },
-  '기타': { color: '#8e8e93', icon: 'tag' }
-};
+// ===== Helpers =====
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+function esc(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+function haptic() { if (settings.haptics && navigator.vibrate) navigator.vibrate(10); }
 
-// ===== DOM References =====
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-
-const todoListEl = $('#todo-list');
-const emptyStateEl = $('#empty-state');
-const searchInput = $('#search-input');
-const sortMenu = $('#sort-menu');
-const modalOverlay = $('#modal-overlay');
-const confirmOverlay = $('#confirm-overlay');
-
-// ===== Haptic Feedback =====
-function haptic() {
-  if (settings.haptics && navigator.vibrate) {
-    navigator.vibrate(10);
-  }
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d), now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dd = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  if (dd < today) return '기한 초과';
+  if (dd.getTime() === today.getTime()) return '오늘 ' + dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const diff = (dd - today) / 86400000;
+  if (diff === 1) return '내일';
+  return dt.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
-// ===== Rendering =====
-function getFilteredTodos() {
-  let filtered = [...todos];
+function dueStat(d, done) {
+  if (!d || done) return 'normal';
+  const dt = new Date(d), now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dd = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  if (dd < today) return 'overdue';
+  if (dd.getTime() === today.getTime()) return 'today';
+  return 'normal';
+}
 
-  if (currentFilter === 'active') filtered = filtered.filter(t => !t.isCompleted);
-  if (currentFilter === 'completed') filtered = filtered.filter(t => t.isCompleted);
+// ===== Filtering & Sorting =====
+function getFiltered() {
+  let list = [...todos];
+  if (currentFilter === 'active') list = list.filter(t => !t.isCompleted);
+  if (currentFilter === 'completed') list = list.filter(t => t.isCompleted);
 
-  if (currentPriorityFilter) filtered = filtered.filter(t => t.priority === currentPriorityFilter);
-
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    filtered = filtered.filter(t =>
-      t.title.toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q)
-    );
-  }
-
-  filtered.sort((a, b) => {
+  list.sort((a, b) => {
     switch (currentSort) {
       case 'createdAt': return new Date(b.createdAt) - new Date(a.createdAt);
-      case 'dueDate': {
+      case 'dueDate':
         if (!a.dueDate && !b.dueDate) return 0;
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return new Date(a.dueDate) - new Date(b.dueDate);
-      }
       case 'priority': {
-        const order = { high: 3, medium: 2, low: 1 };
-        return (order[b.priority] || 0) - (order[a.priority] || 0);
+        const o = { high: 3, medium: 2, low: 1 };
+        return (o[b.priority] || 0) - (o[a.priority] || 0);
       }
       case 'title': return a.title.localeCompare(b.title);
       default: return 0;
     }
   });
-
-  return filtered;
+  return list;
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
+// Group by date section
+function groupBySection(list) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const tmrw = new Date(today.getTime() + 86400000);
 
-  if (dateDay < today) return '기한 초과';
-  if (dateDay.getTime() === today.getTime()) {
-    return '오늘 ' + date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  }
-  return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+  const sections = [];
+  const groups = { overdue: [], today: [], tomorrow: [], upcoming: [], noDue: [], completed: [] };
+
+  list.forEach(t => {
+    if (t.isCompleted) { groups.completed.push(t); return; }
+    if (!t.dueDate) { groups.noDue.push(t); return; }
+    const dd = new Date(new Date(t.dueDate).getFullYear(), new Date(t.dueDate).getMonth(), new Date(t.dueDate).getDate());
+    if (dd < today) groups.overdue.push(t);
+    else if (dd.getTime() === today.getTime()) groups.today.push(t);
+    else if (dd.getTime() === tmrw.getTime()) groups.tomorrow.push(t);
+    else groups.upcoming.push(t);
+  });
+
+  if (groups.overdue.length) sections.push({ title: '기한 초과', items: groups.overdue });
+  if (groups.today.length) sections.push({ title: '오늘', items: groups.today });
+  if (groups.tomorrow.length) sections.push({ title: '내일', items: groups.tomorrow });
+  if (groups.upcoming.length) sections.push({ title: '예정', items: groups.upcoming });
+  if (groups.noDue.length) sections.push({ title: '기한 없음', items: groups.noDue });
+  if (groups.completed.length) sections.push({ title: '완료', items: groups.completed });
+
+  return sections;
 }
 
-function getDueBadgeColor(dateStr, isCompleted) {
-  if (!dateStr || isCompleted) return '#8e8e93';
-  const date = new Date(dateStr);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+// ===== Render =====
+function render() {
+  const list = getFiltered();
+  const el = $('#todo-list');
+  const empty = $('#empty-state');
 
-  if (dateDay < today) return '#ff3b30';
-  if (dateDay.getTime() === today.getTime()) return '#ff9500';
-  return '#8e8e93';
-}
-
-function priorityIconSVG(priority, size = 14) {
-  const p = PRIORITIES[priority];
-  if (!p) return '';
-  let path = '';
-  if (priority === 'high') path = `<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 8 16 12"/>`;
-  else if (priority === 'medium') path = `<circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>`;
-  else path = `<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/>`;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${p.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
-}
-
-// Phase 1: Group todos by section
-function groupTodosBySection(filtered) {
-  if (currentSort !== 'createdAt' && currentSort !== 'dueDate') {
-    return [{ title: null, items: filtered }];
-  }
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const sections = {
-    overdue: { title: '기한 초과', items: [] },
-    today: { title: '오늘', items: [] },
-    upcoming: { title: '예정', items: [] },
-    noDue: { title: '기한 없음', items: [] },
-    completed: { title: '완료', items: [] }
-  };
-
-  for (const todo of filtered) {
-    if (todo.isCompleted) {
-      sections.completed.items.push(todo);
-    } else if (!todo.dueDate) {
-      sections.noDue.items.push(todo);
+  if (list.length === 0) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+    empty.classList.remove('hidden');
+    if (todos.length === 0) {
+      $('#empty-title').textContent = '할 일이 없습니다';
+      $('#empty-sub').textContent = '아래에서 새로운 할 일을 추가해보세요';
     } else {
-      const dueDate = new Date(todo.dueDate);
-      const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-      if (dueDay < today) sections.overdue.items.push(todo);
-      else if (dueDay.getTime() === today.getTime()) sections.today.items.push(todo);
-      else sections.upcoming.items.push(todo);
+      $('#empty-title').textContent = '결과 없음';
+      $('#empty-sub').textContent = '다른 필터를 선택해보세요';
     }
+    updateSummary();
+    return;
   }
 
-  return Object.values(sections).filter(s => s.items.length > 0);
+  empty.classList.add('hidden');
+  el.style.display = 'block';
+
+  // Group by section when sorted by date
+  if (currentSort === 'createdAt' || currentSort === 'dueDate') {
+    const sections = groupBySection(list);
+    el.innerHTML = sections.map(sec => `
+      <div class="section-header">${sec.title}</div>
+      <div class="section-group">
+        ${sec.items.map(t => todoHTML(t)).join('')}
+      </div>
+    `).join('');
+  } else {
+    el.innerHTML = `<div class="section-group">${list.map(t => todoHTML(t)).join('')}</div>`;
+  }
+
+  // Animate new item
+  if (lastAddedId) {
+    const newEl = el.querySelector(`[data-id="${lastAddedId}"]`);
+    if (newEl) newEl.classList.add('entering');
+    lastAddedId = null;
+  }
+
+  updateSummary();
 }
 
-function renderTodoRow(todo) {
-  const p = PRIORITIES[todo.priority] || PRIORITIES.medium;
-  let metaHTML = '';
+function todoHTML(t) {
+  const p = PRI[t.priority] || PRI.medium;
+  let meta = '';
 
-  if (todo.dueDate) {
-    const dueBadgeColor = getDueBadgeColor(todo.dueDate, todo.isCompleted);
-    metaHTML += `<span class="badge due-badge" style="--badge-color: ${dueBadgeColor}">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      ${formatDate(todo.dueDate)}
-    </span>`;
+  if (t.dueDate) {
+    const s = dueStat(t.dueDate, t.isCompleted);
+    meta += `<span class="meta-tag ${s}">${fmtDate(t.dueDate)}</span>`;
   }
-
-  if (todo.category && CATEGORIES[todo.category]) {
-    const cat = CATEGORIES[todo.category];
-    metaHTML += `<span class="badge category-badge" style="--badge-color: ${cat.color}">${todo.category}</span>`;
+  if (t.category && CATS[t.category]) {
+    if (meta) meta += '<span class="dot"></span>';
+    meta += `<span class="meta-tag">${t.category}</span>`;
   }
-
-  const notesPreview = todo.notes ? `<div class="todo-notes-preview">${escapeHTML(todo.notes)}</div>` : '';
-  const enterClass = (lastAddedId && todo.id === lastAddedId) ? ' entering' : '';
 
   return `
-    <div class="todo-row ${todo.isCompleted ? 'completed' : ''}${enterClass}" data-id="${todo.id}">
-      <div class="check-circle ${todo.isCompleted ? 'checked' : ''}" data-action="toggle" data-id="${todo.id}">
+    <div class="todo-item ${t.isCompleted ? 'completed' : ''}" data-id="${t.id}">
+      <div class="check-circle ${t.isCompleted ? 'checked' : ''}" data-action="toggle">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
-      <div class="todo-content" data-action="detail" data-id="${todo.id}">
-        <div class="todo-title-row">
-          <span class="todo-title">${escapeHTML(todo.title)}</span>
-          <span class="priority-badge compact" style="--badge-color: ${p.color}">${priorityIconSVG(todo.priority)}</span>
-        </div>
-        ${metaHTML ? `<div class="todo-meta">${metaHTML}</div>` : ''}
-        ${notesPreview}
+      <div class="todo-body" data-action="detail">
+        <div class="todo-title">${esc(t.title)}</div>
+        ${meta ? `<div class="todo-meta">${meta}</div>` : ''}
       </div>
-      <span class="todo-chevron">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-      </span>
-    </div>
-  `;
+      <div class="todo-pri" style="background:${p.color}"></div>
+      <svg class="chevron" width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><polyline points="1 1 7 7 1 13"/></svg>
+    </div>`;
 }
 
-function renderTodoList() {
-  const filtered = getFilteredTodos();
-  const hasSearch = searchQuery || currentFilter !== 'all' || currentPriorityFilter;
-
-  if (filtered.length === 0) {
-    todoListEl.innerHTML = '';
-    todoListEl.style.display = 'none';
-    emptyStateEl.classList.remove('hidden');
-
-    const icon = $('#empty-icon');
-    const title = $('#empty-title');
-    const subtitle = $('#empty-subtitle');
-
-    if (todos.length === 0 && !hasSearch) {
-      icon.innerHTML = '<path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>';
-      title.textContent = '할 일이 없습니다';
-      subtitle.textContent = '+ 버튼을 눌러 첫 번째 할 일을 추가하세요';
-    } else {
-      icon.innerHTML = '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>';
-      title.textContent = '결과 없음';
-      subtitle.textContent = '필터를 조정해 보세요';
-    }
-    updateLiveActivity();
-    return;
-  }
-
-  emptyStateEl.classList.add('hidden');
-  todoListEl.style.display = 'block';
-
-  const sections = groupTodosBySection(filtered);
-  let html = '';
-
-  for (const section of sections) {
-    html += '<div class="todo-section">';
-    if (section.title) {
-      html += `<div class="todo-section-header">
-        <span class="todo-section-title">${section.title}</span>
-        <span class="todo-section-count">${section.items.length}</span>
-      </div>`;
-    }
-    html += '<div class="todo-group">';
-    html += section.items.map(renderTodoRow).join('');
-    html += '</div></div>';
-  }
-
-  todoListEl.innerHTML = html;
-
-  // Clear lastAddedId after render
-  if (lastAddedId) {
-    setTimeout(() => { lastAddedId = null; }, 500);
-  }
-
-  updateLiveActivity();
-}
-
-function escapeHTML(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-// ===== Live Activity Dashboard (Phase 10) =====
-function updateLiveActivity() {
-  const liveEl = $('#live-activity');
-  if (todos.length === 0) {
-    liveEl.classList.add('hidden');
-    return;
-  }
-
-  liveEl.classList.remove('hidden');
+// ===== Summary =====
+function updateSummary() {
+  const card = $('#summary-card');
+  if (todos.length === 0) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
 
   const total = todos.length;
-  const completed = todos.filter(t => t.isCompleted).length;
-  const remaining = total - completed;
-  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const done = todos.filter(t => t.isCompleted).length;
+  const remaining = total - done;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  // Update progress circle
-  const circumference = 2 * Math.PI * 23; // r=23
-  const offset = circumference - (percent / 100) * circumference;
-  $('#progress-circle').style.strokeDashoffset = offset;
-  $('#progress-text').textContent = percent + '%';
+  const circ = 113.1; // 2 * PI * 18
+  $('#summary-ring-fill').setAttribute('stroke-dashoffset', circ - (circ * pct / 100));
+  $('#summary-pct').textContent = pct + '%';
+  $('#summary-remaining').textContent = remaining + '개 남음';
 
-  // Update stats
-  $('#stat-remaining').textContent = remaining;
-  $('#stat-completed').textContent = completed;
-
-  // Update timer - find nearest deadline
-  updateLiveTimer();
-}
-
-function updateLiveTimer() {
-  const now = new Date();
-  let nearest = null;
-  let nearestDiff = Infinity;
-
-  for (const todo of todos) {
-    if (todo.isCompleted || !todo.dueDate) continue;
-    const due = new Date(todo.dueDate);
-    const diff = due - now;
-    if (Math.abs(diff) < Math.abs(nearestDiff)) {
-      nearest = todo;
-      nearestDiff = diff;
-    }
-  }
-
-  const timerEl = $('#live-timer');
-  const timerText = $('#timer-text');
-
-  if (!nearest) {
-    timerText.textContent = '임박한 마감 없음';
-    timerEl.className = 'live-timer';
-    return;
-  }
-
-  const diff = nearestDiff;
-  const isOverdue = diff < 0;
-  const absDiff = Math.abs(diff);
-
-  const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const mins = Math.floor((absDiff % (1000 * 60 * 60)) / (1000 * 60));
-  const secs = Math.floor((absDiff % (1000 * 60)) / 1000);
-
-  let timeStr = '';
-  if (days > 0) timeStr = `${days}일 ${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
-  else timeStr = `${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
-
-  const prefix = isOverdue ? '초과 ' : '';
-  const title = nearest.title.length > 12 ? nearest.title.slice(0, 12) + '...' : nearest.title;
-  timerText.textContent = `${title} — ${prefix}${timeStr}`;
-
-  if (isOverdue) {
-    timerEl.className = 'live-timer overdue';
-  } else if (absDiff < 24 * 60 * 60 * 1000) {
-    timerEl.className = 'live-timer urgent';
+  // Nearest deadline
+  const upcoming = todos.filter(t => !t.isCompleted && t.dueDate).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  const sub = $('#summary-deadline');
+  if (upcoming.length > 0) {
+    const next = upcoming[0];
+    sub.textContent = '다음 마감: ' + fmtDate(next.dueDate);
   } else {
-    timerEl.className = 'live-timer';
+    sub.textContent = '';
   }
 }
 
-// ===== Quick Add (LiveNote style) =====
-function quickAddTodo() {
-  const input = $('#quick-add-input');
+// ===== Segmented Control =====
+function updateSegIndicator() {
+  const btns = $$('.seg-btn');
+  const indicator = $('#seg-indicator');
+  btns.forEach((btn, i) => {
+    if (btn.classList.contains('active')) {
+      indicator.style.transform = `translateX(${i * 100}%)`;
+    }
+  });
+}
+
+// ===== Quick Add =====
+function quickAdd() {
+  const input = $('#quick-input');
   const title = input.value.trim();
   if (!title) return;
 
-  const newId = generateId();
-  lastAddedId = newId;
-  todos.push({
-    id: newId,
-    title,
-    notes: '',
-    isCompleted: false,
-    priority: settings.defaultPriority,
-    dueDate: null,
-    category: null,
-    createdAt: new Date().toISOString()
+  const id = genId();
+  lastAddedId = id;
+  todos.unshift({
+    id, title, notes: '', isCompleted: false,
+    priority: settings.defaultPriority, dueDate: null,
+    category: null, createdAt: new Date().toISOString()
   });
-
   saveTodos(todos);
   haptic();
   input.value = '';
-  $('#quick-add-send').classList.add('hidden');
-  renderTodoList();
-  scheduleDeadlineNotifications();
+  $('#quick-send').classList.remove('visible');
+  render();
+
+  // Scroll to top
+  $('#todo-list').scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ===== Detail View =====
-function showDetail(todoId) {
-  const todo = todos.find(t => t.id === todoId);
-  if (!todo) return;
-  viewingTodoId = todoId;
+// ===== Detail =====
+function showDetail(id) {
+  const t = todos.find(x => x.id === id);
+  if (!t) return;
+  viewingId = id;
 
-  const p = PRIORITIES[todo.priority] || PRIORITIES.medium;
-  const statusColor = todo.isCompleted ? '#34c759' : '#ff9500';
-  const statusLabel = todo.isCompleted ? '완료' : '진행중';
+  const p = PRI[t.priority] || PRI.medium;
+  const statusColor = t.isCompleted ? '#34c759' : '#ff9500';
+  const statusLabel = t.isCompleted ? '완료' : '진행중';
 
-  let metaCards = `
-    <div class="meta-card glass-card">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="${statusColor}"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      <div class="meta-label">상태</div>
-      <div class="meta-value">${statusLabel}</div>
+  let grid = `
+    <div class="detail-meta">
+      <div class="detail-meta-label">상태</div>
+      <div class="detail-meta-val" style="color:${statusColor}">${statusLabel}</div>
     </div>
-    <div class="meta-card glass-card">
-      ${priorityIconSVG(todo.priority, 24)}
-      <div class="meta-label">우선순위</div>
-      <div class="meta-value">${p.label}</div>
-    </div>
-  `;
+    <div class="detail-meta">
+      <div class="detail-meta-label">우선순위</div>
+      <div class="detail-meta-val" style="color:${p.color}">${p.label}</div>
+    </div>`;
 
-  if (todo.dueDate) {
-    const isOverdue = !todo.isCompleted && new Date(todo.dueDate) < new Date();
-    const dueColor = isOverdue ? '#ff3b30' : '#007aff';
-    const dateFormatted = new Date(todo.dueDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', year: 'numeric' }) +
-      ' ' + new Date(todo.dueDate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    metaCards += `
-      <div class="meta-card glass-card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${dueColor}" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <div class="meta-label">마감일</div>
-        <div class="meta-value">${dateFormatted}</div>
-      </div>
-    `;
+  if (t.dueDate) {
+    const isOD = !t.isCompleted && new Date(t.dueDate) < new Date();
+    const dc = isOD ? '#ff3b30' : '#007aff';
+    const df = new Date(t.dueDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) +
+      ' ' + new Date(t.dueDate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    grid += `<div class="detail-meta"><div class="detail-meta-label">마감일</div><div class="detail-meta-val" style="color:${dc}">${df}</div></div>`;
+  }
+  if (t.category && CATS[t.category]) {
+    grid += `<div class="detail-meta"><div class="detail-meta-label">카테고리</div><div class="detail-meta-val" style="color:${CATS[t.category]}">${t.category}</div></div>`;
   }
 
-  if (todo.category && CATEGORIES[todo.category]) {
-    const cat = CATEGORIES[todo.category];
-    metaCards += `
-      <div class="meta-card glass-card">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="${cat.color}"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/></svg>
-        <div class="meta-label">카테고리</div>
-        <div class="meta-value">${todo.category}</div>
-      </div>
-    `;
-  }
-
-  const createdFormatted = new Date(todo.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', year: 'numeric' }) +
-    ' ' + new Date(todo.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  metaCards += `
-    <div class="meta-card glass-card">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <div class="meta-label">생성일</div>
-      <div class="meta-value">${createdFormatted}</div>
-    </div>
-  `;
-
-  const notesHTML = todo.notes ?
-    `<div class="detail-notes">${escapeHTML(todo.notes)}</div>` : '';
-
-  const toggleBtnClass = todo.isCompleted ? 'undo' : 'complete';
-  const toggleLabel = todo.isCompleted ? '진행중으로 변경' : '완료로 표시';
-  const toggleIcon = todo.isCompleted ?
-    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 119 9 9.75 9.75 0 01-6.74-2.74L3 21"/><path d="M3 14V21h7"/></svg>` :
-    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/></svg>`;
+  const notes = t.notes ? `<div class="detail-notes">${esc(t.notes)}</div>` : '';
+  const btnCls = t.isCompleted ? 'orange' : 'green';
+  const btnTxt = t.isCompleted ? '진행중으로 변경' : '완료로 표시';
 
   $('#detail-content').innerHTML = `
-    <div class="glass-card detail-header-card">
-      <div class="detail-title-row">
-        <span class="detail-title ${todo.isCompleted ? 'completed-text' : ''}">${escapeHTML(todo.title)}</span>
-        <span class="priority-badge" style="--badge-color: ${p.color}; padding: 4px 8px; background: color-mix(in srgb, ${p.color} 18%, transparent); border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-          ${priorityIconSVG(todo.priority, 12)}
-          ${p.label}
-        </span>
-      </div>
-      ${notesHTML}
+    <div class="detail-card">
+      <div class="detail-title ${t.isCompleted ? 'done' : ''}">${esc(t.title)}</div>
+      ${notes}
     </div>
-    <div class="meta-grid">${metaCards}</div>
-    <button class="detail-toggle-btn ${toggleBtnClass}" id="detail-toggle-complete">
-      ${toggleIcon}
-      ${toggleLabel}
-    </button>
-  `;
+    <div class="detail-grid">${grid}</div>
+    <button class="detail-action-btn ${btnCls}" id="detail-toggle">${btnTxt}</button>`;
 
-  $('#detail-toggle-complete').addEventListener('click', () => {
-    todo.isCompleted = !todo.isCompleted;
+  $('#detail-toggle').addEventListener('click', () => {
+    t.isCompleted = !t.isCompleted;
     saveTodos(todos);
     haptic();
-    showDetail(todoId);
-    renderTodoList();
+    showDetail(id);
+    render();
   });
 
   switchView('detail-view');
 }
 
-// ===== Modal (Add/Edit) =====
-function openModal(todoId = null) {
-  editingTodoId = todoId;
-  const todo = todoId ? todos.find(t => t.id === todoId) : null;
+// ===== Modal =====
+function openModal(id = null) {
+  editingId = id;
+  const t = id ? todos.find(x => x.id === id) : null;
 
-  $('#modal-title').textContent = todo ? '할 일 편집' : '새로운 할 일';
-  $('#todo-title').value = todo ? todo.title : '';
-  $('#todo-notes').value = todo ? (todo.notes || '') : '';
-  $('#has-due-date').checked = !!(todo && todo.dueDate);
-  $('#due-date-picker').classList.toggle('hidden', !(todo && todo.dueDate));
+  $('#modal-title').textContent = t ? '편집' : '새로운 할 일';
+  $('#todo-title').value = t ? t.title : '';
+  $('#todo-notes').value = t ? (t.notes || '') : '';
+  $('#has-due-date').checked = !!(t && t.dueDate);
+  $('#due-date-picker').classList.toggle('hidden', !(t && t.dueDate));
 
-  if (todo && todo.dueDate) {
-    const d = new Date(todo.dueDate);
-    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    $('#todo-due-date').value = local;
+  if (t && t.dueDate) {
+    const d = new Date(t.dueDate);
+    $('#todo-due-date').value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   } else {
-    const tomorrow = new Date(Date.now() + 86400000);
-    const local = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    $('#todo-due-date').value = local;
+    const tmrw = new Date(Date.now() + 86400000);
+    $('#todo-due-date').value = new Date(tmrw.getTime() - tmrw.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }
 
-  // Priority
-  const priority = todo ? todo.priority : settings.defaultPriority;
-  $$('.priority-option').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.priority === priority);
-  });
+  const pri = t ? t.priority : settings.defaultPriority;
+  $$('.pri-btn').forEach(b => b.classList.toggle('selected', b.dataset.priority === pri));
 
-  // Category
-  const category = todo ? (todo.category || '') : '';
-  $$('.cat-chip').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.category === category);
-  });
+  const cat = t ? (t.category || '') : '';
+  $$('.cat-btn').forEach(b => b.classList.toggle('selected', b.dataset.category === cat));
 
-  // Status section
-  const statusSection = $('#status-section');
-  if (todo) {
-    statusSection.classList.remove('hidden');
-    $('#todo-completed').checked = todo.isCompleted;
-  } else {
-    statusSection.classList.add('hidden');
-  }
+  const sc = $('#status-card');
+  if (t) { sc.classList.remove('hidden'); $('#todo-completed').checked = t.isCompleted; }
+  else sc.classList.add('hidden');
 
-  updateSaveButton();
-  modalOverlay.classList.remove('hidden');
-  modalOverlay.classList.remove('dismissing');
-  setTimeout(() => $('#todo-title').focus(), 300);
+  checkSave();
+  $('#modal-overlay').classList.remove('hidden');
+  setTimeout(() => $('#todo-title').focus(), 350);
 }
 
 function closeModal() {
-  modalOverlay.classList.add('dismissing');
+  const overlay = $('#modal-overlay');
+  overlay.classList.add('dismissing');
   setTimeout(() => {
-    modalOverlay.classList.add('hidden');
-    modalOverlay.classList.remove('dismissing');
-    editingTodoId = null;
+    overlay.classList.add('hidden');
+    overlay.classList.remove('dismissing');
+    editingId = null;
   }, 300);
 }
 
-function updateSaveButton() {
-  const title = $('#todo-title').value.trim();
-  $('#modal-save').disabled = !title;
+function checkSave() {
+  $('#modal-save').disabled = !$('#todo-title').value.trim();
 }
 
 function saveModal() {
@@ -551,33 +365,23 @@ function saveModal() {
   if (!title) return;
 
   const notes = $('#todo-notes').value;
-  const priority = document.querySelector('.priority-option.selected')?.dataset.priority || 'medium';
-  const hasDueDate = $('#has-due-date').checked;
-  const dueDate = hasDueDate ? new Date($('#todo-due-date').value).toISOString() : null;
-  const category = document.querySelector('.cat-chip.selected')?.dataset.category || null;
-  const isCompleted = $('#todo-completed').checked;
+  const priority = document.querySelector('.pri-btn.selected')?.dataset.priority || 'medium';
+  const hasDue = $('#has-due-date').checked;
+  const dueDate = hasDue ? new Date($('#todo-due-date').value).toISOString() : null;
+  const category = document.querySelector('.cat-btn.selected')?.dataset.category || null;
+  const isCompleted = $('#todo-completed')?.checked || false;
 
-  if (editingTodoId) {
-    const todo = todos.find(t => t.id === editingTodoId);
-    if (todo) {
-      todo.title = title;
-      todo.notes = notes;
-      todo.priority = priority;
-      todo.dueDate = dueDate;
-      todo.category = category || null;
-      todo.isCompleted = isCompleted;
+  if (editingId) {
+    const t = todos.find(x => x.id === editingId);
+    if (t) {
+      Object.assign(t, { title, notes, priority, dueDate, category: category || null, isCompleted });
     }
   } else {
-    const newId = generateId();
-    lastAddedId = newId;
-    todos.push({
-      id: newId,
-      title,
-      notes,
-      isCompleted: false,
-      priority,
-      dueDate,
-      category: category || null,
+    const id = genId();
+    lastAddedId = id;
+    todos.unshift({
+      id, title, notes, isCompleted: false,
+      priority, dueDate, category: category || null,
       createdAt: new Date().toISOString()
     });
   }
@@ -585,400 +389,257 @@ function saveModal() {
   saveTodos(todos);
   haptic();
   closeModal();
-  renderTodoList();
-  scheduleDeadlineNotifications();
-
-  if (viewingTodoId && editingTodoId === viewingTodoId) {
-    showDetail(viewingTodoId);
-  }
+  render();
+  if (viewingId && editingId === viewingId) showDetail(viewingId);
 }
 
-// ===== View Switching (Phase 8: Parallax) =====
+// ===== View Switching =====
 function switchView(viewId) {
-  const todoView = $('#todo-view');
-
-  if (viewId === 'detail-view') {
-    todoView.classList.add('parallax-out');
-    todoView.classList.remove('active');
-  } else {
-    todoView.classList.remove('parallax-out');
-  }
-
-  $$('.view').forEach(v => {
-    if (v.id !== 'todo-view' || viewId !== 'detail-view') {
-      v.classList.toggle('active', v.id === viewId);
-    }
-  });
-
-  if (viewId === 'detail-view') {
-    $('#detail-view').classList.add('active');
-  }
-
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $(`#${viewId}`).classList.add('active');
   $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === viewId));
 
-  const tabBar = $('.tab-bar');
-  tabBar.style.display = viewId === 'detail-view' ? 'none' : 'flex';
+  const tabBar = $('#tab-bar');
+  const quickBar = $('#quick-add-bar');
+  if (viewId === 'detail-view') {
+    tabBar.classList.add('hidden-bar');
+    if (quickBar) quickBar.style.display = 'none';
+  } else {
+    tabBar.classList.remove('hidden-bar');
+    if (quickBar) quickBar.style.display = '';
+  }
+
+  // Hide quick bar in settings
+  if (viewId === 'settings-view' && quickBar) quickBar.style.display = 'none';
+  if (viewId === 'todo-view' && quickBar) quickBar.style.display = '';
 }
 
-// ===== Segmented Control Logic (Phase 3) =====
-function updateSegmentBg(index) {
-  const bg = $('#segment-bg');
-  bg.style.transform = `translateX(${index * 100}%)`;
-}
-
-// ===== Confirm Dialog =====
-let confirmCallback = null;
-
-function showConfirm(title, message, okLabel, callback) {
+// ===== Confirm =====
+let confirmCb = null;
+function showConfirm(title, msg, okTxt, cb) {
   $('#confirm-title').textContent = title;
-  $('#confirm-message').textContent = message;
-  $('#confirm-ok').textContent = okLabel;
-  confirmCallback = callback;
-  confirmOverlay.classList.remove('hidden');
+  $('#confirm-msg').textContent = msg;
+  $('#confirm-ok').textContent = okTxt;
+  confirmCb = cb;
+  $('#confirm-overlay').classList.remove('hidden');
 }
-
 function hideConfirm() {
-  confirmOverlay.classList.add('hidden');
-  confirmCallback = null;
+  $('#confirm-overlay').classList.add('hidden');
+  confirmCb = null;
 }
 
 // ===== Swipe to Delete =====
-let touchStartX = 0;
-let touchStartY = 0;
-let swipingRow = null;
-let isSwiping = false;
-
-function handleTouchStart(e) {
-  const row = e.target.closest('.todo-row');
+let touchX0 = 0, touchY0 = 0, swipeRow = null, isSwiping = false;
+function onTouchStart(e) {
+  const row = e.target.closest('.todo-item');
   if (!row) return;
-  touchStartX = e.touches[0].clientX;
-  touchStartY = e.touches[0].clientY;
-  swipingRow = row;
+  touchX0 = e.touches[0].clientX;
+  touchY0 = e.touches[0].clientY;
+  swipeRow = row;
   isSwiping = false;
 }
-
-function handleTouchMove(e) {
-  if (!swipingRow) return;
-  const dx = e.touches[0].clientX - touchStartX;
-  const dy = e.touches[0].clientY - touchStartY;
-
-  if (!isSwiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
-    isSwiping = true;
-  }
-
+function onTouchMove(e) {
+  if (!swipeRow) return;
+  const dx = e.touches[0].clientX - touchX0;
+  const dy = e.touches[0].clientY - touchY0;
+  if (!isSwiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) isSwiping = true;
   if (isSwiping && dx < 0) {
     e.preventDefault();
-    const offset = Math.max(dx, -120);
-    swipingRow.style.transform = `translateX(${offset}px)`;
+    swipeRow.style.transform = `translateX(${Math.max(dx, -120)}px)`;
+    swipeRow.style.transition = 'none';
   }
 }
-
-function handleTouchEnd(e) {
-  if (!swipingRow) return;
-  const dx = e.changedTouches[0].clientX - touchStartX;
-
+function onTouchEnd(e) {
+  if (!swipeRow) return;
+  const dx = e.changedTouches[0].clientX - touchX0;
+  swipeRow.style.transition = '';
   if (isSwiping && dx < -80) {
-    const todoId = swipingRow.dataset.id;
-    swipingRow.classList.add('deleting');
+    const id = swipeRow.dataset.id;
+    swipeRow.classList.add('deleting');
     setTimeout(() => {
-      todos = todos.filter(t => t.id !== todoId);
+      todos = todos.filter(t => t.id !== id);
       saveTodos(todos);
-      renderTodoList();
+      render();
       haptic();
-    }, 400);
-  } else if (swipingRow) {
-    swipingRow.style.transform = '';
+    }, 300);
+  } else {
+    swipeRow.style.transform = '';
   }
-
-  swipingRow = null;
+  swipeRow = null;
   isSwiping = false;
 }
 
-// ===== PWA Notifications (Phase 11) =====
-function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'default' && settings.notifications) {
+// ===== Notifications =====
+function requestNotifPerm() {
+  if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
 }
 
-let notificationTimers = [];
-
-function scheduleDeadlineNotifications() {
-  // Clear existing timers
-  notificationTimers.forEach(t => clearTimeout(t));
-  notificationTimers = [];
-
-  if (!settings.notifications || Notification.permission !== 'granted') return;
-
-  const now = Date.now();
-
-  for (const todo of todos) {
-    if (todo.isCompleted || !todo.dueDate) continue;
-    const due = new Date(todo.dueDate).getTime();
-
-    // 1 hour before
-    const oneHourBefore = due - 60 * 60 * 1000;
-    if (oneHourBefore > now) {
-      const timer = setTimeout(() => {
-        new Notification('마감 1시간 전', {
-          body: todo.title,
-          icon: './icons/icon-192.png',
-          tag: 'deadline-1h-' + todo.id
-        });
-      }, oneHourBefore - now);
-      notificationTimers.push(timer);
-    }
-
-    // 30 minutes before
-    const thirtyMinBefore = due - 30 * 60 * 1000;
-    if (thirtyMinBefore > now) {
-      const timer = setTimeout(() => {
-        new Notification('마감 30분 전!', {
-          body: todo.title + ' — 곧 마감됩니다',
-          icon: './icons/icon-192.png',
-          tag: 'deadline-30m-' + todo.id
-        });
-      }, thirtyMinBefore - now);
-      notificationTimers.push(timer);
-    }
-  }
-}
-
-// ===== Event Listeners =====
+// ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
-  renderTodoList();
+  render();
+  updateSegIndicator();
 
-  // Start live timer interval
-  liveTimerInterval = setInterval(updateLiveTimer, 1000);
-
-  // Load settings into UI
+  // Load settings
   $('#default-priority').value = settings.defaultPriority;
   $('#haptic-toggle').checked = settings.haptics;
-  $('#notification-toggle').checked = settings.notifications;
+  $('#notification-toggle').checked = settings.notifications || false;
 
-  // Request notification permission if enabled
-  requestNotificationPermission();
-  scheduleDeadlineNotifications();
+  if (settings.notifications) requestNotifPerm();
 
-  // Tab navigation
+  // Tabs
   $$('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      const viewId = tab.dataset.tab;
-      switchView(viewId);
+      switchView(tab.dataset.tab);
       haptic();
     });
   });
 
-  // Add button -> focus quick-add input
-  $('#add-btn').addEventListener('click', () => {
-    const input = $('#quick-add-input');
-    input.focus();
-    haptic();
-  });
-
-  // Quick-add input
-  const quickAddInput = $('#quick-add-input');
-  const quickAddSend = $('#quick-add-send');
-
-  quickAddInput.addEventListener('input', () => {
-    quickAddSend.classList.toggle('hidden', !quickAddInput.value.trim());
-  });
-
-  quickAddInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && quickAddInput.value.trim()) {
-      e.preventDefault();
-      quickAddTodo();
-    }
-  });
-
-  quickAddSend.addEventListener('click', quickAddTodo);
-
-  // Sort button -> action sheet
-  $('#sort-btn').addEventListener('click', () => {
-    sortMenu.classList.toggle('hidden');
-    haptic();
-  });
-
-  // Sort cancel button
-  $('#sort-cancel').addEventListener('click', () => {
-    sortMenu.classList.add('hidden');
-  });
-
-  // Sort action sheet backdrop
-  sortMenu.addEventListener('click', (e) => {
-    if (e.target === sortMenu) {
-      sortMenu.classList.add('hidden');
-    }
-  });
-
-  // Sort options
-  $$('.action-sheet-option').forEach(opt => {
-    opt.addEventListener('click', () => {
-      currentSort = opt.dataset.sort;
-      $$('.action-sheet-option').forEach(o => o.classList.toggle('active', o.dataset.sort === currentSort));
-      sortMenu.classList.add('hidden');
-      renderTodoList();
-      haptic();
-    });
-  });
-
-  // Segmented control (Phase 3)
-  const segments = $$('.segment-btn');
-  segments.forEach((btn, index) => {
+  // Segmented control
+  $$('.seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       currentFilter = btn.dataset.filter;
-      segments.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      updateSegmentBg(index);
-      renderTodoList();
+      $$('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+      updateSegIndicator();
+      render();
       haptic();
     });
   });
 
-  // Priority pill filters
-  $$('.priority-pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      const p = pill.dataset.priority;
-      if (currentPriorityFilter === p) {
-        currentPriorityFilter = null;
-        pill.classList.remove('active');
-      } else {
-        currentPriorityFilter = p;
-        $$('.priority-pill').forEach(c => c.classList.toggle('active', c.dataset.priority === p));
-      }
-      renderTodoList();
+  // Quick add
+  const quickInput = $('#quick-input');
+  const quickSend = $('#quick-send');
+  const quickPlus = $('#quick-add-plus');
+
+  quickPlus.addEventListener('click', () => {
+    quickInput.focus();
+    haptic();
+  });
+
+  quickInput.addEventListener('input', () => {
+    quickSend.classList.toggle('visible', !!quickInput.value.trim());
+  });
+
+  quickInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && quickInput.value.trim()) {
+      e.preventDefault();
+      quickAdd();
+    }
+  });
+
+  quickSend.addEventListener('click', quickAdd);
+
+  // Sort
+  $('#sort-btn').addEventListener('click', () => {
+    $('#sort-sheet').classList.remove('hidden');
+    haptic();
+  });
+
+  $$('.sheet-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      currentSort = opt.dataset.sort;
+      $$('.sheet-opt').forEach(o => o.classList.toggle('active', o === opt));
+      $('#sort-sheet').classList.add('hidden');
+      render();
       haptic();
     });
   });
 
-  // Search
-  searchInput.addEventListener('input', () => {
-    searchQuery = searchInput.value;
-    renderTodoList();
+  $('#sort-cancel').addEventListener('click', () => {
+    $('#sort-sheet').classList.add('hidden');
   });
 
-  // Todo list clicks
-  todoListEl.addEventListener('click', (e) => {
+  $('.sheet-backdrop').addEventListener('click', () => {
+    $('#sort-sheet').classList.add('hidden');
+  });
+
+  // Todo list interactions
+  const todoList = $('#todo-list');
+
+  todoList.addEventListener('click', e => {
+    if (isSwiping) return;
+
     const toggle = e.target.closest('[data-action="toggle"]');
     if (toggle) {
       e.stopPropagation();
-      const todo = todos.find(t => t.id === toggle.dataset.id);
-      if (todo) {
-        const wasCompleted = todo.isCompleted;
-        todo.isCompleted = !todo.isCompleted;
+      const item = toggle.closest('.todo-item');
+      const t = todos.find(x => x.id === item.dataset.id);
+      if (t) {
+        t.isCompleted = !t.isCompleted;
         saveTodos(todos);
         haptic();
-
-        // Phase 2: Animate check
-        if (!wasCompleted) {
-          toggle.classList.add('just-checked');
-          const row = toggle.closest('.todo-row');
-          if (row) row.classList.add('just-completed');
-          setTimeout(() => {
-            renderTodoList();
-          }, 600);
-        } else {
-          renderTodoList();
-        }
+        // Animate check
+        toggle.classList.toggle('checked', t.isCompleted);
+        setTimeout(render, 400);
       }
       return;
     }
 
     const detail = e.target.closest('[data-action="detail"]');
     if (detail) {
-      showDetail(detail.dataset.id);
+      showDetail(detail.closest('.todo-item').dataset.id);
       return;
     }
 
-    const row = e.target.closest('.todo-row');
-    if (row && !isSwiping) {
-      showDetail(row.dataset.id);
-    }
+    const row = e.target.closest('.todo-item');
+    if (row) showDetail(row.dataset.id);
   });
 
-  // Swipe to delete
-  todoListEl.addEventListener('touchstart', handleTouchStart, { passive: true });
-  todoListEl.addEventListener('touchmove', handleTouchMove, { passive: false });
-  todoListEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+  todoList.addEventListener('touchstart', onTouchStart, { passive: true });
+  todoList.addEventListener('touchmove', onTouchMove, { passive: false });
+  todoList.addEventListener('touchend', onTouchEnd, { passive: true });
 
-  // Detail back (Phase 8: parallax restore)
+  // Detail
   $('#detail-back').addEventListener('click', () => {
-    viewingTodoId = null;
+    viewingId = null;
     switchView('todo-view');
-    renderTodoList();
+    render();
   });
 
-  // Detail edit
   $('#detail-edit').addEventListener('click', () => {
-    if (viewingTodoId) {
-      openModal(viewingTodoId);
-    }
+    if (viewingId) openModal(viewingId);
   });
 
-  // Modal cancel
+  // Modal
   $('#modal-cancel').addEventListener('click', closeModal);
-
-  // Modal save
   $('#modal-save').addEventListener('click', saveModal);
-
-  // Title input validation
-  $('#todo-title').addEventListener('input', updateSaveButton);
-
-  // Due date toggle
-  $('#has-due-date').addEventListener('change', (e) => {
+  $('#todo-title').addEventListener('input', checkSave);
+  $('#has-due-date').addEventListener('change', e => {
     $('#due-date-picker').classList.toggle('hidden', !e.target.checked);
   });
 
-  // Priority options
-  $$('.priority-option').forEach(btn => {
+  $$('.pri-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      $$('.priority-option').forEach(b => b.classList.remove('selected'));
+      $$('.pri-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       haptic();
     });
   });
 
-  // Category chips
-  $$('.cat-chip').forEach(btn => {
+  $$('.cat-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      $$('.cat-chip').forEach(b => b.classList.remove('selected'));
+      $$('.cat-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       haptic();
     });
   });
 
-  // Settings: default priority
-  $('#default-priority').addEventListener('change', (e) => {
+  // Settings
+  $('#default-priority').addEventListener('change', e => {
     settings.defaultPriority = e.target.value;
     saveSettings(settings);
   });
 
-  // Settings: haptic toggle
-  $('#haptic-toggle').addEventListener('change', (e) => {
+  $('#haptic-toggle').addEventListener('change', e => {
     settings.haptics = e.target.checked;
     saveSettings(settings);
   });
 
-  // Settings: notification toggle (Phase 11)
-  $('#notification-toggle').addEventListener('change', (e) => {
+  $('#notification-toggle').addEventListener('change', e => {
     settings.notifications = e.target.checked;
     saveSettings(settings);
-    if (e.target.checked) {
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(p => {
-          if (p === 'granted') {
-            scheduleDeadlineNotifications();
-          } else {
-            settings.notifications = false;
-            e.target.checked = false;
-            saveSettings(settings);
-          }
-        });
-      } else if ('Notification' in window && Notification.permission === 'granted') {
-        scheduleDeadlineNotifications();
-      }
-    }
+    if (e.target.checked) requestNotifPerm();
   });
 
   // Delete all
@@ -986,20 +647,18 @@ document.addEventListener('DOMContentLoaded', () => {
     showConfirm('모든 할 일을 삭제할까요?', '이 작업은 되돌릴 수 없습니다.', '모두 삭제', () => {
       todos = [];
       saveTodos(todos);
-      renderTodoList();
+      render();
       haptic();
     });
   });
 
-  // Confirm dialog
   $('#confirm-ok').addEventListener('click', () => {
-    if (confirmCallback) confirmCallback();
+    if (confirmCb) confirmCb();
     hideConfirm();
   });
-
   $('#confirm-cancel').addEventListener('click', hideConfirm);
 
-  // Register service worker
+  // SW
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
