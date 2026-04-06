@@ -1,0 +1,1976 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>My Todos</title>
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="My Todos">
+  <link rel="apple-touch-icon" href="data:image/png;base64,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">
+  <style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg-1: rgb(26, 26, 46);
+  --bg-2: rgb(23, 33, 61);
+  --bg-3: rgb(15, 51, 97);
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-border: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+  --text: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.35);
+  --red: #ff3b30;
+  --orange: #ff9500;
+  --blue: #007aff;
+  --green: #34c759;
+  --purple: #af52de;
+  --pink: #ff2d55;
+  --gray: #8e8e93;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--bg-1), var(--bg-2), var(--bg-3));
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ===== Views ===== */
+.view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  transform: translateX(10px);
+  padding-bottom: calc(60px + var(--safe-bottom));
+}
+
+.view.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+/* Detail slides from right */
+#detail-view {
+  transform: translateX(100%);
+  z-index: 10;
+}
+
+#detail-view.active {
+  transform: translateX(0);
+}
+
+/* ===== Header ===== */
+.nav-header {
+  padding: calc(var(--safe-top) + 12px) 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(26, 26, 46, 0.6);
+  z-index: 5;
+}
+
+.nav-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.detail-header h1 {
+  font-size: 17px;
+  font-weight: 600;
+  flex: 1;
+  text-align: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.icon-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.text-btn {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.text-btn.bold {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.text-btn:disabled {
+  color: var(--text-tertiary);
+}
+
+/* ===== Search ===== */
+.search-container {
+  padding: 0 16px 8px;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  transform: translateY(calc(-50% - 4px));
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+#search-input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+#search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+#search-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ===== Filter Bar ===== */
+.filter-bar {
+  padding: 4px 16px 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.chip {
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.chip.active {
+  background: #fff;
+  color: #000;
+  font-weight: 600;
+  border-color: #fff;
+}
+
+.chip.priority-chip {
+  color: var(--chip-color, rgba(255, 255, 255, 0.7));
+  border-color: color-mix(in srgb, var(--chip-color) 30%, transparent);
+}
+
+.chip.priority-chip.active {
+  background: var(--chip-color);
+  color: #000;
+  border-color: var(--chip-color);
+}
+
+.chip-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+/* ===== Sort Menu ===== */
+.sort-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.sort-menu.hidden {
+  display: none;
+}
+
+.sort-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.sort-menu-content {
+  position: absolute;
+  top: calc(var(--safe-top) + 56px);
+  left: 16px;
+  min-width: 180px;
+  padding: 8px 0;
+}
+
+.sort-option {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sort-option:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sort-option.active::before {
+  content: '\2713  ';
+  font-weight: 700;
+}
+
+/* ===== Glass Card ===== */
+.glass-card {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Todo List ===== */
+.todo-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 16px 16px;
+}
+
+.todo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.todo-row:active {
+  transform: scale(0.98);
+}
+
+.todo-row.completed {
+  opacity: 0.6;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.todo-row.deleting {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* Check circle */
+.check-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  margin-top: 1px;
+}
+
+.check-circle.checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.check-circle svg {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.check-circle.checked svg {
+  opacity: 1;
+}
+
+/* Content */
+.todo-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.todo-title {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.todo-row.completed .todo-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.todo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.priority-badge {
+  color: var(--badge-color);
+}
+
+.priority-badge.compact svg {
+  width: 14px;
+  height: 14px;
+}
+
+.category-badge {
+  background: color-mix(in srgb, var(--badge-color) 18%, transparent);
+  color: var(--badge-color);
+}
+
+.due-badge {
+  background: color-mix(in srgb, var(--badge-color) 15%, transparent);
+  color: var(--badge-color);
+}
+
+.todo-notes-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+}
+
+.empty-state.hidden {
+  display: none;
+}
+
+.empty-card {
+  text-align: center;
+  padding: 32px;
+  width: 100%;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+
+.empty-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+/* ===== Detail View ===== */
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+
+.detail-header-card {
+  margin-bottom: 12px;
+}
+
+.detail-title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.detail-title.completed-text {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.detail-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.detail-notes {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.5;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.meta-card {
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.meta-card svg {
+  margin-bottom: 8px;
+}
+
+.meta-card .meta-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.meta-card .meta-value {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.detail-toggle-btn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.2s;
+}
+
+.detail-toggle-btn:active {
+  transform: scale(0.97);
+}
+
+.detail-toggle-btn.complete {
+  background: var(--green);
+  box-shadow: 0 4px 12px rgba(52, 199, 89, 0.4);
+}
+
+.detail-toggle-btn.undo {
+  background: var(--orange);
+  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.4);
+}
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: opacity 0.3s;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-container {
+  width: 100%;
+  max-height: 92vh;
+  background: linear-gradient(135deg, var(--bg-1), var(--bg-2), var(--bg-3));
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  padding-bottom: calc(16px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.field-row .field-label {
+  margin-bottom: 0;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+}
+
+input[type="text"]::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+input[type="datetime-local"] {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 15px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  font-family: inherit;
+  outline: none;
+  color-scheme: dark;
+}
+
+/* Priority options */
+.priority-options {
+  display: flex;
+  gap: 10px;
+}
+
+.priority-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.priority-option.selected {
+  background: color-mix(in srgb, var(--p-color) 20%, transparent);
+  color: var(--p-color);
+  border: 1.5px solid color-mix(in srgb, var(--p-color) 60%, transparent);
+}
+
+.priority-option.selected svg {
+  stroke: var(--p-color);
+}
+
+/* Category chips */
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cat-chip {
+  padding: 7px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--cat-color, rgba(255, 255, 255, 0.4));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.cat-chip.selected {
+  background: var(--cat-color, rgba(255, 255, 255, 0.3));
+  color: #000;
+  border-color: var(--cat-color, rgba(255, 255, 255, 0.3));
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 51px;
+  height: 31px;
+  flex-shrink: 0;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 31px;
+  transition: background 0.3s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 27px;
+  height: 27px;
+  left: 2px;
+  bottom: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: var(--green);
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ===== Settings ===== */
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.setting-value {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.setting-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+select {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+.danger-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--red);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.danger-btn span {
+  flex: 1;
+  text-align: left;
+}
+
+.settings-footer {
+  text-align: center;
+  padding-top: 8px;
+}
+
+.footer-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.footer-subtitle {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 4px;
+}
+
+/* ===== Confirm Dialog ===== */
+.confirm-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 48px);
+  max-width: 320px;
+  text-align: center;
+  padding: 24px;
+  z-index: 101;
+  background: linear-gradient(135deg, rgba(35, 35, 60, 0.95), rgba(25, 35, 65, 0.95));
+}
+
+.confirm-dialog h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.confirm-dialog p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.confirm-btn:active {
+  transform: scale(0.96);
+}
+
+.confirm-btn:not(.danger) {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text);
+}
+
+.confirm-btn.danger {
+  background: var(--red);
+  color: white;
+}
+
+/* ===== Tab Bar ===== */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  padding: 8px 0 calc(8px + var(--safe-bottom));
+  background: rgba(26, 26, 46, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 20;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.2s;
+}
+
+.tab.active {
+  color: var(--text);
+}
+
+.tab svg {
+  transition: transform 0.2s;
+}
+
+.tab.active svg {
+  transform: scale(1.05);
+}
+
+/* ===== Swipe Delete Hint ===== */
+.swipe-bg {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: var(--red);
+  border-radius: 0 16px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.todo-row.swiping .swipe-bg {
+  opacity: 1;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.todo-row {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ===== Scrollbar ===== */
+.todo-list::-webkit-scrollbar,
+.detail-content::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,
+.settings-content::-webkit-scrollbar {
+  display: none;
+}
+
+.todo-list,
+.detail-content,
+.modal-body,
+.settings-content {
+  scrollbar-width: none;
+}
+  </style>
+</head>
+  <div id="app">
+    <!-- ===== Todo List View ===== -->
+    <div id="todo-view" class="view active">
+      <header class="nav-header">
+        <h1>My Todos</h1>
+        <div class="header-actions">
+          <button id="sort-btn" class="icon-btn" aria-label="Sort">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>
+          </button>
+          <button id="add-btn" class="icon-btn primary" aria-label="Add todo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="11" fill="currentColor" opacity="0.2"/><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Search -->
+      <div class="search-container">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="search" id="search-input" placeholder="Search todos..." autocomplete="off">
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-chips" id="filter-chips">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="active">Active</button>
+          <button class="chip" data-filter="completed">Done</button>
+          <span class="chip-divider"></span>
+          <button class="chip priority-chip" data-priority="high" style="--chip-color: #ff3b30">High</button>
+          <button class="chip priority-chip" data-priority="medium" style="--chip-color: #ff9500">Medium</button>
+          <button class="chip priority-chip" data-priority="low" style="--chip-color: #007aff">Low</button>
+        </div>
+      </div>
+
+      <!-- Sort Menu -->
+      <div id="sort-menu" class="sort-menu hidden">
+        <div class="sort-menu-backdrop"></div>
+        <div class="sort-menu-content glass-card">
+          <button class="sort-option active" data-sort="createdAt">Date Added</button>
+          <button class="sort-option" data-sort="dueDate">Due Date</button>
+          <button class="sort-option" data-sort="priority">Priority</button>
+          <button class="sort-option" data-sort="title">Title</button>
+        </div>
+      </div>
+
+      <!-- Todo List -->
+      <div id="todo-list" class="todo-list"></div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state hidden">
+        <div class="glass-card empty-card">
+          <svg id="empty-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          <p id="empty-title" class="empty-title">No Todos Yet</p>
+          <p id="empty-subtitle" class="empty-subtitle">Tap + to add your first todo</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Settings View ===== -->
+    <div id="settings-view" class="view">
+      <header class="nav-header">
+        <h1>Settings</h1>
+      </header>
+      <div class="settings-content">
+        <div class="glass-card">
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
+              <span>Default Priority</span>
+            </div>
+            <select id="default-priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="setting-divider"></div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><circle cx="12" cy="12" r="10"/></svg>
+              <span>Haptic Feedback</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="haptic-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><circle cx="12" cy="12" r="10"/></svg>
+              <span>Version</span>
+            </div>
+            <span class="setting-value">1.0</span>
+          </div>
+          <div class="setting-divider"></div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <span>Build</span>
+            </div>
+            <span class="setting-value">1</span>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <button id="delete-all-btn" class="danger-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            <span>Delete All Todos</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2" opacity="0.6"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <div class="settings-footer">
+          <p class="footer-title">TodoApp</p>
+          <p class="footer-subtitle">Built with HTML, CSS & JavaScript</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Detail View ===== -->
+    <div id="detail-view" class="view">
+      <header class="nav-header detail-header">
+        <button id="detail-back" class="icon-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h1>Detail</h1>
+        <button id="detail-edit" class="text-btn">Edit</button>
+      </header>
+      <div id="detail-content" class="detail-content"></div>
+    </div>
+
+    <!-- ===== Add/Edit Modal ===== -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal-container">
+        <header class="modal-header">
+          <button id="modal-cancel" class="text-btn">Cancel</button>
+          <h2 id="modal-title">New Todo</h2>
+          <button id="modal-save" class="text-btn bold" disabled>Save</button>
+        </header>
+        <div class="modal-body">
+          <!-- Title -->
+          <div class="glass-card">
+            <label class="field-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+              Title
+            </label>
+            <input type="text" id="todo-title" placeholder="What needs to be done?" maxlength="200">
+          </div>
+
+          <!-- Notes -->
+          <div class="glass-card">
+            <label class="field-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Notes
+            </label>
+            <textarea id="todo-notes" placeholder="Add notes (optional)" rows="3"></textarea>
+          </div>
+
+          <!-- Priority -->
+          <div class="glass-card">
+            <label class="field-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
+              Priority
+            </label>
+            <div class="priority-options" id="priority-options">
+              <button class="priority-option" data-priority="low" style="--p-color: #007aff">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/></svg>
+                <span>Low</span>
+              </button>
+              <button class="priority-option selected" data-priority="medium" style="--p-color: #ff9500">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <span>Medium</span>
+              </button>
+              <button class="priority-option" data-priority="high" style="--p-color: #ff3b30">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 8 16 12"/></svg>
+                <span>High</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Due Date -->
+          <div class="glass-card">
+            <div class="field-row">
+              <label class="field-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Due Date
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="has-due-date">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div id="due-date-picker" class="hidden">
+              <input type="datetime-local" id="todo-due-date">
+            </div>
+          </div>
+
+          <!-- Category -->
+          <div class="glass-card">
+            <label class="field-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" opacity="0.6"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7" stroke="white" stroke-width="2"/></svg>
+              Category
+            </label>
+            <div class="category-chips" id="category-chips">
+              <button class="cat-chip selected" data-category="">None</button>
+              <button class="cat-chip" data-category="Personal" style="--cat-color: #af52de">Personal</button>
+              <button class="cat-chip" data-category="Work" style="--cat-color: #007aff">Work</button>
+              <button class="cat-chip" data-category="Shopping" style="--cat-color: #34c759">Shopping</button>
+              <button class="cat-chip" data-category="Health" style="--cat-color: #ff2d55">Health</button>
+              <button class="cat-chip" data-category="Finance" style="--cat-color: #ff9500">Finance</button>
+              <button class="cat-chip" data-category="Other" style="--cat-color: #8e8e93">Other</button>
+            </div>
+          </div>
+
+          <!-- Status (edit only) -->
+          <div id="status-card" class="glass-card hidden">
+            <div class="field-row">
+              <label class="field-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#34c759"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                Mark as Complete
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="todo-completed">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Delete Confirm ===== -->
+    <div id="confirm-overlay" class="modal-overlay hidden">
+      <div class="confirm-dialog glass-card">
+        <h3 id="confirm-title">Delete All Todos?</h3>
+        <p id="confirm-message">This cannot be undone.</p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel" class="confirm-btn">Cancel</button>
+          <button id="confirm-ok" class="confirm-btn danger">Delete All</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Tab Bar ===== -->
+    <nav class="tab-bar">
+      <button class="tab active" data-tab="todo-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <span>Todos</span>
+      </button>
+      <button class="tab" data-tab="settings-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </div>
+
+<script>
+// ===== Data Layer =====
+const STORAGE_KEY = 'todo-app-data';
+const SETTINGS_KEY = 'todo-app-settings';
+
+function loadTodos() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch { return []; }
+}
+
+function saveTodos(todos) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+}
+
+function loadSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || { defaultPriority: 'medium', haptics: true };
+  } catch { return { defaultPriority: 'medium', haptics: true }; }
+}
+
+function saveSettings(settings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function generateId() {
+  return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// ===== State =====
+let todos = loadTodos();
+let settings = loadSettings();
+let currentFilter = 'all';
+let currentPriorityFilter = null;
+let currentSort = 'createdAt';
+let searchQuery = '';
+let editingTodoId = null;
+let viewingTodoId = null;
+
+// ===== Priority/Category Config =====
+const PRIORITIES = {
+  high:   { label: 'High',   color: '#ff3b30', icon: 'arrow-up' },
+  medium: { label: 'Medium', color: '#ff9500', icon: 'minus' },
+  low:    { label: 'Low',    color: '#007aff', icon: 'arrow-down' }
+};
+
+const CATEGORIES = {
+  Personal: { color: '#af52de', icon: 'person' },
+  Work:     { color: '#007aff', icon: 'briefcase' },
+  Shopping: { color: '#34c759', icon: 'cart' },
+  Health:   { color: '#ff2d55', icon: 'heart' },
+  Finance:  { color: '#ff9500', icon: 'dollar' },
+  Other:    { color: '#8e8e93', icon: 'tag' }
+};
+
+// ===== DOM References =====
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+const todoListEl = $('#todo-list');
+const emptyStateEl = $('#empty-state');
+const searchInput = $('#search-input');
+const sortMenu = $('#sort-menu');
+const modalOverlay = $('#modal-overlay');
+const confirmOverlay = $('#confirm-overlay');
+
+// ===== Haptic Feedback =====
+function haptic() {
+  if (settings.haptics && navigator.vibrate) {
+    navigator.vibrate(10);
+  }
+}
+
+// ===== Rendering =====
+function getFilteredTodos() {
+  let filtered = [...todos];
+
+  // Status filter
+  if (currentFilter === 'active') filtered = filtered.filter(t => !t.isCompleted);
+  if (currentFilter === 'completed') filtered = filtered.filter(t => t.isCompleted);
+
+  // Priority filter
+  if (currentPriorityFilter) filtered = filtered.filter(t => t.priority === currentPriorityFilter);
+
+  // Search
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(t =>
+      t.title.toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  filtered.sort((a, b) => {
+    switch (currentSort) {
+      case 'createdAt': return new Date(b.createdAt) - new Date(a.createdAt);
+      case 'dueDate': {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate) - new Date(b.dueDate);
+      }
+      case 'priority': {
+        const order = { high: 3, medium: 2, low: 1 };
+        return (order[b.priority] || 0) - (order[a.priority] || 0);
+      }
+      case 'title': return a.title.localeCompare(b.title);
+      default: return 0;
+    }
+  });
+
+  return filtered;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (dateDay < today) return 'Overdue';
+  if (dateDay.getTime() === today.getTime()) {
+    return 'Today ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function getDueBadgeColor(dateStr, isCompleted) {
+  if (!dateStr || isCompleted) return '#8e8e93';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (dateDay < today) return '#ff3b30';
+  if (dateDay.getTime() === today.getTime()) return '#ff9500';
+  return '#8e8e93';
+}
+
+function priorityIconSVG(priority, size = 14) {
+  const p = PRIORITIES[priority];
+  if (!p) return '';
+  let path = '';
+  if (priority === 'high') path = `<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 8 16 12"/>`;
+  else if (priority === 'medium') path = `<circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>`;
+  else path = `<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${p.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+
+function renderTodoList() {
+  const filtered = getFilteredTodos();
+  const hasSearch = searchQuery || currentFilter !== 'all' || currentPriorityFilter;
+
+  if (filtered.length === 0) {
+    todoListEl.innerHTML = '';
+    todoListEl.style.display = 'none';
+    emptyStateEl.classList.remove('hidden');
+
+    const icon = $('#empty-icon');
+    const title = $('#empty-title');
+    const subtitle = $('#empty-subtitle');
+
+    if (todos.length === 0 && !hasSearch) {
+      icon.innerHTML = '<path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>';
+      title.textContent = 'No Todos Yet';
+      subtitle.textContent = 'Tap + to add your first todo';
+    } else {
+      icon.innerHTML = '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>';
+      title.textContent = 'No Results';
+      subtitle.textContent = 'Try adjusting your filters';
+    }
+    return;
+  }
+
+  emptyStateEl.classList.add('hidden');
+  todoListEl.style.display = 'block';
+
+  todoListEl.innerHTML = filtered.map(todo => {
+    const p = PRIORITIES[todo.priority] || PRIORITIES.medium;
+    let metaHTML = '';
+
+    if (todo.dueDate) {
+      const dueBadgeColor = getDueBadgeColor(todo.dueDate, todo.isCompleted);
+      metaHTML += `<span class="badge due-badge" style="--badge-color: ${dueBadgeColor}">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        ${formatDate(todo.dueDate)}
+      </span>`;
+    }
+
+    if (todo.category && CATEGORIES[todo.category]) {
+      const cat = CATEGORIES[todo.category];
+      metaHTML += `<span class="badge category-badge" style="--badge-color: ${cat.color}">${todo.category}</span>`;
+    }
+
+    const notesPreview = todo.notes ? `<div class="todo-notes-preview">${escapeHTML(todo.notes)}</div>` : '';
+
+    return `
+      <div class="todo-row ${todo.isCompleted ? 'completed' : ''}" data-id="${todo.id}">
+        <div class="check-circle ${todo.isCompleted ? 'checked' : ''}" data-action="toggle" data-id="${todo.id}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="todo-content" data-action="detail" data-id="${todo.id}">
+          <div class="todo-title-row">
+            <span class="todo-title">${escapeHTML(todo.title)}</span>
+            <span class="priority-badge compact" style="--badge-color: ${p.color}">${priorityIconSVG(todo.priority)}</span>
+          </div>
+          ${metaHTML ? `<div class="todo-meta">${metaHTML}</div>` : ''}
+          ${notesPreview}
+        </div>
+        <span class="todo-chevron">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ===== Detail View =====
+function showDetail(todoId) {
+  const todo = todos.find(t => t.id === todoId);
+  if (!todo) return;
+  viewingTodoId = todoId;
+
+  const p = PRIORITIES[todo.priority] || PRIORITIES.medium;
+  const statusColor = todo.isCompleted ? '#34c759' : '#ff9500';
+  const statusLabel = todo.isCompleted ? 'Completed' : 'Active';
+
+  let metaCards = `
+    <div class="meta-card glass-card">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="${statusColor}"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <div class="meta-label">Status</div>
+      <div class="meta-value">${statusLabel}</div>
+    </div>
+    <div class="meta-card glass-card">
+      ${priorityIconSVG(todo.priority, 24)}
+      <div class="meta-label">Priority</div>
+      <div class="meta-value">${p.label}</div>
+    </div>
+  `;
+
+  if (todo.dueDate) {
+    const isOverdue = !todo.isCompleted && new Date(todo.dueDate) < new Date();
+    const dueColor = isOverdue ? '#ff3b30' : '#007aff';
+    const dateFormatted = new Date(todo.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' ' + new Date(todo.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    metaCards += `
+      <div class="meta-card glass-card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${dueColor}" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="meta-label">Due Date</div>
+        <div class="meta-value">${dateFormatted}</div>
+      </div>
+    `;
+  }
+
+  if (todo.category && CATEGORIES[todo.category]) {
+    const cat = CATEGORIES[todo.category];
+    metaCards += `
+      <div class="meta-card glass-card">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="${cat.color}"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/></svg>
+        <div class="meta-label">Category</div>
+        <div class="meta-value">${todo.category}</div>
+      </div>
+    `;
+  }
+
+  const createdFormatted = new Date(todo.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' ' + new Date(todo.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  metaCards += `
+    <div class="meta-card glass-card">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div class="meta-label">Created</div>
+      <div class="meta-value">${createdFormatted}</div>
+    </div>
+  `;
+
+  const notesHTML = todo.notes ?
+    `<div class="detail-notes">${escapeHTML(todo.notes)}</div>` : '';
+
+  const toggleBtnClass = todo.isCompleted ? 'undo' : 'complete';
+  const toggleLabel = todo.isCompleted ? 'Mark as Active' : 'Mark as Complete';
+  const toggleIcon = todo.isCompleted ?
+    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 119 9 9.75 9.75 0 01-6.74-2.74L3 21"/><path d="M3 14V21h7"/></svg>` :
+    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/></svg>`;
+
+  $('#detail-content').innerHTML = `
+    <div class="glass-card detail-header-card">
+      <div class="detail-title-row">
+        <span class="detail-title ${todo.isCompleted ? 'completed-text' : ''}">${escapeHTML(todo.title)}</span>
+        <span class="priority-badge" style="--badge-color: ${p.color}; padding: 4px 8px; background: color-mix(in srgb, ${p.color} 18%, transparent); border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+          ${priorityIconSVG(todo.priority, 12)}
+          ${p.label}
+        </span>
+      </div>
+      ${notesHTML}
+    </div>
+    <div class="meta-grid">${metaCards}</div>
+    <button class="detail-toggle-btn ${toggleBtnClass}" id="detail-toggle-complete">
+      ${toggleIcon}
+      ${toggleLabel}
+    </button>
+  `;
+
+  // Toggle complete handler
+  $('#detail-toggle-complete').addEventListener('click', () => {
+    todo.isCompleted = !todo.isCompleted;
+    saveTodos(todos);
+    haptic();
+    showDetail(todoId);
+    renderTodoList();
+  });
+
+  switchView('detail-view');
+}
+
+// ===== Modal (Add/Edit) =====
+function openModal(todoId = null) {
+  editingTodoId = todoId;
+  const todo = todoId ? todos.find(t => t.id === todoId) : null;
+
+  $('#modal-title').textContent = todo ? 'Edit Todo' : 'New Todo';
+  $('#todo-title').value = todo ? todo.title : '';
+  $('#todo-notes').value = todo ? (todo.notes || '') : '';
+  $('#has-due-date').checked = !!(todo && todo.dueDate);
+  $('#due-date-picker').classList.toggle('hidden', !(todo && todo.dueDate));
+
+  if (todo && todo.dueDate) {
+    const d = new Date(todo.dueDate);
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    $('#todo-due-date').value = local;
+  } else {
+    const tomorrow = new Date(Date.now() + 86400000);
+    const local = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    $('#todo-due-date').value = local;
+  }
+
+  // Priority
+  const priority = todo ? todo.priority : settings.defaultPriority;
+  $$('.priority-option').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.priority === priority);
+  });
+
+  // Category
+  const category = todo ? (todo.category || '') : '';
+  $$('.cat-chip').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.category === category);
+  });
+
+  // Status card
+  const statusCard = $('#status-card');
+  if (todo) {
+    statusCard.classList.remove('hidden');
+    $('#todo-completed').checked = todo.isCompleted;
+  } else {
+    statusCard.classList.add('hidden');
+  }
+
+  updateSaveButton();
+  modalOverlay.classList.remove('hidden');
+  setTimeout(() => $('#todo-title').focus(), 300);
+}
+
+function closeModal() {
+  modalOverlay.classList.add('hidden');
+  editingTodoId = null;
+}
+
+function updateSaveButton() {
+  const title = $('#todo-title').value.trim();
+  $('#modal-save').disabled = !title;
+}
+
+function saveModal() {
+  const title = $('#todo-title').value.trim();
+  if (!title) return;
+
+  const notes = $('#todo-notes').value;
+  const priority = document.querySelector('.priority-option.selected')?.dataset.priority || 'medium';
+  const hasDueDate = $('#has-due-date').checked;
+  const dueDate = hasDueDate ? new Date($('#todo-due-date').value).toISOString() : null;
+  const category = document.querySelector('.cat-chip.selected')?.dataset.category || null;
+  const isCompleted = $('#todo-completed').checked;
+
+  if (editingTodoId) {
+    const todo = todos.find(t => t.id === editingTodoId);
+    if (todo) {
+      todo.title = title;
+      todo.notes = notes;
+      todo.priority = priority;
+      todo.dueDate = dueDate;
+      todo.category = category || null;
+      todo.isCompleted = isCompleted;
+    }
+  } else {
+    todos.push({
+      id: generateId(),
+      title,
+      notes,
+      isCompleted: false,
+      priority,
+      dueDate,
+      category: category || null,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  saveTodos(todos);
+  haptic();
+  closeModal();
+  renderTodoList();
+
+  // Refresh detail if viewing
+  if (viewingTodoId && editingTodoId === viewingTodoId) {
+    showDetail(viewingTodoId);
+  }
+}
+
+// ===== View Switching =====
+function switchView(viewId) {
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $(`#${viewId}`).classList.add('active');
+
+  // Update tab bar
+  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === viewId));
+
+  // Hide tab bar on detail view
+  const tabBar = $('.tab-bar');
+  tabBar.style.display = viewId === 'detail-view' ? 'none' : 'flex';
+}
+
+// ===== Confirm Dialog =====
+let confirmCallback = null;
+
+function showConfirm(title, message, okLabel, callback) {
+  $('#confirm-title').textContent = title;
+  $('#confirm-message').textContent = message;
+  $('#confirm-ok').textContent = okLabel;
+  confirmCallback = callback;
+  confirmOverlay.classList.remove('hidden');
+}
+
+function hideConfirm() {
+  confirmOverlay.classList.add('hidden');
+  confirmCallback = null;
+}
+
+// ===== Swipe to Delete =====
+let touchStartX = 0;
+let touchStartY = 0;
+let swipingRow = null;
+let isSwiping = false;
+
+function handleTouchStart(e) {
+  const row = e.target.closest('.todo-row');
+  if (!row) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  swipingRow = row;
+  isSwiping = false;
+}
+
+function handleTouchMove(e) {
+  if (!swipingRow) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  const dy = e.touches[0].clientY - touchStartY;
+
+  // Determine if horizontal swipe
+  if (!isSwiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+    isSwiping = true;
+  }
+
+  if (isSwiping && dx < 0) {
+    e.preventDefault();
+    const offset = Math.max(dx, -120);
+    swipingRow.style.transform = `translateX(${offset}px)`;
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!swipingRow) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+
+  if (isSwiping && dx < -80) {
+    const todoId = swipingRow.dataset.id;
+    swipingRow.classList.add('deleting');
+    setTimeout(() => {
+      todos = todos.filter(t => t.id !== todoId);
+      saveTodos(todos);
+      renderTodoList();
+      haptic();
+    }, 250);
+  } else if (swipingRow) {
+    swipingRow.style.transform = '';
+  }
+
+  swipingRow = null;
+  isSwiping = false;
+}
+
+// ===== Event Listeners =====
+document.addEventListener('DOMContentLoaded', () => {
+  // Initial render
+  renderTodoList();
+
+  // Load settings into UI
+  $('#default-priority').value = settings.defaultPriority;
+  $('#haptic-toggle').checked = settings.haptics;
+
+  // Tab navigation
+  $$('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const viewId = tab.dataset.tab;
+      switchView(viewId);
+      haptic();
+    });
+  });
+
+  // Add button
+  $('#add-btn').addEventListener('click', () => {
+    openModal();
+    haptic();
+  });
+
+  // Sort button
+  $('#sort-btn').addEventListener('click', () => {
+    sortMenu.classList.toggle('hidden');
+    haptic();
+  });
+
+  // Sort backdrop
+  $('.sort-menu-backdrop').addEventListener('click', () => {
+    sortMenu.classList.add('hidden');
+  });
+
+  // Sort options
+  $$('.sort-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      currentSort = opt.dataset.sort;
+      $$('.sort-option').forEach(o => o.classList.toggle('active', o.dataset.sort === currentSort));
+      sortMenu.classList.add('hidden');
+      renderTodoList();
+      haptic();
+    });
+  });
+
+  // Filter chips
+  $$('.chip:not(.priority-chip)').forEach(chip => {
+    chip.addEventListener('click', () => {
+      currentFilter = chip.dataset.filter;
+      $$('.chip:not(.priority-chip)').forEach(c => c.classList.toggle('active', c.dataset.filter === currentFilter));
+      renderTodoList();
+      haptic();
+    });
+  });
+
+  // Priority filter chips
+  $$('.chip.priority-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const p = chip.dataset.priority;
+      if (currentPriorityFilter === p) {
+        currentPriorityFilter = null;
+        chip.classList.remove('active');
+      } else {
+        currentPriorityFilter = p;
+        $$('.chip.priority-chip').forEach(c => c.classList.toggle('active', c.dataset.priority === p));
+      }
+      renderTodoList();
+      haptic();
+    });
+  });
+
+  // Search
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    renderTodoList();
+  });
+
+  // Todo list clicks
+  todoListEl.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-action="toggle"]');
+    if (toggle) {
+      e.stopPropagation();
+      const todo = todos.find(t => t.id === toggle.dataset.id);
+      if (todo) {
+        todo.isCompleted = !todo.isCompleted;
+        saveTodos(todos);
+        haptic();
+        renderTodoList();
+      }
+      return;
+    }
+
+    const detail = e.target.closest('[data-action="detail"]');
+    if (detail) {
+      showDetail(detail.dataset.id);
+      return;
+    }
+
+    const row = e.target.closest('.todo-row');
+    if (row && !isSwiping) {
+      showDetail(row.dataset.id);
+    }
+  });
+
+  // Swipe to delete
+  todoListEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+  todoListEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+  todoListEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+  // Detail back
+  $('#detail-back').addEventListener('click', () => {
+    viewingTodoId = null;
+    switchView('todo-view');
+    renderTodoList();
+  });
+
+  // Detail edit
+  $('#detail-edit').addEventListener('click', () => {
+    if (viewingTodoId) {
+      openModal(viewingTodoId);
+    }
+  });
+
+  // Modal cancel
+  $('#modal-cancel').addEventListener('click', closeModal);
+
+  // Modal save
+  $('#modal-save').addEventListener('click', saveModal);
+
+  // Title input validation
+  $('#todo-title').addEventListener('input', updateSaveButton);
+
+  // Due date toggle
+  $('#has-due-date').addEventListener('change', (e) => {
+    $('#due-date-picker').classList.toggle('hidden', !e.target.checked);
+  });
+
+  // Priority options
+  $$('.priority-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.priority-option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      haptic();
+    });
+  });
+
+  // Category chips
+  $$('.cat-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.cat-chip').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      haptic();
+    });
+  });
+
+  // Settings: default priority
+  $('#default-priority').addEventListener('change', (e) => {
+    settings.defaultPriority = e.target.value;
+    saveSettings(settings);
+  });
+
+  // Settings: haptic toggle
+  $('#haptic-toggle').addEventListener('change', (e) => {
+    settings.haptics = e.target.checked;
+    saveSettings(settings);
+  });
+
+  // Delete all
+  $('#delete-all-btn').addEventListener('click', () => {
+    showConfirm('Delete All Todos?', 'This cannot be undone.', 'Delete All', () => {
+      todos = [];
+      saveTodos(todos);
+      renderTodoList();
+      haptic();
+    });
+  });
+
+  // Confirm dialog
+  $('#confirm-ok').addEventListener('click', () => {
+    if (confirmCallback) confirmCallback();
+    hideConfirm();
+  });
+
+  $('#confirm-cancel').addEventListener('click', hideConfirm);
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+});
+</script>
+</body></html>
