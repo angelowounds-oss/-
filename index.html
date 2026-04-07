@@ -1,1 +1,230 @@
-<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=web/index.html"><meta charset="UTF-8"><title>훈련병 관리</title></head><body><a href="web/index.html">훈련병 관리 앱으로 이동</a></body></html>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>훈련병 관리</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a2a1a">
+
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="훈련병">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== 탭 1: 종교 집계 ===== -->
+    <div id="religion-view" class="view active">
+      <header class="nav-header">
+        <h1>종교 집계</h1>
+        <div class="header-actions">
+          <span class="header-badge" id="total-badge">0명</span>
+        </div>
+      </header>
+      <div class="scroll-area">
+        <!-- 종교별 카드 -->
+        <div class="religion-grid" id="religion-grid"></div>
+
+        <!-- 소대별 집계 -->
+        <div class="section-title">소대별 집계</div>
+        <div id="platoon-summary" class="platoon-summary"></div>
+      </div>
+    </div>
+
+    <!-- ===== 탭 2: 훈련병 명단 ===== -->
+    <div id="trainee-view" class="view">
+      <header class="nav-header">
+        <h1>명단</h1>
+        <div class="header-actions">
+          <button id="search-toggle" class="icon-btn" aria-label="검색">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button id="sort-btn" class="icon-btn" aria-label="정렬">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" aria-label="설정">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- 검색바 -->
+      <div id="search-bar" class="search-bar hidden">
+        <input type="text" id="search-input" placeholder="이름 또는 교번 검색..." autocomplete="off">
+      </div>
+
+      <!-- 소대 필터 -->
+      <div class="filter-bar" id="filter-bar">
+        <div class="seg-ctrl" id="platoon-filter">
+          <!-- 동적 생성 -->
+        </div>
+      </div>
+
+      <!-- 명단 -->
+      <div id="trainee-list" class="list-area"></div>
+
+      <!-- 빈 상태 -->
+      <div id="empty-trainee" class="empty-state hidden">
+        <div class="empty-inner">
+          <div class="empty-circle">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          </div>
+          <p class="empty-title">훈련병이 없습니다</p>
+          <p class="empty-sub">+ 버튼으로 훈련병을 추가하세요</p>
+        </div>
+      </div>
+
+      <!-- FAB -->
+      <button id="add-fab" class="fab" aria-label="훈련병 추가">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
+    <!-- ===== 훈련병 추가/편집 모달 ===== -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <header class="modal-top">
+          <button id="modal-cancel" class="text-btn">취소</button>
+          <h2 id="modal-title">훈련병 추가</h2>
+          <button id="modal-save" class="text-btn bold" disabled>저장</button>
+        </header>
+        <div class="modal-scroll">
+          <div class="form-card">
+            <div class="form-label">기본 정보</div>
+            <input type="text" id="f-name" class="form-input title-input" placeholder="이름" maxlength="20">
+            <div class="form-sep"></div>
+            <input type="text" id="f-service-num" class="form-input" placeholder="교번" maxlength="20">
+          </div>
+
+          <div class="form-card">
+            <div class="form-row">
+              <span class="form-row-label">소대</span>
+              <select id="f-platoon" class="form-select"></select>
+            </div>
+            <div class="form-sep"></div>
+            <div class="form-row">
+              <span class="form-row-label">분대</span>
+              <select id="f-squad" class="form-select"></select>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-label">종교</div>
+            <div class="religion-row" id="religion-row">
+              <button class="rel-btn selected" data-rel="무교" style="--rc:#8e8e93">무교</button>
+              <button class="rel-btn" data-rel="기독교" style="--rc:#007aff">기독교</button>
+              <button class="rel-btn" data-rel="불교" style="--rc:#ff9500">불교</button>
+              <button class="rel-btn" data-rel="원불교" style="--rc:#af52de">원불교</button>
+              <button class="rel-btn" data-rel="천주교" style="--rc:#ff2d55">천주교</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 설정 모달 ===== -->
+    <div id="settings-overlay" class="modal-overlay hidden">
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <header class="modal-top">
+          <button id="settings-close" class="text-btn">닫기</button>
+          <h2>설정</h2>
+          <div style="width:48px"></div>
+        </header>
+        <div class="modal-scroll">
+          <div class="form-card">
+            <div class="form-label">부대 편성</div>
+            <div class="form-row">
+              <span class="form-row-label">소대 수</span>
+              <select id="set-platoon-count" class="form-select"></select>
+            </div>
+            <div class="form-sep"></div>
+            <div class="form-row">
+              <span class="form-row-label">분대 수</span>
+              <select id="set-squad-count" class="form-select"></select>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-label">데이터</div>
+            <button id="export-btn" class="form-action-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              데이터 내보내기 (JSON)
+            </button>
+            <div class="form-sep"></div>
+            <button id="import-btn" class="form-action-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              데이터 가져오기 (JSON)
+            </button>
+            <div class="form-sep"></div>
+            <button id="delete-all-btn" class="form-action-btn danger">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              모든 데이터 삭제
+            </button>
+          </div>
+
+          <input type="file" id="import-file" accept=".json" style="display:none">
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 정렬 시트 ===== -->
+    <div id="sort-sheet" class="sheet-overlay hidden">
+      <div class="sheet-backdrop"></div>
+      <div class="sheet-panel">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">정렬</div>
+        <div class="sheet-options">
+          <button class="sheet-opt active" data-sort="name">
+            <span>이름순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button class="sheet-opt" data-sort="serviceNum">
+            <span>교번순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button class="sheet-opt" data-sort="platoon">
+            <span>소대순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button class="sheet-opt" data-sort="religion">
+            <span>종교순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </div>
+        <button class="sheet-cancel" id="sort-cancel">취소</button>
+      </div>
+    </div>
+
+    <!-- ===== 확인 다이얼로그 ===== -->
+    <div id="confirm-overlay" class="confirm-overlay hidden">
+      <div class="confirm-box">
+        <h3 id="confirm-title">삭제할까요?</h3>
+        <p id="confirm-msg">이 작업은 되돌릴 수 없습니다.</p>
+        <div class="confirm-btns">
+          <button id="confirm-cancel" class="confirm-btn">취소</button>
+          <button id="confirm-ok" class="confirm-btn danger">삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 하단 탭바 ===== -->
+    <nav class="tab-bar" id="tab-bar">
+      <button class="tab active" data-tab="religion-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>집계</span>
+      </button>
+      <button class="tab" data-tab="trainee-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>명단</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
