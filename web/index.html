@@ -3,293 +3,204 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>할 일</title>
+  <title>훈련병 관리</title>
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#f2f2f7">
+  <meta name="theme-color" content="#1a2a1a">
 
   <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="할 일">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="훈련병">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="app">
-    <!-- ===== Main List View ===== -->
-    <div id="todo-view" class="view active">
+
+    <!-- ===== 탭 1: 종교 집계 ===== -->
+    <div id="religion-view" class="view active">
       <header class="nav-header">
-        <h1>할 일</h1>
+        <h1>종교 집계</h1>
         <div class="header-actions">
+          <span class="header-badge" id="total-badge">0명</span>
+        </div>
+      </header>
+      <div class="scroll-area">
+        <!-- 종교별 카드 -->
+        <div class="religion-grid" id="religion-grid"></div>
+
+        <!-- 소대별 집계 -->
+        <div class="section-title">소대별 집계</div>
+        <div id="platoon-summary" class="platoon-summary"></div>
+      </div>
+    </div>
+
+    <!-- ===== 탭 2: 훈련병 명단 ===== -->
+    <div id="trainee-view" class="view">
+      <header class="nav-header">
+        <h1>명단</h1>
+        <div class="header-actions">
+          <button id="search-toggle" class="icon-btn" aria-label="검색">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
           <button id="sort-btn" class="icon-btn" aria-label="정렬">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" aria-label="설정">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           </button>
         </div>
       </header>
 
-      <!-- Summary Card (Things 3 inspired) -->
-      <div id="summary-card" class="summary-card hidden">
-        <div class="summary-left">
-          <div class="summary-ring">
-            <svg width="44" height="44" viewBox="0 0 44 44">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-              <circle id="summary-ring-fill" cx="22" cy="22" r="18" fill="none" stroke="var(--blue)" stroke-width="4" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1" transform="rotate(-90 22 22)"/>
-            </svg>
-            <span class="summary-pct" id="summary-pct">0%</span>
-          </div>
-          <div class="summary-text">
-            <span class="summary-count" id="summary-remaining">0개 남음</span>
-            <span class="summary-sub" id="summary-deadline"></span>
-          </div>
+      <!-- 검색바 -->
+      <div id="search-bar" class="search-bar hidden">
+        <input type="text" id="search-input" placeholder="이름 또는 교번 검색..." autocomplete="off">
+      </div>
+
+      <!-- 소대 필터 -->
+      <div class="filter-bar" id="filter-bar">
+        <div class="seg-ctrl" id="platoon-filter">
+          <!-- 동적 생성 -->
         </div>
       </div>
 
-      <!-- Filter Tabs (Todoist style) -->
-      <div class="filter-bar">
-        <div class="seg-ctrl" id="seg-ctrl">
-          <div class="seg-indicator" id="seg-indicator"></div>
-          <button class="seg-btn active" data-filter="all">전체</button>
-          <button class="seg-btn" data-filter="active">진행중</button>
-          <button class="seg-btn" data-filter="completed">완료</button>
-        </div>
-      </div>
+      <!-- 명단 -->
+      <div id="trainee-list" class="list-area"></div>
 
-      <!-- Todo List -->
-      <div id="todo-list" class="todo-list"></div>
-
-      <!-- Empty State -->
-      <div id="empty-state" class="empty-state hidden">
+      <!-- 빈 상태 -->
+      <div id="empty-trainee" class="empty-state hidden">
         <div class="empty-inner">
           <div class="empty-circle">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
           </div>
-          <p class="empty-title" id="empty-title">할 일이 없습니다</p>
-          <p class="empty-sub" id="empty-sub">아래에서 새로운 할 일을 추가해보세요</p>
+          <p class="empty-title">훈련병이 없습니다</p>
+          <p class="empty-sub">+ 버튼으로 훈련병을 추가하세요</p>
         </div>
       </div>
 
-      <!-- Bottom Quick Add (Todoist / Things 3 / TickTick style) -->
-      <div class="quick-add-bar" id="quick-add-bar">
-        <div class="quick-add-inner">
-          <button class="quick-add-plus" id="quick-add-plus">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
-          <input type="text" id="quick-input" placeholder="새로운 할 일" maxlength="200" autocomplete="off" enterkeyhint="done">
-          <button class="quick-send" id="quick-send" aria-label="추가">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--blue)"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
-        </div>
-      </div>
+      <!-- FAB -->
+      <button id="add-fab" class="fab" aria-label="훈련병 추가">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
     </div>
 
-    <!-- ===== Settings View ===== -->
-    <div id="settings-view" class="view">
-      <header class="nav-header">
-        <h1>설정</h1>
-      </header>
-      <div class="settings-scroll">
-        <div class="settings-group">
-          <div class="settings-group-title">일반</div>
-          <div class="settings-card">
-            <div class="setting-row">
-              <div class="setting-left">
-                <div class="setting-icon" style="background:#007aff">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
-                </div>
-                <span>기본 우선순위</span>
-              </div>
-              <select id="default-priority">
-                <option value="low">낮음</option>
-                <option value="medium" selected>보통</option>
-                <option value="high">높음</option>
-              </select>
-            </div>
-            <div class="setting-sep"></div>
-            <div class="setting-row">
-              <div class="setting-left">
-                <div class="setting-icon" style="background:#ff9500">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-                </div>
-                <span>햅틱 피드백</span>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="haptic-toggle" checked>
-                <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              </label>
-            </div>
-            <div class="setting-sep"></div>
-            <div class="setting-row">
-              <div class="setting-left">
-                <div class="setting-icon" style="background:#ff3b30">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
-                </div>
-                <span>마감 알림</span>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="notification-toggle">
-                <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-group">
-          <div class="settings-group-title">정보</div>
-          <div class="settings-card">
-            <div class="setting-row">
-              <div class="setting-left">
-                <div class="setting-icon" style="background:#8e8e93">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>
-                </div>
-                <span>버전</span>
-              </div>
-              <span class="setting-val">2.0</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-group">
-          <div class="settings-group-title">데이터</div>
-          <div class="settings-card">
-            <button id="delete-all-btn" class="setting-row danger-row">
-              <div class="setting-left">
-                <div class="setting-icon" style="background:#ff3b30">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                </div>
-                <span>모든 할 일 삭제</span>
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <div class="settings-footer">
-          <p>할 일 v2.0</p>
-          <p>Made with HTML, CSS & JS</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== Detail View ===== -->
-    <div id="detail-view" class="view">
-      <header class="nav-header detail-nav">
-        <button id="detail-back" class="back-btn">
-          <svg width="10" height="18" viewBox="0 0 10 18" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 1 1 9 9 17"/></svg>
-          <span>목록</span>
-        </button>
-        <button id="detail-edit" class="text-btn">편집</button>
-      </header>
-      <div id="detail-content" class="detail-scroll"></div>
-    </div>
-
-    <!-- ===== Edit Modal ===== -->
+    <!-- ===== 훈련병 추가/편집 모달 ===== -->
     <div id="modal-overlay" class="modal-overlay hidden">
       <div class="modal-sheet">
         <div class="modal-handle"></div>
         <header class="modal-top">
           <button id="modal-cancel" class="text-btn">취소</button>
-          <h2 id="modal-title">새로운 할 일</h2>
+          <h2 id="modal-title">훈련병 추가</h2>
           <button id="modal-save" class="text-btn bold" disabled>저장</button>
         </header>
         <div class="modal-scroll">
-          <!-- Title + Notes -->
           <div class="form-card">
-            <input type="text" id="todo-title" class="form-input title-input" placeholder="제목" maxlength="200">
+            <div class="form-label">기본 정보</div>
+            <input type="text" id="f-name" class="form-input title-input" placeholder="이름" maxlength="20">
             <div class="form-sep"></div>
-            <textarea id="todo-notes" class="form-input" placeholder="메모" rows="3"></textarea>
+            <input type="text" id="f-service-num" class="form-input" placeholder="교번" maxlength="20">
           </div>
 
-          <!-- Priority -->
-          <div class="form-card">
-            <div class="form-label">우선순위</div>
-            <div class="priority-row" id="priority-row">
-              <button class="pri-btn" data-priority="low" style="--pc:#007aff">
-                <span class="pri-dot"></span>낮음
-              </button>
-              <button class="pri-btn selected" data-priority="medium" style="--pc:#ff9500">
-                <span class="pri-dot"></span>보통
-              </button>
-              <button class="pri-btn" data-priority="high" style="--pc:#ff3b30">
-                <span class="pri-dot"></span>높음
-              </button>
-            </div>
-          </div>
-
-          <!-- Due date -->
           <div class="form-card">
             <div class="form-row">
-              <div class="form-row-left">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <span>마감일</span>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="has-due-date">
-                <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              </label>
+              <span class="form-row-label">소대</span>
+              <select id="f-platoon" class="form-select"></select>
             </div>
-            <div id="due-date-picker" class="hidden">
-              <input type="datetime-local" id="todo-due-date" class="date-input">
-            </div>
-          </div>
-
-          <!-- Category -->
-          <div class="form-card">
-            <div class="form-label">카테고리</div>
-            <div class="cat-row" id="cat-row">
-              <button class="cat-btn selected" data-category="">없음</button>
-              <button class="cat-btn" data-category="개인" style="--cc:#af52de">개인</button>
-              <button class="cat-btn" data-category="업무" style="--cc:#007aff">업무</button>
-              <button class="cat-btn" data-category="쇼핑" style="--cc:#34c759">쇼핑</button>
-              <button class="cat-btn" data-category="건강" style="--cc:#ff2d55">건강</button>
-              <button class="cat-btn" data-category="재정" style="--cc:#ff9500">재정</button>
-            </div>
-          </div>
-
-          <!-- Completed toggle (edit only) -->
-          <div id="status-card" class="form-card hidden">
+            <div class="form-sep"></div>
             <div class="form-row">
-              <div class="form-row-left">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--green)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                <span>완료로 표시</span>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="todo-completed">
-                <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              </label>
+              <span class="form-row-label">분대</span>
+              <select id="f-squad" class="form-select"></select>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-label">종교</div>
+            <div class="religion-row" id="religion-row">
+              <button class="rel-btn selected" data-rel="무교" style="--rc:#8e8e93">무교</button>
+              <button class="rel-btn" data-rel="기독교" style="--rc:#007aff">기독교</button>
+              <button class="rel-btn" data-rel="불교" style="--rc:#ff9500">불교</button>
+              <button class="rel-btn" data-rel="원불교" style="--rc:#af52de">원불교</button>
+              <button class="rel-btn" data-rel="천주교" style="--rc:#ff2d55">천주교</button>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ===== Sort Action Sheet ===== -->
+    <!-- ===== 설정 모달 ===== -->
+    <div id="settings-overlay" class="modal-overlay hidden">
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <header class="modal-top">
+          <button id="settings-close" class="text-btn">닫기</button>
+          <h2>설정</h2>
+          <div style="width:48px"></div>
+        </header>
+        <div class="modal-scroll">
+          <div class="form-card">
+            <div class="form-label">부대 편성</div>
+            <div class="form-row">
+              <span class="form-row-label">소대 수</span>
+              <select id="set-platoon-count" class="form-select"></select>
+            </div>
+            <div class="form-sep"></div>
+            <div class="form-row">
+              <span class="form-row-label">분대 수</span>
+              <select id="set-squad-count" class="form-select"></select>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-label">데이터</div>
+            <button id="export-btn" class="form-action-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              데이터 내보내기 (JSON)
+            </button>
+            <div class="form-sep"></div>
+            <button id="import-btn" class="form-action-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              데이터 가져오기 (JSON)
+            </button>
+            <div class="form-sep"></div>
+            <button id="delete-all-btn" class="form-action-btn danger">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              모든 데이터 삭제
+            </button>
+          </div>
+
+          <input type="file" id="import-file" accept=".json" style="display:none">
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 정렬 시트 ===== -->
     <div id="sort-sheet" class="sheet-overlay hidden">
       <div class="sheet-backdrop"></div>
       <div class="sheet-panel">
         <div class="sheet-handle"></div>
         <div class="sheet-title">정렬</div>
         <div class="sheet-options">
-          <button class="sheet-opt active" data-sort="createdAt">
-            <span>추가된 날짜</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          <button class="sheet-opt active" data-sort="name">
+            <span>이름순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
-          <button class="sheet-opt" data-sort="dueDate">
-            <span>마감일</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          <button class="sheet-opt" data-sort="serviceNum">
+            <span>교번순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
-          <button class="sheet-opt" data-sort="priority">
-            <span>우선순위</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          <button class="sheet-opt" data-sort="platoon">
+            <span>소대순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
-          <button class="sheet-opt" data-sort="title">
-            <span>제목</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          <button class="sheet-opt" data-sort="religion">
+            <span>종교순</span><svg class="sheet-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
         </div>
         <button class="sheet-cancel" id="sort-cancel">취소</button>
       </div>
     </div>
 
-    <!-- ===== Confirm Dialog ===== -->
+    <!-- ===== 확인 다이얼로그 ===== -->
     <div id="confirm-overlay" class="confirm-overlay hidden">
       <div class="confirm-box">
         <h3 id="confirm-title">삭제할까요?</h3>
@@ -301,15 +212,15 @@
       </div>
     </div>
 
-    <!-- ===== Tab Bar ===== -->
+    <!-- ===== 하단 탭바 ===== -->
     <nav class="tab-bar" id="tab-bar">
-      <button class="tab active" data-tab="todo-view">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        <span>할 일</span>
+      <button class="tab active" data-tab="religion-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>집계</span>
       </button>
-      <button class="tab" data-tab="settings-view">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        <span>설정</span>
+      <button class="tab" data-tab="trainee-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>명단</span>
       </button>
     </nav>
   </div>

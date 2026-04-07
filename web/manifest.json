@@ -1,11 +1,11 @@
 {
-  "name": "할 일",
-  "short_name": "할 일",
-  "description": "아이폰을 위한 할 일 관리 앱",
+  "name": "훈련병 관리",
+  "short_name": "훈련병",
+  "description": "육군 훈련소 훈련병 종교 집계 및 명단 관리",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f2f2f7",
-  "theme_color": "#f2f2f7",
+  "background_color": "#0d1a0d",
+  "theme_color": "#1a2a1a",
   "orientation": "portrait",
   "icons": [
     {
