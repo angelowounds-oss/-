@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark"><title>AETHER Wind Tunnel — M13 Scientific Visualization · M19 implementation candidate</title>
+<link rel="stylesheet" href="css/style.css"></head>
+<body>
+<header><div><h1>AETHER Wind Tunnel</h1><small>FPV · WASD / Touch controls · M13 Scientific Visualization</small></div><div id="readyBadge" class="badge">BOOTING</div></header>
+<main><section class="viewport"><canvas id="view" aria-label="AETHER wind tunnel facility 3D viewport"></canvas><div class="m13-panel"><label for="scientificMode">M13</label><select id="scientificMode" aria-label="Scientific visualization mode"><option>NONE</option><option>PRESSURE</option><option>VELOCITY</option><option>CP</option><option>SLICE</option><option>VECTORS</option><option>STREAMLINES</option><option>WAKE</option><option>VORTICITY</option></select><span id="m13Status" class="m13-status">SOLVER UNBOUND</span><span id="s0Status" class="m13-status">CFD: UNINITIALIZED</span><div id="streamControls" class="stream-controls" hidden><label>유선 밀도 <input id="streamDensity" type="range" min="16" max="128" step="16" value="64"><output id="streamDensityValue">64</output></label><button id="streamPlayback" type="button" aria-pressed="true">표식 애니메이션 일시정지</button><label>표시 배속 <input id="streamSpeed" type="range" min="0.25" max="4" step="0.25" value="1"><output id="streamSpeedValue">1.00×</output></label><small>고정된 solver snapshot 위의 방향 표식 애니메이션 · solver time은 프레임에 고정됩니다.</small></div><details class="smoke-controls" id="smokeControls"><summary>흰 증기 · 64개 분사구 → 후방 수거부 <span id="smokeQuickStatus">· CFD 계산 준비 중</span></summary><div class="smoke-detail-grid" aria-label="연기 시각화">
+<label><input id="smokeEnabled" type="checkbox" checked> 흰 증기 표시</label>
+<label>품질 <select id="smokeQuality"><option value="LOW">LOW · 500</option><option value="OFFICE" selected>OFFICE · 2000</option><option value="HIGH">HIGH · 4000</option><option value="ULTRA">ULTRA 8000</option><option value="MAX">MAX 12000</option></select></label>
+<button id="smokeDiagnosticsToggle" type="button" aria-expanded="false">증기 진단 보기</button><small id="smokeFlowDriver" style="grid-column:1/-1">FLOW: VEHICLE FRONT (−X) → REAR (+X) · 64 AUTHORED PORTS · TRACERS: ACTIVE CFD VELOCITY FIELD · FAN ROTATION: VISUAL ONLY</small><small id="smokeAppState" style="grid-column:1/-1">BOOT</small><div id="smokeDiagnostics" hidden style="grid-column:1/-1;max-height:210px;overflow:auto;white-space:pre-wrap;font:10px/1.35 ui-monospace,monospace;color:#c9d9e6"></div>
+<label>입자 밀도 <input id="smokeDensity" type="range" min="500" max="12000" step="250" value="2000"><output id="smokeDensityValue">2000</output></label>
+<label>표시 배속 <input id="smokeSpeed" type="range" min="1" max="5000" step="100" value="5000"><output id="smokeSpeedValue">5000×</output></label>
+<button id="smokePlayback" type="button" aria-pressed="false">연기 일시정지</button><button id="smokeOutletView" type="button">후방 흡입구 보기</button><button id="smokeHeroView" type="button">차량 보기</button>
+<label>분사구 <select id="smokeNozzleSelect"><option value="-1">전체 64개</option><option value="0">01번</option><option value="1">02번</option><option value="2">03번</option><option value="3">04번</option><option value="4">05번</option><option value="5">06번</option><option value="6">07번</option><option value="7">08번</option><option value="8">09번</option><option value="9">10번</option><option value="10">11번</option><option value="11">12번</option><option value="12">13번</option><option value="13">14번</option><option value="14">15번</option><option value="15">16번</option><option value="16">17번</option><option value="17">18번</option><option value="18">19번</option><option value="19">20번</option><option value="20">21번</option><option value="21">22번</option><option value="22">23번</option><option value="23">24번</option><option value="24">25번</option><option value="25">26번</option><option value="26">27번</option><option value="27">28번</option><option value="28">29번</option><option value="29">30번</option><option value="30">31번</option><option value="31">32번</option><option value="32">33번</option><option value="33">34번</option><option value="34">35번</option><option value="35">36번</option><option value="36">37번</option><option value="37">38번</option><option value="38">39번</option><option value="39">40번</option><option value="40">41번</option><option value="41">42번</option><option value="42">43번</option><option value="43">44번</option><option value="44">45번</option><option value="45">46번</option><option value="46">47번</option><option value="47">48번</option><option value="48">49번</option><option value="49">50번</option><option value="50">51번</option><option value="51">52번</option><option value="52">53번</option><option value="53">54번</option><option value="54">55번</option><option value="55">56번</option><option value="56">57번</option><option value="57">58번</option><option value="58">59번</option><option value="59">60번</option><option value="60">61번</option><option value="61">62번</option><option value="62">63번</option><option value="63">64번</option></select></label>
+<label><input id="smokePrefill" type="checkbox"> 정지 CFD 스냅샷으로 입자 사전 채움</label>
+<label>전면 범퍼 앞 분사 간격 <input id="smokeDistance" type="range" min="35" max="65" step="1" value="50"><output id="smokeDistanceValue">2.35 m · 0.50L</output></label>
+<label>분사 높이 오프셋 <input id="smokeHeight" type="range" min="-200" max="200" step="1" value="-12"><output id="smokeHeightValue">0.70 m</output></label>
+<label>분사 좌우 <input id="smokeLateral" type="range" min="-30" max="30" step="1" value="0"><output id="smokeLateralValue">0.00 m</output></label>
+<small id="smokeStatus">실제 CFD 유속 대기 · 32³ OFFICE_DIAGNOSTIC</small>
+<small>실제 32³ CFD 속도 벡터의 크기와 방향으로 이류합니다. 표시 배속은 시각화 재생용 시간 배율입니다. 물리적 과도 연기 계산은 아닙니다.</small></div></details></div><div id="m13Legend" class="m13-legend">M13 VIS READY · SOLVER UNBOUND</div><div id="wowOverlay" class="wow-overlay" role="region" aria-label="AETHER 풍동 체험">
+<div class="wow-kicker" id="wowKicker">AETHER · WIND TUNNEL</div>
+<h2 id="wowTitle">자동차 풍동, 눈앞에서 가동하십시오.</h2>
+<p id="wowDescription">팬 월부터 BMW M4 GT3 EVO의 후류까지 이어지는 30초 관람입니다.</p>
+<div class="wow-actions"><button id="wowStart" type="button" disabled>장면 준비 중…</button><button id="wowSkip" class="wow-skip" type="button">직접 둘러보기</button></div>
+<small id="wowSource" class="wow-source">제품 CFD 미연결 · 계산 전 장면</small><div class="wow-progress"><span id="wowProgress"></span></div>
+</div><div class="fpv-controls"><div class="lens"></div><div class="reticle"></div><div class="fpv-top"><button id="walkMode">1인칭 보행</button><button id="qualityMode">화질: 고화질</button><button id="swayMode">흔들림: 켬</button></div><div id="joystick" class="joystick" role="region" aria-label="이동 조이스틱"><span id="stick"></span></div><span class="swipe-note">오른쪽 화면: 시점 이동</span><div id="fpvHelp" class="fpv-help">WASD 이동 · 화면 클릭 후 마우스 시점 · Esc 해제</div></div><div class="hud"><strong id="viewName">HERO</strong><br><span id="viewHint">Drag to orbit · wheel/pinch to zoom</span></div><div class="toolbar"><button data-camera="Hero" class="active">Hero</button><button data-camera="Side">Side</button><button data-camera="Top">Top</button><button data-camera="Fan">Fan</button><button id="reset">Reset</button><button id="cutaway">Cutaway: Off</button><button id="roadSection">Road section: Off</button><span class="hint">M4 rolling road · state unbound · imported asset</span></div></section>
+<aside><section id="m14ControlRoom" class="note m14-panel" aria-labelledby="m14Title">
+<h2 id="m14Title">M14 · 제어실</h2>
+<div id="m14StateBanner" class="m14-banner" role="status" aria-live="polite">제어 연결 중…</div>
+<label class="m14-speed-label" for="m14WindSpeed">목표 유입 속도 <output id="m14WindSpeedValue" for="m14WindSpeed">1.0 m/s</output>
+<input id="m14WindSpeed" type="range" min="0" max="5" step="0.5" value="1" aria-describedby="m14SpeedNote"></label>
+<p id="m14SpeedNote" class="m14-note">제품 CFD 경계조건에는 아직 연결되지 않았습니다. 값은 다음 32³ CPU 진단 실행에 적용됩니다.</p>
+<div class="office-actions m14-actions">
+<button id="m14RoadToggle" type="button" aria-pressed="true">롤링로드 정지</button>
+<button id="m14Estop" class="m14-estop" type="button" aria-pressed="false">비상정지 (E-STOP)</button>
+<button id="m14ResetEstop" type="button" disabled>E-STOP 해제</button>
+</div>
+<div class="m14-atlas" aria-label="실시간 공학 상태 모니터">
+<div><span>제품 solver</span><b id="m14ProductStatus">미연결 · M13 대기</b></div>
+<div><span>계산 데이터</span><b id="m14DiagnosticStatus">32³ OFFICE 진단 대기</b></div>
+<div><span>진단 시간 / 단계</span><b id="m14TimeStatus">—</b></div>
+<div><span>압력 잔차 / 반복</span><b id="m14ResidualStatus">—</b></div>
+<div><span>롤링로드</span><b id="m14RoadStatus">명령 준비 · 속도장 미연결</b></div>
+</div>
+<div class="m14-atlas"><div><span>유입 팬 모듈</span><b id="m14FanStatus">AETHER FAN V2 로딩 중</b></div><div><span>후방 배출 수거부</span><b id="m14CollectorStatus">후방 수거부 준비 중</b></div></div><div class="office-actions m14-actions"><button id="m14FanToggle" type="button" aria-pressed="true">팬 시각 회전 정지</button></div><div id="m14CommandStatus" class="m14-note" aria-live="polite">수거부 입구는 출구 페이드 시작면에 정렬됩니다. 팬·수거부는 시각 장치이며 CFD 경계조건과 연결되지 않습니다.</div>
+</section>
+<section id="s3OfficePanel" class="note" aria-labelledby="s3OfficeTitle">
+<h2 id="s3OfficeTitle">S3 · 사무용 PC CPU 진단</h2>
+<p>기본 격자 <strong>32³</strong> · 1단계씩 계산 · 큰 격자 자동 전환 없음</p>
+<div class="office-form"><label>해상도 <select id="officeResolution"><option value="32" selected>32³ · 사무용 기본</option><option value="64">64³ 고해상도 진단 프리뷰 (수십 초 소요, 검증 미통과)</option></select></label>
+<label>유입 속도 (m/s) <input id="officeSpeed" type="number" min="0" max="5" step="0.5" value="1"></label>
+<label>반복 단계 <select id="officeSteps"><option value="1">1 단계</option><option value="2" selected>2 단계</option><option value="3">3 단계</option></select></label></div>
+<div class="office-actions"><button id="officeRun" type="button">선택한 단계 계산</button><button id="officeLive" type="button">연속 진단 · 최대 6단계</button><button id="officeStep" type="button">한 단계 계산</button><button id="officeStop" type="button" disabled>현재 단계 후 중지</button><button id="officeReset" type="button">결과 초기화</button></div>
+<small>연속 진단은 32³ 작업자에서 최대 6단계 또는 20초까지 계산하며 단계 사이 350ms를 쉽니다. 연기 표시 시간은 CFD 모의 시간과 별개입니다.</small>
+<div class="note" id="officeStatus" role="status" aria-live="polite">준비됨 · 계산은 CPU 작업자에서 실행됩니다.</div>
+<canvas id="officeSlice" width="32" height="32" aria-label="중앙 단면의 계산된 속도 크기"></canvas>
+<div class="note" id="officeLegend">중앙 단면 속도: 아직 계산되지 않았습니다.</div>
+<details><summary>계산 기록과 수치 검증</summary><pre id="officeReport">실제 계산 뒤 결과가 표시됩니다.</pre></details>
+<div class="office-actions"><button id="officeDownload" type="button" disabled>진단 JSON 저장</button></div>
+<p class="office-limit">격자 간격은 약 56 × 17 × 25cm입니다. 계산된 32³ 압력·속도장을 M13에 저해상도 진단 미리보기로 연결합니다. 항력·다운포스 판정과 제품용 M13 통과는 보류되며, 64³은 차량 출구 연결성 검사가 통과되지 않아 잠겨 있습니다.</p>
+</section><div class="note" id="s2Status">S2: NOT_VERIFIED · geometry NOT approved · no live CFD</div><button id="s2Inspect" type="button">S2 차량 고체 검사</button><button id="s2Verify" type="button">S2 64³ 압력 시험 (시간 소요)</button><details id="s2ReportPane"><summary>S2 형상·수치 진단 결과</summary><pre id="s2Report" style="max-height:320px;overflow:auto;white-space:pre-wrap">S2 검사 결과가 없습니다.</pre></details><div class="note" id="s1Status">S1: NOT_VERIFIED · numerical test only</div><button id="s1Verify" type="button">S1 numerical test</button><h2>Facility status</h2><dl id="status"></dl><h2>Rolling road</h2><dl id="roadStatus"></dl><h2>Presets</h2><dl><dt>Test section</dt><dd>18 × 8 × 5.5 m</dd><dt>Hero eye</dt><dd>[-1.8, 2.4, 9.1]</dd><dt>Target</dt><dd>[0, 1.05, 0]</dd><dt>FOV / clip</dt><dd>50° / .05–100</dd></dl><details open><summary>Diagnostics</summary><pre id="diagnostics">Booting…</pre></details><details><summary>M1 contract / tests</summary><pre id="m1View"></pre></details><details><summary>M3 gate checklist</summary><pre id="m3View"></pre></details><details><summary>Geometry config</summary><pre id="configView"></pre></details><details><summary>M4 state snapshot</summary><pre id="m4View"></pre></details><p class="note">Vehicle: user-provided BMW M4 GT3 EVO GLB, embedded with base-color material atlas. Diffuse texture is embedded at 2048×2048. Direct review: affine normals, manifold bevels, measured vehicle bounds, wheel correction/contact, roller topology, state signs, draw order and context recovery checked. OpenGL ES 3.2 software rendering verified; M3 geometry and desktop-aspect composition remain frozen after direct review. Browser runtime and iPhone visual approval remain unverified. An isolated 32³ CPU diagnostic is available. It does not bind the product solver or M13 scientific fields. Vehicle solid geometry remains unapproved; product readiness remains false.</p></aside></main>
+<script>window.setStatus=window.setStatus||function(){};</script>
+<script src="assets/console-asset.js"></script>
+<script src="assets/vehicle-asset.js"></script>
+<script src="assets/fan-asset.js"></script>
+<script src="assets/s3-worker.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+</body></html>
