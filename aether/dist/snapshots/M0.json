@@ -1,0 +1,11 @@
+{
+ "milestone": "M0",
+ "time": "2026-09-29T13:35:34.124Z",
+ "bytes": 16217263,
+ "sha256": "144c998f0bb0c1f4a7c69014d12d16350b44ee6d1b5d0a948f40d7fbd7bbafde",
+ "regression": {
+  "failed": 0,
+  "total": 18,
+  "time": "2026-09-29T13:31:22.668Z"
+ }
+}

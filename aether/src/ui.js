@@ -53,10 +53,10 @@ $('lvOn').onclick=()=>{const l=L();l.setEnabled(!l.enabled);$('lvOn').textConten
 const col=$('scCol');if(col)col.onclick=()=>{const l=L();l.colorMode=!l.colorMode;if(window.__RIB)window.__RIB.cmode=l.colorMode?1:0;const g=document.querySelector('.sc-leg');if(g)g.style.display=l.colorMode?'flex':'none'};
 const leg=document.querySelector('.sc-leg');if(leg)leg.innerHTML='<span>느림</span><i></i><span>빠름</span><small style="opacity:.75;margin-left:4px">(기준풍속 대비)</small>';
 setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;
- if(l.ok&&l.enabled){const N=l.N,F=l.forces,P=l.perf,r=l.benchRes;let x='실시간 GPU CFD · 비압축성 유동(비점성) · '+N.join('×')+' ('+(N[0]*N[1]*N[2]/1e4).toFixed(1)+'만 셀) · 등급 '+l.q+'\n풍속 '+l.U+' m/s · 모의시간 '+l.t.toFixed(2)+' s · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
+ if(l.ok&&l.enabled){const N=l.N,F=l.forces,r=l.benchRes;let x='실시간 GPU CFD · 비압축성 유동(비점성) · '+N.join('×')+' ('+(N[0]*N[1]*N[2]/1e4).toFixed(1)+'만 셀) · 등급 '+l.q+'\n풍속 '+l.U+' m/s · 모의시간 '+l.t.toFixed(2)+' s · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
   if(F&&F.n>2)x+='\n압력항력계수 Cd '+F.Cd.toFixed(2)+' · 압력양력계수 Cl '+F.Cl.toFixed(2)+'  (마찰항력 없음·복셀 형상·정성 참고값)';
   if(l.bench){x+='\n벤치마크(계산 형상은 원기둥, 화면의 차량은 계산에 포함되지 않음): 원기둥 D=0.5m '+(r&&r.ok?'스트라우할 수 St = '+r.St.toFixed(3)+' (문헌 약 0.2 · 격자 '+r.cells.toFixed(1)+'셀/지름)':'측정 중 '+Math.min(100,Math.round(100*l.t/8))+'%')}
-  if(/perf=1/.test(location.hash))x+='\n프레임 '+P.ema.toFixed(1)+' ms · '+(l.gpuClass||'?')+' · 연기해상도 '+Math.round(l.rs*100)+'% · 화면배율 '+Math.round(l.cs*100)+'% · 서브스텝 '+l.sub+' · 솔버 '+l.solver+'\n'+(l.gpu||'')+'\n조정: '+P.log.slice(-6).join(' ');
+  if(/perf=1/.test(location.hash)&&window.__PERF)x+='\n'+window.__perfHudText();
   x+='\n정성적 시각화이며 공학 해석 도구가 아닙니다';s.textContent=x;
   for(const id of ['scMore','scMode','scFlow']){const e=$(id);if(e)e.style.display='none'}}
  else if(l.err){s.textContent='실시간 CFD 사용 불가: '+l.err+'\n기존 필라멘트 방식으로 표시합니다';for(const id of ['scMore','scMode','scFlow']){const e=$(id);if(e)e.style.display=''}}

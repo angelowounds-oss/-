@@ -1,0 +1,40 @@
+{
+ "version": "0.14.0-dev",
+ "vehicle": "user",
+ "time": "2026-09-29T13:50:23.671Z",
+ "engineFiles": [
+  "00-core.js",
+  "10-webgpu-s1-s3.js",
+  "20-scene-assets.js",
+  "30-renderer-lighting.js",
+  "40-gl-walk-door.js",
+  "50-cfd-bridge-m13.js",
+  "60-fan-collector-layout.js",
+  "70-smoke-particles.js",
+  "80-body.js",
+  "84-perf-quality.js",
+  "85-live-cfd.js",
+  "86-mac-cfd.js",
+  "90-render-loop.js"
+ ],
+ "assets": {
+  "assets/console-asset.js": {
+   "bytes": 7057455,
+   "sha256": "420534ea5226ecad"
+  },
+  "assets/vehicle-asset.js": {
+   "bytes": 6654156,
+   "sha256": "335efbbea0a3bf63"
+  },
+  "assets/fan-asset.js": {
+   "bytes": 1970332,
+   "sha256": "8c67489aadef239b"
+  },
+  "assets/s3-worker.js": {
+   "bytes": 51752,
+   "sha256": "55260894fcf0136e"
+  }
+ },
+ "outBytes": 16273381,
+ "outGzipBytes": 4814305
+}

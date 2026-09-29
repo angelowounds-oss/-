@@ -1,0 +1,7 @@
+// Flat config (eslint 10). Engine is a classic-script IIFE run in the browser.
+const browser = ['window','document','navigator','location','console','performance','requestAnimationFrame','cancelAnimationFrame','setTimeout','clearTimeout','setInterval','clearInterval','atob','btoa','Blob','URL','Worker','fetch','matchMedia','devicePixelRatio','getComputedStyle','Event','CustomEvent','TextDecoder','TextEncoder','DecompressionStream','Response','AudioContext','Image','ImageBitmap','createImageBitmap','crypto','structuredClone','queueMicrotask','WebGL2RenderingContext','GPUBufferUsage','GPUShaderStage','GPUMapMode','GPUTextureUsage','self','postMessage','onmessage','addEventListener','innerWidth','innerHeight','screen','localStorage','ResizeObserver','KeyboardEvent','PointerEvent','MouseEvent','DOMException','AbortController','Promise','Float16Array','isSecureContext','setStatus'];
+export default [{
+  files: ['js/**/*.js', 'tools/**/*.mjs', 'tests/**/*.mjs'],
+  languageOptions: { ecmaVersion: 2023, sourceType: 'script', globals: Object.fromEntries(browser.map(k => [k, 'readonly'])) },
+  rules: { 'no-undef': 'error', 'no-dupe-keys': 'error', 'no-unreachable': 'warn', 'no-const-assign': 'error', 'no-redeclare': 'error' }
+}, { files: ['tools/**/*.mjs', 'tests/**/*.mjs'], languageOptions: { sourceType: 'module', globals: { process: 'readonly', Buffer: 'readonly', __dirname: 'readonly', __LIVE: 'readonly', __BODY: 'readonly', __AETHER_DEBUG: 'readonly', __PERF: 'readonly', __BENCH_RESULT: 'readonly' } } }];

@@ -708,6 +708,18 @@ document.getElementById('s1Verify')?.addEventListener('click',event=>{event.stop
 /* END S1 API */
 /* BEGIN S2 immutable CFD-only proxy asset. Render mesh remains unchanged. */
 const S2_CFD_PROXY_ASSET=Object.freeze({format:'BMW_PROXY_NOT_BUILT',sourceGeometryFingerprint:'INVALIDATED_ON_BMW_REPLACEMENT',sourceTriangles:-1,surface:Object.freeze({})});
+window.__AETHER_S2_PROXY=S2_CFD_PROXY_ASSET;
+/* S2 mesh audits (were referenced but missing in the source build). Vertices are welded by position (1e-6 m). */
+function s2WeldedTriangles(part){const P=part.positions,I=part.indices,key=new Map(),id=new Int32Array(P.length/3);
+ for(let v=0;v<id.length;v++){const k=Math.round(P[v*3]*1e6)+','+Math.round(P[v*3+1]*1e6)+','+Math.round(P[v*3+2]*1e6);let q=key.get(k);if(q===undefined){q=key.size;key.set(k,q)}id[v]=q}
+ const T=new Int32Array(I.length);for(let i=0;i<I.length;i++)T[i]=id[I[i]];return {T,vertices:key.size}}
+function S2_TOPOLOGY(parts){return {parts:parts.map(part=>{const {T,vertices}=s2WeldedTriangles(part),E=new Map();let degenerate=0;
+  for(let t=0;t<T.length;t+=3){const a=T[t],b=T[t+1],c=T[t+2];if(a===b||b===c||a===c){degenerate++;continue}for(const [u,v] of [[a,b],[b,c],[c,a]]){const k=u<v?u+'_'+v:v+'_'+u,e=E.get(k)||{n:0,fwd:0};e.n++;if(u<v)e.fwd++;E.set(k,e)}}
+  let boundaryEdges=0,nonManifoldEdges=0,orientationErrors=0;for(const e of E.values()){if(e.n===1)boundaryEdges++;else if(e.n>2)nonManifoldEdges++;else if(e.fwd!==1)orientationErrors++}
+  return {name:part.name,triangles:T.length/3,vertices,edges:E.size,degenerate,boundaryEdges,nonManifoldEdges,orientationErrors,closed:boundaryEdges===0&&nonManifoldEdges===0}})}}
+function S2_BOUNDARY_COMPONENTS(parts){return parts.map(part=>{const {T}=s2WeldedTriangles(part),n=T.length/3,par=new Int32Array(n).map((_,i)=>i),find=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x},E=new Map();
+  for(let t=0;t<n;t++)for(let j=0;j<3;j++){const u=T[t*3+j],v=T[t*3+(j+1)%3],k=u<v?u+'_'+v:v+'_'+u,o=E.get(k);if(o===undefined)E.set(k,t);else{const a=find(o),b=find(t);if(a!==b)par[a]=b}}
+  const roots=new Set();for(let t=0;t<n;t++)roots.add(find(t));return {name:part.name,components:roots.size,triangles:n}})}
 const S2_PROXY_VOXEL=(()=>{
  const decoded=new WeakMap();
  function bytesFor(asset){
@@ -1004,7 +1016,6 @@ async function s3Init(){
    largestBufferBytes:resource.largestBufferBytes,largestBufferMiB:s3ByteMiB(resource.largestBufferBytes),bufferCount:resource.bufferCount},
   kernelSourcesImplemented:S3_TARGET_PLAN.kernelSourcesImplemented,kernelCompilationVerified:s3CompileReport?.ok===true,
   solverBackendReady:false,allocationStarted:false,solverStarted:false,gridAutomaticFallback:false,geometryApproved:false,physicsReady:false,
-  kernelSourcesImplemented:true,kernelCompilationVerified:s3CompileReport?.ok===true,solverBackendReady:false,
   nextRequirements:[...(s3CompileReport?.ok?[]:['compile every generated 384^3 WGSL pipeline on the target browser']),'run the manufactured pressure/projection oracle on real WebGPU','review and resolve the 270-cell wheel-area connectivity pockets without changing the 384 grid','replace diagnostic full-field readback in the step path with a bounded GPU-resident commit and GPU-side acceptance reductions','perform a real WebGPU allocation and short accepted 384^3 sequence; record residual, divergence, flux, blocked-face velocity, memory, and step time']};
  s3PreflightBusy=false;s3Refresh();return s3PreflightReport;
 }
@@ -1601,7 +1612,7 @@ function m13PrepareDerived(){const f=m13FrameState.frame;if(!f||!m13FrameState.r
 function m13PrepareCp(){const f=m13FrameState.frame;if(!f||!m13CpReady(f)||!m13FrameState.resources.initialized)return;const r=m13FrameState.resources;const parts=CFD_BRIDGE.getSolidParts();while(r.cpBuffers.length<parts.length){r.cpBuffers.push(gl.createBuffer());r.createCount++}for(let i=0;i<parts.length;i++){gl.bindBuffer(gl.ARRAY_BUFFER,r.cpBuffers[i]);gl.bufferData(gl.ARRAY_BUFFER,m13FrameState.cp.parts[i],gl.STATIC_DRAW)}}function m13DrawCp(vp){const r=m13FrameState.resources;if(!r.cpProgram||!r.cpBuffers.length)return;gl.useProgram(r.cpProgram);const ap=gl.getAttribLocation(r.cpProgram,'a_position'),ac=gl.getAttribLocation(r.cpProgram,'a_cp'),um=gl.getUniformLocation(r.cpProgram,'u_mvp'),umin=gl.getUniformLocation(r.cpProgram,'u_cpMin'),umax=gl.getUniformLocation(r.cpProgram,'u_cpMax');const cpLegend=m13FrameState.legend.CP;const parts=CFD_BRIDGE.getSolidParts();for(let i=0;i<scene.vehicleParts.length;i++){const p=scene.vehicleParts[i],d=parts[i],idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vehicleModel();if(!p.gpu)continue;gl.bindBuffer(gl.ARRAY_BUFFER,p.gpu.pb);gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.cpBuffers[i]);gl.enableVertexAttribArray(ac);gl.vertexAttribPointer(ac,1,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.gpu.ib);gl.uniform1f(umin,cpLegend.min);gl.uniform1f(umax,cpLegend.max);gl.uniformMatrix4fv(um,false,matMul(vp,pm));gl.drawElements(gl.TRIANGLES,p.gpu.count,p.gpu.type,0);r.scientificDrawCalls++}}
 function m13FlowElapsed(){return m13FrameState.flowOffset+(m13FrameState.flowPlaying?(performance.now()-m13FrameState.flowEpoch)/1000*m13FrameState.flowSpeed:0)}
 function m13DrawOverlay(vp){const r=m13FrameState.resources,f=m13FrameState.frame;if(!r.initialized||!f||!m13FrameState.visible||m13FrameState.mode==='NONE')return;if(['PRESSURE','VELOCITY','VORTICITY','SLICE'].includes(m13FrameState.mode)){if(!r.slicePositionBuffer||!r.sliceUvBuffer||!r.slicePixels)return;gl.useProgram(r.sliceProgram);gl.bindBuffer(gl.ARRAY_BUFFER,r.slicePositionBuffer);const ap=gl.getAttribLocation(r.sliceProgram,'a_position'),au=gl.getAttribLocation(r.sliceProgram,'a_uv');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(au);gl.bindBuffer(gl.ARRAY_BUFFER,r.sliceUvBuffer);gl.vertexAttribPointer(au,2,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(r.sliceProgram,'u_mvp'),false,vp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,r.sliceTexture);gl.uniform1i(gl.getUniformLocation(r.sliceProgram,'u_field'),0);gl.uniform1f(gl.getUniformLocation(r.sliceProgram,'u_alpha'),.55);gl.drawArrays(gl.TRIANGLES,0,6);r.scientificDrawCalls++}else if(['VECTORS','STREAMLINES','WAKE'].includes(m13FrameState.mode)){if(!r.linePositionBuffer)return;gl.useProgram(r.lineProgram);gl.bindBuffer(gl.ARRAY_BUFFER,r.linePositionBuffer);const ap=gl.getAttribLocation(r.lineProgram,'a_position');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineColorBuffer);const ac=gl.getAttribLocation(r.lineProgram,'a_color');gl.enableVertexAttribArray(ac);gl.vertexAttribPointer(ac,4,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineFlowBuffer);const af=gl.getAttribLocation(r.lineProgram,'a_flow');gl.enableVertexAttribArray(af);gl.vertexAttribPointer(af,1,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(r.lineProgram,'u_mvp'),false,vp);gl.uniform1f(gl.getUniformLocation(r.lineProgram,'u_flowTime'),m13FlowElapsed());gl.uniform1f(gl.getUniformLocation(r.lineProgram,'u_flowEnabled'),m13FrameState.mode==='STREAMLINES'?1:0);gl.drawArrays(gl.LINES,0,r.lineCount);r.scientificDrawCalls++} }
-function initGL(){try{gl=glCanvas.getContext('webgl2',{antialias:true,alpha:false,depth:true});baseline.runtime.webGL2Exposed=!!gl;if(!gl)throw Error('WebGL2 unavailable');const vs=gl.createShader(gl.VERTEX_SHADER),fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(vs,vert);gl.compileShader(vs);if(!gl.getShaderParameter(vs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(vs));gl.shaderSource(fs,frag);gl.compileShader(fs);if(!gl.getShaderParameter(fs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(fs));program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));loc={colorLinear:gl.getUniformLocation(program,'u_colorLinear'),surface:gl.getUniformLocation(program,'u_surface'),eye:gl.getUniformLocation(program,'u_eye'),pos:gl.getAttribLocation(program,'a_position'),normal:gl.getAttribLocation(program,'a_normal'),uv:gl.getAttribLocation(program,'a_uv'),mvp:gl.getUniformLocation(program,'u_mvp'),model:gl.getUniformLocation(program,'u_model'),color:gl.getUniformLocation(program,'u_color'),alpha:gl.getUniformLocation(program,'u_alpha'),tex:gl.getUniformLocation(program,'u_tex'),useTex:gl.getUniformLocation(program,'u_useTex'),beltSurface:gl.getUniformLocation(program,'u_beltSurface'),beltTravel:gl.getUniformLocation(program,'u_beltTravel'),rollerSurface:gl.getUniformLocation(program,'u_rollerSurface')};gl.deleteShader(vs);gl.deleteShader(fs);
+function initGL(){try{gl=glCanvas.getContext('webgl2',{antialias:true,alpha:false,depth:true});if(gl)perfInstrument(gl);baseline.runtime.webGL2Exposed=!!gl;if(!gl)throw Error('WebGL2 unavailable');const vs=gl.createShader(gl.VERTEX_SHADER),fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(vs,vert);gl.compileShader(vs);if(!gl.getShaderParameter(vs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(vs));gl.shaderSource(fs,frag);gl.compileShader(fs);if(!gl.getShaderParameter(fs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(fs));program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));loc={colorLinear:gl.getUniformLocation(program,'u_colorLinear'),surface:gl.getUniformLocation(program,'u_surface'),eye:gl.getUniformLocation(program,'u_eye'),pos:gl.getAttribLocation(program,'a_position'),normal:gl.getAttribLocation(program,'a_normal'),uv:gl.getAttribLocation(program,'a_uv'),mvp:gl.getUniformLocation(program,'u_mvp'),model:gl.getUniformLocation(program,'u_model'),color:gl.getUniformLocation(program,'u_color'),alpha:gl.getUniformLocation(program,'u_alpha'),tex:gl.getUniformLocation(program,'u_tex'),useTex:gl.getUniformLocation(program,'u_useTex'),beltSurface:gl.getUniformLocation(program,'u_beltSurface'),beltTravel:gl.getUniformLocation(program,'u_beltTravel'),rollerSurface:gl.getUniformLocation(program,'u_rollerSurface')};gl.deleteShader(vs);gl.deleteShader(fs);
 whiteTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,whiteTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);m13InitResources();gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(.08,.11,.13,1);resize();gl.viewport(0,0,glCanvas.width,glCanvas.height);return true}catch(e){diagnostics.error('WebGL2 renderer',e);return false}}
 function resize(){if(!gl)return;const d=clamp(devicePixelRatio||1,1,renderQuality==='high'?2:1)*((window.__LIVE&&window.__LIVE.cs)||1),w=Math.max(1,Math.floor(glCanvas.clientWidth*d)),h=Math.max(1,Math.floor(glCanvas.clientHeight*d));if(glCanvas.width!==w||glCanvas.height!==h){glCanvas.width=w;glCanvas.height=h;gl.viewport(0,0,w,h);diagnostics.events.push({time:now(),type:'RESIZE',message:w+'x'+h})}}
 let renderQuality='high';document.getElementById('qualityMode').addEventListener('click',()=>{renderQuality=renderQuality==='high'?'balanced':'high';m13FrameState.quality=renderQuality;document.getElementById('qualityMode').textContent='화질: '+(renderQuality==='high'?'고화질':'균형')});const scientificModeEl=document.getElementById('scientificMode');if(scientificModeEl)scientificModeEl.addEventListener('change',e=>{m13PublicApi.setMode(e.target.value);});const streamDensityEl=document.getElementById('streamDensity'),streamDensityValue=document.getElementById('streamDensityValue'),streamSpeedEl=document.getElementById('streamSpeed'),streamSpeedValue=document.getElementById('streamSpeedValue'),streamPlaybackEl=document.getElementById('streamPlayback');if(streamDensityEl)streamDensityEl.addEventListener('input',e=>{m13FrameState.streamlineDensity=Number(e.target.value);if(streamDensityValue)streamDensityValue.textContent=String(m13FrameState.streamlineDensity);if(m13FrameState.mode==='STREAMLINES')m13PrepareDerived()});if(streamSpeedEl)streamSpeedEl.addEventListener('input',e=>{m13FrameState.flowOffset=m13FlowElapsed();m13FrameState.flowEpoch=performance.now();m13FrameState.flowSpeed=Number(e.target.value);if(streamSpeedValue)streamSpeedValue.textContent=m13FrameState.flowSpeed.toFixed(2)+'×';m13Sync()});if(streamPlaybackEl)streamPlaybackEl.addEventListener('click',()=>{if(m13FrameState.flowPlaying)m13FrameState.flowOffset=m13FlowElapsed();m13FrameState.flowEpoch=performance.now();m13FrameState.flowPlaying=!m13FrameState.flowPlaying;streamPlaybackEl.textContent=m13FrameState.flowPlaying?'표식 애니메이션 일시정지':'표식 애니메이션 재개';streamPlaybackEl.setAttribute?.('aria-pressed',String(m13FrameState.flowPlaying));m13Sync()});
@@ -1691,7 +1702,7 @@ function m12MaxAbs(a,b){if(!a||!b||a.length!==b.length)return Infinity;let e=0;f
 function m12SolidParts(){return scene.vehicleParts.map(p=>Object.freeze({name:p.name,role:p.role,vertexCount:p.positions.length/3,triangleCount:p.indices.length/3,positions:p.positions,indices:p.indices,modelMatrix:p.role==='wheel'?wheelModel(p,0):vehicleModel()}))}
 function m12SolidBounds(parts){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(const p of parts)for(let i=0;i<p.positions.length;i+=3){const q=m4point(p.modelMatrix,[p.positions[i],p.positions[i+1],p.positions[i+2]]);for(let d=0;d<3;d++){lo[d]=Math.min(lo[d],q[d]);hi[d]=Math.max(hi[d],q[d])}}return{min:lo,max:hi}}
 function m12AlignmentReport(){const descriptors=m12SolidParts(),renderBounds=boundsForParts(scene.vehicleParts,0),solidBounds=m12SolidBounds(descriptors),vt=AETHER.VEHICLE_TRANSFORM,b=vt.localBounds,samples=[];for(const x of[b.min[0],b.max[0]])for(const y of[b.min[1],b.max[1]])for(const z of[b.min[2],b.max[2]])samples.push([x,y,z]);samples.push([0,0,0],[(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2]);for(const p of wheelParts())samples.push(p.wheel.pivot.slice());let maxRenderBridgeError=0,maxRoundTripError=0;for(const p of samples){const w=vt.localToWorld(p),m=m4point(vehicleModel(),p),q=vt.worldToLocal(w);maxRenderBridgeError=Math.max(maxRenderBridgeError,m12MaxAbs(w,m));maxRoundTripError=Math.max(maxRoundTripError,m12MaxAbs(p,q))}let maxBoundsError=0;for(let d=0;d<3;d++)maxBoundsError=Math.max(maxBoundsError,Math.abs(renderBounds.min[d]-solidBounds.min[d]),Math.abs(renderBounds.max[d]-solidBounds.max[d]));let maxMatrixError=0;for(const p of descriptors){const expected=p.role==='wheel'?wheelModel(scene.vehicleParts.find(x=>x.name===p.name),0):vehicleModel();maxMatrixError=Math.max(maxMatrixError,m12MaxAbs(p.modelMatrix,expected))}return{maxRoundTripError,maxRenderBridgeError,maxBoundsError,maxMatrixError,renderBounds,solidBounds,transformAuthority:AETHER.VEHICLE_TRANSFORM}}
-const CFD_BRIDGE=Object.freeze({version:'M12',unit:coordinateContract.unit,axis:Object.freeze({...coordinateContract.axes}),solverBound:false,fieldData:false,transformAuthority:AETHER.VEHICLE_TRANSFORM,domain:CFD_DOMAIN_CONTRACT,vehicleLocalToWorld(p){return AETHER.VEHICLE_TRANSFORM.localToWorld(p)},worldToVehicleLocal(p){return AETHER.VEHICLE_TRANSFORM.worldToLocal(p)},getSolidParts(){return m12SolidParts()},getCFDProxyAsset(){return S2_CFD_PROXY_ASSET},getAlignmentReport(){return m12AlignmentReport()},geometrySignature(){return JSON.stringify({asset:VEHICLE_ASSET.sha256,transform:AETHER.VEHICLE_TRANSFORM._state,epoch:vehicleGeometryEpoch})}});AETHER.CFD_BRIDGE=CFD_BRIDGE;
+const CFD_BRIDGE=Object.freeze({version:'M12',unit:coordinateContract.unit,axis:Object.freeze({...coordinateContract.axes}),solverBound:false,fieldData:false,transformAuthority:AETHER.VEHICLE_TRANSFORM,domain:CFD_DOMAIN_CONTRACT,vehicleLocalToWorld(p){return AETHER.VEHICLE_TRANSFORM.localToWorld(p)},worldToVehicleLocal(p){return AETHER.VEHICLE_TRANSFORM.worldToLocal(p)},getSolidParts(){return m12SolidParts()},getCFDProxyAsset(){return window.__AETHER_S2_PROXY||null},getAlignmentReport(){return m12AlignmentReport()},geometrySignature(){return JSON.stringify({asset:VEHICLE_ASSET.sha256,transform:AETHER.VEHICLE_TRANSFORM._state,epoch:vehicleGeometryEpoch})}});AETHER.CFD_BRIDGE=CFD_BRIDGE;
 
 // M13 scientific visualization.  Solver fields remain direct references; only
 // sparse derived resources (the selected slice, lines and surface scalars) are
@@ -2011,21 +2022,157 @@ function bodyDraw(vp){const B=window.__BODY;if(!B.active||fpv.enabled)return;try
 window.__bodyOutside=()=>{const B=window.__BODY;if(!fpv.enabled||!B.active)return false;B.anchor={x:fpv.x,z:fpv.z,g:doorGround(fpv.x,fpv.z),yaw:fpv.yaw};setPreset('Side');camera.fov=55;const side=B.anchor.z>0?-1:1;camera.eye=[B.anchor.x-3.3,2.5,B.anchor.z+side*3.1];camera.target=[B.anchor.x+1.1,1.0,B.anchor.z];camera.up=[0,1,0];return true};
 window.__bodyReturn=()=>{const B=window.__BODY;const a=B.anchor;startWalk();if(a){fpv.x=a.x;fpv.z=a.z;fpv.yaw=a.yaw;fpv.gy=undefined}return !!a};
 
+/* ===== M1/M2: measurement (GPU timer queries, frame statistics, allocation accounting), startup GPU
+   calibration, quality table and adaptive controller. Tier choice is measured, never guessed from the UA or
+   renderer string (the renderer string is shown for information only). ===== */
+
+/* One table for every quality knob. sim = simulation, vol = volumetric smoke, ren = scene rendering.
+   Knobs whose feature is not implemented report available()=false and are skipped by the controller. */
+const QUALITY={
+ tiers:['LOW','MID','HIGH','ULTRA'],
+ sim:{LOW:{grid:[112,36,52],sub:2},MID:{grid:[144,46,66],sub:2},HIGH:{grid:[176,56,80],sub:2},ULTRA:{grid:[224,72,100],sub:2}},
+ vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
+ ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1},ULTRA:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1}},
+ budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
+ /* degrade order required by the spec; upgrade walks it backwards */
+ ladder:[
+  {k:'volRes',  get:()=>LIVE.rs,   set:v=>LIVE.rs=v,   steps:[.25,.375,.5,.625,.75,1]},
+  {k:'raySteps',get:()=>LIVE.stepScale,set:v=>LIVE.stepScale=v,steps:[.5,.625,.75,1,1.25]},
+  {k:'ao',      get:()=>PERF.set.ao,set:v=>PERF.set.ao=v,steps:[0,1,2],available:()=>!!window.__AETHER_FX?.ao},
+  {k:'shadow',  get:()=>PERF.set.shadow,set:v=>PERF.set.shadow=v,steps:[1,2,3],available:()=>!!window.__AETHER_FX?.shadow},
+  {k:'renderScale',get:()=>LIVE.cs,set:v=>LIVE.cs=v,steps:[.5,.6,.7,.8,.9,1]},
+  {k:'scalar',  get:()=>LIVE.dyeScale||1,set:v=>{LIVE.dyeScaleWanted=v},steps:[1,2],available:()=>!!LIVE.dyeScalable},
+  {k:'cfdRate', get:()=>LIVE.sub,set:v=>LIVE.sub=v,steps:[1,2]},
+  {k:'grid',    get:()=>QUALITY.tiers.indexOf(LIVE.q),set:v=>liveSetTier(QUALITY.tiers[v],'ctl'),steps:[0,1,2,3]}]};
+const PERF={frames:[],gpuFrames:[],sections:{},cur:null,pool:[],pending:[],ext:null,disjoint:0,mem:new Map(),memPeak:0,firstFrameMs:null,
+ set:{ao:0,shadow:1,aa:'FXAA',bloom:1},manual:{sim:null,vol:null,ren:null},cal:null,ctl:{last:0,cool:0,calm:0,log:[],switches:0,maxGrid:3},sync:false,syncMs:{}};
+window.__PERF=PERF;
+
+/* ---------- allocation accounting (calculated bytes of live textures/renderbuffers/buffers) ---------- */
+const PERF_FMT={[0x8814]:16,[0x822E]:4,[0x881A]:8,[0x8058]:4,[0x81A6]:4,[0x88F0]:4,[0x8C43]:4,[0x822D]:2,[0x8229]:1,[0x81A5]:2,[0x8CAC]:4,[0x8C3A]:4,[0x8D48]:1,[0x8230]:8,[0x822F]:4};
+function perfInstrument(g){if(g.__perfWrapped)return;g.__perfWrapped=true;const M=PERF.mem,add=(o,k,b)=>{if(!o)return;const e=M.get(o)||{};e[k]=b;M.set(o,e)};
+ const bpp=(ifmt,fmt,type)=>PERF_FMT[ifmt]||(type===g.FLOAT?16:type===g.HALF_FLOAT?8:4);
+ const t2=g.texImage2D.bind(g);g.texImage2D=function(target,level,ifmt,w,h,...r){try{if(typeof w==='number'&&typeof h==='number'){const tex=g.getParameter(target===g.TEXTURE_2D?g.TEXTURE_BINDING_2D:g.TEXTURE_BINDING_CUBE_MAP);add(tex,target+':'+level,w*h*bpp(ifmt,r[1],r[2]))}}catch(_){}return t2(target,level,ifmt,w,h,...r)};
+ const t3=g.texImage3D.bind(g);g.texImage3D=function(target,level,ifmt,w,h,d,...r){try{add(g.getParameter(g.TEXTURE_BINDING_3D),'3d:'+level,w*h*d*bpp(ifmt,r[1],r[2]))}catch(_){}return t3(target,level,ifmt,w,h,d,...r)};
+ const gm=g.generateMipmap.bind(g);g.generateMipmap=function(target){try{const tex=g.getParameter(target===g.TEXTURE_2D?g.TEXTURE_BINDING_2D:target===g.TEXTURE_3D?g.TEXTURE_BINDING_3D:g.TEXTURE_BINDING_CUBE_MAP),e=M.get(tex);if(e){const base=Object.entries(e).filter(([k])=>/:0$/.test(k)).reduce((a,[,v])=>a+v,0);e.mips=Math.round(base*(target===g.TEXTURE_3D?1/7:1/3))}}catch(_){}return gm(target)};
+ const rs=g.renderbufferStorage.bind(g);g.renderbufferStorage=function(t,f,w,h){try{add(g.getParameter(g.RENDERBUFFER_BINDING),'rb',w*h*(PERF_FMT[f]||4))}catch(_){}return rs(t,f,w,h)};
+ const bd=g.bufferData.bind(g);g.bufferData=function(t,d,u){try{const b=g.getParameter(t===g.ELEMENT_ARRAY_BUFFER?g.ELEMENT_ARRAY_BUFFER_BINDING:t===g.ARRAY_BUFFER?g.ARRAY_BUFFER_BINDING:t===g.PIXEL_PACK_BUFFER?g.PIXEL_PACK_BUFFER_BINDING:null);add(b,'buf',typeof d==='number'?d:(d?.byteLength||0))}catch(_){}return bd(t,d,u)};
+ for(const k of ['deleteTexture','deleteRenderbuffer','deleteBuffer']){const f=g[k].bind(g);g[k]=o=>{M.delete(o);return f(o)}}}
+function perfMemoryMB(){let s=0;for(const e of PERF.mem.values())for(const v of Object.values(e))s+=v;const cv=(glCanvas.width*glCanvas.height)*(4+4)*2;/* default framebuffer color+depth, double buffered (estimate) */
+ const mb=(s+cv)/1048576;PERF.memPeak=Math.max(PERF.memPeak,mb);return mb}
+
+/* ---------- GPU timer sections: perfMark(name) closes the running section and opens the next (never nested) ---------- */
+function perfTimerInit(){PERF.ext=gl.getExtension('EXT_disjoint_timer_query_webgl2')||null;PERF.pool=[];PERF.pending=[];PERF.cur=null}
+function perfMark(name){const now=performance.now();
+ if(PERF.sync){gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,PERF.px||(PERF.px=new Uint8Array(4)));if(PERF.syncName)PERF.syncMs[PERF.syncName]=(PERF.syncMs[PERF.syncName]||0)+performance.now()-PERF.syncT;PERF.syncName=name;PERF.syncT=performance.now();return}
+ const E=PERF.ext;if(!E)return;
+ if(PERF.cur){gl.endQuery(E.TIME_ELAPSED_EXT);PERF.frameQ.push(PERF.cur);PERF.cur=null}
+ if(name){const q=PERF.pool.pop()||gl.createQuery();gl.beginQuery(E.TIME_ELAPSED_EXT,q);PERF.cur={q,name}}}
+function perfFrameBegin(now){PERF.frameQ=[];PERF.frameStart=now;PERF.sync=!!(PERF.cal&&!PERF.cal.done);PERF.syncMs={};PERF.syncName=null}
+function perfFrameEnd(now){perfMark(null);if(PERF.sync&&PERF.cal&&PERF.syncMs.scene!==undefined)PERF.cal.lastScene=PERF.syncMs.scene+(PERF.syncMs.overlay||0);const E=PERF.ext;
+ if(E&&PERF.frameQ.length){PERF.pending.push(PERF.frameQ);if(PERF.pending.length>6){const old=PERF.pending.shift();for(const s of old)PERF.pool.push(s.q)}}
+ if(E){const dis=gl.getParameter(E.GPU_DISJOINT_EXT);if(dis){PERF.disjoint++;for(const f of PERF.pending)for(const s of f)PERF.pool.push(s.q);PERF.pending=[]}
+  while(PERF.pending.length){const f=PERF.pending[0],last=f[f.length-1];if(!gl.getQueryParameter(last.q,gl.QUERY_RESULT_AVAILABLE))break;PERF.pending.shift();let tot=0;const rec={};
+   for(const s of f){const ms=gl.getQueryParameter(s.q,gl.QUERY_RESULT)/1e6;rec[s.name]=(rec[s.name]||0)+ms;tot+=ms;PERF.pool.push(s.q)}
+   rec.total=tot;PERF.gpuFrames.push(rec);if(PERF.gpuFrames.length>600)PERF.gpuFrames.shift();for(const k in rec){const S=PERF.sections[k]||(PERF.sections[k]={ema:rec[k]});S.ema+=(rec[k]-S.ema)*.08}}}
+ if(PERF.lastFrame){const d=now-PERF.lastFrame;if(d<1000){PERF.frames.push(d);if(PERF.frames.length>600)PERF.frames.shift()}}PERF.lastFrame=now;
+ if(PERF.firstFrameMs===null)PERF.firstFrameMs=now;}
+function perfStats(a){if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y),q=p=>s[Math.min(s.length-1,Math.floor(p*(s.length-1)))];return {n:a.length,mean:a.reduce((x,y)=>x+y,0)/a.length,p50:q(.5),p95:q(.95),p99:q(.99),max:s[s.length-1]}}
+/* frame cost used by the controller: measured GPU time if the timer extension exists, else the frame interval */
+function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.length>10?{ms:g.ema,src:'GPU timer'}:{ms:perfStats(PERF.frames.slice(-60))?.p95||16.7,src:'frame interval'}}
+
+/* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
+function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
+ PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};return PERF.manual}
+function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
+function perfCalibrateStep(now){const C=PERF.cal;if(C.done)return true;
+ if(!C.t0){C.t0=now;C.sim=[];C.vol=[];C.scene=[];return false}
+ /* each calibration frame: 1 sim step and 1 full-cost volume march, both synchronously timed (readPixels fence) */
+ const sync=()=>gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,PERF.px||(PERF.px=new Uint8Array(4)));
+ try{gl.bindVertexArray(LIVE.vao);sync();let t=performance.now();livePasses(1/120);sync();C.sim.push(performance.now()-t);
+  if(!C.vol.length)liveCopyVolume();const w=Math.max(64,Math.round(glCanvas.width*.5)),h=Math.max(64,Math.round(glCanvas.height*.5));t=performance.now();liveCalibrationMarch(w,h);sync();C.vol.push({ms:performance.now()-t,px:w*h,steps:LIVE.calSteps||0})}
+ finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.enable(gl.DEPTH_TEST)}
+ if(C.lastScene)C.scene.push(C.lastScene);
+ /* 2.5 s target; never decide on fewer than 4 sim / 3 march / 2 scene samples (hard cap 10 s on very slow devices) */
+ const enough=C.sim.length>=4&&C.vol.length>=3&&C.scene.length>=2;if(!(enough&&now-C.t0>=2500)&&!(now-C.t0>10000)&&C.sim.length<24)return false;
+ C.done=true;perfDecide();return true}
+function perfDecide(){const C=PERF.cal,med=a=>{const s=a.slice().sort((x,y)=>x-y);return s.length?s[Math.floor(s.length/2)]:NaN},warm=a=>a.length>2?a.slice(1):a;
+ const cells=LIVE.N[0]*LIVE.N[1]*LIVE.N[2],simPerMcell=med(warm(C.sim))/(cells/1e6),volPerMpx=med(warm(C.vol).map(x=>x.ms/(x.px/1e6))),sceneMs=med(C.scene);
+ const px=glCanvas.width*glCanvas.height,pred={};
+ for(const t of QUALITY.tiers){const g=QUALITY.sim[t].grid,sv=QUALITY.vol[t],rn=QUALITY.ren[t];
+  pred[t]={sim:simPerMcell*g[0]*g[1]*g[2]/1e6*QUALITY.sim[t].sub,vol:volPerMpx*px*sv.res*sv.res*sv.steps/1e6,scene:sceneMs*rn.scale*rn.scale};pred[t].total=pred[t].sim+pred[t].vol+pred[t].scene}
+ let pick='LOW';for(const t of QUALITY.tiers)if(Number.isFinite(pred[t].total)&&pred[t].total<=QUALITY.budgetMs[t]*.8)pick=t;
+ C.result={pick,simMsPerMcellStep:simPerMcell,volMsPerMpx:volPerMpx,sceneMs,pred,samples:{sim:C.sim.length,vol:C.vol.length,scene:C.scene.length},timerQuery:!!PERF.ext,renderer:perfRenderer()};
+ const M=PERF.manual;for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax]||pick);
+ PERF.ctl.maxGrid=QUALITY.tiers.indexOf(M.sim||'ULTRA');
+ if((M.sim||pick)!==LIVE.q)liveSetTier(M.sim||pick,'cal');else liveReapplyAfterCal();
+ PERF.ctl.cool=performance.now()+4000;PERF.ctl.log.push('cal→'+pick)}
+function liveReapplyAfterCal(){LIVE.api&&LIVE.api.reset&&LIVE.ok&&LIVE.api.reset()}
+function perfRenderer(){try{const e=gl.getExtension('WEBGL_debug_renderer_info');return e?String(gl.getParameter(e.UNMASKED_RENDERER_WEBGL)):String(gl.getParameter(gl.RENDERER))}catch(_){return 'unknown'}}
+
+/* ---------- adaptive controller: degrade fast along QUALITY.ladder, upgrade slowly in reverse ---------- */
+function perfControl(now){const C=PERF.ctl,M=PERF.manual;if(!PERF.cal?.done||LIVE.freeze||document.hidden)return;if(now-C.last<250)return;C.last=now;
+ const budget=QUALITY.budgetMs[PERF.tier?.sim||'LOW'],cost=perfFrameCost();PERF.cost=cost;if(now<C.cool)return;
+ const locked=k=>(M.vol&&(k==='volRes'||k==='raySteps'))||(M.ren&&(k==='ao'||k==='shadow'||k==='renderScale'))||(M.sim&&(k==='scalar'||k==='cfdRate'||k==='grid'));
+ const knobs=QUALITY.ladder.filter(k=>!locked(k.k)&&(!k.available||k.available()));
+ const idx=k=>{const v=k.get(),s=k.steps;let b=0;for(let i=0;i<s.length;i++)if(Math.abs(s[i]-v)<Math.abs(s[b]-v))b=i;return b};
+ if(cost.ms>budget*1.1){C.calm=0;for(const k of knobs){const i=idx(k);if(i>0&&!(k.k==='grid'&&C.switches>=4)){k.set(k.steps[i-1]);if(k.k==='grid')C.switches++;C.log.push(k.k+'-');C.cool=now+(k.k==='grid'?6000:1200);return}}}
+ else if(cost.ms<budget*.7){if(++C.calm<12)return;
+  for(const k of knobs.slice().reverse()){const i=idx(k),cap=k.k==='grid'?C.maxGrid:k.steps.length-1,tierCap=perfTierCap(k);if(i<Math.min(cap,tierCap)){if(k.k==='grid'&&(C.calm<40||C.switches>=4))continue;k.set(k.steps[i+1]);if(k.k==='grid')C.switches++;C.log.push(k.k+'+');C.calm=0;C.cool=now+(k.k==='grid'?8000:2500);return}}}
+ else C.calm=0}
+/* upgrades never exceed the tier's own table value except for the grid (promotion path) */
+function perfTierCap(k){const t=PERF.tier||{},v=QUALITY.vol[t.vol||'LOW'],r=QUALITY.ren[t.ren||'LOW'],s=QUALITY.sim[t.sim||'LOW'],f=x=>k.steps.findIndex(y=>Math.abs(y-x)<1e-6);
+ return ({volRes:f(v.res),raySteps:f(v.steps),ao:r.ao,shadow:r.shadow-1,renderScale:f(r.scale),scalar:1,cfdRate:f(s.sub),grid:3})[k.k]??k.steps.length-1}
+
+/* ---------- #bench=perf : fixed camera path, JSON result ---------- */
+const PERF_BENCH_PATH=[['Hero',5000],['Side',5000],['Top',5000],['Fan',5000],['FPV',6000]];
+function perfBenchStart(){const B=PERF.bench={i:-1,t0:0,seg:[],start:performance.now()};perfBenchNext()}
+function perfBenchNext(){const B=PERF.bench;if(B.i>=0){const s=B.cur;s.cpu=perfStats(PERF.frames.slice(-s.frames));s.gpu=perfGpuSummary(PERF.gpuFrames.slice(-s.frames));B.seg.push(s)}
+ B.i++;if(B.i>=PERF_BENCH_PATH.length){perfBenchFinish();return}
+ const [name,ms]=PERF_BENCH_PATH[B.i];if(name==='FPV'){startWalk();fpv.x=-2;fpv.z=.4;fpv.yaw=Math.PI/2;fpv.pitch=-.05;fpv.gy=undefined}else setPreset(name);
+ B.cur={view:name,ms,frames:0,from:performance.now()};B.until=performance.now()+ms}
+function perfBenchTick(now){const B=PERF.bench;if(!B||B.done)return;B.cur.frames++;if(now>=B.until)perfBenchNext()}
+function perfGpuSummary(fr){if(!fr.length)return null;const keys=new Set();fr.forEach(f=>Object.keys(f).forEach(k=>keys.add(k)));const o={};for(const k of keys)o[k]=perfStats(fr.map(f=>f[k]||0));return o}
+function perfBenchFinish(){const B=PERF.bench;B.done=true;
+ const res={aether:window.__AETHER_BUILD||null,time:new Date().toISOString(),note:'성능 수치는 실제 GPU에서 측정한 경우에만 유효합니다. SwiftShader/소프트웨어 렌더러 결과는 성능 근거가 아닙니다.',
+  renderer:perfRenderer(),timerQuery:!!PERF.ext,disjointEvents:PERF.disjoint,canvas:[glCanvas.width,glCanvas.height],devicePixelRatio:devicePixelRatio,
+  tier:PERF.tier,calibration:PERF.cal?.result||null,settings:perfSettings(),memoryMB:{now:+perfMemoryMB().toFixed(1),peak:+PERF.memPeak.toFixed(1),kind:'계산된 할당량(드라이버 실측 아님)'},
+  firstFrameMs:PERF.firstFrameMs,segments:B.seg.map(s=>({view:s.view,frames:s.frames,cpuFrameMs:s.cpu,gpuMs:s.gpu})),
+  overall:{cpuFrameMs:perfStats(PERF.frames.slice(-B.seg.reduce((a,s)=>a+s.frames,0))),gpuMs:perfGpuSummary(PERF.gpuFrames.slice(-B.seg.reduce((a,s)=>a+s.frames,0)))},
+  controllerLog:PERF.ctl.log.slice(-40),cfd:{grid:LIVE.N,solver:LIVE.solver,impl:LIVE.impl||'COLLOCATED',step:LIVE.step,t:LIVE.t},errors:diagnostics.errors.slice(0,5)};
+ const o=res.overall.cpuFrameMs;res.verdict={p95Ms:o?.p95??null,budgetMs:QUALITY.budgetMs[PERF.tier?.sim||'LOW'],meetsBudget:o?o.p95<=QUALITY.budgetMs[PERF.tier?.sim||'LOW']:null};
+ window.__BENCH_RESULT=res;perfBenchShow(res)}
+function perfSettings(){return {grid:LIVE.N,sub:LIVE.sub,volRes:LIVE.rs,raySteps:LIVE.stepScale,lightTaps:LIVE.rq,renderScale:LIVE.cs,dyeScale:LIVE.dyeScale||1,...PERF.set}}
+function perfBenchShow(res){const txt=JSON.stringify(res,null,1),vp=document.querySelector('.viewport');let el=document.getElementById('benchOut');
+ if(!el){vp.insertAdjacentHTML('beforeend','<div id="benchOut" style="position:absolute;z-index:30;inset:10% 8%;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px;background:#050b10f2;border:1px solid #2b3742;color:#cfe;font:12px/1.4 ui-monospace,monospace"><b>벤치마크 결과 (JSON)</b><textarea readonly style="flex:1;background:#000;color:#bfe9ff;border:1px solid #234;font:11px ui-monospace,monospace"></textarea><div style="display:flex;gap:8px"><button id="benchCopy">복사</button><button id="benchSave">JSON 저장</button><button id="benchClose">닫기</button></div></div>');el=document.getElementById('benchOut');
+  document.getElementById('benchCopy').onclick=()=>{const t=el.querySelector('textarea');t.select();try{navigator.clipboard.writeText(t.value)}catch(_){document.execCommand('copy')}};
+  document.getElementById('benchSave').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download='aether-bench.json';a.click()};
+  document.getElementById('benchClose').onclick=()=>el.remove()}
+ el.querySelector('textarea').value=txt}
+
+/* ---------- per-frame hooks called from draw() ---------- */
+function perfBeginFrame(now){if(!PERF.inited||PERF.gen!==runtimeGeneration){PERF.inited=true;PERF.gen=runtimeGeneration;perfTimerInit();perfManualFromHash()}perfFrameBegin(now)}
+function perfEndFrame(now){perfFrameEnd(now);perfControl(now);perfBenchTick(now);
+ if(!PERF.benchArmed&&/bench=perf/.test(location.hash)&&PERF.cal?.done&&LIVE.ok&&LIVE.step>30){PERF.benchArmed=true;perfBenchStart()}}
+
+/* HUD text for #perf=1 (all values measured or calculated; source of each is named) */
+window.__perfHudText=()=>{const P=PERF,c=P.cost||perfFrameCost(),f=perfStats(P.frames.slice(-120)),S=P.sections,g=k=>S[k]?S[k].ema.toFixed(1):'-',cal=P.cal?.result;
+ return '프레임 p50 '+(f?f.p50.toFixed(1):'-')+' / p95 '+(f?f.p95.toFixed(1):'-')+' ms · 제어 기준 '+c.ms.toFixed(1)+' ms('+c.src+') · 예산 '+QUALITY.budgetMs[P.tier?.sim||'LOW']+' ms'
+ +'\nGPU ms '+(P.ext?'시뮬 '+g('sim')+' · 씬 '+g('scene')+' · 연기 '+g('smoke')+' · 기타 '+g('overlay'):'(timer query 미지원: 프레임 간격 사용)')
+ +'\n등급 sim '+(P.tier?.sim||'-')+' / vol '+(P.tier?.vol||'-')+' / render '+(P.tier?.ren||'-')+(cal?.pick?' · 시작 벤치마크 선택 '+cal.pick:cal?.skipped?' · 수동 고정':'')
+ +'\n연기 해상도 '+Math.round(LIVE.rs*100)+'% · 스텝 '+Math.round((LIVE.stepScale||1)*100)+'% · 화면 '+Math.round(LIVE.cs*100)+'% · CFD 서브스텝 '+LIVE.sub+' · 메모리(계산) '+perfMemoryMB().toFixed(0)+' MB'
+ +'\n조정: '+P.ctl.log.slice(-6).join(' ')};
 /* AETHER LIVE CFD: real-time GPU incompressible flow (collocated grid, semi-Lagrangian advection,
    Jacobi pressure projection, vorticity confinement) + passive-scalar smoke with MacCormack transport. */
-const LIVE={ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:true,
- vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.75,rq:2,cs:1,frame:0,perf:{auto:true,ema:16.7,last:0,cool:0,target:40,switches:0,log:[]},solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:6,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
-window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY}};
+const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:true,
+ vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:6,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
+window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
+ sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
 const LIVE_BENCH={D:.5,x:-1.5,z:.1,y:1.5,T:8,spin:2};
-const LIVE_Q={LOW:[112,36,52],MED:[144,46,66],HIGH:[176,56,80],ULTRA:[224,72,100]};
-const LIVE_TIERS=['LOW','MED','HIGH','ULTRA'];
-/* GPU class from the WebGL renderer string. Only a heuristic: integrated GPUs start on LOW and are promoted by the frame-time controller. */
-function liveGpuClass(){let r='';try{const e=gl.getExtension('WEBGL_debug_renderer_info');r=e?String(gl.getParameter(e.UNMASKED_RENDERER_WEBGL)):''}catch(_){}
- LIVE.gpu=r;if(/SwiftShader|llvmpipe|Software|Microsoft Basic/i.test(r))return 'SOFT';if(/Apple (M\d|GPU)|Apple, ANGLE Metal/i.test(r))return 'APPLE';
- if(/RTX|GTX|Radeon RX|Radeon Pro|Quadro|Arc\s*[AB]\d|NVIDIA/i.test(r))return 'DGPU';if(/Intel|UHD|Iris|HD Graphics|Mali|Adreno|PowerVR|Radeon(\(TM\))?\s*(Vega\s*\d+\s*)?Graphics|Radeon 6\d\dM|Vega/i.test(r))return 'IGPU';return r?'DGPU':'UNKNOWN'}
-function liveStartTier(){const c=LIVE.gpuClass=LIVE.gpuClass||liveGpuClass(),m=location.hash.match(/q=(LOW|MED|HIGH|ULTRA)/);if(m)return {q:m[1],auto:false};if(LIVE.forceQ)return {q:LIVE.forceQ,auto:LIVE.perf.auto};
- const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
- return {q:coarse?'LOW':({SOFT:'LOW',IGPU:'LOW',APPLE:'MED',DGPU:'HIGH',UNKNOWN:'MED'})[c],auto:true}}
+const LIVE_Q={LOW:QUALITY.sim.LOW.grid,MID:QUALITY.sim.MID.grid,MED:QUALITY.sim.MID.grid,HIGH:QUALITY.sim.HIGH.grid,ULTRA:QUALITY.sim.ULTRA.grid};
+const LIVE_TIERS=QUALITY.tiers;
+/* start tier: manual (#q / #sim) or the calibrated choice; before calibration the LOW grid is used to measure */
+function liveStartTier(){const m=perfManualFromHash().sim;if(m)return {q:m,auto:false};return {q:LIVE.forceQ||'LOW',auto:true}}
 const LIVE_VS=`#version 300 es
 void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0.,1.);}`;
 const LIVE_H=`#version 300 es
@@ -2123,17 +2270,17 @@ precision highp float;precision highp sampler2D;uniform sampler2D uS;uniform ive
 void main(){ivec2 b=ivec2(gl_FragCoord.xy)*8;vec4 s=vec4(0.);for(int j=0;j<8;j++)for(int i=0;i<8;i++){ivec2 q=b+ivec2(i,j);if(q.x<uSz.x&&q.y<uSz.y)s+=texelFetch(uS,q,0);}o=s;}`;
 const LIVE_RAY=`#version 300 es
 precision highp float;precision highp sampler3D;
-uniform sampler3D uVol;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD;uniform vec2 uRes;uniform float uDens,uCMode;uniform int uQ,uFrame;out vec4 o;
+uniform sampler3D uVol;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD;uniform vec2 uRes;uniform float uDens,uCMode,uStepScale,uCal;uniform int uQ,uFrame;out vec4 o;
 vec3 turbo(float t){t*=4.;vec3 a=vec3(.10,.18,1.),b=vec3(0.,.8,1.),c=vec3(.05,1.,.3),d=vec3(1.,.92,.05),e=vec3(1.,.12,.05);return t<1.?mix(a,b,t):t<2.?mix(b,c,t-1.):t<3.?mix(c,d,t-2.):mix(d,e,min(t-3.,1.));}
 void main(){vec2 n=gl_FragCoord.xy/uRes*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*vec4(n,1,1);vec3 ro=uEye,rd=normalize(b.xyz/b.w-a.xyz/a.w);
  vec3 iv=1./rd,t0=(uBMin-ro)*iv,t1=(uBMax-ro)*iv,mn=min(t0,t1),mx=max(t0,t1);float tn=max(max(mn.x,mn.y),max(mn.z,0.)),tf=min(min(mx.x,mx.y),mx.z);
  if(ro.z>3.84){if(rd.z>=0.)discard;float tw=(3.9-ro.z)/rd.z;vec3 q=ro+rd*tw;bool win=q.x>-3.5&&q.x<2.3&&q.y>.95&&q.y<3.05,door=q.x>2.3&&q.x<3.5&&q.y>.75&&q.y<2.95;if(!win&&!door)discard;tn=max(tn,(3.83-ro.z)/rd.z);}
- if(tf<=tn)discard;bool inside=all(greaterThan(ro,uBMin))&&all(lessThan(ro,uBMax));float dens=inside?uDens*.16:uDens;float L=tf-tn,stp=uQ==0?.12:(uQ==1?.085:.065);int NS=int(clamp(L/stp,10.,180.));float dt=L/float(NS);
+ if(tf<=tn)discard;bool inside=all(greaterThan(ro,uBMin))&&all(lessThan(ro,uBMax));float dens=inside?uDens*.16:uDens;float L=tf-tn,stp=(uQ==0?.12:(uQ==1?.085:.065))/max(uStepScale,.25);int NS=int(clamp(L/stp,10.,220.));float dt=L/float(NS);
  float j=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+float(uFrame&255)*1.618)*43758.5453);
  vec3 ext=uBMax-uBMin,ld=uLD/ext;vec4 acc=vec4(0);float t=tn+j*dt,te=tn+L;float ph=1.+.35*pow(max(dot(rd,uLD),0.),3.);
- for(int i=0;i<200;i++){if(t>=te||acc.a>.985)break;vec3 uvw=(ro+rd*t-uBMin)/ext;
-  vec4 c=textureLod(uVol,uvw,2.);if(c.g<.002&&c.r*dens<.0012){t+=dt*4.;continue;}
-  vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=s.r*dens;if(d<.003){t+=dt;continue;}
+ for(int i=0;i<260;i++){if(t>=te||acc.a>.985)break;vec3 uvw=(ro+rd*t-uBMin)/ext;
+  vec4 c=textureLod(uVol,uvw,2.);if(uCal<.5&&c.g<.002&&c.r*dens<.0012){t+=dt*4.;continue;}
+  vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=uCal>.5?.004:s.r*dens;if(d<.003){t+=dt;continue;}
   float sh=textureLod(uVol,uvw+ld*.17,0.).r;if(uQ>0)sh+=.7*textureLod(uVol,uvw+ld*.4,0.).r;if(uQ>1)sh+=.5*textureLod(uVol,uvw+ld*.75,0.).r;
   float lit=.32+.68*exp(-sh*dens*.9);d*=smoothstep(.15,.7,t);
   vec3 col=mix(vec3(.86,.92,1.),turbo(clamp(.5+(s.b-1.)*1.25,0.,1.)),uCMode)*lit*ph;float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;t+=dt;}
@@ -2166,9 +2313,14 @@ function liveVoxelize(N,min,h,fanB){const [nx,ny,nz]=N,tot=nx*ny*nz,shell=new Ui
  return {type,car,fan,front:cc*h[1]*h[2],ms:performance.now()-t0}}
 function liveInit(){LIVE.init=true;LIVE.ok=false;LIVE.gen=runtimeGeneration;try{
  const cbf=gl.getExtension('EXT_color_buffer_float');if(!cbf)throw Error('EXT_color_buffer_float 미지원 기기');
- const st=liveStartTier(),q=st.q;LIVE.q=q;LIVE.perf.auto=st.auto;LIVE.mgCycles=q==='ULTRA'?2:1;const N=LIVE_Q[q];LIVE.N=N;
+ const st=liveStartTier(),q=st.q==='MED'?'MID':st.q;LIVE.q=q;LIVE.mgCycles=q==='ULTRA'?2:1;const N=LIVE_Q[q];LIVE.N=N;
  const b=CFD_DOMAIN_CONTRACT.bounds,min=Array.from(b.min),max=Array.from(b.max),h=max.map((v,i)=>(v-min[i])/N[i]);LIVE.min=min;LIVE.max=max;LIVE.h=h;
  const maxTex=gl.getParameter(gl.MAX_TEXTURE_SIZE);let tx=Math.ceil(Math.sqrt(N[2]*N[1]/N[0]));tx=Math.min(tx,Math.floor(maxTex/N[0]));const ty=Math.ceil(N[2]/tx);LIVE.tx=tx;LIVE.W=N[0]*tx;LIVE.H=N[1]*ty;
+ if(LIVE.impl==='MAC'){try{
+   if(LIVE.progGen!==runtimeGeneration){LIVE.prog={};for(const k in LIVE_FS)LIVE.prog[k]=liveCompile(LIVE_H+LIVE_FS[k]);LIVE.prog.ray=liveCompile(LIVE_RAY);LIVE.prog.sum=liveCompile(LIVE_SUM);LIVE.prog.comp=liveCompile(LIVE_COMP);LIVE.progGen=runtimeGeneration;LIVE.vao=gl.createVertexArray()}
+   LIVE.fanKey=JSON.stringify(AETHER.FAN_MODULE?.layout?.fanBounds||null);macInit();LIVE.vol=MAC.vol;LIVE.volFbo=null;LIVE.vox={car:Math.round(MAC.vox.carCells),fan:MAC.vox.fan,front:MAC.vox.front,ms:Math.round(MAC.vox.ms)};
+   LIVE.ok=true;LIVE.err=null;LIVE.step=0;LIVE.t=0;return}
+  catch(e){LIVE.macErr=String(e?.message||e);LIVE.impl='COLLOCATED';try{macRelease()}catch(_){}}}
  LIVE.bench=LIVE.bench||(location.hash.match(/bench=(cylinder)/)||[])[1]||null;if(LIVE.bench&&!LIVE.benchRec&&!LIVE.benchRes)LIVE.benchRec={t:[],v:[],vx:[]};const fanB=AETHER.FAN_MODULE?.layout?.fanBounds||null;LIVE.fanKey=JSON.stringify(fanB);const vox=liveVoxelize(N,min,h,fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};
  const obs=new Uint8Array(LIVE.W*LIVE.H*4);for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const t=vox.type[i+N[0]*(j+N[1]*k)];if(!t)continue;const ax=(k%tx)*N[0]+i,ay=Math.floor(k/tx)*N[1]+j,o=(ay*LIVE.W+ax)*4;obs[o+(t===1?0:1)]=255;obs[o+3]=255}
  LIVE.obs=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs);
@@ -2211,11 +2363,11 @@ function liveSolve(){const T=LIVE.tex;
   for(let c=0;c<LIVE.mgCycles;c++)liveCycle(0)}
  else for(let k=0;k<LIVE.jacobi;k++){livePass('jac',T.pB,{uP:T.pA.t,uDiv:T.div.t},{});liveSwap('pA','pB')}}/* Pressure force on the car voxels: F = sum over fluid cells next to a car cell of P*A*d, with P = rho*p/dt (p = projection pressure,
    u = u* - grad p, so p = dt*P/rho). Inviscid: no skin friction. Reduced on the GPU (8x8 block sums), read back as a few texels. */
-function liveForceReduce(){const T=LIVE.tex;gl.bindVertexArray(LIVE.vao);livePass('force',T.frc,{uP:T.pA.t},{});let src=T.frc,sw=LIVE.W,sh=LIVE.H;const p=LIVE.prog.sum;gl.useProgram(p);
+function liveForceReduce(){if(LIVE.impl==='MAC'){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao);macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t},{uRho:cfg.rho??1.2,uNuMol:cfg.nu??MAC.nuMol,uId:1});return {src:liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red),sw:1,sh:1}}const T=LIVE.tex;gl.bindVertexArray(LIVE.vao);livePass('force',T.frc,{uP:T.pA.t},{});let src=T.frc,sw=LIVE.W,sh=LIVE.H;const p=LIVE.prog.sum;gl.useProgram(p);
  for(const r of LIVE.red){gl.bindFramebuffer(gl.FRAMEBUFFER,r.t.f);gl.viewport(0,0,r.w,r.h);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,src.t);gl.uniform1i(liveU(p,'uS'),8);gl.uniform2i(liveU(p,'uSz'),sw,sh);gl.drawArrays(gl.TRIANGLES,0,3);src=r.t;sw=r.w;sh=r.h}
  return {src,sw,sh}}
 function liveForceFinish(buf,n,dt){let fx=0,fy=0,fz=0;for(let i=0;i<n;i++){fx+=buf[i*4];fy+=buf[i*4+1];fz+=buf[i*4+2]}
- const rho=1.2,k=rho/dt,A=LIVE.vox?.front||0,q=.5*rho*LIVE.U*LIVE.U*A;
+ const rho=1.2,k=LIVE.impl==='MAC'?1:rho/dt,A=LIVE.vox?.front||0,q=.5*rho*LIVE.U*LIVE.U*A;
  return {Fx:fx*k,Fy:fy*k,Fz:fz*k,A,Cd:q>0?fx*k/q:NaN,Cl:q>0?fy*k/q:NaN,Cs:q>0?fz*k/q:NaN}}
 function liveForces(){const dt=LIVE.lastDt||0;if(!LIVE.ok||!dt)return null;const {src,sw,sh}=liveForceReduce(),buf=new Float32Array(sw*sh*4);
  gl.bindFramebuffer(gl.FRAMEBUFFER,src.f);gl.readPixels(0,0,sw,sh,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);return liveForceFinish(buf,sw*sh,dt)}
@@ -2226,7 +2378,7 @@ function liveForcesKick(){if(LIVE.frcJob||!LIVE.ok||!LIVE.lastDt)return;const {s
  LIVE.frcJob={fence:gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0),n:sw*sh,dt:LIVE.lastDt,gen:LIVE.gen,tier:LIVE.q};gl.flush()}
 function liveForcesPoll(){const J=LIVE.frcJob;if(!J)return;const r=gl.clientWaitSync(J.fence,0,0);if(r===gl.TIMEOUT_EXPIRED)return;gl.deleteSync(J.fence);LIVE.frcJob=null;if(r===gl.WAIT_FAILED||J.tier!==LIVE.q)return;
  const buf=new Float32Array(J.n*4);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,LIVE.pbo);gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,0,buf);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
- const f=liveForceFinish(buf,J.n,J.dt);if(!Number.isFinite(f.Fx)||Math.abs(f.Cd)>200){LIVE.guardTrips=(LIVE.guardTrips||0)+1;LIVE.solver='JACOBI';LIVE.forces=null;LIVE.api.reset();return}liveForceUpdate(f)}
+ const f=liveForceFinish(buf,J.n,J.dt);if(!Number.isFinite(f.Fx)||Math.abs(f.Cd)>200){LIVE.guardTrips=(LIVE.guardTrips||0)+1;LIVE.forces=null;if(LIVE.impl==='MAC'){if(MAC.solver!=='RBGS'){MAC.solver='RBGS';LIVE.api.reset()}else{LIVE.macErr='발산 감지: 기존 솔버로 전환';LIVE.impl='COLLOCATED';liveSetTier(LIVE.q,'fallback');LIVE.init=false}}else{LIVE.solver='JACOBI';LIVE.api.reset()}return}liveForceUpdate(f)}
 function liveForceUpdate(f){if(!f||!Number.isFinite(f.Cd))return;const F=LIVE.forces;if(!F||F.U!==LIVE.U){LIVE.forces={U:LIVE.U,n:1,...f};return}
  const a=Math.max(.12,1/(F.n+1));for(const k of ['Fx','Fy','Fz','Cd','Cl','Cs'])F[k]+=(f[k]-F[k])*a;F.A=f.A;F.n++}/* Benchmark: vertical cylinder (D=0.5 m) spanning the tunnel height. Probe = lateral velocity 3D behind it, offset 0.5D. Strouhal St=f*D/U from the DFT peak. */
 function liveBenchProbe(){const c=LIVE_BENCH;return [c.x+3*c.D,c.y,c.z+.5*c.D]}
@@ -2239,31 +2391,15 @@ function liveBenchAnalyze(R){const D=LIVE_BENCH.D,U=LIVE.U,dt=.01,t0=LIVE_BENCH.
  let bf=0,bm=0;const fl=[];for(let f=.1;f<=4;f+=.02){const M=mag(f);fl.push([f,M]);if(M>bm){bm=M;bf=f}}
  const i=fl.findIndex(q=>q[0]===bf),a=fl[i-1]?.[1]??bm,c=fl[i+1]?.[1]??bm,den=a-2*bm+c,off=den!==0?.5*(a-c)/den:0,f=bf+off*.02;
  const St=f*D/U,ref=.2;const zc=[];for(let i=1;i<n;i++)if((vs[i-1]-m)*(vs[i]-m)<0)zc.push(i);const fz=zc.length>1?(zc.length-1)/2/((zc[zc.length-1]-zc[0])*dt):0;
- return {ok:true,n,seconds:n*dt,f,St,StZeroCross:fz*D/U,ref,relErr:(St-ref)/ref,vRms:rms/(.5),U,D,cells:D/Math.min(...LIVE.h),peakQ:bm/(fl.reduce((a,q)=>a+q[1],0)/fl.length)}}/* ---- frame-time controller: degrade quickly, promote slowly. Order down: smoke res -> canvas scale -> sub-steps -> lighting taps -> grid tier. ---- */
-const LIVE_MAX_TIER={SOFT:'LOW',IGPU:'MED',APPLE:'HIGH',DGPU:'HIGH',UNKNOWN:'MED'};
-function liveRelease(){const del=t=>{if(t&&t.t){gl.deleteTexture(t.t);gl.deleteFramebuffer(t.f)}},T=LIVE.tex;if(T)for(const k in T)del(T[k]);for(const V of (LIVE.lv||[]).slice(1))for(const k in V.t)del(V.t[k]);(LIVE.red||[]).forEach(r=>del(r.t));
+ return {ok:true,n,seconds:n*dt,f,St,StZeroCross:fz*D/U,ref,relErr:(St-ref)/ref,vRms:rms/(.5),U,D,cells:D/Math.min(...LIVE.h),peakQ:bm/(fl.reduce((a,q)=>a+q[1],0)/fl.length)}}function liveRelease(){if(LIVE.impl==='MAC'||MAC.t){try{macRelease()}catch(_){}}const del=t=>{if(t&&t.t){gl.deleteTexture(t.t);gl.deleteFramebuffer(t.f)}},T=LIVE.tex;if(T)for(const k in T)del(T[k]);for(const V of (LIVE.lv||[]).slice(1))for(const k in V.t)del(V.t[k]);(LIVE.red||[]).forEach(r=>del(r.t));
  if(LIVE.obs)gl.deleteTexture(LIVE.obs);if(LIVE.vol)gl.deleteTexture(LIVE.vol);if(LIVE.volFbo)gl.deleteFramebuffer(LIVE.volFbo);LIVE.tex=null;LIVE.lv=null;LIVE.red=null}
-function liveSetTier(q,why){if(!LIVE_Q[q]||q===LIVE.q&&LIVE.init)return;liveRelease();LIVE.forceQ=q;LIVE.init=false;LIVE.ok=false;LIVE.perf.switches++;LIVE.forces=null;LIVE.perf.cool=performance.now()+6000;LIVE.perf.last=0;LIVE.perf.ema=1000/LIVE.perf.target;LIVE.perf.log.push((why||'')+'→'+q)}
-function liveInitTuning(){const P=LIVE.perf;if(P.tuned)return;P.tuned=true;const c=LIVE.gpuClass||'UNKNOWN',dpr=clamp(devicePixelRatio||1,1,2);P.cool=performance.now()+5000;
- P.maxTier=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)?'LOW':(LIVE_MAX_TIER[c]||'MED');
- const init={SOFT:[.5,.6],IGPU:[.625,Math.min(1,1.25/dpr)],APPLE:[.875,Math.min(1,1.5/dpr)],DGPU:[1,1],UNKNOWN:[.75,1]}[c]||[.75,1];LIVE.rs=init[0];LIVE.cs=init[1];P.rsMax=Math.max(.75,init[0]);P.csMax=c==='DGPU'?1:Math.max(init[1],Math.min(1,1.5/dpr))}
-function liveTune(now){const P=LIVE.perf;if(!P.last){P.last=now;return}const d=Math.min(250,now-P.last);P.last=now;P.ema+=(d-P.ema)*.05;
- if(!P.auto||now<P.cool||LIVE.freeze||document.hidden)return;const tg=1000/P.target,ti=LIVE_TIERS.indexOf(LIVE.q);let act=null;
- if(P.ema>tg*1.25){P.calm=0;
-  if(LIVE.rs>.5001){LIVE.rs=Math.max(.5,LIVE.rs-.125);act='rs-'}else if(LIVE.cs>.6001){LIVE.cs=Math.max(.6,LIVE.cs-.1);act='cs-'}else if(LIVE.sub>1){LIVE.sub=1;act='sub-'}
-  else if(LIVE.rq>0){LIVE.rq--;act='rq-'}else if(ti>0&&P.switches<5){if(P.promotedAt&&now-P.promotedAt<30000)P.maxTier=LIVE_TIERS[ti-1];liveSetTier(LIVE_TIERS[ti-1],'slow');return}
-  if(act){P.cool=now+1500;P.log.push(act)}}
- else if(P.ema<tg*.72){P.calm=(P.calm||0)+1;if(P.calm<30)return;
-  if(LIVE.sub<2){LIVE.sub=2;act='sub+'}else if(LIVE.rq<2){LIVE.rq++;act='rq+'}else if(LIVE.cs<P.csMax-.001){LIVE.cs=Math.min(P.csMax,LIVE.cs+.1);act='cs+'}else if(LIVE.rs<P.rsMax-.001){LIVE.rs=Math.min(P.rsMax,LIVE.rs+.125);act='rs+'}
-  else if(ti<LIVE_TIERS.indexOf(P.maxTier||'LOW')&&P.switches<5&&P.calm>240){P.promotedAt=now;LIVE.rs=.625;liveSetTier(LIVE_TIERS[ti+1],'fast');return}
-  if(act){P.cool=now+2500;P.calm=0;P.log.push(act)}}
- else P.calm=0}
+function liveSetTier(q,why){if(!LIVE_Q[q]||q===LIVE.q&&LIVE.init)return;liveRelease();LIVE.forceQ=q;LIVE.init=false;LIVE.ok=false;LIVE.forces=null;PERF.ctl.log.push((why||'')+'→'+q)}
 function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
 function liveEmitters(){const E=[],B=window.__BODY,fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.3:-4.2;if(LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH')for(let i=0;i<7;i++)E.push([x,.15+.22*i,0,.085]);
  if(LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH')for(let i=0;i<9;i++)E.push([x,.5,-1.3+.325*i,.085]);
  if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,.09])}
  LIVE.emitters=E.slice(0,16);const a=new Float32Array(64);LIVE.emitters.forEach((v,i)=>a.set(v,i*4));return a}
-function livePasses(dt,initOnly=false){const T=LIVE.tex,B=window.__BODY,act=!!(B&&B.active);gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
+function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;macStep(dt);LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt;return}const T=LIVE.tex,B=window.__BODY,act=!!(B&&B.active);gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  LIVE.bodyV=act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0];
  livePass('flags',T.flags,{uObs:LIVE.obs},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0]});
  if(initOnly){livePass('init',T.velA,{},{});return}
@@ -2274,14 +2410,16 @@ function livePasses(dt,initOnly=false){const T=LIVE.tex,B=window.__BODY,act=!!(B
  livePass('advd',T.hat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt});livePass('advd',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
  livePass('corr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.hat.t,uBar:T.bar.t},{uDt:dt,uDecay:.9985,uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}});liveSwap('dyeA','dyeB');
  LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt}
-function liveCopyVolume(){const p=LIVE.prog.copy,N=LIVE.N,T=LIVE.tex;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.volFbo);gl.viewport(0,0,N[0],N[1]);
+function liveCopyVolume(){if(LIVE.impl==='MAC')return macCopyVolume();const p=LIVE.prog.copy,N=LIVE.N,T=LIVE.tex;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.volFbo);gl.viewport(0,0,N[0],N[1]);
  gl.uniform3i(liveU(p,'uN'),N[0],N[1],N[2]);gl.uniform1i(liveU(p,'uTX'),LIVE.tx);gl.uniform3f(liveU(p,'uMin'),...LIVE.min);gl.uniform3f(liveU(p,'uH'),...LIVE.h);gl.uniform1f(liveU(p,'uU'),LIVE.U);
  const bind=(u,n,t)=>{gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,n),u)};bind(8,'uFlags',T.flags.t);bind(9,'uVel',T.velA.t);bind(10,'uDye',T.dyeA.t);
  for(let k=0;k<N[2];k++){gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,LIVE.vol,0,k);gl.uniform1i(liveU(p,'uLayer'),k);gl.drawArrays(gl.TRIANGLES,0,3)}
  gl.bindTexture(gl.TEXTURE_3D,LIVE.vol);gl.generateMipmap(gl.TEXTURE_3D)}
-function liveRead(x,y,z){const N=LIVE.N,i=Math.min(N[0]-1,Math.max(0,Math.floor((x-LIVE.min[0])/LIVE.h[0]))),j=Math.min(N[1]-1,Math.max(0,Math.floor((y-LIVE.min[1])/LIVE.h[1]))),k=Math.min(N[2]-1,Math.max(0,Math.floor((z-LIVE.min[2])/LIVE.h[2])));
+function liveRead(x,y,z){if(LIVE.impl==='MAC')return macRead(x,y,z);const N=LIVE.N,i=Math.min(N[0]-1,Math.max(0,Math.floor((x-LIVE.min[0])/LIVE.h[0]))),j=Math.min(N[1]-1,Math.max(0,Math.floor((y-LIVE.min[1])/LIVE.h[1]))),k=Math.min(N[2]-1,Math.max(0,Math.floor((z-LIVE.min[2])/LIVE.h[2])));
  const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,buf=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.tex.velA.f);gl.readPixels(ax,ay,1,1,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return [buf[0],buf[1],buf[2]]}
-function liveStep(now){if(!LIVE.enabled)return;if(!LIVE.init||LIVE.gen!==runtimeGeneration){liveInit();liveInitTuning()}if(!LIVE.ok||LIVE.freeze)return;liveTune(now);if(!LIVE.init)return;if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
+function liveStep(now){if(!LIVE.enabled)return;if(!LIVE.init||LIVE.gen!==runtimeGeneration)liveInit();if(!LIVE.ok||LIVE.freeze)return;
+ if(!PERF.cal){const M=perfManualFromHash();PERF.cal=(M.sim&&M.vol&&M.ren)?{done:true,result:{skipped:'manual #q'}}:{};if(PERF.cal.done)for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax])}
+ if(!PERF.cal.done){try{smokeState.enabled=false;perfCalibrateStep(now)}catch(e){PERF.cal={done:true,result:{error:String(e?.message||e)}};for(const ax of ['sim','vol','ren'])perfApplyTier(ax,'LOW')}if(!LIVE.init)return}if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
  try{smokeState.enabled=false;const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
   const hmin=Math.min(...LIVE.h),cfl=.9*hmin/(1.6*Math.max(LIVE.U,.5)),n=LIVE.step<40?6:LIVE.sub,dt=Math.min(cfl,Math.max(fdt,1/60)/LIVE.sub);
   for(let s=0;s<n;s++){livePasses(dt);if(LIVE.benchRec)liveBenchSample()}liveCopyVolume();
@@ -2300,27 +2438,34 @@ function liveInv(m){const a=Array.from(m),inv=new Float32Array(16);
  const det=a[0]*inv[0]+a[1]*inv[4]+a[2]*inv[8]+a[3]*inv[12];for(let i=0;i<16;i++)inv[i]/=det;return inv}
 function liveSmokeRT(w,h){const R=LIVE.smokeRT;if(R&&R.w===w&&R.h===h)return R;if(R){gl.deleteTexture(R.t);gl.deleteFramebuffer(R.f)}
  const t=liveTarget(w,h,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE);gl.bindTexture(gl.TEXTURE_2D,t.t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);return LIVE.smokeRT={...t,w,h}}
+/* calibration: worst-case march (no empty-space skipping, every step shaded) at the given size */
+function liveCalibrationMarch(w,h){const RT=liveSmokeRT(w,h),p=LIVE.prog.ray;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.bindFramebuffer(gl.FRAMEBUFFER,RT.f);gl.viewport(0,0,w,h);
+ const eye=[-8.5,2.2,0],view=lookAt(eye,[6,1,0],[0,1,0]),proj=perspective(55,w/h,.05,60),vp=matMul(proj,view);
+ gl.useProgram(p);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_3D,LIVE.vol);gl.uniform1i(liveU(p,'uVol'),8);gl.uniformMatrix4fv(liveU(p,'uInv'),false,liveInv(vp));gl.uniform3f(liveU(p,'uEye'),...eye);
+ gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform1f(liveU(p,'uCMode'),1);
+ gl.uniform1i(liveU(p,'uQ'),1);gl.uniform1f(liveU(p,'uStepScale'),1);gl.uniform1f(liveU(p,'uCal'),1);gl.uniform1i(liveU(p,'uFrame'),0);gl.drawArrays(gl.TRIANGLES,0,3);LIVE.calSteps=Math.round(18/.085)}
 function liveRender(vp){if(!LIVE.enabled||!LIVE.ok)return;const dep=gl.isEnabled(gl.DEPTH_TEST),cull=gl.isEnabled(gl.CULL_FACE),cw=glCanvas.width,ch=glCanvas.height;try{
  const rs=LIVE.rs,w=Math.max(64,Math.round(cw*rs)),h=Math.max(64,Math.round(ch*rs)),RT=liveSmokeRT(w,h),p=LIVE.prog.ray,tq=LIVE.q==='LOW'?0:(LIVE.q==='MED'||LIVE.q==='HIGH'?1:2);
  gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.bindFramebuffer(gl.FRAMEBUFFER,RT.f);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  gl.useProgram(p);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_3D,LIVE.vol);gl.uniform1i(liveU(p,'uVol'),8);gl.uniformMatrix4fv(liveU(p,'uInv'),false,liveInv(vp));
  gl.uniform3f(liveU(p,'uEye'),...camera.eye);gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);
- gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform1f(liveU(p,'uCMode'),LIVE.colorMode?1:0);gl.uniform1i(liveU(p,'uQ'),Math.min(tq,LIVE.rq));gl.uniform1i(liveU(p,'uFrame'),LIVE.frame=(LIVE.frame|0)+1);gl.drawArrays(gl.TRIANGLES,0,3);
+ gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform1f(liveU(p,'uCMode'),LIVE.colorMode?1:0);gl.uniform1i(liveU(p,'uQ'),Math.min(tq,LIVE.rq));gl.uniform1f(liveU(p,'uStepScale'),LIVE.stepScale||1);gl.uniform1f(liveU(p,'uCal'),0);gl.uniform1i(liveU(p,'uFrame'),LIVE.frame=(LIVE.frame|0)+1);gl.drawArrays(gl.TRIANGLES,0,3);
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cw,ch);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
  const c=LIVE.prog.comp;gl.useProgram(c);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,RT.t);gl.uniform1i(liveU(c,'uT'),8);gl.uniform2f(liveU(c,'uRes'),cw,ch);gl.drawArrays(gl.TRIANGLES,0,3);
 }catch(e){LIVE.err='render: '+String(e?.message||e)}finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.clearColor(.08,.11,.13,1);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);if(dep)gl.enable(gl.DEPTH_TEST);if(cull)gl.enable(gl.CULL_FACE);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA)}}
 LIVE.api={read:(x,y,z)=>{const v=liveRead(x,y,z);return v},
- divStats(){const T=LIVE.tex,W=LIVE.W,H=LIVE.H;gl.bindVertexArray(LIVE.vao);livePass('div',T.div,{uVel:T.velA.t},{});const buf=new Float32Array(W*H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.div.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,buf);
+ divStats(){if(LIVE.impl==='MAC')return macDivStats();const T=LIVE.tex,W=LIVE.W,H=LIVE.H;gl.bindVertexArray(LIVE.vao);livePass('div',T.div,{uVel:T.velA.t},{});const buf=new Float32Array(W*H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.div.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,buf);
   const fb=new Uint8Array(W*H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.flags.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,fb);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
   let s=0,m=0,n=0;for(let i=0;i<W*H;i++){if(fb[i*4]>10)continue;const d=Math.abs(buf[i*4]);s+=d*d;m=Math.max(m,d);n++}const ref=LIVE.U/Math.min(...LIVE.h);return {rms:Math.sqrt(s/n),max:m,cells:n,relRms:Math.sqrt(s/n)/ref,relMax:m/ref}},
- dyeSum(){const T=LIVE.tex,W=LIVE.W,H=LIVE.H,buf=new Float32Array(W*H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.dyeA.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);let s=0,c=0;for(let i=0;i<W*H;i++){s+=buf[i*4];if(buf[i*4]>.05)c++}return {sum:s,cells:c}}};
+ flagCounts(){if(LIVE.impl==='MAC')return macFlagCounts();const T=LIVE.tex,W=LIVE.W,H=LIVE.H,fb=new Uint8Array(W*H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.flags.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,fb);gl.bindFramebuffer(gl.FRAMEBUFFER,null);const c=[0,0,0,0];for(let i=0;i<W*H;i++){if(!fb[i*4+3])continue;c[Math.round(fb[i*4]*3/255)]++}return {fluid:c[0],car:c[1],fan:c[2],body:c[3]}},
+ dyeSum(){if(LIVE.impl==='MAC'){const b=macReadAllD(MAC.t.dyeA);let s=0,c=0;for(let i=0;i<b.length;i+=4){s+=b[i];if(b[i]>.05)c++}return {sum:s,cells:c}}const T=LIVE.tex,W=LIVE.W,H=LIVE.H,buf=new Float32Array(W*H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.dyeA.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);let s=0,c=0;for(let i=0;i<W*H;i++){s+=buf[i*4];if(buf[i*4]>.05)c++}return {sum:s,cells:c}}};
 
 Object.assign(LIVE.api,{
- reset(){const T=LIVE.tex;LIVE.forces=null;gl.bindVertexArray(LIVE.vao);for(const k of ['velA','velB','curl','pA','pB','div','dyeA','dyeB','hat','bar','res'])liveClear(T[k]);for(const V of LIVE.lv.slice(1))for(const k of ['pA','pB','b','r'])liveClear(V.t[k]);livePasses(0,true);LIVE.step=0;LIVE.t=0;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null)},
+ reset(){LIVE.forces=null;if(LIVE.impl==='MAC'){macReset();LIVE.step=0;LIVE.t=0;return}const T=LIVE.tex;gl.bindVertexArray(LIVE.vao);for(const k of ['velA','velB','curl','pA','pB','div','dyeA','dyeB','hat','bar','res'])liveClear(T[k]);for(const V of LIVE.lv.slice(1))for(const k of ['pA','pB','b','r'])liveClear(V.t[k]);livePasses(0,true);LIVE.step=0;LIVE.t=0;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null)},
  /* deterministic stepping for tests: n steps of fixed dt, no rendering. opts.diag reads Poisson residual after the last solve */
- run(n,dt,opts={}){if(!LIVE.init)liveInit();const t0=performance.now();try{for(let i=0;i<n;i++){LIVE.diag=!!opts.diag&&i===n-1;livePasses(dt)}gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.tex.velA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,new Float32Array(4))}finally{LIVE.diag=false;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}
+ run(n,dt,opts={}){if(!LIVE.init)liveInit();const t0=performance.now();try{for(let i=0;i<n;i++){LIVE.diag=!!opts.diag&&i===n-1;livePasses(dt)}gl.bindFramebuffer(gl.FRAMEBUFFER,(LIVE.impl==='MAC'?MAC.t:LIVE.tex).velA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,new Float32Array(4))}finally{LIVE.diag=false;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}
   const out={ms:performance.now()-t0,step:LIVE.step,t:LIVE.t,solver:LIVE.solver};if(opts.diag)out.poisson=LIVE.api.poisson();return out},
- poisson(){const T=LIVE.tex,W=LIVE.W,H=LIVE.H,r=new Float32Array(W*H*4),d=new Float32Array(W*H*4),fb=new Uint8Array(W*H*4);
+ poisson(){if(LIVE.impl==='MAC')return macResidual();const T=LIVE.tex,W=LIVE.W,H=LIVE.H,r=new Float32Array(W*H*4),d=new Float32Array(W*H*4),fb=new Uint8Array(W*H*4);
   gl.bindFramebuffer(gl.FRAMEBUFFER,T.res.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,r);gl.bindFramebuffer(gl.FRAMEBUFFER,T.div.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,d);gl.bindFramebuffer(gl.FRAMEBUFFER,T.flags.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,fb);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   let sr=0,sd=0,mr=0,n=0;for(let i=0;i<W*H;i++){if(fb[i*4]>10)continue;const a=r[i*4],b=d[i*4];sr+=a*a;sd+=b*b;mr=Math.max(mr,Math.abs(a));n++}
   const ref=LIVE.U/Math.min(...LIVE.h);return {cells:n,resRms:Math.sqrt(sr/n)/ref,resMax:mr/ref,divRms:Math.sqrt(sd/n)/ref,ratio:Math.sqrt(sr/Math.max(sd,1e-30))}},
@@ -2334,15 +2479,365 @@ Object.assign(LIVE.api,{
  /* self-test: a uniform pressure must give zero net force on a closed body */
  uniformPForce(){const T=LIVE.tex;liveClear(T.pA,1);const f=liveForces();return f},
  setTier(q){liveSetTier(q,'api')},
- tune(now){liveTune(now)},
+ tune(now){perfControl(now)},
  rebuildLevels(){liveBuildLevels()},
- forces(){return liveForces()},
+ forces(){return LIVE.impl==='MAC'?macForces():liveForces()},
+ mac(){return MAC},
  set(o){Object.assign(LIVE,o)}});
 
-function liveReobstacle(fanB){try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
+function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
  for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const t=vox.type[i+N[0]*(j+N[1]*k)];if(!t)continue;const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,o=(ay*LIVE.W+ax)*4;obs[o+(t===1?0:1)]=255;obs[o+3]=255}
  gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs)}catch(e){LIVE.err='reobstacle: '+e.message}}
 LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)};
+/* ===== M3/M4: staggered MAC solver (default when it initialises; the collocated solver in 85-live-cfd.js is the fallback).
+   - velocity: faces. vel.x = u on the -x face of cell (i,j,k), vel.y = v on the -y face, vel.z = w on the -z face.
+     The +x outlet face is not stored (zero-gradient predictor + Dirichlet p=0 ghost), +y/+z faces are walls.
+   - partial-volume solids: cell solid fraction phi (static car/fan supersampled 2x2x2, analytic moving body),
+     face open fraction theta = 1-(phi_a+phi_b)/2. Cut-cell divergence and theta-weighted Laplacian (compatible
+     operators: after an exact solve the discrete divergence is exactly zero).
+   - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
+   - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
+   - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
+const MAC={Cs:.16,nuMol:1.5e-5,eps:0,solver:'MGPCG',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+ lastSolve:null,stats:{},domain:null};
+window.__MAC=MAC;
+const MAC_H=`#version 300 es
+precision highp float;precision highp int;precision highp sampler2D;
+uniform ivec3 uN,uN2;uniform int uTX,uTX2;uniform vec3 uH,uH2,uMin;uniform float uU;
+out vec4 o;
+ivec2 AT(ivec3 c,ivec3 n,int tx){return ivec2((c.z%tx)*n.x+c.x,(c.z/tx)*n.y+c.y);}
+ivec2 A(ivec3 c){return AT(c,uN,uTX);}
+ivec3 C(){ivec2 f=ivec2(gl_FragCoord.xy);int tx=f.x/uN.x,ty=f.y/uN.y;return ivec3(f.x-tx*uN.x,f.y-ty*uN.y,ty*uTX+tx);}
+bool IN(ivec3 c){return all(greaterThanEqual(c,ivec3(0)))&&all(lessThan(c,uN));}
+vec4 F(sampler2D s,ivec3 c){return texelFetch(s,A(clamp(c,ivec3(0),uN-1)),0);}
+vec4 FT(sampler2D s,ivec3 c,ivec3 n,int tx){return texelFetch(s,AT(clamp(c,ivec3(0),n-1),n,tx),0);}
+vec4 TRI(sampler2D s,vec3 q,ivec3 n,int tx){q=clamp(q,vec3(0.),vec3(n-1));ivec3 i=min(ivec3(floor(q)),n-1);vec3 f=q-vec3(i);ivec3 j=min(i+1,n-1);
+ vec4 a=mix(FT(s,i,n,tx),FT(s,ivec3(j.x,i.y,i.z),n,tx),f.x),b=mix(FT(s,ivec3(i.x,j.y,i.z),n,tx),FT(s,ivec3(j.x,j.y,i.z),n,tx),f.x),
+ c=mix(FT(s,ivec3(i.x,i.y,j.z),n,tx),FT(s,ivec3(j.x,i.y,j.z),n,tx),f.x),d=mix(FT(s,ivec3(i.x,j.y,j.z),n,tx),FT(s,j,n,tx),f.x);return mix(mix(a,b,f.y),mix(c,d,f.y),f.z);}
+/* MAC velocity at a point P given in corner-origin index units of grid (n,tx) */
+vec3 VEL(sampler2D s,vec3 P,ivec3 n,int tx){return vec3(TRI(s,P-vec3(0.,.5,.5),n,tx).x,TRI(s,P-vec3(.5,0.,.5),n,tx).y,TRI(s,P-vec3(.5,.5,0.),n,tx).z);}
+/* sol texture: xyz solid velocity, w = id*2+phi (id 0 fluid,1 car,2 fan,3 body) */
+float PHI(vec4 s){return s.w-2.*floor(s.w*.5+.001);}
+float SID(vec4 s){return floor(s.w*.5+.001);}
+`;
+/* pressure operator helpers: level geometry texture uG (x,y,z = open fraction of the -x,-y,-z face, w = phi) */
+const MAC_P=`uniform sampler2D uG;
+float TL(ivec3 c,int ax){if(c[ax]==0)return 0.;return F(uG,c)[ax];}
+float TR(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==uN[ax]-1)return ax==0?1.-F(uG,c).w:0.;return F(uG,c+e)[ax];}
+float LAP(sampler2D P,ivec3 c,out float dg){vec3 ih=1./(uH*uH);float pc=F(P,c).x,s=0.;dg=0.;
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;float tl=TL(c,ax),tr=TR(c,ax);
+  float pr=(c[ax]==uN[ax]-1)?0.:F(P,c+e).x;s+=ih[ax]*(tl*(F(P,c-e).x-pc)+tr*(pr-pc));dg+=ih[ax]*(tl+tr);}
+ return s;}
+float NB(sampler2D P,ivec3 c,out float dg){vec3 ih=1./(uH*uH);float s=0.;dg=0.;
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;float tl=TL(c,ax),tr=TR(c,ax);float pr=(c[ax]==uN[ax]-1)?0.:F(P,c+e).x;s+=ih[ax]*(tl*F(P,c-e).x+tr*pr);dg+=ih[ax]*(tl+tr);}
+ return s;}
+`;
+const MAC_FS={
+/* ---- solids: static phi/id (uStatic RGBA8) + analytic moving body + rotating wheels ---- */
+solid:`uniform sampler2D uStatic;uniform vec4 uBody;uniform vec3 uBodyV;uniform vec4 uWh[4];uniform float uWhW,uOm;
+float bodyR(float y){return (y<0.||y>1.78)?0.:(y<.85?.17:(y<1.5?.25:.12));}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 st=F(uStatic,c);float ps=st.r;float id=ps>0.?floor(st.g*255./50.+.5):0.;vec3 us=vec3(0.);
+ vec3 w=uMin+(vec3(c)+.5)*uH;
+ if(uBody.w>.5){float yr=w.y-uBody.z,r=bodyR(yr);if(r>0.){r=max(r,.5*uH.x);float d=length(w.xz-uBody.xy),pb=clamp(.5-(d-r)/uH.x,0.,1.);if(pb>ps){ps=pb;id=3.;}}}
+ if(id==2.)us=vec3(uU,0.,0.);else if(id==3.)us=uBodyV;
+ else if(id==1.){for(int k=0;k<4;k++){vec3 d=w-uWh[k].xyz;if(abs(d.z)<uWhW+uH.z&&length(d.xy)<uWh[k].w+uH.x)us=vec3(-uOm*d.y,uOm*d.x,0.);}}
+ o=vec4(us,id*2.+min(ps,.999));}`,
+geom:`uniform sampler2D uSol;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float pc=PHI(F(uSol,c));vec3 t;
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;float pn=c[ax]==0?(ax==0?0.:1.):PHI(F(uSol,c-e));float th=1.-.5*(pc+pn);t[ax]=th<.02?0.:th;}
+ if(c.y==0)t.y=0.;if(c.z==0)t.z=0.;o=vec4(t,pc);}`,
+/* coarse geometry: face fractions averaged over the 4 fine faces, phi averaged over existing children */
+cgeom:`uniform sampler2D uGF;uniform ivec3 uNF;uniform int uTXF;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 t=vec3(0.),n=vec3(0.);float ph=0.,m=0.;
+ for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1),f=c*2+d;if(any(greaterThanEqual(f,uNF)))continue;vec4 g=FT(uGF,f,uNF,uTXF);ph+=g.w;m+=1.;
+  if(d.x==0){t.x+=(f.x==0?0.:g.x);n.x+=1.;}if(d.y==0){t.y+=g.y;n.y+=1.;}if(d.z==0){t.z+=g.z;n.z+=1.;}}
+ t=t/max(vec3(4.),n);o=vec4(t,m>0.?ph/m:1.);}`,
+/* ---- advection (MacCormack pieces). uSrc = field to transport, uVel = transporting velocity (same grid) ---- */
+adv:`uniform sampler2D uVel,uSrc;uniform float uDt;
+vec3 back(vec3 P){vec3 v1=VEL(uVel,P,uN,uTX);vec3 Pm=P-.5*uDt*v1/uH;vec3 v2=VEL(uVel,Pm,uN,uTX);return clamp(P-uDt*v2/uH,vec3(0.),vec3(uN));}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 b=vec3(c);
+ vec3 Px=back(b+vec3(0.,.5,.5)),Py=back(b+vec3(.5,0.,.5)),Pz=back(b+vec3(.5,.5,0.));
+ o=vec4(TRI(uSrc,Px-vec3(0.,.5,.5),uN,uTX).x,TRI(uSrc,Py-vec3(.5,0.,.5),uN,uTX).y,TRI(uSrc,Pz-vec3(.5,.5,0.),uN,uTX).z,0.);}`,
+advc:`uniform sampler2D uVel,uHat,uBar,uSol,uG;uniform float uDt,uBelt;
+vec3 back(vec3 P){vec3 v1=VEL(uVel,P,uN,uTX);vec3 Pm=P-.5*uDt*v1/uH;vec3 v2=VEL(uVel,Pm,uN,uTX);return clamp(P-uDt*v2/uH,vec3(0.),vec3(uN));}
+vec2 mm(vec3 q,int ch){q=clamp(q,vec3(0.),vec3(uN-1));ivec3 i=min(ivec3(floor(q)),uN-1);float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float v=F(uVel,i+ivec3(k&1,(k>>1)&1,(k>>2)&1))[ch];lo=min(lo,v);hi=max(hi,v);}return vec2(lo,hi);}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 b=vec3(c);
+ vec3 u=F(uHat,c).xyz+.5*(F(uVel,c).xyz-F(uBar,c).xyz);
+ vec2 rx=mm(back(b+vec3(0.,.5,.5))-vec3(0.,.5,.5),0),ry=mm(back(b+vec3(.5,0.,.5))-vec3(.5,0.,.5),1),rz=mm(back(b+vec3(.5,.5,0.))-vec3(.5,.5,0.),2);
+ u=clamp(u,vec3(rx.x,ry.x,rz.x),vec3(rx.y,ry.y,rz.y));
+ float lim=3.5*max(uU,.5);u=clamp(u,vec3(-lim),vec3(lim));o=vec4(u,0.);}`,
+/* ---- eddy viscosity (Smagorinsky) at cell centres ---- */
+sgs:`uniform sampler2D uVel,uSol;uniform float uCs,uNuMax;
+vec3 CC(ivec3 c){c=clamp(c,ivec3(0),uN-1);vec3 a=F(uVel,c).xyz;vec3 b=vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z);return .5*(a+b);}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}if(PHI(F(uSol,c))>.5){o=vec4(0);return;}
+ vec3 a=F(uVel,c).xyz,b=vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z);
+ vec3 dd=(b-a)/uH;vec3 gx=(CC(c+ivec3(1,0,0))-CC(c-ivec3(1,0,0)))/(2.*uH.x),gy=(CC(c+ivec3(0,1,0))-CC(c-ivec3(0,1,0)))/(2.*uH.y),gz=(CC(c+ivec3(0,0,1))-CC(c-ivec3(0,0,1)))/(2.*uH.z);
+ float sxy=.5*(gy.x+gx.y),sxz=.5*(gz.x+gx.z),syz=.5*(gz.y+gy.z);float S2=2.*(dd.x*dd.x+dd.y*dd.y+dd.z*dd.z)+4.*(sxy*sxy+sxz*sxz+syz*syz);
+ float D=pow(uH.x*uH.y*uH.z,1./3.);o=vec4(min(uCs*uCs*D*D*sqrt(S2),uNuMax),length(vec3(gy.z-gz.y,gz.x-gx.z,gx.y-gy.x)),0.,0.);}`,
+/* ---- viscous + SGS diffusion, optional vorticity confinement, boundary/solid face velocities ---- */
+diff:`uniform sampler2D uVel,uNu,uSol,uG;uniform float uDt,uNuMol,uEps,uBelt;uniform vec4 uBeltBox;
+float ghostBelow(ivec3 c,float u0,int comp){vec3 w=uMin+(vec3(c)+.5)*uH;bool belt=uBelt>.5&&comp==0&&abs(w.x-uBeltBox.x)<uBeltBox.y&&abs(w.z-uBeltBox.z)<uBeltBox.w;return belt?2.*uU-u0:u0;}
+vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
+vec3 vcf(ivec3 c){if(uEps<=0.)return vec3(0.);c=clamp(c,ivec3(0),uN-1);vec3 g=vec3(F(uNu,c+ivec3(1,0,0)).y-F(uNu,c-ivec3(1,0,0)).y,F(uNu,c+ivec3(0,1,0)).y-F(uNu,c-ivec3(0,1,0)).y,F(uNu,c+ivec3(0,0,1)).y-F(uNu,c-ivec3(0,0,1)).y);
+ float l=length(g);if(l<1e-6)return vec3(0.);
+ vec3 a=F(uVel,c).xyz;vec3 w;{ivec3 cc=c;vec3 up=F(uVel,cc+ivec3(0,1,0)).xyz,dn=F(uVel,cc-ivec3(0,1,0)).xyz,fp=F(uVel,cc+ivec3(0,0,1)).xyz,bk=F(uVel,cc-ivec3(0,0,1)).xyz,rt=F(uVel,cc+ivec3(1,0,0)).xyz,lf=F(uVel,cc-ivec3(1,0,0)).xyz;
+ w=vec3((up.z-dn.z)/(2.*uH.y)-(fp.y-bk.y)/(2.*uH.z),(fp.x-bk.x)/(2.*uH.z)-(rt.z-lf.z)/(2.*uH.x),(rt.y-lf.y)/(2.*uH.x)-(up.x-dn.x)/(2.*uH.y));}
+ return uEps*uH.x*cross(g/l,w);}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);vec3 un=u;vec3 ih=1./(uH*uH);
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;
+  float nu=uNuMol+.5*(F(uNu,c).x+F(uNu,c-e).x);float lap=0.;
+  for(int d=0;d<3;d++){ivec3 f=ivec3(0);f[d]=1;float up=c[d]==uN[d]-1?u[ax]:F(uVel,c+f)[ax];float dn;
+   if(c[d]==0){dn=(d==1)?ghostBelow(c,u[ax],ax):(d==0?(ax==0?uU:u[ax]):u[ax]);}else dn=F(uVel,c-f)[ax];
+   lap+=ih[d]*(up-2.*u[ax]+dn);}
+  vec3 f2=.5*(vcf(c)+vcf(c-e));un[ax]=u[ax]+uDt*(nu*lap+f2[ax]);}
+ /* boundary and solid faces */
+ for(int ax=0;ax<3;ax++){if(g[ax]<=0.)un[ax]=us(c,ax)[ax];}
+ if(c.x==0&&g.x>0.)un.x=uU;if(c.y==0)un.y=0.;if(c.z==0)un.z=0.;
+ o=vec4(un,0.);}`,
+/* ---- cut-cell divergence of the predicted velocity (/dt for the Poisson right-hand side) ---- */
+div:`uniform sampler2D uVel,uSol,uG;uniform float uScale;
+vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
+float flux(ivec3 c,int ax){float th=F(uG,c)[ax];return th*F(uVel,c)[ax]+(1.-th)*us(c,ax)[ax];}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 g=F(uG,c);float dg=0.;
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;dg+=g[ax]+(c[ax]==uN[ax]-1?(ax==0?1.-g.w:0.):F(uG,c+e)[ax]);}
+ if(dg<1e-5){o=vec4(0);return;}
+ float d=0.;for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;float fl=flux(c,ax);
+  float fr=c[ax]==uN[ax]-1?(ax==0?fl:0.):flux(c+e,ax);d+=(fr-fl)/uH[ax];}
+ o=vec4(d*uScale,0,0,0);}`,
+/* ---- pressure kernels (level-generic) ---- */
+pjac:MAC_P+`uniform sampler2D uP,uB;uniform float uOm;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;float s=NB(uP,c,dg);if(dg<1e-6){o=vec4(0);return;}float pc=F(uP,c).x;o=vec4(pc+uOm*((s-F(uB,c).x)/dg-pc),0,0,0);}`,
+prb:MAC_P+`uniform sampler2D uP,uB;uniform int uColor;uniform float uOm;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float pc=F(uP,c).x;if(((c.x+c.y+c.z)&1)!=uColor){o=vec4(pc,0,0,0);return;}float dg;float s=NB(uP,c,dg);if(dg<1e-6){o=vec4(0);return;}o=vec4(pc+uOm*((s-F(uB,c).x)/dg-pc),0,0,0);}`,
+pres:MAC_P+`uniform sampler2D uP,uB;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;float l=LAP(uP,c,dg);o=vec4(dg<1e-6?0.:F(uB,c).x-l,0,0,0);}`,
+papply:MAC_P+`uniform sampler2D uP;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;float l=LAP(uP,c,dg);o=vec4(dg<1e-6?0.:l,0,0,0);}`,
+prest:`uniform sampler2D uRF;uniform ivec3 uNF;uniform int uTXF;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float s=0.,m=0.;for(int k=0;k<8;k++){ivec3 f=c*2+ivec3(k&1,(k>>1)&1,(k>>2)&1);if(any(greaterThanEqual(f,uNF)))continue;s+=FT(uRF,f,uNF,uTXF).x;m+=1.;}o=vec4(m>0.?s/m:0.,0,0,0);}`,
+pprol:MAC_P+`uniform sampler2D uP,uPC,uGC;uniform ivec3 uNC;uniform int uTXC;uniform float uCorr,uTri;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;NB(uP,c,dg);float pc=F(uP,c).x;if(dg<1e-6){o=vec4(0);return;}float e;
+ if(uTri<.5)e=FT(uPC,c/2,uNC,uTXC).x;
+ else{vec3 q=(vec3(c)+.5)*.5-.5;ivec3 i0=ivec3(floor(q));vec3 f=q-vec3(i0);float acc=0.,wt=0.;
+  for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1),j=clamp(i0+d,ivec3(0),uNC-1);float w=(d.x==1?f.x:1.-f.x)*(d.y==1?f.y:1.-f.y)*(d.z==1?f.z:1.-f.z);
+   vec4 gc=FT(uGC,j,uNC,uTXC);if(gc.x+gc.y+gc.z<1e-6&&gc.w>.99)continue;acc+=w*FT(uPC,j,uNC,uTXC).x;wt+=w;}e=wt>1e-4?acc/wt:0.;}
+ o=vec4(pc+uCorr*e,0,0,0);}`,
+pdot:`uniform sampler2D uX,uY;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float a=F(uX,c).x,b=F(uY,c).x;o=vec4(a*b,a*a,b*b,0.);}`,
+/* 1x1 scalar state: x=rz, y=alpha, z=beta, w=bb.  uMode 0 init (rz,bb), 1 alpha, 2 beta */
+pscal:`uniform sampler2D uS,uD;uniform int uMode;uniform float uTol2;
+/* state x=rz y=alpha z=beta w=bb ; uD = dot sums (x=a.b, y=a.a, z=b.b). modes: 0 set rz, 3 set bb, 1 alpha, 2 beta+convergence */
+void main(){vec4 s=texelFetch(uS,ivec2(0),0),d=texelFetch(uD,ivec2(0),0);
+ if(uMode==0){o=vec4(d.x,0.,0.,s.w);return;}
+ if(uMode==3){o=vec4(s.xyz,d.x);return;}
+ if(uMode==1){o=vec4(s.x,abs(d.x)>1e-30?s.x/d.x:0.,s.z,s.w);return;}
+ if(d.y<=uTol2*s.w){o=vec4(0.,0.,0.,s.w);return;}
+ o=vec4(d.x,s.y,abs(s.x)>1e-30?d.x/s.x:0.,s.w);}`,
+paxpy:`uniform sampler2D uX,uY,uS;uniform int uSel;uniform float uSign;
+/* sel 0: copy X ; sel 1: X + sign*alpha*Y ; sel 2: Y + beta*X */
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 s=texelFetch(uS,ivec2(0),0);float x=F(uX,c).x;
+ o=vec4(uSel==0?x:(uSel==1?x+uSign*s.y*F(uY,c).x:F(uY,c).x+s.z*x),0,0,0);}`,
+/* ---- projection ---- */
+proj:`uniform sampler2D uVel,uP,uSol,uG;uniform float uDt;
+vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);float pc=F(uP,c).x;
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(g[ax]>0.&&c[ax]>0)u[ax]-=uDt*(pc-F(uP,c-e).x)/uH[ax];else if(g[ax]<=0.)u[ax]=us(c,ax)[ax];}
+ if(c.x==0&&g.x>0.)u.x=uU;if(c.y==0)u.y=0.;if(c.z==0)u.z=0.;o=vec4(u,0.);}`,
+/* ---- forces on car (id 1) or validation obstacle: pressure jump across phi ramps + wall shear ---- */
+force:`uniform sampler2D uVel,uP,uSol,uNu;uniform float uRho,uNuMol,uId;
+vec3 CC(ivec3 c){vec3 a=F(uVel,c).xyz;return .5*(a+vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z));}
+void main(){ivec3 c=C();if(c.z>=uN.z||c.x==0&&c.y==0&&c.z==0&&false){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);
+ for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0)continue;vec4 sn=F(uSol,c-e);float pa=PHI(sc),pb=PHI(sn);
+  if(!(SID(sc)==uId||SID(sn)==uId))continue;float dphi=pa-pb;if(abs(dphi)<1e-4)continue;
+  bool cFluid=pa<pb;ivec3 fc=cFluid?c:c-e;float p=F(uP,fc).x;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);
+  Fo[ax]+=uRho*p*dphi*A[ax];
+  vec3 uf=CC(fc),usd=(cFluid?sn:sc).xyz;float nu=uNuMol+F(uNu,fc).x;
+  for(int t=0;t<3;t++){if(t==ax)continue;Fo[t]+=uRho*nu*(uf[t]-usd[t])/(.5*uH[ax])*abs(dphi)*A[ax];}}
+ o=vec4(Fo,0.);}`,
+/* ---- smoke on the 2x grid (primary grid = dye grid, secondary grid 2 = velocity grid) ---- */
+dadv:`uniform sampler2D uVel,uSrc;uniform float uDt;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;vec3 v=VEL(uVel,P,uN2,uTX2);
+ vec3 Pm=P-.5*uDt*v/uH2;v=VEL(uVel,Pm,uN2,uTX2);vec3 q=(w-uDt*v-uMin)/uH-.5;o=vec4(TRI(uSrc,q,uN,uTX).x,0,0,0);}`,
+dcorr:`uniform sampler2D uVel,uSrc,uHat,uBar,uSol;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[16];uniform int uEmN;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;
+ if(PHI(FT(uSol,ivec3(floor(P)),uN2,uTX2))>.5||c.x==0){o=vec4(0);return;}
+ vec3 v=VEL(uVel,P,uN2,uTX2);vec3 Pm=P-.5*uDt*v/uH2;v=VEL(uVel,Pm,uN2,uTX2);vec3 q=clamp((w-uDt*v-uMin)/uH-.5,vec3(0.),vec3(uN-1));ivec3 i=min(ivec3(floor(q)),uN-1);
+ float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float s=F(uSrc,i+ivec3(k&1,(k>>1)&1,(k>>2)&1)).x;lo=min(lo,s);hi=max(hi,s);}
+ float r=clamp(F(uHat,c).x+.5*(F(uSrc,c).x-F(uBar,c).x),lo,hi)*uDecay;
+ for(int e=0;e<16;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w;r=max(r,uEmS*exp(-dot(d,d)/(rr*rr)));}
+ o=vec4(max(r,0.),0,0,0);}`,
+/* volume texture for rendering (dye resolution): r dye, g solid (1 car/.6 fan), b speed/U */
+vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;
+void main(){ivec3 c=ivec3(ivec2(gl_FragCoord.xy),uLayer);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;vec4 s=FT(uSol,ivec3(floor(P)),uN2,uTX2);float id=SID(s),ph=PHI(s);
+ float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);o=vec4(g>0.?0.:F(uDye,c).x,g,length(VEL(uVel,P,uN2,uTX2))/max(uU,.1),1.);}`,
+init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}o=vec4(uU,0.,0.,0.);}`,
+clear:`void main(){o=vec4(0.);}`};
+
+/* ---------------- CPU side ---------------- */
+function macAtlas(n){const maxTex=gl.getParameter(gl.MAX_TEXTURE_SIZE);let tx=Math.ceil(Math.sqrt(n[2]*n[1]/n[0]));tx=Math.max(1,Math.min(tx,Math.floor(maxTex/n[0])));const ty=Math.ceil(n[2]/tx);
+ if(n[1]*ty>maxTex)throw Error('MAC atlas exceeds MAX_TEXTURE_SIZE '+maxTex);return {N:n.slice(),tx,W:n[0]*tx,H:n[1]*ty}}
+function macTarget(g,ifmt,fmt,type){return liveTarget(g.W,g.H,ifmt,fmt,type)}
+/* static solids, partial volume: car supersampled 2x2x2 (shell + flood fill at 2N), fan box phi=1, validation shapes analytic 4x4x4 */
+function macStaticSolids(N,min,h,cfg){const [nx,ny,nz]=N,tot=nx*ny*nz,phi=new Float32Array(tot),id=new Uint8Array(tot),t0=performance.now();
+ if(cfg.car){const S=2,M=[nx*S,ny*S,nz*S],hs=h.map(v=>v/S),v=liveVoxelizeShell(M,min,hs);
+  for(let k=0;k<M[2];k++)for(let j=0;j<M[1];j++)for(let i=0;i<M[0];i++)if(v[i+M[0]*(j+M[1]*k)]){const q=(i>>1)+nx*((j>>1)+ny*(k>>1));phi[q]+=1/8;id[q]=1}}
+ if(cfg.obstacle){const O=cfg.obstacle,S=4;for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){let n=0;
+  for(let a=0;a<S;a++)for(let b=0;b<S;b++)for(let c=0;c<S;c++){const x=min[0]+(i+(a+.5)/S)*h[0]-O.c[0],y=min[1]+(j+(b+.5)/S)*h[1]-O.c[1],z=min[2]+(k+(c+.5)/S)*h[2]-O.c[2];
+   const r2=O.type==='sphere'?x*x+y*y+z*z:x*x+y*y;if(r2<=O.D*O.D/4)n++}
+  if(n){const q=i+nx*(j+ny*k);phi[q]=n/(S*S*S);id[q]=1}}}
+ const fb=cfg.fan;if(fb)for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=min[0]+(i+.5)*h[0],y=min[1]+(j+.5)*h[1],z=min[2]+(k+.5)*h[2];
+  if(x>=fb.min[0]&&x<=fb.max[0]&&y>=fb.min[1]&&y<=fb.max[1]&&z>=fb.min[2]&&z<=fb.max[2]){const q=i+nx*(j+ny*k);if(id[q]!==1){phi[q]=1;id[q]=2}}}
+ let car=0,fan=0,front=0;for(let q=0;q<tot;q++){if(id[q]===1)car+=phi[q];if(id[q]===2)fan++}
+ const col=new Float32Array(ny*nz);for(let k=0;k<nz;k++)for(let j=0;j<ny;j++){let m=0;for(let i=0;i<nx;i++){const q=i+nx*(j+ny*k);if(id[q]===1)m=Math.max(m,phi[q])}col[j+ny*k]=m}for(const m of col)front+=m;
+ return {phi,id,carCells:car,fan,front:front*h[1]*h[2],ms:performance.now()-t0}}
+/* shell rasterisation + exterior flood fill of the vehicle triangles at resolution M (returns solid mask) */
+function liveVoxelizeShell(M,min,h){const [nx,ny,nz]=M,tot=nx*ny*nz,shell=new Uint8Array(tot),idx=(i,j,k)=>i+nx*(j+ny*k),hm=Math.min(...h)*.45;
+ for(const part of m12SolidParts()){const Mx=part.modelMatrix,P=part.positions,I=part.indices,V=new Float32Array(P.length);
+  for(let i=0;i<P.length;i+=3){const q=m4point(Mx,[P[i],P[i+1],P[i+2]]);V[i]=q[0];V[i+1]=q[1];V[i+2]=q[2]}
+  for(let t=0;t<I.length;t+=3){const a=I[t]*3,b=I[t+1]*3,c=I[t+2]*3,ax=V[a],ay=V[a+1],az=V[a+2],ex=V[b]-ax,ey=V[b+1]-ay,ez=V[b+2]-az,fx=V[c]-ax,fy=V[c+1]-ay,fz=V[c+2]-az;
+   const n=Math.max(1,Math.ceil(Math.max(Math.hypot(ex,ey,ez),Math.hypot(fx,fy,fz),Math.hypot(fx-ex,fy-ey,fz-ez))/hm));
+   for(let u=0;u<=n;u++)for(let v=0;v<=n-u;v++){const s=u/n,r=v/n,i=Math.floor((ax+ex*s+fx*r-min[0])/h[0]),j=Math.floor((ay+ey*s+fy*r-min[1])/h[1]),k=Math.floor((az+ez*s+fz*r-min[2])/h[2]);
+    if(i>=0&&j>=0&&k>=0&&i<nx&&j<ny&&k<nz)shell[idx(i,j,k)]=1}}}
+ const ext=new Uint8Array(tot),st=new Int32Array(tot);let sp=0;const push=q=>{if(!shell[q]&&!ext[q]){ext[q]=1;st[sp++]=q}};
+ for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)if(i===0||j===0||k===0||i===nx-1||j===ny-1||k===nz-1)push(idx(i,j,k));
+ while(sp){const q=st[--sp],i=q%nx,j=((q/nx)|0)%ny,k=(q/(nx*ny))|0;if(i>0)push(q-1);if(i<nx-1)push(q+1);if(j>0)push(q-nx);if(j<ny-1)push(q+nx);if(k>0)push(q-nx*ny);if(k<nz-1)push(q+nx*ny)}
+ const out=new Uint8Array(tot);for(let q=0;q<tot;q++)out[q]=ext[q]?0:1;return out}
+function macUploadStatic(G,vox){const N=G.N,buf=new Uint8Array(G.W*G.H*4);for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const q=i+N[0]*(j+N[1]*k);if(!vox.phi[q])continue;
+  const ax=(k%G.tx)*N[0]+i,ay=Math.floor(k/G.tx)*N[1]+j,o=(ay*G.W+ax)*4;buf[o]=Math.round(Math.min(1,vox.phi[q])*255);buf[o+1]=vox.id[q]*50;buf[o+3]=255}
+ if(!MAC.staticTex)MAC.staticTex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,MAC.staticTex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+ gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,G.W,G.H,0,gl.RGBA,gl.UNSIGNED_BYTE,buf)}
+function macWheels(){try{const W=wheelParts(),out=[];for(let i=0;i<W.length;i++){const b=wheelWorldBoundsAt(0,i);out.push([(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2,(b.max[1]-b.min[1])/2]);MAC.whW=(b.max[2]-b.min[2])/2}return out}catch(_){return []}}
+
+/* domain config: tunnel (default) or validation {N,min,max,obstacle,U,nu} */
+function macConfig(){const d=MAC.domain;if(d)return {...d,car:false,fan:null,belt:false,body:false};
+ const b=CFD_DOMAIN_CONTRACT.bounds;return {min:Array.from(b.min),max:Array.from(b.max),N:LIVE.N,car:true,fan:AETHER.FAN_MODULE?.layout?.fanBounds||null,belt:true,body:true,nu:MAC.nuMol,U:null}}
+function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.map((v,i)=>(v-min[i])/N[i]);
+ if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 미지원');
+ macRelease();MAC.cfg=cfg;MAC.N=N;MAC.min=min;MAC.max=max;MAC.h=h;
+ const G=MAC.G=macAtlas(N),Nd=N.map(v=>v*2),D=MAC.D=macAtlas(Nd);MAC.hd=h.map(v=>v/2);
+ const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
+ MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
+ /* multigrid levels: level 0 uses MAC.t.geom/b; pressure vectors per level */
+ MAC.lv=[];let n=N.slice();for(let l=0;l<MAC.levels;l++){if(l>0){const m=n.map(v=>Math.max(1,Math.ceil(v/2)));if(Math.min(...m)<2)break;n=m}
+  const g=macAtlas(n),hl=max.map((v,i)=>(v-min[i])/n[i]);const T={pA:macTarget(g,gl.R32F,gl.RED,gl.FLOAT),pB:macTarget(g,gl.R32F,gl.RED,gl.FLOAT),r:macTarget(g,gl.R32F,gl.RED,gl.FLOAT)};
+  if(l>0){T.b=macTarget(g,gl.R32F,gl.RED,gl.FLOAT);T.geom=H4(g)}MAC.lv.push({...g,h:hl,T})}
+ /* PCG vectors on level 0 */
+ MAC.t.cgR=R();MAC.t.cgD=R();MAC.t.cgQ=R();MAC.t.cgS=R();MAC.Z={pA:R(),pB:R()};
+ MAC.red=[];{let w=G.W,hh=G.H;while(w>1||hh>1){w=Math.ceil(w/8);hh=Math.ceil(hh/8);MAC.red.push({w,h:hh,t:liveTarget(w,hh,gl.RGBA32F,gl.RGBA,gl.FLOAT)})}}
+ MAC.scal=[liveTarget(1,1,gl.RGBA32F,gl.RGBA,gl.FLOAT),liveTarget(1,1,gl.RGBA32F,gl.RGBA,gl.FLOAT)];
+ /* volume texture at dye resolution */
+ MAC.vol=gl.createTexture();gl.bindTexture(gl.TEXTURE_3D,MAC.vol);for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_NEAREST],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_R,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_3D,k,v);
+ gl.texImage3D(gl.TEXTURE_3D,0,gl.RGBA16F,Nd[0],Nd[1],Nd[2],0,gl.RGBA,gl.HALF_FLOAT,null);MAC.volFbo=gl.createFramebuffer();
+ if(MAC.progGen!==runtimeGeneration){MAC.prog={};for(const k in MAC_FS)MAC.prog[k]=k==='pscal'?liveCompile(`#version 300 es\nprecision highp float;precision highp sampler2D;\nout vec4 o;\n`+MAC_FS[k]):liveCompile(MAC_H+MAC_FS[k]);MAC.progGen=runtimeGeneration}
+ const vox=MAC.vox=macStaticSolids(N,min,h,cfg);macUploadStatic(G,vox);MAC.wheels=cfg.car?macWheels():[];
+ MAC.U=cfg.U??LIVE.U;MAC.step=0;MAC.t0=0;MAC.ok=true;macReset();return MAC}
+function macRelease(){const del=t=>{if(t&&t.t){gl.deleteTexture(t.t);gl.deleteFramebuffer(t.f)}};if(MAC.t)for(const k in MAC.t)del(MAC.t[k]);if(MAC.Z){del(MAC.Z.pA);del(MAC.Z.pB)}for(const L of MAC.lv||[])for(const k in L.T)del(L.T[k]);(MAC.red||[]).forEach(r=>del(r.t));(MAC.scal||[]).forEach(del);
+ if(MAC.vol)gl.deleteTexture(MAC.vol);if(MAC.volFbo)gl.deleteFramebuffer(MAC.volFbo);MAC.t=null;MAC.lv=null;MAC.red=null;MAC.scal=null;MAC.vol=null;MAC.ok=false}
+/* one pass on grid g (primary). g2 = secondary grid (dye passes) */
+function macPass(name,out,tex,uni,g,g2){const p=MAC.prog[name];g=g||MAC.G;g2=g2||g;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,out.f);gl.viewport(0,0,out.w||g.W,out.h||g.H);
+ const hh=g.h||MAC.h,h2=g2.h||MAC.h;gl.uniform3i(liveU(p,'uN'),...g.N);gl.uniform1i(liveU(p,'uTX'),g.tx);gl.uniform3f(liveU(p,'uH'),...hh);gl.uniform3i(liveU(p,'uN2'),...g2.N);gl.uniform1i(liveU(p,'uTX2'),g2.tx);gl.uniform3f(liveU(p,'uH2'),...h2);
+ gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);
+ let unit=8;for(const n in tex){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex[n]);gl.uniform1i(liveU(p,n),unit);unit++}
+ for(const n in uni){const v=uni[n],l=liveU(p,n);if(l===null)continue;if(Array.isArray(v)){if(v.length===4)gl.uniform4f(l,...v);else if(v.length===3)gl.uniform3f(l,...v)}else if(v&&v.int!==undefined)gl.uniform1i(l,v.int);else if(v&&v.i3)gl.uniform3i(l,...v.i3);else if(v instanceof Float32Array)gl.uniform4fv(l,v);else gl.uniform1f(l,v)}
+ gl.drawArrays(gl.TRIANGLES,0,3)}
+const macSwap=(o,a,b)=>{const x=o[a];o[a]=o[b];o[b]=x};
+function macGridOf(l){const L=MAC.lv[l];return {N:L.N,tx:L.tx,W:L.W,H:L.H,h:L.h}}
+function macReset(){gl.bindVertexArray(LIVE.vao);const T=MAC.t;for(const k in T)liveClear(T[k]);liveClear(MAC.Z.pA);liveClear(MAC.Z.pB);for(const s of MAC.scal)liveClear(s);for(const L of MAC.lv)for(const k in L.T)liveClear(L.T[k]);
+ macSolids();macPass('init',T.velA,{},{});MAC.step=0;MAC.time=0;MAC.forceHist=[];gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null)}
+function macSolids(){const T=MAC.t,B=window.__BODY,act=!!(MAC.cfg.body&&B&&B.active),W=MAC.wheels||[],wh=new Float32Array(16);W.forEach((w,i)=>wh.set(w,i*4));const R=W[0]?.[3]||.34;
+ macPass('solid',T.sol,{uStatic:MAC.staticTex},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0],uBodyV:act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0],uWh:wh,uWhW:MAC.whW||.15,uOm:MAC.U/R});
+ macPass('geom',T.geom,{uSol:T.sol.t},{});
+ for(let l=1;l<MAC.lv.length;l++){const F=l===1?{t:T.geom}:{t:MAC.lv[l-1].T.geom},Lf=MAC.lv[l-1];macPass('cgeom',MAC.lv[l].T.geom,{uGF:F.t.t},{uNF:{i3:Lf.N},uTXF:{int:Lf.tx}},macGridOf(l))}}
+/* ---- pressure solvers. A level-0 "context" X={pA,pB} holds the iterate, b0 the right-hand side ---- */
+function macLvX(l,X0){return l===0?X0:MAC.lv[l].T}
+function macLvB(l,b0){return l===0?b0:MAC.lv[l].T.b.t}
+function macSmooth(l,n,kind,order,X,b){const g=macGridOf(l),G=macGeomOf(l);
+ for(let k=0;k<n;k++){if(kind==='RB'){for(const col of order){macPass('prb',X.pB,{uP:X.pA.t,uB:b,uG:G},{uColor:{int:col},uOm:MAC.sor},g);macSwap(X,'pA','pB')}}
+  else{macPass('pjac',X.pB,{uP:X.pA.t,uB:b,uG:G},{uOm:MAC.omega},g);macSwap(X,'pA','pB')}}}
+function macGeomOf(l){return l===0?MAC.t.geom.t:MAC.lv[l].T.geom.t}
+/* V-cycle for L x = b; level 0 uses the caller's context, coarse levels start from zero */
+function macVcycle(l,kind,X0,b0){const Lv=MAC.lv,L=Lv[l],X=macLvX(l,X0),b=macLvB(l,b0),g=macGridOf(l);
+ if(l===Lv.length-1){macSmooth(l,MAC.coarse,kind,[0,1],X,b);return}
+ macSmooth(l,MAC.pre,kind,[0,1],X,b);
+ macPass('pres',L.T.r,{uP:X.pA.t,uB:b,uG:macGeomOf(l)},{},g);
+ const C=Lv[l+1];macPass('prest',C.T.b,{uRF:L.T.r.t},{uNF:{i3:L.N},uTXF:{int:L.tx}},macGridOf(l+1));liveClear(C.T.pA);liveClear(C.T.pB);
+ macVcycle(l+1,kind,X0,b0);
+ macPass('pprol',X.pB,{uP:X.pA.t,uPC:C.T.pA.t,uGC:macGeomOf(l+1),uG:macGeomOf(l)},{uNC:{i3:C.N},uTXC:{int:C.tx},uCorr:MAC.corr,uTri:MAC.prol},g);macSwap(X,'pA','pB');
+ macSmooth(l,MAC.post,kind,[1,0],X,b)}
+function liveReduceTo(src,sw,sh,chain){const p=LIVE.prog.sum;gl.useProgram(p);let s=src,w=sw,h=sh;for(const r of chain){gl.bindFramebuffer(gl.FRAMEBUFFER,r.t.f);gl.viewport(0,0,r.w,r.h);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,s.t);gl.uniform1i(liveU(p,'uS'),8);gl.uniform2i(liveU(p,'uSz'),w,h);gl.drawArrays(gl.TRIANGLES,0,3);s=r.t;w=r.w;h=r.h}return s}
+function macDot(a,b){const T=MAC.t;macPass('pdot',T.frc,{uX:a,uY:b},{});return liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red)}
+const MAC_ONE={N:[1,1,1],tx:1,W:1,H:1,h:[1,1,1]};
+function macScal(mode,dotTex){const [S0,S1]=MAC.scal;macPass('pscal',S1,{uS:S0.t,uD:dotTex.t},{uMode:{int:mode},uTol2:MAC.tol*MAC.tol},MAC_ONE);MAC.scal=[S1,S0]}
+function macAxpy(out,X,Y,sel,sign){macPass('paxpy',out,{uX:X.t,uY:Y.t,uS:MAC.scal[0].t},{uSel:{int:sel},uSign:sign})}
+function macSolve(){const L0=MAC.lv[0],T=MAC.t,s=MAC.solver;
+ if(s==='GMG'||s==='RBGS'){for(let c=0;c<MAC.cycles;c++)macVcycle(0,s==='RBGS'?'RB':'J',L0.T,T.b.t);return}
+ if(s==='JACOBI'){for(let k=0;k<MAC.jacobiIters;k++){macPass('pjac',L0.T.pB,{uP:L0.T.pA.t,uB:T.b.t,uG:T.geom.t},{uOm:1});macSwap(L0.T,'pA','pB')}return}
+ /* MGPCG in L-form (L negative definite). Z={pA:cgZ,pB:cgZ2} is the preconditioner context. */
+ const X=L0.T,Z=MAC.Z;
+ macPass('pres',T.cgR,{uP:X.pA.t,uB:T.b.t,uG:T.geom.t},{});
+ const pre=()=>{liveClear(Z.pA);liveClear(Z.pB);macVcycle(0,MAC.pcgSmoother,Z,T.cgR.t)};
+ pre();macAxpy(T.cgD,Z.pA,Z.pA,0,0);
+ macScal(3,macDot(T.b.t,T.b.t));macScal(0,macDot(T.cgR.t,Z.pA.t));
+ for(let k=0;k<MAC.pcgIters;k++){
+  macPass('papply',T.cgQ,{uP:T.cgD.t,uG:T.geom.t},{});macScal(1,macDot(T.cgD.t,T.cgQ.t));
+  macAxpy(X.pB,X.pA,T.cgD,1,1);macSwap(X,'pA','pB');
+  macAxpy(T.cgS,T.cgR,T.cgQ,1,-1);macSwap(T,'cgR','cgS');
+  pre();macScal(2,macDot(T.cgR.t,Z.pA.t));
+  macAxpy(T.cgS,T.cgD,Z.pA,2,1);macSwap(T,'cgD','cgS')}}
+/* ---- one time step ---- */
+function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
+ MAC.U=cfg.U??LIVE.U;
+ if(cfg.body||MAC.step===0)macSolids();
+ /* MacCormack velocity advection */
+ macPass('adv',T.hat,{uVel:T.velA.t,uSrc:T.velA.t},{uDt:dt});
+ macPass('adv',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
+ macPass('advc',T.velB,{uVel:T.velA.t,uHat:T.hat.t,uBar:T.bar.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt});
+ /* LES + molecular diffusion (+ optional vorticity confinement) */
+ const hmin=Math.min(...MAC.h),nuMax=Math.max(0,.9*hmin*hmin/(6*dt)-(cfg.nu??MAC.nuMol));
+ macPass('sgs',T.nu,{uVel:T.velB.t,uSol:T.sol.t},{uCs:MAC.les?MAC.Cs:0,uNuMax:nuMax});
+ const bb=cfg.belt?[0,3.15,0,1.25]:[0,0,0,0];
+ macPass('diff',T.velA,{uVel:T.velB.t,uNu:T.nu.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt,uNuMol:cfg.nu??MAC.nuMol,uEps:MAC.eps,uBelt:cfg.belt?1:0,uBeltBox:bb});
+ /* projection */
+ macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt});
+ macSolve();
+ macPass('proj',T.velB,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt});macSwap(T,'velA','velB');
+ /* smoke on the 2x grid */
+ if(emit!==false){const em=liveEmitters(),D=MAC.D,Dg={...D,h:MAC.hd};
+  macPass('dadv',T.dhat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt},Dg,MAC.G);macPass('dadv',T.dbar,{uVel:T.velA.t,uSrc:T.dhat.t},{uDt:-dt},Dg,MAC.G);
+  macPass('dcorr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.dhat.t,uBar:T.dbar.t,uSol:T.sol.t},{uDt:dt,uDecay:.9985,uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}},Dg,MAC.G);macSwap(T,'dyeA','dyeB')}
+ MAC.step++;MAC.time+=dt;MAC.lastDt=dt}
+function macCopyVolume(){const p=MAC.prog.vcopy,D=MAC.D,Nd=D.N,T=MAC.t;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.volFbo);gl.viewport(0,0,Nd[0],Nd[1]);
+ gl.uniform3i(liveU(p,'uN'),...Nd);gl.uniform1i(liveU(p,'uTX'),D.tx);gl.uniform3f(liveU(p,'uH'),...MAC.hd);gl.uniform3i(liveU(p,'uN2'),...MAC.N);gl.uniform1i(liveU(p,'uTX2'),MAC.G.tx);gl.uniform3f(liveU(p,'uH2'),...MAC.h);gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);
+ const bind=(u,n,t)=>{gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,n),u)};bind(8,'uVel',T.velA.t);bind(9,'uDye',T.dyeA.t);bind(10,'uSol',T.sol.t);
+ for(let k=0;k<Nd[2];k++){gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,MAC.vol,0,k);gl.uniform1i(liveU(p,'uLayer'),k);gl.drawArrays(gl.TRIANGLES,0,3)}
+ gl.bindTexture(gl.TEXTURE_3D,MAC.vol);gl.generateMipmap(gl.TEXTURE_3D)}
+/* velocity at a world point (face average -> cell centre of the containing cell) */
+function macReadCell(i,j,k){const G=MAC.G,N=MAC.N,px=(ii,jj,kk)=>{ii=Math.min(N[0]-1,Math.max(0,ii));jj=Math.min(N[1]-1,Math.max(0,jj));kk=Math.min(N[2]-1,Math.max(0,kk));const b=new Float32Array(4);gl.readPixels((kk%G.tx)*N[0]+ii,Math.floor(kk/G.tx)*N[1]+jj,1,1,gl.RGBA,gl.FLOAT,b);return b};
+ gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.t.velA.f);const a=px(i,j,k),bx=i<N[0]-1?px(i+1,j,k)[0]:a[0],by=j<N[1]-1?px(i,j+1,k)[1]:0,bz=k<N[2]-1?px(i,j,k+1)[2]:0;gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+ return [(a[0]+bx)/2,(a[1]+by)/2,(a[2]+bz)/2]}
+function macRead(x,y,z){const f=(v,d)=>Math.min(MAC.N[d]-1,Math.max(0,Math.floor((v-MAC.min[d])/MAC.h[d])));return macReadCell(f(x,0),f(y,1),f(z,2))}
+/* full-field reads (tests / validation) */
+function macReadAll(t,ch){const G=MAC.G,buf=new Float32Array(G.W*G.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,G.W,G.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
+function macFieldIndex(i,j,k){const G=MAC.G,N=MAC.N;return (((Math.floor(k/G.tx)*N[1]+j)*G.W)+(k%G.tx)*N[0]+i)*4}
+/* post-projection divergence relative to U/h and Poisson relative residual, over cells with at least one open face */
+function macDivStats(){const T=MAC.t;gl.bindVertexArray(LIVE.vao);macPass('div',T.res,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1});
+ const d=macReadAll(T.res),g=(()=>{const G=MAC.G,b=new Float32Array(G.W*G.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.geom.f);gl.readPixels(0,0,G.W,G.H,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return b})();
+ const N=MAC.N,ref=MAC.U/Math.min(...MAC.h);let s=0,m=0,n=0,bad=0;
+ for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const q=macFieldIndex(i,j,k);if(g[q+3]>.999)continue;const v=d[q];if(!Number.isFinite(v)){bad++;continue}s+=v*v;m=Math.max(m,Math.abs(v));n++}
+ gl.bindVertexArray(null);return {cells:n,nonFinite:bad,relRms:Math.sqrt(s/Math.max(n,1))/ref,relMax:m/ref,rms:Math.sqrt(s/Math.max(n,1)),max:m}}
+function macResidual(){const T=MAC.t,L0=MAC.lv[0];gl.bindVertexArray(LIVE.vao);macPass('pres',T.res,{uP:L0.T.pA.t,uB:T.b.t,uG:T.geom.t},{});const r=macReadAll(T.res),b=macReadAll(T.b);let rr=0,bb=0,bad=0;
+ for(let q=0;q<r.length;q+=4){if(!Number.isFinite(r[q])){bad++;continue}rr+=r[q]*r[q];bb+=b[q]*b[q]}gl.bindVertexArray(null);return {rel:Math.sqrt(rr/Math.max(bb,1e-30)),nonFinite:bad}}
+/* forces on the solid id 1 (car or validation obstacle); physical units with rho=1.2 (tunnel) or rho=1 (validation) */
+function macForces(){const T=MAC.t,cfg=MAC.cfg,rho=cfg.rho??1.2;gl.bindVertexArray(LIVE.vao);
+ macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1});
+ const s=liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
+ const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],A,Cd:q>0?b[0]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
+/* scalar state readback (relative residual of the last PCG solve) */
+function macPcgState(){const b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.scal[0].f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return {rz:b[0],alpha:b[1],beta:b[2],bb:b[3]}}
+function macMemoryMB(){let s=0;const add=(g,bpp)=>{s+=g.W*g.H*bpp};const G=MAC.G;add(G,16*5);add(G,8*2);add(G,8);add(G,4*9);add(MAC.D,2*4);for(const L of MAC.lv.slice(1))add(L,4*4+8);s+=MAC.D.N[0]*MAC.D.N[1]*MAC.D.N[2]*8*8/7;return s/1048576}
+function macReadAllD(t){const D=MAC.D,buf=new Float32Array(D.W*D.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,D.W,D.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
+function macFlagCounts(){const s=macReadAll(MAC.t.sol),N=MAC.N,c={fluid:0,car:0,fan:0,body:0};for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const w=s[macFieldIndex(i,j,k)+3],id=Math.floor(w*.5+.001),ph=w-2*id;
+  if(ph<.5)c.fluid++;else c[['fluid','car','fan','body'][id]]++}return c}
 
 function smokeDraw(vp){const f=m13FrameState.frame,fieldReady=!!(f&&f.fields?.velocity?.data&&f.solidMask?.data);const renderStart=performance.now();try{if(fieldReady&&smokeState.enabled)smokeUpdate(f,performance.now());smokeState.layoutError=null}catch(error){smokeState.layoutError=String(error?.message||error);smokeControlStatus();smokePerf.renderMs=performance.now()-renderStart;return}if(!fieldReady||!smokeState.enabled){smokePerf.renderMs=performance.now()-renderStart;return}const p=smokeState.program;gl.useProgram(p);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.posBuffer);const ap=gl.getAttribLocation(p,'a_position');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.sizeBuffer);const as=gl.getAttribLocation(p,'a_size');gl.enableVertexAttribArray(as);gl.vertexAttribPointer(as,1,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.alphaBuffer);const aa=gl.getAttribLocation(p,'a_alpha');gl.enableVertexAttribArray(aa);gl.vertexAttribPointer(aa,1,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(p,'u_mvp'),false,vp);gl.uniform1f(gl.getUniformLocation(p,'u_viewScale'),glCanvas.height*.95);gl.enable(gl.DEPTH_TEST);gl.depthMask(false);gl.enable(gl.BLEND);if(!(window.__RIB&&window.__RIB.on&&RIB_DRAW(vp,f))){gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.POINTS,0,smokeState.count)};smokeState.drawCalls++;const clock=performance.now();if(clock-smokeState.lastStatusAt>950){smokeState.lastStatusAt=clock;smokeControlStatus()}for(const a of [ap,as,aa])gl.disableVertexAttribArray(a);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);smokePerf.renderMs=performance.now()-renderStart}
 function smokeControlStatus(){const el=document.getElementById('smokeStatus'),quick=document.getElementById('smokeQuickStatus'),f=m13FrameState.frame,office=!!f&&f.sourceId==='AETHER_S3_OFFICE_CPU',ready=!!(f?.fields?.velocity?.data&&f?.solidMask?.data),source=office?'32³ OFFICE CPU 진단 스냅샷':ready?'제품 solver 속도장 스냅샷':'사용 가능한 CFD 속도장 없음';if(quick)quick.textContent=ready?(smokeState.enabled?(smokeState.playing?' · '+source+' 입자 재생':' · 연기 일시정지'):' · 연기 표시 꺼짐'):' · '+source;if(el)el.textContent=smokeState.layoutError?'FLOW LAYOUT ERROR · '+smokeState.layoutError:f?source+' · CFD t='+f.simulationTime.toFixed(5)+'s · 입자 재생 t='+smokeState.playbackTime.toFixed(2)+'s · 정지장 재생 배속 ×'+smokeState.speedMultiplier+' · '+(smokeState.playing?'PLAYING':'PAUSED')+' · 수거 '+smokeState.captured:'CFD 속도장 대기 · 제품 solver 미연결 / 32³ OFFICE는 별도 CPU 진단';const d=document.getElementById('smokeDiagnostics');if(d&&!d.hidden)d.textContent=JSON.stringify(smokeDiagnosticsSnapshot(),null,2)}
@@ -2360,7 +2855,7 @@ function smokeSetupControls(){
 }
 smokeSetupControls();
 
-function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)return;try{const frameStart=performance.now();smokeRecordFrame(frameStart);updateWalk(frameStart);wowTick(frameStart);resize();liveStep(frameStart);renderLightingShadow();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);bindLighting();gl.uniform4f(loc.eye,camera.eye[0],camera.eye[1],camera.eye[2],1);const view=lookAt(camera.eye,camera.target,camera.up),proj=perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far),vp=matMul(proj,view),id=identityMatrix();gl.disable(gl.BLEND);gl.depthMask(true);gl.disable(gl.CULL_FACE);const opaque=scene.objects.filter(o=>visibleInView(o)&&o.material!=='glass');for(const o of opaque){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:lightingColor(o),colorLinear:!!o.colorLinear,texture:o.texture||null,surface:surfaceFor(o),belt:o.name==='belt',beltTravel:rollingState.beltTravel},1)}for(const r of scene.roadParts){if(!r.visible||!r.gpu)continue;const rm=rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0);gl.uniformMatrix4fv(loc.model,false,rm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,rm));drawMesh(r.gpu,rm,{color:[.30,.34,.37,1],surface:r.pbrMaterial.surface,roller:true},1)}if(AETHER.FAN_MODULE?.loaded&&AETHER.EXHAUST_COLLECTOR?.loaded){const layout=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),rotor=fanRotorVisualAngle(frameStart);for(const p of scene.fanParts){if(!p.gpu)continue;const fm=fanPartModel(p,rotor,layout);gl.uniformMatrix4fv(loc.model,false,fm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,fm));drawMesh(p.gpu,fm,{color:p.color,colorLinear:true,surface:p.surface},1)}for(const p of scene.collectorParts){if(!p.gpu)continue;const cm=collectorPartModel(p,layout);gl.uniformMatrix4fv(loc.model,false,cm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,cm));drawMesh(p.gpu,cm,{color:p.color,colorLinear:true,surface:p.surface},1)}}const cpVisible=m13FrameState.mode==='CP'&&m13FrameState.availability?.CP?.status==='AVAILABLE';const vm=vehicleModel();if(cpVisible)m13DrawCp(vp);else for(const p of scene.vehicleParts){if(!p.gpu)continue;const idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vm;gl.uniformMatrix4fv(loc.model,false,pm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,pm));drawMesh(p.gpu,pm,{color:p.color,texture:p.texture,surface:p.surface,colorLinear:true},1)}bodyDraw(vp);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp);smokeDraw(vp);liveRender(vp);gl.disable(gl.BLEND);gl.depthMask(true);gl.useProgram(program);const transparent=scene.objects.filter(o=>visibleInView(o)&&o.material==='glass').sort((a,b)=>Math.hypot(...sub(b.center,camera.eye))-Math.hypot(...sub(a.center,camera.eye)));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);for(const o of transparent){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:[...o.color,1]},.25)}gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.depthMask(true);gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);diagnostics.frames=(diagnostics.frames||0)+1;if(diagnostics.frames===1||(diagnostics.frames%120)===0){const err=gl.getError();smokePerf.webglError=err===gl.NO_ERROR?'NO_ERROR':String(err);if(err!==gl.NO_ERROR)throw Error('WebGL sampled error: '+err);}if(diagnostics.frames===1){diagnostics.bootStage='READY';wow.ready=true;wowUI.start.disabled=false;wowUI.start.textContent='풍동 가동 · 30초 체험';smokeSetState(m13FrameState.frame?(smokeState.playing?'SMOKE_PLAYING':'PAUSED'):'READY');const badge=document.getElementById('readyBadge');badge.textContent='M13 VIS READY · PRODUCT SOLVER UNBOUND';badge.className='badge warn';renderDiagnostics()}if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){smokeSetState('ERROR');failRuntime('frame',e)}}
+function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)return;try{const frameStart=performance.now();perfBeginFrame(frameStart);smokeRecordFrame(frameStart);updateWalk(frameStart);wowTick(frameStart);resize();perfMark('sim');liveStep(frameStart);perfMark('scene');renderLightingShadow();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);bindLighting();gl.uniform4f(loc.eye,camera.eye[0],camera.eye[1],camera.eye[2],1);const view=lookAt(camera.eye,camera.target,camera.up),proj=perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far),vp=matMul(proj,view),id=identityMatrix();gl.disable(gl.BLEND);gl.depthMask(true);gl.disable(gl.CULL_FACE);const opaque=scene.objects.filter(o=>visibleInView(o)&&o.material!=='glass');for(const o of opaque){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:lightingColor(o),colorLinear:!!o.colorLinear,texture:o.texture||null,surface:surfaceFor(o),belt:o.name==='belt',beltTravel:rollingState.beltTravel},1)}for(const r of scene.roadParts){if(!r.visible||!r.gpu)continue;const rm=rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0);gl.uniformMatrix4fv(loc.model,false,rm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,rm));drawMesh(r.gpu,rm,{color:[.30,.34,.37,1],surface:r.pbrMaterial.surface,roller:true},1)}if(AETHER.FAN_MODULE?.loaded&&AETHER.EXHAUST_COLLECTOR?.loaded){const layout=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),rotor=fanRotorVisualAngle(frameStart);for(const p of scene.fanParts){if(!p.gpu)continue;const fm=fanPartModel(p,rotor,layout);gl.uniformMatrix4fv(loc.model,false,fm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,fm));drawMesh(p.gpu,fm,{color:p.color,colorLinear:true,surface:p.surface},1)}for(const p of scene.collectorParts){if(!p.gpu)continue;const cm=collectorPartModel(p,layout);gl.uniformMatrix4fv(loc.model,false,cm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,cm));drawMesh(p.gpu,cm,{color:p.color,colorLinear:true,surface:p.surface},1)}}const cpVisible=m13FrameState.mode==='CP'&&m13FrameState.availability?.CP?.status==='AVAILABLE';const vm=vehicleModel();if(cpVisible)m13DrawCp(vp);else for(const p of scene.vehicleParts){if(!p.gpu)continue;const idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vm;gl.uniformMatrix4fv(loc.model,false,pm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,pm));drawMesh(p.gpu,pm,{color:p.color,texture:p.texture,surface:p.surface,colorLinear:true},1)}bodyDraw(vp);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp);smokeDraw(vp);perfMark('smoke');liveRender(vp);perfMark('overlay');gl.disable(gl.BLEND);gl.depthMask(true);gl.useProgram(program);const transparent=scene.objects.filter(o=>visibleInView(o)&&o.material==='glass').sort((a,b)=>Math.hypot(...sub(b.center,camera.eye))-Math.hypot(...sub(a.center,camera.eye)));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);for(const o of transparent){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:[...o.color,1]},.25)}gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.depthMask(true);gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);perfEndFrame(performance.now());diagnostics.frames=(diagnostics.frames||0)+1;if(diagnostics.frames===1||(diagnostics.frames%120)===0){const err=gl.getError();smokePerf.webglError=err===gl.NO_ERROR?'NO_ERROR':String(err);if(err!==gl.NO_ERROR)throw Error('WebGL sampled error: '+err);}if(diagnostics.frames===1){diagnostics.bootStage='READY';wow.ready=true;wowUI.start.disabled=false;wowUI.start.textContent='풍동 가동 · 30초 체험';smokeSetState(m13FrameState.frame?(smokeState.playing?'SMOKE_PLAYING':'PAUSED'):'READY');const badge=document.getElementById('readyBadge');badge.textContent='M13 VIS READY · PRODUCT SOLVER UNBOUND';badge.className='badge warn';renderDiagnostics()}if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){smokeSetState('ERROR');failRuntime('frame',e)}}
 
 function setPreset(name){fpv.enabled=false;clearWalk();if(document.exitPointerLock)document.exitPointerLock();camera.fov=50;camera.preset=name;camera.cutaway=name!=='Hero';const p=AETHER.VEHICLE_TRANSFORM.position,l=AETHER.FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame);if(name==='Hero'){camera.eye=[p[0]-1.8,p[1]+2.4,p[2]+9.1];camera.target=[p[0],p[1]+1.05,p[2]];camera.up=[0,1,0]}if(name==='Side'){camera.eye=[p[0],p[1]+3,p[2]+13];camera.target=[p[0],p[1]+1,p[2]];camera.up=[0,1,0]}if(name==='Top'){camera.eye=[p[0],p[1]+22,p[2]+.001];camera.target=p.slice();camera.up=[0,0,-1]}if(name==='Fan'){camera.eye=[l.emitterPlane.x-3.0,2.72,0];camera.target=[l.emitterPlane.x-.4,2.72,0];camera.up=[0,1,0]}if(name==='Control'){camera.eye=[-2.8,1.90,8.65];camera.target=[-2.8,1.48,5.65];camera.up=[0,1,0]}if(name==='Outlet'){camera.eye=[l.collectorPlane.x+1.5,2.75,.05];camera.target=[l.collectorPlane.x-.7,2.75,0];camera.up=[0,1,0]}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===name));document.getElementById('viewName').textContent=name.toUpperCase();document.getElementById('cutaway').textContent='Cutaway: '+(camera.cutaway?'On':'Off');diagnostics.events.push({time:now(),type:'CAMERA',message:name+' preset'})}
 
