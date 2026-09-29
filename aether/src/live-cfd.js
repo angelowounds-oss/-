@@ -33,7 +33,7 @@ vec3 SV(int t){return t==2?vec3(uU,0.,0.):(t==3?uBodyV:vec3(0.));}
 `;
 const LIVE_FS={
 flags:`uniform sampler2D uObs;uniform vec4 uBody;
-float bodyR(float y){return (y<0.||y>1.78)?0.:(y<.85?.17:(y<1.5?.25:.12));}
+float bodyR(float y){float r=(y<0.||y>1.78)?0.:(y<.85?.17:(y<1.5?.25:.12));return r>0.?max(r,uH.x):0.;}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 ob=texelFetch(uObs,A(c),0);int t=ob.r>.5?1:(ob.g>.5?2:0);
  if(t==0&&uBody.w>.5){vec3 w=W(c);float r=bodyR(w.y-uBody.z);vec2 d=w.xz-uBody.xy;if(r>0.&&dot(d,d)<r*r)t=3;}o=vec4(float(t)/3.,0,0,1);}`,
 init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}int t=ST(c);o=vec4(t>0?SV(t):vec3(uU,0,0),0);}`,
@@ -104,7 +104,7 @@ void main(){ivec3 c=C();if(c.z>=uN.z||ST(c)>0){o=vec4(0);return;}float p=F(uP,c)
  e=ivec3(0,0,1);if(IN(c+e)&&ST(c+e)==1)f.z+=p*uH.x*uH.y;if(IN(c-e)&&ST(c-e)==1)f.z-=p*uH.x*uH.y;
  o=vec4(f,0.);}`,
 copy:`uniform sampler2D uVel,uDye;uniform int uLayer;
-void main(){ivec3 c=ivec3(ivec2(gl_FragCoord.xy),uLayer);int t=ST(c);vec3 u=F(uVel,c).xyz;o=vec4(t>0?0.:F(uDye,c).x,(t==1||t==3)?1.:(t==2?.6:0.),length(u)/max(uU,.1),1);}`};
+void main(){ivec3 c=ivec3(ivec2(gl_FragCoord.xy),uLayer);int t=ST(c);vec3 u=F(uVel,c).xyz;o=vec4(t>0?0.:F(uDye,c).x,t==1?1.:(t==2?.6:0.),length(u)/max(uU,.1),1);}`};
 const LIVE_SUM=`#version 300 es
 precision highp float;precision highp sampler2D;uniform sampler2D uS;uniform ivec2 uSz;out vec4 o;
 void main(){ivec2 b=ivec2(gl_FragCoord.xy)*8;vec4 s=vec4(0.);for(int j=0;j<8;j++)for(int i=0;i<8;i++){ivec2 q=b+ivec2(i,j);if(q.x<uSz.x&&q.y<uSz.y)s+=texelFetch(uS,q,0);}o=s;}`;
@@ -115,14 +115,14 @@ vec3 turbo(float t){t*=4.;vec3 a=vec3(.10,.18,1.),b=vec3(0.,.8,1.),c=vec3(.05,1.
 void main(){vec2 n=gl_FragCoord.xy/uRes*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*vec4(n,1,1);vec3 ro=uEye,rd=normalize(b.xyz/b.w-a.xyz/a.w);
  vec3 iv=1./rd,t0=(uBMin-ro)*iv,t1=(uBMax-ro)*iv,mn=min(t0,t1),mx=max(t0,t1);float tn=max(max(mn.x,mn.y),max(mn.z,0.)),tf=min(min(mx.x,mx.y),mx.z);
  if(ro.z>3.84){if(rd.z>=0.)discard;float tw=(3.9-ro.z)/rd.z;vec3 q=ro+rd*tw;bool win=q.x>-3.5&&q.x<2.3&&q.y>.95&&q.y<3.05,door=q.x>2.3&&q.x<3.5&&q.y>.75&&q.y<2.95;if(!win&&!door)discard;tn=max(tn,(3.83-ro.z)/rd.z);}
- if(tf<=tn)discard;float L=tf-tn,stp=uQ==0?.12:(uQ==1?.085:.065);int NS=int(clamp(L/stp,10.,180.));float dt=L/float(NS);
+ if(tf<=tn)discard;bool inside=all(greaterThan(ro,uBMin))&&all(lessThan(ro,uBMax));float dens=inside?uDens*.16:uDens;float L=tf-tn,stp=uQ==0?.12:(uQ==1?.085:.065);int NS=int(clamp(L/stp,10.,180.));float dt=L/float(NS);
  float j=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+float(uFrame&255)*1.618)*43758.5453);
  vec3 ext=uBMax-uBMin,ld=uLD/ext;vec4 acc=vec4(0);float t=tn+j*dt,te=tn+L;float ph=1.+.35*pow(max(dot(rd,uLD),0.),3.);
  for(int i=0;i<200;i++){if(t>=te||acc.a>.985)break;vec3 uvw=(ro+rd*t-uBMin)/ext;
-  vec4 c=textureLod(uVol,uvw,2.);if(c.g<.002&&c.r*uDens<.0012){t+=dt*4.;continue;}
-  vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=s.r*uDens;if(d<.003){t+=dt;continue;}
+  vec4 c=textureLod(uVol,uvw,2.);if(c.g<.002&&c.r*dens<.0012){t+=dt*4.;continue;}
+  vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=s.r*dens;if(d<.003){t+=dt;continue;}
   float sh=textureLod(uVol,uvw+ld*.17,0.).r;if(uQ>0)sh+=.7*textureLod(uVol,uvw+ld*.4,0.).r;if(uQ>1)sh+=.5*textureLod(uVol,uvw+ld*.75,0.).r;
-  float lit=.32+.68*exp(-sh*uDens*.9);
+  float lit=.32+.68*exp(-sh*dens*.9);d*=smoothstep(.15,.7,t);
   vec3 col=mix(vec3(.86,.92,1.),turbo(clamp(.5+(s.b-1.)*1.25,0.,1.)),uCMode)*lit*ph;float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;t+=dt;}
  if(acc.a<.004)discard;o=acc;}`;
 const LIVE_COMP=`#version 300 es
@@ -272,7 +272,7 @@ function liveStep(now){if(!LIVE.enabled)return;if(!LIVE.init||LIVE.gen!==runtime
  try{smokeState.enabled=false;const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
   const hmin=Math.min(...LIVE.h),cfl=.9*hmin/(1.6*Math.max(LIVE.U,.5)),n=LIVE.step<40?6:LIVE.sub,dt=Math.min(cfl,Math.max(fdt,1/60)/LIVE.sub);
   for(let s=0;s<n;s++){livePasses(dt);if(LIVE.benchRec)liveBenchSample()}liveCopyVolume();
-  liveForcesPoll();if(now-LIVE.lastRead>250){LIVE.lastRead=now;liveForcesKick();const B=window.__BODY;if(B&&B.active){const v=liveRead(B.x,B.g+1.2,B.z);LIVE.speedAt=Math.hypot(...v);LIVE.vAt=v}}
+  liveForcesPoll();if(now-LIVE.lastRead>250){LIVE.lastRead=now;liveForcesKick();const B=window.__BODY;if(B&&B.active){const R=.55,P=[[R,0],[-R,0],[0,R],[0,-R]].map(([dx,dz])=>liveRead(B.x+dx,B.g+1.2,B.z+dz)),v=[0,1,2].map(i=>P.reduce((q,w)=>q+w[i],0)/4);LIVE.speedAt=P.reduce((q,w)=>q+Math.hypot(...w),0)/4;LIVE.vAt=v}}
  }catch(e){LIVE.ok=false;LIVE.err=String(e?.message||e);smokeState.enabled=true}
  finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}}
 function liveInv(m){const a=Array.from(m),inv=new Float32Array(16);
