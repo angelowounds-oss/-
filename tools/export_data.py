@@ -140,6 +140,36 @@ for n, c in blds.items():
         continue
     records[n] = unit_record(c, "building")
 
+# ---- overlay newer balance from crforge (Sept 2026 community data, level-1 base stats) ----
+CRF = os.environ.get("CRFORGE_UNITS", "/home/user/refs/crforge/data/src/main/resources/cards/units.json")
+K = 2.559  # level 11 / level 1 stat ratio observed across units (hp and damage)
+overlay_log = []
+if os.path.exists(CRF):
+    cu = json.load(open(CRF))
+    for n, v in cu.items():
+        r = records.get(n)
+        if not r or n in ("Tesla",) and False:
+            continue
+        def chg(field, new, old, tol):
+            if new is None or old is None: return
+            if abs(new - old) > tol * max(1.0, abs(old)):
+                overlay_log.append((n, field, old, new)); r[field] = new
+        if v.get("health") and r["hp"] and r["kind"] == "troop":
+            new = round(v["health"] * K)
+            if abs(new - r["hp"]) > 0.03 * r["hp"]:
+                overlay_log.append((n, "hp", r["hp"], new)); r["hp"] = new
+        if v.get("damage") and r["dmg"]:
+            new = round(v["damage"] * K)
+            if abs(new - r["dmg"]) > 0.04 * r["dmg"]:
+                overlay_log.append((n, "dmg", r["dmg"], new)); r["dmg"] = new
+        if v.get("attackCooldown"): chg("hit", round(v["attackCooldown"] * 1000), r["hit"], 0.04)
+        if v.get("loadTime") is not None and r["hit"]: chg("load", round(v["loadTime"] * 1000), r["load"], 0.06)
+        if v.get("range"): chg("rng", round(v["range"] * 1000), r["rng"], 0.05)
+        if v.get("speed") and r["spd"]: chg("spd", v["speed"], r["spd"], 0.05)
+    print("balance overlay from crforge:", len(overlay_log), "field changes")
+    with open(os.path.join(os.path.dirname(os.path.abspath(OUT)), "balance_overlay.txt"), "w") as f:
+        for x in overlay_log: f.write("%s %s %s -> %s\n" % x)
+
 # ---- buffs actually referenced ----
 used_buffs = set()
 for r in records.values():

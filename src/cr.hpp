@@ -49,7 +49,8 @@ struct Data {
 extern Data D;
 
 struct Policy { float react, attackElixir, spellAggro, supportElixir; };
-extern Policy POLICIES[3];
+extern vector<Policy> POLICIES;
+void initPolicies();
 
 struct Unit {
   int def, team, uid; float x, y, hp, maxhp, shield, cd, deployT, stunT, slowT, slowM, rageT, chgDist, rampT, spawnT, life, val, dashT, dashCd, manaT; bool charging, dying, wasAtk; int lastTgt;
@@ -85,5 +86,5 @@ struct Game {
   float threatValueNear(int team) const;
 };
 
-float solveValue(const float m[3][3]);
-float matchupValue(const array<int, 8>& a, const array<int, 8>& b, int g, uint64_t seed, float mat[3][3] = nullptr);
+float solveValue(const vector<vector<float>>& m);
+float matchupValue(const array<int, 8>& a, const array<int, 8>& b, int g, uint64_t seed, int npol = 3, vector<vector<float>>* mat = nullptr);

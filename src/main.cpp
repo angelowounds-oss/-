@@ -62,6 +62,20 @@ static void runTests() {
     check("lone Giant vs princess tower: tower left with 0-900 hp, Giant dead", left <= 900 && giantDead, fmt("tower hp left=%.0f giantDead=%d", left, giantDead), "arith from data: ~440 hp left (giant 4091hp vs 160dps tower, 169dps giant)"); }
   { Scn s; s.noTowers(); s.put("Golem", 0, 6, 8); s.put("Knight", 1, 6, 9.5f); Unit* g0 = &s.g.units[0]; g0->hp = 1; s.run(1.0f); s.g.units[0].hp = min(1.0f, s.g.units[0].hp); s.run(3); int golemites = s.count(0, "Golemite"); check("Golem spawns 2 Golemites on death", golemites == 2 || golemites == 0, fmt("golemites=%d", golemites), "data: death_spawn Golemite x2"); }
   { Scn s; s.noTowers(); for (int i = 0; i < 6; i++) s.put("Skeleton", 0, 6 + 0.2f * i, 10); s.put("Cannon", 1, 6.5f, 13.0f); s.run(1.5f); Unit* c = nullptr; for (auto& u : s.g.units) if (u.def == D.unitIdx.at("Cannon")) c = &u; check("Cannon loses hp over lifetime (30s)", c != nullptr, "", "data: life_time 30000"); }
+  // 7. Known counters (1v1-ish, no towers, same level 11, attacker vs defender placed 3 tiles apart)
+  auto duel = [&](const char* atk, int na, const char* def, int nd, float sec) {
+    Scn s; s.noTowers(); for (int i = 0; i < na; i++) s.put(atk, 0, 6 + 0.35f * i, 10); for (int i = 0; i < nd; i++) s.put(def, 1, 6 + 0.35f * i, 13); s.run(sec);
+    return make_pair(s.count(0, atk), s.count(1, def)); };
+  { auto r = duel("Pekka", 1, "Golem", 1, 40); check("P.E.K.K.A beats Golem 1v1 (Golemites may remain)", r.first == 1, fmt("pekka=%d golem=%d", r.first, r.second), "community: P.E.K.K.A is a hard counter to Golem"); }
+  { auto r = duel("Minion", 3, "Knight", 1, 15); check("Minions beat Knight (Knight cannot hit air)", r.first == 3 && r.second == 0, fmt("minions=%d knight=%d", r.first, r.second), "Knight ground-only"); }
+  { Scn s; s.noTowers(); for (int i = 0; i < 15; i++) s.put("Skeleton", 0, 6 + 0.3f * (i % 4), 10 + 0.3f * (i / 4)); s.put("Valkyrie", 1, 6.5f, 13); s.run(15); check("Valkyrie beats a clustered Skeleton Army", s.count(1, "Valkyrie") == 1 && s.count(0, "Skeleton") == 0, fmt("skel=%d valk=%d", s.count(0, "Skeleton"), s.count(1, "Valkyrie")), "community: Valkyrie counters Skeleton Army (splash)"); }
+  { auto r = duel("Barbarian", 5, "Valkyrie", 1, 20); check("Valkyrie beats 5 Barbarians (splash)", r.second == 1 && r.first == 0, fmt("barbs=%d valk=%d", r.first, r.second), "community: Valkyrie is a counter to Barbarians"); }
+  { auto r = duel("MiniPekka", 1, "Giant", 1, 30); check("Mini P.E.K.K.A beats Giant 1v1", r.first == 1 && r.second == 0, fmt("mini=%d giant=%d", r.first, r.second), "community: Mini P.E.K.K.A counters Giant"); }
+  { auto r = duel("Knight", 1, "Musketeer", 1, 20); check("Knight beats Musketeer when close", r.first == 1 && r.second == 0, fmt("knight=%d musk=%d", r.first, r.second), "community: melee closes on Musketeer"); }
+  { auto r = duel("Musketeer", 1, "Minion", 3, 20); check("Musketeer vs 3 Minions: Minions win or trade", r.second >= 1 || r.first == 0, fmt("musk=%d minions=%d", r.first, r.second), "community: Minions beat Musketeer 1v1"); }
+  { Scn s; s.noTowers(); s.put("Golem", 0, 6, 8); Unit* it = s.put("InfernoTower", 1, 6, 12.5f); it->life = 30; s.run(40); check("Inferno Tower kills Golem before dying", s.count(0, "Golem") == 0, fmt("golem left=%d tower=%d", s.count(0, "Golem"), s.count(1, "InfernoTower")), "community: Inferno Tower counters Golem/Giant"); }
+  { Scn s; s.noTowers(); s.put("HogRider", 0, 6, 9); s.put("Cannon", 1, 6, 14.5f); s.run(20); check("lone Cannon without tower support loses to Hog (video: Cannon dies on 3rd hit)", s.count(1, "Cannon") == 0, fmt("hog=%d cannon=%d", s.count(0, "HogRider"), s.count(1, "Cannon")), "TopSerg/cr_coach_bundle video d03 PRIMARY"); }
+  { Scn s; s.noTowers(); s.put("Balloon", 0, 6, 9); s.put("Musketeer", 1, 6, 13); s.run(25); check("Musketeer alone does not kill Balloon before it connects (Balloon survives ~)", true, fmt("balloon=%d musk=%d", s.count(0, "Balloon"), s.count(1, "Musketeer")), "informational"); }
   printf("\nsummary: %d passed, %d failed\n", passed, failed);
 }
 
@@ -95,8 +109,8 @@ int main(int argc, char** argv) {
     printf("observed (video):     hog hits at: 4.3 5.9 7.5 (relative to hog play) | cannon death 7.5 | hog death 8.7\n");
   }
   else if (mode == "match" && argc >= 5) {
-    auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); int g = atoi(argv[4]); float m[3][3]; float v = matchupValue(a, b, g, 7, m);
-    printf("value(A vs B)=%.3f\n", v); for (int i = 0; i < 3; i++) printf("%.2f %.2f %.2f\n", m[i][0], m[i][1], m[i][2]);
+    auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); int g = atoi(argv[4]); int np = argc > 5 ? atoi(argv[5]) : 3; vector<vector<float>> m; float v = matchupValue(a, b, g, 7, np, &m);
+    printf("value(A vs B)=%.3f (%d policies)\n", v, np); for (size_t i = 0; i < m.size() && i < 6; i++) { for (size_t j = 0; j < m[i].size() && j < 8; j++) printf("%.2f ", m[i][j]); printf("\n"); }
   } else if (mode == "game" && argc >= 4) {
     auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); Game g(a, b, 1, 1, argc > 4 ? atoi(argv[4]) : 1);
     int lastSec = -1;

@@ -1,0 +1,71 @@
+skip archetype lavaloon (unsupported card tesla)
+skip archetype balloon-bowler (unsupported card tesla)
+skip archetype xbow-cycle (unsupported card tesla)
+skip archetype executioner-tank (unsupported card tornado-substitute)
+skip archetype double-dragon-air (unsupported card tesla)
+skip archetype lavaloon (unsupported card tesla)
+skip archetype balloon-bowler (unsupported card tesla)
+skip archetype xbow-cycle (unsupported card tesla)
+skip archetype executioner-tank (unsupported card tornado-substitute)
+skip archetype double-dragon-air (unsupported card tesla)
+gen  0 best rms 0.2053 (linf 0.500 mean 0.515)  median rms 0.3208  | goblins,balloon,witch,musketeer,giant-skeleton,ice-spirit,dart-goblin,flying-machine
+gen  1 best rms 0.1903 (linf 0.312 mean 0.535)  median rms 0.2897  | pekka,musketeer,bowler,mega-minion,night-witch,mortar,fireball,zap
+gen  2 best rms 0.1934 (linf 0.374 mean 0.420)  median rms 0.2812  | knight,golem,skeletons,royal-giant,electro-wizard,royal-hogs,skeleton-dragons,the-log
+gen  3 best rms 0.1744 (linf 0.500 mean 0.529)  median rms 0.2646  | giant,ice-spirit,fire-spirit,elite-barbarians,zappies,bomb-tower,zap,the-log
+gen  4 best rms 0.1914 (linf 0.375 mean 0.545)  median rms 0.2659  | giant,valkyrie,wizard,royal-giant,inferno-dragon,royal-hogs,electro-spirit,x-bow
+gen  5 best rms 0.1993 (linf 0.500 mean 0.513)  median rms 0.2496  | archers,goblins,balloon,prince,dark-prince,battle-ram,magic-archer,x-bow
+gen  6 best rms 0.1971 (linf 0.417 mean 0.479)  median rms 0.2571  | pekka,musketeer,bowler,battle-ram,ice-golem,mega-minion,night-witch,fireball
+gen  7 best rms 0.1480 (linf 0.334 mean 0.549)  median rms 0.2501  | giant,valkyrie,wizard,royal-giant,inferno-dragon,royal-recruits,electro-spirit,x-bow
+gen  8 best rms 0.1834 (linf 0.311 mean 0.588)  median rms 0.2453  | giant,valkyrie,wizard,royal-giant,inferno-dragon,royal-recruits,electro-spirit,x-bow
+gen  9 best rms 0.1669 (linf 0.375 mean 0.460)  median rms 0.2514  | knight,giant,valkyrie,musketeer,minion-horde,three-musketeers,bowler,skeleton-barrel
+gen 10 best rms 0.1886 (linf 0.500 mean 0.519)  median rms 0.2504  | royal-giant,three-musketeers,sparky,ice-golem,night-witch,flying-machine,goblin-hut,giant-snowball
+gen 11 best rms 0.1593 (linf 0.429 mean 0.489)  median rms 0.2591  | goblins,giant,valkyrie,musketeer,minion-horde,princess,bowler,elite-barbarians
+gen 12 best rms 0.1532 (linf 0.250 mean 0.496)  median rms 0.2361  | royal-giant,three-musketeers,sparky,ice-golem,night-witch,flying-machine,goblin-hut,giant-snowball
+gen 13 best rms 0.1677 (linf 0.500 mean 0.516)  median rms 0.2410  | royal-giant,three-musketeers,sparky,ice-golem,night-witch,flying-machine,goblin-hut,giant-snowball
+gen 14 best rms 0.1676 (linf 0.334 mean 0.522)  median rms 0.2486  | knight,giant,valkyrie,musketeer,minion-horde,three-musketeers,bowler,firecracker
+gen 15 best rms 0.1602 (linf 0.374 mean 0.450)  median rms 0.2333  | giant,three-musketeers,sparky,skeleton-barrel,flying-machine,goblin-hut,arrows,giant-snowball
+gen 16 best rms 0.1601 (linf 0.332 mean 0.465)  median rms 0.2326  | goblins,giant,valkyrie,musketeer,minion-horde,three-musketeers,bowler,skeleton-barrel
+gen 17 best rms 0.1590 (linf 0.332 mean 0.505)  median rms 0.2412  | knight,giant,valkyrie,musketeer,minion-horde,three-musketeers,bowler,firecracker
+gen 18 best rms 0.1594 (linf 0.374 mean 0.521)  median rms 0.2282  | bomber,mini-pekka,three-musketeers,sparky,rascals,skeleton-barrel,flying-machine,goblin-hut
+gen 19 best rms 0.1693 (linf 0.314 mean 0.529)  median rms 0.2342  | bomber,mini-pekka,three-musketeers,sparky,rascals,skeleton-barrel,flying-machine,goblin-hut
+gen 20 best rms 0.1630 (linf 0.375 mean 0.500)  median rms 0.2362  | knight,giant,valkyrie,musketeer,minion-horde,three-musketeers,bowler,firecracker
+gen 21 best rms 0.1449 (linf 0.250 mean 0.496)  median rms 0.2520  | knight,goblins,giant,valkyrie,musketeer,minion-horde,flying-machine,bomb-tower
+gen 22 best rms 0.1660 (linf 0.250 mean 0.530)  median rms 0.2489  | knight,goblins,giant,valkyrie,musketeer,minion-horde,flying-machine,bomb-tower
+gen 23 best rms 0.1755 (linf 0.375 mean 0.508)  median rms 0.2433  | goblins,giant,valkyrie,musketeer,minion-horde,flying-machine,bomb-tower,x-bow
+gen 24 best rms 0.1593 (linf 0.334 mean 0.517)  median rms 0.2523  | goblins,giant,valkyrie,musketeer,minion-horde,flying-machine,bomb-tower,x-bow
+gen 25 best rms 0.1683 (linf 0.332 mean 0.475)  median rms 0.2461  | giant,valkyrie,musketeer,minion-horde,three-musketeers,mega-minion,inferno-tower,zap
+gen 26 best rms 0.1461 (linf 0.315 mean 0.503)  median rms 0.2530  | goblins,giant,valkyrie,musketeer,minion-horde,flying-machine,bomb-tower,x-bow
+gen 27 best rms 0.1582 (linf 0.332 mean 0.606)  median rms 0.2429  | goblins,giant,valkyrie,musketeer,minion-horde,sparky,flying-machine,bomb-tower
+gen 28 best rms 0.1686 (linf 0.375 mean 0.576)  median rms 0.2385  | goblins,giant,valkyrie,bomber,musketeer,prince,minion-horde,bomb-tower
+gen 29 best rms 0.1585 (linf 0.333 mean 0.537)  median rms 0.2520  | valkyrie,skeleton-army,musketeer,minion-horde,battle-ram,magic-archer,bomb-tower,poison
+gen 30 best rms 0.1733 (linf 0.500 mean 0.510)  median rms 0.2558  | goblins,giant,skeleton-army,musketeer,minion-horde,sparky,flying-machine,bomb-tower
+gen 31 best rms 0.1540 (linf 0.285 mean 0.556)  median rms 0.2419  | goblins,giant,musketeer,minion-horde,sparky,flying-machine,bomb-tower,lightning
+gen 32 best rms 0.1785 (linf 0.500 mean 0.429)  median rms 0.2485  | giant,valkyrie,musketeer,three-musketeers,mega-minion,mortar,inferno-tower,zap
+gen 33 best rms 0.1721 (linf 0.250 mean 0.429)  median rms 0.2412  | goblins,giant,musketeer,minion-horde,sparky,bomb-tower,arrows,lightning
+gen 34 best rms 0.1782 (linf 0.500 mean 0.554)  median rms 0.2404  | goblins,giant,musketeer,minion-horde,sparky,flying-machine,bomb-tower,lightning
+gen 35 best rms 0.1692 (linf 0.285 mean 0.536)  median rms 0.2503  | witch,princess,bowler,battle-ram,mega-minion,mega-knight,mortar,tombstone
+gen 36 best rms 0.1701 (linf 0.500 mean 0.498)  median rms 0.2525  | giant,valkyrie,musketeer,three-musketeers,mortar,inferno-tower,bomb-tower,zap
+gen 37 best rms 0.1645 (linf 0.251 mean 0.489)  median rms 0.2324  | goblins,giant,skeletons,musketeer,minion-horde,sparky,bomb-tower,barbarian-hut
+gen 38 best rms 0.1567 (linf 0.374 mean 0.471)  median rms 0.2351  | goblins,giant,musketeer,minion-horde,sparky,bomb-tower,barbarian-hut,arrows
+gen 39 best rms 0.1591 (linf 0.500 mean 0.565)  median rms 0.2285  | goblins,giant,musketeer,minion-horde,sparky,flying-machine,bomb-tower,lightning
+gen 40 best rms 0.1636 (linf 0.335 mean 0.467)  median rms 0.2402  | goblins,giant,golem,musketeer,minion-horde,sparky,bowler,giant-snowball
+gen 41 best rms 0.1411 (linf 0.250 mean 0.495)  median rms 0.2342  | goblins,giant,musketeer,minion-horde,sparky,mega-minion,bomb-tower,lightning
+gen 42 best rms 0.1576 (linf 0.250 mean 0.545)  median rms 0.2319  | goblins,giant,skeletons,musketeer,minion-horde,sparky,bomb-tower,barbarian-hut
+gen 43 best rms 0.1532 (linf 0.250 mean 0.512)  median rms 0.2488  | goblins,giant,musketeer,lava-hound,sparky,flying-machine,bomb-tower,lightning
+gen 44 best rms 0.1601 (linf 0.500 mean 0.509)  median rms 0.2448  | goblins,giant,golem,musketeer,minion-horde,sparky,bowler,giant-snowball
+gen 45 best rms 0.1600 (linf 0.332 mean 0.526)  median rms 0.2330  | valkyrie,ice-wizard,bowler,battle-ram,elite-barbarians,flying-machine,electro-spirit,bomb-tower
+gen 46 best rms 0.1475 (linf 0.374 mean 0.507)  median rms 0.2289  | goblins,valkyrie,ice-wizard,sparky,battle-ram,rascals,flying-machine,bomb-tower
+gen 47 best rms 0.1495 (linf 0.335 mean 0.536)  median rms 0.2441  | valkyrie,ice-wizard,sparky,battle-ram,mega-minion,rascals,flying-machine,tombstone
+gen 48 best rms 0.1676 (linf 0.287 mean 0.434)  median rms 0.2528  | giant,minion-horde,ice-wizard,sparky,mega-minion,bomb-tower,tombstone,furnace
+gen 49 best rms 0.1478 (linf 0.250 mean 0.480)  median rms 0.2408  | goblins,giant,minion-horde,ice-wizard,sparky,flying-machine,bomb-tower,lightning
+gen 50 best rms 0.1580 (linf 0.375 mean 0.495)  median rms 0.2440  | goblins,giant,golem,musketeer,giant-skeleton,minion-horde,sparky,giant-snowball
+gen 51 best rms 0.1494 (linf 0.313 mean 0.490)  median rms 0.2272  | goblins,giant,golem,musketeer,giant-skeleton,minion-horde,sparky,giant-snowball
+gen 52 best rms 0.1502 (linf 0.250 mean 0.491)  median rms 0.2372  | goblins,giant,minion-horde,ice-wizard,sparky,flying-machine,bomb-tower,lightning
+gen 53 best rms 0.1610 (linf 0.250 mean 0.505)  median rms 0.2341  | goblins,giant,minion-horde,ice-wizard,sparky,flying-machine,bomb-tower,lightning
+gen 54 best rms 0.1686 (linf 0.500 mean 0.467)  median rms 0.2302  | giant,witch,valkyrie,musketeer,minion-horde,flying-machine,firecracker,bomb-tower
+gen 55 best rms 0.1544 (linf 0.375 mean 0.482)  median rms 0.2322  | giant,musketeer,mini-pekka,minion-horde,miner,sparky,magic-archer,poison
+gen 56 best rms 0.1524 (linf 0.250 mean 0.517)  median rms 0.2332  | archers,valkyrie,sparky,battle-ram,bats,rascals,flying-machine,bomb-tower
+gen 57 best rms 0.1530 (linf 0.250 mean 0.456)  median rms 0.2369  | goblins,giant,pekka,musketeer,minion-horde,sparky,electro-wizard,zap
+gen 58 best rms 0.1589 (linf 0.500 mean 0.474)  median rms 0.2308  | goblins,giant,pekka,musketeer,minion-horde,sparky,rocket,giant-snowball
+gen 59 best rms 0.1581 (linf 0.250 mean 0.537)  median rms 0.2475  | archers,valkyrie,sparky,battle-ram,elite-barbarians,bats,rascals,flying-machine
+wrote top candidates

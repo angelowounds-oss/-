@@ -6,7 +6,7 @@
 #include <mutex>
 
 typedef array<int, 8> Deck;
-static int NT = 4;
+static int NT = 4; static int NPOL = 3;
 
 static const vector<string> WINCONS = {"hog-rider", "giant", "golem", "lava-hound", "balloon", "royal-giant", "battle-ram", "miner", "x-bow", "mortar",
                                         "goblin-barrel", "pekka", "mega-knight", "royal-hogs", "sparky", "three-musketeers", "elite-barbarians", "prince",
@@ -45,7 +45,7 @@ static Deck parseDeck(const string& s) { Deck d{}; stringstream ss(s); string k;
 struct Ev { vector<float> v; float rms = 0, linf = 0, mean = 0, mn = 1, mx = 0; };
 static Ev evalDeck(const Deck& d, const vector<Deck>& pool, int g, uint64_t seed, bool par = false) {
   Ev e; e.v.assign(pool.size(), 0.5f);
-  auto one = [&](int j) { e.v[j] = (pool[j] == d) ? 0.5f : matchupValue(d, pool[j], g, seed * 7919 + j); };
+  auto one = [&](int j) { e.v[j] = (pool[j] == d) ? 0.5f : matchupValue(d, pool[j], g, seed * 7919 + j, NPOL); };
   if (par) parFor((int)pool.size(), one); else for (size_t j = 0; j < pool.size(); j++) one((int)j);
   double s2 = 0, sm = 0; for (float v : e.v) { s2 += (v - 0.5) * (v - 0.5); sm += v; e.linf = max(e.linf, fabsf(v - 0.5f)); e.mn = min(e.mn, v); e.mx = max(e.mx, v); }
   e.rms = sqrt(s2 / pool.size()); e.mean = sm / pool.size(); return e;
@@ -90,17 +90,21 @@ static vector<pair<string, Deck>> archetypes() {
 
 static vector<Deck> buildPool(int nRandom, uint64_t seed, vector<pair<string, Deck>>* arch = nullptr) {
   auto a = archetypes(); vector<Deck> pool; for (auto& p : a) pool.push_back(p.second);
+  if (const char* pf = getenv("CR_POOL")) {  // pre-screened competitive pool
+    pool.clear(); ifstream in(pf); string l; while (getline(in, l)) if (!l.empty()) { Deck d = parseDeck(l); if (find(pool.begin(), pool.end(), d) == pool.end()) pool.push_back(d); }
+    if (arch) arch->clear(); return pool;
+  }
   if (arch) *arch = a; Rng r(seed); while ((int)pool.size() < (int)a.size() + nRandom) pool.push_back(randomDeck(r));
   return pool;
 }
 
 int main(int argc, char** argv) {
   D.load("data/cr_data.txt"); string mode = argc > 1 ? argv[1] : "help";
-  if (const char* e = getenv("CR_THREADS")) NT = atoi(e);
+  if (const char* e = getenv("CR_THREADS")) NT = atoi(e); if (const char* e = getenv("CR_NPOL")) NPOL = atoi(e); initPolicies();
   if (mode == "roundrobin") {  // archetype round robin with heavy sampling
     int g = argc > 2 ? atoi(argv[2]) : 20; vector<pair<string, Deck>> a = archetypes(); int n = a.size();
     vector<vector<float>> M(n, vector<float>(n, 0.5f)); vector<pair<int, int>> jobs; for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) jobs.push_back({i, j});
-    parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(a[i].second, a[j].second, g, 1000 + k); M[i][j] = v; M[j][i] = 1 - v; });
+    parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(a[i].second, a[j].second, g, 1000 + k, NPOL); M[i][j] = v; M[j][i] = 1 - v; });
     printf("archetype round robin (g=%d per policy pair => %d games/pair)\n", g, g * 9);
     for (int i = 0; i < n; i++) { double s = 0, s2 = 0, mn = 1, mx = 0; for (int j = 0; j < n; j++) if (j != i) { s += M[i][j]; s2 += (M[i][j] - 0.5) * (M[i][j] - 0.5); mn = min<double>(mn, M[i][j]); mx = max<double>(mx, M[i][j]); }
       printf("%-22s mean %.3f  rms-dev %.3f  min %.3f  max %.3f\n", a[i].first.c_str(), s / (n - 1), sqrt(s2 / (n - 1)), mn, mx); }
@@ -130,12 +134,24 @@ int main(int argc, char** argv) {
     printf("pool: %zu decks (%zu archetypes + %d random), g=%d per policy pair (%d games per matchup)\n", pool.size(), arch.size(), nrand, g, g * 9);
     for (int rank = 0; rank < (int)idx.size() && rank < 15; rank++) { int i = idx[rank]; printf("#%d rms %.4f linf %.3f mean %.3f min %.3f max %.3f  %s\n", rank + 1, E[i].rms, E[i].linf, E[i].mean, E[i].mn, E[i].mx, deckStr(cands[i]).c_str()); }
     // also evaluate archetypes for reference
-    printf("\nreference archetypes on same pool:\n"); for (auto& a : arch) { Ev e = evalDeck(a.second, pool, g, 99, true); printf("%-22s rms %.4f linf %.3f mean %.3f min %.3f max %.3f\n", a.first.c_str(), e.rms, e.linf, e.mean, e.mn, e.mx); }
-    int b = idx[0]; printf("\nbest deck detail (vs archetypes):\n"); for (size_t j = 0; j < arch.size(); j++) printf("  vs %-22s %.3f\n", arch[j].first.c_str(), E[b].v[j]);
+    printf("\nreference archetypes on same pool:\n"); for (auto& a : archetypes()) { Ev e = evalDeck(a.second, pool, g, 99, true); printf("%-22s rms %.4f linf %.3f mean %.3f min %.3f max %.3f\n", a.first.c_str(), e.rms, e.linf, e.mean, e.mn, e.mx); }
+    int b = idx[0]; printf("\nbest deck detail (vs pool):\n"); for (size_t j = 0; j < pool.size(); j++) printf("  vs %s  %.3f\n", deckStr(pool[j]).c_str(), E[b].v[j]);
   } else if (mode == "eval") {  // eval <deck> <g> <nrand>
     Deck d = parseDeck(argv[2]); int g = atoi(argv[3]), nrand = atoi(argv[4]); vector<pair<string, Deck>> arch; vector<Deck> pool = buildPool(nrand, 777, &arch);
     Ev e = evalDeck(d, pool, g, 31337, true); printf("rms %.4f linf %.3f mean %.3f min %.3f max %.3f\n", e.rms, e.linf, e.mean, e.mn, e.mx);
     for (size_t j = 0; j < arch.size(); j++) printf("  vs %-22s %.3f\n", arch[j].first.c_str(), e.v[j]);
+  } else if (mode == "buildpool") {  // buildpool <nCandidates> <keep> <out> : keep random decks that are competitive vs the archetypes
+    int nc = atoi(argv[2]), keep = atoi(argv[3]); vector<pair<string, Deck>> arch = archetypes(); vector<Deck> ref; for (auto& a : arch) ref.push_back(a.second);
+    Rng r(getenv("CR_POOLSEED") ? atoll(getenv("CR_POOLSEED")) : 2024); vector<Deck> cand; for (int i = 0; i < nc; i++) cand.push_back(randomDeck(r)); vector<Ev> E(nc);
+    parFor(nc, [&](int i) { E[i] = evalDeck(cand[i], ref, 2, 900 + i); });
+    vector<int> idx; for (int i = 0; i < nc; i++) if (E[i].mean >= 0.45 && E[i].mean <= 0.75 && E[i].mn > 0.03) idx.push_back(i);
+    sort(idx.begin(), idx.end(), [&](int a, int b) { return fabsf(E[a].mean - 0.55f) < fabsf(E[b].mean - 0.55f); });
+    vector<Deck> all2 = ref; for (int i : idx) all2.push_back(cand[i]); int na = ref.size();
+    vector<vector<float>> M(all2.size(), vector<float>(all2.size(), 0.5f)); vector<pair<int, int>> jobs; for (size_t i = 0; i < all2.size(); i++) for (size_t j = i + 1; j < all2.size(); j++) jobs.push_back({(int)i, (int)j});
+    parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(all2[i], all2[j], 4, 3000 + k, 3); M[i][j] = v; M[j][i] = 1 - v; });
+    FILE* f = fopen(argv[4], "w"); int kept = 0; for (size_t i = 0; i < all2.size(); i++) { double m = 0; for (size_t j = 0; j < all2.size(); j++) if (j != i) m += M[i][j]; m /= (all2.size() - 1); if (m < 0.33 || m > 0.72) { if ((int)i < na) fprintf(stderr, "drop %s (mean %.2f)\n", arch[i].first.c_str(), m); continue; } fprintf(f, "%s\n", deckStr(all2[i]).c_str()); kept++; } fclose(f); (void)keep;
+    printf("pool kept %d of %zu\n", kept, all2.size());
+    printf("candidates %d, competitive %zu, kept %d\n", nc, idx.size(), min<int>(keep, idx.size()));
   } else if (mode == "cardscan") {  // cardscan <g>: each supported card added to a fixed 7-card base deck vs the archetype pool
     int g = argc > 2 ? atoi(argv[2]) : 2; vector<pair<string, Deck>> arch; vector<Deck> pool = buildPool(0, 1, &arch);
     vector<string> base = {"knight", "musketeer", "valkyrie", "fireball", "zap", "hog-rider", "ice-spirit"}; vector<int> cards = D.supported; vector<pair<float, string>> res(cards.size());
@@ -143,7 +159,7 @@ int main(int argc, char** argv) {
       Deck d; int n = 0; set<int> u; d[n++] = cards[i]; u.insert(cards[i]);
       for (auto& b : base) { int c = D.card(b); if (u.count(c)) continue; if (n < 8) { d[n++] = c; u.insert(c); } }
       vector<string> extra = {"skeletons", "the-log", "archers", "cannon"}; for (auto& e : extra) { if (n >= 8) break; int c = D.card(e); if (!u.count(c)) { d[n++] = c; u.insert(c); } }
-      double s = 0; int m = 0; for (size_t j = 0; j < pool.size(); j++) { if (pool[j] == d) continue; s += matchupValue(d, pool[j], g, 5 + i * 131 + j); m++; }
+      double s = 0; int m = 0; for (size_t j = 0; j < pool.size(); j++) { if (pool[j] == d) continue; s += matchupValue(d, pool[j], g, 5 + i * 131 + j, NPOL); m++; }
       res[i] = {(float)(s / m), D.cards[cards[i]].key}; });
     sort(res.begin(), res.end()); for (auto& r : res) printf("%-20s %.3f\n", r.second.c_str(), r.first);
   } else if (mode == "findfast") {

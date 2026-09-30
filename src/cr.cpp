@@ -2,11 +2,15 @@
 
 Data D;
 float UDef::SPEED_DIV = 50.0f;
-Policy POLICIES[3] = {
+vector<Policy> POLICIES = {
     {0.9f, 9.0f, 0.4f, 5.0f},  // 0: turtle / counter-push
     {0.8f, 6.0f, 0.7f, 4.0f},  // 1: balanced
     {1.2f, 4.0f, 1.0f, 3.0f},  // 2: aggressive
 };
+void initPolicies() {  // extend to a 24-policy family (first three stay the hand-picked ones)
+  if (POLICIES.size() > 3) return;
+  for (float react : {0.6f, 1.4f}) for (float att : {4.0f, 6.5f, 9.0f}) for (float sp : {0.3f, 1.0f}) for (float sup : {3.0f, 5.0f}) POLICIES.push_back({react, att, sp, sup});
+}
 
 // ---------------------------------------------------------------- loader
 static vector<string> splitWs(const string& s) {
@@ -591,29 +595,25 @@ void Game::think(int team) {
 }
 
 // ---------------------------------------------------------------- matchup helpers
-float solveValue(const float m[3][3]) {
-  double rc[3] = {0, 0, 0}, cc[3] = {0, 0, 0}, rs[3] = {0, 0, 0}, cs[3] = {0, 0, 0};
-  double tot = 0; int rr = 0, cl = 0; const int IT = 4000;
+float solveValue(const vector<vector<float>>& m) {
+  int R = (int)m.size(), C = (int)m[0].size(); vector<double> rc(R, 0), cc(C, 0), rs(R, 0), cs(C, 0); vector<double> rp(R), cp(C);
+  const int IT = 3000;
   for (int it = 0; it < IT; it++) {
-    // regret matching for both
-    double rp[3], cp[3]; double sr = 0, sc = 0;
-    for (int i = 0; i < 3; i++) { rp[i] = max(0.0, rc[i]); sr += rp[i]; cp[i] = max(0.0, cc[i]); sc += cp[i]; }
-    for (int i = 0; i < 3; i++) { rp[i] = sr > 0 ? rp[i] / sr : 1.0 / 3; cp[i] = sc > 0 ? cp[i] / sc : 1.0 / 3; rs[i] += rp[i]; cs[i] += cp[i]; }
-    double ev = 0; for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) ev += rp[i] * cp[j] * m[i][j];
-    for (int i = 0; i < 3; i++) { double u = 0; for (int j = 0; j < 3; j++) u += cp[j] * m[i][j]; rc[i] += u - ev; }
-    for (int j = 0; j < 3; j++) { double u = 0; for (int i = 0; i < 3; i++) u += rp[i] * (1 - m[i][j]); cc[j] += u - (1 - ev); }
-    (void)tot; (void)rr; (void)cl;
+    double sr = 0, sc = 0; for (int i = 0; i < R; i++) { rp[i] = max(0.0, rc[i]); sr += rp[i]; } for (int j = 0; j < C; j++) { cp[j] = max(0.0, cc[j]); sc += cp[j]; }
+    for (int i = 0; i < R; i++) { rp[i] = sr > 0 ? rp[i] / sr : 1.0 / R; rs[i] += rp[i]; } for (int j = 0; j < C; j++) { cp[j] = sc > 0 ? cp[j] / sc : 1.0 / C; cs[j] += cp[j]; }
+    double ev = 0; vector<double> ur(R, 0), uc(C, 0);
+    for (int i = 0; i < R; i++) for (int j = 0; j < C; j++) { ur[i] += cp[j] * m[i][j]; uc[j] += rp[i] * (1 - m[i][j]); ev += rp[i] * cp[j] * m[i][j]; }
+    for (int i = 0; i < R; i++) rc[i] += ur[i] - ev; for (int j = 0; j < C; j++) cc[j] += uc[j] - (1 - ev);
   }
-  double ar[3], ac[3], sr = 0, sc = 0; for (int i = 0; i < 3; i++) { sr += rs[i]; sc += cs[i]; } for (int i = 0; i < 3; i++) { ar[i] = rs[i] / sr; ac[i] = cs[i] / sc; }
-  double v = 0; for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) v += ar[i] * ac[j] * m[i][j];
-  // guaranteed value of row strategy vs best-responding column
-  double worst = 1e9; for (int j = 0; j < 3; j++) { double u = 0; for (int i = 0; i < 3; i++) u += ar[i] * m[i][j]; worst = min(worst, u); }
-  return (float)(0.5 * (v + worst));
+  double sr = 0, sc = 0; for (double x : rs) sr += x; for (double x : cs) sc += x; vector<double> ar(R), ac(C); for (int i = 0; i < R; i++) ar[i] = rs[i] / sr; for (int j = 0; j < C; j++) ac[j] = cs[j] / sc;
+  double worst = 1e9, best = -1e9; for (int j = 0; j < C; j++) { double u = 0; for (int i = 0; i < R; i++) u += ar[i] * m[i][j]; worst = min(worst, u); }
+  for (int i = 0; i < R; i++) { double u = 0; for (int j = 0; j < C; j++) u += ac[j] * m[i][j]; best = max(best, u); }
+  return (float)(0.5 * (worst + best));  // average of the two exploitability bounds
 }
 
-float matchupValue(const array<int, 8>& a, const array<int, 8>& b, int g, uint64_t seed, float mat[3][3]) {
-  float m[3][3];
-  for (int pa = 0; pa < 3; pa++) for (int pb = 0; pb < 3; pb++) {
+float matchupValue(const array<int, 8>& a, const array<int, 8>& b, int g, uint64_t seed, int npol, vector<vector<float>>* mat) {
+  initPolicies(); npol = min<int>(npol, POLICIES.size()); vector<vector<float>> m(npol, vector<float>(npol, 0.5f));
+  for (int pa = 0; pa < npol; pa++) for (int pb = 0; pb < npol; pb++) {
     double sum = 0;
     for (int k = 0; k < g; k++) {
       bool swap_ = k & 1; uint64_t sd = seed * 1000003ULL + pa * 131 + pb * 17 + k * 7919;
@@ -622,6 +622,6 @@ float matchupValue(const array<int, 8>& a, const array<int, 8>& b, int g, uint64
     }
     m[pa][pb] = (float)(sum / g);
   }
-  if (mat) memcpy(mat, m, sizeof(m));
+  if (mat) *mat = m;
   return solveValue(m);
 }
