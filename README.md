@@ -77,3 +77,22 @@ so they are replaced by the base card (Cannon, Skeletons, Tesla, Musketeer, Dark
 Added simplified Tesla (always up), Goblin Drill (spawner building) and Royal Delivery.
 Meta round robin (`crsearch meta`): 2.6 Hog mean 0.42, 광켓 0.51, other meta decks 0.46–0.71. The drill deck (0.00) and log-bait (0.12) are
 clearly wrong in this simulator (drill offence too weak; evo drill/cannon missing) and are excluded from the opponent pool (`meta_pool_ok.txt`).
+
+## Real engine integration (latest, supersedes the home-made engine for deck evaluation)
+The user supplied the project https://github.com/itzik123/ClashRoyaleAi (MIT; headers vendored in `vendor/clashroyaleenv/`).
+Unlike the home-made engine it has 132 cards, 41 Evolutions, Champions/Heroes, calibrated speeds and real timing. It builds with
+plain g++ on Linux:
+
+    g++ -O2 -std=c++17 -pthread -Ivendor/clashroyaleenv/include/core -Ivendor/clashroyaleenv/include/entities \
+        -Ivendor/clashroyaleenv/include/rendering src/real/real.cpp -o build/real
+
+`src/real/real.cpp`: deck parsing (`evo:Cannon`, `hero:Musketeer`), card profiling by spawning each card on a scratch board,
+a rule-based player (policies 0-2) and a snapshot-lookahead player (policies 3-4), game value over a policy set, meta round robin.
+Modes: `profile`, `game`, `bench`, `meta <decks> <g>`; env `CR_POLS=0,1,2,3,4` selects the policy set.
+`results/real_meta.txt` lists 15 meta decks (2.6 Hog, Miner-Rocket and a provisional Goblin-Drill deck use real Evo/Hero cards).
+
+Findings (honest): the engine is fine; the *players* are the limit.
+- Rule-based players over-favour heavy decks (Pekka bridge-spam 86%, Giant-Prince 85%) and under-rate cycle decks (2.6 Hog 23%).
+- Lookahead players (6-10 s horizon) flip the bias: cycle/chip decks do well (Goblin-Drill 77%), Golem collapses to 5%.
+- Mixing both families does not remove the bias. No "neutral deck" is reported from this engine yet.
+Hero Dark Prince is not in the engine (Dark Prince base card is used in the Miner-Rocket list).

@@ -1,0 +1,196 @@
+#pragma once
+#include "Board.h"
+#include "stats/StatsCollectors.h"
+#include <memory>
+#include <sstream>
+#include <string>
+
+// Query facade over the built-in collectors: subscribes them to a Board's
+// StatsEventBus and exposes a read-only API plus a JSON export.
+//
+// The by-card maps are keyed by the attacker's or player's card ("damage Knight
+// dealt"), not the victim's.
+class MatchStatistics {
+    std::shared_ptr<DamageStatsCollector> damage;
+    std::shared_ptr<DamageByTargetTypeCollector> damageByTargetType;
+    std::shared_ptr<KillStatsCollector> kill;
+    std::shared_ptr<ElixirValueKilledCollector> elixirValueKilled;
+    std::shared_ptr<ElixirStatsCollector> elixir;
+    std::shared_ptr<CardPlayStatsCollector> cardPlay;
+    std::shared_ptr<ChampionAbilityStatsCollector> championAbility;
+    std::shared_ptr<MatchOutcomeCollector> outcome;
+
+    static std::string floatStr(float v) {
+        std::ostringstream ss;
+        ss << std::fixed;
+        ss.precision(2);
+        ss << v;
+        return ss.str();
+    }
+
+public:
+    // Unattached: every query reports zero or empty.
+    MatchStatistics() = default;
+
+    // Fresh collectors subscribed to `board`, once per match.
+    // GameManager::reset calls this right after `board = Board();`, which drops
+    // the old subscriber list.
+    void attach(Board& board) {
+        damage = std::make_shared<DamageStatsCollector>();
+        damageByTargetType = std::make_shared<DamageByTargetTypeCollector>();
+        kill = std::make_shared<KillStatsCollector>();
+        elixirValueKilled = std::make_shared<ElixirValueKilledCollector>();
+        elixir = std::make_shared<ElixirStatsCollector>();
+        cardPlay = std::make_shared<CardPlayStatsCollector>();
+        championAbility = std::make_shared<ChampionAbilityStatsCollector>();
+        outcome = std::make_shared<MatchOutcomeCollector>();
+
+        subscribeAll(board);
+    }
+
+    // An independent copy of every collector, subscribed to `board`: the stats
+    // half of GameManager::snapshot(), paired with Board::deepCopy().
+    //
+    // Not attach(): fresh zeroed collectors would make a snapshot report a
+    // match where nobody has dealt damage, and the potential-based reward would
+    // read every rollout as the same huge loss. Not shared pointers either: a
+    // rollout's hits would land in the live totals. The collectors are plain
+    // data, so the implicit copy is a deep copy.
+    MatchStatistics snapshotFor(Board& board) const {
+        MatchStatistics copy;
+        copy.damage = damage ? std::make_shared<DamageStatsCollector>(*damage) : nullptr;
+        copy.damageByTargetType = damageByTargetType
+            ? std::make_shared<DamageByTargetTypeCollector>(*damageByTargetType) : nullptr;
+        copy.kill = kill ? std::make_shared<KillStatsCollector>(*kill) : nullptr;
+        copy.elixirValueKilled = elixirValueKilled
+            ? std::make_shared<ElixirValueKilledCollector>(*elixirValueKilled) : nullptr;
+        copy.elixir = elixir ? std::make_shared<ElixirStatsCollector>(*elixir) : nullptr;
+        copy.cardPlay = cardPlay ? std::make_shared<CardPlayStatsCollector>(*cardPlay) : nullptr;
+        copy.championAbility = championAbility
+            ? std::make_shared<ChampionAbilityStatsCollector>(*championAbility) : nullptr;
+        copy.outcome = outcome ? std::make_shared<MatchOutcomeCollector>(*outcome) : nullptr;
+        copy.subscribeAll(board);
+        return copy;
+    }
+
+    int totalDamageDealt(int team) const { return damage ? damage->total(team) : 0; }
+    int damageDealtByCard(int cardId, int team) const { return damage ? damage->byCard(cardId, team) : 0; }
+
+    // Cross-team damage dealt BY `team`, split by target type
+    // (DamageByTargetTypeCollector); the reward shaping reads these.
+    int troopDamageDealt(int team) const { return damageByTargetType ? damageByTargetType->troopDamageDealt(team) : 0; }
+    int buildingDamageDealt(int team) const { return damageByTargetType ? damageByTargetType->buildingDamageDealt(team) : 0; }
+    // Towers only; buildingDamageDealt() minus this is damage to deployed
+    // buildings. The shaping potential must use this one (see
+    // DamageByTargetTypeCollector).
+    int towerDamageDealt(int team) const { return damageByTargetType ? damageByTargetType->towerDamageDealt(team) : 0; }
+
+    int kills(int team) const { return kill ? kill->kills(team) : 0; }
+    // Elixir value of everything `cardId` killed for `team`
+    // (ElixirValueKilledCollector).
+    float elixirValueKilledBy(int cardId, int team) const {
+        return elixirValueKilled ? elixirValueKilled->byCard(cardId, team) : 0.0f;
+    }
+    int killsByCard(int cardId, int team) const { return kill ? kill->killsByCard(cardId, team) : 0; }
+
+    float elixirSpent(int team) const { return elixir ? elixir->total(team) : 0.0f; }
+    float elixirSpentByCard(int cardId, int team) const { return elixir ? elixir->byCard(cardId, team) : 0.0f; }
+
+    const std::vector<CardPlayedEvent>& cardsPlayed(int team) const {
+        static const std::vector<CardPlayedEvent> empty;
+        return cardPlay ? cardPlay->timeline(team) : empty;
+    }
+
+    float championAbilityElixirSpent(int team) const { return championAbility ? championAbility->elixirSpent(team) : 0.0f; }
+    int championAbilityActivations(int team) const { return championAbility ? championAbility->activations(team) : 0; }
+
+    int loserTeam() const { return outcome ? outcome->loserTeam() : -1; }
+    int matchDurationTicks() const { return outcome ? outcome->matchDurationTicks() : 0; }
+
+    // Hand-rolled JSON, in GameLogger::save's style.
+    std::string toJson() const {
+        std::ostringstream out;
+        out << "{";
+        out << "\"loserTeam\":" << loserTeam() << ",";
+        out << "\"matchDurationTicks\":" << matchDurationTicks() << ",";
+
+        out << "\"totalDamageDealt\":{\"team0\":" << totalDamageDealt(0)
+            << ",\"team1\":" << totalDamageDealt(1) << "},";
+        out << "\"troopDamageDealt\":{\"team0\":" << troopDamageDealt(0)
+            << ",\"team1\":" << troopDamageDealt(1) << "},";
+        out << "\"buildingDamageDealt\":{\"team0\":" << buildingDamageDealt(0)
+            << ",\"team1\":" << buildingDamageDealt(1) << "},";
+        out << "\"kills\":{\"team0\":" << kills(0) << ",\"team1\":" << kills(1) << "},";
+        out << "\"elixirSpent\":{\"team0\":" << floatStr(elixirSpent(0))
+            << ",\"team1\":" << floatStr(elixirSpent(1)) << "},";
+        out << "\"championAbilityElixirSpent\":{\"team0\":" << floatStr(championAbilityElixirSpent(0))
+            << ",\"team1\":" << floatStr(championAbilityElixirSpent(1)) << "},";
+        out << "\"championAbilityActivations\":{\"team0\":" << championAbilityActivations(0)
+            << ",\"team1\":" << championAbilityActivations(1) << "},";
+
+        out << "\"damageDealtByCard\":{";
+        writeTeamCardMaps(out, damage ? &damage->byCardMap(0) : nullptr, damage ? &damage->byCardMap(1) : nullptr);
+        out << "},";
+
+        out << "\"killsByCard\":{";
+        writeTeamCardMaps(out, kill ? &kill->killsByCardMap(0) : nullptr, kill ? &kill->killsByCardMap(1) : nullptr);
+        out << "},";
+
+        out << "\"cardsPlayed\":{";
+        out << "\"team0\":[";
+        writeCardPlayTimeline(out, cardsPlayed(0));
+        out << "],\"team1\":[";
+        writeCardPlayTimeline(out, cardsPlayed(1));
+        out << "]}";
+
+        out << "}";
+        return out.str();
+    }
+
+private:
+    // The subscribe list in one place, shared by attach() and snapshotFor(), so
+    // a new collector cannot record live matches while silently missing
+    // snapshots. The null guards cover snapshotting a never-attached instance.
+    void subscribeAll(Board& board) {
+        if (damage) board.statsEvents.subscribe(damage);
+        if (damageByTargetType) board.statsEvents.subscribe(damageByTargetType);
+        if (kill) board.statsEvents.subscribe(kill);
+        if (elixirValueKilled) board.statsEvents.subscribe(elixirValueKilled);
+        if (elixir) board.statsEvents.subscribe(elixir);
+        if (cardPlay) board.statsEvents.subscribe(cardPlay);
+        if (championAbility) board.statsEvents.subscribe(championAbility);
+        if (outcome) board.statsEvents.subscribe(outcome);
+    }
+
+    template <typename MapT>
+    static void writeTeamCardMaps(std::ostringstream& out, const MapT* team0, const MapT* team1) {
+        out << "\"team0\":{";
+        writeCardMap(out, team0);
+        out << "},\"team1\":{";
+        writeCardMap(out, team1);
+        out << "}";
+    }
+
+    template <typename MapT>
+    static void writeCardMap(std::ostringstream& out, const MapT* m) {
+        if (!m) return;
+        bool first = true;
+        for (const auto& [cardId, value] : *m) {
+            if (!first) out << ",";
+            out << "\"" << cardId << "\":" << value;
+            first = false;
+        }
+    }
+
+    static void writeCardPlayTimeline(std::ostringstream& out, const std::vector<CardPlayedEvent>& timeline) {
+        for (size_t i = 0; i < timeline.size(); ++i) {
+            const auto& p = timeline[i];
+            if (i > 0) out << ",";
+            out << "{\"cardId\":" << p.cardId
+                << ",\"cost\":" << floatStr(p.cost)
+                << ",\"x\":" << floatStr(p.x)
+                << ",\"y\":" << floatStr(p.y)
+                << ",\"tick\":" << p.tick << "}";
+        }
+    }
+};

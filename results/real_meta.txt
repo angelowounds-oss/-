@@ -1,0 +1,15 @@
+2.6순호|evo:Cannon,hero:Musketeer,evo:Skeletons,Hog Rider,Fireball,Ice Golem,Ice Spirit,The Log
+광켓|evo:Skeletons,Dark Prince,evo:Tesla,The Log,Rocket,Royal Delivery,Electro Spirit,Miner
+눈드릴(임시)|evo:Goblin Drill,hero:Goblins,evo:Cannon,Dart Goblin,Skeletons,Electro Spirit,Giant Snowball,The Log
+로그베이트|Goblin Gang,Princess,Skeleton Army,Goblin Barrel,Knight,Inferno Tower,Rocket,The Log
+골렘|Golem,Night Witch,Baby Dragon,Mega Minion,Lightning,Zap,Tombstone,Electro Wizard
+라바루온|Lava Hound,Balloon,Skeleton Dragons,Mega Minion,Tombstone,Arrows,Zap,Barbarian Barrel
+페카브리지|P.E.K.K.A.,Battle Ram,Bandit,Royal Ghost,Electro Wizard,Magic Archer,Zap,Poison
+엑스보우|X-Bow,Tesla,Archers,Knight,Skeletons,Ice Spirit,Fireball,The Log
+메가나이트|Mega Knight,Elixir Collector,Bats,Skeleton Barrel,Minions,Inferno Tower,Zap,The Log
+풍선사이클|Balloon,Ice Golem,Ice Spirit,Skeletons,Musketeer,Inferno Tower,The Log,Fireball
+로얄호그|Royal Hogs,Royal Recruits,Flying Machine,Zappies,Fireball,Arrows,Electro Spirit,Barbarian Hut
+자이언트프린스|Giant,Prince,Dark Prince,Mega Minion,Electro Wizard,Zap,Arrows,Mini PEKKA
+박격포|Mortar,Knight,Archers,Skeleton Army,Bats,Ice Spirit,Fireball,The Log
+광부독|Miner,Poison,Valkyrie,Mega Minion,Skeletons,Ice Spirit,Bomb Tower,The Log
+로자어부|evo:Royal Giant,Fisherman,Hunter,Royal Ghost,Skeletons,Zap,Lightning,Electro Spirit

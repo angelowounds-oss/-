@@ -1,0 +1,35 @@
+#pragma once
+#include "Troop.h"
+#include "Projectile.h"
+
+class RangedTroop : public Troop {
+public:
+    // Boomerang (Executioner): the projectile hits on arrival and again
+    // boomerangReturnDelayTicks later.
+    bool boomerang = false;
+    int boomerangReturnDelayTicks = 0;
+
+    RangedTroop(int id, float x, float y, int hp, int team,
+        float speed, float attackRange, int damage, int attackCooldown, char symbol = 'A')
+        : Troop(id, x, y, hp, team, symbol, speed, attackRange, damage, attackCooldown) {}
+
+    std::shared_ptr<Entity> clone(int newId) const override {
+        auto copy = std::make_shared<RangedTroop>(*this);
+        copy->becomeCloneCopy(newId); // Clone: full damage, 1 hp, no ability slot
+        return copy;
+    }
+
+    // For Board::deepCopy: id and hp preserved, unlike clone().
+    std::shared_ptr<Entity> snapshot() const override {
+        return std::make_shared<RangedTroop>(*this);
+    }
+
+protected:
+    void performAttack(Board& board, std::shared_ptr<Entity> target) override {
+        // On-hit effects travel with the shot and land when it does.
+        auto arrow = std::make_shared<Projectile>(
+            board.allocateId(), position.x, position.y, team, target, 1.5f, getCurrentDamage(), onHitEffects,
+            boomerang, boomerangReturnDelayTicks, id, cardId, splashRadius, lineSplash, lineSplashRange);
+        board.addEntity(arrow);
+    }
+};
