@@ -2650,14 +2650,15 @@ vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);
  for(int ax=0;ax<3;ax++){if(g[ax]>0.&&g[ax]<1.)u[ax]=mix(u[ax],us(c,ax)[ax],1.-g[ax]);}o=vec4(u,0.);}`,
 /* ---- cut-cell divergence of the predicted velocity (/dt for the Poisson right-hand side) ---- */
-div:`uniform sampler2D uVel,uSol,uG;uniform float uScale;
+div:`uniform sampler2D uVel,uSol,uG;uniform float uScale,uPost;
 vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
 float flux(ivec3 c,int ax){float th=F(uG,c)[ax];return th*F(uVel,c)[ax]+(1.-th)*us(c,ax)[ax];}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 g=F(uG,c);float dg=0.;
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;dg+=g[ax]+(c[ax]==uN[ax]-1?(ax==0?1.-g.w:0.):F(uG,c+e)[ax]);}
  if(dg<1e-5){o=vec4(0);return;}
  float d=0.;for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;float fl=flux(c,ax);
-  float fr=c[ax]==uN[ax]-1?(ax==0?fl:0.):flux(c+e,ax);d+=(fr-fl)/uH[ax];}
+  /* outlet (+x of the last column): predictor = zero-gradient; after projection the Dirichlet-ghost flux stored in .w by proj */
+  float fr=c[ax]==uN[ax]-1?(ax==0?(uPost>.5?F(uVel,c).w:fl):0.):flux(c+e,ax);d+=(fr-fl)/uH[ax];}
  o=vec4(d*uScale,0,0,0);}`,
 /* ---- pressure kernels (level-generic) ---- */
 pjac:MAC_P+`uniform sampler2D uP,uB;uniform float uOm;
@@ -2696,8 +2697,10 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 s=texelFetch(uS,ive
 proj:`uniform sampler2D uVel,uP,uSol,uG;uniform float uDt;
 vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);float pc=F(uP,c).x;
+ /* outlet face flux of the last column: zero-gradient predictor + gradient to the p=0 ghost (the flux the Poisson operator assumes) */
+ float fo=0.;if(c.x==uN.x-1){float th=g.x;fo=th*u.x+(1.-th)*us(c,0).x+uDt*(1.-g.w)*pc/uH.x;}
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(g[ax]>0.&&c[ax]>0)u[ax]-=uDt*(pc-F(uP,c-e).x)/uH[ax];else if(g[ax]<=0.)u[ax]=us(c,ax)[ax];}
- if(c.x==0&&g.x>0.)u.x=uU;if(c.y==0)u.y=0.;if(c.z==0)u.z=0.;o=vec4(u,0.);}`,
+ if(c.x==0&&g.x>0.)u.x=uU;if(c.y==0)u.y=0.;if(c.z==0)u.z=0.;o=vec4(u,fo);}`,
 /* ---- forces on car (id 1) or validation obstacle ----
    pressure: jump of p across the phi ramps (surface integral of p n).
    viscous: exactly the momentum the diffusion pass exchanges with solid faces of this body. For every open face
@@ -2875,7 +2878,7 @@ function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao)
  /* volume-fraction forcing: T.hat keeps the pre-forcing velocity until the next step (read by the budget force) */
  if(MAC.ibm==='vf'){macPass('ibm',T.hat,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{});macSwap(T,'velA','hat')}
  /* projection */
- macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt});
+ macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt,uPost:0});
  macSolve();
  macPass('proj',T.velB,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt});macSwap(T,'velA','velB');
  /* smoke on the 2x grid */
@@ -2897,7 +2900,7 @@ function macRead(x,y,z){const f=(v,d)=>Math.min(MAC.N[d]-1,Math.max(0,Math.floor
 function macReadAll(t,ch){const G=MAC.G,buf=new Float32Array(G.W*G.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,G.W,G.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
 function macFieldIndex(i,j,k){const G=MAC.G,N=MAC.N;return (((Math.floor(k/G.tx)*N[1]+j)*G.W)+(k%G.tx)*N[0]+i)*4}
 /* post-projection divergence relative to U/h and Poisson relative residual, over cells with at least one open face */
-function macDivStats(){const T=MAC.t;gl.bindVertexArray(LIVE.vao);macPass('div',T.res,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1});
+function macDivStats(){const T=MAC.t;gl.bindVertexArray(LIVE.vao);macPass('div',T.res,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1,uPost:1});
  const d=macReadAll(T.res),g=(()=>{const G=MAC.G,b=new Float32Array(G.W*G.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.geom.f);gl.readPixels(0,0,G.W,G.H,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return b})();
  const N=MAC.N,ref=MAC.U/Math.min(...MAC.h);let s=0,m=0,n=0,bad=0;
  for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const q=macFieldIndex(i,j,k);if(g[q+3]>.999)continue;const v=d[q];if(!Number.isFinite(v)){bad++;continue}s+=v*v;m=Math.max(m,Math.abs(v));n++}
@@ -2919,7 +2922,7 @@ function macFlagCounts(){const s=macReadAll(MAC.t.sol),N=MAC.N,c={fluid:0,car:0,
   if(ph<.5)c.fluid++;else c[['fluid','car','fan','body'][id]]++}return c}
 /* solver comparison on one fixed right-hand side (current velocity field): cold start, timed with a readPixels fence */
 function macSolveBench(list){const T=MAC.t,L0=MAC.lv[0],out=[],save={solver:MAC.solver,cycles:MAC.cycles,pcgIters:MAC.pcgIters,jacobiIters:MAC.jacobiIters,pre:MAC.pre,post:MAC.post};
- gl.bindVertexArray(LIVE.vao);const dt=MAC.lastDt||.02;macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt});
+ gl.bindVertexArray(LIVE.vao);const dt=MAC.lastDt||.02;macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt,uPost:0});
  const fence=()=>{const b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,L0.T.pA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b)};
  for(const c of list){Object.assign(MAC,c);liveClear(L0.T.pA);liveClear(L0.T.pB);fence();const t0=performance.now();macSolve();fence();const ms=performance.now()-t0;
   const r=macResidual();gl.bindVertexArray(LIVE.vao);out.push({...c,ms,rel:r.rel,nonFinite:r.nonFinite})}
