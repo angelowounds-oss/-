@@ -49,6 +49,12 @@ body.sc.eng main{grid-template-columns:minmax(0,1fr) 300px!important}
 .sc-splash button.rdy{opacity:1;animation:scp 1.6s ease-in-out infinite}
 @keyframes scp{50%{box-shadow:0 0 70px #7fdcffcc;transform:scale(1.05)}}
 .sc-load{margin-top:16px;font-size:12px;color:#6f8ea1;letter-spacing:.1em}
-.sc-dock{position:absolute;z-index:7;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:calc(100% - 20px)}
-.sc-dock button{font:700 13px Inter,sans-serif;padding:10px 16px;border-radius:999px;border:1px solid #8fdcff66;color:#eaf8ff;background:#08141dcc;backdrop-filter:blur(8px);cursor:pointer}
-.sc-leg{position:absolute;z-index:7;right:12px;top:12px;display:flex;gap:6px;align-items:center;font:700 11px Inter,sans-serif;color:#cfe8f5;text-shadow:0 1px 3px #000}.sc-leg{background:#000a;padding:5px 9px;border-radius:8px}.sc-leg i{width:120px;height:10px;border-radius:5px;background:linear-gradient(90deg,#1a2eff,#00ccff,#0dff4d,#ffeb0d,#ff1f0d)}.sc-dock button:active{background:#1c4a66}body.cine .sc-dock{opacity:.0;pointer-events:none}
+.sc-dock{position:absolute;z-index:7;left:10px;right:10px;bottom:84px;display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding:2px 2px 6px;scrollbar-width:thin;mask-image:linear-gradient(90deg,#000 94%,transparent)}
+.sc-dock button{flex:0 0 auto}
+@media (min-width:1400px){.sc-dock{justify-content:center;mask-image:none}}
+.sc-dock button{font:700 12px Inter,sans-serif;padding:7px 12px;border-radius:999px;border:1px solid #8fdcff66;color:#eaf8ff;background:#08141dcc;backdrop-filter:blur(8px);cursor:pointer}
+.sc-leg{position:absolute;z-index:7;right:12px;top:92px;display:flex;gap:6px;align-items:center;font:700 11px Inter,sans-serif;color:#cfe8f5;text-shadow:0 1px 3px #000}.sc-leg{background:#000a;padding:5px 9px;border-radius:8px}.sc-leg i{width:120px;height:10px;border-radius:5px;background:linear-gradient(90deg,#1a2eff,#00ccff,#0dff4d,#ffeb0d,#ff1f0d)}.sc-dock button:active{background:#1c4a66}body.cine .sc-dock{opacity:.0;pointer-events:none}
+
+/* live CFD owns the viewport in showcase mode: the legacy M13 legend would contradict it */
+body.sc.live-cfd #m13Legend{display:none!important}
+.badge.live{color:#7ee787;border-color:#7ee78766}

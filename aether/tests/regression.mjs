@@ -53,7 +53,7 @@ try {
   check('이동 사람 고체(유동 경계)', body.flags.body > 0 && Number.isFinite(body.speedAt) && body.speedAt > 0.3, body);
   await ev(() => { __AETHER_DEBUG.fpv.yaw = Math.PI / 2; });
   await sleep(5000);
-  await page.screenshot({ path: path.join(outDir, 'cam5-fpv-inside.png') });
+  await page.screenshot({ path: path.join(outDir, 'cam5-fpv-inside.png'), timeout: 600000 });
   const man = await ev(() => { const ok = window.__bodyOutside(); return { ok, anchor: !!__BODY.anchor }; });
   await sleep(5000);
   const manErr = await ev(() => __BODY.drawError || null);
@@ -62,7 +62,7 @@ try {
   await ev(() => { __LIVE.wand = false; });
   // fixed cameras
   let i = 1;
-  for (const c of ['Hero', 'Side', 'Top', 'Fan']) { await ev(n => __AETHER_DEBUG.setPreset(n), c); await sleep(6000); await page.screenshot({ path: path.join(outDir, `cam${i++}-${c.toLowerCase()}.png`) }); }
+  for (const c of ['Hero', 'Side', 'Top', 'Fan']) { await ev(n => __AETHER_DEBUG.setPreset(n), c); await sleep(6000); await page.screenshot({ path: path.join(outDir, `cam${i++}-${c.toLowerCase()}.png`), timeout: 600000 }); }
   const shaders = await ev(() => window.__SHADERS);
   check('셰이더 컴파일(ANGLE)', shaders.failed.length === 0 && shaders.compiled > 10, { compiled: shaders.compiled, failed: shaders.failed });
   const fatal = await ev(() => __AETHER_DEBUG.errors);

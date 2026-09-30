@@ -8,20 +8,21 @@ const QUALITY={
  tiers:['LOW','MID','HIGH','ULTRA'],
  sim:{LOW:{grid:[112,36,52],sub:2},MID:{grid:[144,46,66],sub:2},HIGH:{grid:[176,56,80],sub:2},ULTRA:{grid:[224,72,100],sub:2}},
  vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
- ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1},ULTRA:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1}},
+ ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
  budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
  /* degrade order required by the spec; upgrade walks it backwards */
  ladder:[
   {k:'volRes',  get:()=>LIVE.rs,   set:v=>LIVE.rs=v,   steps:[.25,.375,.5,.625,.75,1]},
   {k:'raySteps',get:()=>LIVE.stepScale,set:v=>LIVE.stepScale=v,steps:[.5,.625,.75,1,1.25]},
   {k:'ao',      get:()=>PERF.set.ao,set:v=>PERF.set.ao=v,steps:[0,1,2],available:()=>!!window.__AETHER_FX?.ao},
-  {k:'shadow',  get:()=>PERF.set.shadow,set:v=>PERF.set.shadow=v,steps:[1,2,3],available:()=>!!window.__AETHER_FX?.shadow},
-  {k:'renderScale',get:()=>LIVE.cs,set:v=>LIVE.cs=v,steps:[.5,.6,.7,.8,.9,1]},
+  {k:'ssr',     get:()=>PERF.set.ssr|0,set:v=>PERF.set.ssr=v,steps:[0,1,2]},
+  {k:'shadow',  get:()=>PERF.set.shadow,set:v=>PERF.set.shadow=v,steps:[1,2,3,4],available:()=>!!window.__AETHER_FX?.shadow},
+  {k:'renderScale',get:()=>LIVE.cs,set:v=>LIVE.cs=v,steps:[.5,.6,.7,.8,.9,1,1.25,1.5]},
   {k:'scalar',  get:()=>LIVE.dyeScale||1,set:v=>{LIVE.dyeScaleWanted=v},steps:[1,2],available:()=>!!LIVE.dyeScalable},
   {k:'cfdRate', get:()=>LIVE.sub,set:v=>LIVE.sub=v,steps:[1,2]},
   {k:'grid',    get:()=>QUALITY.tiers.indexOf(LIVE.q),set:v=>liveSetTier(QUALITY.tiers[v],'ctl'),steps:[0,1,2,3]}]};
 const PERF={frames:[],gpuFrames:[],sections:{},cur:null,pool:[],pending:[],ext:null,disjoint:0,mem:new Map(),memPeak:0,firstFrameMs:null,
- set:{ao:0,shadow:1,aa:'FXAA',bloom:1},manual:{sim:null,vol:null,ren:null},cal:null,ctl:{last:0,cool:0,calm:0,log:[],switches:0,maxGrid:3},sync:false,syncMs:{}};
+ set:{ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},manual:{sim:null,vol:null,ren:null},cal:null,ctl:{last:0,cool:0,calm:0,log:[],switches:0,maxGrid:3},sync:false,syncMs:{}};
 window.__PERF=PERF;
 
 /* ---------- allocation accounting (calculated bytes of live textures/renderbuffers/buffers) ---------- */
@@ -60,7 +61,7 @@ function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.le
 /* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
 function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
  PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};return PERF.manual}
-function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
+function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
 function perfCalibrateStep(now){const C=PERF.cal;if(C.done)return true;
  if(!C.t0){C.t0=now;C.sim=[];C.vol=[];C.scene=[];return false}
  /* each calibration frame: 1 sim step and 1 full-cost volume march, both synchronously timed (readPixels fence) */
@@ -98,7 +99,7 @@ function perfControl(now){const C=PERF.ctl,M=PERF.manual;if(!PERF.cal?.done||LIV
  else C.calm=0}
 /* upgrades never exceed the tier's own table value except for the grid (promotion path) */
 function perfTierCap(k){const t=PERF.tier||{},v=QUALITY.vol[t.vol||'LOW'],r=QUALITY.ren[t.ren||'LOW'],s=QUALITY.sim[t.sim||'LOW'],f=x=>k.steps.findIndex(y=>Math.abs(y-x)<1e-6);
- return ({volRes:f(v.res),raySteps:f(v.steps),ao:r.ao,shadow:r.shadow-1,renderScale:f(r.scale),scalar:1,cfdRate:f(s.sub),grid:3})[k.k]??k.steps.length-1}
+ return ({volRes:f(v.res),raySteps:f(v.steps),ao:r.ao,ssr:r.ssr,shadow:r.shadow-1,renderScale:f(r.scale),scalar:1,cfdRate:f(s.sub),grid:3})[k.k]??k.steps.length-1}
 
 /* ---------- #bench=perf : fixed camera path, JSON result ---------- */
 const PERF_BENCH_PATH=[['Hero',5000],['Side',5000],['Top',5000],['Fan',5000],['FPV',6000]];

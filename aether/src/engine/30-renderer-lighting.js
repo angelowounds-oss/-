@@ -5,7 +5,14 @@ uniform vec4 u_eye,u_surface,u_color;uniform float u_alpha,u_useTex,u_beltSurfac
 in vec3 v_normal;in vec2 v_uv;in vec3 v_world;layout(location=0) out vec4 outColor;layout(location=1) out vec4 outAmb;
 uniform samplerCube u_env0,u_env1;uniform highp sampler2D u_shadowMap;
 uniform mat4 u_lightVP;uniform float u_capture,u_shadowEnabled,u_exposure,u_hdrOut;
-uniform samplerCube u_pref0,u_pref1;uniform highp sampler2D u_csmMap;uniform mat4 u_csmVP[3];uniform vec3 u_csmSplit,u_csmTexel,u_camFwd,u_sh0[9],u_sh1[9];uniform float u_hq,u_csmOn,u_pcss,u_clearcoat,u_prefLod,u_ambK;
+uniform samplerCube u_pref0,u_pref1;uniform highp sampler2D u_csmMap;uniform mat4 u_csmVP[3];uniform vec3 u_csmSplit,u_csmTexel,u_camFwd,u_sh0[9],u_sh1[9];uniform float u_hq,u_csmOn,u_pcss,u_clearcoat,u_prefLod,u_ambK,u_vatlas,u_vdebug;
+/* vehicle texture atlas: 5x4 tiles of 512 px (row 0 = top of the source image). Per tile: roughness, metalness, clear coat, glass.
+   Assigned by inspecting the atlas and verified on the model with #vtile=1 (body = tile (4,0) black paint, wing = carbon (4,3), rims = (2,0)). */
+const vec4 VT[20]=vec4[20](
+ vec4(.86,0.,0.,0.),vec4(.42,.25,1.,0.),vec4(.3,.92,0.,0.),vec4(.84,0.,0.,0.),vec4(.2,.05,1.,0.),
+ vec4(.34,0.,1.,0.),vec4(.62,.35,0.,0.),vec4(.82,.1,0.,0.),vec4(.26,.35,1.,0.),vec4(.5,.35,.5,0.),
+ vec4(.04,0.,1.,1.),vec4(.12,.55,1.,0.),vec4(.9,0.,0.,0.),vec4(.28,.45,1.,0.),vec4(.3,.45,1.,0.),
+ vec4(.7,0.,0.,0.),vec4(.6,0.,0.,0.),vec4(.6,0.,0.,0.),vec4(.6,0.,0.,0.),vec4(.3,.15,1.,0.));
 vec3 shIrr(vec3 n,vec3 L[9]){const float c1=.429043,c2=.511664,c3=.743125,c4=.886227,c5=.247708;
  return c1*L[8]*(n.x*n.x-n.y*n.y)+c3*L[6]*n.z*n.z+c4*L[0]-c5*L[6]+2.*c1*(L[4]*n.x*n.y+L[7]*n.x*n.z+L[5]*n.y*n.z)+2.*c2*(L[3]*n.x+L[1]*n.y+L[2]*n.z);}
 vec3 envBRDF(vec3 F0,float r,float nv){const vec4 c0=vec4(-1.,-.0275,-.572,.022),c1=vec4(1.,.0425,1.04,-.04);vec4 q=r*c0+c1;float a=min(q.x*q.x,exp2(-9.28*nv))*q.x+q.y;vec2 AB=vec2(-1.04,1.04)*a+q.zw;return F0*AB.x+AB.y;}
@@ -58,7 +65,10 @@ void main(){
  if(u_rollerSurface>.5){float mark=1.-smoothstep(0.,.02,min(v_uv.x,1.-v_uv.x));albedo=mix(albedo,linearize(vec3(.62,.68,.72)),mark*.35);}
  float footprint=length(fwidth(v_world));float fade=1.-smoothstep(.002,.02,footprint);
  float grain=sin(v_world.x*183.+sin(v_world.z*31.))*sin(v_world.y*137.+v_world.z*47.);
- float rough=clamp(u_surface.x+grain*u_surface.w*fade,.045,1.),metal=clamp(u_surface.y,0.,1.);
+ float rough=clamp(u_surface.x+grain*u_surface.w*fade,.045,1.),metal=clamp(u_surface.y,0.,1.);float ccW=u_clearcoat,glassT=0.;
+ if(u_vatlas>.5){vec2 tu=fract(v_uv);ivec2 tl=ivec2(min(floor(tu.x*5.),4.),3.-min(floor(tu.y*4.),3.));vec4 m=VT[tl.y*5+tl.x];rough=m.x;metal=m.y;ccW=m.z;glassT=m.w;
+  if(u_vdebug>.5){albedo=vec3(float(tl.x)/4.,float(tl.y)/3.,fract(float(tl.y*5+tl.x)*.37));metal=0.;rough=.8;}
+  if(glassT>.5)albedo*=.35;}
  vec3 l=normalize(vec3(-.2,1.,.12)),h=normalize(l+v);float nl=max(dot(n,l),0.),nh=max(dot(n,h),0.),vh=max(dot(v,h),0.);
  float a=rough*rough,a2=a*a,den=nh*nh*(a2-1.)+1.;float D=a2/max(PI*den*den,.000001);
  float k=(rough+1.)*(rough+1.)/8.;float G=(nv/(nv*(1.-k)+k))*(nl/max(nl*(1.-k)+k,.00001));
@@ -72,10 +82,10 @@ void main(){
  vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white+ambD;
  vec3 envF=u_hq>.5?envBRDF(F0,rough,nv):F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
  vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF;hdr+=ambS;
- if(u_clearcoat>.5&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
-  float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white+prefReflection(reflect(-v,n),cr)*Fv;}
+ if(ccW>.05&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
+  float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);Fv*=ccW;Fc*=ccW;hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white+prefReflection(reflect(-v,n),cr)*Fv;}
  hdr+=albedo*u_surface.z;
- outAmb=vec4((ambD+ambS)*u_exposure,1.);
+ outAmb=vec4((ambD+ambS)*u_exposure,rough);
  outColor=u_capture>.5?vec4(clamp(hdr/8.,0.,1.),1.):(u_hdrOut>.5?vec4(hdr*u_exposure,base.a*u_alpha):vec4(tonemap(hdr*u_exposure),base.a*u_alpha));
 }`;
 function bevelMesh(o){

@@ -1,0 +1,55 @@
+{
+ "case": "sphere",
+ "cfg": {
+  "N": [
+   120,
+   60,
+   60
+  ],
+  "min": [
+   -3,
+   -3,
+   -3
+  ],
+  "max": [
+   9,
+   3,
+   3
+  ],
+  "U": 1,
+  "nu": 0.01,
+  "obstacle": {
+   "type": "sphere",
+   "c": [
+    0,
+    0,
+    0
+   ],
+   "D": 1
+  },
+  "Aref": 0.7853981633974483
+ },
+ "dt": 0.08,
+ "T": 24,
+ "time": "2026-09-30T02:44:32.538Z",
+ "impl": "MAC",
+ "setup": {
+  "N": [
+   120,
+   60,
+   60
+  ],
+  "h": [
+   0.1,
+   0.1,
+   0.1
+  ],
+  "phiSum": 524.25,
+  "expectedVol": 0.5235987755982988,
+  "cellVol": 0.0010000000000000002
+ },
+ "solver": "MGPCG x8",
+ "rec": [],
+ "error": "Error: page.evaluate: Target page, context or browser has been closed",
+ "pageErrors": []
+}

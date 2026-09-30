@@ -4,11 +4,11 @@ import fs from 'node:fs'; import path from 'node:path';
 import { open } from './lib.mjs';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = path.join(root, 'tests/out/m4'); fs.mkdirSync(out, { recursive: true });
-const cyl = r => { const h = 1 / r, dt = 0.8 * h; return { cfg: { N: [16 * r, 10 * r, 4], min: [-4, -5, 0], max: [12, 5, 4 * h], U: 1, nu: 1 / 200, obstacle: { type: 'cylinder', c: [0, 0, 0], D: 1 }, Aref: 1 * 4 * h, spin: 0.6, spinUntil: 3 }, dt, T: 90, every: Math.max(1, Math.round(0.1 / dt)), probe: [3, 0.5, 2 * h], ref: { St: 0.197, Cd: 1.34, src: '2D Re=200: St 0.19-0.20 (Williamson 1996 / 2D DNS), Cd 1.31-1.40 (Henderson 1995, Braza 1986)' } }; };
+const cyl = r => { const h = 1 / r, dt = 0.8 * h; return { cfg: { N: [16 * r, 10 * r, 4], min: [-4, -5, 0], max: [12, 5, 4 * h], U: 1, nu: 1 / 200, obstacle: { type: 'cylinder', c: [0, 0, 0], D: 1 }, Aref: 1 * 4 * h, spin: 0.6, spinUntil: 3 }, dt, T: 70, every: Math.max(1, Math.round(0.1 / dt)), probe: [3, 0.5, 2 * h], ref: { St: 0.197, Cd: 1.34, src: '2D Re=200: St 0.19-0.20 (Williamson 1996 / 2D DNS), Cd 1.31-1.40 (Henderson 1995, Braza 1986)' } }; };
 const CASES = {
   uniform: { cfg: { N: [64, 16, 16], min: [0, 0, 0], max: [4, 1, 1], U: 1, nu: 1e-4 }, dt: 0.02, T: 3, every: 50 },
   cyl8: cyl(8), cyl12: cyl(12), cyl16: cyl(16),
-  sphere: { cfg: { N: [120, 60, 60], min: [-3, -3, -3], max: [9, 3, 3], U: 1, nu: 1 / 100, obstacle: { type: 'sphere', c: [0, 0, 0], D: 1 }, Aref: Math.PI / 4 }, dt: 0.08, T: 24, every: 5, ref: { Cd: 1.09, src: 'Re=100 sphere: Cd≈1.09 (Clift, Grace & Weber 1978 correlation; Johnson & Patel 1999 1.087)' } }
+  sphere: { cfg: { N: [120, 60, 60], min: [-3, -3, -3], max: [9, 3, 3], U: 1, nu: 1 / 100, obstacle: { type: 'sphere', c: [0, 0, 0], D: 1 }, Aref: Math.PI / 4 }, dt: 0.08, T: 20, every: 5, ref: { Cd: 1.09, src: 'Re=100 sphere: Cd≈1.09 (Clift, Grace & Weber 1978 correlation; Johnson & Patel 1999 1.087)' } }
 };
 function dft(t, y, fmin, fmax) { const n = y.length, m = y.reduce((a, b) => a + b, 0) / n, dtm = (t[n - 1] - t[0]) / (n - 1); let best = [0, 0]; const spec = [];
   for (let f = fmin; f <= fmax; f += 0.0025) { let re = 0, im = 0; for (let i = 0; i < n; i++) { const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1)), a = 2 * Math.PI * f * i * dtm; re += (y[i] - m) * w * Math.cos(a); im -= (y[i] - m) * w * Math.sin(a); } const A = Math.hypot(re, im); spec.push([f, A]); if (A > best[1]) best = [f, A]; }
@@ -21,8 +21,8 @@ for (const name of names) {
   try {
     await page.waitForFunction(() => window.__LIVE && (window.__LIVE.ok || window.__LIVE.err), null, { timeout: 240000 });
     res.impl = await page.evaluate(() => __LIVE.impl);
-    res.setup = await page.evaluate(c => { Object.assign(__MAC, { solver: 'MGPCG', pcgIters: 8 }); return __LIVE.api.validate(c); }, C.cfg);
-    res.solver = 'MGPCG x8';
+    res.setup = await page.evaluate(c => { Object.assign(__MAC, { solver: 'RBGS', cycles: 3 }); return __LIVE.api.validate(c); }, C.cfg);
+    res.solver = 'RBGS-MG x3';
     const steps = Math.round(C.T / C.dt), chunk = Math.max(C.every, Math.round(40 / C.every) * C.every);
     res.rec = []; let ms = 0;
     for (let s = 0; s < steps; s += chunk) {

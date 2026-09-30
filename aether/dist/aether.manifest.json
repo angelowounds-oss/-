@@ -1,7 +1,7 @@
 {
  "version": "0.14.0-dev",
  "vehicle": "user",
- "time": "2026-09-30T02:42:02.555Z",
+ "time": "2026-09-30T03:02:48.289Z",
  "engineFiles": [
   "00-core.js",
   "10-webgpu-s1-s3.js",
@@ -41,6 +41,6 @@
    "sha256": "4cd0e0ed1d0a8ebc"
   }
  },
- "outBytes": 16318885,
- "outGzipBytes": 4833060
+ "outBytes": 16322624,
+ "outGzipBytes": 4834528
 }

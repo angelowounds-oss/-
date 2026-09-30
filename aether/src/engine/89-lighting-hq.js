@@ -33,7 +33,7 @@ function hqInit(){HQ.ok=false;try{if(!lighting||!lighting.probes)throw Error('M1
   if(!gl.getExtension('EXT_color_buffer_float'))throw Error('float targets missing');
   HQ.prefProg=liveCompile(HQ_PREFILTER);const size=M10_SETTINGS.probeSize;
   HQ.pref.forEach(t=>gl.deleteTexture(t));HQ.pref=lighting.probes.map(p=>hqPrefilter(p,size));HQ.sh=lighting.probes.map(p=>hqSH(p,size));
-  for(const n of ['pref0','pref1','hq','sh0','sh1','csmMap','csmVP','csmSplit','csmOn','pcss','csmTexel','camFwd','clearcoat','prefLod','ambK'])loc[n]=gl.getUniformLocation(program,'u_'+n);
+  for(const n of ['pref0','pref1','hq','sh0','sh1','csmMap','csmVP','csmSplit','csmOn','pcss','csmTexel','camFwd','clearcoat','prefLod','ambK','vatlas','vdebug'])loc[n]=gl.getUniformLocation(program,'u_'+n);
   /* energy match: diffuse ambient keeps the M10 brightness at an upward normal, SH supplies direction and colour */
   const E=hqIrr(HQ.sh[0],[0,1,0]),lum=(.2126*E[0]+.7152*E[1]+.0722*E[2])/Math.PI;HQ.ambK=Math.min(4,Math.max(.25,.40*.85/Math.max(lum,1e-4)));
   HQ.gen=runtimeGeneration;HQ.ok=true;FX.shadow=true}catch(e){HQ.err=String(e?.message||e);HQ.ok=false}
@@ -42,7 +42,7 @@ function hqInit(){HQ.ok=false;try{if(!lighting||!lighting.probes)throw Error('M1
 function hqCsmAlloc(S){if(HQ.csm&&HQ.csmSize===S)return;if(HQ.csm){gl.deleteTexture(HQ.csm);gl.deleteFramebuffer(HQ.csmF)}const maxT=gl.getParameter(gl.MAX_TEXTURE_SIZE);S=Math.min(S,Math.floor(maxT/3));
  HQ.csm=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,HQ.csm);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,S*3,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);for(const p of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,p,gl.NEAREST);for(const p of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,p,gl.CLAMP_TO_EDGE);
  HQ.csmF=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,HQ.csm,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);HQ.csmSize=S;gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
-function hqCsm(){const lvl=PERF.set.shadow|0;HQ.csmOn=HQ.ok&&lvl>=2;if(!HQ.csmOn)return;const S=lvl>=3?2048:1536;hqCsmAlloc(S);
+function hqCsm(){const lvl=PERF.set.shadow|0;HQ.csmOn=HQ.ok&&lvl>=2;if(!HQ.csmOn)return;const S=lvl>=4?4096:(lvl>=3?2048:1536);hqCsmAlloc(S);
  const eye=camera.eye,fwd=norm(sub(camera.target,eye)),upv=norm(cross(cross(fwd,camera.up),fwd)),right=norm(cross(fwd,upv)),n=Math.max(.05,camera.near),f=Math.min(camera.far,40),asp=glCanvas.width/glCanvas.height,th=Math.tan(camera.fov*Math.PI/360);
  const split=[n];for(let i=1;i<=3;i++){const a=n*Math.pow(f/n,i/3),b=n+(f-n)*i/3;split.push(.8*a+.2*b)}
  const L=HQ.lightDir,VP=[],texel=[];

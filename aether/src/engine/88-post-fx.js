@@ -55,8 +55,18 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes;vec4 c=texture(uCur,uv);vec4 lo=c,hi=c;
  vec4 pc=uPrevVP*vec4(wp,1.);vec2 pu=pc.xy/pc.w*.5+.5;if(pc.w<=0.||any(lessThan(pu,vec2(0.)))||any(greaterThan(pu,vec2(1.)))){o=c;return;}
  vec4 h=clamp(texture(uHist,pu),lo,hi);o=mix(c,h,uBlend);}`,
 /* ---- composite: AO on the indirect term + depth-aware (joint bilateral) upsample of the smoke, "over" ---- */
-comp:`uniform sampler2D uScene,uAmb,uDepth,uAO,uSmoke,uSAux;uniform vec2 uLo;uniform float uAOOn,uAOK,uSmokeOn;out vec4 o;
+comp:`uniform sampler2D uScene,uAmb,uDepth,uAO,uSmoke,uSAux;uniform vec2 uLo;uniform float uAOOn,uAOK,uSmokeOn,uSSR;uniform vec4 uProj;uniform mat4 uP;out vec4 o;
+vec3 VPs(vec2 uv){float z=linZ(texture(uDepth,uv).r);return vec3((uv*2.-1.)*uProj.xy*z,-z);}
+/* screen-space reflection (view space march, binary refinement). Roughness comes from the ambient target alpha. */
+vec3 ssr(vec2 uv,float rough,out float w){w=0.;vec3 P=VPs(uv);vec2 px=1./uRes;vec3 n=normalize(cross(VPs(uv+vec2(px.x,0.))-VPs(uv-vec2(px.x,0.)),VPs(uv+vec2(0.,px.y))-VPs(uv-vec2(0.,px.y))));
+ vec3 V=normalize(P),R=reflect(V,n);if(R.z>-.05&&dot(n,-V)<.05)return vec3(0.);float stepL=.12+.02*(-P.z);vec3 Q=P;vec2 hit=vec2(-1.);float last=0.;
+ for(int i=0;i<(uSSR>1.5?48:24);i++){Q+=R*stepL;vec4 c=uP*vec4(Q,1.);vec2 s=c.xy/c.w*.5+.5;if(any(lessThan(s,vec2(0.)))||any(greaterThan(s,vec2(1.)))||c.w<=0.)break;
+  float sz=linZ(texture(uDepth,s).r),dz=-Q.z-sz;if(dz>0.&&dz<stepL*1.8+.05){vec3 A=Q-R*stepL,B=Q;for(int k=0;k<5;k++){vec3 M=(A+B)*.5;vec4 cm=uP*vec4(M,1.);vec2 sm=cm.xy/cm.w*.5+.5;if(-M.z>linZ(texture(uDepth,sm).r))B=M;else A=M;}
+   vec4 cb=uP*vec4(B,1.);hit=cb.xy/cb.w*.5+.5;last=float(i);break;}stepL*=1.08;}
+ if(hit.x<0.)return vec3(0.);vec2 e=smoothstep(vec2(0.),vec2(.08),hit)*smoothstep(vec2(0.),vec2(.08),1.-hit);
+ w=e.x*e.y*(1.-smoothstep(.05,.35,rough))*(1.-last/48.);float F=.04+.96*pow(1.-max(dot(n,-V),0.),5.);w*=mix(F,1.,.25);return texture(uScene,hit).rgb;}
 void main(){vec2 uv=gl_FragCoord.xy/uRes;vec3 c=texture(uScene,uv).rgb;float z=linZ(texture(uDepth,uv).r);
+ if(uSSR>.5&&texture(uDepth,uv).r<.99999){vec4 am=texture(uAmb,uv);if(am.a<.35){float w;vec3 r=ssr(uv,am.a,w);c+=w*(r*.6-am.rgb*.35);}}
  if(uAOOn>.5){float ao=texture(uAO,uv).r;c-=texture(uAmb,uv).rgb*(1.-pow(ao,uAOK));}
  if(uSmokeOn>.5){vec2 q=uv*uLo-.5;vec2 f=fract(q);ivec2 i0=ivec2(floor(q));vec4 acc=vec4(0.);float wt=0.;
   for(int k=0;k<4;k++){ivec2 d=ivec2(k&1,k>>1);ivec2 p=clamp(i0+d,ivec2(0),ivec2(uLo)-1);float w=(d.x==1?f.x:1.-f.x)*(d.y==1?f.y:1.-f.y);float zl=texelFetch(uSAux,p,0).y;w*=exp(-abs(zl-z)/(.04*z+.02))+1e-4;acc+=w*texelFetch(uSmoke,p,0);wt+=w;}
@@ -137,7 +147,7 @@ function fxPass(name,fbo,w,h,tex,uni){const p=FX.prog[name];gl.useProgram(p);gl.
 const FX_HALTON=[[.5,.333],[.25,.667],[.75,.111],[.125,.444],[.625,.778],[.375,.222],[.875,.556],[.0625,.889]];
 function fxBegin(){FX.active=false;if(!FX.on||FX.err)return false;try{
   if(FX.gen!==runtimeGeneration){FX.gen=runtimeGeneration;FX.t=null;if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 없음');fxCompile()}
-  const rs=Math.min(1,Math.max(.5,LIVE.cs||1)),rw=Math.max(64,Math.round(glCanvas.width*rs)),rh=Math.max(64,Math.round(glCanvas.height*rs)),vs=Math.min(1,Math.max(.25,LIVE.rs||.5)),vw=Math.max(32,Math.round(rw*vs*.5)),vh=Math.max(32,Math.round(rh*vs*.5));
+  const rs=Math.min(1.5,Math.max(.5,LIVE.cs||1)),rw=Math.max(64,Math.round(glCanvas.width*rs)),rh=Math.max(64,Math.round(glCanvas.height*rs)),vs=Math.min(1,Math.max(.25,LIVE.rs||.5)),vw=Math.max(32,Math.round(rw*vs*.5)),vh=Math.max(32,Math.round(rh*vs*.5));
   if(!FX.t||rw!==FX.rw||rh!==FX.rh||vw!==FX.vw||vh!==FX.vh)fxAlloc(rw,rh,vw,vh);
   const taa=PERF.set.aa==='TAA';FX.taa=taa;const J=taa?FX_HALTON[FX.frame%8]:[.5,.5];FX.jitter=[(J[0]-.5)*2/rw,(J[1]-.5)*2/rh];
   gl.bindFramebuffer(gl.FRAMEBUFFER,FX.t.sceneF);gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1]);gl.viewport(0,0,rw,rh);FX.active=true;return true}
@@ -154,7 +164,7 @@ function fxAfterOpaque(){const T=FX.t,M=FX.m=fxMatrices(),rw=FX.rw,rh=FX.rh;gl.b
   fxPass('vol',T.smF,FX.vw,FX.vh,{uVol:{__3d:true,t:LIVE.vol},uDepth:T.depth,uBlue:FX.blue},{uInv:M.inv,uEye:[...camera.eye],uBMin:[...LIVE.min],uBMax:[...LIVE.max],uLD:[.24,.95,.18],uFwd:fwd,uDens:LIVE.dens,uCMode:LIVE.colorMode?1:0,uStepScale:LIVE.stepScale||1,uG:FX.g,uFrame:FX.frame%64,uTaps:{int:2+2*(LIVE.rq|0)}});
   gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_3D,null);
   const cur=FX.shist,nxt=1-cur;fxPass('vtemp',T.shF[nxt],FX.vw,FX.vh,{uCur:T.sm,uAux:T.sa,uHist:T.sh[cur]},{uInv:M.inv,uPrevVP:FX.prevVP||M.vp,uEye:[...camera.eye],uBlend:FX.reset?0:.8});FX.shist=nxt}
- fxPass('comp',T.compF,rw,rh,{uScene:T.color,uAmb:T.amb,uDepth:T.depth,uAO:T.ao[0],uSmoke:T.sh[FX.shist],uSAux:T.sa},{uLo:[FX.vw,FX.vh],uAOOn:aoOn?1:0,uAOK:FX.aoStrength,uSmokeOn:smokeOn?1:0});
+ fxPass('comp',T.compF,rw,rh,{uScene:T.color,uAmb:T.amb,uDepth:T.depth,uAO:T.ao[0],uSmoke:T.sh[FX.shist],uSAux:T.sa},{uLo:[FX.vw,FX.vh],uAOOn:aoOn?1:0,uAOK:FX.aoStrength,uSmokeOn:smokeOn?1:0,uSSR:PERF.set.ssr|0,uProj:projP,uP:fxProj()});
  /* leave composite+depth bound for glass */
  gl.bindFramebuffer(gl.FRAMEBUFFER,T.compDF);gl.viewport(0,0,rw,rh);gl.enable(gl.DEPTH_TEST);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0)}
 function fxPost(){const T=FX.t,M=FX.m,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);gl.disable(gl.CULL_FACE);
@@ -168,3 +178,4 @@ function fxPresent(){const T=FX.t,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao)
  let src=T.ldr;if(PERF.set.aa==='FXAA'){fxPass('fxaa',T.ldr2F,rw,rh,{uSrc:T.ldr},{});src=T.ldr2}
  fxPass('up',null,glCanvas.width,glCanvas.height,{uSrc:src},{uSharp:rw<glCanvas.width?1:.35});
  FX.prevVP=FX.m.vp;FX.frame++;FX.reset=false;gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.viewport(0,0,glCanvas.width,glCanvas.height)}
+function fxProj(){return new Float32Array(perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far))}
