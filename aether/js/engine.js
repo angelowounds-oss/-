@@ -2607,7 +2607,7 @@ LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:6,pre:2,post:2,coarse:4,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:6,pre:2,post:2,coarse:0,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
@@ -2915,7 +2915,7 @@ function macSmooth(l,n,kind,order,X,b){const g=macGridOf(l),G=macGeomOf(l);
 function macGeomOf(l){return l===0?MAC.t.geom.t:MAC.lv[l].T.geom.t}
 /* V-cycle for L x = b; level 0 uses the caller's context, coarse levels start from zero */
 function macVcycle(l,kind,X0,b0){const Lv=MAC.lv,L=Lv[l],X=macLvX(l,X0),b=macLvB(l,b0),g=macGridOf(l);
- if(l===Lv.length-1){macSmooth(l,MAC.coarse,kind,[0,1],X,b);return}
+ if(l===Lv.length-1){/* coarse iterations: fixed value, or (0 = auto) twice the longest side of the coarsest level - Gauss-Seidel moves information about one cell per sweep */macSmooth(l,MAC.coarse>0?MAC.coarse:Math.max(4,2*Math.max(...L.N)),kind,[0,1],X,b);return}
  macSmooth(l,MAC.pre,kind,[0,1],X,b);
  macPass('pres',L.T.r,{uP:X.pA.t,uB:b,uG:macGeomOf(l)},{},g);
  const C=Lv[l+1];macPass('prest',C.T.b,{uRF:L.T.r.t},{uNF:{i3:L.N},uTXF:{int:L.tx},uR:{i3:C.r}},macGridOf(l+1));liveClear(C.T.pA);liveClear(C.T.pB);
