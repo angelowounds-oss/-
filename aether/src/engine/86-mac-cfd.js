@@ -7,7 +7,7 @@
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={forceModel:'discrete-v2',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
@@ -152,16 +152,24 @@ vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);float pc=F(uP,c).x;
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(g[ax]>0.&&c[ax]>0)u[ax]-=uDt*(pc-F(uP,c-e).x)/uH[ax];else if(g[ax]<=0.)u[ax]=us(c,ax)[ax];}
  if(c.x==0&&g.x>0.)u.x=uU;if(c.y==0)u.y=0.;if(c.z==0)u.z=0.;o=vec4(u,0.);}`,
-/* ---- forces on car (id 1) or validation obstacle: pressure jump across phi ramps + wall shear ---- */
-force:`uniform sampler2D uVel,uP,uSol,uNu;uniform float uRho,uNuMol,uId;
-vec3 CC(ivec3 c){vec3 a=F(uVel,c).xyz;return .5*(a+vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z));}
+/* ---- forces on car (id 1) or validation obstacle ----
+   pressure: jump of p across the phi ramps (surface integral of p n).
+   viscous: exactly the momentum the diffusion pass exchanges with solid faces of this body. For every open face
+   (component t) whose stencil neighbour in direction d is a solid face (theta=0) of body uId, the discrete
+   Laplacian applies rho*nu*(us-u)*V/h_d^2 to the fluid; the body receives the opposite. This is consistent with
+   the scheme (no assumed wall distance). */
+force:`uniform sampler2D uVel,uP,uSol,uNu,uG;uniform float uRho,uNuMol,uId;
+vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
+bool bodyFace(ivec3 n,int t){if(!IN(n)||n[t]==0)return false;if(F(uG,n)[t]>0.)return false;ivec3 e=ivec3(0);e[t]=1;return SID(F(uSol,n))==uId||SID(F(uSol,n-e))==uId;}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);float Fpx=0.;
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0)continue;vec4 sn=F(uSol,c-e);float pa=PHI(sc),pb=PHI(sn);
   if(!(SID(sc)==uId||SID(sn)==uId))continue;float dphi=pa-pb;if(abs(dphi)<1e-4)continue;
-  bool cFluid=pa<pb;ivec3 fc=cFluid?c:c-e;float p=F(uP,fc).x;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);
-  Fo[ax]+=uRho*p*dphi*A[ax];if(ax==0)Fpx+=uRho*p*dphi*A[0];
-  vec3 uf=CC(fc),usd=(cFluid?sn:sc).xyz;float nu=uNuMol+F(uNu,fc).x;
-  for(int t=0;t<3;t++){if(t==ax)continue;Fo[t]+=uRho*nu*(uf[t]-usd[t])/(.5*uH[ax])*abs(dphi)*A[ax];}}
+  ivec3 fc=pa<pb?c:c-e;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);float fp=uRho*F(uP,fc).x*dphi*A[ax];
+  Fo[ax]+=fp;if(ax==0)Fpx+=fp;}
+ vec4 g=F(uG,c);vec3 u=F(uVel,c).xyz;float V=uH.x*uH.y*uH.z;
+ for(int t=0;t<3;t++){if(g[t]<=0.||c[t]==0)continue;ivec3 et=ivec3(0);et[t]=1;float nu=uNuMol+.5*(F(uNu,c).x+F(uNu,c-et).x);
+  for(int d=0;d<3;d++){ivec3 ed=ivec3(0);ed[d]=1;
+   for(int s=-1;s<=1;s+=2){ivec3 n=c+s*ed;if(bodyFace(n,t))Fo[t]+=uRho*nu*(u[t]-us(n,t)[t])*V/(uH[d]*uH[d]);}}}
  o=vec4(Fo,Fpx);}`,
 /* ---- smoke on the 2x grid (primary grid = dye grid, secondary grid 2 = velocity grid) ---- */
 dadv:`uniform sampler2D uVel,uSrc;uniform float uDt;
@@ -339,7 +347,7 @@ function macResidual(){const T=MAC.t,L0=MAC.lv[0];gl.bindVertexArray(LIVE.vao);m
  for(let q=0;q<r.length;q+=4){if(!Number.isFinite(r[q])){bad++;continue}rr+=r[q]*r[q];bb+=b[q]*b[q]}gl.bindVertexArray(null);return {rel:Math.sqrt(rr/Math.max(bb,1e-30)),nonFinite:bad}}
 /* forces on the solid id 1 (car or validation obstacle); physical units with rho=1.2 (tunnel) or rho=1 (validation) */
 function macForces(){const T=MAC.t,cfg=MAC.cfg,rho=cfg.rho??1.2;gl.bindVertexArray(LIVE.vao);
- macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1});
+ macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t,uG:T.geom.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1});
  const s=liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
  const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],Fpx:b[3],A,Cd:q>0?b[0]/q:NaN,Cdp:q>0?b[3]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
 /* scalar state readback (relative residual of the last PCG solve) */

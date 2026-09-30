@@ -22,7 +22,7 @@ for (const name of names) {
   const { browser, page, log } = await open('file://' + path.join(root, 'dist/aether.html') + '#q=LOW', { width: 160, height: 90 });
   try {
     await page.waitForFunction(() => window.__LIVE && (window.__LIVE.ok || window.__LIVE.err), null, { timeout: 240000 });
-    res.impl = await page.evaluate(() => __LIVE.impl);
+    res.impl = await page.evaluate(() => __LIVE.impl); res.forceModel = await page.evaluate(() => __MAC.forceModel || 'h/2-v1');
     res.setup = await page.evaluate(c => { Object.assign(__MAC, { solver: 'RBGS', cycles: 3 }); return __LIVE.api.validate(c); }, C.cfg);
     res.solver = 'RBGS-MG x3';
     const steps = Math.round(C.T / C.dt), chunk = Math.max(C.every, Math.round((C.chunk || 40) / C.every) * C.every);
