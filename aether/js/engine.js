@@ -2861,7 +2861,7 @@ function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.m
  /* multigrid levels: level 0 uses MAC.t.geom/b; pressure vectors per level */
  MAC.lv=[];let n=N.slice(),r=[1,1,1];for(let l=0;l<MAC.levels;l++){if(l>0){
    /* semi-coarsening: halve an axis only if it has >= 4 cells and is not already coarser than the finest axis */
-   const hc=max.map((v,i)=>(v-min[i])/n[i]),hm=Math.min(...hc.filter((_,i)=>n[i]>=4));r=n.map((v,i)=>v>=4&&hc[i]<=1.5*hm?2:1);if(r.every(x=>x===1))break;n=n.map((v,i)=>Math.ceil(v/r[i]))}
+   const hc=max.map((v,i)=>(v-min[i])/n[i]),hm=Math.min(...hc.filter((_,i)=>n[i]>=4));r=n.map((v,i)=>v>=4&&hc[i]<=1.5*hm?2:1);if(r.every(x=>x===1))break;const m=n.map((v,i)=>Math.ceil(v/r[i]));/* levels below ~64 cells are numerically fragile (full-size sphere 4x2x2 diverged, 8x4x4 and 84-cell tunnel levels are fine) */if(m[0]*m[1]*m[2]<64)break;n=m}
   const g=macAtlas(n),hl=max.map((v,i)=>(v-min[i])/n[i]);const T={pA:macTarget(g,gl.R32F,gl.RED,gl.FLOAT),pB:macTarget(g,gl.R32F,gl.RED,gl.FLOAT),r:macTarget(g,gl.R32F,gl.RED,gl.FLOAT)};
   if(l>0){T.b=macTarget(g,gl.R32F,gl.RED,gl.FLOAT);T.geom=H4(g)}MAC.lv.push({...g,h:hl,T,r:r.slice()})}
  /* PCG vectors on level 0 */
