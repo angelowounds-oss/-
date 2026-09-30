@@ -55,9 +55,9 @@ const col=$('scCol');if(col)col.onclick=()=>{const l=L();l.colorMode=!l.colorMod
 const leg=document.querySelector('.sc-leg');if(leg)leg.innerHTML='<span>느림</span><i></i><span>빠름</span><small style="opacity:.75;margin-left:4px">(기준풍속 대비)</small>';
 setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classList.toggle('live-cfd',!!(l.ok&&l.enabled));{const b=$('readyBadge');if(b&&l.ok&&l.enabled){const t='실시간 CFD · '+(l.impl==='MAC'?'MAC 격자':'collocated(대체)')+' · '+(window.__MAC&&l.impl==="MAC"?window.__MAC.solver:l.solver);if(b.textContent!==t){b.textContent=t;b.className='badge live'}}}
  if(l.ok&&l.enabled){const N=l.N,F=l.forces,r=l.benchRes;const M=window.__MAC,mac=l.impl==='MAC'&&M;let x='실시간 GPU CFD · '+(mac?'MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 '+(M.solver==='RBGS'?'RBGS-MG':M.solver):'collocated 대체 솔버(비점성)')+' · '+N.join('×')+' ('+(N[0]*N[1]*N[2]/1e4).toFixed(1)+'만 셀) · 등급 '+l.q+'\n풍속 '+l.U+' m/s · 모의시간 '+l.t.toFixed(2)+' s · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
-  if(F&&F.n>2)x+='\nCd '+(F.CdMean??F.Cd).toFixed(2)+' ± '+(F.CdStd??0).toFixed(2)+' · Cl '+(F.ClMean??F.Cl).toFixed(2)+' ± '+(F.ClStd??0).toFixed(2)+' (최근 '+(F.window||0).toFixed(1)+' s 평균±표준편차 · '+(mac?'압력+벽전단':'압력항력만')+' · 차량은 참고값)';
+  if(F&&F.n>2)x+='\nCd '+(F.CdMean??F.Cd).toFixed(2)+' ± '+(F.CdStd??0).toFixed(2)+' · Cl '+(F.ClMean??F.Cl).toFixed(2)+' ± '+(F.ClStd??0).toFixed(2)+' (최근 '+(F.window||0).toFixed(1)+' s 평균±표준편차 · '+(mac?(window.__MAC?.ibm==='vf'?'운동량 수지: 압력·점성·경계 강제':'압력+벽전단'):'압력항력만')+' · 차량은 참고값, Cl은 차 밑 틈(약 7 cm)이 셀보다 작아 신뢰 낮음)';
   if(mac&&M.eps>0)x+='\n와도 보존력 보정 사용 중(LOW 전용 근사 보정, 물리 법칙 아님)';
-  x+='\n계산값: 유동·연기·풍속·Cd/Cl  |  근사: 사람 형상(원기둥)·셀 크기 '+(l.h?Math.round(Math.min(...l.h)*100):'?')+' cm  |  연출: 팬 회전 속도·바람 소리·자막·연기 서서히 옅어짐(스텝당 0.15%)';
+  x+='\n계산값: 유동·연기·풍속·Cd/Cl  |  근사: 사람 형상(원기둥)·부분체적 경계·셀 크기 '+(l.h?Math.round(Math.min(...l.h)*100):'?')+' cm  |  연출: 팬 회전 속도·바람 소리·자막·연기 서서히 옅어짐(스텝당 0.15%)';
   if(l.bench){x+='\n벤치마크(계산 형상은 원기둥, 화면의 차량은 계산에 포함되지 않음): 원기둥 D=0.5m '+(r&&r.ok?'스트라우할 수 St = '+r.St.toFixed(3)+' (문헌 약 0.2 · 격자 '+r.cells.toFixed(1)+'셀/지름)':'측정 중 '+Math.min(100,Math.round(100*l.t/8))+'%')}
   if(/perf=1/.test(location.hash)&&window.__PERF)x+='\n'+window.__perfHudText();
   x+='\n정성적 시각화이며 공학 해석 도구가 아닙니다';s.textContent=x;

@@ -320,7 +320,7 @@ Object.assign(LIVE.api,{
  setTier(q){liveSetTier(q,'api')},
  tune(now){perfControl(now)},
  rebuildLevels(){liveBuildLevels()},
- forces(){return LIVE.impl==='MAC'?macForces():liveForces()},
+ forces(m){return LIVE.impl==='MAC'?macForces(m):liveForces()},
  mac(){return MAC},
  solveBench(list){return macSolveBench(list)},
  validate(cfg){return macValidate(cfg)},

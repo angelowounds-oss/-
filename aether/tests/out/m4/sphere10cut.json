@@ -1,5 +1,5 @@
 {
- "case": "sphere",
+ "case": "sphere10cut",
  "cfg": {
   "N": [
    120,
@@ -541,5 +541,6 @@
  "pageErrors": [],
  "forceModel": "discrete-v2",
  "forceModelNote": "run started 2026-09-30T03:41 on a dist built after the discrete-v2 force change (before the in-page tag existed); ibm=cut",
- "ibm": "cut"
+ "ibm": "cut",
+ "renamedFrom": "sphere"
 }

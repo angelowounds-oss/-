@@ -1,4 +1,5 @@
-// M4 validation suite (MAC solver). node tests/validate.mjs [case ...]   cases: uniform cyl8 cyl12 cyl16 sphere
+// M4 validation suite (MAC solver). node tests/validate.mjs [case ...]   cases: uniform cyl6 cyl8 cyl12 cyl8wide sphere (engine default boundary: vf)
+// comparison cases: cyl8cut sphere8 (cut-cell only) sphere8vf
 // Results -> tests/out/m4/<case>.json. SwiftShader runs are functional/numerical evidence only (not performance).
 import fs from 'node:fs'; import path from 'node:path';
 import { open } from './lib.mjs';
@@ -11,7 +12,7 @@ const CASES = {
   /* improvement attempt 1: no blockage effect (H = 16D instead of 10D) */
   cyl8wide: (() => { const c = cyl(8); c.cfg = { ...c.cfg, N: [128, 128, 4], min: [-4, -8, 0], max: [12, 8, c.cfg.max[2]] }; return c; })(),
   /* boundary-treatment comparison (cut-cell only vs + volume-fraction forcing) on smaller grids, with the CV momentum balance */
-  cyl8vf: (() => { const c = cyl(8); c.cfg = { ...c.cfg, ibm: 'vf' }; return c; })(),
+  cyl8cut: (() => { const c = cyl(8); c.cfg = { ...c.cfg, ibm: 'cut' }; return c; })(),
   sphere8: { cfg: { N: [80, 40, 40], min: [-3, -2.5, -2.5], max: [7, 2.5, 2.5], U: 1, nu: 1 / 100, obstacle: { type: 'sphere', c: [0, 0, 0], D: 1 }, Aref: Math.PI / 4, ibm: 'cut' }, dt: 0.1, T: 16, every: 4, chunk: 20, win: 12, ref: { Cd: 1.09, src: 'Re=100 sphere: Cd≈1.09' } },
   sphere8vf: { cfg: { N: [80, 40, 40], min: [-3, -2.5, -2.5], max: [7, 2.5, 2.5], U: 1, nu: 1 / 100, obstacle: { type: 'sphere', c: [0, 0, 0], D: 1 }, Aref: Math.PI / 4, ibm: 'vf' }, dt: 0.1, T: 16, every: 4, chunk: 20, win: 12, ref: { Cd: 1.09, src: 'Re=100 sphere: Cd≈1.09' } },
   sphere: { cfg: { N: [120, 60, 60], min: [-3, -3, -3], max: [9, 3, 3], U: 1, nu: 1 / 100, obstacle: { type: 'sphere', c: [0, 0, 0], D: 1 }, Aref: Math.PI / 4 }, dt: 0.08, T: 20, every: 5, chunk: 10, ref: { Cd: 1.09, src: 'Re=100 sphere: Cd≈1.09 (Clift, Grace & Weber 1978 correlation; Johnson & Patel 1999 1.087)' } }
@@ -34,8 +35,8 @@ for (const name of names) {
   try {
     await page.waitForFunction(() => window.__LIVE && (window.__LIVE.ok || window.__LIVE.err), null, { timeout: 240000 });
     res.impl = await page.evaluate(() => __LIVE.impl); res.forceModel = await page.evaluate(() => __MAC.forceModel || 'h/2-v1');
-    res.setup = await page.evaluate(c => { Object.assign(__MAC, { solver: 'RBGS', cycles: 3 }); return __LIVE.api.validate(c); }, C.cfg);
-    res.solver = 'RBGS-MG x3'; res.ibm = C.cfg.ibm || 'cut';
+    res.setup = await page.evaluate(c => { Object.assign(__MAC, { solver: 'RBGS', cycles: 5 }); return __LIVE.api.validate(c); }, C.cfg);
+    res.solver = 'RBGS-MG x5'; res.ibm = C.cfg.ibm || 'cut';
     let cv = null;
     if (C.cfg.obstacle) { const h = C.cfg.N.map((n, d) => (C.cfg.max[d] - C.cfg.min[d]) / n), o = C.cfg.obstacle.c, D = C.cfg.obstacle.D, cell = (x, d) => Math.max(1, Math.min(C.cfg.N[d] - 1, Math.round((x - C.cfg.min[d]) / h[d])));
       const lo = [cell(o[0] - 1.5 * D, 0), cell(o[1] - 1.5 * D, 1), C.cfg.obstacle.type === 'sphere' ? cell(o[2] - 1.5 * D, 2) : 0], hi = [cell(o[0] + 3 * D, 0), cell(o[1] + 1.5 * D, 1), C.cfg.obstacle.type === 'sphere' ? cell(o[2] + 1.5 * D, 2) : C.cfg.N[2]];
