@@ -18,7 +18,7 @@
 | M5 | 볼류메트릭·TAA·톤매핑 | 완료(화면 확인) | `tests/out/shots/`, `tests/out/m8/cam*.png` |
 | M6 | 그림자·AO·IBL·재질 | 완료(화면 확인) | 같음 |
 | M7 | LBM 비교 | 완료 | VALIDATION "LBM 비교", ARCHITECTURE §5 (MAC 유지) |
-| M8 | 에셋·최종 빌드·문서 | 완료 | `tests/out/m8/regression.md` 16/16 PASS, `dist/snapshots/M8.json` |
+| M8 | 에셋·최종 빌드·문서 | 완료 | `tests/out/m8/regression.md` 전 항목 PASS(최신 빌드), `dist/snapshots/M8.json` |
 
 ## 요구사항 상태표
 
@@ -30,7 +30,7 @@
 | 빌드 | dist ≤ 12 MB (한도 20 MB) | PARTIAL | 15.6 MB: 사용자 차량 GLB 6.7 MB + 콘솔 7.1 MB가 base64로 포함. 한도 20 MB 이내, 품질 훼손 없이 줄일 도구(meshopt·KTX2) 설치 불가 |
 | 검사 | JS eslint | PASS | `node tools/lint.mjs` 0건 |
 | 검사 | 셰이더 glslangValidator | BLOCKED | 설치 불가. 대체: ANGLE 실제 컴파일 124개, 실패 0 (회귀) |
-| 보존 | 기존 기능 회귀 없음(PBR 풍동·관제실·자동문/계단·1인칭·이동 사람 고체·레이크/완드·HUD·마네킹·인트로·한국어 UI) | PASS | `tests/out/m8/regression.md` 16/16 |
+| 보존 | 기존 기능 회귀 없음(PBR 풍동·관제실·자동문/계단·1인칭·이동 사람 고체·레이크/완드·HUD·마네킹·인트로·한국어 UI) | PASS | `tests/out/m8/regression.md` 전 항목 PASS |
 | 보존 | 원본 16MB HTML 직접 편집 금지 | PASS | `original/` 기준본 유지, 빌드로만 생성 |
 | 품질 | UA 추측 없이 GPU 실측 벤치마크로 등급 선택 | PASS(동작) | 렌더러 문자열 판정 코드 제거, 2.5 s 측정 |
 | 품질 | timer query 기반 실행 중 조정 | PASS(동작) | 84-perf-quality |
