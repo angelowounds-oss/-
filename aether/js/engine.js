@@ -2607,7 +2607,7 @@ LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:6,pre:2,post:2,coarse:0,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,/* levels 6 + coarse 4/auto was tried for -10..19 % passes: fine on the tunnel, but diverged or missed the residual target on the validation sphere/cylinder (OPTIMIZATION_AUDIT.md §7). coarse:0 = auto is kept as an option */omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
