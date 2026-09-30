@@ -14,9 +14,9 @@
 | 스모크 레이크 세로7/가로9 | PASS | {"RAKE_V":7,"RAKE_H":9,"BOTH":16} |
 | 1인칭 보행·풍동 진입 | PASS | {"fpv":true,"active":true,"inTunnel":true,"emitters":8} |
 | 스모크 완드 | PASS | {"emitters":8} |
-| 이동 사람 고체(유동 경계) | PASS | {"flags":{"fluid":186831,"car":2180,"fan":20608,"body":45},"speedAt":4.121144270606758,"hud":"내 위치 풍속 4.37 m/s  ·  몸이 흐름을 가르는 중"} |
+| 이동 사람 고체(유동 경계) | PASS | {"flags":{"fluid":186831,"car":2180,"fan":20608,"body":45},"speedAt":4.119953381404935,"hud":"내 위치 풍속 4.37 m/s  ·  몸이 흐름을 가르는 중"} |
 | 외부 시점 마네킹 | PASS | {"ok":true,"anchor":true,"drawError":null} |
 | 셰이더 컴파일(ANGLE) | PASS | {"compiled":124,"failed":[]} |
 | 치명적 오류 없음 | PASS | {"pageErrors":[],"engineErrors":[],"consoleErrors":[]} |
 | 외부 네트워크 요청 0건 | PASS | {"external":[]} |
-| 부팅 시간(SwiftShader, 참고) | INFO | 30516 ms |
+| 부팅 시간(SwiftShader, 참고) | INFO | 17226 ms |
