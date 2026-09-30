@@ -2968,7 +2968,7 @@ const LBM={ok:false,err:null,mode:'FP32',t:null,N:null};
 window.__LBM=LBM;
 const LBM_FS=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
-uniform ivec3 uN;uniform int uTX;uniform sampler2D uF0,uF1,uF2,uF3,uF4,uSolid;uniform float uUl,uTauP,uTauM,uShift,uCs,uReg;
+uniform ivec3 uN;uniform int uTX;uniform sampler2D uF0,uF1,uF2,uF3,uF4,uSolid;uniform float uUl,uUy,uTauP,uTauM,uShift,uCs,uReg;
 layout(location=0) out vec4 o0;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;layout(location=4) out vec4 o4;
 const ivec3 E[19]=ivec3[19](ivec3(0),ivec3(1,0,0),ivec3(-1,0,0),ivec3(0,1,0),ivec3(0,-1,0),ivec3(0,0,1),ivec3(0,0,-1),ivec3(1,1,0),ivec3(-1,-1,0),ivec3(1,-1,0),ivec3(-1,1,0),
  ivec3(1,0,1),ivec3(-1,0,-1),ivec3(1,0,-1),ivec3(-1,0,1),ivec3(0,1,1),ivec3(0,-1,-1),ivec3(0,1,-1),ivec3(0,-1,1));
@@ -2985,7 +2985,7 @@ void main(){ivec3 c=C();float f[19];if(c.z>=uN.z){o0=o1=o2=o3=o4=vec4(0);return;
  if(SOL(c)){for(int i=0;i<19;i++)f[i]=W[i];}
  else{for(int i=0;i<19;i++){ivec3 s=c-E[i];s.z=(s.z+uN.z)%uN.z;
    /* inlet: velocity U, density extrapolated from the first interior cell; outlet: density 1, velocity extrapolated (pressure outlet) */
-   if(s.x<0){float rn;vec3 un;MOM(ivec3(0,c.y,c.z),rn,un);f[i]=feq(i,rn,vec3(uUl,0.,0.));continue;}
+   if(s.x<0){float rn;vec3 un;MOM(ivec3(0,c.y,c.z),rn,un);f[i]=feq(i,rn,vec3(uUl,uUy,0.));continue;}
    if(s.x>=uN.x){float rn;vec3 un;MOM(ivec3(uN.x-1,c.y,c.z),rn,un);f[i]=feq(i,1.,un);continue;}
    if(s.y<0||s.y>=uN.y){f[i]=FI(MY[i],ivec3(s.x,c.y,s.z));continue;}
    f[i]=SOL(s)?FI(OPP[i],c):FI(i,s);}
@@ -3042,7 +3042,9 @@ function lbmStep(n){const g=LBM.g,p=LBM.prog.step;gl.bindVertexArray(LIVE.vao);g
  gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul);gl.uniform1f(liveU(p,'uTauP'),LBM.tauP);gl.uniform1f(liveU(p,'uTauM'),LBM.tauM);gl.uniform1f(liveU(p,'uCs'),LBM.cfg.Cs||0);gl.uniform1f(liveU(p,'uReg'),LBM.cfg.coll==='REG'?1:0);
  /* impulsive starts launch pressure waves that the velocity inlet reflects: ramp U over t* = 0..10 */
  const ramp=10*LBM.cfg.Dl/LBM.cfg.Ul;
- for(let s=0;s<n;s++){const src=LBM.t[LBM.cur],dst=LBM.t[1-LBM.cur],x=Math.min(1,LBM.step/ramp);gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul*x*x*(3-2*x));gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);lbmBind(p,src);gl.drawArrays(gl.TRIANGLES,0,3);LBM.cur=1-LBM.cur;LBM.step++}
+ /* symmetry breaking like the MAC harness (cylinder spin for t*<3): small transverse inflow 0.05 Ul for t* in [5,10] */
+ const tb=[5*LBM.cfg.Dl/LBM.cfg.Ul,10*LBM.cfg.Dl/LBM.cfg.Ul];
+ for(let s=0;s<n;s++){const src=LBM.t[LBM.cur],dst=LBM.t[1-LBM.cur],x=Math.min(1,LBM.step/ramp);gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul*x*x*(3-2*x));gl.uniform1f(liveU(p,'uUy'),LBM.step>=tb[0]&&LBM.step<tb[1]?.05*LBM.cfg.Ul:0);gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);lbmBind(p,src);gl.drawArrays(gl.TRIANGLES,0,3);LBM.cur=1-LBM.cur;LBM.step++}
  gl.bindVertexArray(null)}
 function lbmForce(){const g=LBM.g,p=LBM.prog.force;gl.bindVertexArray(LIVE.vao);gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LBM.frc.f);gl.viewport(0,0,g.W,g.H);lbmBind(p,LBM.t[LBM.cur]);gl.drawArrays(gl.TRIANGLES,0,3);
  const s=liveReduceTo(LBM.frc,g.W,g.H,LBM.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);

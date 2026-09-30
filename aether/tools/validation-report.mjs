@@ -53,12 +53,15 @@ const table = r => ['| 항목 | 기준 | 결과 | 판정 | 근거 |', '|---|---|
 const MACc = J('tests/out/m4/cyl8.json'); let lbm = '';
 const lbmRow = (f, coll) => { const d = J(`tests/out/m7/${f}.json`); if (!d) return '';
   const recs = (d.rec || []).filter(r => Number.isFinite(r.Cd)), W = recs.filter(r => r.tStar >= 40), zc = zeroCross(W.map(r => r.tStar), W.map(r => r.Cl));
-  const cd = d.Cd ? `${e(d.Cd.mean)} ± ${e(d.Cd.std)} (${pct(d.Cd.mean, 1.34)})` : '—', stv = W.length > 20 ? e(zc.f) : '—';
+  const cd = d.Cd ? `${e(d.Cd.mean)} ± ${e(d.Cd.std)} (${pct(d.Cd.mean, 1.34)})` : '—';
+  /* no shedding (|Cl| std < 0.05) -> St undefined; otherwise DFT peak (robust to storage noise) with the zero-crossing value */
+  const stv = W.length <= 20 ? '—' : d.Cl && d.Cl.std < 0.05 ? `와류 방출 없음(Cl σ ${e(d.Cl.std)})` : `${e(d.St?.f)} (DFT 봉우리/평균 ${e(d.St?.peakToMean, 1)}; 영교차 ${e(zc.f)})`;
   const eq = d.msPerStep && d.Ul ? e(d.msPerStep * 0.8 / d.Ul, 0) : '—';
-  const stab = d.error ? '오류: ' + d.error.slice(0, 60) : d.nonFinite ? `NaN (t*≈${e(recs.at(-1)?.tStar, 1)})` : (d.Cd && d.Cd.std > 0.3 ? '유한값, Cd 요동 큼' : '안정');
+  const stab = d.error ? '오류: ' + d.error.slice(0, 60) : d.nonFinite ? `NaN (t*≈${e(recs.at(-1)?.tStar, 1)})` : (d.Cd && d.Cd.std > 0.3 ? '유한값, Cd 요동 큼' : d.Cl && d.Cl.std >= 0.05 && d.St && d.St.peakToMean < 3 ? '유한값, 저장 잡음 지배(주파수 봉우리 없음)' : '안정');
   return `| ${d.mode} | ${coll} | ${d.setup?.ok ? e(d.setup.bytesPerCell, 0) : '—'} | ${e(d.msPerStep, 1)} | ${eq} | ${cd} | ${stv} | ${stab} |\n`; };
 for (const [f, c] of [['lbm-D8-FP32-trt', 'TRT, 램프 t*=5'], ['lbm-D8-FP32-reg1', '정규화 BGK, 출구 흡수층만'], ['lbm-D8-FP16-reg1', '정규화 BGK, 출구 흡수층만'], ['lbm-D8-MIXED-reg1', '정규화 BGK, 출구 흡수층만'],
-  ['lbm-D8-FP32', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'], ['lbm-D8-FP16', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'], ['lbm-D8-MIXED', '정규화 BGK, 입·출구 흡수층, 램프 t*=10']]) lbm += lbmRow(f, c);
+  ['lbm-D8-FP32-reg2', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'], ['lbm-D8-FP16-reg2', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'], ['lbm-D8-MIXED-reg2', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'],
+  ['lbm-D8-FP32', '위 + 대칭 깨기(t*=5~10 횡유입 0.05U)'], ['lbm-D8-FP16', '위 + 대칭 깨기(t*=5~10 횡유입 0.05U)'], ['lbm-D8-MIXED', '위 + 대칭 깨기(t*=5~10 횡유입 0.05U)']]) lbm += lbmRow(f, c);
 const macRow = MACc ? `| MAC(비교 기준) | 투영법 vf, RBGS-MG 5 | 약 140(속도·압력·형상, 연기 제외) | ${e(MACc.msPerStep, 0)} | ${e(MACc.msPerStep, 0)} | ${e(MACc.Cd.mean)} ± ${e(MACc.Cd.std)} (${pct(MACc.Cd.mean, 1.34)}) | ${e(stOf(MACc).f)} | 안정 |\n` : '';
 const md = `# VALIDATION
 
