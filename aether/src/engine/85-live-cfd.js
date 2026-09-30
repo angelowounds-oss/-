@@ -1,6 +1,6 @@
 /* AETHER LIVE CFD: real-time GPU incompressible flow (collocated grid, semi-Lagrangian advection,
    Jacobi pressure projection, vorticity confinement) + passive-scalar smoke with MacCormack transport. */
-const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:true,
+const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
  vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:6,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
@@ -216,7 +216,10 @@ function liveForcesPoll(){const J=LIVE.frcJob;if(!J)return;const r=gl.clientWait
  const buf=new Float32Array(J.n*4);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,LIVE.pbo);gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,0,buf);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
  const f=liveForceFinish(buf,J.n,J.dt);if(!Number.isFinite(f.Fx)||Math.abs(f.Cd)>200){LIVE.guardTrips=(LIVE.guardTrips||0)+1;LIVE.forces=null;if(LIVE.impl==='MAC'){if(MAC.solver!=='RBGS'){MAC.solver='RBGS';LIVE.api.reset()}else{LIVE.macErr='발산 감지: 기존 솔버로 전환';LIVE.impl='COLLOCATED';liveSetTier(LIVE.q,'fallback');LIVE.init=false}}else{LIVE.solver='JACOBI';LIVE.api.reset()}return}liveForceUpdate(f)}
 function liveForceUpdate(f){if(!f||!Number.isFinite(f.Cd))return;const F=LIVE.forces;if(!F||F.U!==LIVE.U){LIVE.forces={U:LIVE.U,n:1,...f};return}
- const a=Math.max(.12,1/(F.n+1));for(const k of ['Fx','Fy','Fz','Cd','Cl','Cs'])F[k]+=(f[k]-F[k])*a;F.A=f.A;F.n++}/* Benchmark: vertical cylinder (D=0.5 m) spanning the tunnel height. Probe = lateral velocity 3D behind it, offset 0.5D. Strouhal St=f*D/U from the DFT peak. */
+ const a=Math.max(.12,1/(F.n+1));for(const k of ['Fx','Fy','Fz','Cd','Cl','Cs'])F[k]+=(f[k]-F[k])*a;F.A=f.A;F.n++;
+ /* time statistics over the last 8 s of simulated time (spec: mean and standard deviation) */
+ const H=F.hist||(F.hist=[]);H.push([LIVE.t,f.Cd,f.Cl]);while(H.length&&H[0][0]<LIVE.t-8)H.shift();const m=i=>H.reduce((s,h)=>s+h[i],0)/H.length,sd=(i,mu)=>Math.sqrt(H.reduce((s,h)=>s+(h[i]-mu)**2,0)/H.length);
+ F.CdMean=m(1);F.ClMean=m(2);F.CdStd=sd(1,F.CdMean);F.ClStd=sd(2,F.ClMean);F.window=H.length>1?H[H.length-1][0]-H[0][0]:0}/* Benchmark: vertical cylinder (D=0.5 m) spanning the tunnel height. Probe = lateral velocity 3D behind it, offset 0.5D. Strouhal St=f*D/U from the DFT peak. */
 function liveBenchProbe(){const c=LIVE_BENCH;return [c.x+3*c.D,c.y,c.z+.5*c.D]}
 function liveBenchSample(){const R=LIVE.benchRec;if(!R||LIVE.benchRes)return;const p=liveBenchProbe(),v=liveRead(p[0],p[1],p[2]);R.t.push(LIVE.t);R.v.push(v[2]);R.vx.push(v[0]);
  if(LIVE.t>=LIVE_BENCH.T)LIVE.benchRes=liveBenchAnalyze(R)}
@@ -321,6 +324,11 @@ Object.assign(LIVE.api,{
  mac(){return MAC},
  solveBench(list){return macSolveBench(list)},
  validate(cfg){return macValidate(cfg)},
+ lbmSetup(cfg){return lbmSetup(cfg)},
+ lbmRun(total,every){return lbmRun(total,every)},
+ lbmProbe(i,j,k){return lbmProbe(i,j,k)},
+ lbmStep(n){lbmStep(n)},
+ lbmForce(){return lbmForce()},
  vrun(n,dt,every,probe){return macVrun(n,dt,every,probe)},
  uniformError(){return macUniformError()},
  memBreakdown(){return macMemBreakdown()},

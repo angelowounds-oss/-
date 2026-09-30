@@ -155,14 +155,14 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
 /* ---- forces on car (id 1) or validation obstacle: pressure jump across phi ramps + wall shear ---- */
 force:`uniform sampler2D uVel,uP,uSol,uNu;uniform float uRho,uNuMol,uId;
 vec3 CC(ivec3 c){vec3 a=F(uVel,c).xyz;return .5*(a+vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z));}
-void main(){ivec3 c=C();if(c.z>=uN.z||c.x==0&&c.y==0&&c.z==0&&false){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);float Fpx=0.;
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0)continue;vec4 sn=F(uSol,c-e);float pa=PHI(sc),pb=PHI(sn);
   if(!(SID(sc)==uId||SID(sn)==uId))continue;float dphi=pa-pb;if(abs(dphi)<1e-4)continue;
   bool cFluid=pa<pb;ivec3 fc=cFluid?c:c-e;float p=F(uP,fc).x;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);
-  Fo[ax]+=uRho*p*dphi*A[ax];
+  Fo[ax]+=uRho*p*dphi*A[ax];if(ax==0)Fpx+=uRho*p*dphi*A[0];
   vec3 uf=CC(fc),usd=(cFluid?sn:sc).xyz;float nu=uNuMol+F(uNu,fc).x;
   for(int t=0;t<3;t++){if(t==ax)continue;Fo[t]+=uRho*nu*(uf[t]-usd[t])/(.5*uH[ax])*abs(dphi)*A[ax];}}
- o=vec4(Fo,0.);}`,
+ o=vec4(Fo,Fpx);}`,
 /* ---- smoke on the 2x grid (primary grid = dye grid, secondary grid 2 = velocity grid) ---- */
 dadv:`uniform sampler2D uVel,uSrc;uniform float uDt;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;vec3 v=VEL(uVel,P,uN2,uTX2);
@@ -341,7 +341,7 @@ function macResidual(){const T=MAC.t,L0=MAC.lv[0];gl.bindVertexArray(LIVE.vao);m
 function macForces(){const T=MAC.t,cfg=MAC.cfg,rho=cfg.rho??1.2;gl.bindVertexArray(LIVE.vao);
  macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1});
  const s=liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
- const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],A,Cd:q>0?b[0]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
+ const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],Fpx:b[3],A,Cd:q>0?b[0]/q:NaN,Cdp:q>0?b[3]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
 /* scalar state readback (relative residual of the last PCG solve) */
 function macPcgState(){const b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.scal[0].f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return {rz:b[0],alpha:b[1],beta:b[2],bb:b[3]}}
 function macMemoryMB(){let s=0;const add=(g,bpp)=>{s+=g.W*g.H*bpp};const G=MAC.G;add(G,16*5);add(G,8*2);add(G,8);add(G,4*9);add(MAC.D,2*4);for(const L of MAC.lv.slice(1))add(L,4*4+8);s+=MAC.D.N[0]*MAC.D.N[1]*MAC.D.N[2]*8*8/7;return s/1048576}
@@ -364,7 +364,7 @@ function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,m
  gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
 /* run n steps; every `every` steps record forces (and probe velocity) */
 function macVrun(n,dt,every=1,probe=null){const rec=[];const t0=performance.now();
- for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
+ for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cdp:f.Cdp,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);return {rec,ms:performance.now()-t0,step:MAC.step,time:MAC.time}}
 function macUniformError(){const v=macReadAll(MAC.t.velA),N=MAC.N,U=MAC.U;let mx=0,mt=0,n=0,bad=0;
  for(let k=1;k<N[2]-1;k++)for(let j=1;j<N[1]-1;j++)for(let i=1;i<N[0]-1;i++){const q=macFieldIndex(i,j,k);if(![v[q],v[q+1],v[q+2]].every(Number.isFinite)){bad++;continue}mx=Math.max(mx,Math.abs(v[q]-U)/U);mt=Math.max(mt,Math.hypot(v[q+1],v[q+2])/U);n++}

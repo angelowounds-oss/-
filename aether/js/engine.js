@@ -2064,7 +2064,7 @@ window.__bodyReturn=()=>{const B=window.__BODY;const a=B.anchor;startWalk();if(a
    Knobs whose feature is not implemented report available()=false and are skipped by the controller. */
 const QUALITY={
  tiers:['LOW','MID','HIGH','ULTRA'],
- sim:{LOW:{grid:[112,36,52],sub:2},MID:{grid:[144,46,66],sub:2},HIGH:{grid:[176,56,80],sub:2},ULTRA:{grid:[224,72,100],sub:2}},
+ sim:{LOW:{grid:[112,36,52],sub:2,vc:.25},MID:{grid:[144,46,66],sub:2,vc:0},HIGH:{grid:[176,56,80],sub:2,vc:0},ULTRA:{grid:[224,72,100],sub:2,vc:0}},
  vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
  ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
  budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
@@ -2119,7 +2119,7 @@ function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.le
 /* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
 function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
  PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};return PERF.manual}
-function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
+function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub;if(window.__MAC&&!/vc=0/.test(location.hash))window.__MAC.eps=QUALITY.sim[t].vc}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
 function perfCalibrateStep(now){const C=PERF.cal;if(C.done)return true;
  if(!C.t0){C.t0=now;C.sim=[];C.vol=[];C.scene=[];return false}
  /* each calibration frame: 1 sim step and 1 full-cost volume march, both synchronously timed (readPixels fence) */
@@ -2199,7 +2199,7 @@ window.__perfHudText=()=>{const P=PERF,c=P.cost||perfFrameCost(),f=perfStats(P.f
  +'\n조정: '+P.ctl.log.slice(-6).join(' ')};
 /* AETHER LIVE CFD: real-time GPU incompressible flow (collocated grid, semi-Lagrangian advection,
    Jacobi pressure projection, vorticity confinement) + passive-scalar smoke with MacCormack transport. */
-const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:true,
+const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
  vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:6,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
@@ -2415,7 +2415,10 @@ function liveForcesPoll(){const J=LIVE.frcJob;if(!J)return;const r=gl.clientWait
  const buf=new Float32Array(J.n*4);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,LIVE.pbo);gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,0,buf);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
  const f=liveForceFinish(buf,J.n,J.dt);if(!Number.isFinite(f.Fx)||Math.abs(f.Cd)>200){LIVE.guardTrips=(LIVE.guardTrips||0)+1;LIVE.forces=null;if(LIVE.impl==='MAC'){if(MAC.solver!=='RBGS'){MAC.solver='RBGS';LIVE.api.reset()}else{LIVE.macErr='발산 감지: 기존 솔버로 전환';LIVE.impl='COLLOCATED';liveSetTier(LIVE.q,'fallback');LIVE.init=false}}else{LIVE.solver='JACOBI';LIVE.api.reset()}return}liveForceUpdate(f)}
 function liveForceUpdate(f){if(!f||!Number.isFinite(f.Cd))return;const F=LIVE.forces;if(!F||F.U!==LIVE.U){LIVE.forces={U:LIVE.U,n:1,...f};return}
- const a=Math.max(.12,1/(F.n+1));for(const k of ['Fx','Fy','Fz','Cd','Cl','Cs'])F[k]+=(f[k]-F[k])*a;F.A=f.A;F.n++}/* Benchmark: vertical cylinder (D=0.5 m) spanning the tunnel height. Probe = lateral velocity 3D behind it, offset 0.5D. Strouhal St=f*D/U from the DFT peak. */
+ const a=Math.max(.12,1/(F.n+1));for(const k of ['Fx','Fy','Fz','Cd','Cl','Cs'])F[k]+=(f[k]-F[k])*a;F.A=f.A;F.n++;
+ /* time statistics over the last 8 s of simulated time (spec: mean and standard deviation) */
+ const H=F.hist||(F.hist=[]);H.push([LIVE.t,f.Cd,f.Cl]);while(H.length&&H[0][0]<LIVE.t-8)H.shift();const m=i=>H.reduce((s,h)=>s+h[i],0)/H.length,sd=(i,mu)=>Math.sqrt(H.reduce((s,h)=>s+(h[i]-mu)**2,0)/H.length);
+ F.CdMean=m(1);F.ClMean=m(2);F.CdStd=sd(1,F.CdMean);F.ClStd=sd(2,F.ClMean);F.window=H.length>1?H[H.length-1][0]-H[0][0]:0}/* Benchmark: vertical cylinder (D=0.5 m) spanning the tunnel height. Probe = lateral velocity 3D behind it, offset 0.5D. Strouhal St=f*D/U from the DFT peak. */
 function liveBenchProbe(){const c=LIVE_BENCH;return [c.x+3*c.D,c.y,c.z+.5*c.D]}
 function liveBenchSample(){const R=LIVE.benchRec;if(!R||LIVE.benchRes)return;const p=liveBenchProbe(),v=liveRead(p[0],p[1],p[2]);R.t.push(LIVE.t);R.v.push(v[2]);R.vx.push(v[0]);
  if(LIVE.t>=LIVE_BENCH.T)LIVE.benchRes=liveBenchAnalyze(R)}
@@ -2520,6 +2523,11 @@ Object.assign(LIVE.api,{
  mac(){return MAC},
  solveBench(list){return macSolveBench(list)},
  validate(cfg){return macValidate(cfg)},
+ lbmSetup(cfg){return lbmSetup(cfg)},
+ lbmRun(total,every){return lbmRun(total,every)},
+ lbmProbe(i,j,k){return lbmProbe(i,j,k)},
+ lbmStep(n){lbmStep(n)},
+ lbmForce(){return lbmForce()},
  vrun(n,dt,every,probe){return macVrun(n,dt,every,probe)},
  uniformError(){return macUniformError()},
  memBreakdown(){return macMemBreakdown()},
@@ -2686,14 +2694,14 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
 /* ---- forces on car (id 1) or validation obstacle: pressure jump across phi ramps + wall shear ---- */
 force:`uniform sampler2D uVel,uP,uSol,uNu;uniform float uRho,uNuMol,uId;
 vec3 CC(ivec3 c){vec3 a=F(uVel,c).xyz;return .5*(a+vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z));}
-void main(){ivec3 c=C();if(c.z>=uN.z||c.x==0&&c.y==0&&c.z==0&&false){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);float Fpx=0.;
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0)continue;vec4 sn=F(uSol,c-e);float pa=PHI(sc),pb=PHI(sn);
   if(!(SID(sc)==uId||SID(sn)==uId))continue;float dphi=pa-pb;if(abs(dphi)<1e-4)continue;
   bool cFluid=pa<pb;ivec3 fc=cFluid?c:c-e;float p=F(uP,fc).x;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);
-  Fo[ax]+=uRho*p*dphi*A[ax];
+  Fo[ax]+=uRho*p*dphi*A[ax];if(ax==0)Fpx+=uRho*p*dphi*A[0];
   vec3 uf=CC(fc),usd=(cFluid?sn:sc).xyz;float nu=uNuMol+F(uNu,fc).x;
   for(int t=0;t<3;t++){if(t==ax)continue;Fo[t]+=uRho*nu*(uf[t]-usd[t])/(.5*uH[ax])*abs(dphi)*A[ax];}}
- o=vec4(Fo,0.);}`,
+ o=vec4(Fo,Fpx);}`,
 /* ---- smoke on the 2x grid (primary grid = dye grid, secondary grid 2 = velocity grid) ---- */
 dadv:`uniform sampler2D uVel,uSrc;uniform float uDt;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;vec3 v=VEL(uVel,P,uN2,uTX2);
@@ -2872,7 +2880,7 @@ function macResidual(){const T=MAC.t,L0=MAC.lv[0];gl.bindVertexArray(LIVE.vao);m
 function macForces(){const T=MAC.t,cfg=MAC.cfg,rho=cfg.rho??1.2;gl.bindVertexArray(LIVE.vao);
  macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1});
  const s=liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
- const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],A,Cd:q>0?b[0]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
+ const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],Fpx:b[3],A,Cd:q>0?b[0]/q:NaN,Cdp:q>0?b[3]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
 /* scalar state readback (relative residual of the last PCG solve) */
 function macPcgState(){const b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.scal[0].f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return {rz:b[0],alpha:b[1],beta:b[2],bb:b[3]}}
 function macMemoryMB(){let s=0;const add=(g,bpp)=>{s+=g.W*g.H*bpp};const G=MAC.G;add(G,16*5);add(G,8*2);add(G,8);add(G,4*9);add(MAC.D,2*4);for(const L of MAC.lv.slice(1))add(L,4*4+8);s+=MAC.D.N[0]*MAC.D.N[1]*MAC.D.N[2]*8*8/7;return s/1048576}
@@ -2895,11 +2903,101 @@ function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,m
  gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
 /* run n steps; every `every` steps record forces (and probe velocity) */
 function macVrun(n,dt,every=1,probe=null){const rec=[];const t0=performance.now();
- for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
+ for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cdp:f.Cdp,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);return {rec,ms:performance.now()-t0,step:MAC.step,time:MAC.time}}
 function macUniformError(){const v=macReadAll(MAC.t.velA),N=MAC.N,U=MAC.U;let mx=0,mt=0,n=0,bad=0;
  for(let k=1;k<N[2]-1;k++)for(let j=1;j<N[1]-1;j++)for(let i=1;i<N[0]-1;i++){const q=macFieldIndex(i,j,k);if(![v[q],v[q+1],v[q+2]].every(Number.isFinite)){bad++;continue}mx=Math.max(mx,Math.abs(v[q]-U)/U);mt=Math.max(mt,Math.hypot(v[q+1],v[q+2])/U);n++}
  return {cells:n,maxRelErrU:mx,maxRelCross:mt,nonFinite:bad}}
+/* ===== M7: lattice Boltzmann D3Q19 (TRT collision, pull streaming) — comparison candidate for HIGH/ULTRA.
+   Storage modes: FP32 (RGBA32F), FP16 (RGBA16F, f stored directly), MIXED (RGBA16F, stores f - w_i, arithmetic in FP32).
+   Boundaries: equilibrium inlet (x-), zero-gradient outlet (x+), specular slip walls (y), periodic z, halfway bounce-back on solids.
+   Forces by momentum exchange. Used only by the validation harness; the real-time path stays on the MAC projection solver. ===== */
+const LBM={ok:false,err:null,mode:'FP32',t:null,N:null};
+window.__LBM=LBM;
+const LBM_FS=`#version 300 es
+precision highp float;precision highp int;precision highp sampler2D;
+uniform ivec3 uN;uniform int uTX;uniform sampler2D uF0,uF1,uF2,uF3,uF4,uSolid;uniform float uUl,uTauP,uTauM,uShift,uCs;
+layout(location=0) out vec4 o0;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;layout(location=4) out vec4 o4;
+const ivec3 E[19]=ivec3[19](ivec3(0),ivec3(1,0,0),ivec3(-1,0,0),ivec3(0,1,0),ivec3(0,-1,0),ivec3(0,0,1),ivec3(0,0,-1),ivec3(1,1,0),ivec3(-1,-1,0),ivec3(1,-1,0),ivec3(-1,1,0),
+ ivec3(1,0,1),ivec3(-1,0,-1),ivec3(1,0,-1),ivec3(-1,0,1),ivec3(0,1,1),ivec3(0,-1,-1),ivec3(0,1,-1),ivec3(0,-1,1));
+const int OPP[19]=int[19](0,2,1,4,3,6,5,8,7,10,9,12,11,14,13,16,15,18,17);
+const int MY[19]=int[19](0,1,2,4,3,5,6,9,10,7,8,11,12,13,14,18,17,16,15);
+const float W[19]=float[19](1./3.,1./18.,1./18.,1./18.,1./18.,1./18.,1./18.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.);
+ivec2 A(ivec3 c){return ivec2((c.z%uTX)*uN.x+c.x,(c.z/uTX)*uN.y+c.y);}
+ivec3 C(){ivec2 f=ivec2(gl_FragCoord.xy);int tx=f.x/uN.x,ty=f.y/uN.y;return ivec3(f.x-tx*uN.x,f.y-ty*uN.y,ty*uTX+tx);}
+float FI(int i,ivec3 c){ivec2 a=A(c);int t=i>>2,ch=i&3;vec4 v=t==0?texelFetch(uF0,a,0):t==1?texelFetch(uF1,a,0):t==2?texelFetch(uF2,a,0):t==3?texelFetch(uF3,a,0):texelFetch(uF4,a,0);return v[ch]+uShift*W[i];}
+bool SOL(ivec3 c){return texelFetch(uSolid,A(c),0).r>.5;}
+float feq(int i,float r,vec3 u){float eu=dot(vec3(E[i]),u);return W[i]*r*(1.+3.*eu+4.5*eu*eu-1.5*dot(u,u));}
+void MOM(ivec3 c,out float r,out vec3 u){r=0.;vec3 m=vec3(0.);for(int i=0;i<19;i++){float f=FI(i,c);r+=f;m+=f*vec3(E[i]);}u=m/r;}
+void main(){ivec3 c=C();float f[19];if(c.z>=uN.z){o0=o1=o2=o3=o4=vec4(0);return;}
+ if(SOL(c)){for(int i=0;i<19;i++)f[i]=W[i];}
+ else{for(int i=0;i<19;i++){ivec3 s=c-E[i];s.z=(s.z+uN.z)%uN.z;
+   /* inlet: velocity U, density extrapolated from the first interior cell; outlet: density 1, velocity extrapolated (pressure outlet) */
+   if(s.x<0){float rn;vec3 un;MOM(ivec3(0,c.y,c.z),rn,un);f[i]=feq(i,rn,vec3(uUl,0.,0.));continue;}
+   if(s.x>=uN.x){float rn;vec3 un;MOM(ivec3(uN.x-1,c.y,c.z),rn,un);f[i]=feq(i,1.,un);continue;}
+   if(s.y<0||s.y>=uN.y){f[i]=FI(MY[i],ivec3(s.x,c.y,s.z));continue;}
+   f[i]=SOL(s)?FI(OPP[i],c):FI(i,s);}
+  float r=0.;vec3 m=vec3(0.);for(int i=0;i<19;i++){r+=f[i];m+=f[i]*vec3(E[i]);}vec3 u=m/r;
+  float g[19];for(int i=0;i<19;i++)g[i]=f[i];
+  /* Smagorinsky LES in LBM: eddy relaxation from the non-equilibrium momentum flux (Hou et al. 1996); TRT magic parameter 1/4 kept */
+  float tp=uTauP,tm=uTauM;float sp=smoothstep(.85,1.,float(c.x)/float(uN.x));tp+=sp*.6;tm=.25/(tp-.5)+.5;if(uCs>0.){mat3 Q=mat3(0.);for(int i=0;i<19;i++){vec3 e=vec3(E[i]);Q+=outerProduct(e,e)*(g[i]-feq(i,r,u));}
+   float q=sqrt(dot(Q[0],Q[0])+dot(Q[1],Q[1])+dot(Q[2],Q[2]));float t0=tp;tp=.5*(t0+sqrt(t0*t0+18.*1.41421356*uCs*uCs*q/r));tm=.25/(tp-.5)+.5;}
+  for(int i=0;i<19;i++){int j=OPP[i];float fp=.5*(g[i]+g[j]),fm=.5*(g[i]-g[j]),ei=feq(i,r,u),ej=feq(j,r,u),ep=.5*(ei+ej),em=.5*(ei-ej);f[i]=g[i]-(fp-ep)/tp-(fm-em)/tm;}}
+ for(int i=0;i<19;i++)f[i]-=uShift*W[i];
+ o0=vec4(f[0],f[1],f[2],f[3]);o1=vec4(f[4],f[5],f[6],f[7]);o2=vec4(f[8],f[9],f[10],f[11]);o3=vec4(f[12],f[13],f[14],f[15]);o4=vec4(f[16],f[17],f[18],0.);}`;
+const LBM_FORCE=`#version 300 es
+precision highp float;precision highp int;precision highp sampler2D;
+uniform ivec3 uN;uniform int uTX;uniform sampler2D uF0,uF1,uF2,uF3,uF4,uSolid;uniform float uShift;out vec4 o;
+const ivec3 E[19]=ivec3[19](ivec3(0),ivec3(1,0,0),ivec3(-1,0,0),ivec3(0,1,0),ivec3(0,-1,0),ivec3(0,0,1),ivec3(0,0,-1),ivec3(1,1,0),ivec3(-1,-1,0),ivec3(1,-1,0),ivec3(-1,1,0),
+ ivec3(1,0,1),ivec3(-1,0,-1),ivec3(1,0,-1),ivec3(-1,0,1),ivec3(0,1,1),ivec3(0,-1,-1),ivec3(0,1,-1),ivec3(0,-1,1));
+const float W[19]=float[19](1./3.,1./18.,1./18.,1./18.,1./18.,1./18.,1./18.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.);
+ivec2 A(ivec3 c){return ivec2((c.z%uTX)*uN.x+c.x,(c.z/uTX)*uN.y+c.y);}
+ivec3 C(){ivec2 f=ivec2(gl_FragCoord.xy);int tx=f.x/uN.x,ty=f.y/uN.y;return ivec3(f.x-tx*uN.x,f.y-ty*uN.y,ty*uTX+tx);}
+float FI(int i,ivec3 c){ivec2 a=A(c);int t=i>>2,ch=i&3;vec4 v=t==0?texelFetch(uF0,a,0):t==1?texelFetch(uF1,a,0):t==2?texelFetch(uF2,a,0):t==3?texelFetch(uF3,a,0):texelFetch(uF4,a,0);return v[ch]+uShift*W[i];}
+void main(){ivec3 c=C();o=vec4(0.);if(c.z>=uN.z||texelFetch(uSolid,A(c),0).r>.5)return;vec3 F=vec3(0.);
+ for(int i=1;i<19;i++){ivec3 n=c+E[i];n.z=(n.z+uN.z)%uN.z;if(n.x<0||n.x>=uN.x||n.y<0||n.y>=uN.y)continue;if(texelFetch(uSolid,A(n),0).r>.5)F+=2.*vec3(E[i])*FI(i,c);}
+ o=vec4(F,0.);}`;
+const LBM_INIT=`#version 300 es
+precision highp float;uniform float uUl,uShift;layout(location=0) out vec4 o0;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;layout(location=4) out vec4 o4;
+const vec3 E[19]=vec3[19](vec3(0),vec3(1,0,0),vec3(-1,0,0),vec3(0,1,0),vec3(0,-1,0),vec3(0,0,1),vec3(0,0,-1),vec3(1,1,0),vec3(-1,-1,0),vec3(1,-1,0),vec3(-1,1,0),vec3(1,0,1),vec3(-1,0,-1),vec3(1,0,-1),vec3(-1,0,1),vec3(0,1,1),vec3(0,-1,-1),vec3(0,1,-1),vec3(0,-1,1));
+const float W[19]=float[19](1./3.,1./18.,1./18.,1./18.,1./18.,1./18.,1./18.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.,1./36.);
+void main(){float f[19];vec3 u=vec3(uUl,0.,0.);for(int i=0;i<19;i++){float eu=dot(E[i],u);f[i]=W[i]*(1.+3.*eu+4.5*eu*eu-1.5*dot(u,u))-uShift*W[i];}
+ o0=vec4(f[0],f[1],f[2],f[3]);o1=vec4(f[4],f[5],f[6],f[7]);o2=vec4(f[8],f[9],f[10],f[11]);o3=vec4(f[12],f[13],f[14],f[15]);o4=vec4(f[16],f[17],f[18],0.);}`;
+/* cfg: {N:[nx,ny,nz], Dl (cells per diameter), c:[i,j] cylinder centre in cells, Re, Ul, mode} */
+function lbmSetup(cfg){LBM.ok=false;try{if(gl.getParameter(gl.MAX_DRAW_BUFFERS)<5)throw Error('MAX_DRAW_BUFFERS < 5');
+  lbmRelease();const N=cfg.N,g=macAtlas(N),f16=cfg.mode!=='FP32',fmt=f16?[gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT]:[gl.RGBA32F,gl.RGBA,gl.FLOAT];
+  const mk=()=>{const tex=[0,1,2,3,4].map(()=>{const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,fmt[0],g.W,g.H,0,fmt[1],fmt[2],null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);return t});
+   const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);tex.forEach((t,i)=>gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0+i,gl.TEXTURE_2D,t,0));gl.drawBuffers([0,1,2,3,4].map(i=>gl.COLOR_ATTACHMENT0+i));
+   if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('LBM fbo incomplete');return {tex,f}};
+  LBM.t=[mk(),mk()];LBM.cur=0;LBM.g=g;LBM.N=N;LBM.cfg=cfg;LBM.mode=cfg.mode;LBM.shift=cfg.mode==='MIXED'?1:0;
+  const nu=cfg.Ul*cfg.Dl/cfg.Re,tp=3*nu+.5,tm=.25/(tp-.5)+.5;LBM.tauP=tp;LBM.tauM=tm;LBM.nu=nu;
+  const buf=new Uint8Array(g.W*g.H*4);let solid=0;for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const dx=i+.5-cfg.c[0],dy=j+.5-cfg.c[1];if(dx*dx+dy*dy<=cfg.Dl*cfg.Dl/4){const ax=(k%g.tx)*N[0]+i,ay=Math.floor(k/g.tx)*N[1]+j;buf[(ay*g.W+ax)*4]=255;solid++}}
+  LBM.solid=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,LBM.solid);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,g.W,g.H,0,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+  if(!LBM.prog){LBM.prog={step:liveCompile(LBM_FS),force:liveCompile(LBM_FORCE),init:liveCompile(LBM_INIT)}}
+  LBM.frc=liveTarget(g.W,g.H,gl.RGBA32F,gl.RGBA,gl.FLOAT);LBM.red=[];{let w=g.W,h=g.H;while(w>1||h>1){w=Math.ceil(w/8);h=Math.ceil(h/8);LBM.red.push({w,h,t:liveTarget(w,h,gl.RGBA32F,gl.RGBA,gl.FLOAT)})}}
+  gl.bindVertexArray(LIVE.vao);for(const T of LBM.t){gl.useProgram(LBM.prog.init);gl.bindFramebuffer(gl.FRAMEBUFFER,T.f);gl.viewport(0,0,g.W,g.H);gl.uniform1f(liveU(LBM.prog.init,'uUl'),0);gl.uniform1f(liveU(LBM.prog.init,'uShift'),LBM.shift);gl.drawArrays(gl.TRIANGLES,0,3)}
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);LBM.step=0;LBM.ok=true;LIVE.enabled=false;LIVE.freeze=true;
+  return {ok:true,tauP:tp,tauM:tm,nu,solidCells:solid,bytesPerCell:2*5*(f16?8:16),memMB:2*5*g.W*g.H*(f16?8:16)/1048576}}
+ catch(e){LBM.err=String(e?.message||e);return {ok:false,err:LBM.err}}}
+function lbmRelease(){if(!LBM.t)return;for(const T of LBM.t){T.tex.forEach(t=>gl.deleteTexture(t));gl.deleteFramebuffer(T.f)}if(LBM.solid)gl.deleteTexture(LBM.solid);if(LBM.frc){gl.deleteTexture(LBM.frc.t);gl.deleteFramebuffer(LBM.frc.f)}(LBM.red||[]).forEach(r=>{gl.deleteTexture(r.t.t);gl.deleteFramebuffer(r.t.f)});LBM.t=null}
+function lbmBind(p,T){const g=LBM.g;gl.uniform3i(liveU(p,'uN'),...LBM.N);gl.uniform1i(liveU(p,'uTX'),g.tx);gl.uniform1f(liveU(p,'uShift'),LBM.shift);
+ T.tex.forEach((t,i)=>{gl.activeTexture(gl.TEXTURE8+i);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,'uF'+i),8+i)});gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,LBM.solid);gl.uniform1i(liveU(p,'uSolid'),13)}
+function lbmStep(n){const g=LBM.g,p=LBM.prog.step;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.useProgram(p);gl.viewport(0,0,g.W,g.H);
+ gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul);gl.uniform1f(liveU(p,'uTauP'),LBM.tauP);gl.uniform1f(liveU(p,'uTauM'),LBM.tauM);gl.uniform1f(liveU(p,'uCs'),LBM.cfg.Cs||0);
+ /* impulsive starts launch pressure waves that the velocity inlet reflects: ramp U over t* = 0..5 */
+ const ramp=5*LBM.cfg.Dl/LBM.cfg.Ul;
+ for(let s=0;s<n;s++){const src=LBM.t[LBM.cur],dst=LBM.t[1-LBM.cur],x=Math.min(1,LBM.step/ramp);gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul*x*x*(3-2*x));gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);lbmBind(p,src);gl.drawArrays(gl.TRIANGLES,0,3);LBM.cur=1-LBM.cur;LBM.step++}
+ gl.bindVertexArray(null)}
+function lbmForce(){const g=LBM.g,p=LBM.prog.force;gl.bindVertexArray(LIVE.vao);gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LBM.frc.f);gl.viewport(0,0,g.W,g.H);lbmBind(p,LBM.t[LBM.cur]);gl.drawArrays(gl.TRIANGLES,0,3);
+ const s=liveReduceTo(LBM.frc,g.W,g.H,LBM.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
+ const c=LBM.cfg,q=.5*c.Ul*c.Ul*c.Dl*LBM.N[2];return {Fx:b[0],Fy:b[1],Cd:b[0]/q,Cl:b[1]/q,tStar:LBM.step*c.Ul/c.Dl}}
+/* run `total` steps recording forces every `every` steps */
+function lbmRun(total,every){const rec=[],t0=performance.now();for(let s=0;s<total;s+=every){lbmStep(Math.min(every,total-s));rec.push(lbmForce())}return {rec,ms:performance.now()-t0,steps:LBM.step}}
+/* debug: macroscopic values at a cell (reads the 5 attachments of the current state) */
+function lbmProbe(i,j,k){const g=LBM.g,N=LBM.N,T=LBM.t[LBM.cur],x=(k%g.tx)*N[0]+i,y=Math.floor(k/g.tx)*N[1]+j,f=[];gl.bindFramebuffer(gl.FRAMEBUFFER,T.f);
+ for(let a=0;a<5;a++){gl.readBuffer(gl.COLOR_ATTACHMENT0+a);const b=new Float32Array(4);gl.readPixels(x,y,1,1,gl.RGBA,gl.FLOAT,b);f.push(...b)}gl.readBuffer(gl.COLOR_ATTACHMENT0);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+ const E=[[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,1,0],[-1,-1,0],[1,-1,0],[-1,1,0],[1,0,1],[-1,0,-1],[1,0,-1],[-1,0,1],[0,1,1],[0,-1,-1],[0,1,-1],[0,-1,1]],W=[1/3,...Array(6).fill(1/18),...Array(12).fill(1/36)];
+ let r=0;const m=[0,0,0];for(let q=0;q<19;q++){const v=f[q]+LBM.shift*W[q];r+=v;for(let d=0;d<3;d++)m[d]+=v*E[q][d]}return {rho:r,u:m.map(v=>v/r)}}
 /* ===== M5/M6 post pipeline (linear HDR). Scene -> [GTAO] -> volumetric smoke (low res, depth-aware, temporal)
    -> composite -> glass -> [TAA] -> bloom -> AgX/ACES tone map -> overlays (LDR) -> [FXAA] -> upscale+sharpen.
    Disabled with #fx=0 or when float render targets are missing (legacy forward path, visible in the HUD). ===== */

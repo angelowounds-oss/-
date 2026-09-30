@@ -6,7 +6,7 @@
    Knobs whose feature is not implemented report available()=false and are skipped by the controller. */
 const QUALITY={
  tiers:['LOW','MID','HIGH','ULTRA'],
- sim:{LOW:{grid:[112,36,52],sub:2},MID:{grid:[144,46,66],sub:2},HIGH:{grid:[176,56,80],sub:2},ULTRA:{grid:[224,72,100],sub:2}},
+ sim:{LOW:{grid:[112,36,52],sub:2,vc:.25},MID:{grid:[144,46,66],sub:2,vc:0},HIGH:{grid:[176,56,80],sub:2,vc:0},ULTRA:{grid:[224,72,100],sub:2,vc:0}},
  vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
  ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
  budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
@@ -61,7 +61,7 @@ function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.le
 /* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
 function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
  PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};return PERF.manual}
-function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
+function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub;if(window.__MAC&&!/vc=0/.test(location.hash))window.__MAC.eps=QUALITY.sim[t].vc}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
 function perfCalibrateStep(now){const C=PERF.cal;if(C.done)return true;
  if(!C.t0){C.t0=now;C.sim=[];C.vol=[];C.scene=[];return false}
  /* each calibration frame: 1 sim step and 1 full-cost volume march, both synchronously timed (readPixels fence) */

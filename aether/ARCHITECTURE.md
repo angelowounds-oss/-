@@ -25,8 +25,13 @@ tools/build.mjs                                 → dist/aether.html (단일 파
 | 60-fan-collector-layout | 팬·배기 수집기, 연기 노즐 배치 |
 | 70-smoke-particles | 기존 입자·필라멘트 연기(실시간 CFD 꺼졌을 때 대체) |
 | 80-body | 사람(이동 고체) 상태·마네킹 |
-| 85-live-cfd | 실시간 GPU CFD, 연기 볼륨, 품질 조절, 힘 계산, 벤치마크 |
-| 90-render-loop | 프레임 루프 `draw()`, 부팅, UI 연결 |
+| 84-perf-quality | 계측(GPU timer·프레임 통계·할당량), 시작 벤치마크, 품질표 QUALITY, 적응 제어기, `#bench=perf` |
+| 85-live-cfd | 실시간 CFD 관리자(LIVE): 등급·방출기·볼륨·힘·API. collocated 솔버(대체 경로) 포함 |
+| 86-mac-cfd | **기본 솔버**: 엇갈린 MAC 격자, 부분체적 경계, MacCormack, Smagorinsky LES, RBGS-MG/GMG/MGPCG, 2배 연기 격자, 검증 API |
+| 87-lbm | D3Q19 TRT 격자 볼츠만(비교용, 검증 하네스 전용) |
+| 88-post-fx | HDR 포스트: GTAO, 볼류메트릭, 합성+SSR, TAA, 블룸, AgX/ACES, FXAA, 업스케일 |
+| 89-lighting-hq | GGX 사전필터 큐브맵, SH9 조도, CSM+PCF/PCSS, 클리어코트, 유리 프레넬 |
+| 90-render-loop | 프레임 루프 `draw()`, 부팅, 카메라 프리셋, UI 연결 |
 
 ## 2. 렌더러 선택 (M0 결정)
 
@@ -43,6 +48,33 @@ tools/build.mjs                                 → dist/aether.html (단일 파
 **결정: 자체 렌더러 유지.** 최종 품질은 셰이더와 포스트 체인이 결정하고, 두 라이브러리가 기본 제공하지 않는 볼류메트릭·CFD 연동이 핵심이라 이전 이득이 없음. 필요한 기법(HDR·톤매핑·TAA·GTAO·CSM·IBL)은 자체 렌더러에 직접 추가.
 검증 상태: 번들·프레임 비용 비교는 **ASSUMED**(라이브러리를 받을 수 없어 실측 불가).
 
-## 3. 프레임 순서 (현행, M5에서 변경 예정)
+## 3. 프레임 순서
 
-`liveStep`(CFD) → 그림자 맵 → 불투명(씬, 롤링로드, 팬, 차량, 사람) → 블렌딩(M13 오버레이, 입자 연기, CFD 연기 레이마칭) → 유리. 셰이더 안에서 톤매핑(ACES 근사) 후 sRGB 출력.
+```
+liveStep            CFD 서브스텝(MAC) → 볼륨 텍스처 복사(2배 격자) → 힘 비동기 읽기(PBO+fence)
+renderLightingShadow / hqCsm   단일 그림자(LOW) 또는 3단 CSM(MID+)
+fxBegin             HDR 타깃 바인드(RGBA16F 색 + RGBA16F 간접광·거칠기 + 깊이 텍스처), TAA 지터
+불투명 씬           메인 PBR 셰이더(선형 HDR 출력, MRT)
+fxAfterOpaque       GTAO(1/2) → 볼류메트릭(1/4~1/2, 장면 깊이로 가림) → 시간 재투영 → 합성(AO·SSR·깊이 인지 업샘플)
+유리                합성 타깃에 프레넬 유리
+fxPost              TAA → 블룸 → AgX 톤매핑 → LDR 타깃
+오버레이            M13 선/입자(LDR, 장면 깊이 테스트)
+fxPresent           FXAA(LOW) → 캔버스로 업스케일+CAS 샤프닝
+```
+
+`#fx=0`이면 기존 순방향 경로(셰이더 내 톤매핑)로 동작하며, 포스트 초기화 실패 시 자동으로 그 경로를 씁니다.
+
+## 4. CFD 이산화 (86-mac-cfd)
+
+| 항목 | 내용 |
+|---|---|
+| 격자 | 엇갈린 MAC. 속도는 셀 면(−x/−y/−z 면), 압력은 셀 중심. 아틀라스 2D 텍스처에 z 슬라이스 타일링 |
+| 경계 | 입구 균일류 U, 출구 p=0(디리클레)+예측속도 0기울기, 바닥은 롤링로드 구간만 이동벽(U), 나머지 벽 slip |
+| 고체 | 셀 고체 비율 φ(차량 2×2×2 슈퍼샘플, 팬 구동영역 φ=1, 사람 해석적). 면 개방률 θ=1−(φa+φb)/2. 고체 속도: 팬 U, 사람 보행속도, 바퀴 ω×r(ω=U/R) |
+| 연산자 | 컷셀 발산 Σ±[θu+(1−θ)us]/h, θ 가중 라플라시안. 둘이 호환되어 정확히 풀면 이산 발산이 0 |
+| 이류 | MacCormack(전·후진 반라그랑주, RK2 역추적) + 이웃 8점 최소/최대 제한자 |
+| 확산 | 분자점성 + Smagorinsky(Cs=0.16) 명시적, 안정 한계로 ν 상한 |
+| 압력 | RBGS-MG(기본, V-cycle, 적-흑 SOR 평활) / GMG(가중 야코비) / MGPCG(적-흑 V-cycle 전처리) / Jacobi |
+| 힘 | φ 램프를 가로지르는 압력 도약 적분 + 벽 전단(ν_eff) |
+| 연기 | 수동 스칼라, 속도 격자의 2배 해상도, MacCormack+제한자, 레이크/완드 방출원 |
+| 대체 | 초기화 실패 또는 발산 감지 시 RBGS → collocated 솔버 순으로 자동 전환, HUD에 표시 |
