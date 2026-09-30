@@ -25,10 +25,11 @@ static float F(const KV& kv, const char* k, float def = 0) { auto it = kv.find(k
 static string S(const KV& kv, const char* k) { auto it = kv.find(k); return it == kv.end() ? "-" : it->second; }
 
 static const set<string> EXCL_CARDS = {
+    // (goblin-drill / royal-delivery / tesla are modelled in simplified form)
     // champions / abilities / heavy special mechanics that are not modelled
     "skeleton-king", "golden-knight", "archer-queen", "monk", "mighty-miner", "little-prince", "boss-bandit",
     "santa-hog-rider", "terry", "raging-prince", "phoenix", "fisherman", "ram-rider", "royal-ghost", "elixir-golem",
-    "battle-healer", "mother-witch", "goblin-drill", "heal-spirit", "mirror", "royal-delivery", "party-rocket",
+    "battle-healer", "mother-witch", "heal-spirit", "mirror", "party-rocket",
     "clone", "tornado", "earthquake", "graveyard", "party-hut", "goblin-cage", "cannon-cart", "lumberjack", "bandit",
     "goblin-giant", "rage", "freeze", "electro-dragon", "electro-giant", "super-witch", "super-lava-hound",
     "super-magic-archer", "super-ice-golem", "super-archers", "super-mini-pekka", "mega-knight", "electro-spirit",
@@ -96,13 +97,16 @@ void Data::load(const string& path) {
       c.sk = c.key == "lightning" ? SP_LIGHTNING : SP_AREA; c.spd = 100;
       if (c.key == "lightning") { c.rad = 3.5f; c.dmg = 0; }
     }
-    if (c.key == "miner") c.anywhere = true;
+    if (c.key == "miner" || c.key == "goblin-drill") c.anywhere = true;
     // support decision
     c.supported = true;
     if (EXCL_CARDS.count(c.key) && !REENABLE.count(c.key)) { c.supported = false; c.why = "mechanic not modelled"; }
-    if (S(k, "unsupported") != "-") { c.supported = false; c.why = "no data"; }
+    if (S(k, "unsupported") != "-" && c.key != "royal-delivery") { c.supported = false; c.why = "no data"; }
     if (c.type != C_SPELL && c.unit < 0) { c.supported = false; c.why = "no unit data"; }
-    if (c.type != C_SPELL && c.unit >= 0) { const UDef& u = units[c.unit]; if (u.ability || u.hidden || u.hp <= 0) { c.supported = false; c.why = "ability/hidden"; } }
+    if (c.type != C_SPELL && c.unit >= 0) { const UDef& u = units[c.unit]; if ((u.ability || u.hidden) && u.name != "Tesla") { c.supported = false; c.why = "ability/hidden"; } if (u.hp <= 0) { c.supported = false; c.why = "ability/hidden"; } }
+    if (c.key == "royal-delivery" && unitIdx.count("DeliveryRecruit")) {  // area hit after ~2s + Royal Recruit; L11 area damage 261 (memory), crown tower -70%
+      c.type = C_SPELL; c.sk = SP_DELIVERY; c.rad = 3.0f; c.dmg = 261; c.ctp = -70; c.spd = 100; c.unit = unitIdx["DeliveryRecruit"]; c.gnd = true; c.air = false; c.supported = true; c.why = ""; c.anywhere = true;
+    }
     if (c.type == C_SPELL && c.sk == SP_NONE) { c.supported = false; c.why = "spell not modelled"; }
     if (c.key == "lightning") {
       // damage from projectile table (LighningSpell): L11 = 1537? use spell area damage from projectile if provided
@@ -190,6 +194,7 @@ bool Game::play(int team, int hi, float px, float py) {
     case SP_LOG: p.kind = 2; p.t = 0.5f; p.front = 0; break;
     case SP_BARREL: p.kind = 3; p.t = travel + 0.4f; break;
     case SP_LIGHTNING: p.kind = 4; p.t = 0.7f; break;
+    case SP_DELIVERY: p.kind = 5; p.t = 2.0f; break;
     default: break;
   }
   pend.push_back(p); return true;
@@ -275,6 +280,9 @@ void Game::step() {
         case 3: {
           for (int k = 0; k < c.barrelNum; k++) { float a = 6.28f * k / max(1, c.barrelNum); spawnUnit(c.barrelUnit, p.team, p.x + cosf(a) * 0.8f, p.y + sinf(a) * 0.8f, 0.1f, (float)c.elixir / max(1, c.barrelNum)); }
           done = true; break; }
+        case 5: {
+          strikeArea(p.team, p.x, p.y, c.rad, c.dmg, c.ctp, false, true, "-", 0);
+          spawnUnit(c.unit, p.team, p.x, p.y, 0.3f, (float)c.elixir * 0.6f); done = true; break; }
         case 4: {
           vector<pair<float, int>> cand;
           for (size_t k = 0; k < units.size(); k++) { Unit& u = units[k]; if (u.team == p.team || u.hp <= 0) continue; if (dist(p.x, p.y, u.x, u.y) <= c.rad) cand.push_back({-(u.hp + u.shield), (int)k}); }
@@ -304,7 +312,7 @@ void Game::step() {
     float spm = (u.slowT > 0 ? u.slowM : 1.0f) * (u.rageT > 0 ? 1.35f : 1.0f);
     if (d.spNum > 0 && d.spPause > 0) {
       u.spawnT -= DT * spm;
-      if (u.spawnT <= 0) { u.spawnT = d.spPause; for (int k = 0; k < d.spNum; k++) { float a = 6.28f * k / d.spNum; born.push_back(Unit{}); Unit& b = born.back(); b = Unit{}; b.def = d.spIdx; b.team = u.team; b.uid = nextUid++; b.x = u.x + cosf(a) * 0.9f; b.y = u.y + sinf(a) * 0.9f; const UDef& sd = D.units[d.spIdx]; b.hp = b.maxhp = sd.hp; b.shield = sd.shield; b.cd = sd.load; b.deployT = 0.5f; b.slowM = 1; b.life = sd.life; b.val = 0.5f; b.manaT = sd.mana; } }
+      if (u.spawnT <= 0) { u.spawnT = d.spPause; for (int k = 0; k < d.spNum; k++) { float a = 6.28f * k / d.spNum; born.push_back(Unit{}); Unit& b = born.back(); b = Unit{}; b.def = d.spIdx; b.team = u.team; b.uid = nextUid++; b.x = u.x + cosf(a) * 0.9f; b.y = u.y + sinf(a) * 0.9f; const UDef& sd = D.units[d.spIdx]; b.hp = b.maxhp = sd.hp; b.shield = sd.shield; b.cd = 0; b.deployT = d.building ? 0.15f : 0.5f; b.slowM = 1; b.life = sd.life; b.val = 0.5f; b.manaT = sd.mana; } }
     }
     if (d.dmg <= 0 && d.dmgs <= 0 && d.dashdmg <= 0) {
       if (d.spd <= 0) continue;
@@ -538,7 +546,7 @@ void Game::think(int team) {
       if (u.dmg <= 0) continue;
       if (Tair && !canHitAir && !Tgnd) continue;
       myHp *= 0.65f; float tk = Thp / max(myDps, 1.0f); float tm = myHp / max(Tdps, 1.0f); float ratio = tm / max(tk, 0.5f);
-      score = min(ratio, 2.5f) * min(2.0f, max(0.4f, Tval / c.elixir)); if (Tbo) score *= 1.5f; if (Tair && !canHitAir) score *= 0.5f;
+      score = min(ratio, 2.5f) * min(2.0f, max(0.4f, Tval / c.elixir)); if (Tbo) score *= 3.0f; if (Tair && !canHitAir) score *= 0.5f;
       float px = 9.0f + (clx < 9 ? -1.5f : 1.5f), py = 9.5f;
       if (score > 0.6f) offer(s, px, py, score);
       continue;
@@ -577,14 +585,15 @@ void Game::think(int team) {
     int bs = -1; float bsScore = -1;
     for (int s = 0; s < 4; s++) {
       int ci = deck[team][hand[team][s]]; const CardDef& c = D.cards[ci]; if (el < c.elixir) continue;
-      if (c.type == C_BUILDING) continue;
-      if (c.type == C_SPELL) { if (c.sk == SP_BARREL && el >= c.elixir + 1) { float sc = 3.0f + rng.uni(); if (sc > bsScore) { bsScore = sc; bs = s; } } continue; }
+      if (c.type == C_BUILDING && !c.anywhere) continue;
+      if (c.type == C_SPELL) { if ((c.sk == SP_BARREL || c.sk == SP_DELIVERY) && el >= c.elixir + 1) { float sc = 3.0f + rng.uni(); if (sc > bsScore) { bsScore = sc; bs = s; } } continue; }
       const UDef& u = D.units[c.unit]; float sc = (u.bo || c.anywhere) ? 5.0f + c.elixir * 0.1f : (u.hp * c.num) / 1000.0f; sc += rng.uni() * 0.5f;
       if (sc > bsScore) { bsScore = sc; bs = s; }
     }
     if (bs >= 0) {
       const CardDef& c = D.cards[deck[team][hand[team][bs]]];
-      if (c.type == C_SPELL) { play(team, bs, laneX, 27.0f); return; }
+      if (c.type == C_SPELL) { play(team, bs, laneX, c.sk == SP_DELIVERY ? 24.5f : 27.0f); return; }
+      if (c.type == C_BUILDING) { play(team, bs, laneX, 22.5f); return; }
       const UDef& u = D.units[c.unit]; float py;
       if (c.anywhere) py = 24.5f; else if (u.bo && u.spd >= 100) py = 13.8f; else if (u.bo) py = (u.spd <= 45 ? 3.5f : 6.0f); else py = 8.0f;
       play(team, bs, laneX, py); return;

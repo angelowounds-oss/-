@@ -28,7 +28,7 @@ struct UDef {
 };
 
 enum CardType { C_TROOP, C_BUILDING, C_SPELL };
-enum SpellKind { SP_NONE, SP_PROJ, SP_LOG, SP_BARREL, SP_AREA, SP_LIGHTNING };
+enum SpellKind { SP_NONE, SP_PROJ, SP_LOG, SP_BARREL, SP_AREA, SP_LIGHTNING, SP_DELIVERY };
 struct BuffDef { string name; float hsm = 0, spm = 0, dps = 0, freq = 0, ctp = 0; };
 
 struct CardDef {

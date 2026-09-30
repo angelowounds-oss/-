@@ -67,3 +67,13 @@ Files: `results/final_run3_holdout.txt`, `results/search_run3.log`, `results/can
 **Red flag:** Sparky appears in nearly all top decks. In the real game Sparky is not that dominant, so this is probably a
 simulator/AI artifact (splash + AoE timing, AI not exploiting Sparky's weaknesses). Treat run-3 results as provisional.
 Run 2's deck (`giant, witch, valkyrie, giant-skeleton, minion-horde, sparky, firecracker, bomb-tower`) also contains Sparky.
+
+## Real-meta decks (user-supplied lists) — `results/meta_pool.txt`
+User supplied images for 2.6 Hog ("순호"), Miner-Rocket ("광켓") and a Goblin Drill deck ("눈드릴"). Evolutions/heroes are NOT modelled,
+so they are replaced by the base card (Cannon, Skeletons, Tesla, Musketeer, Dark Prince).
+- 2.6 Hog: `cannon, musketeer, skeletons, hog-rider, fireball, ice-golem, ice-spirit, the-log`
+- 광켓: `skeletons, dark-prince, tesla, the-log, rocket, royal-delivery, electro-spirit, miner`
+- 눈드릴 (PROVISIONAL, card list unreadable in the image): `goblin-drill, cannon, goblin-gang, dart-goblin, skeletons, electro-spirit, giant-snowball, the-log`
+Added simplified Tesla (always up), Goblin Drill (spawner building) and Royal Delivery.
+Meta round robin (`crsearch meta`): 2.6 Hog mean 0.42, 광켓 0.51, other meta decks 0.46–0.71. The drill deck (0.00) and log-bait (0.12) are
+clearly wrong in this simulator (drill offence too weak; evo drill/cannon missing) and are excluded from the opponent pool (`meta_pool_ok.txt`).

@@ -1,0 +1,12 @@
+cannon,musketeer,skeletons,hog-rider,fireball,ice-golem,ice-spirit,the-log
+skeletons,dark-prince,tesla,the-log,rocket,royal-delivery,electro-spirit,miner
+golem,night-witch,baby-dragon,mega-minion,lightning,zap,tombstone,electro-wizard
+lava-hound,balloon,skeleton-dragons,mega-minion,tombstone,arrows,zap,barbarian-barrel
+pekka,battle-ram,electro-wizard,magic-archer,zap,dark-prince,bats,mini-pekka
+x-bow,tesla,archers,knight,skeletons,ice-spirit,fireball,the-log
+mega-knight,elixir-collector,bats,skeleton-barrel,minions,inferno-tower,zap,the-log
+balloon,ice-golem,ice-spirit,skeletons,musketeer,inferno-tower,the-log,fireball
+royal-hogs,royal-recruits,flying-machine,zappies,fireball,arrows,electro-spirit,barbarian-hut
+giant,prince,dark-prince,mega-minion,electro-wizard,zap,arrows,mini-pekka
+mortar,knight,archers,skeleton-army,bats,ice-spirit,fireball,the-log
+miner,poison,valkyrie,mega-minion,skeletons,ice-spirit,bomb-tower,the-log

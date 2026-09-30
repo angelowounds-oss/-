@@ -67,6 +67,12 @@ static void runTests() {
     check("Arrows kill Goblins, Minions and Spear Goblins", s.count(1, "Goblin") + s.count(1, "Minion") + s.count(1, "SpearGoblin") == 0, fmt("left g=%d m=%d sg=%d", s.count(1, "Goblin"), s.count(1, "Minion"), s.count(1, "SpearGoblin")), "Fandom wiki Arrows page (via search summary)"); }
   { Scn s; s.noTowers(); s.put("Musketeer", 1, 9, 22); s.put("Knight", 1, 9.5f, 22); cast(s, "arrows", 0, 9.2f, 22); check("Arrows do not kill Musketeer/Knight", s.count(1, "Musketeer") == 1 && s.count(1, "Knight") == 1, "", "common knowledge"); }
   { Scn s; float h0 = s.g.tw[1][0].hp; cast(s, "arrows", 0, 3.5f, 25.5f); float d = h0 - s.g.tw[1][0].hp; check("Arrows deal 25% (~72) to a crown tower", d > 55 && d < 90, fmt("tower dmg=%.0f", d), "search: crown tower damage ratio 25% since June 2026"); }
+  // 6c. New cards
+  { Scn s; s.noTowers(); int ci = D.card("goblin-drill"); s.g.deck[0][0] = ci; s.g.hand[0][0] = 0; s.g.elixir[0] = 10; s.g.play(0, 0, 3.5f, 24.0f); s.run(11); int gob = s.count(0, "Goblin");
+    check("Goblin Drill spawns Goblins over its 9s life (+2 on death)", gob >= 3, fmt("goblins=%d", gob), "data: spawn Goblin every 3s, life 9s, death spawn x2"); }
+  { Scn s; s.noTowers(); s.put("Goblin", 1, 9, 22); cast(s, "royal-delivery", 0, 9, 22, 3.0f); check("Royal Delivery kills Goblin and drops a Recruit", s.count(1, "Goblin") == 0 && s.count(0, "DeliveryRecruit") == 1, fmt("goblin=%d recruit=%d", s.count(1, "Goblin"), s.count(0, "DeliveryRecruit")), "community knowledge of the card"); }
+  { Scn s; int ci = D.card("goblin-drill"); s.g.deck[0][0] = ci; s.g.hand[0][0] = 0; s.g.elixir[0] = 10; s.g.tw[1][2].active = false; float h0 = s.g.tw[1][0].hp; s.g.play(0, 0, 3.5f, 22.0f); s.run(20); float d = h0 - s.g.tw[1][0].hp;
+    check("Goblin Drill alone chips the tower (informational)", true, fmt("tower dmg=%.0f goblins alive=%d", d, s.count(0, "Goblin")), "informational"); }
   // 7. Known counters (1v1-ish, no towers, same level 11, attacker vs defender placed 3 tiles apart)
   auto duel = [&](const char* atk, int na, const char* def, int nd, float sec) {
     Scn s; s.noTowers(); for (int i = 0; i < na; i++) s.put(atk, 0, 6 + 0.35f * i, 10); for (int i = 0; i < nd; i++) s.put(def, 1, 6 + 0.35f * i, 13); s.run(sec);
@@ -116,6 +122,10 @@ int main(int argc, char** argv) {
   else if (mode == "match" && argc >= 5) {
     auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); int g = atoi(argv[4]); int np = argc > 5 ? atoi(argv[5]) : 3; vector<vector<float>> m; float v = matchupValue(a, b, g, 7, np, &m);
     printf("value(A vs B)=%.3f (%d policies)\n", v, np); for (size_t i = 0; i < m.size() && i < 6; i++) { for (size_t j = 0; j < m[i].size() && j < 8; j++) printf("%.2f ", m[i][j]); printf("\n"); }
+  } else if (mode == "dbg" && argc >= 6) {  // dbg deckA deckB seed until : print all units once per second
+    auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); Game g(a, b, 1, 1, atoi(argv[4])); float until = atof(argv[5]); int last = -1;
+    while (!g.over && g.t < until) { g.step(); int sec = (int)(g.t + 0.001f); if (sec != last) { last = sec; printf("t=%d crowns %d-%d twHP0=[%.0f %.0f %.0f] twHP1=[%.0f %.0f %.0f]\n", sec, g.crowns[0], g.crowns[1], g.tw[0][0].hp, g.tw[0][1].hp, g.tw[0][2].hp, g.tw[1][0].hp, g.tw[1][1].hp, g.tw[1][2].hp);
+      for (auto& u : g.units) printf("    T%d %-14s (%.1f,%.1f) hp %.0f dep %.1f\n", u.team, D.units[u.def].name.c_str(), u.x, u.y, u.hp, u.deployT); } }
   } else if (mode == "game" && argc >= 4) {
     auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); Game g(a, b, 1, 1, argc > 4 ? atoi(argv[4]) : 1);
     int lastSec = -1;

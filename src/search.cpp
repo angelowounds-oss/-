@@ -101,7 +101,13 @@ static vector<Deck> buildPool(int nRandom, uint64_t seed, vector<pair<string, De
 int main(int argc, char** argv) {
   D.load("data/cr_data.txt"); string mode = argc > 1 ? argv[1] : "help";
   if (const char* e = getenv("CR_THREADS")) NT = atoi(e); if (const char* e = getenv("CR_NPOL")) NPOL = atoi(e); initPolicies();
-  if (mode == "roundrobin") {  // archetype round robin with heavy sampling
+  if (mode == "meta") {  // meta <g>: round robin among the decks in $CR_POOL (real-meta list)
+    int g = argc > 2 ? atoi(argv[2]) : 20; vector<Deck> P; { ifstream in(getenv("CR_POOL")); string l; while (getline(in, l)) if (!l.empty()) P.push_back(parseDeck(l)); }
+    int n = P.size(); vector<vector<float>> M(n, vector<float>(n, 0.5f)); vector<pair<int, int>> jobs; for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) jobs.push_back({i, j});
+    parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(P[i], P[j], g, 700 + k, NPOL); M[i][j] = v; M[j][i] = 1 - v; });
+    printf("meta round robin, %d decks, NPOL=%d, g=%d\n     ", n, NPOL, g); for (int j = 0; j < n; j++) printf("%3d ", j + 1); printf("  mean\n");
+    for (int i = 0; i < n; i++) { printf("%2d:  ", i + 1); double s = 0; for (int j = 0; j < n; j++) { printf("%3d ", (int)lround(100 * M[i][j])); if (j != i) s += M[i][j]; } printf("  %.2f\n", s / (n - 1)); }
+  } else if (mode == "roundrobin") {  // archetype round robin with heavy sampling
     int g = argc > 2 ? atoi(argv[2]) : 20; vector<pair<string, Deck>> a = archetypes(); int n = a.size();
     vector<vector<float>> M(n, vector<float>(n, 0.5f)); vector<pair<int, int>> jobs; for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) jobs.push_back({i, j});
     parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(a[i].second, a[j].second, g, 1000 + k, NPOL); M[i][j] = v; M[j][i] = 1 - v; });
@@ -139,7 +145,8 @@ int main(int argc, char** argv) {
   } else if (mode == "eval") {  // eval <deck> <g> <nrand>
     Deck d = parseDeck(argv[2]); int g = atoi(argv[3]), nrand = atoi(argv[4]); vector<pair<string, Deck>> arch; vector<Deck> pool = buildPool(nrand, 777, &arch);
     Ev e = evalDeck(d, pool, g, 31337, true); printf("rms %.4f linf %.3f mean %.3f min %.3f max %.3f\n", e.rms, e.linf, e.mean, e.mn, e.mx);
-    for (size_t j = 0; j < arch.size(); j++) printf("  vs %-22s %.3f\n", arch[j].first.c_str(), e.v[j]);
+    if (arch.empty()) { vector<pair<float, size_t>> o; for (size_t j = 0; j < pool.size(); j++) o.push_back({e.v[j], j}); sort(o.begin(), o.end()); for (auto& q : o) printf("  %.3f vs %s\n", q.first, deckStr(pool[q.second]).c_str()); }
+    else for (size_t j = 0; j < arch.size(); j++) printf("  vs %-22s %.3f\n", arch[j].first.c_str(), e.v[j]);
   } else if (mode == "buildpool") {  // buildpool <nCandidates> <keep> <out> : keep random decks that are competitive vs the archetypes
     int nc = atoi(argv[2]), keep = atoi(argv[3]); vector<pair<string, Deck>> arch = archetypes(); vector<Deck> ref; for (auto& a : arch) ref.push_back(a.second);
     Rng r(getenv("CR_POOLSEED") ? atoll(getenv("CR_POOLSEED")) : 2024); vector<Deck> cand; for (int i = 0; i < nc; i++) cand.push_back(randomDeck(r)); vector<Ev> E(nc);
