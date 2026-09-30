@@ -39,9 +39,12 @@ function hqInit(){HQ.ok=false;try{if(!lighting||!lighting.probes)throw Error('M1
   HQ.gen=runtimeGeneration;HQ.ok=true;FX.shadow=true}catch(e){HQ.err=String(e?.message||e);HQ.ok=false}
  finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height)}}
 /* ---- cascaded shadows ---- */
-function hqCsmAlloc(S){if(HQ.csm&&HQ.csmSize===S)return;if(HQ.csm){gl.deleteTexture(HQ.csm);gl.deleteFramebuffer(HQ.csmF)}const maxT=gl.getParameter(gl.MAX_TEXTURE_SIZE);S=Math.min(S,Math.floor(maxT/3));
+function hqCsmAlloc(S){if(HQ.csm&&HQ.csmSize===S&&HQ.csmGen===runtimeGeneration)return;HQ.csmGen=runtimeGeneration;HQ.csmFlat=null;HQ.csmDyn=null;HQ.csmDrawn=false;HQ.csmStaticOK=false;if(HQ.csm){gl.deleteTexture(HQ.csm);gl.deleteFramebuffer(HQ.csmF);if(HQ.csmS){gl.deleteTexture(HQ.csmS);gl.deleteFramebuffer(HQ.csmSF)}HQ.csmS=null;HQ.csmStaticVP=null}const maxT=gl.getParameter(gl.MAX_TEXTURE_SIZE);S=Math.min(S,Math.floor(maxT/3));
  HQ.csm=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,HQ.csm);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,S*3,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);for(const p of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,p,gl.NEAREST);for(const p of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,p,gl.CLAMP_TO_EDGE);
- HQ.csmF=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,HQ.csm,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);HQ.csmSize=S;gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
+ HQ.csmF=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,HQ.csm,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);HQ.csmSize=S;
+ /* static-caster atlas (same size and format so it can be blitted): scene boxes + non-wheel vehicle parts, redrawn only when the cascades move */
+ HQ.csmS=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,HQ.csmS);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,S*3,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);for(const q of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,q,gl.NEAREST);for(const q of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,q,gl.CLAMP_TO_EDGE);
+ HQ.csmSF=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmSF);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,HQ.csmS,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);HQ.csmStaticVP=null;gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
 function hqCsm(){const lvl=PERF.set.shadow|0;HQ.csmOn=HQ.ok&&lvl>=2;if(!HQ.csmOn)return;const S=lvl>=4?4096:(lvl>=3?2048:1536);hqCsmAlloc(S);
  const eye=camera.eye,fwd=norm(sub(camera.target,eye)),upv=norm(cross(cross(fwd,camera.up),fwd)),right=norm(cross(fwd,upv)),n=Math.max(.05,camera.near),f=Math.min(camera.far,40),asp=glCanvas.width/glCanvas.height,th=Math.tan(camera.fov*Math.PI/360);
  const split=[n];for(let i=1;i<=3;i++){const a=n*Math.pow(f/n,i/3),b=n+(f-n)*i/3;split.push(.8*a+.2*b)}
@@ -50,16 +53,30 @@ function hqCsm(){const lvl=PERF.set.shadow|0;HQ.csmOn=HQ.ok&&lvl>=2;if(!HQ.csmOn
   const c=[0,1,2].map(k=>pts.reduce((a,p)=>a+p[k],0)/8);let r=0;for(const p of pts)r=Math.max(r,Math.hypot(p[0]-c[0],p[1]-c[1],p[2]-c[2]));r=Math.ceil(r*16)/16;
   const lv=lookAt(c.map((v,k)=>v+L[k]*40),c,[0,0,-1]),tw=2*r/S;/* texel snapping (stable cascades) */const lc=m4point(lv,c);const sx=Math.round(lc[0]/tw)*tw-lc[0],sy=Math.round(lc[1]/tw)*tw-lc[1];
   const pr=ortho(-r+sx,r+sx,-r+sy,r+sy,1,90);VP.push(matMul(pr,lv));texel.push(tw)}
- const key=JSON.stringify([VP.map(m=>Array.from(m).map(v=>+v.toFixed(5))),rollingState.wheelAngles]);HQ.csmVP=VP;HQ.csmSplit=[split[1],split[2],split[3]];HQ.csmTexel=texel;
- if(key===HQ.csmKey)return;HQ.csmKey=key;
+ HQ.csmVP=VP;HQ.csmSplit=[split[1],split[2],split[3]];HQ.csmTexel=texel;
+ /* what invalidates what: cascades move with the camera (static + dynamic redraw); wheels / rollers / walking body change without the camera (dynamic only) */
+ const flat=new Float64Array(48+16);VP.forEach((m,i)=>flat.set(m,i*16));flat.set(vehicleModel(),48);
+ const same=(a,b)=>{if(!a||a.length!==b.length)return false;for(let i=0;i<a.length;i++)if(Math.abs(a[i]-b[i])>5e-6)return false;return true};
+ const Bd=window.__BODY,bodyOn=!!(Bd&&Bd.active&&!fpv.enabled&&Bd.parts),dyn=[...(rollingState.wheelAngles||[]),...(rollingState.rollerAngles||[]),bodyOn?Bd.x:-1e9,bodyOn?Bd.z:0,bodyOn?Bd.yaw:0,bodyOn?Bd.g:0];
+ const vpSame=same(HQ.csmFlat,flat),dynSame=same(HQ.csmDyn,dyn);if(vpSame&&dynSame&&HQ.csmDrawn)return;
+ HQ.csmFlat=flat;HQ.csmDyn=dyn;
  gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,null);gl.activeTexture(gl.TEXTURE0);
- gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.viewport(0,0,S*3,S);gl.clear(gl.DEPTH_BUFFER_BIT);gl.useProgram(lighting.depthProgram);
- const id=identityMatrix(),draw=(mesh,m,vp)=>{gl.uniformMatrix4fv(lighting.depthMVP,false,matMul(vp,m));gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(lighting.depthPos);gl.vertexAttribPointer(lighting.depthPos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.drawElements(gl.TRIANGLES,mesh.count,mesh.type,0)};
- for(let i=0;i<3;i++){gl.viewport(i*S,0,S,S);const vp=VP[i];
-  for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&o.center[1]+o.size[1]/2<3.5)draw(o.gpu,id,vp);
-  for(const r of scene.roadParts)if(r.gpu)draw(r.gpu,rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0),vp);
-  for(const p of scene.vehicleParts)if(p.gpu){const k=wheelParts().indexOf(p);draw(p.gpu,k<0?vehicleModel():wheelModel(p,rollingState.wheelAngles[k]||0),vp)}
-  const B=window.__BODY;if(B&&B.active&&!fpv.enabled&&B.parts){const a=-B.yaw,cc=Math.cos(a),ss=Math.sin(a),M=new Float64Array([cc,0,-ss,0,0,1,0,0,ss,0,cc,0,B.x,B.g,B.z,1]);for(const g of B.parts)draw(g,M,vp)}}
+ gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.useProgram(lighting.depthProgram);
+ const id=identityMatrix(),draw=(mesh,m,vp)=>{gl.uniformMatrix4fv(lighting.depthMVP,false,m===id?vp:matMul(vp,m));drawDepthMesh(mesh)};
+ const wp=wheelParts(),PL=OPT.cull?VP.map(m=>frustumPlanes(m,.03,true)):null;
+ const casters=(i,vp,pass)=>{ /* pass: 'all' | 'static' | 'dynamic' */
+  if(pass!=='dynamic')for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&o.center[1]+o.size[1]/2<3.5&&(!PL||aabbVisible(PL[i],o)))draw(o.gpu,id,vp);
+  if(pass!=='static')for(let j=0;j<scene.roadParts.length;j++){const r=scene.roadParts[j];if(r.gpu)draw(r.gpu,rollerModel(r,rollingState.rollerAngles[j]||0),vp)}
+  for(const p of scene.vehicleParts)if(p.gpu){const k=wp.indexOf(p);if(k<0){if(pass!=='dynamic')draw(p.gpu,vehicleModel(),vp)}else if(pass!=='static')draw(p.gpu,wheelModel(p,rollingState.wheelAngles[k]||0),vp)}
+  if(pass!=='static'&&bodyOn){const a=-Bd.yaw,cc=Math.cos(a),ss=Math.sin(a),M=new Float64Array([cc,0,-ss,0,0,1,0,0,ss,0,cc,0,Bd.x,Bd.g,Bd.z,1]);for(const g of Bd.parts)draw(g,M,vp)}};
+ if(OPT.split&&HQ.csmS){
+  if(!vpSame||!HQ.csmStaticOK){gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmSF);gl.viewport(0,0,S*3,S);gl.clear(gl.DEPTH_BUFFER_BIT);gl.useProgram(lighting.depthProgram);for(let i=0;i<3;i++){gl.viewport(i*S,0,S,S);casters(i,VP[i],'static')}HQ.csmStaticOK=true}
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER,HQ.csmSF);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,HQ.csmF);gl.blitFramebuffer(0,0,S*3,S,0,0,S*3,S,gl.DEPTH_BUFFER_BIT,gl.NEAREST);gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);for(let i=0;i<3;i++){gl.viewport(i*S,0,S,S);casters(i,VP[i],'dynamic')}
+ }else{
+  gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.viewport(0,0,S*3,S);gl.clear(gl.DEPTH_BUFFER_BIT);gl.useProgram(lighting.depthProgram);
+  for(let i=0;i<3;i++){gl.viewport(i*S,0,S,S);casters(i,VP[i],'all')}}
+ HQ.csmDrawn=true;HQ.csmStaticOK=HQ.csmStaticOK||false;
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height)}
 function hqBind(capture){if(!loc.hq)return;const on=HQ.ok&&!capture&&HQ.gen===runtimeGeneration;gl.uniform1f(loc.hq,on?1:0);if(!on){gl.uniform1f(loc.csmOn,0);for(const u of [4,5]){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_CUBE_MAP,lighting.dummy)}gl.activeTexture(gl.TEXTURE0);return}
  gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_CUBE_MAP,HQ.pref[0]);gl.uniform1i(loc.pref0,4);gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,HQ.pref[1]);gl.uniform1i(loc.pref1,5);

@@ -1,0 +1,43 @@
+[
+ {
+  "tier": "LOW",
+  "view": "Hero",
+  "static": {
+   "diffBytes": 0,
+   "maxDiff": 0,
+   "total": 884976
+  },
+  "stats": {
+   "culled": 121,
+   "drawn": 237
+  },
+  "dyn": {
+   "diffBytes": 0,
+   "maxDiff": 0,
+   "total": 884976
+  },
+  "each": {
+   "vao": {
+    "diffBytes": 71,
+    "maxDiff": 3,
+    "total": 884976
+   },
+   "cull": {
+    "diffBytes": 71,
+    "maxDiff": 3,
+    "total": 884976
+   },
+   "split": {
+    "diffBytes": 71,
+    "maxDiff": 3,
+    "total": 884976
+   }
+  },
+  "noise": {
+   "diffBytes": 71,
+   "maxDiff": 3,
+   "total": 884976
+  },
+  "litPixels": 209018
+ }
+]

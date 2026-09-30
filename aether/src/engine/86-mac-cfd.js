@@ -7,13 +7,13 @@
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:6,pre:2,post:2,coarse:4,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
 uniform ivec3 uN,uN2;uniform int uTX,uTX2;uniform vec3 uH,uH2,uMin;uniform float uU;
-out vec4 o;
+layout(location=0) out vec4 o;
 ivec2 AT(ivec3 c,ivec3 n,int tx){return ivec2((c.z%tx)*n.x+c.x,(c.z/tx)*n.y+c.y);}
 ivec2 A(ivec3 c){return AT(c,uN,uTX);}
 ivec3 C(){ivec2 f=ivec2(gl_FragCoord.xy);int tx=f.x/uN.x,ty=f.y/uN.y;return ivec3(f.x-tx*uN.x,f.y-ty*uN.y,ty*uTX+tx);}
@@ -207,9 +207,10 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)
  for(int e=0;e<16;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w;r=max(r,uEmS*exp(-dot(d,d)/(rr*rr)));}
  o=vec4(max(r,0.),0,0,0);}`,
 /* volume texture for rendering (dye resolution): r dye, g solid (1 car/.6 fan), b speed/U */
-vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;
-void main(){ivec3 c=ivec3(ivec2(gl_FragCoord.xy),uLayer);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;float id,ph=PHIT(uSol,P-.5,uN2,uTX2,id);
- float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);o=vec4(g>0.?0.:F(uDye,c).x,g,length(VEL(uVel,P,uN2,uTX2))/max(uU,.1),1.);}`,
+vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;
+vec4 lay(int k){if(k>=uN.z)return vec4(0.);ivec3 c=ivec3(ivec2(gl_FragCoord.xy),k);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;float id,ph=PHIT(uSol,P-.5,uN2,uTX2,id);
+ float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);return vec4(g>0.?0.:F(uDye,c).x,g,length(VEL(uVel,P,uN2,uTX2))/max(uU,.1),1.);}
+void main(){o=lay(uLayer);o1=lay(uLayer+1);o2=lay(uLayer+2);o3=lay(uLayer+3);}`,
 init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}o=vec4(uU,0.,0.,0.);}`,
 clear:`void main(){o=vec4(0.);}`};
 
@@ -276,11 +277,25 @@ function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.m
 function macRelease(){const del=t=>{if(t&&t.t){gl.deleteTexture(t.t);gl.deleteFramebuffer(t.f)}};if(MAC.t)for(const k in MAC.t)del(MAC.t[k]);if(MAC.Z){del(MAC.Z.pA);del(MAC.Z.pB)}for(const L of MAC.lv||[])for(const k in L.T)del(L.T[k]);(MAC.red||[]).forEach(r=>del(r.t));(MAC.scal||[]).forEach(del);
  if(MAC.vol)gl.deleteTexture(MAC.vol);if(MAC.volFbo)gl.deleteFramebuffer(MAC.volFbo);MAC.t=null;MAC.lv=null;MAC.red=null;MAC.scal=null;MAC.vol=null;MAC.ok=false}
 /* one pass on grid g (primary). g2 = secondary grid (dye passes) */
-function macPass(name,out,tex,uni,g,g2){const p=MAC.prog[name];g=g||MAC.G;g2=g2||g;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,out.f);gl.viewport(0,0,out.w||g.W,out.h||g.H);
- const hh=g.h||MAC.h,h2=g2.h||MAC.h;gl.uniform3i(liveU(p,'uN'),...g.N);gl.uniform1i(liveU(p,'uTX'),g.tx);gl.uniform3f(liveU(p,'uH'),...hh);gl.uniform3i(liveU(p,'uN2'),...g2.N);gl.uniform1i(liveU(p,'uTX2'),g2.tx);gl.uniform3f(liveU(p,'uH2'),...h2);
- gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);
- let unit=8;for(const n in tex){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex[n]);gl.uniform1i(liveU(p,n),unit);unit++}
- for(const n in uni){const v=uni[n],l=liveU(p,n);if(l===null)continue;if(Array.isArray(v)){if(v.length===4)gl.uniform4f(l,...v);else if(v.length===3)gl.uniform3f(l,...v)}else if(v&&v.int!==undefined)gl.uniform1i(l,v.int);else if(v&&v.i3)gl.uniform3i(l,...v.i3);else if(v instanceof Float32Array)gl.uniform4fv(l,v);else gl.uniform1f(l,v)}
+/* Redundant-state elimination. Uniform values live in the program object, so the per-program caches (p._mg geometry block, p._uc floats,
+   p._ui ints, p._us sampler units) are valid whenever only macPass sets these uniforms. Program / framebuffer / viewport / texture-unit
+   caches are only valid while nothing else touches GL state, so they exist only inside macStep (MAC.cw, opened and closed there). */
+function macPass(name,out,tex,uni,g,g2){const p=MAC.prog[name];g=g||MAC.G;g2=g2||g;const C=MAC.cw;
+ if(!C||C.prog!==p){gl.useProgram(p);if(C)C.prog=p}
+ if(!C||C.fb!==out.f){gl.bindFramebuffer(gl.FRAMEBUFFER,out.f);if(C)C.fb=out.f}
+ const vw=out.w||g.W,vh=out.h||g.H;if(!C||C.vw!==vw||C.vh!==vh){gl.viewport(0,0,vw,vh);if(C){C.vw=vw;C.vh=vh}}
+ const hh=g.h||MAC.h,h2=g2.h||MAC.h,G=p._mg||(p._mg={});
+ if(G.gN!==g.N||G.gt!==g.tx||G.gh!==hh||G.g2N!==g2.N||G.g2t!==g2.tx||G.g2h!==h2||G.min!==MAC.min||G.U!==MAC.U){
+  gl.uniform3i(liveU(p,'uN'),...g.N);gl.uniform1i(liveU(p,'uTX'),g.tx);gl.uniform3f(liveU(p,'uH'),...hh);gl.uniform3i(liveU(p,'uN2'),...g2.N);gl.uniform1i(liveU(p,'uTX2'),g2.tx);gl.uniform3f(liveU(p,'uH2'),...h2);
+  gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);G.gN=g.N;G.gt=g.tx;G.gh=hh;G.g2N=g2.N;G.g2t=g2.tx;G.g2h=h2;G.min=MAC.min;G.U=MAC.U}
+ const uc=p._uc||(p._uc={}),ui=p._ui||(p._ui={}),us=p._us||(p._us={});let unit=8;
+ for(const n in tex){const t=tex[n];if(!C||C.tb[unit]!==t){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);if(C)C.tb[unit]=t}
+  if(us[n]!==unit){gl.uniform1i(liveU(p,n),unit);us[n]=unit}unit++}
+ for(const n in uni){const v=uni[n],l=liveU(p,n);if(l===null)continue;
+  if(typeof v==='number'){if(uc[n]!==v){uc[n]=v;gl.uniform1f(l,v)}}
+  else if(Array.isArray(v)){if(v.length===4)gl.uniform4f(l,...v);else if(v.length===3)gl.uniform3f(l,...v)}
+  else if(v&&v.int!==undefined){if(ui[n]!==v.int){ui[n]=v.int;gl.uniform1i(l,v.int)}}
+  else if(v&&v.i3)gl.uniform3i(l,...v.i3);else if(v instanceof Float32Array)gl.uniform4fv(l,v)}
  gl.drawArrays(gl.TRIANGLES,0,3)}
 const macSwap=(o,a,b)=>{const x=o[a];o[a]=o[b];o[b]=x};
 function macGridOf(l){const L=MAC.lv[l];return {N:L.N,tx:L.tx,W:L.W,H:L.H,h:L.h}}
@@ -307,7 +322,7 @@ function macVcycle(l,kind,X0,b0){const Lv=MAC.lv,L=Lv[l],X=macLvX(l,X0),b=macLvB
  macVcycle(l+1,kind,X0,b0);
  macPass('pprol',X.pB,{uP:X.pA.t,uPC:C.T.pA.t,uGC:macGeomOf(l+1),uG:macGeomOf(l)},{uNC:{i3:C.N},uTXC:{int:C.tx},uR:{i3:C.r},uCorr:MAC.corr,uTri:MAC.prol},g);macSwap(X,'pA','pB');
  macSmooth(l,MAC.post,kind,[1,0],X,b)}
-function liveReduceTo(src,sw,sh,chain){const p=LIVE.prog.sum;gl.useProgram(p);let s=src,w=sw,h=sh;for(const r of chain){gl.bindFramebuffer(gl.FRAMEBUFFER,r.t.f);gl.viewport(0,0,r.w,r.h);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,s.t);gl.uniform1i(liveU(p,'uS'),8);gl.uniform2i(liveU(p,'uSz'),w,h);gl.drawArrays(gl.TRIANGLES,0,3);s=r.t;w=r.w;h=r.h}return s}
+function liveReduceTo(src,sw,sh,chain){if(MAC.cw){MAC.cw.prog=null;MAC.cw.fb=null;MAC.cw.vw=0;MAC.cw.tb={}}const p=LIVE.prog.sum;gl.useProgram(p);let s=src,w=sw,h=sh;for(const r of chain){gl.bindFramebuffer(gl.FRAMEBUFFER,r.t.f);gl.viewport(0,0,r.w,r.h);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,s.t);gl.uniform1i(liveU(p,'uS'),8);gl.uniform2i(liveU(p,'uSz'),w,h);gl.drawArrays(gl.TRIANGLES,0,3);s=r.t;w=r.w;h=r.h}return s}
 function macDot(a,b){const T=MAC.t;macPass('pdot',T.frc,{uX:a,uY:b},{});return liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red)}
 const MAC_ONE={N:[1,1,1],tx:1,W:1,H:1,h:[1,1,1]};
 function macScal(mode,dotTex){const [S0,S1]=MAC.scal;macPass('pscal',S1,{uS:S0.t,uD:dotTex.t},{uMode:{int:mode},uTol2:MAC.tol*MAC.tol},MAC_ONE);MAC.scal=[S1,S0]}
@@ -328,7 +343,8 @@ function macSolve(){const L0=MAC.lv[0],T=MAC.t,s=MAC.solver;
   pre();macScal(2,macDot(T.cgR.t,Z.pA.t));
   macAxpy(T.cgS,T.cgD,Z.pA,2,1);macSwap(T,'cgD','cgS')}}
 /* ---- one time step ---- */
-function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
+function macStep(dt,emit){MAC.cw={prog:null,fb:null,vw:0,vh:0,tb:{}};try{macStepBody(dt,emit)}finally{MAC.cw=null}}
+function macStepBody(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  MAC.U=cfg.U??LIVE.U;
  if(cfg.body||MAC.step===0||(cfg.obstacle&&MAC.spinUntil&&MAC.time<MAC.spinUntil+2*dt))macSolids();
  /* MacCormack velocity advection */
@@ -351,10 +367,15 @@ function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao)
   macPass('dadv',T.dhat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt},Dg,MAC.G);macPass('dadv',T.dbar,{uVel:T.velA.t,uSrc:T.dhat.t},{uDt:-dt},Dg,MAC.G);
   macPass('dcorr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.dhat.t,uBar:T.dbar.t,uSol:T.sol.t},{uDt:dt,uDecay:.9985,uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}},Dg,MAC.G);macSwap(T,'dyeA','dyeB')}
  MAC.step++;MAC.time+=dt;MAC.lastDt=dt}
+MAC.copyVolume=()=>macCopyVolume();/* test hook: the volume is normally filled by the render loop */
 function macCopyVolume(){const p=MAC.prog.vcopy,D=MAC.D,Nd=D.N,T=MAC.t;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.volFbo);gl.viewport(0,0,Nd[0],Nd[1]);
  gl.uniform3i(liveU(p,'uN'),...Nd);gl.uniform1i(liveU(p,'uTX'),D.tx);gl.uniform3f(liveU(p,'uH'),...MAC.hd);gl.uniform3i(liveU(p,'uN2'),...MAC.N);gl.uniform1i(liveU(p,'uTX2'),MAC.G.tx);gl.uniform3f(liveU(p,'uH2'),...MAC.h);gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);
  const bind=(u,n,t)=>{gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,n),u)};bind(8,'uVel',T.velA.t);bind(9,'uDye',T.dyeA.t);bind(10,'uSol',T.sol.t);
- for(let k=0;k<Nd[2];k++){gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,MAC.vol,0,k);gl.uniform1i(liveU(p,'uLayer'),k);gl.drawArrays(gl.TRIANGLES,0,3)}
+ /* four consecutive layers per draw: one colour attachment per layer of the same 3D texture */
+ const AT=[gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1,gl.COLOR_ATTACHMENT2,gl.COLOR_ATTACHMENT3];
+ for(let k=0;k<Nd[2];k+=4){const n=Math.min(4,Nd[2]-k);for(let j=0;j<4;j++){if(j<n)gl.framebufferTextureLayer(gl.FRAMEBUFFER,AT[j],MAC.vol,0,k+j);else gl.framebufferTextureLayer(gl.FRAMEBUFFER,AT[j],null,0,0)}
+  gl.drawBuffers(AT.map((a,j)=>j<n?a:gl.NONE));gl.uniform1i(liveU(p,'uLayer'),k);gl.drawArrays(gl.TRIANGLES,0,3)}
+ for(let j=1;j<4;j++)gl.framebufferTextureLayer(gl.FRAMEBUFFER,AT[j],null,0,0);gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
  gl.bindTexture(gl.TEXTURE_3D,MAC.vol);gl.generateMipmap(gl.TEXTURE_3D)}
 /* velocity at a world point (face average -> cell centre of the containing cell) */
 function macReadCell(i,j,k){const G=MAC.G,N=MAC.N,px=(ii,jj,kk)=>{ii=Math.min(N[0]-1,Math.max(0,ii));jj=Math.min(N[1]-1,Math.max(0,jj));kk=Math.min(N[2]-1,Math.max(0,kk));const b=new Float32Array(4);gl.readPixels((kk%G.tx)*N[0]+ii,Math.floor(kk/G.tx)*N[1]+jj,1,1,gl.RGBA,gl.FLOAT,b);return b};

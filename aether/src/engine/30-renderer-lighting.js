@@ -170,7 +170,7 @@ function renderLightingShadow(force=false){
  // Unbind sampled depth before it becomes a draw attachment.
  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,null);gl.activeTexture(gl.TEXTURE0);
  gl.bindFramebuffer(gl.FRAMEBUFFER,lighting.shadowFBO);gl.viewport(0,0,lighting.shadowSize,lighting.shadowSize);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.clear(gl.DEPTH_BUFFER_BIT);gl.useProgram(lighting.depthProgram);
- function depth(mesh,m){gl.uniformMatrix4fv(lighting.depthMVP,false,matMul(lighting.lightVP,m));gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(lighting.depthPos);gl.vertexAttribPointer(lighting.depthPos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.drawElements(gl.TRIANGLES,mesh.count,mesh.type,0);}
+ function depth(mesh,m){gl.uniformMatrix4fv(lighting.depthMVP,false,m===id?lighting.lightVP:matMul(lighting.lightVP,m));drawDepthMesh(mesh)}
  const id=identityMatrix();
  // Ceiling fixtures emit below the ceiling: roof/HVAC above fixtures do not occlude them.
  for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&o.center[1]+o.size[1]/2<3.5)depth(o.gpu,id);
