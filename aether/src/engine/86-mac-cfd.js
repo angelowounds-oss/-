@@ -7,7 +7,7 @@
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={Cs:.16,nuMol:1.5e-5,eps:0,solver:'MGPCG',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
@@ -254,7 +254,8 @@ function macGridOf(l){const L=MAC.lv[l];return {N:L.N,tx:L.tx,W:L.W,H:L.H,h:L.h}
 function macReset(){gl.bindVertexArray(LIVE.vao);const T=MAC.t;for(const k in T)liveClear(T[k]);liveClear(MAC.Z.pA);liveClear(MAC.Z.pB);for(const s of MAC.scal)liveClear(s);for(const L of MAC.lv)for(const k in L.T)liveClear(L.T[k]);
  macSolids();macPass('init',T.velA,{},{});MAC.step=0;MAC.time=0;MAC.forceHist=[];gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null)}
 function macSolids(){const T=MAC.t,B=window.__BODY,act=!!(MAC.cfg.body&&B&&B.active),W=MAC.wheels||[],wh=new Float32Array(16);W.forEach((w,i)=>wh.set(w,i*4));const R=W[0]?.[3]||.34;
- macPass('solid',T.sol,{uStatic:MAC.staticTex},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0],uBodyV:act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0],uWh:wh,uWhW:MAC.whW||.15,uOm:MAC.U/R});
+ const om=MAC.cfg.obstacle?(MAC.time<(MAC.spinUntil||0)?MAC.spin||0:0):MAC.U/R;
+ macPass('solid',T.sol,{uStatic:MAC.staticTex},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0],uBodyV:act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0],uWh:wh,uWhW:MAC.cfg.obstacle?1e3:(MAC.whW||.15),uOm:om});
  macPass('geom',T.geom,{uSol:T.sol.t},{});
  for(let l=1;l<MAC.lv.length;l++){const F=l===1?{t:T.geom}:{t:MAC.lv[l-1].T.geom},Lf=MAC.lv[l-1];macPass('cgeom',MAC.lv[l].T.geom,{uGF:F.t.t},{uNF:{i3:Lf.N},uTXF:{int:Lf.tx}},macGridOf(l))}}
 /* ---- pressure solvers. A level-0 "context" X={pA,pB} holds the iterate, b0 the right-hand side ---- */
@@ -296,7 +297,7 @@ function macSolve(){const L0=MAC.lv[0],T=MAC.t,s=MAC.solver;
 /* ---- one time step ---- */
 function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  MAC.U=cfg.U??LIVE.U;
- if(cfg.body||MAC.step===0)macSolids();
+ if(cfg.body||MAC.step===0||(cfg.obstacle&&MAC.spinUntil&&MAC.time<MAC.spinUntil+2*dt))macSolids();
  /* MacCormack velocity advection */
  macPass('adv',T.hat,{uVel:T.velA.t,uSrc:T.velA.t},{uDt:dt});
  macPass('adv',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
@@ -347,3 +348,24 @@ function macMemoryMB(){let s=0;const add=(g,bpp)=>{s+=g.W*g.H*bpp};const G=MAC.G
 function macReadAllD(t){const D=MAC.D,buf=new Float32Array(D.W*D.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,D.W,D.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
 function macFlagCounts(){const s=macReadAll(MAC.t.sol),N=MAC.N,c={fluid:0,car:0,fan:0,body:0};for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const w=s[macFieldIndex(i,j,k)+3],id=Math.floor(w*.5+.001),ph=w-2*id;
   if(ph<.5)c.fluid++;else c[['fluid','car','fan','body'][id]]++}return c}
+/* solver comparison on one fixed right-hand side (current velocity field): cold start, timed with a readPixels fence */
+function macSolveBench(list){const T=MAC.t,L0=MAC.lv[0],out=[],save={solver:MAC.solver,cycles:MAC.cycles,pcgIters:MAC.pcgIters,jacobiIters:MAC.jacobiIters,pre:MAC.pre,post:MAC.post};
+ gl.bindVertexArray(LIVE.vao);const dt=MAC.lastDt||.02;macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt});
+ const fence=()=>{const b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,L0.T.pA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b)};
+ for(const c of list){Object.assign(MAC,c);liveClear(L0.T.pA);liveClear(L0.T.pB);fence();const t0=performance.now();macSolve();fence();const ms=performance.now()-t0;
+  const r=macResidual();gl.bindVertexArray(LIVE.vao);out.push({...c,ms,rel:r.rel,nonFinite:r.nonFinite})}
+ Object.assign(MAC,save);gl.bindVertexArray(null);return out}
+function macMemBreakdown(){const G=MAC.G,lvB=MAC.lv.slice(1).reduce((a,L)=>a+L.W*L.H*(4*4+8),0),base=G.W*G.H;
+ return {levelsMB:(lvB+base*4*3)/1048576,pcgVectorsMB:base*4*6/1048576,jacobiMB:base*4*2/1048576}}
+
+/* ---- validation domain API ---- */
+function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,max:cfg.max,obstacle:cfg.obstacle||null,U:cfg.U??1,nu:cfg.nu??0,rho:1,Aref:cfg.Aref};MAC.les=cfg.les??false;
+ LIVE.enabled=false;LIVE.freeze=true;macInit();if(cfg.obstacle){MAC.wheels=[[...cfg.obstacle.c,cfg.obstacle.D/2]];MAC.spin=cfg.spin||0;MAC.spinUntil=cfg.spinUntil||0}
+ gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
+/* run n steps; every `every` steps record forces (and probe velocity) */
+function macVrun(n,dt,every=1,probe=null){const rec=[];const t0=performance.now();
+ for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
+ gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);return {rec,ms:performance.now()-t0,step:MAC.step,time:MAC.time}}
+function macUniformError(){const v=macReadAll(MAC.t.velA),N=MAC.N,U=MAC.U;let mx=0,mt=0,n=0,bad=0;
+ for(let k=1;k<N[2]-1;k++)for(let j=1;j<N[1]-1;j++)for(let i=1;i<N[0]-1;i++){const q=macFieldIndex(i,j,k);if(![v[q],v[q+1],v[q+2]].every(Number.isFinite)){bad++;continue}mx=Math.max(mx,Math.abs(v[q]-U)/U);mt=Math.max(mt,Math.hypot(v[q+1],v[q+2])/U);n++}
+ return {cells:n,maxRelErrU:mx,maxRelCross:mt,nonFinite:bad}}

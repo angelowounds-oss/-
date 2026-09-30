@@ -1,0 +1,144 @@
+{
+ "impl": {
+  "impl": "MAC",
+  "macErr": null
+ },
+ "cold": [
+  {
+   "solver": "JACOBI",
+   "jacobiIters": 32,
+   "ms": 1863.2000000001863,
+   "rel": 0.14382962540397254,
+   "nonFinite": 0
+  },
+  {
+   "solver": "JACOBI",
+   "jacobiIters": 128,
+   "ms": 6790.5999999996275,
+   "rel": 0.027952557277813622,
+   "nonFinite": 0
+  },
+  {
+   "solver": "GMG",
+   "cycles": 1,
+   "ms": 335,
+   "rel": 0.7888021073363751,
+   "nonFinite": 0
+  },
+  {
+   "solver": "GMG",
+   "cycles": 2,
+   "ms": 580.3000000002794,
+   "rel": 1.0253655546948746,
+   "nonFinite": 0
+  },
+  {
+   "solver": "GMG",
+   "cycles": 4,
+   "ms": 1271.8999999999069,
+   "rel": 1.688770062215876,
+   "nonFinite": 0
+  },
+  {
+   "solver": "RBGS",
+   "cycles": 1,
+   "ms": 534.5,
+   "rel": 0.2432689583951148,
+   "nonFinite": 0
+  },
+  {
+   "solver": "RBGS",
+   "cycles": 2,
+   "ms": 854.8999999999069,
+   "rel": 0.08955754957105945,
+   "nonFinite": 0
+  },
+  {
+   "solver": "RBGS",
+   "cycles": 4,
+   "ms": 1852.2000000001863,
+   "rel": 0.01640541061649443,
+   "nonFinite": 0
+  },
+  {
+   "solver": "MGPCG",
+   "pcgIters": 1,
+   "ms": 1099.1000000000931,
+   "rel": 0.24784441031130852,
+   "nonFinite": 0
+  },
+  {
+   "solver": "MGPCG",
+   "pcgIters": 2,
+   "ms": 1613.5,
+   "rel": 0.14973542579601645,
+   "nonFinite": 0
+  },
+  {
+   "solver": "MGPCG",
+   "pcgIters": 4,
+   "ms": 2532.6999999997206,
+   "rel": 0.06732245460237626,
+   "nonFinite": 0
+  },
+  {
+   "solver": "MGPCG",
+   "pcgIters": 8,
+   "ms": 2142.3000000002794,
+   "rel": 0.0004043153725212244,
+   "nonFinite": 0
+  }
+ ],
+ "mem": {
+  "levelsMB": 3.260101318359375,
+  "pcgVectorsMB": 5.07568359375,
+  "jacobiMB": 1.69189453125
+ },
+ "stability": [
+  {
+   "solver": "GMG",
+   "cycles": 2,
+   "msPerStep": 3574.825,
+   "divRelRms": 2.420761195034425e+23,
+   "divRelMax": 1.4119868097636874e+24,
+   "nonFinite": 0,
+   "resRel": 2.6060767144905694e+23,
+   "upstream": 1.708384399569516e+21,
+   "wakeX": 7.615875875799605e+22
+  },
+  {
+   "solver": "RBGS",
+   "cycles": 2,
+   "msPerStep": 4708.808333333333,
+   "divRelRms": 0.00003763933189030052,
+   "divRelMax": 0.00172649710956547,
+   "nonFinite": 0,
+   "resRel": 0.0006491913939130122,
+   "upstream": 5.017999649047852,
+   "wakeX": -0.21691352128982544
+  },
+  {
+   "solver": "MGPCG",
+   "pcgIters": 4,
+   "msPerStep": 7727.1816666666655,
+   "divRelRms": 0.00003672362105591784,
+   "divRelMax": 0.0017323756590485572,
+   "nonFinite": 0,
+   "resRel": 0.00018084848461402288,
+   "upstream": 5.018044710159302,
+   "wakeX": -0.21585524827241898
+  },
+  {
+   "solver": "MGPCG",
+   "pcgIters": 2,
+   "msPerStep": 2486.025,
+   "divRelRms": 0.000041322198197876854,
+   "divRelMax": 0.0022958424356248645,
+   "nonFinite": 0,
+   "resRel": 0.0014410128331032667,
+   "upstream": 5.01801872253418,
+   "wakeX": -0.10254791378974915
+  }
+ ],
+ "pageErrors": []
+}

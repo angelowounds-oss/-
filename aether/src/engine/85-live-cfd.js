@@ -319,6 +319,11 @@ Object.assign(LIVE.api,{
  rebuildLevels(){liveBuildLevels()},
  forces(){return LIVE.impl==='MAC'?macForces():liveForces()},
  mac(){return MAC},
+ solveBench(list){return macSolveBench(list)},
+ validate(cfg){return macValidate(cfg)},
+ vrun(n,dt,every,probe){return macVrun(n,dt,every,probe)},
+ uniformError(){return macUniformError()},
+ memBreakdown(){return macMemBreakdown()},
  set(o){Object.assign(LIVE,o)}});
 
 function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);

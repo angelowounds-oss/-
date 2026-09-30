@@ -1417,9 +1417,14 @@ let gl,program,loc={},buffers=[],textures=[],whiteTexture=null,raf=0,runtimeGene
  in vec3 a_position;in vec3 a_normal;in vec2 a_uv;uniform mat4 u_mvp;uniform mat4 u_model;out vec3 v_normal;out vec2 v_uv;out vec3 v_world;void main(){v_normal=normalize(transpose(inverse(mat3(u_model)))*a_normal);v_uv=a_uv;v_world=(u_model*vec4(a_position,1.0)).xyz;gl_Position=u_mvp*vec4(a_position,1.0);}`;const frag=`#version 300 es
 precision highp float;
 uniform vec4 u_eye,u_surface,u_color;uniform float u_alpha,u_useTex,u_beltSurface,u_beltTravel,u_rollerSurface,u_colorLinear;uniform sampler2D u_tex;
-in vec3 v_normal;in vec2 v_uv;in vec3 v_world;out vec4 outColor;
+in vec3 v_normal;in vec2 v_uv;in vec3 v_world;layout(location=0) out vec4 outColor;layout(location=1) out vec4 outAmb;
 uniform samplerCube u_env0,u_env1;uniform highp sampler2D u_shadowMap;
-uniform mat4 u_lightVP;uniform float u_capture,u_shadowEnabled,u_exposure;
+uniform mat4 u_lightVP;uniform float u_capture,u_shadowEnabled,u_exposure,u_hdrOut;
+uniform samplerCube u_pref0,u_pref1;uniform highp sampler2D u_csmMap;uniform mat4 u_csmVP[3];uniform vec3 u_csmSplit,u_csmTexel,u_camFwd,u_sh0[9],u_sh1[9];uniform float u_hq,u_csmOn,u_pcss,u_clearcoat,u_prefLod,u_ambK;
+vec3 shIrr(vec3 n,vec3 L[9]){const float c1=.429043,c2=.511664,c3=.743125,c4=.886227,c5=.247708;
+ return c1*L[8]*(n.x*n.x-n.y*n.y)+c3*L[6]*n.z*n.z+c4*L[0]-c5*L[6]+2.*c1*(L[4]*n.x*n.y+L[7]*n.x*n.z+L[5]*n.y*n.z)+2.*c2*(L[3]*n.x+L[1]*n.y+L[2]*n.z);}
+vec3 envBRDF(vec3 F0,float r,float nv){const vec4 c0=vec4(-1.,-.0275,-.572,.022),c1=vec4(1.,.0425,1.04,-.04);vec4 q=r*c0+c1;float a=min(q.x*q.x,exp2(-9.28*nv))*q.x+q.y;vec2 AB=vec2(-1.04,1.04)*a+q.zw;return F0*AB.x+AB.y;}
+const vec2 POIS[16]=vec2[16](vec2(-.94201624,-.39906216),vec2(.94558609,-.76890725),vec2(-.094184101,-.92938870),vec2(.34495938,.29387760),vec2(-.91588581,.45771432),vec2(-.81544232,-.87912464),vec2(-.38277543,.27676845),vec2(.97484398,.75648379),vec2(.44323325,-.97511554),vec2(.53742981,-.47373420),vec2(-.26496911,-.41893023),vec2(.79197514,.19090188),vec2(-.24188840,.99706507),vec2(-.81409955,.91437590),vec2(.19984126,.78641367),vec2(.14383161,-.14100790));
 const float PI=3.14159265359;
 vec3 linearize(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));}
 vec3 encode(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0)),vec3(1./2.4))-.055,step(vec3(.0031308),c));}
@@ -1435,6 +1440,18 @@ vec3 roomReflection(vec3 ray,float rough){
  vec3 b=boxDirection(ray,vec3(-4.1,.75,4.),vec3(4.1,4.,9.3),vec3(0.,2.4,7.));
  return mix(textureLod(u_env0,a,rough*7.).rgb,textureLod(u_env1,b,rough*7.).rgb,smoothstep(3.8,4.5,v_world.z))*8.;
 }
+float shadowVisibility(vec3 n,vec3 l);
+vec3 prefReflection(vec3 ray,float rough){
+ vec3 a=boxDirection(ray,vec3(-9.,0.,-4.),vec3(9.,5.5,4.),vec3(0.,2.,0.));vec3 b=boxDirection(ray,vec3(-4.1,.75,4.),vec3(4.1,4.,9.3),vec3(0.,2.4,7.));
+ float lod=clamp(sqrt(rough)*u_prefLod,0.,u_prefLod);return mix(textureLod(u_pref0,a,lod).rgb,textureLod(u_pref1,b,lod).rgb,smoothstep(3.8,4.5,v_world.z))*8.;}
+float csmVis(vec3 n,vec3 l){float d=dot(v_world-u_eye.xyz,u_camFwd);int ci=d<u_csmSplit.x?0:(d<u_csmSplit.y?1:2);if(d>u_csmSplit.z)return shadowVisibility(n,l);
+ float tw=ci==0?u_csmTexel.x:(ci==1?u_csmTexel.y:u_csmTexel.z);vec4 p=u_csmVP[ci]*vec4(v_world+n*tw*1.5,1.);vec3 q=p.xyz/p.w*.5+.5;
+ if(any(lessThan(q.xy,vec2(0.)))||any(greaterThan(q.xy,vec2(1.)))||q.z>1.)return 1.;
+ vec2 ts=1./vec2(textureSize(u_csmMap,0));float x0=float(ci)/3.,x1=float(ci+1)/3.;vec2 base=vec2(x0+q.x/3.,q.y);float bias=.00025+.0009*(1.-max(dot(n,l),0.));
+ float ang=6.2831853*fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))));mat2 R=mat2(cos(ang),sin(ang),-sin(ang),cos(ang));float rad=1.6;
+ if(u_pcss>.5){float bz=0.,bn=0.;for(int i=0;i<16;i++){vec2 uv=base+R*POIS[i]*7.*ts;uv.x=clamp(uv.x,x0+ts.x,x1-ts.x);float z=texture(u_csmMap,uv).r;if(z<q.z-bias){bz+=z;bn+=1.;}}
+  if(bn<.5)return 1.;bz/=bn;float wWorld=(q.z-bz)*89.*.09;rad=clamp(wWorld/tw,1.,9.);}
+ float s=0.;for(int i=0;i<16;i++){vec2 uv=base+R*POIS[i]*rad*ts;uv.x=clamp(uv.x,x0+ts.x,x1-ts.x);s+=step(q.z-bias,texture(u_csmMap,uv).r);}return s/16.;}
 float shadowVisibility(vec3 n,vec3 l){
  if(u_shadowEnabled<.5)return 1.;vec4 p=u_lightVP*vec4(v_world,1.);vec3 q=p.xyz/p.w*.5+.5;
  if(any(lessThan(q,vec3(0.)))||any(greaterThan(q,vec3(1.))))return 1.;
@@ -1448,7 +1465,7 @@ void main(){
   if(abs(n.z)<.99)discard;
   // Single optical surface preserves visibility; reflection comes only from facility captures.
   float f=.04+.96*pow(1.-nv,5.);
-  vec3 reflected=roomReflection(reflect(-v,n),.08);outColor=vec4(mix(vec3(.65,.77,.73),tonemap(reflected*u_exposure),.8),clamp(.045+f*.18,.045,.225));return;
+  vec3 reflected=roomReflection(reflect(-v,n),.08);outAmb=vec4(0.);if(u_hq>.5&&u_hdrOut>.5){float Fg=.04+.96*pow(1.-nv,5.);outColor=vec4(prefReflection(reflect(-v,n),.02)*u_exposure,clamp(Fg*.95+.03,.03,.9));return;}if(u_hdrOut>.5){outColor=vec4(mix(linearize(vec3(.65,.77,.73))*.35,reflected*u_exposure,.8),clamp(.045+f*.18,.045,.225));return;}outColor=vec4(mix(vec3(.65,.77,.73),tonemap(reflected*u_exposure),.8),clamp(.045+f*.18,.045,.225));return;
  }
  vec4 base=u_color;vec3 albedo=mix(linearize(max(base.rgb,vec3(0))),base.rgb,u_colorLinear);
  if(u_useTex>.5){vec4 t=texture(u_tex,v_uv);albedo*=linearize(t.rgb);base.a*=t.a;}
@@ -1463,13 +1480,18 @@ void main(){
  vec3 F0=mix(vec3(.04),albedo,metal),F=F0+(1.-F0)*pow(1.-vh,5.);
  vec3 spec=D*G*F/max(4.*nv*nl,.0001);vec3 diffuse=(1.-F)*(1.-metal)*albedo/PI;
  float hemi=mix(.12,.40,n.y*.5+.5);
- float visibility=shadowVisibility(n,l);
+ float visibility=u_csmOn>.5?csmVis(n,l):shadowVisibility(n,l);
  vec3 white=vec3(1.,.956,.895);
- vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white+albedo*(1.-metal)*hemi*.85*white;
- vec3 envF=F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
- hdr+=roomReflection(reflect(-v,n),rough)*envF;
+ vec3 ambD=albedo*(1.-metal)*hemi*.85*white;
+ if(u_hq>.5){vec3 irr=mix(shIrr(n,u_sh0),shIrr(n,u_sh1),smoothstep(3.8,4.5,v_world.z));ambD=albedo*(1.-metal)*max(irr,vec3(0.))*(u_ambK/3.14159265);}
+ vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white+ambD;
+ vec3 envF=u_hq>.5?envBRDF(F0,rough,nv):F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
+ vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF;hdr+=ambS;
+ if(u_clearcoat>.5&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
+  float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white+prefReflection(reflect(-v,n),cr)*Fv;}
  hdr+=albedo*u_surface.z;
- outColor=u_capture>.5?vec4(clamp(hdr/8.,0.,1.),1.):vec4(tonemap(hdr*u_exposure),base.a*u_alpha);
+ outAmb=vec4((ambD+ambS)*u_exposure,1.);
+ outColor=u_capture>.5?vec4(clamp(hdr/8.,0.,1.),1.):(u_hdrOut>.5?vec4(hdr*u_exposure,base.a*u_alpha):vec4(tonemap(hdr*u_exposure),base.a*u_alpha));
 }`;
 function bevelMesh(o){
   const [hx,hy,hz]=o.size.map(v=>v/2),b=Math.min(o.bevel,Math.min(hx,hy,hz)*.8),c=o.center,positions=[],normals=[],indices=[];
@@ -1538,9 +1560,11 @@ function initLighting(){
   lighting.probeFBO=newLightingFramebuffer();lighting.probeDepth=gl.createRenderbuffer();lighting.renderbuffers.push(lighting.probeDepth);
   gl.bindRenderbuffer(gl.RENDERBUFFER,lighting.probeDepth);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,M10_SETTINGS.probeSize,M10_SETTINGS.probeSize);
   gl.bindFramebuffer(gl.FRAMEBUFFER,lighting.probeFBO);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,lighting.probeDepth);
-  for(const name of ['env0','env1','shadowMap','lightVP','capture','shadowEnabled','exposure'])loc[name]=gl.getUniformLocation(program,'u_'+name);
+  for(const name of ['env0','env1','shadowMap','lightVP','capture','shadowEnabled','exposure','hdrOut'])loc[name]=gl.getUniformLocation(program,'u_'+name);
+  /* fixed units for the M6 samplers so cube and 2D samplers never share a unit */gl.useProgram(program);gl.uniform1i(gl.getUniformLocation(program,'u_pref0'),4);gl.uniform1i(gl.getUniformLocation(program,'u_pref1'),5);gl.uniform1i(gl.getUniformLocation(program,'u_csmMap'),6);
+  for(const u of [4,5]){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_CUBE_MAP,lighting.dummy)}gl.activeTexture(gl.TEXTURE0);
   AETHER.M10={implementationReady:false,exposure:M10_SETTINGS.exposure,whiteBalance:'neutral warm industrial, approximately 4500K',reflection:'two scene-captured box-projected cubemaps',probeResolution:M10_SETTINGS.probeSize,shadowResolution:lighting.shadowSize,externalEnvironment:false,visualApproval:'PENDING',browserVerified:false,limitations:['Cubemap mip blur approximates rough reflections; not GGX-prefiltered IBL','Static facility captures exclude vehicle and transparent surfaces','Overhead directional shadow approximates distributed ceiling fixtures','Device performance and visual review pending']};
-  renderLightingShadow(true);captureLightingProbes();AETHER.M10.implementationReady=true;AETHER.M10.capturedFaces=lighting.capturedFaces;
+  renderLightingShadow(true);captureLightingProbes();hqInit();AETHER.M10.implementationReady=true;AETHER.M10.capturedFaces=lighting.capturedFaces;
   AETHER.M9.limitations=['M9/M10 device visual approval remains pending'];
   if(AETHER.M7)AETHER.M7.opticalModel='single optical surface, Fresnel tint and scene-captured indoor reflection';
  }catch(e){disposeLighting();throw e}finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.clearColor(.08,.11,.13,1);gl.activeTexture(gl.TEXTURE0);}
@@ -1561,7 +1585,7 @@ function renderLightingShadow(force=false){
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);
 }
 function bindLighting(capture=false){
- gl.uniform1f(loc.capture,capture?1:0);gl.uniform1f(loc.shadowEnabled,1);gl.uniform1f(loc.exposure,M10_SETTINGS.exposure);gl.uniformMatrix4fv(loc.lightVP,false,lighting.lightVP);
+ gl.uniform1f(loc.capture,capture?1:0);gl.uniform1f(loc.hdrOut,FX.active&&!capture?1:0);hqBind(capture);gl.uniform1f(loc.shadowEnabled,1);gl.uniform1f(loc.exposure,M10_SETTINGS.exposure);gl.uniformMatrix4fv(loc.lightVP,false,lighting.lightVP);
  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_CUBE_MAP,capture?lighting.dummy:lighting.probes[0]);gl.uniform1i(loc.env0,1);
  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,lighting.shadow);gl.uniform1i(loc.shadowMap,2);
  gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_CUBE_MAP,capture?lighting.dummy:lighting.probes[1]);gl.uniform1i(loc.env1,3);gl.activeTexture(gl.TEXTURE0);
@@ -1614,7 +1638,7 @@ function m13FlowElapsed(){return m13FrameState.flowOffset+(m13FrameState.flowPla
 function m13DrawOverlay(vp){const r=m13FrameState.resources,f=m13FrameState.frame;if(!r.initialized||!f||!m13FrameState.visible||m13FrameState.mode==='NONE')return;if(['PRESSURE','VELOCITY','VORTICITY','SLICE'].includes(m13FrameState.mode)){if(!r.slicePositionBuffer||!r.sliceUvBuffer||!r.slicePixels)return;gl.useProgram(r.sliceProgram);gl.bindBuffer(gl.ARRAY_BUFFER,r.slicePositionBuffer);const ap=gl.getAttribLocation(r.sliceProgram,'a_position'),au=gl.getAttribLocation(r.sliceProgram,'a_uv');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(au);gl.bindBuffer(gl.ARRAY_BUFFER,r.sliceUvBuffer);gl.vertexAttribPointer(au,2,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(r.sliceProgram,'u_mvp'),false,vp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,r.sliceTexture);gl.uniform1i(gl.getUniformLocation(r.sliceProgram,'u_field'),0);gl.uniform1f(gl.getUniformLocation(r.sliceProgram,'u_alpha'),.55);gl.drawArrays(gl.TRIANGLES,0,6);r.scientificDrawCalls++}else if(['VECTORS','STREAMLINES','WAKE'].includes(m13FrameState.mode)){if(!r.linePositionBuffer)return;gl.useProgram(r.lineProgram);gl.bindBuffer(gl.ARRAY_BUFFER,r.linePositionBuffer);const ap=gl.getAttribLocation(r.lineProgram,'a_position');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineColorBuffer);const ac=gl.getAttribLocation(r.lineProgram,'a_color');gl.enableVertexAttribArray(ac);gl.vertexAttribPointer(ac,4,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineFlowBuffer);const af=gl.getAttribLocation(r.lineProgram,'a_flow');gl.enableVertexAttribArray(af);gl.vertexAttribPointer(af,1,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(r.lineProgram,'u_mvp'),false,vp);gl.uniform1f(gl.getUniformLocation(r.lineProgram,'u_flowTime'),m13FlowElapsed());gl.uniform1f(gl.getUniformLocation(r.lineProgram,'u_flowEnabled'),m13FrameState.mode==='STREAMLINES'?1:0);gl.drawArrays(gl.LINES,0,r.lineCount);r.scientificDrawCalls++} }
 function initGL(){try{gl=glCanvas.getContext('webgl2',{antialias:true,alpha:false,depth:true});if(gl)perfInstrument(gl);baseline.runtime.webGL2Exposed=!!gl;if(!gl)throw Error('WebGL2 unavailable');const vs=gl.createShader(gl.VERTEX_SHADER),fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(vs,vert);gl.compileShader(vs);if(!gl.getShaderParameter(vs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(vs));gl.shaderSource(fs,frag);gl.compileShader(fs);if(!gl.getShaderParameter(fs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(fs));program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));loc={colorLinear:gl.getUniformLocation(program,'u_colorLinear'),surface:gl.getUniformLocation(program,'u_surface'),eye:gl.getUniformLocation(program,'u_eye'),pos:gl.getAttribLocation(program,'a_position'),normal:gl.getAttribLocation(program,'a_normal'),uv:gl.getAttribLocation(program,'a_uv'),mvp:gl.getUniformLocation(program,'u_mvp'),model:gl.getUniformLocation(program,'u_model'),color:gl.getUniformLocation(program,'u_color'),alpha:gl.getUniformLocation(program,'u_alpha'),tex:gl.getUniformLocation(program,'u_tex'),useTex:gl.getUniformLocation(program,'u_useTex'),beltSurface:gl.getUniformLocation(program,'u_beltSurface'),beltTravel:gl.getUniformLocation(program,'u_beltTravel'),rollerSurface:gl.getUniformLocation(program,'u_rollerSurface')};gl.deleteShader(vs);gl.deleteShader(fs);
 whiteTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,whiteTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);m13InitResources();gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(.08,.11,.13,1);resize();gl.viewport(0,0,glCanvas.width,glCanvas.height);return true}catch(e){diagnostics.error('WebGL2 renderer',e);return false}}
-function resize(){if(!gl)return;const d=clamp(devicePixelRatio||1,1,renderQuality==='high'?2:1)*((window.__LIVE&&window.__LIVE.cs)||1),w=Math.max(1,Math.floor(glCanvas.clientWidth*d)),h=Math.max(1,Math.floor(glCanvas.clientHeight*d));if(glCanvas.width!==w||glCanvas.height!==h){glCanvas.width=w;glCanvas.height=h;gl.viewport(0,0,w,h);diagnostics.events.push({time:now(),type:'RESIZE',message:w+'x'+h})}}
+function resize(){if(!gl)return;const d=clamp(devicePixelRatio||1,1,renderQuality==='high'?2:1)*((FX.on&&!FX.err)?1:((window.__LIVE&&window.__LIVE.cs)||1)),w=Math.max(1,Math.floor(glCanvas.clientWidth*d)),h=Math.max(1,Math.floor(glCanvas.clientHeight*d));if(glCanvas.width!==w||glCanvas.height!==h){glCanvas.width=w;glCanvas.height=h;gl.viewport(0,0,w,h);diagnostics.events.push({time:now(),type:'RESIZE',message:w+'x'+h})}}
 let renderQuality='high';document.getElementById('qualityMode').addEventListener('click',()=>{renderQuality=renderQuality==='high'?'balanced':'high';m13FrameState.quality=renderQuality;document.getElementById('qualityMode').textContent='화질: '+(renderQuality==='high'?'고화질':'균형')});const scientificModeEl=document.getElementById('scientificMode');if(scientificModeEl)scientificModeEl.addEventListener('change',e=>{m13PublicApi.setMode(e.target.value);});const streamDensityEl=document.getElementById('streamDensity'),streamDensityValue=document.getElementById('streamDensityValue'),streamSpeedEl=document.getElementById('streamSpeed'),streamSpeedValue=document.getElementById('streamSpeedValue'),streamPlaybackEl=document.getElementById('streamPlayback');if(streamDensityEl)streamDensityEl.addEventListener('input',e=>{m13FrameState.streamlineDensity=Number(e.target.value);if(streamDensityValue)streamDensityValue.textContent=String(m13FrameState.streamlineDensity);if(m13FrameState.mode==='STREAMLINES')m13PrepareDerived()});if(streamSpeedEl)streamSpeedEl.addEventListener('input',e=>{m13FrameState.flowOffset=m13FlowElapsed();m13FrameState.flowEpoch=performance.now();m13FrameState.flowSpeed=Number(e.target.value);if(streamSpeedValue)streamSpeedValue.textContent=m13FrameState.flowSpeed.toFixed(2)+'×';m13Sync()});if(streamPlaybackEl)streamPlaybackEl.addEventListener('click',()=>{if(m13FrameState.flowPlaying)m13FrameState.flowOffset=m13FlowElapsed();m13FrameState.flowEpoch=performance.now();m13FrameState.flowPlaying=!m13FrameState.flowPlaying;streamPlaybackEl.textContent=m13FrameState.flowPlaying?'표식 애니메이션 일시정지':'표식 애니메이션 재개';streamPlaybackEl.setAttribute?.('aria-pressed',String(m13FrameState.flowPlaying));m13Sync()});
 const fpv={enabled:true,x:0,z:7.5,yaw:0,pitch:-.08,vx:0,vz:0,last:null,phase:0,sway:true,keys:new Set(),stick:[0,0],look:null};
 function clearWalk(){joyId=null;fpv.keys.clear();fpv.stick=[0,0];fpv.vx=fpv.vz=0;fpv.last=null;fpv.look=null;document.getElementById('stick').style.transform='translate(0px,0px)'}
@@ -1823,7 +1847,7 @@ let monitorAtlasCanvas=null,monitorAtlasContext=null,monitorAtlasTexture=null,mo
 function initMonitorAtlas(){if(!gl)return false;if(!monitorAtlasCanvas){monitorAtlasCanvas=document.createElement('canvas');monitorAtlasCanvas.width=1536;monitorAtlasCanvas.height=512;monitorAtlasContext=monitorAtlasCanvas.getContext('2d',{alpha:false});}if(!monitorAtlasTexture)monitorAtlasTexture=gl.createTexture();const tex=monitorAtlasTexture;gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,monitorAtlasCanvas.width,monitorAtlasCanvas.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);for(const o of scene.objects)if(o.name.startsWith('m6.glb.MonitorGlass.screen.'))o.texture=tex;updateMonitorAtlas(true);return true;}
 function updateMonitorAtlas(force=false){if(!monitorAtlasContext||!gl||gl.isContextLost())return;const t=performance.now();if(!force&&t-monitorAtlasLastUpload<200)return;monitorAtlasLastUpload=t;const c=monitorAtlasContext,s=AETHER.M14?.getSnapshot?.(),solver=s?.solver,diag=s?.diagnostic,last=diag?.lastStep;const tiles=[{title:'SYSTEM STATUS',lines:[`CFD SOURCE  ${solver?.productionBound?'PRODUCT':'UNBOUND'}`,`STATE  ${solver?.state||'S0 SHELL'}`,`FIELD  ${solver?.productionBound?'AVAILABLE':'WAITING FOR FIELD'}`,`GEOMETRY REV  ${AETHER.CFD_BRIDGE?.geometryRevision??'N/A'}`]},{title:'FLOW CONTROL',lines:[`SETPOINT  ${Number.isFinite(s?.control?.windSpeed)?s.control.windSpeed.toFixed(1)+' m/s':'N/A'}`,`ACTUAL VELOCITY  ${solver?.productionBound?'N/A':'N/A'}`,`SOURCE  ${solver?.productionBound?'PRODUCT':'NO PRODUCT SOURCE'}`,`PRESSURE / Cp  ${solver?.productionBound?'N/A':'N/A'}`]},{title:'TEST INTERLOCK',lines:[`E-STOP  ${s?.control?.emergencyStopped?'LATCHED':'READY'}`,`ROLLING ROAD  ${s?.rollingRoad?.motorEnabled?'RUN':'STOPPED'}`,`OFFICE DIAGNOSTIC  ${diag?.historyCount?'AVAILABLE · '+(diag.resolution?.join('×')||'N/A'):'NOT RUN'}`,`LAST STEP  ${last?String(last.sequence)+' · t='+Number(last.time).toFixed(3)+' s':'N/A'}`]}];c.clearRect(0,0,1536,512);tiles.forEach((tile,i)=>{const x=i*512;c.fillStyle='#09131a';c.fillRect(x,0,512,512);c.fillStyle=i===2&&s?.control?.emergencyStopped?'#7d1f1a':'#15313d';c.fillRect(x,0,512,66);c.fillStyle='#f1f6f8';c.font='600 25px system-ui, sans-serif';c.fillText(tile.title,x+28,43);c.fillStyle='#7fe0c0';c.font='18px ui-monospace, monospace';tile.lines.forEach((line,j)=>c.fillText(line,x+28,124+j*65));c.strokeStyle='#31505d';c.lineWidth=2;c.strokeRect(x+12,12,488,488);});gl.bindTexture(gl.TEXTURE_2D,monitorAtlasTexture);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,monitorAtlasCanvas);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);}
 function setupResources(){for(const o of scene.objects){if(!o._mesh)bevelMesh(o);const uv=o._mesh.uvs?.length===o._mesh.positions.length/3*2?o._mesh.uvs:new Float32Array(o._mesh.positions.length/3*2);o.gpu=bindMesh(o._mesh.positions,o._mesh.normals,uv,o._mesh.indices);}for(const p of scene.vehicleParts)p.gpu=bindMesh(p.positions,p.normals,p.uvs,p.indices);for(const r of scene.roadParts)r.gpu=bindMesh(r.mesh.positions,r.mesh.normals,r.mesh.uvs,r.mesh.indices);for(const p of scene.fanParts)p.gpu=bindMesh(p.positions,p.normals,p.uvs,p.indices);for(const p of scene.collectorParts)p.gpu=bindMesh(p.positions,p.normals,p.uvs,p.indices)}
-function drawMesh(mesh,m,material,alpha=1){gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(loc.pos);gl.vertexAttribPointer(loc.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nb);gl.enableVertexAttribArray(loc.normal);gl.vertexAttribPointer(loc.normal,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.ub);gl.enableVertexAttribArray(loc.uv);gl.vertexAttribPointer(loc.uv,2,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.uniform4f(loc.color,...(material.color||[.5,.55,.6,1]));gl.uniform4f(loc.surface,...(material.surface||[.72,0,0,.018]));gl.uniform1f(loc.colorLinear,material.colorLinear?1:0);gl.uniform1f(loc.alpha,alpha);gl.uniform1f(loc.useTex,material.texture?1:0);gl.uniform1f(loc.beltSurface,material.belt?1:0);gl.uniform1f(loc.beltTravel,material.beltTravel||0);gl.uniform1f(loc.rollerSurface,material.roller?1:0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,material.texture||whiteTexture);gl.uniform1i(loc.tex,0);gl.drawElements(gl.TRIANGLES,mesh.count,mesh.type,0)}
+function drawMesh(mesh,m,material,alpha=1){gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(loc.pos);gl.vertexAttribPointer(loc.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nb);gl.enableVertexAttribArray(loc.normal);gl.vertexAttribPointer(loc.normal,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.ub);gl.enableVertexAttribArray(loc.uv);gl.vertexAttribPointer(loc.uv,2,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.uniform4f(loc.color,...(material.color||[.5,.55,.6,1]));gl.uniform4f(loc.surface,...(material.surface||[.72,0,0,.018]));gl.uniform1f(loc.colorLinear,material.colorLinear?1:0);gl.uniform1f(loc.alpha,alpha);gl.uniform1f(loc.useTex,material.texture?1:0);gl.uniform1f(loc.beltSurface,material.belt?1:0);gl.uniform1f(loc.beltTravel,material.beltTravel||0);gl.uniform1f(loc.rollerSurface,material.roller?1:0);if(loc.clearcoat)gl.uniform1f(loc.clearcoat,material.clearcoat?1:0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,material.texture||whiteTexture);gl.uniform1i(loc.tex,0);gl.drawElements(gl.TRIANGLES,mesh.count,mesh.type,0)}
 
 function visibleInView(o){if(!o.visible)return false;if(rollingState.roadSection&&(['rolling-road pit','rolling-road service'].includes(o.category)||o.name==='service.downstream'))return false;return !(camera.cutaway&&(['m5 ceiling','ceiling','lighting recess','observation opening','observation glass'].includes(o.category)||['control room ceiling','structural portal crown'].includes(o.name)))}
 
@@ -2483,6 +2507,11 @@ Object.assign(LIVE.api,{
  rebuildLevels(){liveBuildLevels()},
  forces(){return LIVE.impl==='MAC'?macForces():liveForces()},
  mac(){return MAC},
+ solveBench(list){return macSolveBench(list)},
+ validate(cfg){return macValidate(cfg)},
+ vrun(n,dt,every,probe){return macVrun(n,dt,every,probe)},
+ uniformError(){return macUniformError()},
+ memBreakdown(){return macMemBreakdown()},
  set(o){Object.assign(LIVE,o)}});
 
 function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
@@ -2498,7 +2527,7 @@ LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={Cs:.16,nuMol:1.5e-5,eps:0,solver:'MGPCG',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
@@ -2745,7 +2774,8 @@ function macGridOf(l){const L=MAC.lv[l];return {N:L.N,tx:L.tx,W:L.W,H:L.H,h:L.h}
 function macReset(){gl.bindVertexArray(LIVE.vao);const T=MAC.t;for(const k in T)liveClear(T[k]);liveClear(MAC.Z.pA);liveClear(MAC.Z.pB);for(const s of MAC.scal)liveClear(s);for(const L of MAC.lv)for(const k in L.T)liveClear(L.T[k]);
  macSolids();macPass('init',T.velA,{},{});MAC.step=0;MAC.time=0;MAC.forceHist=[];gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null)}
 function macSolids(){const T=MAC.t,B=window.__BODY,act=!!(MAC.cfg.body&&B&&B.active),W=MAC.wheels||[],wh=new Float32Array(16);W.forEach((w,i)=>wh.set(w,i*4));const R=W[0]?.[3]||.34;
- macPass('solid',T.sol,{uStatic:MAC.staticTex},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0],uBodyV:act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0],uWh:wh,uWhW:MAC.whW||.15,uOm:MAC.U/R});
+ const om=MAC.cfg.obstacle?(MAC.time<(MAC.spinUntil||0)?MAC.spin||0:0):MAC.U/R;
+ macPass('solid',T.sol,{uStatic:MAC.staticTex},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0],uBodyV:act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0],uWh:wh,uWhW:MAC.cfg.obstacle?1e3:(MAC.whW||.15),uOm:om});
  macPass('geom',T.geom,{uSol:T.sol.t},{});
  for(let l=1;l<MAC.lv.length;l++){const F=l===1?{t:T.geom}:{t:MAC.lv[l-1].T.geom},Lf=MAC.lv[l-1];macPass('cgeom',MAC.lv[l].T.geom,{uGF:F.t.t},{uNF:{i3:Lf.N},uTXF:{int:Lf.tx}},macGridOf(l))}}
 /* ---- pressure solvers. A level-0 "context" X={pA,pB} holds the iterate, b0 the right-hand side ---- */
@@ -2787,7 +2817,7 @@ function macSolve(){const L0=MAC.lv[0],T=MAC.t,s=MAC.solver;
 /* ---- one time step ---- */
 function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  MAC.U=cfg.U??LIVE.U;
- if(cfg.body||MAC.step===0)macSolids();
+ if(cfg.body||MAC.step===0||(cfg.obstacle&&MAC.spinUntil&&MAC.time<MAC.spinUntil+2*dt))macSolids();
  /* MacCormack velocity advection */
  macPass('adv',T.hat,{uVel:T.velA.t,uSrc:T.velA.t},{uDt:dt});
  macPass('adv',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
@@ -2838,6 +2868,267 @@ function macMemoryMB(){let s=0;const add=(g,bpp)=>{s+=g.W*g.H*bpp};const G=MAC.G
 function macReadAllD(t){const D=MAC.D,buf=new Float32Array(D.W*D.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,D.W,D.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
 function macFlagCounts(){const s=macReadAll(MAC.t.sol),N=MAC.N,c={fluid:0,car:0,fan:0,body:0};for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const w=s[macFieldIndex(i,j,k)+3],id=Math.floor(w*.5+.001),ph=w-2*id;
   if(ph<.5)c.fluid++;else c[['fluid','car','fan','body'][id]]++}return c}
+/* solver comparison on one fixed right-hand side (current velocity field): cold start, timed with a readPixels fence */
+function macSolveBench(list){const T=MAC.t,L0=MAC.lv[0],out=[],save={solver:MAC.solver,cycles:MAC.cycles,pcgIters:MAC.pcgIters,jacobiIters:MAC.jacobiIters,pre:MAC.pre,post:MAC.post};
+ gl.bindVertexArray(LIVE.vao);const dt=MAC.lastDt||.02;macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt});
+ const fence=()=>{const b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,L0.T.pA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b)};
+ for(const c of list){Object.assign(MAC,c);liveClear(L0.T.pA);liveClear(L0.T.pB);fence();const t0=performance.now();macSolve();fence();const ms=performance.now()-t0;
+  const r=macResidual();gl.bindVertexArray(LIVE.vao);out.push({...c,ms,rel:r.rel,nonFinite:r.nonFinite})}
+ Object.assign(MAC,save);gl.bindVertexArray(null);return out}
+function macMemBreakdown(){const G=MAC.G,lvB=MAC.lv.slice(1).reduce((a,L)=>a+L.W*L.H*(4*4+8),0),base=G.W*G.H;
+ return {levelsMB:(lvB+base*4*3)/1048576,pcgVectorsMB:base*4*6/1048576,jacobiMB:base*4*2/1048576}}
+
+/* ---- validation domain API ---- */
+function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,max:cfg.max,obstacle:cfg.obstacle||null,U:cfg.U??1,nu:cfg.nu??0,rho:1,Aref:cfg.Aref};MAC.les=cfg.les??false;
+ LIVE.enabled=false;LIVE.freeze=true;macInit();if(cfg.obstacle){MAC.wheels=[[...cfg.obstacle.c,cfg.obstacle.D/2]];MAC.spin=cfg.spin||0;MAC.spinUntil=cfg.spinUntil||0}
+ gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
+/* run n steps; every `every` steps record forces (and probe velocity) */
+function macVrun(n,dt,every=1,probe=null){const rec=[];const t0=performance.now();
+ for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
+ gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);return {rec,ms:performance.now()-t0,step:MAC.step,time:MAC.time}}
+function macUniformError(){const v=macReadAll(MAC.t.velA),N=MAC.N,U=MAC.U;let mx=0,mt=0,n=0,bad=0;
+ for(let k=1;k<N[2]-1;k++)for(let j=1;j<N[1]-1;j++)for(let i=1;i<N[0]-1;i++){const q=macFieldIndex(i,j,k);if(![v[q],v[q+1],v[q+2]].every(Number.isFinite)){bad++;continue}mx=Math.max(mx,Math.abs(v[q]-U)/U);mt=Math.max(mt,Math.hypot(v[q+1],v[q+2])/U);n++}
+ return {cells:n,maxRelErrU:mx,maxRelCross:mt,nonFinite:bad}}
+/* ===== M5/M6 post pipeline (linear HDR). Scene -> [GTAO] -> volumetric smoke (low res, depth-aware, temporal)
+   -> composite -> glass -> [TAA] -> bloom -> AgX/ACES tone map -> overlays (LDR) -> [FXAA] -> upscale+sharpen.
+   Disabled with #fx=0 or when float render targets are missing (legacy forward path, visible in the HUD). ===== */
+const FX={on:!/fx=0/.test(location.hash),active:false,err:null,gen:-1,rw:0,rh:0,vw:0,vh:0,frame:0,hist:0,shist:0,prevVP:null,jitter:[0,0],tone:(location.hash.match(/tone=(AGX|ACES)/)||[])[1]||'AGX',
+ exposure:1.25,bloom:.045,aoStrength:1,g:.35,prog:null,t:null};
+window.__AETHER_FX=FX;
+const FX_H=`#version 300 es
+precision highp float;precision highp sampler2D;precision highp sampler3D;
+uniform vec2 uRes;uniform float uNear,uFar;
+float linZ(float d){float z=d*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
+`;
+const FX_FS={
+/* ---- GTAO (half res). uDepth full-res scene depth, uP = projection params (xy scale, zw offset) for view reconstruction ---- */
+gtao:`uniform sampler2D uDepth,uBlue;uniform vec4 uProj;uniform int uSlices,uSteps;uniform float uRadius,uFrame;out vec4 o;
+vec3 VP(vec2 uv){float z=linZ(texture(uDepth,uv).r);return vec3((uv*2.-1.)*uProj.xy*z,-z);}
+void main(){vec2 uv=gl_FragCoord.xy/uRes;float d=texture(uDepth,uv).r;if(d>=.99999){o=vec4(1);return;}vec3 P=VP(uv);
+ vec2 px=1./uRes;vec3 n=normalize(cross(VP(uv+vec2(px.x,0.))-VP(uv-vec2(px.x,0.)),VP(uv+vec2(0.,px.y))-VP(uv-vec2(0.,px.y))));vec3 V=normalize(-P);
+ float bn=texelFetch(uBlue,ivec2(gl_FragCoord.xy)&63,0).r,rot=fract(bn+uFrame*.618034)*3.14159265;
+ float rpx=uRadius/(-P.z)/uProj.y*.5*uRes.y;rpx=clamp(rpx,2.,uRes.y*.12);float vis=0.;
+ for(int s=0;s<8;s++){if(s>=uSlices)break;float ph=rot+3.14159265*float(s)/float(uSlices);vec2 dir=vec2(cos(ph),sin(ph));
+  vec3 d3=vec3(dir,0.),orth=normalize(d3-V*dot(d3,V)),ax=cross(orth,V);vec3 np=n-ax*dot(n,ax);float nl=max(length(np),1e-4);float cn=clamp(dot(np,V)/nl,-1.,1.);float ng=sign(dot(np,orth))*acos(cn);
+  float hp=-1.,hm=-1.;
+  for(int k=1;k<=12;k++){if(k>uSteps)break;float t=(float(k)-.5+fract(bn*7.+float(k)*.37))/float(uSteps);
+   for(int side=0;side<2;side++){float sd=side==0?1.:-1.;vec2 q=uv+sd*dir*t*rpx*px;if(any(lessThan(q,vec2(0.)))||any(greaterThan(q,vec2(1.))))continue;
+    vec3 S=VP(q)-P;float l=length(S);float c=dot(S/max(l,1e-5),V);float fall=clamp(1.-l*l/(uRadius*uRadius),0.,1.);if(side==0)hp=max(hp,mix(-1.,c,fall));else hm=max(hm,mix(-1.,c,fall));}}
+  float h0=-acos(hm),h1=acos(hp);h0=ng+max(h0-ng,-1.5707963);h1=ng+min(h1-ng,1.5707963);
+  vis+=nl*.25*(-cos(2.*h0-ng)+cn+2.*h0*sin(ng)-cos(2.*h1-ng)+cn+2.*h1*sin(ng));}
+ o=vec4(clamp(vis/float(uSlices),0.,1.),linZ(d),0.,1.);}`,
+aoblur:`uniform sampler2D uAO;uniform vec2 uDir;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec4 c=texture(uAO,uv);float s=c.r,w=1.;for(int i=-3;i<=3;i++){if(i==0)continue;vec4 t=texture(uAO,uv+uDir*float(i)/uRes);float k=exp(-abs(t.g-c.g)/(.05*c.g+.01))*exp(-float(i*i)*.12);s+=t.r*k;w+=k;}o=vec4(s/w,c.g,0.,1.);}`,
+/* ---- volumetric smoke (low res). MRT: 0 premultiplied colour, 1 aux (x: alpha-weighted ray distance, y: scene view depth of this texel) ---- */
+vol:`uniform sampler3D uVol;uniform sampler2D uDepth,uBlue;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD,uFwd;uniform float uDens,uCMode,uStepScale,uG,uFrame;uniform int uTaps;
+layout(location=0) out vec4 oC;layout(location=1) out vec4 oA;
+vec3 turbo(float t){t*=4.;vec3 a=vec3(.10,.18,1.),b=vec3(0.,.8,1.),c=vec3(.05,1.,.3),d=vec3(1.,.92,.05),e=vec3(1.,.12,.05);return t<1.?mix(a,b,t):t<2.?mix(b,c,t-1.):t<3.?mix(c,d,t-2.):mix(d,e,min(t-3.,1.));}
+vec3 lin(vec3 c){return pow(c,vec3(2.2));}
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 n=uv*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*vec4(n,1,1);vec3 ro=uEye,rd=normalize(b.xyz/b.w-a.xyz/a.w);
+ /* nearest scene depth in this low-res footprint (depth-aware: every opaque object occludes the smoke) */
+ vec2 ts=1./vec2(textureSize(uDepth,0));float dz=1.;for(int j=0;j<2;j++)for(int i=0;i<2;i++)dz=min(dz,texture(uDepth,uv+(vec2(i,j)-.5)*ts*1.5).r);
+ float vz=linZ(dz);float tScene=dz>=.99999?1e9:vz/max(dot(rd,uFwd),1e-3);oA=vec4(0.,vz,0.,1.);oC=vec4(0.);
+ vec3 iv=1./rd,t0=(uBMin-ro)*iv,t1=(uBMax-ro)*iv,mn=min(t0,t1),mx=max(t0,t1);float tn=max(max(mn.x,mn.y),max(mn.z,0.)),tf=min(min(mx.x,mx.y),min(mx.z,tScene));
+ if(tf<=tn)return;float L=tf-tn,stp=.075/max(uStepScale,.25);int NS=int(clamp(L/stp,8.,256.));float dt=L/float(NS);
+ float j=fract(texelFetch(uBlue,ivec2(gl_FragCoord.xy)&63,0).r+uFrame*.618034);vec3 ext=uBMax-uBMin;vec4 acc=vec4(0.);float wt=0.,wd=0.;
+ float mu=dot(rd,uLD),hg=(1.-uG*uG)/(4.*3.14159*pow(1.+uG*uG-2.*uG*mu,1.5));
+ for(int i=0;i<256;i++){if(i>=NS||acc.a>.99)break;float t=tn+(float(i)+j)*dt;vec3 p=ro+rd*t,uvw=(p-uBMin)/ext;
+  vec4 c=textureLod(uVol,uvw,2.);if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);float d=s.r*uDens*smoothstep(.15,.7,t);if(d<.002)continue;
+  float od=0.;for(int k=1;k<=6;k++){if(k>uTaps)break;od+=textureLod(uVol,uvw+uLD/ext*(.12*float(k*k)),0.).r*.12*float(2*k-1);}
+  float T=exp(-od*uDens*2.2);vec3 alb=mix(vec3(.82,.86,.92),lin(turbo(clamp(.5+(s.b-1.)*1.25,0.,1.))),uCMode);
+  vec3 col=alb*(vec3(1.,.96,.9)*3.2*T*hg*12.566*.35+vec3(.55,.62,.72)*.55);
+  float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;wd+=al*t;wt+=al;}
+ oC=acc;oA=vec4(wt>0.?wd/wt:0.,vz,0.,1.);}`,
+/* ---- smoke temporal reprojection with neighbourhood clamp (low res) ---- */
+vtemp:`uniform sampler2D uCur,uAux,uHist;uniform mat4 uInv,uPrevVP;uniform vec3 uEye;uniform float uBlend;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec4 c=texture(uCur,uv);vec4 lo=c,hi=c;for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec4 s=texture(uCur,uv+vec2(i,j)/uRes);lo=min(lo,s);hi=max(hi,s);}
+ float t=texture(uAux,uv).x;vec2 n=uv*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*vec4(n,1,1);vec3 rd=normalize(b.xyz/b.w-a.xyz/a.w);vec3 wp=uEye+rd*(t>0.?t:texture(uAux,uv).y);
+ vec4 pc=uPrevVP*vec4(wp,1.);vec2 pu=pc.xy/pc.w*.5+.5;if(pc.w<=0.||any(lessThan(pu,vec2(0.)))||any(greaterThan(pu,vec2(1.)))){o=c;return;}
+ vec4 h=clamp(texture(uHist,pu),lo,hi);o=mix(c,h,uBlend);}`,
+/* ---- composite: AO on the indirect term + depth-aware (joint bilateral) upsample of the smoke, "over" ---- */
+comp:`uniform sampler2D uScene,uAmb,uDepth,uAO,uSmoke,uSAux;uniform vec2 uLo;uniform float uAOOn,uAOK,uSmokeOn;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec3 c=texture(uScene,uv).rgb;float z=linZ(texture(uDepth,uv).r);
+ if(uAOOn>.5){float ao=texture(uAO,uv).r;c-=texture(uAmb,uv).rgb*(1.-pow(ao,uAOK));}
+ if(uSmokeOn>.5){vec2 q=uv*uLo-.5;vec2 f=fract(q);ivec2 i0=ivec2(floor(q));vec4 acc=vec4(0.);float wt=0.;
+  for(int k=0;k<4;k++){ivec2 d=ivec2(k&1,k>>1);ivec2 p=clamp(i0+d,ivec2(0),ivec2(uLo)-1);float w=(d.x==1?f.x:1.-f.x)*(d.y==1?f.y:1.-f.y);float zl=texelFetch(uSAux,p,0).y;w*=exp(-abs(zl-z)/(.04*z+.02))+1e-4;acc+=w*texelFetch(uSmoke,p,0);wt+=w;}
+  vec4 s=acc/max(wt,1e-5);c=c*(1.-s.a)+s.rgb;}
+ o=vec4(max(c,vec3(0.)),1.);}`,
+/* ---- TAA: camera reprojection, YCoCg variance clip, luminance-weighted blend ---- */
+taa:`uniform sampler2D uCur,uHist,uDepth;uniform mat4 uInvVP,uPrevVP;uniform float uReset;out vec4 o;
+vec3 ycc(vec3 c){return vec3(dot(c,vec3(.25,.5,.25)),dot(c,vec3(.5,0.,-.5)),dot(c,vec3(-.25,.5,-.25)));}
+vec3 rgb(vec3 c){return vec3(c.x+c.y-c.z,c.x+c.z,c.x-c.y-c.z);}
+vec3 tm(vec3 c){return c/(1.+max(c.r,max(c.g,c.b)));}vec3 itm(vec3 c){return c/max(1.-max(c.r,max(c.g,c.b)),1e-4);}
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec3 cur=tm(texture(uCur,uv).rgb);if(uReset>.5){o=vec4(itm(cur),1.);return;}
+ vec3 m1=vec3(0.),m2=vec3(0.);for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec3 s=ycc(tm(texture(uCur,uv+vec2(i,j)/uRes).rgb));m1+=s;m2+=s*s;}
+ m1/=9.;vec3 sig=sqrt(max(m2/9.-m1*m1,0.));vec3 lo=m1-1.1*sig,hi=m1+1.1*sig;
+ float d=texture(uDepth,uv).r;vec4 wp=uInvVP*vec4(uv*2.-1.,d*2.-1.,1.);wp/=wp.w;vec4 pc=uPrevVP*wp;vec2 pu=pc.xy/pc.w*.5+.5;
+ if(any(lessThan(pu,vec2(0.)))||any(greaterThan(pu,vec2(1.)))){o=vec4(itm(cur),1.);return;}
+ vec3 h=ycc(tm(texture(uHist,pu).rgb));h=clamp(h,lo,hi);vec3 hr=rgb(h);float a=.1;o=vec4(itm(mix(hr,cur,a)),1.);}`,
+/* ---- bloom ---- */
+bpre:`uniform sampler2D uSrc;uniform float uThr;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes,t=1./uRes;vec3 s=vec3(0.);float w=0.;for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec3 c=texture(uSrc,uv+vec2(i,j)*t*.5).rgb;float k=1./(1.+max(c.r,max(c.g,c.b)));s+=c*k;w+=k;}s/=w;
+ float br=max(s.r,max(s.g,s.b)),soft=clamp(br-uThr+.5,0.,1.);soft=soft*soft*.5;float c=max(soft,br-uThr)/max(br,1e-4);o=vec4(s*c,1.);}`,
+bdown:`uniform sampler2D uSrc;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes,t=.5/uRes;o=vec4((texture(uSrc,uv+vec2(-t.x,-t.y)).rgb+texture(uSrc,uv+vec2(t.x,-t.y)).rgb+texture(uSrc,uv+vec2(-t.x,t.y)).rgb+texture(uSrc,uv+t).rgb)*.25,1.);}`,
+bup:`uniform sampler2D uSrc,uLow;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes,t=1./vec2(textureSize(uLow,0));vec3 s=vec3(0.);for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++)s+=texture(uLow,uv+vec2(i,j)*t).rgb*((i==0?2.:1.)*(j==0?2.:1.));o=vec4(texture(uSrc,uv).rgb+s/16.,1.);}`,
+/* ---- tone map (AgX default, ACES optional) + exposure + bloom + blue-noise dither ---- */
+tone:`uniform sampler2D uSrc,uBloom,uBlue;uniform float uExp,uBloomK,uAces,uFrame;out vec4 o;
+vec3 agxC(vec3 x){vec3 x2=x*x,x4=x2*x2;return 15.5*x4*x2-40.14*x4*x+31.96*x4-6.868*x2*x+.4298*x2+.1191*x-.00232;}
+vec3 agx(vec3 v){const mat3 M=mat3(.842479062253094,.0423282422610123,.0423756549057051,.0784335999999992,.878468636469772,.0784336,.0792237451477643,.0791661274605434,.879142973793104);
+ const mat3 Mi=mat3(1.19687900512017,-.0528968517574562,-.0529716355144438,-.0980208811401368,1.15190312990417,-.0980434501171241,-.0990297440797205,-.0989611768448433,1.15107367264116);
+ v=M*v;v=clamp(log2(max(v,vec3(1e-10))),-12.47393,4.026069);v=(v+12.47393)/16.499999;return Mi*agxC(v);}
+vec3 enc(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0)),vec3(1./2.4))-.055,step(vec3(.0031308),c));}
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec3 h=(texture(uSrc,uv).rgb+uBloomK*texture(uBloom,uv).rgb)*uExp;
+ vec3 c=uAces>.5?enc(clamp((h*(2.51*h+.03))/(h*(2.43*h+.59)+.14),0.,1.)):clamp(agx(h),0.,1.);
+ float n=fract(texelFetch(uBlue,ivec2(gl_FragCoord.xy)&63,0).r+uFrame*.618034)-.5;o=vec4(c+n/255.,1.);}`,
+/* ---- FXAA (LOW) ---- */
+fxaa:`uniform sampler2D uSrc;out vec4 o;float lu(vec3 c){return dot(c,vec3(.299,.587,.114));}
+void main(){vec2 uv=gl_FragCoord.xy/uRes,t=1./uRes;vec3 M=texture(uSrc,uv).rgb;float lN=lu(texture(uSrc,uv+vec2(0,t.y)).rgb),lS=lu(texture(uSrc,uv-vec2(0,t.y)).rgb),lE=lu(texture(uSrc,uv+vec2(t.x,0)).rgb),lW=lu(texture(uSrc,uv-vec2(t.x,0)).rgb),lM=lu(M);
+ float mn=min(lM,min(min(lN,lS),min(lE,lW))),mx=max(lM,max(max(lN,lS),max(lE,lW)));if(mx-mn<max(.0312,mx*.125)){o=vec4(M,1.);return;}
+ float lNW=lu(texture(uSrc,uv+vec2(-t.x,t.y)).rgb),lNE=lu(texture(uSrc,uv+t).rgb),lSW=lu(texture(uSrc,uv-t).rgb),lSE=lu(texture(uSrc,uv+vec2(t.x,-t.y)).rgb);
+ vec2 dir=vec2(-((lNW+lNE)-(lSW+lSE)),((lNW+lSW)-(lNE+lSE)));float rd=max((lNW+lNE+lSW+lSE)*.03125,1./128.);dir=clamp(dir/(min(abs(dir.x),abs(dir.y))+rd),vec2(-8.),vec2(8.))*t;
+ vec3 A=.5*(texture(uSrc,uv+dir*(1./3.-.5)).rgb+texture(uSrc,uv+dir*(2./3.-.5)).rgb),B=A*.5+.25*(texture(uSrc,uv-dir*.5).rgb+texture(uSrc,uv+dir*.5).rgb);float lB=lu(B);o=vec4((lB<mn||lB>mx)?A:B,1.);}`,
+/* ---- upscale to the canvas with contrast-adaptive sharpening ---- */
+up:`uniform sampler2D uSrc;uniform float uSharp;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes,t=1./vec2(textureSize(uSrc,0));vec3 c=texture(uSrc,uv).rgb;if(uSharp<=0.){o=vec4(c,1.);return;}
+ vec3 n=texture(uSrc,uv+vec2(0,t.y)).rgb,s=texture(uSrc,uv-vec2(0,t.y)).rgb,e=texture(uSrc,uv+vec2(t.x,0)).rgb,w=texture(uSrc,uv-vec2(t.x,0)).rgb;
+ vec3 mn=min(c,min(min(n,s),min(e,w))),mx=max(c,max(max(n,s),max(e,w)));vec3 amp=sqrt(clamp(min(mn,1.-mx)/max(mx,1e-4),0.,1.));vec3 wt=-amp*mix(.125,.2,uSharp);
+ o=vec4(clamp((c+(n+s+e+w)*wt)/(1.+4.*wt),0.,1.),1.);}`};
+
+function fxCompile(){FX.prog={};for(const k in FX_FS)FX.prog[k]=liveCompile(FX_H+FX_FS[k]);
+ const B=window.__ASSETS?.BLUE_NOISE;FX.blue=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,FX.blue);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
+ const px=B?Uint8Array.from(atob(B.base64),c=>c.charCodeAt(0)):new Uint8Array(4096).map(()=>Math.random()*255);gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,64,64,0,gl.RED,gl.UNSIGNED_BYTE,px);
+ for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT]])gl.texParameteri(gl.TEXTURE_2D,k,v)}
+function fxTex(w,h,ifmt,fmt,type,lin){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,ifmt,w,h,0,fmt,type,null);
+ for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,lin?gl.LINEAR:gl.NEAREST],[gl.TEXTURE_MAG_FILTER,lin?gl.LINEAR:gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);return t}
+function fxFbo(colors,depth){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);colors.forEach((c,i)=>gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0+i,gl.TEXTURE_2D,c,0));
+ if(depth)gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,depth,0);gl.drawBuffers(colors.map((_,i)=>gl.COLOR_ATTACHMENT0+i));
+ if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('FX framebuffer incomplete');return f}
+function fxRelease(){const T=FX.t;if(!T)return;for(const k in T){const v=T[k];if(v instanceof WebGLTexture)gl.deleteTexture(v);else if(v instanceof WebGLFramebuffer)gl.deleteFramebuffer(v);else if(Array.isArray(v))v.forEach(x=>{if(x instanceof WebGLTexture)gl.deleteTexture(x);else if(x instanceof WebGLFramebuffer)gl.deleteFramebuffer(x);else if(x&&x.t){gl.deleteTexture(x.t);gl.deleteFramebuffer(x.f)}})}FX.t=null}
+/* (re)allocate targets for render size rw x rh and smoke size vw x vh */
+function fxAlloc(rw,rh,vw,vh){fxRelease();const T=FX.t={},F16=[gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT];
+ T.color=fxTex(rw,rh,...F16,true);T.amb=fxTex(rw,rh,...F16,false);T.depth=fxTex(rw,rh,gl.DEPTH_COMPONENT24,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,false);
+ T.sceneF=fxFbo([T.color,T.amb],T.depth);
+ T.comp=fxTex(rw,rh,...F16,true);T.compF=fxFbo([T.comp],null);T.compDF=fxFbo([T.comp],T.depth);
+ T.hist=[fxTex(rw,rh,...F16,true),fxTex(rw,rh,...F16,true)];T.histF=T.hist.map(t=>fxFbo([t],null));
+ T.ldr=fxTex(rw,rh,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,true);T.ldrF=fxFbo([T.ldr],null);T.ldrDF=fxFbo([T.ldr],T.depth);
+ T.ldr2=fxTex(rw,rh,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,true);T.ldr2F=fxFbo([T.ldr2],null);
+ const aw=Math.max(1,rw>>1),ah=Math.max(1,rh>>1);T.ao=[fxTex(aw,ah,...F16,true),fxTex(aw,ah,...F16,true)];T.aoF=T.ao.map(t=>fxFbo([t],null));
+ T.sm=fxTex(vw,vh,...F16,false);T.sa=fxTex(vw,vh,...F16,false);T.smF=fxFbo([T.sm,T.sa],null);
+ T.sh=[fxTex(vw,vh,...F16,true),fxTex(vw,vh,...F16,true)];T.shF=T.sh.map(t=>fxFbo([t],null));
+ T.bl=[];let w=aw,h=ah;for(let i=0;i<5&&w>=8&&h>=8;i++){const a=fxTex(w,h,...F16,true),b=fxTex(w,h,...F16,true);T.bl.push({w,h,a,b,af:fxFbo([a],null),bf:fxFbo([b],null)});w=Math.max(1,w>>1);h=Math.max(1,h>>1)}
+ FX.rw=rw;FX.rh=rh;FX.vw=vw;FX.vh=vh;FX.aw=aw;FX.ah=ah;FX.hist=0;FX.shist=0;FX.reset=true;gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
+function fxPass(name,fbo,w,h,tex,uni){const p=FX.prog[name];gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.viewport(0,0,w,h);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform1f(liveU(p,'uNear'),camera.near);gl.uniform1f(liveU(p,'uFar'),camera.far);
+ let unit=8;for(const n in tex){const t=tex[n];gl.activeTexture(gl.TEXTURE0+unit);if(t&&t.__3d){gl.bindTexture(gl.TEXTURE_2D,null);gl.bindTexture(gl.TEXTURE_3D,t.t)}else gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,n),unit);unit++}
+ for(const n in uni){const v=uni[n],l=liveU(p,n);if(l===null)continue;if(v instanceof Float32Array&&v.length===16)gl.uniformMatrix4fv(l,false,v);else if(Array.isArray(v)){if(v.length===4)gl.uniform4f(l,...v);else if(v.length===3)gl.uniform3f(l,...v);else gl.uniform2f(l,...v)}else if(v&&v.int!==undefined)gl.uniform1i(l,v.int);else gl.uniform1f(l,v)}
+ gl.drawArrays(gl.TRIANGLES,0,3)}
+
+/* ---- frame hooks ---- */
+const FX_HALTON=[[.5,.333],[.25,.667],[.75,.111],[.125,.444],[.625,.778],[.375,.222],[.875,.556],[.0625,.889]];
+function fxBegin(){FX.active=false;if(!FX.on||FX.err)return false;try{
+  if(FX.gen!==runtimeGeneration){FX.gen=runtimeGeneration;FX.t=null;if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 없음');fxCompile()}
+  const rs=Math.min(1,Math.max(.5,LIVE.cs||1)),rw=Math.max(64,Math.round(glCanvas.width*rs)),rh=Math.max(64,Math.round(glCanvas.height*rs)),vs=Math.min(1,Math.max(.25,LIVE.rs||.5)),vw=Math.max(32,Math.round(rw*vs*.5)),vh=Math.max(32,Math.round(rh*vs*.5));
+  if(!FX.t||rw!==FX.rw||rh!==FX.rh||vw!==FX.vw||vh!==FX.vh)fxAlloc(rw,rh,vw,vh);
+  const taa=PERF.set.aa==='TAA';FX.taa=taa;const J=taa?FX_HALTON[FX.frame%8]:[.5,.5];FX.jitter=[(J[0]-.5)*2/rw,(J[1]-.5)*2/rh];
+  gl.bindFramebuffer(gl.FRAMEBUFFER,FX.t.sceneF);gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1]);gl.viewport(0,0,rw,rh);FX.active=true;return true}
+ catch(e){FX.err=String(e?.message||e);FX.active=false;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);return false}}
+function fxJitter(proj){if(!FX.active||!FX.taa)return proj;const p=new Float32Array(proj);p[8]+=FX.jitter[0];p[9]+=FX.jitter[1];return p}
+function fxMatrices(){const view=lookAt(camera.eye,camera.target,camera.up),proj=perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far),vp=matMul(proj,view);return {view,proj,vp,inv:liveInv(vp)}}
+function fxAfterOpaque(){const T=FX.t,M=FX.m=fxMatrices(),rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);gl.disable(gl.CULL_FACE);
+ const q=1/Math.tan(camera.fov*Math.PI/360),aspect=rw/rh,projP=[aspect/q,1/q,0,0];
+ /* GTAO */
+ const aoOn=PERF.set.ao>0;if(aoOn){const hi=PERF.set.ao>1;fxPass('gtao',T.aoF[0],FX.aw,FX.ah,{uDepth:T.depth,uBlue:FX.blue},{uProj:projP,uSlices:{int:hi?4:2},uSteps:{int:hi?8:5},uRadius:.9,uFrame:FX.frame%64});
+  fxPass('aoblur',T.aoF[1],FX.aw,FX.ah,{uAO:T.ao[0]},{uDir:[1,0]});fxPass('aoblur',T.aoF[0],FX.aw,FX.ah,{uAO:T.ao[1]},{uDir:[0,1]})}
+ /* volumetric smoke */
+ const smokeOn=LIVE.enabled&&LIVE.ok&&!!LIVE.vol;if(smokeOn){const fwd=norm(sub(camera.target,camera.eye));
+  fxPass('vol',T.smF,FX.vw,FX.vh,{uVol:{__3d:true,t:LIVE.vol},uDepth:T.depth,uBlue:FX.blue},{uInv:M.inv,uEye:[...camera.eye],uBMin:[...LIVE.min],uBMax:[...LIVE.max],uLD:[.24,.95,.18],uFwd:fwd,uDens:LIVE.dens,uCMode:LIVE.colorMode?1:0,uStepScale:LIVE.stepScale||1,uG:FX.g,uFrame:FX.frame%64,uTaps:{int:2+2*(LIVE.rq|0)}});
+  gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_3D,null);
+  const cur=FX.shist,nxt=1-cur;fxPass('vtemp',T.shF[nxt],FX.vw,FX.vh,{uCur:T.sm,uAux:T.sa,uHist:T.sh[cur]},{uInv:M.inv,uPrevVP:FX.prevVP||M.vp,uEye:[...camera.eye],uBlend:FX.reset?0:.8});FX.shist=nxt}
+ fxPass('comp',T.compF,rw,rh,{uScene:T.color,uAmb:T.amb,uDepth:T.depth,uAO:T.ao[0],uSmoke:T.sh[FX.shist],uSAux:T.sa},{uLo:[FX.vw,FX.vh],uAOOn:aoOn?1:0,uAOK:FX.aoStrength,uSmokeOn:smokeOn?1:0});
+ /* leave composite+depth bound for glass */
+ gl.bindFramebuffer(gl.FRAMEBUFFER,T.compDF);gl.viewport(0,0,rw,rh);gl.enable(gl.DEPTH_TEST);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0)}
+function fxPost(){const T=FX.t,M=FX.m,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);gl.disable(gl.CULL_FACE);
+ let src=T.comp;if(FX.taa){const cur=FX.hist,nxt=1-cur;fxPass('taa',T.histF[nxt],rw,rh,{uCur:T.comp,uHist:T.hist[cur],uDepth:T.depth},{uInvVP:M.inv,uPrevVP:FX.prevVP||M.vp,uReset:FX.reset?1:0});FX.hist=nxt;src=T.hist[nxt]}
+ let bloom=T.bl[0]?.a;if(PERF.set.bloom&&T.bl.length){const B=T.bl;fxPass('bpre',B[0].af,B[0].w,B[0].h,{uSrc:src},{uThr:1.2});
+  for(let i=1;i<B.length;i++)fxPass('bdown',B[i].af,B[i].w,B[i].h,{uSrc:B[i-1].a},{});
+  for(let i=B.length-2;i>=0;i--){fxPass('bup',B[i].bf,B[i].w,B[i].h,{uSrc:B[i].a,uLow:i===B.length-2?B[i+1].a:B[i+1].b},{})}bloom=B.length>1?B[0].b:B[0].a}
+ fxPass('tone',T.ldrF,rw,rh,{uSrc:src,uBloom:bloom||src,uBlue:FX.blue},{uExp:FX.exposure*M10_SETTINGS.exposure,uBloomK:PERF.set.bloom&&bloom?FX.bloom:0,uAces:FX.tone==='ACES'?1:0,uFrame:FX.frame%64});
+ gl.bindFramebuffer(gl.FRAMEBUFFER,T.ldrDF);gl.viewport(0,0,rw,rh);gl.enable(gl.DEPTH_TEST);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0)}
+function fxPresent(){const T=FX.t,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);
+ let src=T.ldr;if(PERF.set.aa==='FXAA'){fxPass('fxaa',T.ldr2F,rw,rh,{uSrc:T.ldr},{});src=T.ldr2}
+ fxPass('up',null,glCanvas.width,glCanvas.height,{uSrc:src},{uSharp:rw<glCanvas.width?1:.35});
+ FX.prevVP=FX.m.vp;FX.frame++;FX.reset=false;gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.viewport(0,0,glCanvas.width,glCanvas.height)}
+/* ===== M6 high-quality lighting on top of the M10 probes/shadow:
+   - GGX-prefiltered specular cubemaps (split-sum, analytic env-BRDF) from the two captured facility probes
+   - diffuse irradiance as 3rd-order SH (9 coefficients per probe) projected on the CPU from the probe mip
+   - cascaded shadow maps (3 cascades in one atlas) with rotated Poisson PCF, PCSS on HIGH+
+   - clear-coat lobe for the vehicle body, Fresnel (IOR 1.5) glass
+   LOW keeps the M10 single shadow map (static, low cost). ===== */
+const HQ={ok:false,err:null,gen:-1,pref:[],sh:[],csm:null,csmSize:0,csmKey:'',lightDir:norm([-.2,1,.12])};
+const HQ_PREFILTER=`#version 300 es
+precision highp float;uniform samplerCube uSrc;uniform int uFace;uniform float uRough,uSize,uSrcSize;out vec4 o;
+vec3 dirOf(vec2 st){vec2 c=st*2.-1.;if(uFace==0)return normalize(vec3(1.,-c.y,-c.x));if(uFace==1)return normalize(vec3(-1.,-c.y,c.x));if(uFace==2)return normalize(vec3(c.x,1.,c.y));if(uFace==3)return normalize(vec3(c.x,-1.,-c.y));if(uFace==4)return normalize(vec3(c.x,-c.y,1.));return normalize(vec3(-c.x,-c.y,-1.));}
+float rad(uint b){b=(b<<16u)|(b>>16u);b=((b&0x55555555u)<<1u)|((b&0xAAAAAAAAu)>>1u);b=((b&0x33333333u)<<2u)|((b&0xCCCCCCCCu)>>2u);b=((b&0x0F0F0F0Fu)<<4u)|((b&0xF0F0F0F0u)>>4u);b=((b&0x00FF00FFu)<<8u)|((b&0xFF00FF00u)>>8u);return float(b)*2.3283064365386963e-10;}
+void main(){vec3 N=dirOf(gl_FragCoord.xy/uSize);if(uRough<.01){o=vec4(textureLod(uSrc,N,0.).rgb,1.);return;}
+ vec3 up=abs(N.y)<.999?vec3(0,1,0):vec3(1,0,0),T=normalize(cross(up,N)),B=cross(N,T);float a=uRough*uRough;vec3 acc=vec3(0.);float w=0.;
+ for(uint i=0u;i<96u;i++){vec2 xi=vec2(float(i)/96.,rad(i));float ph=6.2831853*xi.x,ct=sqrt((1.-xi.y)/(1.+(a*a-1.)*xi.y)),st=sqrt(1.-ct*ct);vec3 H=normalize(T*cos(ph)*st+B*sin(ph)*st+N*ct);vec3 L=2.*dot(N,H)*H-N;float nl=dot(N,L);
+  if(nl>0.){float d=(ct*ct*(a*a-1.)+1.),D=a*a/(3.14159*d*d),pdf=D*.25;float sa=1./(96.*pdf+1e-5),sp=4.*3.14159/(6.*uSrcSize*uSrcSize);float lod=max(.5*log2(sa/sp)+1.,0.);acc+=textureLod(uSrc,L,lod).rgb*nl;w+=nl;}}
+ o=vec4(acc/max(w,1e-4),1.);}`;
+function hqPrefilter(src,size){const levels=Math.floor(Math.log2(size))-1,t=gl.createTexture();gl.bindTexture(gl.TEXTURE_CUBE_MAP,t);gl.texStorage2D(gl.TEXTURE_CUBE_MAP,levels,gl.RGBA16F,size,size);
+ gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MAG_FILTER,gl.LINEAR);for(const p of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T,gl.TEXTURE_WRAP_R])gl.texParameteri(gl.TEXTURE_CUBE_MAP,p,gl.CLAMP_TO_EDGE);
+ const p=HQ.prefProg,f=gl.createFramebuffer();gl.useProgram(p);gl.bindVertexArray(LIVE.vao||(LIVE.vao=gl.createVertexArray()));gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+ gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_CUBE_MAP,src);gl.uniform1i(liveU(p,'uSrc'),8);gl.uniform1f(liveU(p,'uSrcSize'),size);
+ for(let m=0;m<levels;m++){const s=size>>m;for(let fc=0;fc<6;fc++){gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_CUBE_MAP_POSITIVE_X+fc,t,m);gl.drawBuffers([gl.COLOR_ATTACHMENT0]);gl.viewport(0,0,s,s);
+  gl.uniform1i(liveU(p,'uFace'),fc);gl.uniform1f(liveU(p,'uRough'),m/(levels-1));gl.uniform1f(liveU(p,'uSize'),s);gl.drawArrays(gl.TRIANGLES,0,3)}}
+ gl.deleteFramebuffer(f);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST);HQ.prefLevels=levels;return t}
+/* SH9 radiance projection from a probe cubemap level (RGBA8, values are capture radiance/8) */
+function hqSH(cube,size){const lvl=Math.max(0,Math.round(Math.log2(size/16))),s=size>>lvl,f=gl.createFramebuffer(),px=new Uint8Array(s*s*4),L=Array.from({length:9},()=>[0,0,0]);let wsum=0;
+ gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+ for(let fc=0;fc<6;fc++){gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_CUBE_MAP_POSITIVE_X+fc,cube,lvl);gl.readPixels(0,0,s,s,gl.RGBA,gl.UNSIGNED_BYTE,px);
+  for(let y=0;y<s;y++)for(let x=0;x<s;x++){const u=2*(x+.5)/s-1,v=2*(y+.5)/s-1;let d=[[1,-v,-u],[-1,-v,u],[u,1,v],[u,-1,-v],[u,-v,1],[-u,-v,-1]][fc];const l=Math.hypot(...d);d=d.map(c=>c/l);
+   const w=4/((1+u*u+v*v)**1.5),[X,Y,Z]=d,Yb=[.282095,.488603*Y,.488603*Z,.488603*X,1.092548*X*Y,1.092548*Y*Z,.315392*(3*Z*Z-1),1.092548*X*Z,.546274*(X*X-Y*Y)],o=(y*s+x)*4,c=[px[o]/255*8,px[o+1]/255*8,px[o+2]/255*8];
+   for(let k=0;k<9;k++)for(let ch=0;ch<3;ch++)L[k][ch]+=c[ch]*Yb[k]*w;wsum+=w}}
+ gl.deleteFramebuffer(f);gl.bindFramebuffer(gl.FRAMEBUFFER,null);const norm4=4*Math.PI/wsum;return L.map(c=>c.map(v=>v*norm4))}
+function hqInit(){HQ.ok=false;try{if(!lighting||!lighting.probes)throw Error('M10 probes missing');
+  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('float targets missing');
+  HQ.prefProg=liveCompile(HQ_PREFILTER);const size=M10_SETTINGS.probeSize;
+  HQ.pref.forEach(t=>gl.deleteTexture(t));HQ.pref=lighting.probes.map(p=>hqPrefilter(p,size));HQ.sh=lighting.probes.map(p=>hqSH(p,size));
+  for(const n of ['pref0','pref1','hq','sh0','sh1','csmMap','csmVP','csmSplit','csmOn','pcss','csmTexel','camFwd','clearcoat','prefLod','ambK'])loc[n]=gl.getUniformLocation(program,'u_'+n);
+  /* energy match: diffuse ambient keeps the M10 brightness at an upward normal, SH supplies direction and colour */
+  const E=hqIrr(HQ.sh[0],[0,1,0]),lum=(.2126*E[0]+.7152*E[1]+.0722*E[2])/Math.PI;HQ.ambK=Math.min(4,Math.max(.25,.40*.85/Math.max(lum,1e-4)));
+  HQ.gen=runtimeGeneration;HQ.ok=true;FX.shadow=true}catch(e){HQ.err=String(e?.message||e);HQ.ok=false}
+ finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height)}}
+/* ---- cascaded shadows ---- */
+function hqCsmAlloc(S){if(HQ.csm&&HQ.csmSize===S)return;if(HQ.csm){gl.deleteTexture(HQ.csm);gl.deleteFramebuffer(HQ.csmF)}const maxT=gl.getParameter(gl.MAX_TEXTURE_SIZE);S=Math.min(S,Math.floor(maxT/3));
+ HQ.csm=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,HQ.csm);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,S*3,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);for(const p of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,p,gl.NEAREST);for(const p of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,p,gl.CLAMP_TO_EDGE);
+ HQ.csmF=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,HQ.csm,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);HQ.csmSize=S;gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
+function hqCsm(){const lvl=PERF.set.shadow|0;HQ.csmOn=HQ.ok&&lvl>=2;if(!HQ.csmOn)return;const S=lvl>=3?2048:1536;hqCsmAlloc(S);
+ const eye=camera.eye,fwd=norm(sub(camera.target,eye)),upv=norm(cross(cross(fwd,camera.up),fwd)),right=norm(cross(fwd,upv)),n=Math.max(.05,camera.near),f=Math.min(camera.far,40),asp=glCanvas.width/glCanvas.height,th=Math.tan(camera.fov*Math.PI/360);
+ const split=[n];for(let i=1;i<=3;i++){const a=n*Math.pow(f/n,i/3),b=n+(f-n)*i/3;split.push(.8*a+.2*b)}
+ const L=HQ.lightDir,VP=[],texel=[];
+ for(let i=0;i<3;i++){const d0=split[i],d1=split[i+1],pts=[];for(const d of [d0,d1])for(const sx of [-1,1])for(const sy of [-1,1])pts.push(eye.map((e,k)=>e+fwd[k]*d+right[k]*sx*d*th*asp+upv[k]*sy*d*th));
+  const c=[0,1,2].map(k=>pts.reduce((a,p)=>a+p[k],0)/8);let r=0;for(const p of pts)r=Math.max(r,Math.hypot(p[0]-c[0],p[1]-c[1],p[2]-c[2]));r=Math.ceil(r*16)/16;
+  const lv=lookAt(c.map((v,k)=>v+L[k]*40),c,[0,0,-1]),tw=2*r/S;/* texel snapping (stable cascades) */const lc=m4point(lv,c);const sx=Math.round(lc[0]/tw)*tw-lc[0],sy=Math.round(lc[1]/tw)*tw-lc[1];
+  const pr=ortho(-r+sx,r+sx,-r+sy,r+sy,1,90);VP.push(matMul(pr,lv));texel.push(tw)}
+ const key=JSON.stringify([VP.map(m=>Array.from(m).map(v=>+v.toFixed(5))),rollingState.wheelAngles]);HQ.csmVP=VP;HQ.csmSplit=[split[1],split[2],split[3]];HQ.csmTexel=texel;
+ if(key===HQ.csmKey)return;HQ.csmKey=key;
+ gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,null);gl.activeTexture(gl.TEXTURE0);
+ gl.bindFramebuffer(gl.FRAMEBUFFER,HQ.csmF);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.viewport(0,0,S*3,S);gl.clear(gl.DEPTH_BUFFER_BIT);gl.useProgram(lighting.depthProgram);
+ const id=identityMatrix(),draw=(mesh,m,vp)=>{gl.uniformMatrix4fv(lighting.depthMVP,false,matMul(vp,m));gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(lighting.depthPos);gl.vertexAttribPointer(lighting.depthPos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.drawElements(gl.TRIANGLES,mesh.count,mesh.type,0)};
+ for(let i=0;i<3;i++){gl.viewport(i*S,0,S,S);const vp=VP[i];
+  for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&o.center[1]+o.size[1]/2<3.5)draw(o.gpu,id,vp);
+  for(const r of scene.roadParts)if(r.gpu)draw(r.gpu,rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0),vp);
+  for(const p of scene.vehicleParts)if(p.gpu){const k=wheelParts().indexOf(p);draw(p.gpu,k<0?vehicleModel():wheelModel(p,rollingState.wheelAngles[k]||0),vp)}
+  const B=window.__BODY;if(B&&B.active&&!fpv.enabled&&B.parts){const a=-B.yaw,cc=Math.cos(a),ss=Math.sin(a),M=new Float64Array([cc,0,-ss,0,0,1,0,0,ss,0,cc,0,B.x,B.g,B.z,1]);for(const g of B.parts)draw(g,M,vp)}}
+ gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height)}
+function hqBind(capture){if(!loc.hq)return;const on=HQ.ok&&!capture&&HQ.gen===runtimeGeneration;gl.uniform1f(loc.hq,on?1:0);if(!on){gl.uniform1f(loc.csmOn,0);for(const u of [4,5]){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_CUBE_MAP,lighting.dummy)}gl.activeTexture(gl.TEXTURE0);return}
+ gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_CUBE_MAP,HQ.pref[0]);gl.uniform1i(loc.pref0,4);gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,HQ.pref[1]);gl.uniform1i(loc.pref1,5);
+ gl.uniform3fv(loc.sh0,HQ.sh[0].flat());gl.uniform3fv(loc.sh1,HQ.sh[1].flat());gl.uniform1f(loc.prefLod,HQ.prefLevels-1);gl.uniform1f(loc.ambK,HQ.ambK);
+ const csm=!!HQ.csmOn&&!!HQ.csmVP;gl.uniform1f(loc.csmOn,csm?1:0);if(csm){gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,HQ.csm);gl.uniform1i(loc.csmMap,6);const a=new Float32Array(48);HQ.csmVP.forEach((m,i)=>a.set(m,i*16));gl.uniformMatrix4fv(loc.csmVP,false,a);
+  gl.uniform3f(loc.csmSplit,...HQ.csmSplit);gl.uniform3f(loc.csmTexel,...HQ.csmTexel);gl.uniform1f(loc.pcss,(PERF.set.shadow|0)>=3?1:0)}
+ const fwd=norm(sub(camera.target,camera.eye));gl.uniform3f(loc.camFwd,...fwd);gl.activeTexture(gl.TEXTURE0)}
+function hqIrr(L,n){const c1=.429043,c2=.511664,c3=.743125,c4=.886227,c5=.247708,[x,y,z]=n;return [0,1,2].map(ch=>c1*L[8][ch]*(x*x-y*y)+c3*L[6][ch]*z*z+c4*L[0][ch]-c5*L[6][ch]+2*c1*(L[4][ch]*x*y+L[7][ch]*x*z+L[5][ch]*y*z)+2*c2*(L[3][ch]*x+L[1][ch]*y+L[2][ch]*z))}
 
 function smokeDraw(vp){const f=m13FrameState.frame,fieldReady=!!(f&&f.fields?.velocity?.data&&f.solidMask?.data);const renderStart=performance.now();try{if(fieldReady&&smokeState.enabled)smokeUpdate(f,performance.now());smokeState.layoutError=null}catch(error){smokeState.layoutError=String(error?.message||error);smokeControlStatus();smokePerf.renderMs=performance.now()-renderStart;return}if(!fieldReady||!smokeState.enabled){smokePerf.renderMs=performance.now()-renderStart;return}const p=smokeState.program;gl.useProgram(p);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.posBuffer);const ap=gl.getAttribLocation(p,'a_position');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.sizeBuffer);const as=gl.getAttribLocation(p,'a_size');gl.enableVertexAttribArray(as);gl.vertexAttribPointer(as,1,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.alphaBuffer);const aa=gl.getAttribLocation(p,'a_alpha');gl.enableVertexAttribArray(aa);gl.vertexAttribPointer(aa,1,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(p,'u_mvp'),false,vp);gl.uniform1f(gl.getUniformLocation(p,'u_viewScale'),glCanvas.height*.95);gl.enable(gl.DEPTH_TEST);gl.depthMask(false);gl.enable(gl.BLEND);if(!(window.__RIB&&window.__RIB.on&&RIB_DRAW(vp,f))){gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.POINTS,0,smokeState.count)};smokeState.drawCalls++;const clock=performance.now();if(clock-smokeState.lastStatusAt>950){smokeState.lastStatusAt=clock;smokeControlStatus()}for(const a of [ap,as,aa])gl.disableVertexAttribArray(a);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);smokePerf.renderMs=performance.now()-renderStart}
 function smokeControlStatus(){const el=document.getElementById('smokeStatus'),quick=document.getElementById('smokeQuickStatus'),f=m13FrameState.frame,office=!!f&&f.sourceId==='AETHER_S3_OFFICE_CPU',ready=!!(f?.fields?.velocity?.data&&f?.solidMask?.data),source=office?'32³ OFFICE CPU 진단 스냅샷':ready?'제품 solver 속도장 스냅샷':'사용 가능한 CFD 속도장 없음';if(quick)quick.textContent=ready?(smokeState.enabled?(smokeState.playing?' · '+source+' 입자 재생':' · 연기 일시정지'):' · 연기 표시 꺼짐'):' · '+source;if(el)el.textContent=smokeState.layoutError?'FLOW LAYOUT ERROR · '+smokeState.layoutError:f?source+' · CFD t='+f.simulationTime.toFixed(5)+'s · 입자 재생 t='+smokeState.playbackTime.toFixed(2)+'s · 정지장 재생 배속 ×'+smokeState.speedMultiplier+' · '+(smokeState.playing?'PLAYING':'PAUSED')+' · 수거 '+smokeState.captured:'CFD 속도장 대기 · 제품 solver 미연결 / 32³ OFFICE는 별도 CPU 진단';const d=document.getElementById('smokeDiagnostics');if(d&&!d.hidden)d.textContent=JSON.stringify(smokeDiagnosticsSnapshot(),null,2)}
@@ -2855,7 +3146,7 @@ function smokeSetupControls(){
 }
 smokeSetupControls();
 
-function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)return;try{const frameStart=performance.now();perfBeginFrame(frameStart);smokeRecordFrame(frameStart);updateWalk(frameStart);wowTick(frameStart);resize();perfMark('sim');liveStep(frameStart);perfMark('scene');renderLightingShadow();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);bindLighting();gl.uniform4f(loc.eye,camera.eye[0],camera.eye[1],camera.eye[2],1);const view=lookAt(camera.eye,camera.target,camera.up),proj=perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far),vp=matMul(proj,view),id=identityMatrix();gl.disable(gl.BLEND);gl.depthMask(true);gl.disable(gl.CULL_FACE);const opaque=scene.objects.filter(o=>visibleInView(o)&&o.material!=='glass');for(const o of opaque){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:lightingColor(o),colorLinear:!!o.colorLinear,texture:o.texture||null,surface:surfaceFor(o),belt:o.name==='belt',beltTravel:rollingState.beltTravel},1)}for(const r of scene.roadParts){if(!r.visible||!r.gpu)continue;const rm=rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0);gl.uniformMatrix4fv(loc.model,false,rm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,rm));drawMesh(r.gpu,rm,{color:[.30,.34,.37,1],surface:r.pbrMaterial.surface,roller:true},1)}if(AETHER.FAN_MODULE?.loaded&&AETHER.EXHAUST_COLLECTOR?.loaded){const layout=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),rotor=fanRotorVisualAngle(frameStart);for(const p of scene.fanParts){if(!p.gpu)continue;const fm=fanPartModel(p,rotor,layout);gl.uniformMatrix4fv(loc.model,false,fm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,fm));drawMesh(p.gpu,fm,{color:p.color,colorLinear:true,surface:p.surface},1)}for(const p of scene.collectorParts){if(!p.gpu)continue;const cm=collectorPartModel(p,layout);gl.uniformMatrix4fv(loc.model,false,cm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,cm));drawMesh(p.gpu,cm,{color:p.color,colorLinear:true,surface:p.surface},1)}}const cpVisible=m13FrameState.mode==='CP'&&m13FrameState.availability?.CP?.status==='AVAILABLE';const vm=vehicleModel();if(cpVisible)m13DrawCp(vp);else for(const p of scene.vehicleParts){if(!p.gpu)continue;const idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vm;gl.uniformMatrix4fv(loc.model,false,pm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,pm));drawMesh(p.gpu,pm,{color:p.color,texture:p.texture,surface:p.surface,colorLinear:true},1)}bodyDraw(vp);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp);smokeDraw(vp);perfMark('smoke');liveRender(vp);perfMark('overlay');gl.disable(gl.BLEND);gl.depthMask(true);gl.useProgram(program);const transparent=scene.objects.filter(o=>visibleInView(o)&&o.material==='glass').sort((a,b)=>Math.hypot(...sub(b.center,camera.eye))-Math.hypot(...sub(a.center,camera.eye)));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);for(const o of transparent){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:[...o.color,1]},.25)}gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.depthMask(true);gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);perfEndFrame(performance.now());diagnostics.frames=(diagnostics.frames||0)+1;if(diagnostics.frames===1||(diagnostics.frames%120)===0){const err=gl.getError();smokePerf.webglError=err===gl.NO_ERROR?'NO_ERROR':String(err);if(err!==gl.NO_ERROR)throw Error('WebGL sampled error: '+err);}if(diagnostics.frames===1){diagnostics.bootStage='READY';wow.ready=true;wowUI.start.disabled=false;wowUI.start.textContent='풍동 가동 · 30초 체험';smokeSetState(m13FrameState.frame?(smokeState.playing?'SMOKE_PLAYING':'PAUSED'):'READY');const badge=document.getElementById('readyBadge');badge.textContent='M13 VIS READY · PRODUCT SOLVER UNBOUND';badge.className='badge warn';renderDiagnostics()}if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){smokeSetState('ERROR');failRuntime('frame',e)}}
+function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)return;try{const frameStart=performance.now();perfBeginFrame(frameStart);smokeRecordFrame(frameStart);updateWalk(frameStart);wowTick(frameStart);resize();perfMark('sim');liveStep(frameStart);perfMark('scene');renderLightingShadow();hqCsm();fxBegin();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);bindLighting();gl.uniform4f(loc.eye,camera.eye[0],camera.eye[1],camera.eye[2],1);const view=lookAt(camera.eye,camera.target,camera.up),proj=fxJitter(perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far)),vp=matMul(proj,view),id=identityMatrix();gl.disable(gl.BLEND);gl.depthMask(true);gl.disable(gl.CULL_FACE);const opaque=scene.objects.filter(o=>visibleInView(o)&&o.material!=='glass');for(const o of opaque){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:lightingColor(o),colorLinear:!!o.colorLinear,texture:o.texture||null,surface:surfaceFor(o),belt:o.name==='belt',beltTravel:rollingState.beltTravel},1)}for(const r of scene.roadParts){if(!r.visible||!r.gpu)continue;const rm=rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0);gl.uniformMatrix4fv(loc.model,false,rm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,rm));drawMesh(r.gpu,rm,{color:[.30,.34,.37,1],surface:r.pbrMaterial.surface,roller:true},1)}if(AETHER.FAN_MODULE?.loaded&&AETHER.EXHAUST_COLLECTOR?.loaded){const layout=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),rotor=fanRotorVisualAngle(frameStart);for(const p of scene.fanParts){if(!p.gpu)continue;const fm=fanPartModel(p,rotor,layout);gl.uniformMatrix4fv(loc.model,false,fm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,fm));drawMesh(p.gpu,fm,{color:p.color,colorLinear:true,surface:p.surface},1)}for(const p of scene.collectorParts){if(!p.gpu)continue;const cm=collectorPartModel(p,layout);gl.uniformMatrix4fv(loc.model,false,cm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,cm));drawMesh(p.gpu,cm,{color:p.color,colorLinear:true,surface:p.surface},1)}}const cpVisible=m13FrameState.mode==='CP'&&m13FrameState.availability?.CP?.status==='AVAILABLE';const vm=vehicleModel();if(cpVisible){if(FX.active)gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.NONE]);m13DrawCp(vp);if(FX.active)gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1])}else for(const p of scene.vehicleParts){if(!p.gpu)continue;const idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vm;gl.uniformMatrix4fv(loc.model,false,pm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,pm));drawMesh(p.gpu,pm,{color:p.color,texture:p.texture,surface:p.surface,colorLinear:true,clearcoat:p.role==='body'},1)}bodyDraw(vp);if(FX.active){perfMark('smoke');fxAfterOpaque();perfMark('overlay')}else{gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp);smokeDraw(vp);perfMark('smoke');liveRender(vp);perfMark('overlay')}gl.disable(gl.BLEND);gl.depthMask(true);gl.useProgram(program);const transparent=scene.objects.filter(o=>visibleInView(o)&&o.material==='glass').sort((a,b)=>Math.hypot(...sub(b.center,camera.eye))-Math.hypot(...sub(a.center,camera.eye)));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);for(const o of transparent){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:[...o.color,1]},.25)}gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.depthMask(true);if(FX.active){perfMark('post');fxPost();const vp0=FX.m.vp;gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp0);smokeDraw(vp0);gl.disable(gl.BLEND);gl.depthMask(true);fxPresent();perfMark('overlay')}gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);perfEndFrame(performance.now());diagnostics.frames=(diagnostics.frames||0)+1;if(diagnostics.frames===1||(diagnostics.frames%120)===0){const err=gl.getError();smokePerf.webglError=err===gl.NO_ERROR?'NO_ERROR':String(err);if(err!==gl.NO_ERROR)throw Error('WebGL sampled error: '+err);}if(diagnostics.frames===1){diagnostics.bootStage='READY';wow.ready=true;wowUI.start.disabled=false;wowUI.start.textContent='풍동 가동 · 30초 체험';smokeSetState(m13FrameState.frame?(smokeState.playing?'SMOKE_PLAYING':'PAUSED'):'READY');const badge=document.getElementById('readyBadge');badge.textContent='M13 VIS READY · PRODUCT SOLVER UNBOUND';badge.className='badge warn';renderDiagnostics()}if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){smokeSetState('ERROR');failRuntime('frame',e)}}
 
 function setPreset(name){fpv.enabled=false;clearWalk();if(document.exitPointerLock)document.exitPointerLock();camera.fov=50;camera.preset=name;camera.cutaway=name!=='Hero';const p=AETHER.VEHICLE_TRANSFORM.position,l=AETHER.FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame);if(name==='Hero'){camera.eye=[p[0]-1.8,p[1]+2.4,p[2]+9.1];camera.target=[p[0],p[1]+1.05,p[2]];camera.up=[0,1,0]}if(name==='Side'){camera.eye=[p[0],p[1]+3,p[2]+13];camera.target=[p[0],p[1]+1,p[2]];camera.up=[0,1,0]}if(name==='Top'){camera.eye=[p[0],p[1]+22,p[2]+.001];camera.target=p.slice();camera.up=[0,0,-1]}if(name==='Fan'){camera.eye=[l.emitterPlane.x-3.0,2.72,0];camera.target=[l.emitterPlane.x-.4,2.72,0];camera.up=[0,1,0]}if(name==='Control'){camera.eye=[-2.8,1.90,8.65];camera.target=[-2.8,1.48,5.65];camera.up=[0,1,0]}if(name==='Outlet'){camera.eye=[l.collectorPlane.x+1.5,2.75,.05];camera.target=[l.collectorPlane.x-.7,2.75,0];camera.up=[0,1,0]}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===name));document.getElementById('viewName').textContent=name.toUpperCase();document.getElementById('cutaway').textContent='Cutaway: '+(camera.cutaway?'On':'Off');diagnostics.events.push({time:now(),type:'CAMERA',message:name+' preset'})}
 

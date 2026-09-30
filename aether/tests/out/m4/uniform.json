@@ -1,0 +1,87 @@
+{
+ "case": "uniform",
+ "cfg": {
+  "N": [
+   64,
+   16,
+   16
+  ],
+  "min": [
+   0,
+   0,
+   0
+  ],
+  "max": [
+   4,
+   1,
+   1
+  ],
+  "U": 1,
+  "nu": 0.0001
+ },
+ "dt": 0.02,
+ "T": 3,
+ "time": "2026-09-29T13:54:22.603Z",
+ "impl": "MAC",
+ "setup": {
+  "N": [
+   64,
+   16,
+   16
+  ],
+  "h": [
+   0.0625,
+   0.0625,
+   0.0625
+  ],
+  "phiSum": 0,
+  "expectedVol": 0,
+  "cellVol": 0.000244140625
+ },
+ "rec": [
+  {
+   "t": 1.0000000000000004,
+   "Fx": 0,
+   "Fy": 0,
+   "Fz": 0,
+   "Cd": null,
+   "Cl": null
+  },
+  {
+   "t": 2.0000000000000013,
+   "Fx": 0,
+   "Fy": 0,
+   "Fz": 0,
+   "Cd": null,
+   "Cl": null
+  },
+  {
+   "t": 3.000000000000002,
+   "Fx": 0,
+   "Fy": 0,
+   "Fz": 0,
+   "Cd": null,
+   "Cl": null
+  }
+ ],
+ "msPerStep": 277.812666666666,
+ "div": {
+  "cells": 16384,
+  "nonFinite": 0,
+  "relRms": 0,
+  "relMax": 0,
+  "rms": 0,
+  "max": 0
+ },
+ "residual": {
+  "rel": 0,
+  "nonFinite": 0
+ },
+ "uniform": {
+  "cells": 12152,
+  "maxRelErrU": 0,
+  "maxRelCross": 0,
+  "nonFinite": 0
+ },
+ "pageErrors": []
+}
