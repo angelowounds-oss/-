@@ -2567,6 +2567,10 @@ vec3 VEL(sampler2D s,vec3 P,ivec3 n,int tx){return vec3(TRI(s,P-vec3(0.,.5,.5),n
 /* sol texture: xyz solid velocity, w = id*2+phi (id 0 fluid,1 car,2 fan,3 body) */
 float PHI(vec4 s){return s.w-2.*floor(s.w*.5+.001);}
 float SID(vec4 s){return floor(s.w*.5+.001);}
+/* trilinear solid fraction (the encoded w = id*2+phi cannot be filtered directly); id = id of the most solid tap */
+float PHIT(sampler2D s,vec3 q,ivec3 n,int tx,out float id){q=clamp(q,vec3(0.),vec3(n-1));ivec3 i=min(ivec3(floor(q)),n-1);vec3 f=q-vec3(i);float r=0.,pm=0.;id=0.;
+ for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1);vec4 v=FT(s,min(i+d,n-1),n,tx);float p=PHI(v),w=(d.x==1?f.x:1.-f.x)*(d.y==1?f.y:1.-f.y)*(d.z==1?f.z:1.-f.z);r+=w*p;if(p>pm){pm=p;id=SID(v);}}
+ return r;}
 `;
 /* pressure operator helpers: level geometry texture uG (x,y,z = open fraction of the -x,-y,-z face, w = phi) */
 const MAC_P=`uniform sampler2D uG;
@@ -2735,7 +2739,7 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)
  vec3 Pm=P-.5*uDt*v/uH2;v=VEL(uVel,Pm,uN2,uTX2);vec3 q=(w-uDt*v-uMin)/uH-.5;o=vec4(TRI(uSrc,q,uN,uTX).x,0,0,0);}`,
 dcorr:`uniform sampler2D uVel,uSrc,uHat,uBar,uSol;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[16];uniform int uEmN;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;
- if(PHI(FT(uSol,ivec3(floor(P)),uN2,uTX2))>.5||c.x==0){o=vec4(0);return;}
+ float sid;if(PHIT(uSol,P-.5,uN2,uTX2,sid)>.5||c.x==0){o=vec4(0);return;}
  vec3 v=VEL(uVel,P,uN2,uTX2);vec3 Pm=P-.5*uDt*v/uH2;v=VEL(uVel,Pm,uN2,uTX2);vec3 q=clamp((w-uDt*v-uMin)/uH-.5,vec3(0.),vec3(uN-1));ivec3 i=min(ivec3(floor(q)),uN-1);
  float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float s=F(uSrc,i+ivec3(k&1,(k>>1)&1,(k>>2)&1)).x;lo=min(lo,s);hi=max(hi,s);}
  float r=clamp(F(uHat,c).x+.5*(F(uSrc,c).x-F(uBar,c).x),lo,hi)*uDecay;
@@ -2743,7 +2747,7 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)
  o=vec4(max(r,0.),0,0,0);}`,
 /* volume texture for rendering (dye resolution): r dye, g solid (1 car/.6 fan), b speed/U */
 vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;
-void main(){ivec3 c=ivec3(ivec2(gl_FragCoord.xy),uLayer);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;vec4 s=FT(uSol,ivec3(floor(P)),uN2,uTX2);float id=SID(s),ph=PHI(s);
+void main(){ivec3 c=ivec3(ivec2(gl_FragCoord.xy),uLayer);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;float id,ph=PHIT(uSol,P-.5,uN2,uTX2,id);
  float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);o=vec4(g>0.?0.:F(uDye,c).x,g,length(VEL(uVel,P,uN2,uTX2))/max(uU,.1),1.);}`,
 init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}o=vec4(uU,0.,0.,0.);}`,
 clear:`void main(){o=vec4(0.);}`};

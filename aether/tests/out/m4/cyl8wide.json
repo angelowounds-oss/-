@@ -33,7 +33,7 @@
  },
  "dt": 0.1,
  "T": 70,
- "time": "2026-09-30T06:54:32.920Z",
+ "time": "2026-09-30T08:41:18.672Z",
  "impl": "MAC",
  "forceModel": "discrete-v2",
  "setup": {
@@ -52,7 +52,7 @@
   "cellVol": 0.001953125
  },
  "solver": "RBGS-MG x5",
- "ibm": "cut",
+ "ibm": "vf",
  "cvBox": {
   "lo": [
    20,
@@ -18263,14 +18263,14 @@
    "q": 0.25
   }
  ],
- "msPerStep": 1182.571714285721,
+ "msPerStep": 1108.964142857146,
  "div": {
   "cells": 65536,
   "nonFinite": 0,
-  "relRms": 0.0011205995592708756,
-  "relMax": 0.052313897758722305,
-  "rms": 0.008964796474167005,
-  "max": 0.41851118206977844
+  "relRms": 0.0000019476299106606968,
+  "relMax": 0.00001704185524431523,
+  "rms": 0.000015581039285285574,
+  "max": 0.00013633484195452183
  },
  "residual": {
   "rel": 0.00025598352954388427,
@@ -18327,5 +18327,6 @@
   "Cd": 1.34,
   "src": "2D Re=200: St 0.19-0.20 (Williamson 1996 / 2D DNS), Cd 1.31-1.40 (Henderson 1995, Braza 1986)"
  },
- "pageErrors": []
+ "pageErrors": [],
+ "ibmLabelFix": "label corrected after the run: cfg.ibm was unset and the engine default at run time was vf; the harness now records __MAC.ibm directly"
 }

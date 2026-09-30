@@ -36,7 +36,7 @@ for (const name of names) {
     await page.waitForFunction(() => window.__LIVE && (window.__LIVE.ok || window.__LIVE.err), null, { timeout: 240000 });
     res.impl = await page.evaluate(() => __LIVE.impl); res.forceModel = await page.evaluate(() => __MAC.forceModel || 'h/2-v1');
     res.setup = await page.evaluate(c => { Object.assign(__MAC, { solver: 'RBGS', cycles: 5 }); return __LIVE.api.validate(c); }, C.cfg);
-    res.solver = 'RBGS-MG x5'; res.ibm = C.cfg.ibm || 'cut';
+    res.solver = 'RBGS-MG x5'; res.ibm = await page.evaluate(() => __MAC.ibm); /* the engine's actual boundary mode (cfg.ibm or the engine default) */
     let cv = null;
     if (C.cfg.obstacle) { const h = C.cfg.N.map((n, d) => (C.cfg.max[d] - C.cfg.min[d]) / n), o = C.cfg.obstacle.c, D = C.cfg.obstacle.D, cell = (x, d) => Math.max(1, Math.min(C.cfg.N[d] - 1, Math.round((x - C.cfg.min[d]) / h[d])));
       const lo = [cell(o[0] - 1.5 * D, 0), cell(o[1] - 1.5 * D, 1), C.cfg.obstacle.type === 'sphere' ? cell(o[2] - 1.5 * D, 2) : 0], hi = [cell(o[0] + 3 * D, 0), cell(o[1] + 1.5 * D, 1), C.cfg.obstacle.type === 'sphere' ? cell(o[2] + 1.5 * D, 2) : C.cfg.N[2]];
