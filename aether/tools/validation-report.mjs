@@ -4,6 +4,11 @@ import fs from 'node:fs'; import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const J = p => { try { return JSON.parse(fs.readFileSync(path.join(root, p), 'utf8')); } catch { return null; } };
 const e = (x, d = 3) => x === undefined || x === null || !Number.isFinite(x) ? '—' : (Math.abs(x) !== 0 && (Math.abs(x) < 1e-2 || Math.abs(x) >= 1e4) ? x.toExponential(2) : x.toFixed(d));
+/* Strouhal from upward zero crossings of Cl over the statistics window (same estimator as tests/validate.mjs) */
+const zeroCross = (t, y) => { const n = y.length, m = y.reduce((a, b) => a + b, 0) / n, z = [];
+  for (let i = 1; i < n; i++) { const a = y[i - 1] - m, b = y[i] - m; if (a < 0 && b >= 0) z.push(t[i - 1] + (t[i] - t[i - 1]) * (-a) / (b - a)); }
+  return z.length < 3 ? { f: NaN, cycles: 0 } : { f: (z.length - 1) / (z[z.length - 1] - z[0]), cycles: z.length - 1 }; };
+const stOf = d => { const W = (d.rec || []).filter(r => r.t >= (d.window?.from ?? 40) && Number.isFinite(r.Cl)); return zeroCross(W.map(r => r.t), W.map(r => r.Cl)); };
 const st = (ok, pending) => pending ? '진행 중' : ok ? 'PASS' : 'PARTIAL';
 const rows = [], note = [];
 const U = J('tests/out/m4/uniform.json');
@@ -19,7 +24,7 @@ const cyl = {}; for (const r of [6, 8, 12, 16]) { const f = `tests/out/m4/cyl${r
 const W8 = J('tests/out/m4/cyl8wide.json'); if (ok(W8, 'tests/out/m4/cyl8wide.json')) cyl['8wide'] = W8;
 for (const [r, d] of Object.entries(cyl)) {
   const lab = r === '8wide' ? '8셀/D, 폭 16D(차단율 6 %)' : `${r}셀/D, 폭 10D(차단율 10 %)`, f = `tests/out/m4/cyl${r}.json`;
-  rows.push([`원기둥 Re=200 ${lab} — 스트라우할 수 (Cl 스펙트럼)`, '0.18 ~ 0.22', `${e(d.St.value)} (프로브 ${e(d.StProbe?.value)})`, st(d.St.value >= 0.18 && d.St.value <= 0.22), f]);
+  const S = stOf(d); rows.push([`원기둥 Re=200 ${lab} — 스트라우할 수 (Cl 영교차 ${S.cycles}주기)`, '0.18 ~ 0.22', `${e(S.f)} (DFT ${e(d.StDft?.value ?? d.St.value)}, 프로브 DFT ${e(d.StProbe?.value)})`, st(S.f >= 0.18 && S.f <= 0.22), f]);
   const err = (d.Cd.mean - 1.34) / 1.34;
   rows.push([`원기둥 Re=200 ${lab} — Cd (평균±표준편차)`, '문헌 1.34 ± 20 %', `${e(d.Cd.mean)} ± ${e(d.Cd.std)} (오차 ${e(err * 100, 1)} %${split(d)})`, st(Math.abs(err) <= 0.2), '같음']);
   rows.push([`원기둥 ${lab} — 발산/잔차 (마지막 스텝)`, 'RMS<1e-3, 최대<1e-2, 잔차≤1e-3', `RMS ${e(d.div.relRms)}, 최대 ${e(d.div.relMax)}, 잔차 ${e(d.residual.rel)}`, st(d.div.relRms < 1e-3 && d.div.relMax < 1e-2 && d.residual.rel <= 1e-3), '같음']);
@@ -27,9 +32,15 @@ for (const [r, d] of Object.entries(cyl)) {
 const SP = J('tests/out/m4/sphere.json');
 if (ok(SP, 'tests/out/m4/sphere.json')) { const err = (SP.Cd.mean - 1.09) / 1.09; rows.push(['구 Re=100 10셀/D — Cd', '문헌 1.09 ± 20 %', `${e(SP.Cd.mean)} ± ${e(SP.Cd.std)} (오차 ${e(err * 100, 1)} %${split(SP)})`, st(Math.abs(err) <= 0.2), 'tests/out/m4/sphere.json']); }
 else rows.push(['구 Re=100 10셀/D — Cd', '문헌 1.09 ± 20 %', '—', '진행 중', 'tests/out/m4/sphere.json']);
-const conv = Object.entries(cyl).filter(([r]) => r !== '8wide').map(([r, d]) => `${r}셀/D: Cd ${e(d.Cd.mean)}, St ${e(d.St.value)}`).join(' → ');
+const conv = Object.entries(cyl).filter(([r]) => r !== '8wide').map(([r, d]) => `${r}셀/D: Cd ${e(d.Cd.mean)}, St ${e(stOf(d).f)}`).join(' → ');
 rows.push(['격자 수렴 3단계 (원기둥)', 'Cd·St 변화 추이 보고', conv || '—', Object.keys(cyl).filter(r => r !== '8wide').length >= 3 ? 'PASS(보고)' : '진행 중', 'tests/out/m4/cyl*.json']);
 rows.push(['차량 Cd/Cl', '참고값으로만 표시', '화면에 "차량은 참고값" 표기, 평균±표준편차', 'PASS', 'src/ui.js']);
+/* boundary-treatment comparison: cut-cell only vs + volume-fraction forcing; three force estimates per run */
+const cmp = [];
+for (const [f, lab, ref] of [['sphere8', '구 Re=100, 8셀/D, cut', 1.09], ['sphere8vf', '구 Re=100, 8셀/D, cut+vf', 1.09], ['cyl8', '원기둥 Re=200, 8셀/D, cut', 1.34], ['cyl8vf', '원기둥 Re=200, 8셀/D, cut+vf', 1.34]]) {
+  const d = J(`tests/out/m4/${f}.json`); if (!d || d.error || !d.CdCV) { cmp.push(`| ${lab} | ${ref} | — | — | — | 진행 중 |`); continue; }
+  const pct = x => e((x - ref) / ref * 100, 1) + ' %';
+  cmp.push(`| ${lab} | ${ref} | ${e(d.Cd.mean)} (${pct(d.Cd.mean)}) | ${e(d.CdBudget?.mean)} (${pct(d.CdBudget?.mean)}) | ${e(d.CdCV.mean)} (${pct(d.CdCV.mean)}) | ${Math.abs(d.CdCV.mean - ref) / ref <= 0.2 ? 'PASS' : 'PARTIAL'} |`); }
 const table = r => ['| 항목 | 기준 | 결과 | 판정 | 근거 |', '|---|---|---|---|---|', ...r.map(x => '| ' + x.join(' | ') + ' |')].join('\n');
 let lbm = ''; for (const [m, sfx, coll] of [['FP32', '-trt', 'TRT'], ['FP32', '', '정규화 BGK'], ['FP16', '', '정규화 BGK'], ['MIXED', '', '정규화 BGK']]) { const d = J(`tests/out/m7/lbm-D8-${m}${sfx}.json`); if (d) lbm += `| ${m} | ${coll} | ${d.setup?.ok ? e(d.setup.bytesPerCell, 0) : '—'} | ${e(d.msPerStep, 1)} | ${d.Cd ? e(d.Cd.mean) + ' ± ' + e(d.Cd.std) : '—'} | ${d.St ? e(d.St.f) : '—'} | ${d.error ? '오류: ' + d.error.slice(0, 60) : d.nonFinite ? `NaN 발생 (t*≈${e(d.rec?.filter(r => Number.isFinite(r.Cd)).pop()?.tStar, 1)})` : '안정'} |\n`; }
 const md = `# VALIDATION
@@ -46,6 +57,14 @@ ${table(rows)}
 
 ${stale.length ? `이전 힘 공식(벽 거리 h/2 가정)으로 만든 결과 파일은 표에서 제외: ${stale.map(f => '`' + f + '`').join(', ')}\n` : ''}
 힘 계산: 압력은 φ 경사를 가로지르는 p·n 면적분, 점성은 확산 단계가 고체 면(θ=0)과 주고받는 운동량을 그대로 합산(이산 일관형, \`forceModel: ${FM}\`).
+
+## 경계 처리 비교 — 부분체적(cut) vs 부분체적 + 체적분율 강제(vf, Kajishima 2001)
+
+같은 흐름에서 힘을 세 가지로 구합니다. **검사체적(CV)** 값은 물체를 둘러싼 상자(−1.5D~3D, ±1.5D)의 운동량 수지(유속·압력·점성 응력·상자 내 운동량 변화)라 경계 처리와 힘 공식에 독립이며, 판정에 이것을 씁니다.
+
+| 경우 | 문헌 Cd | 표면식 Cd | 운동량 수지식 Cd | 검사체적 Cd | 판정(CV, ±20 %) |
+|---|---|---|---|---|---|
+${cmp.join('\n')}
 
 ## 압력 솔버 비교 (M3B)
 

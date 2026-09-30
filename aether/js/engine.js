@@ -2528,7 +2528,7 @@ Object.assign(LIVE.api,{
  lbmProbe(i,j,k){return lbmProbe(i,j,k)},
  lbmStep(n){lbmStep(n)},
  lbmForce(){return lbmForce()},
- vrun(n,dt,every,probe){return macVrun(n,dt,every,probe)},
+ vrun(n,dt,every,probe,cv){return macVrun(n,dt,every,probe,cv)},
  uniformError(){return macUniformError()},
  memBreakdown(){return macMemBreakdown()},
  set(o){Object.assign(LIVE,o)}});
@@ -2546,7 +2546,7 @@ LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)
    - advection: MacCormack with min/max limiter (RK2 backtrace). LES: Smagorinsky eddy viscosity, explicit.
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
-const MAC={forceModel:'discrete-v2',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
+const MAC={forceModel:'discrete-v2',ibm:'cut',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
  lastSolve:null,stats:{},domain:null};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
@@ -2642,6 +2642,12 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
  for(int ax=0;ax<3;ax++){if(g[ax]<=0.)un[ax]=us(c,ax)[ax];}
  if(c.x==0&&g.x>0.)un.x=uU;if(c.y==0)un.y=0.;if(c.z==0)un.z=0.;
  o=vec4(un,0.);}`,
+/* ---- optional volume-fraction forcing (Kajishima et al. 2001): on partially solid faces u <- (1-chi) u + chi us,
+   chi = 1-theta = face solid fraction. Makes tangential velocity feel the true surface instead of the fully solid staircase. ---- */
+ibm:`uniform sampler2D uVel,uSol,uG;
+vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);
+ for(int ax=0;ax<3;ax++){if(g[ax]>0.&&g[ax]<1.)u[ax]=mix(u[ax],us(c,ax)[ax],1.-g[ax]);}o=vec4(u,0.);}`,
 /* ---- cut-cell divergence of the predicted velocity (/dt for the Poisson right-hand side) ---- */
 div:`uniform sampler2D uVel,uSol,uG;uniform float uScale;
 vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
@@ -2697,15 +2703,24 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
    (component t) whose stencil neighbour in direction d is a solid face (theta=0) of body uId, the discrete
    Laplacian applies rho*nu*(us-u)*V/h_d^2 to the fluid; the body receives the opposite. This is consistent with
    the scheme (no assumed wall distance). */
-force:`uniform sampler2D uVel,uP,uSol,uNu,uG;uniform float uRho,uNuMol,uId;
+force:`uniform sampler2D uVel,uP,uSol,uNu,uG,uStar;uniform float uRho,uNuMol,uId,uBudget,uVf,uDt;
 vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
-bool bodyFace(ivec3 n,int t){if(!IN(n)||n[t]==0)return false;if(F(uG,n)[t]>0.)return false;ivec3 e=ivec3(0);e[t]=1;return SID(F(uSol,n))==uId||SID(F(uSol,n-e))==uId;}
-void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);float Fpx=0.;
- for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0)continue;vec4 sn=F(uSol,c-e);float pa=PHI(sc),pb=PHI(sn);
-  if(!(SID(sc)==uId||SID(sn)==uId))continue;float dphi=pa-pb;if(abs(dphi)<1e-4)continue;
-  ivec3 fc=pa<pb?c:c-e;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);float fp=uRho*F(uP,fc).x*dphi*A[ax];
-  Fo[ax]+=fp;if(ax==0)Fpx+=fp;}
+bool isBody(ivec3 c,int t){ivec3 e=ivec3(0);e[t]=1;return SID(F(uSol,c))==uId||SID(F(uSol,c-e))==uId;}
+bool bodyFace(ivec3 n,int t){if(!IN(n)||n[t]==0)return false;if(F(uG,n)[t]>0.)return false;return isBody(n,t);}
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 Fo=vec3(0.);float Fpx=0.;vec3 A=vec3(uH.y*uH.z,uH.x*uH.z,uH.x*uH.y);
  vec4 g=F(uG,c);vec3 u=F(uVel,c).xyz;float V=uH.x*uH.y*uH.z;
+ if(uBudget<.5){
+  /* surface: jump of p across the phi ramps */
+  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0)continue;vec4 sn=F(uSol,c-e);float pa=PHI(sc),pb=PHI(sn);
+   if(!(SID(sc)==uId||SID(sn)==uId))continue;float dphi=pa-pb;if(abs(dphi)<1e-4)continue;
+   ivec3 fc=pa<pb?c:c-e;float fp=uRho*F(uP,fc).x*dphi*A[ax];Fo[ax]+=fp;if(ax==0)Fpx+=fp;}
+ }else{
+  /* momentum budget: pressure on closed body faces (the part of grad p the projection never applies) + forcing of the ibm pass */
+  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(c[ax]==0||!isBody(c,ax))continue;
+   if(g[ax]<=0.){float fp=uRho*(F(uP,c-e).x-F(uP,c).x)*A[ax];Fo[ax]+=fp;if(ax==0)Fpx+=fp;}
+   else if(uVf>.5&&g[ax]<1.)Fo[ax]+=uRho*(1.-g[ax])*(F(uStar,c)[ax]-us(c,ax)[ax])*V/uDt;}
+ }
+ /* viscous: momentum the diffusion pass exchanges with closed faces of this body (rho nu (u-us) V/h_d^2 per stencil link) */
  for(int t=0;t<3;t++){if(g[t]<=0.||c[t]==0)continue;ivec3 et=ivec3(0);et[t]=1;float nu=uNuMol+.5*(F(uNu,c).x+F(uNu,c-et).x);
   for(int d=0;d<3;d++){ivec3 ed=ivec3(0);ed[d]=1;
    for(int s=-1;s<=1;s+=2){ivec3 n=c+s*ed;if(bodyFace(n,t))Fo[t]+=uRho*nu*(u[t]-us(n,t)[t])*V/(uH[d]*uH[d]);}}}
@@ -2854,6 +2869,8 @@ function macStep(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.vao)
  macPass('sgs',T.nu,{uVel:T.velB.t,uSol:T.sol.t},{uCs:MAC.les?MAC.Cs:0,uNuMax:nuMax});
  const bb=cfg.belt?[0,3.15,0,1.25]:[0,0,0,0];
  macPass('diff',T.velA,{uVel:T.velB.t,uNu:T.nu.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt,uNuMol:cfg.nu??MAC.nuMol,uEps:MAC.eps,uBelt:cfg.belt?1:0,uBeltBox:bb});
+ /* volume-fraction forcing: T.hat keeps the pre-forcing velocity until the next step (read by the budget force) */
+ if(MAC.ibm==='vf'){macPass('ibm',T.hat,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{});macSwap(T,'velA','hat')}
  /* projection */
  macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt});
  macSolve();
@@ -2885,8 +2902,10 @@ function macDivStats(){const T=MAC.t;gl.bindVertexArray(LIVE.vao);macPass('div',
 function macResidual(){const T=MAC.t,L0=MAC.lv[0];gl.bindVertexArray(LIVE.vao);macPass('pres',T.res,{uP:L0.T.pA.t,uB:T.b.t,uG:T.geom.t},{});const r=macReadAll(T.res),b=macReadAll(T.b);let rr=0,bb=0,bad=0;
  for(let q=0;q<r.length;q+=4){if(!Number.isFinite(r[q])){bad++;continue}rr+=r[q]*r[q];bb+=b[q]*b[q]}gl.bindVertexArray(null);return {rel:Math.sqrt(rr/Math.max(bb,1e-30)),nonFinite:bad}}
 /* forces on the solid id 1 (car or validation obstacle); physical units with rho=1.2 (tunnel) or rho=1 (validation) */
-function macForces(){const T=MAC.t,cfg=MAC.cfg,rho=cfg.rho??1.2;gl.bindVertexArray(LIVE.vao);
- macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t,uG:T.geom.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1});
+/* mode 'surface' (p across the phi ramps) or 'budget' (closed-face pressure + ibm forcing); default: surface for the
+   cut-cell treatment, budget for 'vf' (the forcing already contains the pressure on the solid fraction) */
+function macForces(mode){const T=MAC.t,cfg=MAC.cfg,rho=cfg.rho??1.2,vf=MAC.ibm==='vf';mode=mode||(vf?'budget':'surface');gl.bindVertexArray(LIVE.vao);
+ macPass('force',T.frc,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uNu:T.nu.t,uG:T.geom.t,uStar:T.hat.t},{uRho:rho,uNuMol:cfg.nu??MAC.nuMol,uId:1,uBudget:mode==='budget'?1:0,uVf:vf&&mode==='budget'?1:0,uDt:MAC.lastDt||.02});
  const s=liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red),b=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,s.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,b);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);
  const A=cfg.Aref??(MAC.vox?.front||0),q=.5*rho*MAC.U*MAC.U*A;return {Fx:b[0],Fy:b[1],Fz:b[2],Fpx:b[3],A,Cd:q>0?b[0]/q:NaN,Cdp:q>0?b[3]/q:NaN,Cl:q>0?b[1]/q:NaN,Cs:q>0?b[2]/q:NaN}}
 /* scalar state readback (relative residual of the last PCG solve) */
@@ -2905,13 +2924,32 @@ function macSolveBench(list){const T=MAC.t,L0=MAC.lv[0],out=[],save={solver:MAC.
 function macMemBreakdown(){const G=MAC.G,lvB=MAC.lv.slice(1).reduce((a,L)=>a+L.W*L.H*(4*4+8),0),base=G.W*G.H;
  return {levelsMB:(lvB+base*4*3)/1048576,pcgVectorsMB:base*4*6/1048576,jacobiMB:base*4*2/1048576}}
 
+/* Control-volume momentum balance around the obstacle (validation cross-check, independent of the boundary
+   treatment and of the surface force formula). Box = cells [lo,hi) per axis. Returns the surface terms
+   S = -oint[rho u(u.n) + p n - tau.n] dS and the box momentum M = int rho u dV; body force = S - dM/dt (rho=1). */
+function macCvForce(lo,hi){const N=MAC.N,h=MAC.h,nu=MAC.cfg.nu??MAC.nuMol,rho=MAC.cfg.rho??1.2,v=macReadAll(MAC.t.velA),pr=macReadAll(MAC.lv[0].T.pA);
+ const cl=(i,d)=>Math.min(N[d]-1,Math.max(0,i)),I=(i,j,k)=>macFieldIndex(cl(i,0),cl(j,1),cl(k,2)),U=(c,i,j,k)=>v[I(i,j,k)+c],P=(i,j,k)=>pr[I(i,j,k)];
+ /* velocity component c at an arbitrary point given in cell units (MAC staggering: component c sits at offset .5 on the other axes) */
+ const at=(c,x,y,z)=>{const q=[x,y,z];for(let d=0;d<3;d++)if(d!==c)q[d]-=.5;const i0=Math.floor(q[0]),j0=Math.floor(q[1]),k0=Math.floor(q[2]),fx=q[0]-i0,fy=q[1]-j0,fz=q[2]-k0;let s=0;
+  for(let a=0;a<2;a++)for(let b=0;b<2;b++)for(let e=0;e<2;e++)s+=(a?fx:1-fx)*(b?fy:1-fy)*(e?fz:1-fz)*U(c,i0+a,j0+b,k0+e);return s};
+ const S=[0,0,0],M=[0,0,0],A=[h[1]*h[2],h[0]*h[2],h[0]*h[1]],V=h[0]*h[1]*h[2];
+ for(let ax=0;ax<3;ax++)for(const side of [0,1]){const sg=side?1:-1,f=side?hi[ax]:lo[ax],o1=(ax+1)%3,o2=(ax+2)%3;
+  for(let a=lo[o1];a<hi[o1];a++)for(let b=lo[o2];b<hi[o2];b++){const x=[0,0,0];x[ax]=f;x[o1]=a+.5;x[o2]=b+.5;
+   const u=[at(0,...x),at(1,...x),at(2,...x)],un=u[ax];const c0=[0,0,0];c0[ax]=f-1;c0[o1]=a;c0[o2]=b;const c1=c0.slice();c1[ax]=f;
+   const p=f<=0?P(...c1):f>=N[ax]?P(...c0):.5*(P(...c0)+P(...c1));
+   for(let c=0;c<3;c++){/* tau_{c,ax} = nu (d u_c/d x_ax + d u_ax/d x_c), centred differences at the face point */
+    const d1=(()=>{const xp=x.slice(),xm=x.slice();xp[ax]+=.5;xm[ax]-=.5;return (at(c,...xp)-at(c,...xm))/h[ax]})(),d2=(()=>{const xp=x.slice(),xm=x.slice();xp[c]+=.5;xm[c]-=.5;return (at(ax,...xp)-at(ax,...xm))/h[c]})();
+    S[c]-=sg*A[ax]*(rho*u[c]*un+(c===ax?rho*p:0)-rho*nu*(d1+d2))}}}
+ for(let k=lo[2];k<hi[2];k++)for(let j=lo[1];j<hi[1];j++)for(let i=lo[0];i<hi[0];i++)for(let c=0;c<3;c++)M[c]+=rho*at(c,i+.5,j+.5,k+.5)*V;
+ return {S,M}}
 /* ---- validation domain API ---- */
-function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,max:cfg.max,obstacle:cfg.obstacle||null,U:cfg.U??1,nu:cfg.nu??0,rho:1,Aref:cfg.Aref};MAC.les=cfg.les??false;
+function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,max:cfg.max,obstacle:cfg.obstacle||null,U:cfg.U??1,nu:cfg.nu??0,rho:1,Aref:cfg.Aref};MAC.les=cfg.les??false;MAC.ibmSaved=MAC.ibmSaved??MAC.ibm;MAC.ibm=cfg.ibm||MAC.ibmSaved;
  LIVE.enabled=false;LIVE.freeze=true;macInit();if(cfg.obstacle){MAC.wheels=[[...cfg.obstacle.c,cfg.obstacle.D/2]];MAC.spin=cfg.spin||0;MAC.spinUntil=cfg.spinUntil||0}
  gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
 /* run n steps; every `every` steps record forces (and probe velocity) */
-function macVrun(n,dt,every=1,probe=null){const rec=[];const t0=performance.now();
- for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces();const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cdp:f.Cdp,Cl:f.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}rec.push(r)}}
+function macVrun(n,dt,every=1,probe=null,cv=null){const rec=[];const t0=performance.now();
+ for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces(),fb=macForces('budget');const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cdp:f.Cdp,Cl:f.Cl,CdB:fb.Cd,ClB:fb.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}
+  if(cv){const c=macCvForce(cv.lo,cv.hi);r.cvS=c.S;r.cvM=c.M;r.q=.5*(MAC.cfg.rho??1.2)*MAC.U*MAC.U*f.A}rec.push(r)}}
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);return {rec,ms:performance.now()-t0,step:MAC.step,time:MAC.time}}
 function macUniformError(){const v=macReadAll(MAC.t.velA),N=MAC.N,U=MAC.U;let mx=0,mt=0,n=0,bad=0;
  for(let k=1;k<N[2]-1;k++)for(let j=1;j<N[1]-1;j++)for(let i=1;i<N[0]-1;i++){const q=macFieldIndex(i,j,k);if(![v[q],v[q+1],v[q+2]].every(Number.isFinite)){bad++;continue}mx=Math.max(mx,Math.abs(v[q]-U)/U);mt=Math.max(mt,Math.hypot(v[q+1],v[q+2])/U);n++}

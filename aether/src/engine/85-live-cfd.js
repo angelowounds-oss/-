@@ -329,7 +329,7 @@ Object.assign(LIVE.api,{
  lbmProbe(i,j,k){return lbmProbe(i,j,k)},
  lbmStep(n){lbmStep(n)},
  lbmForce(){return lbmForce()},
- vrun(n,dt,every,probe){return macVrun(n,dt,every,probe)},
+ vrun(n,dt,every,probe,cv){return macVrun(n,dt,every,probe,cv)},
  uniformError(){return macUniformError()},
  memBreakdown(){return macMemBreakdown()},
  set(o){Object.assign(LIVE,o)}});
