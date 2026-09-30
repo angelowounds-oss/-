@@ -112,6 +112,9 @@ void Data::load(const string& path) {
   }
   // Lightning damage: LighningSpell projectile, L11 array index len-9 for Epic (14 entries) = idx 5 -> 1056
   if (cardIdx.count("lightning")) { cards[cardIdx["lightning"]].dmg = 1056; cards[cardIdx["lightning"]].ctp = -70; cards[cardIdx["lightning"]].buff = "ZapFreeze"; cards[cardIdx["lightning"]].buffT = 0.5f; }
+  // Arrows: RoyaleAPI's per-volley number (122) is not the total. Fandom wiki: L11 Arrows one-shot Princess (1 level up),
+  // Minion (2 up), Goblin (3 up), Spear Goblin (8 up) => total damage in [287,296). Use 290. Crown tower share 25% (June 2026 change).
+  if (cardIdx.count("arrows")) { cards[cardIdx["arrows"]].dmg = 290; cards[cardIdx["arrows"]].ctp = -75; }
   for (int i = 0; i < (int)cards.size(); i++) if (cards[i].supported) supported.push_back(i);
 }
 
