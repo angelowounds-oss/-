@@ -47,5 +47,9 @@ SwiftShader 벽시계 시간은 알고리즘 간 **상대 비교**에만 씁니�
 
 | 비교 | 값 |
 |---|---|
-| 압력 솔버 1회(LOW, 같은 RHS, 0에서 시작) | Jacobi 32: 1.9 s / RBGS-MG 2: 0.85 s / MGPCG 8: 2.1 s |
-| 60스텝 평균(웜스타트) | RBGS-MG 2: 4.7 s/스텝, MGPCG 4: 7.7 s/스텝 |
+| 압력 솔버 1회(LOW, 같은 RHS, 0에서 시작) | Jacobi 32: 1.7 s(잔차 0.087) / RBGS-MG 2: 0.99 s(0.067) / MGPCG 8: 4.4 s(4.2e-4) |
+| 60스텝 평균(웜스타트, 잔차) | RBGS-MG 2: 3.6 s/스텝(1.4e-4), MGPCG 4: 5.1 s/스텝(1.4e-4), GMG 2: 발산 |
+| 검증 원기둥 8셀/D (RBGS-MG 5, vf) | 0.69 s/스텝 |
+| LBM D3Q19 8셀/D | VALIDATION "LBM 비교" (같은 물리시간 기준 MAC 대비 약 3~5배) |
+
+출처: `tests/out/m3/solver-compare.md`, `tests/out/m4/*.json`, `tests/out/m7/*.json`. 모두 SwiftShader 벽시계라 상대 비교만 의미가 있습니다.
