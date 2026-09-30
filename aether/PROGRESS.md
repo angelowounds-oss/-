@@ -71,5 +71,5 @@
 | 그래픽 | 볼류메트릭: 1/2~1/4·블루노이즈·시간재투영·깊이 인지 업샘플·HG·광선 그림자 | PASS(화면 확인) | 88-post-fx |
 | 그래픽 | 장면 깊이로 모든 불투명 물체가 연기를 가림 | PASS | 깊이 텍스처 레이 종료, 스크린샷 |
 | 그래픽 | 약한 블룸, 동적 해상도 | PASS | |
-| LBM | D3Q19 구현, FP32/MIXED/FP16 비교, 정확도·ms·메모리·안정성 | PASS(비교 완료) | VALIDATION "LBM 비교", ARCHITECTURE §5 |
+| LBM | D3Q19 구현, FP32/MIXED/FP16 비교, 정확도·ms·메모리·안정성 | PASS(비교 완료) | St 0.195(3모드 모두), Cd +43 %(기준 밖 → 채택 안 함), MIXED=FP32 정확도·메모리 절반. VALIDATION "LBM 비교", ARCHITECTURE §5 |
 | 산출물 | 고정 카메라 5곳 스크린샷, 수치표, 스냅샷 | PASS | `tests/out/m8/cam1~5.png`, VALIDATION.md, `dist/snapshots/` |
