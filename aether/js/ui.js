@@ -73,7 +73,7 @@ setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classL
    if(m.vol===m.ren&&m.ren===m.sim)q('qAll').value=m.sim;else q('qAll').selectedIndex=-1;
    q('qScale').value=s.scale?String(s.scale):'';q('qAdaptive').checked=s.adaptive}
   const pct=v=>Math.round((v||0)*100)+' %',t=s.tier||{},lines=[];
-  lines.push(s.measured?'측정 추천: '+s.pick+' (시작 시 GPU 실측)':'GPU 측정 중… (끝나면 추천 등급 표시)');
+  lines.push('GPU: '+(s.renderer||'?').replace(/^ANGLE \((.*)\)$/,'$1').slice(0,90));lines.push(s.measured?'측정 추천: '+s.pick+' (시작 시 GPU 실측)':'GPU 측정 중… (끝나면 추천 등급 표시)');
   lines.push('현재: CFD '+(t.sim||'—')+(s.grid?' '+s.grid.join('×'):'')+' · 연기 '+(t.vol||'—')+' '+pct(s.volRes)+' · 그래픽 '+(t.ren||'—'));
   lines.push('화면 '+pct(s.renderScale)+' ('+s.canvas.join('×')+' 캔버스)'+(s.scale?' · 직접 지정':''));
   lines.push('프레임 '+(s.p95!=null?'p95 '+s.p95.toFixed(1)+' ms':'—')+(s.frameMs!=null?' · 비용 '+s.frameMs.toFixed(1)+' ms('+(s.frameSrc||'')+')':'')+' · 자동 조절 '+(s.adaptive?'켜짐':'꺼짐'));
