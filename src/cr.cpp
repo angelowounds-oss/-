@@ -1,6 +1,7 @@
 #include "cr.hpp"
 
 Data D;
+float UDef::SPEED_DIV = 50.0f;
 Policy POLICIES[3] = {
     {0.9f, 9.0f, 0.4f, 5.0f},  // 0: turtle / counter-push
     {0.8f, 6.0f, 0.7f, 4.0f},  // 1: balanced
@@ -67,6 +68,10 @@ void Data::load(const string& path) {
     if (d.dsName != "-" && unitIdx.count(d.dsName)) d.dsIdx = unitIdx[d.dsName]; else d.dsNum = 0;
   }
   princess = unitIdx["PrincessTower"]; king = unitIdx["KingTower"];
+  // Tower troops at tournament standard (level 11). The RoyaleAPI snapshot scales tower levels with a flat +10%/level,
+  // which does not match the game (+8%/level up to L9, then +10%); use the values published for L11 instead
+  // (Liquipedia via TopSerg/cr_coach_bundle tournament11_profile.json: princess 3052 hp / 109 dmg; king 4824 hp / 109 dmg).
+  units[princess].hp = 3052; units[princess].dmg = 109; units[king].hp = 4824; units[king].dmg = 109;
   for (auto& kl : klines) {
     const KV& k = kl.second; CardDef c; c.key = kl.first; string ty = S(k, "type");
     c.type = ty == "Troop" ? C_TROOP : ty == "Building" ? C_BUILDING : C_SPELL; c.elixir = (int)F(k, "elixir");
@@ -128,7 +133,7 @@ Game::Game(const array<int, 8>& a, const array<int, 8>& b, int pa, int pb, uint6
 
 Unit* Game::spawnUnit(int def, int team, float x, float y, float deployDelay, float val) {
   const UDef& d = D.units[def];
-  Unit u{}; u.def = def; u.team = team; u.uid = nextUid++; u.x = x; u.y = y; u.hp = u.maxhp = d.hp; u.shield = d.shield; u.cd = d.load;
+  Unit u{}; u.def = def; u.team = team; u.uid = nextUid++; u.x = x; u.y = y; u.hp = u.maxhp = d.hp; u.shield = d.shield; u.cd = 0;
   u.deployT = deployDelay; u.slowM = 1; u.life = d.life; u.val = val; u.lastTgt = 0; u.spawnT = d.spStart > 0 ? d.spStart : d.spPause; u.manaT = d.mana;
   u.x = min(max(u.x, 0.3f), W - 0.3f); u.y = min(max(u.y, 0.3f), H - 0.3f);
   units.push_back(u); return &units.back();
@@ -162,7 +167,8 @@ bool Game::play(int team, int hi, float px, float py) {
   float wx = mx(team, px), wy = my(team, py);
   elixir[team] -= c.elixir;
   hand[team][hi] = queue[team].front(); queue[team].pop_front(); queue[team].push_back(di);
-  lastPlayed[team] = ci;
+  lastPlayed[team] = ci; plays[team]++;
+  if (getenv("CR_TRACE")) printf("  t=%6.1f P%d plays %-16s at (%.1f,%.1f) elixir left %.1f\n", t, team, c.key.c_str(), px, py, elixir[team]);
   if (c.type == C_TROOP || c.type == C_BUILDING) {
     if (c.type == C_BUILDING) { spawnUnit(c.unit, team, wx, wy, D.units[c.unit].deploy, (float)c.elixir); }
     else spawnCard(ci, team, wx, wy);
@@ -191,7 +197,7 @@ void Game::hurt(Unit& u, float dmg) {
 static void towerDamage(Game& g, int team, int j, float dmg) {
   Tower& tw = g.tw[team][j]; if (!tw.alive) return; tw.hp -= dmg; if (j == 2) tw.active = true;
   if (tw.hp <= 0) {
-    tw.hp = 0; tw.alive = false; g.crowns[1 - team] += (j == 2) ? 3 : 1;
+    tw.hp = 0; tw.alive = false; g.crowns[1 - team] += (j == 2) ? 3 : 1; if (g.firstCrown < 0) g.firstCrown = g.t;
     if (j != 2) g.tw[team][2].active = true;
     if (j == 2) { g.crowns[1 - team] = max(g.crowns[1 - team], 3); }
   }
@@ -236,7 +242,7 @@ static bool inRange(const UDef& d, float ux, float uy, const Tgt& t) {
 void Game::step() {
   t += DT;
   float mult = t < 120 ? 1.0f : (t < 240 ? 2.0f : 3.0f);
-  for (int p = 0; p < 2; p++) elixir[p] = min(10.0f, elixir[p] + DT * mult / 2.8f);
+  for (int p = 0; p < 2; p++) { float ne = elixir[p] + DT * mult / 2.8f; if (ne > 10.0f) wasted[p] += ne - 10.0f; elixir[p] = min(10.0f, ne); }
   for (int p = 0; p < 2; p++) if (t >= thinkT[p]) { think(p); thinkT[p] = t + 0.45f + 0.25f * rng.uni(); }
 
   // pending spells
@@ -334,8 +340,9 @@ void Game::step() {
     // ---- attack or move
     bool attacking = false;
     if (hasTgt && (d.dmg > 0 || d.dmgs > 0) && inRange(d, u.x, u.y, best)) attacking = true;
-    if (!attacking && u.cd > d.load) u.cd = d.load;
-    u.cd -= DT * spm;
+    if (attacking && !u.wasAtk) u.cd = max(u.cd, d.hit - d.load);
+    u.wasAtk = attacking;
+    u.cd -= DT * spm; if (u.cd < 0) u.cd = 0;
     if (attacking) {
       if (u.cd <= 0) {
         float dmg = d.dmg; if (u.charging && d.dmgs > 0) dmg = d.dmgs;
@@ -459,13 +466,16 @@ void Game::think(int team) {
   const Policy& P = pol[team]; float el = elixir[team]; int en = 1 - team;
   // --- collect enemy threats on my half
   struct Th { int k; float ex, ey; };
-  vector<Th> th[2]; float lw[2] = {0, 0}; bool laneAir[2] = {false, false};
+  vector<Th> th[2]; float lw[2] = {0, 0}, lwc[2] = {0, 0}; bool laneAir[2] = {false, false};
   for (size_t k = 0; k < units.size(); k++) {
-    const Unit& u = units[k]; if (u.team != en || u.hp <= 0) continue; const UDef& d = D.units[u.def]; if (d.building) continue;
-    float ex = mx(team, u.x), ey = my(team, u.y);
-    if (ey <= 16.2f) { int lane = ex < 9 ? 0 : 1; th[lane].push_back({(int)k, ex, ey}); lw[lane] += u.val + 0.3f; if (d.fly) laneAir[lane] = true; }
+    const Unit& u = units[k]; if (u.team != en || u.hp <= 0) continue; const UDef& d = D.units[u.def]; if (d.building || (d.dmg <= 0 && d.dmgs <= 0 && !d.kami)) continue;
+    float ex = mx(team, u.x), ey = my(team, u.y); int lane = ex < 9 ? 0 : 1;
+    if (ey <= 16.2f) { th[lane].push_back({(int)k, ex, ey}); lw[lane] += u.val + 0.3f; lwc[lane] += u.val + 0.3f; if (d.fly) laneAir[lane] = true; }
+    else if (ey <= 24.0f && d.spd > 0) {  // approaching: will cross the bridge soon
+      float eta = (ey - 16.0f) / max(0.5f, d.speedTps()); if (eta <= 3.4f + 0.02f * P.react) { th[lane].push_back({(int)k, ex, 15.5f}); lw[lane] += 0.8f * (u.val + 0.3f); if (d.fly) laneAir[lane] = true; }
+    }
   }
-  int lane = lw[0] >= lw[1] ? 0 : 1; bool threat = lw[lane] >= P.react && !th[lane].empty();
+  int lane = lw[0] >= lw[1] ? 0 : 1; bool crossed = lwc[lane] > 0; bool threat = lw[lane] >= P.react && !th[lane].empty();
   // own push
   const Unit* lead = nullptr; float leadY = -1;
   for (auto& u : units) { if (u.team != team || u.hp <= 0) continue; const UDef& d = D.units[u.def]; if (d.building) continue; float ey = my(team, u.y); if (ey >= 15.5f && ey > leadY) { leadY = ey; lead = &u; } }
@@ -523,10 +533,10 @@ void Game::think(int team) {
       myHp *= 0.65f; float tk = Thp / max(myDps, 1.0f); float tm = myHp / max(Tdps, 1.0f); float ratio = tm / max(tk, 0.5f);
       score = min(ratio, 2.5f) * min(2.0f, max(0.4f, Tval / c.elixir)); if (Tbo) score *= 1.5f; if (Tair && !canHitAir) score *= 0.5f;
       float px = 9.0f + (clx < 9 ? -1.5f : 1.5f), py = 9.5f;
-      if (score > P.react * 0.9f) offer(s, px, py, score);
+      if (score > 0.6f) offer(s, px, py, score);
       continue;
     }
-    if (u.bo) { score = 0.2f; }
+    if (u.bo) { score = (myHp > 1500 && crossed) ? 0.4f : 0.2f; }
     else {
       float tk = Thp / max(myDps, 1.0f); float tm = myHp / max(Tdps, 1.0f); float ratio = tm / max(tk, 0.5f);
       if (u.rng > 2.0f && Tdps > 0) ratio *= 1.15f;
@@ -534,9 +544,9 @@ void Game::think(int team) {
       if (Tair && Tgnd && !canHitAir) score *= 0.6f; if (!Tair && Tgnd && !canHitGnd) score = 0; if (Tswarm && u.aoe > 0) score *= 1.25f;
     }
     float py = min(13.5f, max(4.0f, cly - (u.rng > 3.0f ? 5.0f : 2.5f))); float px = clx;
-    if (score > 0.8f) offer(s, px, py, score);
+    if (score > (crossed ? 0.12f : 0.6f)) offer(s, px, py, score);
   }
-  if (bestA.slot >= 0 && (bestA.score >= 0.8f)) { play(team, bestA.slot, bestA.px, bestA.py); return; }
+  if (bestA.slot >= 0 && (bestA.score >= (crossed ? 0.12f : 0.6f))) { play(team, bestA.slot, bestA.px, bestA.py); return; }
   if (threat && lw[lane] > 0) {
     // could not counter: do nothing, keep elixir
   }

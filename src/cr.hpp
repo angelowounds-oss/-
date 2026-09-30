@@ -22,7 +22,8 @@ struct UDef {
   float dd = 0, ddr = 0, vd2 = 0, vdt1 = 0, vd3 = 0, vdt2 = 0, mana = 0;
   string bod; float bodt = 0; bool ability = false, hidden = false;
   float dashdmg = 0, dashrad = 0, dashmin = 0, dashmax = 0, dashcd = 0;
-  float speedTps() const { return spd / 60.0f; }
+  float speedTps() const { return spd / SPEED_DIV; }
+  static float SPEED_DIV;
   float dpsOne() const { return hit > 0 ? dmg / hit : 0; }
 };
 
@@ -51,7 +52,7 @@ struct Policy { float react, attackElixir, spellAggro, supportElixir; };
 extern Policy POLICIES[3];
 
 struct Unit {
-  int def, team, uid; float x, y, hp, maxhp, shield, cd, deployT, stunT, slowT, slowM, rageT, chgDist, rampT, spawnT, life, val, dashT, dashCd, manaT; bool charging, dying; int lastTgt;
+  int def, team, uid; float x, y, hp, maxhp, shield, cd, deployT, stunT, slowT, slowM, rageT, chgDist, rampT, spawnT, life, val, dashT, dashCd, manaT; bool charging, dying, wasAtk; int lastTgt;
 };
 struct Tower { float x, y, hp, maxhp, cd, stunT; bool active, alive; int def; };
 struct Pending {
@@ -63,7 +64,7 @@ struct Game {
   vector<Unit> units; vector<Pending> pend; Tower tw[2][3];
   float t = 0; int crowns[2] = {0, 0}; int nextUid = 1; bool over = false; int winner = -1;
   array<int, 8> deck[2]; int hand[2][4]; deque<int> queue[2]; float elixir[2]; Policy pol[2]; float thinkT[2]; Rng rng; int lastPlayed[2] = {-1, -1};
-  float manaBonus[2] = {0, 0};
+  float manaBonus[2] = {0, 0}; float wasted[2] = {0, 0}; int plays[2] = {0, 0}; float firstCrown = -1;
 
   Game(const array<int, 8>& a, const array<int, 8>& b, int pa, int pb, uint64_t seed);
   float mx(int team, float x) const { return team == 0 ? x : W - x; }

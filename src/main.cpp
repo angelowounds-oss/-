@@ -47,8 +47,8 @@ static void runTests() {
   { Scn s; s.noTowers(); for (int i = 0; i < 3; i++) s.put("Goblin", 1, 9 + 0.3f * i, 22); cast(s, "the-log", 0, 9.3f, 18, 6); check("Log kills Goblins", s.count(1, "Goblin") == 0, fmt("goblins left=%d", s.count(1, "Goblin")), "290 >= 202"); }
   { Scn s; s.noTowers(); for (int i = 0; i < 8; i++) s.put("Skeleton", 1, 9 + 0.25f * i, 22); cast(s, "zap", 0, 10, 22); check("zap kills Skeletons", s.count(1, "Skeleton") == 0, "", "hp 81 < 192"); }
   // 4. Movement timing
-  { Scn s; Unit* h = s.put("HogRider", 0, 14.5f, 17.5f); float y0 = h->y; s.run(2.0f); float dy = s.g.units[0].y - y0; check("Hog Rider (speed 120) covers ~4 tiles in 2s", fabsf(dy - 4.0f) < 0.6f, fmt("dy=%.2f", dy), "search: speed = tiles per minute (120 -> 2 tiles/s)"); }
-  { Scn s; s.put("Knight", 0, 3.5f, 8); float y0 = s.g.units[0].y; s.run(2.0f); float dy = s.g.units[0].y - y0; check("Knight (speed 60) covers ~2 tiles in 2s", fabsf(dy - 2.0f) < 0.6f, fmt("dy=%.2f", dy), "search: speed 60 = medium = 1 tile/s"); }
+  { Scn s; Unit* h = s.put("HogRider", 0, 14.5f, 17.5f); float y0 = h->y; s.run(2.0f); float dy = s.g.units[0].y - y0; check("Hog Rider (speed 120) covers ~4.8 tiles in 2s", fabsf(dy - 4.8f) < 0.3f, fmt("dy=%.2f", dy), "video-derived 2.4 tiles/s (TopSerg/cr_coach_bundle Rudy patch, solo-Hog 7/7 hits)"); }
+  { Scn s; s.put("Knight", 0, 3.5f, 8); float y0 = s.g.units[0].y; s.run(2.0f); float dy = s.g.units[0].y - y0; check("Knight (speed 60) covers ~2.4 tiles in 2s", fabsf(dy - 2.4f) < 0.3f, fmt("dy=%.2f", dy), "video-derived 1.2 tiles/s"); }
   // 5. Duels (both sides at level 11, no towers)
   { Scn s; s.noTowers(); s.put("Knight", 0, 6, 10); s.put("Knight", 1, 6, 10.9f); s.run(30); int a = s.count(0, "Knight"), b = s.count(1, "Knight"); check("mirror Knight duel is symmetric-ish", a + b <= 1 || a == b, fmt("blue=%d red=%d", a, b), "sanity"); }
   { Scn s; s.noTowers(); s.put("MiniPekka", 0, 6, 10); s.put("Knight", 1, 6, 10.9f); s.run(30); check("Mini P.E.K.K.A beats Knight 1v1", s.count(0, "MiniPekka") == 1 && s.count(1, "Knight") == 0, fmt("mp=%d knight=%d", s.count(0, "MiniPekka"), s.count(1, "Knight")), "known: Mini P.E.K.K.A hard-counters Knight"); }
@@ -72,6 +72,28 @@ int main(int argc, char** argv) {
     for (int i = 0; i < (int)D.cards.size(); i++) { const CardDef& c = D.cards[i]; printf("%-18s %d %s%s\n", c.key.c_str(), c.elixir, c.supported ? "SUPPORTED" : "excluded: ", c.supported ? "" : c.why.c_str()); }
     printf("supported=%zu / %zu\n", D.supported.size(), D.cards.size());
   } else if (mode == "test") runTests();
+  else if (mode == "hogtest") {
+    // Reproduces "d03_hog_cannon_02_PRIMARY" (TopSerg/cr_coach_bundle physical_tests): Hog played t=0 at cell (9,18),
+    // Cannon played t=2.45 at cell (9,10). Observed Hog hits on Cannon at t=4.30, 5.90, 7.50 s (Cannon dies at 7.50).
+    if (argc > 2) UDef::SPEED_DIV = atof(argv[2]);
+    Scn s; s.g.deck[0][0] = D.card("hog-rider"); s.g.deck[1][0] = D.card("cannon"); s.g.hand[0][0] = 0; s.g.hand[1][0] = 0;
+    s.g.tw[1][0].alive = s.g.tw[1][1].alive = false; s.g.tw[1][2].active = false; s.g.elixir[0] = s.g.elixir[1] = 10;
+    s.g.play(0, 0, 9.5f, 13.5f); bool cannonPlayed = false; float lastHp = -1; vector<float> hits; float cdeath = -1, hdeath = -1; int cdef = D.unitIdx.at("Cannon"), hdef = D.unitIdx.at("HogRider");
+    // keep Hog hits only: cannon hp decays with time, so track hp drops larger than decay step
+    float prevHp = -1; bool hogSeen = false;
+    for (int i = 0; i < 200; i++) {
+      if (!cannonPlayed && s.g.t >= 2.45f) { s.g.elixir[1] = 10; s.g.hand[1][0] = 0; s.g.play(1, 0, 9.5f, 10.5f); cannonPlayed = true; }
+      s.g.step();
+      float ch = -1; bool hog = false; for (auto& u : s.g.units) { if (u.def == cdef) ch = u.hp; if (u.def == hdef) hog = true; }
+      if (hog) hogSeen = true; if (hogSeen && !hog && hdeath < 0) hdeath = s.g.t;
+      if (prevHp > 0 && ch >= 0 && prevHp - ch > 100) hits.push_back(s.g.t);
+      if (prevHp > 0 && ch < 0 && cdeath < 0) { cdeath = s.g.t; hits.push_back(s.g.t); }
+      prevHp = ch;
+      if (cdeath > 0 && hdeath > 0) break;
+    }
+    printf("SPEED_DIV=%.0f  hog hits at:", UDef::SPEED_DIV); for (float h : hits) printf(" %.1f", h); printf("  | cannon death %.1f  hog death %.1f\n", cdeath, hdeath);
+    printf("observed (video):     hog hits at: 4.3 5.9 7.5 (relative to hog play) | cannon death 7.5 | hog death 8.7\n");
+  }
   else if (mode == "match" && argc >= 5) {
     auto a = decodeDeck(argv[2]), b = decodeDeck(argv[3]); int g = atoi(argv[4]); float m[3][3]; float v = matchupValue(a, b, g, 7, m);
     printf("value(A vs B)=%.3f\n", v); for (int i = 0; i < 3; i++) printf("%.2f %.2f %.2f\n", m[i][0], m[i][1], m[i][2]);
