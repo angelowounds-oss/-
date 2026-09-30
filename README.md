@@ -41,3 +41,18 @@ Best deck found *inside this simulator*: `three-musketeers, ice-spirit, miner, b
 RMS deviation 0.202, mean 0.508, worst matchup 0.083, best 1.000 (reference archetypes: RMS 0.23–0.47).
 This is **not** a near-zero-counter deck: it still has extreme matchups. Treat it as "least polarised deck this
 simulator produced", not as a claim about the live game.
+
+## Search result (run 2, current data, competitive opponent pool) — supersedes run 1
+Changes vs run 1: 2026 balance overlay from voonhous/crforge (67 field changes), 12-policy family for the game value,
+opponent pool restricted to screened, competitive decks (36 decks; a disjoint 54-deck holdout pool for confirmation).
+
+Deck most consistent across both pools:
+`giant, witch, valkyrie, giant-skeleton, minion-horde, sparky, firecracker, bomb-tower`
+- search pool: RMS 0.133, mean 0.515, worst 0.238, best 0.806
+- holdout pool: RMS 0.136, mean 0.512, worst 0.243, best 0.800
+Other holdout leader: `giant, musketeer, mini-pekka, minion-horde, sparky, magic-archer, mortar, poison` (RMS 0.136, 0.22-0.78).
+Files: `results/final_run2_holdout.txt`, `results/candidates_run2.txt`, pools in `results/pool_*.txt`.
+
+Interpretation: within this simulator this deck has no matchup outside ~24-80%, versus 0-100% for typical archetypes.
+Still not a true zero-counter deck, and not validated against live-game matchup outcomes.
+Known conflict: crforge treats raw speed 60 as 1 tile/s, the video-based TopSerg data as 1.2 tiles/s; this sim uses 1.2.

@@ -3,3 +3,101 @@ skip archetype balloon-bowler (unsupported card tesla)
 skip archetype xbow-cycle (unsupported card tesla)
 skip archetype executioner-tank (unsupported card tornado-substitute)
 skip archetype double-dragon-air (unsupported card tesla)
+skip archetype lavaloon (unsupported card tesla)
+skip archetype balloon-bowler (unsupported card tesla)
+skip archetype xbow-cycle (unsupported card tesla)
+skip archetype executioner-tank (unsupported card tornado-substitute)
+skip archetype double-dragon-air (unsupported card tesla)
+pool: 54 decks (0 archetypes + 0 random), g=3 per policy pair (27 games per matchup)
+#1 rms 0.1360 linf 0.280 mean 0.552 min 0.220 max 0.779  giant,musketeer,mini-pekka,minion-horde,sparky,magic-archer,mortar,poison
+#2 rms 0.1364 linf 0.300 mean 0.512 min 0.243 max 0.800  giant,witch,valkyrie,giant-skeleton,minion-horde,sparky,firecracker,bomb-tower
+#3 rms 0.1384 linf 0.343 mean 0.500 min 0.157 max 0.746  giant,golem,musketeer,prince,minion-horde,bowler,bomb-tower,giant-snowball
+#4 rms 0.1415 linf 0.315 mean 0.460 min 0.185 max 0.769  archers,goblins,sparky,battle-ram,mega-minion,skeleton-barrel,bomb-tower,poison
+#5 rms 0.1434 linf 0.332 mean 0.485 min 0.168 max 0.786  giant,musketeer,mini-pekka,minion-horde,miner,sparky,mortar,poison
+#6 rms 0.1439 linf 0.389 mean 0.468 min 0.111 max 0.786  goblins,giant,golem,musketeer,minion-horde,sparky,bowler,giant-snowball
+#7 rms 0.1476 linf 0.362 mean 0.465 min 0.138 max 0.745  pekka,witch,princess,battle-ram,mega-knight,mortar,tombstone,fireball
+#8 rms 0.1502 linf 0.382 mean 0.482 min 0.118 max 0.781  witch,princess,bowler,battle-ram,mega-minion,mega-knight,mortar,tombstone
+#9 rms 0.1507 linf 0.353 mean 0.497 min 0.206 max 0.853  giant,golem,skeletons,musketeer,minion-horde,dark-prince,bomb-tower,giant-snowball
+#10 rms 0.1513 linf 0.335 mean 0.514 min 0.188 max 0.835  archers,valkyrie,sparky,battle-ram,rascals,flying-machine,bomb-tower,zap
+#11 rms 0.1539 linf 0.295 mean 0.468 min 0.205 max 0.751  giant,minions,valkyrie,musketeer,dart-goblin,elite-barbarians,flying-machine,giant-snowball
+#12 rms 0.1548 linf 0.388 mean 0.481 min 0.112 max 0.832  royal-giant,three-musketeers,sparky,ice-golem,night-witch,flying-machine,goblin-hut,giant-snowball
+#13 rms 0.1551 linf 0.380 mean 0.440 min 0.120 max 0.736  giant,musketeer,minion-horde,ice-wizard,three-musketeers,bowler,firecracker,bomb-tower
+#14 rms 0.1567 linf 0.301 mean 0.498 min 0.199 max 0.800  goblins,giant,musketeer,minion-horde,sparky,mega-minion,bomb-tower,poison
+#15 rms 0.1575 linf 0.417 mean 0.439 min 0.083 max 0.786  goblins,balloon,valkyrie,musketeer,three-musketeers,bowler,goblin-barrel,zap
+
+reference archetypes on same pool:
+hog-cycle              rms 0.2034 linf 0.500 mean 0.381 min 0.000 max 0.731
+golem-beatdown         rms 0.3467 linf 0.500 mean 0.252 min 0.000 max 0.865
+pekka-bridgespam       rms 0.2425 linf 0.500 mean 0.622 min 0.096 max 1.000
+royal-giant            rms 0.4791 linf 0.500 mean 0.031 min 0.000 max 0.667
+mega-knight-pump       rms 0.3073 linf 0.500 mean 0.415 min 0.000 max 1.000
+giant-prince           rms 0.1551 linf 0.332 mean 0.585 min 0.174 max 0.832
+giant-sparky           rms 0.3342 linf 0.500 mean 0.205 min 0.000 max 0.606
+log-bait               rms 0.4543 linf 0.500 mean 0.055 min 0.000 max 0.396
+mortar-cycle           rms 0.2021 linf 0.500 mean 0.500 min 0.000 max 0.810
+barb-valk              rms 0.1937 linf 0.418 mean 0.501 min 0.082 max 0.842
+miner-poison           rms 0.2338 linf 0.500 mean 0.382 min 0.000 max 0.784
+three-musk             rms 0.2130 linf 0.500 mean 0.362 min 0.000 max 0.718
+witch-giant            rms 0.1860 linf 0.500 mean 0.474 min 0.000 max 1.000
+rocket-cycle           rms 0.4872 linf 0.500 mean 0.016 min 0.000 max 0.348
+inferno-control        rms 0.1694 linf 0.500 mean 0.454 min 0.000 max 0.726
+skeleton-barrel-bait   rms 0.4975 linf 0.500 mean 0.003 min 0.000 max 0.083
+royal-hogs-split       rms 0.4720 linf 0.500 mean 0.038 min 0.000 max 0.537
+elite-barb-rush        rms 0.2435 linf 0.500 mean 0.689 min 0.181 max 1.000
+cannon-hog-2.6         rms 0.3104 linf 0.500 mean 0.245 min 0.000 max 0.690
+
+best deck detail (vs pool):
+  vs hog-rider,musketeer,ice-spirit,skeletons,cannon,fireball,the-log,knight  0.671
+  vs pekka,battle-ram,electro-wizard,mini-pekka,zap,fire-spirit,the-log,dark-prince  0.257
+  vs mega-knight,bats,ice-spirit,skeletons,minions,inferno-dragon,zap,elixir-collector  0.530
+  vs giant,prince,wizard,musketeer,zap,arrows,mini-pekka,skeletons  0.436
+  vs mortar,knight,archers,skeleton-army,bats,ice-spirit,fireball,the-log  0.415
+  vs barbarians,valkyrie,wizard,archers,cannon,arrows,fireball,zap  0.651
+  vs miner,poison,valkyrie,mega-minion,skeletons,ice-spirit,bomb-tower,the-log  0.663
+  vs three-musketeers,battle-ram,ice-golem,ice-spirit,elixir-collector,zap,rocket,cannon  0.663
+  vs witch,giant,prince,musketeer,arrows,zap,skeletons,ice-spirit  0.519
+  vs inferno-tower,knight,musketeer,valkyrie,zap,fireball,ice-spirit,skeletons  0.708
+  vs prince,three-musketeers,bowler,electro-wizard,hunter,flying-machine,electro-spirit,zap  0.779
+  vs barbarians,giant-skeleton,three-musketeers,wall-breakers,barbarian-hut,tombstone,fireball,arrows  0.390
+  vs knight,skeletons,skeleton-army,bowler,executioner,flying-machine,x-bow,furnace  0.458
+  vs prince,ice-wizard,elite-barbarians,wall-breakers,inferno-tower,x-bow,rocket,giant-snowball  0.535
+  vs valkyrie,skeleton-army,prince,giant-skeleton,lava-hound,goblin-gang,executioner,electro-spirit  0.480
+  vs pekka,bomber,goblin-gang,zappies,flying-machine,x-bow,arrows,poison  0.614
+  vs archers,minions,golem,skeleton-army,dark-prince,lava-hound,skeleton-barrel,flying-machine  0.685
+  vs witch,battle-ram,mega-minion,night-witch,bats,goblin-barrel,lightning,the-log  0.575
+  vs skeleton-army,bomber,wizard,battle-ram,mega-minion,executioner,flying-machine,elixir-collector  0.505
+  vs archers,musketeer,giant-skeleton,princess,ice-spirit,mega-knight,mortar,fireball  0.482
+  vs minions,barbarians,skeletons,musketeer,minion-horde,sparky,wall-breakers,furnace  0.502
+  vs goblins,witch,prince,royal-giant,battle-ram,skeleton-dragons,bomb-tower,zap  0.395
+  vs pekka,mini-pekka,spear-goblins,giant-skeleton,royal-giant,guards,bowler,skeleton-dragons  0.572
+  vs witch,wizard,mega-minion,elite-barbarians,magic-archer,skeleton-dragons,inferno-tower,arrows  0.512
+  vs barbarians,baby-dragon,dark-prince,ice-spirit,elite-barbarians,night-witch,wall-breakers,firecracker  0.607
+  vs musketeer,prince,giant-skeleton,minion-horde,royal-giant,bowler,goblin-gang,flying-machine  0.650
+  vs archers,baby-dragon,wizard,lava-hound,sparky,hunter,flying-machine,arrows  0.667
+  vs knight,valkyrie,wizard,lava-hound,ice-spirit,elite-barbarians,night-witch,mega-knight  0.492
+  vs wizard,battle-ram,inferno-dragon,dart-goblin,electro-wizard,hunter,executioner,inferno-tower  0.645
+  vs valkyrie,wizard,spear-goblins,princess,mega-knight,wall-breakers,mortar,elixir-collector  0.723
+  vs minions,skeleton-army,baby-dragon,giant-skeleton,guards,three-musketeers,executioner,poison  0.265
+  vs goblins,lava-hound,battle-ram,mega-knight,flying-machine,skeleton-dragons,goblin-hut,furnace  0.636
+  vs barbarians,giant-skeleton,guards,ice-spirit,inferno-dragon,dart-goblin,bomb-tower,goblin-barrel  0.503
+  vs giant-skeleton,dark-prince,sparky,zappies,wall-breakers,royal-hogs,cannon,elixir-collector  0.663
+  vs knight,spear-goblins,ice-wizard,three-musketeers,fire-spirit,zappies,rascals,skeleton-dragons  0.612
+  vs skeletons,fire-spirit,sparky,mega-minion,skeleton-barrel,skeleton-dragons,bomb-tower,barbarian-hut  0.667
+  vs mini-pekka,giant-skeleton,miner,sparky,zappies,firecracker,bomb-tower,poison  0.535
+  vs musketeer,mini-pekka,minion-horde,fire-spirit,royal-recruits,mega-knight,cannon,bomb-tower  0.554
+  vs minions,balloon,barbarians,bomber,wizard,giant-skeleton,dart-goblin,x-bow  0.518
+  vs pekka,bomber,bowler,elite-barbarians,executioner,bats,barbarian-barrel,giant-snowball  0.556
+  vs prince,miner,ice-golem,elite-barbarians,zappies,bomb-tower,x-bow,furnace  0.667
+  vs giant-skeleton,elite-barbarians,executioner,skeleton-dragons,bomb-tower,x-bow,tombstone,barbarian-barrel  0.548
+  vs balloon,bomber,guards,three-musketeers,sparky,inferno-dragon,executioner,skeleton-barrel  0.627
+  vs witch,giant-skeleton,fire-spirit,inferno-dragon,bats,skeleton-barrel,inferno-tower,lightning  0.220
+  vs minions,barbarians,bomber,sparky,dart-goblin,cannon,bomb-tower,giant-snowball  0.749
+  vs archers,pekka,baby-dragon,mini-pekka,giant-skeleton,skeleton-barrel,magic-archer,inferno-tower  0.572
+  vs valkyrie,mini-pekka,three-musketeers,fire-spirit,battle-ram,elite-barbarians,royal-recruits,giant-snowball  0.614
+  vs prince,mega-minion,dart-goblin,royal-recruits,magic-archer,furnace,fireball,zap  0.443
+  vs pekka,valkyrie,bomber,musketeer,prince,rascals,skeleton-barrel,inferno-tower  0.729
+  vs witch,prince,mini-pekka,royal-giant,three-musketeers,skeleton-dragons,tombstone,barbarian-barrel  0.333
+  vs pekka,minions,witch,valkyrie,baby-dragon,guards,princess,executioner  0.599
+  vs skeletons,bomber,prince,minion-horde,bowler,dart-goblin,skeleton-dragons,barbarian-barrel  0.407
+  vs golem,skeletons,prince,dark-prince,three-musketeers,fire-spirit,firecracker,x-bow  0.392
+  vs goblins,minion-horde,three-musketeers,ice-golem,mega-knight,mortar,goblin-barrel,zap  0.630
