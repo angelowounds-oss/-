@@ -56,3 +56,14 @@ Files: `results/final_run2_holdout.txt`, `results/candidates_run2.txt`, pools in
 Interpretation: within this simulator this deck has no matchup outside ~24-80%, versus 0-100% for typical archetypes.
 Still not a true zero-counter deck, and not validated against live-game matchup outcomes.
 Known conflict: crforge treats raw speed 60 as 1 tile/s, the video-based TopSerg data as 1.2 tiles/s; this sim uses 1.2.
+
+## Search result (run 3, after Arrows fix) — latest
+User instruction: proceed from memory/available knowledge (no live matchup data can be provided).
+Holdout pool (53 decks, 27 games per matchup, 12-policy family), top deck:
+`minions, golem, sparky, zappies, cannon, mortar, inferno-tower, poison` — RMS 0.127, mean 0.532, range 0.22–0.86.
+Most balanced range: `giant, baby-dragon, sparky, battle-ram, zappies, bomb-tower, furnace, giant-snowball` — RMS 0.131, range 0.23–0.78.
+Files: `results/final_run3_holdout.txt`, `results/search_run3.log`, `results/candidates_run3.txt`.
+
+**Red flag:** Sparky appears in nearly all top decks. In the real game Sparky is not that dominant, so this is probably a
+simulator/AI artifact (splash + AoE timing, AI not exploiting Sparky's weaknesses). Treat run-3 results as provisional.
+Run 2's deck (`giant, witch, valkyrie, giant-skeleton, minion-horde, sparky, firecracker, bomb-tower`) also contains Sparky.
