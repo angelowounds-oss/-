@@ -1,0 +1,5 @@
+skip archetype lavaloon (unsupported card tesla)
+skip archetype balloon-bowler (unsupported card tesla)
+skip archetype xbow-cycle (unsupported card tesla)
+skip archetype executioner-tank (unsupported card tornado-substitute)
+skip archetype double-dragon-air (unsupported card tesla)
