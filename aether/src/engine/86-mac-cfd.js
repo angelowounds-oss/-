@@ -55,12 +55,13 @@ geom:`uniform sampler2D uSol;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float pc=PHI(F(uSol,c));vec3 t;
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;float pn=c[ax]==0?(ax==0?0.:1.):PHI(F(uSol,c-e));float th=1.-.5*(pc+pn);t[ax]=th<.02?0.:th;}
  if(c.y==0)t.y=0.;if(c.z==0)t.z=0.;o=vec4(t,pc);}`,
-/* coarse geometry: face fractions averaged over the 4 fine faces, phi averaged over existing children */
-cgeom:`uniform sampler2D uGF;uniform ivec3 uNF;uniform int uTXF;
+/* coarse geometry: face fractions averaged over the fine faces of the coarse face, phi averaged over existing children.
+   uR = coarsening ratio per axis (1 or 2): semi-coarsening keeps thin axes (e.g. a 4-cell quasi-2D span) unchanged */
+cgeom:`uniform sampler2D uGF;uniform ivec3 uNF,uR;uniform int uTXF;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 t=vec3(0.),n=vec3(0.);float ph=0.,m=0.;
- for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1),f=c*2+d;if(any(greaterThanEqual(f,uNF)))continue;vec4 g=FT(uGF,f,uNF,uTXF);ph+=g.w;m+=1.;
+ for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1);if(any(greaterThanEqual(d,uR)))continue;ivec3 f=c*uR+d;if(any(greaterThanEqual(f,uNF)))continue;vec4 g=FT(uGF,f,uNF,uTXF);ph+=g.w;m+=1.;
   if(d.x==0){t.x+=(f.x==0?0.:g.x);n.x+=1.;}if(d.y==0){t.y+=g.y;n.y+=1.;}if(d.z==0){t.z+=g.z;n.z+=1.;}}
- t=t/max(vec3(4.),n);o=vec4(t,m>0.?ph/m:1.);}`,
+ t=t/max(vec3(float(uR.y*uR.z),float(uR.x*uR.z),float(uR.x*uR.y)),n);o=vec4(t,m>0.?ph/m:1.);}`,
 /* ---- advection (MacCormack pieces). uSrc = field to transport, uVel = transporting velocity (same grid) ---- */
 adv:`uniform sampler2D uVel,uSrc;uniform float uDt;
 vec3 back(vec3 P){vec3 v1=VEL(uVel,P,uN,uTX);vec3 Pm=P-.5*uDt*v1/uH;vec3 v2=VEL(uVel,Pm,uN,uTX);return clamp(P-uDt*v2/uH,vec3(0.),vec3(uN));}
@@ -128,12 +129,12 @@ pres:MAC_P+`uniform sampler2D uP,uB;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;float l=LAP(uP,c,dg);o=vec4(dg<1e-6?0.:F(uB,c).x-l,0,0,0);}`,
 papply:MAC_P+`uniform sampler2D uP;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;float l=LAP(uP,c,dg);o=vec4(dg<1e-6?0.:l,0,0,0);}`,
-prest:`uniform sampler2D uRF;uniform ivec3 uNF;uniform int uTXF;
-void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float s=0.,m=0.;for(int k=0;k<8;k++){ivec3 f=c*2+ivec3(k&1,(k>>1)&1,(k>>2)&1);if(any(greaterThanEqual(f,uNF)))continue;s+=FT(uRF,f,uNF,uTXF).x;m+=1.;}o=vec4(m>0.?s/m:0.,0,0,0);}`,
-pprol:MAC_P+`uniform sampler2D uP,uPC,uGC;uniform ivec3 uNC;uniform int uTXC;uniform float uCorr,uTri;
+prest:`uniform sampler2D uRF;uniform ivec3 uNF,uR;uniform int uTXF;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float s=0.,m=0.;for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1);if(any(greaterThanEqual(d,uR)))continue;ivec3 f=c*uR+d;if(any(greaterThanEqual(f,uNF)))continue;s+=FT(uRF,f,uNF,uTXF).x;m+=1.;}o=vec4(m>0.?s/m:0.,0,0,0);}`,
+pprol:MAC_P+`uniform sampler2D uP,uPC,uGC;uniform ivec3 uNC,uR;uniform int uTXC;uniform float uCorr,uTri;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}float dg;NB(uP,c,dg);float pc=F(uP,c).x;if(dg<1e-6){o=vec4(0);return;}float e;
- if(uTri<.5)e=FT(uPC,c/2,uNC,uTXC).x;
- else{vec3 q=(vec3(c)+.5)*.5-.5;ivec3 i0=ivec3(floor(q));vec3 f=q-vec3(i0);float acc=0.,wt=0.;
+ if(uTri<.5)e=FT(uPC,c/uR,uNC,uTXC).x;
+ else{vec3 q=(vec3(c)+.5)/vec3(uR)-.5;ivec3 i0=ivec3(floor(q));vec3 f=q-vec3(i0);float acc=0.,wt=0.;
   for(int k=0;k<8;k++){ivec3 d=ivec3(k&1,(k>>1)&1,(k>>2)&1),j=clamp(i0+d,ivec3(0),uNC-1);float w=(d.x==1?f.x:1.-f.x)*(d.y==1?f.y:1.-f.y)*(d.z==1?f.z:1.-f.z);
    vec4 gc=FT(uGC,j,uNC,uTXC);if(gc.x+gc.y+gc.z<1e-6&&gc.w>.99)continue;acc+=w*FT(uPC,j,uNC,uTXC).x;wt+=w;}e=wt>1e-4?acc/wt:0.;}
  o=vec4(pc+uCorr*e,0,0,0);}`,
@@ -250,9 +251,11 @@ function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.m
  const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
  MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
  /* multigrid levels: level 0 uses MAC.t.geom/b; pressure vectors per level */
- MAC.lv=[];let n=N.slice();for(let l=0;l<MAC.levels;l++){if(l>0){const m=n.map(v=>Math.max(1,Math.ceil(v/2)));if(Math.min(...m)<2)break;n=m}
+ MAC.lv=[];let n=N.slice(),r=[1,1,1];for(let l=0;l<MAC.levels;l++){if(l>0){
+   /* semi-coarsening: halve an axis only if it has >= 4 cells and is not already coarser than the finest axis */
+   const hc=max.map((v,i)=>(v-min[i])/n[i]),hm=Math.min(...hc.filter((_,i)=>n[i]>=4));r=n.map((v,i)=>v>=4&&hc[i]<=1.5*hm?2:1);if(r.every(x=>x===1))break;n=n.map((v,i)=>Math.ceil(v/r[i]))}
   const g=macAtlas(n),hl=max.map((v,i)=>(v-min[i])/n[i]);const T={pA:macTarget(g,gl.R32F,gl.RED,gl.FLOAT),pB:macTarget(g,gl.R32F,gl.RED,gl.FLOAT),r:macTarget(g,gl.R32F,gl.RED,gl.FLOAT)};
-  if(l>0){T.b=macTarget(g,gl.R32F,gl.RED,gl.FLOAT);T.geom=H4(g)}MAC.lv.push({...g,h:hl,T})}
+  if(l>0){T.b=macTarget(g,gl.R32F,gl.RED,gl.FLOAT);T.geom=H4(g)}MAC.lv.push({...g,h:hl,T,r:r.slice()})}
  /* PCG vectors on level 0 */
  MAC.t.cgR=R();MAC.t.cgD=R();MAC.t.cgQ=R();MAC.t.cgS=R();MAC.Z={pA:R(),pB:R()};
  MAC.red=[];{let w=G.W,hh=G.H;while(w>1||hh>1){w=Math.ceil(w/8);hh=Math.ceil(hh/8);MAC.red.push({w,h:hh,t:liveTarget(w,hh,gl.RGBA32F,gl.RGBA,gl.FLOAT)})}}
@@ -280,7 +283,7 @@ function macSolids(){const T=MAC.t,B=window.__BODY,act=!!(MAC.cfg.body&&B&&B.act
  const om=MAC.cfg.obstacle?(MAC.time<(MAC.spinUntil||0)?MAC.spin||0:0):MAC.U/R;
  macPass('solid',T.sol,{uStatic:MAC.staticTex},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0],uBodyV:act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0],uWh:wh,uWhW:MAC.cfg.obstacle?1e3:(MAC.whW||.15),uOm:om});
  macPass('geom',T.geom,{uSol:T.sol.t},{});
- for(let l=1;l<MAC.lv.length;l++){const F=l===1?{t:T.geom}:{t:MAC.lv[l-1].T.geom},Lf=MAC.lv[l-1];macPass('cgeom',MAC.lv[l].T.geom,{uGF:F.t.t},{uNF:{i3:Lf.N},uTXF:{int:Lf.tx}},macGridOf(l))}}
+ for(let l=1;l<MAC.lv.length;l++){const F=l===1?{t:T.geom}:{t:MAC.lv[l-1].T.geom},Lf=MAC.lv[l-1];macPass('cgeom',MAC.lv[l].T.geom,{uGF:F.t.t},{uNF:{i3:Lf.N},uTXF:{int:Lf.tx},uR:{i3:MAC.lv[l].r}},macGridOf(l))}}
 /* ---- pressure solvers. A level-0 "context" X={pA,pB} holds the iterate, b0 the right-hand side ---- */
 function macLvX(l,X0){return l===0?X0:MAC.lv[l].T}
 function macLvB(l,b0){return l===0?b0:MAC.lv[l].T.b.t}
@@ -293,9 +296,9 @@ function macVcycle(l,kind,X0,b0){const Lv=MAC.lv,L=Lv[l],X=macLvX(l,X0),b=macLvB
  if(l===Lv.length-1){macSmooth(l,MAC.coarse,kind,[0,1],X,b);return}
  macSmooth(l,MAC.pre,kind,[0,1],X,b);
  macPass('pres',L.T.r,{uP:X.pA.t,uB:b,uG:macGeomOf(l)},{},g);
- const C=Lv[l+1];macPass('prest',C.T.b,{uRF:L.T.r.t},{uNF:{i3:L.N},uTXF:{int:L.tx}},macGridOf(l+1));liveClear(C.T.pA);liveClear(C.T.pB);
+ const C=Lv[l+1];macPass('prest',C.T.b,{uRF:L.T.r.t},{uNF:{i3:L.N},uTXF:{int:L.tx},uR:{i3:C.r}},macGridOf(l+1));liveClear(C.T.pA);liveClear(C.T.pB);
  macVcycle(l+1,kind,X0,b0);
- macPass('pprol',X.pB,{uP:X.pA.t,uPC:C.T.pA.t,uGC:macGeomOf(l+1),uG:macGeomOf(l)},{uNC:{i3:C.N},uTXC:{int:C.tx},uCorr:MAC.corr,uTri:MAC.prol},g);macSwap(X,'pA','pB');
+ macPass('pprol',X.pB,{uP:X.pA.t,uPC:C.T.pA.t,uGC:macGeomOf(l+1),uG:macGeomOf(l)},{uNC:{i3:C.N},uTXC:{int:C.tx},uR:{i3:C.r},uCorr:MAC.corr,uTri:MAC.prol},g);macSwap(X,'pA','pB');
  macSmooth(l,MAC.post,kind,[1,0],X,b)}
 function liveReduceTo(src,sw,sh,chain){const p=LIVE.prog.sum;gl.useProgram(p);let s=src,w=sw,h=sh;for(const r of chain){gl.bindFramebuffer(gl.FRAMEBUFFER,r.t.f);gl.viewport(0,0,r.w,r.h);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,s.t);gl.uniform1i(liveU(p,'uS'),8);gl.uniform2i(liveU(p,'uSz'),w,h);gl.drawArrays(gl.TRIANGLES,0,3);s=r.t;w=r.w;h=r.h}return s}
 function macDot(a,b){const T=MAC.t;macPass('pdot',T.frc,{uX:a,uY:b},{});return liveReduceTo(T.frc,MAC.G.W,MAC.G.H,MAC.red)}

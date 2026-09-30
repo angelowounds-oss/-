@@ -30,7 +30,8 @@ void main(){ivec3 c=C();float f[19];if(c.z>=uN.z){o0=o1=o2=o3=o4=vec4(0);return;
   float r=0.;vec3 m=vec3(0.);for(int i=0;i<19;i++){r+=f[i];m+=f[i]*vec3(E[i]);}vec3 u=m/r;
   float g[19];for(int i=0;i<19;i++)g[i]=f[i];
   /* Smagorinsky LES in LBM: eddy relaxation from the non-equilibrium momentum flux (Hou et al. 1996); TRT magic parameter 1/4 kept */
-  float tp=uTauP,tm=uTauM;float sp=smoothstep(.85,1.,float(c.x)/float(uN.x));tp+=sp*.6;tm=.25/(tp-.5)+.5;
+  /* sponges: outlet (vortex street leaves) and inlet (the velocity inlet reflects acoustic waves; uniform inflow has no gradients to damp) */
+  float tp=uTauP,tm=uTauM;float xr=float(c.x)/float(uN.x),sp=smoothstep(.85,1.,xr)+1.-smoothstep(0.,.1,xr);tp+=sp*.6;tm=.25/(tp-.5)+.5;
   mat3 Q=mat3(0.);if(uCs>0.||uReg>.5){for(int i=0;i<19;i++){vec3 e=vec3(E[i]);Q+=outerProduct(e,e)*(g[i]-feq(i,r,u));}}
   if(uCs>0.){float q=sqrt(dot(Q[0],Q[0])+dot(Q[1],Q[1])+dot(Q[2],Q[2]));float t0=tp;tp=.5*(t0+sqrt(t0*t0+18.*1.41421356*uCs*uCs*q/r));tm=.25/(tp-.5)+.5;}
   /* regularized BGK (Latt & Chopard 2006): keep only the 2nd-order Hermite part of f_neq, f = feq + (1-1/tau) w_i/(2cs^4) Q_i:Pi_neq */
@@ -77,8 +78,8 @@ function lbmBind(p,T){const g=LBM.g;gl.uniform3i(liveU(p,'uN'),...LBM.N);gl.unif
  T.tex.forEach((t,i)=>{gl.activeTexture(gl.TEXTURE8+i);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,'uF'+i),8+i)});gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,LBM.solid);gl.uniform1i(liveU(p,'uSolid'),13)}
 function lbmStep(n){const g=LBM.g,p=LBM.prog.step;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.useProgram(p);gl.viewport(0,0,g.W,g.H);
  gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul);gl.uniform1f(liveU(p,'uTauP'),LBM.tauP);gl.uniform1f(liveU(p,'uTauM'),LBM.tauM);gl.uniform1f(liveU(p,'uCs'),LBM.cfg.Cs||0);gl.uniform1f(liveU(p,'uReg'),LBM.cfg.coll==='REG'?1:0);
- /* impulsive starts launch pressure waves that the velocity inlet reflects: ramp U over t* = 0..5 */
- const ramp=5*LBM.cfg.Dl/LBM.cfg.Ul;
+ /* impulsive starts launch pressure waves that the velocity inlet reflects: ramp U over t* = 0..10 */
+ const ramp=10*LBM.cfg.Dl/LBM.cfg.Ul;
  for(let s=0;s<n;s++){const src=LBM.t[LBM.cur],dst=LBM.t[1-LBM.cur],x=Math.min(1,LBM.step/ramp);gl.uniform1f(liveU(p,'uUl'),LBM.cfg.Ul*x*x*(3-2*x));gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);lbmBind(p,src);gl.drawArrays(gl.TRIANGLES,0,3);LBM.cur=1-LBM.cur;LBM.step++}
  gl.bindVertexArray(null)}
 function lbmForce(){const g=LBM.g,p=LBM.prog.force;gl.bindVertexArray(LIVE.vao);gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LBM.frc.f);gl.viewport(0,0,g.W,g.H);lbmBind(p,LBM.t[LBM.cur]);gl.drawArrays(gl.TRIANGLES,0,3);

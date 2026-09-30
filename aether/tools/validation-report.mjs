@@ -48,7 +48,18 @@ for (const [f, lab, ref] of [['sphere8', '구 Re=100, 8셀/D, cut', 1.09], ['sph
   const sc = d.ibm === 'cut' ? d.Cd.mean : null, bu = d.CdBudget?.mean, S = stOf(d);
   cmp.push(`| ${lab} | ${ref} | ${sc === null ? '—(vf에선 이중 계산)' : `${e(sc)} (${pct(sc, ref)})`} | ${e(bu)} (${pct(bu, ref)}) | ${e(d.CdCV.mean)} (${pct(d.CdCV.mean, ref)}) | ${Number.isFinite(S.f) ? e(S.f) : '—(정상류)'} | \`${f}.json\` |`); }
 const table = r => ['| 항목 | 기준 | 결과 | 판정 | 근거 |', '|---|---|---|---|---|', ...r.map(x => '| ' + x.join(' | ') + ' |')].join('\n');
-let lbm = ''; for (const [m, sfx, coll] of [['FP32', '-trt', 'TRT'], ['FP32', '', '정규화 BGK'], ['FP16', '', '정규화 BGK'], ['MIXED', '', '정규화 BGK']]) { const d = J(`tests/out/m7/lbm-D8-${m}${sfx}.json`); if (d) lbm += `| ${m} | ${coll} | ${d.setup?.ok ? e(d.setup.bytesPerCell, 0) : '—'} | ${e(d.msPerStep, 1)} | ${d.Cd ? e(d.Cd.mean) + ' ± ' + e(d.Cd.std) : '—'} | ${d.St ? e(d.St.f) : '—'} | ${d.error ? '오류: ' + d.error.slice(0, 60) : d.nonFinite ? `NaN 발생 (t*≈${e(d.rec?.filter(r => Number.isFinite(r.Cd)).pop()?.tStar, 1)})` : '안정'} |\n`; }
+/* LBM: rows per (collision, boundary variant, storage). Cost is compared with the MAC solver at equal physical time:
+   LBM dt = Ul/Dl (D/U units) vs MAC dt = 0.8/Dl, so LBM needs 0.8/Ul = 13.3 steps per MAC step at Ul=0.06. */
+const MACc = J('tests/out/m4/cyl8.json'); let lbm = '';
+const lbmRow = (f, coll) => { const d = J(`tests/out/m7/${f}.json`); if (!d) return '';
+  const recs = (d.rec || []).filter(r => Number.isFinite(r.Cd)), W = recs.filter(r => r.tStar >= 40), zc = zeroCross(W.map(r => r.tStar), W.map(r => r.Cl));
+  const cd = d.Cd ? `${e(d.Cd.mean)} ± ${e(d.Cd.std)} (${pct(d.Cd.mean, 1.34)})` : '—', stv = W.length > 20 ? e(zc.f) : '—';
+  const eq = d.msPerStep && d.Ul ? e(d.msPerStep * 0.8 / d.Ul, 0) : '—';
+  const stab = d.error ? '오류: ' + d.error.slice(0, 60) : d.nonFinite ? `NaN (t*≈${e(recs.at(-1)?.tStar, 1)})` : (d.Cd && d.Cd.std > 0.3 ? '유한값, Cd 요동 큼' : '안정');
+  return `| ${d.mode} | ${coll} | ${d.setup?.ok ? e(d.setup.bytesPerCell, 0) : '—'} | ${e(d.msPerStep, 1)} | ${eq} | ${cd} | ${stv} | ${stab} |\n`; };
+for (const [f, c] of [['lbm-D8-FP32-trt', 'TRT, 램프 t*=5'], ['lbm-D8-FP32-reg1', '정규화 BGK, 출구 흡수층만'], ['lbm-D8-FP16-reg1', '정규화 BGK, 출구 흡수층만'], ['lbm-D8-MIXED-reg1', '정규화 BGK, 출구 흡수층만'],
+  ['lbm-D8-FP32', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'], ['lbm-D8-FP16', '정규화 BGK, 입·출구 흡수층, 램프 t*=10'], ['lbm-D8-MIXED', '정규화 BGK, 입·출구 흡수층, 램프 t*=10']]) lbm += lbmRow(f, c);
+const macRow = MACc ? `| MAC(비교 기준) | 투영법 vf, RBGS-MG 5 | 약 140(속도·압력·형상, 연기 제외) | ${e(MACc.msPerStep, 0)} | ${e(MACc.msPerStep, 0)} | ${e(MACc.Cd.mean)} ± ${e(MACc.Cd.std)} (${pct(MACc.Cd.mean, 1.34)}) | ${e(stOf(MACc).f)} | 안정 |\n` : '';
 const md = `# VALIDATION
 
 자동 생성: \`node tools/validation-report.mjs\` (결과 JSON에서 표를 만듭니다). 환경: 헤드리스 Chromium + SwiftShader(수치 검증 전용).
@@ -78,12 +89,11 @@ ${cmp.join('\n')}
 
 \`tests/out/m3/solver-compare.md\` 참조. 결론: **GMG(가중 야코비 평활)는 60스텝 안에 발산**, RBGS-MG 2사이클이 잔차 6.5e-4로 목표를 만족하는 가장 싼 설정 → 실시간 기본값. MGPCG는 8회에서 4e-4(0에서 시작)로 가장 정확하지만 비용이 더 큼.
 
-## LBM 비교 (M7) — 원기둥 Re=200, 8셀/D, D3Q19 TRT
+## LBM 비교 (M7) — 원기둥 Re=200, 8셀/D, D3Q19, Ul=0.06(Ma≈0.1), 같은 영역(16D×10D×4)
 
-| 저장 | 충돌 | 바이트/셀 | ms/스텝(SwiftShader 상대) | Cd | St | 안정성 |
-|---|---|---|---|---|---|---|
-${lbm || '| — | — | — | — | — | — | 진행 중 |\n'}
-LBM은 격자 단위 음속 제약으로 투영법보다 약 10배 많은 스텝이 필요합니다(같은 물리 시간 기준). 채택 결정은 ARCHITECTURE.md §5.
-`;
+| 저장 | 충돌·경계 | 바이트/셀 | ms/스텝 | 같은 물리시간 ms(MAC 1스텝당) | Cd (문헌 1.34) | St | 안정성 |
+|---|---|---|---|---|---|---|---|
+${macRow}${lbm || '| — | — | — | — | — | — | — | 진행 중 |\n'}
+ms는 SwiftShader(CPU) 상대값이며 다른 계산과 동시에 돌린 경우가 있어 ±50 % 정도 흔들립니다. LBM은 격자 단위 시간 간격이 Ul/Dl라 같은 물리 시간에 MAC보다 0.8/Ul ≈ 13배 많은 스텝이 필요합니다. τ=0.5+3ν=0.507(Re=200, 8셀/D)이라 안정 한계에 가깝습니다. 채택 결정은 ARCHITECTURE.md §5.`;
 fs.writeFileSync(path.join(root, 'VALIDATION.md'), md);
 console.log(md);
