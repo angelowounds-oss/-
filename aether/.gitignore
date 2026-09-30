@@ -1,2 +1,3 @@
-tests/*.log
 dist/*.tmp.html
+tests/*.log
+tests/out/**/*.partial.json
