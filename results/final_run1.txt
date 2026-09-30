@@ -1,0 +1,48 @@
+pool: 79 decks (19 archetypes + 60 random), g=12 per policy pair (108 games per matchup)
+#1 rms 0.2023 linf 0.500 mean 0.508 min 0.083 max 1.000  three-musketeers,ice-spirit,miner,battle-ram,elixir-collector,x-bow,rocket,giant-snowball
+#2 rms 0.2040 linf 0.500 mean 0.439 min 0.041 max 1.000  three-musketeers,ice-spirit,battle-ram,ice-golem,inferno-tower,elixir-collector,rocket,zap
+#3 rms 0.2091 linf 0.500 mean 0.494 min 0.083 max 1.000  giant,three-musketeers,miner,battle-ram,cannon,inferno-tower,elixir-collector,the-log
+#4 rms 0.2098 linf 0.500 mean 0.522 min 0.083 max 1.000  giant,three-musketeers,miner,cannon,inferno-tower,elixir-collector,fireball,the-log
+#5 rms 0.2101 linf 0.500 mean 0.512 min 0.000 max 0.917  three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,rocket,goblin-barrel
+#6 rms 0.2132 linf 0.444 mean 0.494 min 0.083 max 0.944  three-musketeers,ice-spirit,mega-minion,mortar,elixir-collector,x-bow,goblin-barrel,giant-snowball
+#7 rms 0.2159 linf 0.500 mean 0.508 min 0.000 max 1.000  giant,hog-rider,three-musketeers,bats,elixir-collector,x-bow,fireball,the-log
+#8 rms 0.2188 linf 0.500 mean 0.532 min 0.083 max 1.000  giant,three-musketeers,bats,cannon,inferno-tower,elixir-collector,fireball,the-log
+#9 rms 0.2189 linf 0.500 mean 0.442 min 0.100 max 1.000  giant,three-musketeers,skeleton-barrel,cannon,inferno-tower,bomb-tower,elixir-collector,the-log
+#10 rms 0.2193 linf 0.417 mean 0.467 min 0.083 max 0.917  three-musketeers,ice-spirit,miner,skeleton-barrel,wall-breakers,elixir-collector,x-bow,rocket
+#11 rms 0.2198 linf 0.500 mean 0.548 min 0.083 max 1.000  giant,three-musketeers,zappies,cannon,mortar,inferno-tower,elixir-collector,the-log
+#12 rms 0.2217 linf 0.500 mean 0.495 min 0.083 max 1.000  golem,ice-wizard,princess,three-musketeers,inferno-tower,tombstone,fireball,the-log
+#13 rms 0.2235 linf 0.500 mean 0.446 min 0.000 max 0.917  three-musketeers,ice-spirit,battle-ram,wall-breakers,elixir-collector,x-bow,rocket,goblin-barrel
+#14 rms 0.2252 linf 0.500 mean 0.492 min 0.055 max 1.000  three-musketeers,ice-spirit,miner,ice-golem,elixir-collector,x-bow,rocket,giant-snowball
+#15 rms 0.2262 linf 0.500 mean 0.408 min 0.000 max 0.933  golem,princess,three-musketeers,cannon,inferno-tower,tombstone,fireball,the-log
+
+reference archetypes on same pool:
+hog-cycle              rms 0.2782 linf 0.500 mean 0.575 min 0.000 max 1.000
+golem-beatdown         rms 0.3500 linf 0.500 mean 0.503 min 0.000 max 1.000
+pekka-bridgespam       rms 0.3810 linf 0.500 mean 0.793 min 0.083 max 1.000
+royal-giant            rms 0.4028 linf 0.500 mean 0.244 min 0.000 max 1.000
+mega-knight-pump       rms 0.4006 linf 0.500 mean 0.599 min 0.000 max 1.000
+giant-prince           rms 0.3354 linf 0.500 mean 0.726 min 0.083 max 1.000
+giant-sparky           rms 0.2947 linf 0.500 mean 0.453 min 0.000 max 1.000
+log-bait               rms 0.3855 linf 0.500 mean 0.245 min 0.000 max 1.000
+mortar-cycle           rms 0.3279 linf 0.500 mean 0.690 min 0.066 max 1.000
+barb-valk              rms 0.3268 linf 0.500 mean 0.698 min 0.083 max 1.000
+miner-poison           rms 0.3007 linf 0.500 mean 0.637 min 0.021 max 1.000
+three-musk             rms 0.2318 linf 0.500 mean 0.414 min 0.000 max 0.937
+witch-giant            rms 0.3289 linf 0.500 mean 0.657 min 0.042 max 1.000
+rocket-cycle           rms 0.4115 linf 0.500 mean 0.182 min 0.000 max 0.958
+inferno-control        rms 0.3070 linf 0.500 mean 0.672 min 0.031 max 1.000
+skeleton-barrel-bait   rms 0.4677 linf 0.500 mean 0.055 min 0.000 max 0.667
+royal-hogs-split       rms 0.3874 linf 0.500 mean 0.190 min 0.000 max 1.000
+elite-barb-rush        rms 0.3630 linf 0.500 mean 0.813 min 0.333 max 1.000
+cannon-hog-2.6         rms 0.2903 linf 0.500 mean 0.416 min 0.000 max 0.958
+
+best deck detail (vs archetypes):
+  vs hog-cycle              0.208
+  vs golem-beatdown         0.667
+  vs pekka-bridgespam       0.083
+  vs royal-giant            0.667
+  vs mega-knight-pump       0.631
+  vs giant-prince           0.320
+  vs giant-sparky           0.583
+  vs log-bait               0.625
+  vs mortar-cycle      

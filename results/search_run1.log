@@ -1,0 +1,51 @@
+skip archetype lavaloon (unsupported card tesla)
+skip archetype balloon-bowler (unsupported card tesla)
+skip archetype xbow-cycle (unsupported card tesla)
+skip archetype executioner-tank (unsupported card tornado-substitute)
+skip archetype double-dragon-air (unsupported card tesla)
+skip archetype lavaloon (unsupported card tesla)
+skip archetype balloon-bowler (unsupported card tesla)
+skip archetype xbow-cycle (unsupported card tesla)
+skip archetype executioner-tank (unsupported card tornado-substitute)
+skip archetype double-dragon-air (unsupported card tesla)
+gen  0 best rms 0.3221 (linf 0.500 mean 0.433)  median rms 0.3958  | three-musketeers,battle-ram,ice-golem,ice-spirit,elixir-collector,zap,rocket,cannon
+gen  1 best rms 0.3349 (linf 0.500 mean 0.537)  median rms 0.3798  | archers,hog-rider,ice-wizard,royal-giant,sparky,dart-goblin,electro-dragon,furnace
+gen  2 best rms 0.3231 (linf 0.500 mean 0.642)  median rms 0.3797  | three-musketeers,battle-ram,ice-golem,mega-minion,cannon,elixir-collector,rocket,the-log
+gen  3 best rms 0.3195 (linf 0.500 mean 0.558)  median rms 0.3807  | pekka,skeleton-army,ice-wizard,princess,rascals,flying-machine,goblin-hut,the-log
+gen  4 best rms 0.3061 (linf 0.500 mean 0.498)  median rms 0.3741  | goblins,three-musketeers,ice-spirit,battle-ram,elixir-collector,rocket,zap,poison
+gen  5 best rms 0.3049 (linf 0.500 mean 0.446)  median rms 0.3796  | three-musketeers,ice-spirit,battle-ram,ice-golem,elixir-collector,rocket,zap,poison
+gen  6 best rms 0.2911 (linf 0.500 mean 0.504)  median rms 0.3604  | three-musketeers,battle-ram,ice-golem,mega-minion,cannon,elixir-collector,rocket,zap
+gen  7 best rms 0.2938 (linf 0.500 mean 0.635)  median rms 0.3663  | three-musketeers,battle-ram,ice-golem,mega-minion,cannon,elixir-collector,rocket,the-log
+gen  8 best rms 0.2794 (linf 0.500 mean 0.534)  median rms 0.3633  | three-musketeers,battle-ram,ice-golem,mega-minion,firecracker,cannon,rocket,the-log
+gen  9 best rms 0.2927 (linf 0.500 mean 0.430)  median rms 0.3605  | three-musketeers,ice-golem,skeleton-barrel,bomb-tower,elixir-collector,rocket,zap,poison
+gen 10 best rms 0.2887 (linf 0.500 mean 0.572)  median rms 0.3510  | hog-rider,three-musketeers,ice-golem,mega-minion,cannon,elixir-collector,rocket,the-log
+gen 11 best rms 0.2897 (linf 0.500 mean 0.487)  median rms 0.3772  | three-musketeers,ice-spirit,battle-ram,ice-golem,elixir-collector,x-bow,rocket,goblin-barrel
+gen 12 best rms 0.2972 (linf 0.500 mean 0.580)  median rms 0.3641  | three-musketeers,ice-golem,mega-minion,wall-breakers,firecracker,goblin-barrel,lightning,the-log
+gen 13 best rms 0.2979 (linf 0.500 mean 0.434)  median rms 0.3601  | giant,hog-rider,three-musketeers,bats,cannon,elixir-collector,goblin-barrel,the-log
+gen 14 best rms 0.2950 (linf 0.500 mean 0.510)  median rms 0.3540  | three-musketeers,ice-spirit,battle-ram,ice-golem,elixir-collector,x-bow,zap,poison
+gen 15 best rms 0.2897 (linf 0.500 mean 0.547)  median rms 0.3569  | valkyrie,princess,three-musketeers,ice-spirit,dart-goblin,x-bow,rocket,goblin-barrel
+gen 16 best rms 0.3072 (linf 0.500 mean 0.466)  median rms 0.3690  | three-musketeers,ice-spirit,battle-ram,ice-golem,elixir-collector,x-bow,rocket,giant-snowball
+gen 17 best rms 0.2976 (linf 0.500 mean 0.610)  median rms 0.3644  | goblins,pekka,three-musketeers,fire-spirit,ice-golem,x-bow,rocket,goblin-barrel
+gen 18 best rms 0.2877 (linf 0.500 mean 0.516)  median rms 0.3740  | three-musketeers,ice-spirit,miner,ice-golem,elixir-collector,x-bow,rocket,giant-snowball
+gen 19 best rms 0.2899 (linf 0.500 mean 0.506)  median rms 0.3648  | hog-rider,three-musketeers,miner,bats,elixir-collector,zap,poison,the-log
+gen 20 best rms 0.2743 (linf 0.500 mean 0.499)  median rms 0.3643  | three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,x-bow,rocket
+gen 21 best rms 0.2885 (linf 0.500 mean 0.582)  median rms 0.3685  | giant,three-musketeers,battle-ram,mega-minion,cannon,inferno-tower,elixir-collector,the-log
+gen 22 best rms 0.3004 (linf 0.500 mean 0.607)  median rms 0.3629  | giant,three-musketeers,battle-ram,mega-minion,cannon,inferno-tower,elixir-collector,the-log
+gen 23 best rms 0.2854 (linf 0.500 mean 0.464)  median rms 0.3736  | three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,x-bow,rocket
+gen 24 best rms 0.2958 (linf 0.500 mean 0.524)  median rms 0.3639  | giant,three-musketeers,dart-goblin,cannon,inferno-tower,elixir-collector,the-log,giant-snowball
+gen 25 best rms 0.2926 (linf 0.500 mean 0.438)  median rms 0.3685  | three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,x-bow,rocket
+gen 26 best rms 0.2751 (linf 0.500 mean 0.498)  median rms 0.3648  | three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,x-bow,rocket
+gen 27 best rms 0.2977 (linf 0.500 mean 0.491)  median rms 0.3762  | giant,three-musketeers,dart-goblin,cannon,inferno-tower,elixir-collector,the-log,giant-snowball
+gen 28 best rms 0.2977 (linf 0.500 mean 0.570)  median rms 0.3822  | giant,three-musketeers,dart-goblin,cannon,inferno-tower,elixir-collector,the-log,giant-snowball
+gen 29 best rms 0.3063 (linf 0.500 mean 0.532)  median rms 0.3700  | giant,three-musketeers,dart-goblin,cannon,inferno-tower,elixir-collector,the-log,giant-snowball
+gen 30 best rms 0.2870 (linf 0.500 mean 0.471)  median rms 0.3660  | three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,x-bow,rocket
+gen 31 best rms 0.3132 (linf 0.500 mean 0.595)  median rms 0.3745  | pekka,skeleton-army,guards,three-musketeers,goblin-gang,inferno-tower,bomb-tower,the-log
+gen 32 best rms 0.2995 (linf 0.500 mean 0.488)  median rms 0.3700  | giant,three-musketeers,zappies,cannon,mortar,inferno-tower,elixir-collector,the-log
+gen 33 best rms 0.3043 (linf 0.500 mean 0.504)  median rms 0.3663  | three-musketeers,ice-spirit,miner,battle-ram,wall-breakers,elixir-collector,x-bow,rocket
+gen 34 best rms 0.2923 (linf 0.500 mean 0.465)  median rms 0.3660  | three-musketeers,ice-spirit,battle-ram,ice-golem,wall-breakers,elixir-collector,x-bow,rocket
+gen 35 best rms 0.2846 (linf 0.500 mean 0.481)  median rms 0.3595  | three-musketeers,ice-spirit,miner,skeleton-barrel,wall-breakers,elixir-collector,x-bow,rocket
+gen 36 best rms 0.2933 (linf 0.500 mean 0.523)  median rms 0.3561  | giant,three-musketeers,zappies,cannon,inferno-tower,elixir-collector,tombstone,the-log
+gen 37 best rms 0.2731 (linf 0.500 mean 0.500)  median rms 0.3591  | giant,three-musketeers,miner,cannon,inferno-tower,elixir-collector,fireball,the-log
+gen 38 best rms 0.2941 (linf 0.500 mean 0.436)  median rms 0.3446  | giant,guards,three-musketeers,cannon,inferno-tower,elixir-collector,tombstone,the-log
+gen 39 best rms 0.2848 (linf 0.500 mean 0.559)  median rms 0.3534  | guards,three-musketeers,battle-ram,cannon,inferno-tower,x-bow,goblin-barrel,the-log
+wrote top candidates
