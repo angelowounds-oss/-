@@ -8,7 +8,7 @@ const QUALITY={
  tiers:['LOW','MID','HIGH','ULTRA'],
  sim:{LOW:{grid:[112,36,52],sub:2,vc:.25},MID:{grid:[144,46,66],sub:2,vc:0},HIGH:{grid:[176,56,80],sub:2,vc:0},ULTRA:{grid:[224,72,100],sub:2,vc:0}},
  vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
- ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
+ ren:{LOW:{scale:1,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
  budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
  /* degrade order required by the spec; upgrade walks it backwards */
  ladder:[
@@ -60,7 +60,26 @@ function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.le
 
 /* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
 function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
- PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};return PERF.manual}
+ PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};
+ /* no address override: restore the viewer's own choice from the engineer panel (per-browser convenience) */
+ if(!PERF.manual.sim&&!PERF.manual.vol&&!PERF.manual.ren){const u=perfUserLoad();if(u){const t=v=>QUALITY.tiers.includes(v)?v:null;PERF.manual={sim:t(u.sim),vol:t(u.vol),ren:t(u.ren)};
+  PERF.userScale=Number.isFinite(u.scale)&&u.scale>=.5&&u.scale<=1.5?u.scale:null;PERF.adaptive=u.adaptive!==false}}
+ return PERF.manual}
+/* ---------- engineer panel: per-axis tier (or auto), render resolution, adaptive on/off ----------
+   Any tier can be chosen on any device; the panel only warns when it is above the measured recommendation. */
+const PERF_USER_KEY='aether.quality.v1';
+function perfUserLoad(){try{return JSON.parse(localStorage.getItem(PERF_USER_KEY)||'null')}catch(_){return null}}
+function perfUserSave(){const M=PERF.manual||{};try{localStorage.setItem(PERF_USER_KEY,JSON.stringify({sim:M.sim||'AUTO',vol:M.vol||'AUTO',ren:M.ren||'AUTO',scale:PERF.userScale||null,adaptive:PERF.adaptive!==false}))}catch(_){}}
+function perfUserSet(o){const M=PERF.manual||(PERF.manual={sim:null,vol:null,ren:null}),done=!!PERF.cal?.done,pick=PERF.cal?.result?.pick||PERF.tier?.sim||'LOW';
+ for(const ax of ['sim','vol','ren'])if(o[ax]!==undefined){const t=QUALITY.tiers.includes(o[ax])?o[ax]:null;M[ax]=t;
+  if(done){const tt=t||pick;perfApplyTier(ax,tt);if(ax==='sim'&&tt!==LIVE.q)liveSetTier(tt,'user');if(ax==='ren'&&PERF.userScale)LIVE.cs=PERF.userScale}}
+ if(o.scale!==undefined){const v=+o.scale;PERF.userScale=v>=.5&&v<=1.5?v:null;if(PERF.userScale)LIVE.cs=PERF.userScale;else if(done)perfApplyTier('ren',M.ren||pick)}
+ if(o.adaptive!==undefined)PERF.adaptive=!!o.adaptive;
+ PERF.ctl.maxGrid=QUALITY.tiers.indexOf(M.sim||'ULTRA');PERF.ctl.cool=performance.now()+3000;PERF.ctl.log.push('사용자');perfUserSave();return perfUserState()}
+function perfUserState(){const M=PERF.manual||{},R=PERF.cal?.result,c=PERF.cost,st=perfStats(PERF.frames.slice(-120));
+ return {measured:!!PERF.cal?.done,pick:R?.pick||null,manual:{sim:M.sim||'AUTO',vol:M.vol||'AUTO',ren:M.ren||'AUTO'},tier:{...(PERF.tier||{})},scale:PERF.userScale||null,adaptive:PERF.adaptive!==false,
+  grid:LIVE.N?LIVE.N.slice():null,renderScale:LIVE.cs,volRes:LIVE.rs,canvas:[glCanvas.width,glCanvas.height],frameMs:c?.ms??null,frameSrc:c?.src||null,p95:st?.p95??null,log:(PERF.ctl?.log||[]).slice(-4)}}
+PERF.userSet=perfUserSet;PERF.userState=perfUserState;
 function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub;if(window.__MAC&&!/vc=0/.test(location.hash))window.__MAC.eps=QUALITY.sim[t].vc}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
 function perfCalibrateStep(now){const C=PERF.cal;if(C.done)return true;
  if(!C.t0){C.t0=now;C.sim=[];C.vol=[];C.scene=[];return false}
@@ -80,7 +99,7 @@ function perfDecide(){const C=PERF.cal,med=a=>{const s=a.slice().sort((x,y)=>x-y
   pred[t]={sim:simPerMcell*g[0]*g[1]*g[2]/1e6*QUALITY.sim[t].sub,vol:volPerMpx*px*sv.res*sv.res*sv.steps/1e6,scene:sceneMs*rn.scale*rn.scale};pred[t].total=pred[t].sim+pred[t].vol+pred[t].scene}
  let pick='LOW';for(const t of QUALITY.tiers)if(Number.isFinite(pred[t].total)&&pred[t].total<=QUALITY.budgetMs[t]*.8)pick=t;
  C.result={pick,simMsPerMcellStep:simPerMcell,volMsPerMpx:volPerMpx,sceneMs,pred,samples:{sim:C.sim.length,vol:C.vol.length,scene:C.scene.length},timerQuery:!!PERF.ext,renderer:perfRenderer()};
- const M=PERF.manual;for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax]||pick);
+ const M=PERF.manual;for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax]||pick);if(PERF.userScale)LIVE.cs=PERF.userScale;
  PERF.ctl.maxGrid=QUALITY.tiers.indexOf(M.sim||'ULTRA');
  if((M.sim||pick)!==LIVE.q)liveSetTier(M.sim||pick,'cal');else liveReapplyAfterCal();
  PERF.ctl.cool=performance.now()+4000;PERF.ctl.log.push('cal→'+pick)}
@@ -89,8 +108,9 @@ function perfRenderer(){try{const e=gl.getExtension('WEBGL_debug_renderer_info')
 
 /* ---------- adaptive controller: degrade fast along QUALITY.ladder, upgrade slowly in reverse ---------- */
 function perfControl(now){const C=PERF.ctl,M=PERF.manual;if(!PERF.cal?.done||LIVE.freeze||document.hidden)return;if(now-C.last<250)return;C.last=now;
+ if(PERF.adaptive===false){PERF.cost=perfFrameCost();return}
  const budget=QUALITY.budgetMs[PERF.tier?.sim||'LOW'],cost=perfFrameCost();PERF.cost=cost;if(now<C.cool)return;
- const locked=k=>(M.vol&&(k==='volRes'||k==='raySteps'))||(M.ren&&(k==='ao'||k==='shadow'||k==='renderScale'))||(M.sim&&(k==='scalar'||k==='cfdRate'||k==='grid'));
+ const locked=k=>(M.vol&&(k==='volRes'||k==='raySteps'))||(M.ren&&(k==='ao'||k==='shadow'||k==='renderScale'))||(M.sim&&(k==='scalar'||k==='cfdRate'||k==='grid'))||(PERF.userScale&&k==='renderScale');
  const knobs=QUALITY.ladder.filter(k=>!locked(k.k)&&(!k.available||k.available()));
  const idx=k=>{const v=k.get(),s=k.steps;let b=0;for(let i=0;i<s.length;i++)if(Math.abs(s[i]-v)<Math.abs(s[b]-v))b=i;return b};
  if(cost.ms>budget*1.1){C.calm=0;for(const k of knobs){const i=idx(k);if(i>0&&!(k.k==='grid'&&C.switches>=4)){k.set(k.steps[i-1]);if(k.k==='grid')C.switches++;C.log.push(k.k+'-');C.cool=now+(k.k==='grid'?6000:1200);return}}}

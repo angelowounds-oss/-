@@ -26,7 +26,19 @@
 <div class="wow-actions"><button id="wowStart" type="button" disabled>장면 준비 중…</button><button id="wowSkip" class="wow-skip" type="button">직접 둘러보기</button></div>
 <small id="wowSource" class="wow-source">제품 CFD 미연결 · 계산 전 장면</small><div class="wow-progress"><span id="wowProgress"></span></div>
 </div><div class="fpv-controls"><div class="lens"></div><div class="reticle"></div><div class="fpv-top"><button id="walkMode">1인칭 보행</button><button id="qualityMode">화질: 고화질</button><button id="swayMode">흔들림: 켬</button></div><div id="joystick" class="joystick" role="region" aria-label="이동 조이스틱"><span id="stick"></span></div><span class="swipe-note">오른쪽 화면: 시점 이동</span><div id="fpvHelp" class="fpv-help">WASD 이동 · 화면 클릭 후 마우스 시점 · Esc 해제</div></div><div class="hud"><strong id="viewName">HERO</strong><br><span id="viewHint">Drag to orbit · wheel/pinch to zoom</span></div><div class="toolbar"><button data-camera="Hero" class="active">Hero</button><button data-camera="Side">Side</button><button data-camera="Top">Top</button><button data-camera="Fan">Fan</button><button id="reset">Reset</button><button id="cutaway">Cutaway: Off</button><button id="roadSection">Road section: Off</button><span class="hint">M4 rolling road · state unbound · imported asset</span></div></section>
-<aside><section id="m14ControlRoom" class="note m14-panel" aria-labelledby="m14Title">
+<aside><section id="qualityPanel" class="note q-panel" aria-labelledby="qTitle">
+<h2 id="qTitle">화질 · 해상도</h2>
+<div class="office-form q-form">
+<label class="q-wide">전체 등급 <select id="qAll"><option value="AUTO">자동</option><option value="LOW">LOW</option><option value="MID">MID</option><option value="HIGH">HIGH</option><option value="ULTRA">ULTRA</option></select></label>
+<label class="q-wide">화면 해상도 <select id="qScale"><option value="">등급 기본값</option><option value="0.5">50 %</option><option value="0.67">67 %</option><option value="0.75">75 %</option><option value="0.85">85 %</option><option value="1">100 % (원본)</option><option value="1.25">125 % (슈퍼샘플링)</option><option value="1.5">150 % (슈퍼샘플링)</option></select></label>
+<label>연기 품질 <select id="qVol"><option value="AUTO">자동</option><option value="LOW">LOW</option><option value="MID">MID</option><option value="HIGH">HIGH</option><option value="ULTRA">ULTRA</option></select></label>
+<label>그래픽 <select id="qRen"><option value="AUTO">자동</option><option value="LOW">LOW</option><option value="MID">MID</option><option value="HIGH">HIGH</option><option value="ULTRA">ULTRA</option></select></label>
+<label class="q-wide">CFD 격자 <select id="qSim"><option value="AUTO">자동</option><option value="LOW">LOW</option><option value="MID">MID</option><option value="HIGH">HIGH</option><option value="ULTRA">ULTRA</option></select></label>
+<label class="q-check q-wide"><input type="checkbox" id="qAdaptive" checked> 프레임이 떨어지면 자동으로 낮추기</label>
+</div>
+<div class="note q-status" id="qStatus" role="status" aria-live="polite">GPU 측정 중…</div>
+<small>어느 기기에서든 모든 등급을 고를 수 있습니다. 측정 추천보다 높으면 느려질 수 있습니다. 그래픽 = 그림자·AO·반사·기본 해상도, 연기 품질 = 연기 레이마칭 해상도·스텝. CFD 격자를 바꾸면 흐름을 처음부터 다시 계산합니다. 선택은 이 브라우저에 저장됩니다(주소 옵션 #q= 등이 있으면 그쪽이 우선).</small>
+</section><section id="m14ControlRoom" class="note m14-panel" aria-labelledby="m14Title">
 <h2 id="m14Title">M14 · 제어실</h2>
 <div id="m14StateBanner" class="m14-banner" role="status" aria-live="polite">제어 연결 중…</div>
 <label class="m14-speed-label" for="m14WindSpeed">목표 유입 속도 <output id="m14WindSpeedValue" for="m14WindSpeed">1.0 m/s</output>

@@ -2066,7 +2066,7 @@ const QUALITY={
  tiers:['LOW','MID','HIGH','ULTRA'],
  sim:{LOW:{grid:[112,36,52],sub:2,vc:.25},MID:{grid:[144,46,66],sub:2,vc:0},HIGH:{grid:[176,56,80],sub:2,vc:0},ULTRA:{grid:[224,72,100],sub:2,vc:0}},
  vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
- ren:{LOW:{scale:.8,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
+ ren:{LOW:{scale:1,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
  budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
  /* degrade order required by the spec; upgrade walks it backwards */
  ladder:[
@@ -2118,7 +2118,26 @@ function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.le
 
 /* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
 function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
- PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};return PERF.manual}
+ PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};
+ /* no address override: restore the viewer's own choice from the engineer panel (per-browser convenience) */
+ if(!PERF.manual.sim&&!PERF.manual.vol&&!PERF.manual.ren){const u=perfUserLoad();if(u){const t=v=>QUALITY.tiers.includes(v)?v:null;PERF.manual={sim:t(u.sim),vol:t(u.vol),ren:t(u.ren)};
+  PERF.userScale=Number.isFinite(u.scale)&&u.scale>=.5&&u.scale<=1.5?u.scale:null;PERF.adaptive=u.adaptive!==false}}
+ return PERF.manual}
+/* ---------- engineer panel: per-axis tier (or auto), render resolution, adaptive on/off ----------
+   Any tier can be chosen on any device; the panel only warns when it is above the measured recommendation. */
+const PERF_USER_KEY='aether.quality.v1';
+function perfUserLoad(){try{return JSON.parse(localStorage.getItem(PERF_USER_KEY)||'null')}catch(_){return null}}
+function perfUserSave(){const M=PERF.manual||{};try{localStorage.setItem(PERF_USER_KEY,JSON.stringify({sim:M.sim||'AUTO',vol:M.vol||'AUTO',ren:M.ren||'AUTO',scale:PERF.userScale||null,adaptive:PERF.adaptive!==false}))}catch(_){}}
+function perfUserSet(o){const M=PERF.manual||(PERF.manual={sim:null,vol:null,ren:null}),done=!!PERF.cal?.done,pick=PERF.cal?.result?.pick||PERF.tier?.sim||'LOW';
+ for(const ax of ['sim','vol','ren'])if(o[ax]!==undefined){const t=QUALITY.tiers.includes(o[ax])?o[ax]:null;M[ax]=t;
+  if(done){const tt=t||pick;perfApplyTier(ax,tt);if(ax==='sim'&&tt!==LIVE.q)liveSetTier(tt,'user');if(ax==='ren'&&PERF.userScale)LIVE.cs=PERF.userScale}}
+ if(o.scale!==undefined){const v=+o.scale;PERF.userScale=v>=.5&&v<=1.5?v:null;if(PERF.userScale)LIVE.cs=PERF.userScale;else if(done)perfApplyTier('ren',M.ren||pick)}
+ if(o.adaptive!==undefined)PERF.adaptive=!!o.adaptive;
+ PERF.ctl.maxGrid=QUALITY.tiers.indexOf(M.sim||'ULTRA');PERF.ctl.cool=performance.now()+3000;PERF.ctl.log.push('사용자');perfUserSave();return perfUserState()}
+function perfUserState(){const M=PERF.manual||{},R=PERF.cal?.result,c=PERF.cost,st=perfStats(PERF.frames.slice(-120));
+ return {measured:!!PERF.cal?.done,pick:R?.pick||null,manual:{sim:M.sim||'AUTO',vol:M.vol||'AUTO',ren:M.ren||'AUTO'},tier:{...(PERF.tier||{})},scale:PERF.userScale||null,adaptive:PERF.adaptive!==false,
+  grid:LIVE.N?LIVE.N.slice():null,renderScale:LIVE.cs,volRes:LIVE.rs,canvas:[glCanvas.width,glCanvas.height],frameMs:c?.ms??null,frameSrc:c?.src||null,p95:st?.p95??null,log:(PERF.ctl?.log||[]).slice(-4)}}
+PERF.userSet=perfUserSet;PERF.userState=perfUserState;
 function perfApplyTier(axis,t){if(axis==='sim'){LIVE.sub=QUALITY.sim[t].sub;if(window.__MAC&&!/vc=0/.test(location.hash))window.__MAC.eps=QUALITY.sim[t].vc}else if(axis==='vol'){const v=QUALITY.vol[t];LIVE.rs=v.res;LIVE.stepScale=v.steps;LIVE.rq=v.taps}else{const r=QUALITY.ren[t];LIVE.cs=r.scale;Object.assign(PERF.set,{ao:r.ao,shadow:r.shadow,aa:r.aa,bloom:r.bloom,ssr:r.ssr})}PERF.tier=PERF.tier||{};PERF.tier[axis]=t}
 function perfCalibrateStep(now){const C=PERF.cal;if(C.done)return true;
  if(!C.t0){C.t0=now;C.sim=[];C.vol=[];C.scene=[];return false}
@@ -2138,7 +2157,7 @@ function perfDecide(){const C=PERF.cal,med=a=>{const s=a.slice().sort((x,y)=>x-y
   pred[t]={sim:simPerMcell*g[0]*g[1]*g[2]/1e6*QUALITY.sim[t].sub,vol:volPerMpx*px*sv.res*sv.res*sv.steps/1e6,scene:sceneMs*rn.scale*rn.scale};pred[t].total=pred[t].sim+pred[t].vol+pred[t].scene}
  let pick='LOW';for(const t of QUALITY.tiers)if(Number.isFinite(pred[t].total)&&pred[t].total<=QUALITY.budgetMs[t]*.8)pick=t;
  C.result={pick,simMsPerMcellStep:simPerMcell,volMsPerMpx:volPerMpx,sceneMs,pred,samples:{sim:C.sim.length,vol:C.vol.length,scene:C.scene.length},timerQuery:!!PERF.ext,renderer:perfRenderer()};
- const M=PERF.manual;for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax]||pick);
+ const M=PERF.manual;for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax]||pick);if(PERF.userScale)LIVE.cs=PERF.userScale;
  PERF.ctl.maxGrid=QUALITY.tiers.indexOf(M.sim||'ULTRA');
  if((M.sim||pick)!==LIVE.q)liveSetTier(M.sim||pick,'cal');else liveReapplyAfterCal();
  PERF.ctl.cool=performance.now()+4000;PERF.ctl.log.push('cal→'+pick)}
@@ -2147,8 +2166,9 @@ function perfRenderer(){try{const e=gl.getExtension('WEBGL_debug_renderer_info')
 
 /* ---------- adaptive controller: degrade fast along QUALITY.ladder, upgrade slowly in reverse ---------- */
 function perfControl(now){const C=PERF.ctl,M=PERF.manual;if(!PERF.cal?.done||LIVE.freeze||document.hidden)return;if(now-C.last<250)return;C.last=now;
+ if(PERF.adaptive===false){PERF.cost=perfFrameCost();return}
  const budget=QUALITY.budgetMs[PERF.tier?.sim||'LOW'],cost=perfFrameCost();PERF.cost=cost;if(now<C.cool)return;
- const locked=k=>(M.vol&&(k==='volRes'||k==='raySteps'))||(M.ren&&(k==='ao'||k==='shadow'||k==='renderScale'))||(M.sim&&(k==='scalar'||k==='cfdRate'||k==='grid'));
+ const locked=k=>(M.vol&&(k==='volRes'||k==='raySteps'))||(M.ren&&(k==='ao'||k==='shadow'||k==='renderScale'))||(M.sim&&(k==='scalar'||k==='cfdRate'||k==='grid'))||(PERF.userScale&&k==='renderScale');
  const knobs=QUALITY.ladder.filter(k=>!locked(k.k)&&(!k.available||k.available()));
  const idx=k=>{const v=k.get(),s=k.steps;let b=0;for(let i=0;i<s.length;i++)if(Math.abs(s[i]-v)<Math.abs(s[b]-v))b=i;return b};
  if(cost.ms>budget*1.1){C.calm=0;for(const k of knobs){const i=idx(k);if(i>0&&!(k.k==='grid'&&C.switches>=4)){k.set(k.steps[i-1]);if(k.k==='grid')C.switches++;C.log.push(k.k+'-');C.cool=now+(k.k==='grid'?6000:1200);return}}}
@@ -2200,7 +2220,7 @@ window.__perfHudText=()=>{const P=PERF,c=P.cost||perfFrameCost(),f=perfStats(P.f
 /* AETHER LIVE CFD: real-time GPU incompressible flow (collocated grid, semi-Lagrangian advection,
    Jacobi pressure projection, vorticity confinement) + passive-scalar smoke with MacCormack transport. */
 const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
- vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:6,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
+ vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:3,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
 const LIVE_BENCH={D:.5,x:-1.5,z:.1,y:1.5,T:8,spin:2};
@@ -2433,9 +2453,20 @@ function liveBenchAnalyze(R){const D=LIVE_BENCH.D,U=LIVE.U,dt=.01,t0=LIVE_BENCH.
  if(LIVE.obs)gl.deleteTexture(LIVE.obs);if(LIVE.vol)gl.deleteTexture(LIVE.vol);if(LIVE.volFbo)gl.deleteFramebuffer(LIVE.volFbo);LIVE.tex=null;LIVE.lv=null;LIVE.red=null}
 function liveSetTier(q,why){if(!LIVE_Q[q]||q===LIVE.q&&LIVE.init)return;liveRelease();LIVE.forceQ=q;LIVE.init=false;LIVE.ok=false;LIVE.forces=null;PERF.ctl.log.push((why||'')+'→'+q)}
 function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
-function liveEmitters(){const E=[],B=window.__BODY,fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.3:-4.2;if(LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH')for(let i=0;i<7;i++)E.push([x,.15+.22*i,0,.085]);
- if(LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH')for(let i=0;i<9;i++)E.push([x,.5,-1.3+.325*i,.085]);
- if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,.09])}
+/* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
+   Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
+function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.6:-3.9,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
+ return {x,tip:x+.075,z:0,yh:.5,v:[0,1,2,3,4,5,6].map(i=>.15+.22*i),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
+function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz].join();if(LIVE.rakeKey===key||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
+ for(const o of scene.objects)if(o.name.startsWith('rake probe')&&o.gpu)for(const b of [o.gpu.pb,o.gpu.nb,o.gpu.ub,o.gpu.ib])if(b)gl.deleteBuffer(b);
+ scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));const add=(n,c,sz)=>{const o=addBox('rake probe '+n,c,sz,[.74,.76,.78],{bevel:.004,category:'instrumentation'});o.pbrMaterial=materialFor(o);bevelMesh(o);
+  const m=o._mesh,uv=m.uvs?.length===m.positions.length/3*2?m.uvs:new Float32Array(m.positions.length/3*2);o.gpu=bindMesh(m.positions,m.normals,uv,m.indices)};
+ if(R.vert){add('mast',[R.x,.86,R.z],[.034,1.72,.034]);add('base',[R.x,.012,R.z],[.26,.024,.26]);R.v.forEach((y,i)=>add('nozzle v'+i,[R.x+.037,y,R.z],[.075,.02,.02]))}
+ if(R.horz){add('bar',[R.x,R.yh,0],[.034,.034,2.96]);for(const z of [-1.5,1.5]){add('leg '+z,[R.x,R.yh/2,z],[.03,R.yh,.03]);add('foot '+z,[R.x,.012,z],[.2,.024,.2])}R.h.forEach((z,i)=>add('nozzle h'+i,[R.x+.037,R.yh,z],[.075,.02,.02]))}}
+function liveEmitters(){const E=[],B=window.__BODY,R=liveRakeGeometry();try{liveRakeHardware(R)}catch(e){LIVE.rakeErr=String(e.message||e)}
+ if(R.vert)for(const y of R.v)E.push([R.tip,y,R.z,R.r]);
+ if(R.horz)for(const z of R.h)E.push([R.tip,R.yh,z,R.r]);
+ if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,Math.max(.045,R.r)])}
  LIVE.emitters=E.slice(0,16);const a=new Float32Array(64);LIVE.emitters.forEach((v,i)=>a.set(v,i*4));return a}
 function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;macStep(dt);LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt;return}const T=LIVE.tex,B=window.__BODY,act=!!(B&&B.active);gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  LIVE.bodyV=act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0];
@@ -3104,7 +3135,7 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 n=uv*2.-1.;vec4 a=uInv*vec4(n,-1,1
  float j=fract(texelFetch(uBlue,ivec2(gl_FragCoord.xy)&63,0).r+uFrame*.618034);vec3 ext=uBMax-uBMin;vec4 acc=vec4(0.);float wt=0.,wd=0.;
  float mu=dot(rd,uLD),hg=(1.-uG*uG)/(4.*3.14159*pow(1.+uG*uG-2.*uG*mu,1.5));
  for(int i=0;i<256;i++){if(i>=NS||acc.a>.99)break;float t=tn+(float(i)+j)*dt;vec3 p=ro+rd*t,uvw=(p-uBMin)/ext;
-  vec4 c=textureLod(uVol,uvw,2.);if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);float d=s.r*uDens*smoothstep(.15,.7,t);if(d<.002)continue;
+  vec4 c=textureLod(uVol,uvw,2.);if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);vec3 e3=min(uvw,1.-uvw)*ext;float d=s.r*uDens*smoothstep(.15,.7,t)*smoothstep(0.,.4,min(min(e3.x,e3.z),(1.-uvw.y)*ext.y));if(d<.002)continue;
   float od=0.;for(int k=1;k<=6;k++){if(k>uTaps)break;od+=textureLod(uVol,uvw+uLD/ext*(.12*float(k*k)),0.).r*.12*float(2*k-1);}
   float T=exp(-od*uDens*2.2);vec3 alb=mix(vec3(.82,.86,.92),lin(turbo(clamp(.5+(s.b-1.)*1.25,0.,1.))),uCMode);
   vec3 col=alb*(vec3(1.,.96,.9)*3.2*T*hg*12.566*.35+vec3(.55,.62,.72)*.55);

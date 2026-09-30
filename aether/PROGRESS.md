@@ -34,7 +34,7 @@
 | 보존 | 원본 16MB HTML 직접 편집 금지 | PASS | `original/` 기준본 유지, 빌드로만 생성 |
 | 품질 | UA 추측 없이 GPU 실측 벤치마크로 등급 선택 | PASS(동작) | 렌더러 문자열 판정 코드 제거, 2.5 s 측정 |
 | 품질 | timer query 기반 실행 중 조정 | PASS(동작) | 84-perf-quality |
-| 품질 | 수동 고정, sim/vol/render 독립 조절 | PASS | `#q`, `#sim`, `#vol`, `#render` |
+| 품질 | 수동 고정, sim/vol/render 독립 조절 | PASS | 엔지니어 패널 "화질 · 해상도"(등급·해상도·자동 조절, 브라우저에 저장) + 주소 옵션 `#q`, `#sim`, `#vol`, `#render` |
 | 품질 | 강등 순서(볼륨→스텝→AO→그림자→스케일→스칼라→갱신율→격자) | PASS | QUALITY.ladder (SSR은 AO 다음에 추가) |
 | 성능 | LOW p95 ≤ 33 ms / 첫 화면 ≤ 15 s | ASSUMED | 실측 필요(CHECKPOINT.md). SwiftShader 부팅 28.6 s는 CPU 에뮬레이션 값 |
 | 성능 | LOW GPU 메모리 ≤ 512 MB | PASS(계산값) | 할당량 계산 186 MB |

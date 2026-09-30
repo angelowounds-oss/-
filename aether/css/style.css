@@ -58,3 +58,4 @@ body.sc.eng main{grid-template-columns:minmax(0,1fr) 300px!important}
 /* live CFD owns the viewport in showcase mode: the legacy M13 legend would contradict it */
 body.sc.live-cfd #m13Legend{display:none!important}
 .badge.live{color:#7ee787;border-color:#7ee78766}
+.q-form .q-wide{grid-column:1/-1}.q-form .q-check{flex-direction:row;align-items:center;gap:8px}.q-status{white-space:pre-line;font-size:.8rem;line-height:1.45}.q-status .warn{color:#ffcf66}.q-panel small{display:block;color:#93a3ae;font-size:.74rem;line-height:1.4}

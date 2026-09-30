@@ -65,3 +65,24 @@ setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classL
  else if(l.err){s.textContent='실시간 CFD 사용 불가: '+l.err+'\n기존 필라멘트 방식으로 표시합니다';for(const id of ['scMore','scMode','scFlow']){const e=$(id);if(e)e.style.display=''}}
  else s.textContent=l.enabled?'실시간 CFD 준비 중':'실시간 CFD 꺼짐 · 기존 필라멘트 방식';},300);
 })();
+/* engineer panel: quality / resolution (any tier selectable on any device; warns above the measured recommendation) */
+(()=>{const q=id=>document.getElementById(id),P=()=>window.__PERF;if(!q('qualityPanel'))return;
+ const T=['LOW','MID','HIGH','ULTRA'],set=o=>{const p=P();if(p&&p.userSet){p.userSet(o);sync(true)}};
+ const sync=force=>{const p=P();if(!p||!p.userState)return;const s=p.userState(),m=s.manual;
+  if(force||document.activeElement?.closest?.('#qualityPanel')==null){q('qVol').value=m.vol;q('qRen').value=m.ren;q('qSim').value=m.sim;
+   if(m.vol===m.ren&&m.ren===m.sim)q('qAll').value=m.sim;else q('qAll').selectedIndex=-1;
+   q('qScale').value=s.scale?String(s.scale):'';q('qAdaptive').checked=s.adaptive}
+  const pct=v=>Math.round((v||0)*100)+' %',t=s.tier||{},lines=[];
+  lines.push(s.measured?'측정 추천: '+s.pick+' (시작 시 GPU 실측)':'GPU 측정 중… (끝나면 추천 등급 표시)');
+  lines.push('현재: CFD '+(t.sim||'—')+(s.grid?' '+s.grid.join('×'):'')+' · 연기 '+(t.vol||'—')+' '+pct(s.volRes)+' · 그래픽 '+(t.ren||'—'));
+  lines.push('화면 '+pct(s.renderScale)+' ('+s.canvas.join('×')+' 캔버스)'+(s.scale?' · 직접 지정':''));
+  lines.push('프레임 '+(s.p95!=null?'p95 '+s.p95.toFixed(1)+' ms':'—')+(s.frameMs!=null?' · 비용 '+s.frameMs.toFixed(1)+' ms('+(s.frameSrc||'')+')':'')+' · 자동 조절 '+(s.adaptive?'켜짐':'꺼짐'));
+  if(s.log.length)lines.push('최근 조정: '+s.log.join(', '));
+  const el=q('qStatus');el.textContent=lines.join('\n');
+  const hi=s.measured&&s.pick&&['sim','vol','ren'].some(a=>T.indexOf(m[a])>T.indexOf(s.pick))||(s.scale&&s.scale>1&&s.pick==='LOW');
+  if(hi){const w=document.createElement('span');w.className='warn';w.textContent='\n주의: 선택한 설정이 측정 추천('+s.pick+')보다 높아 느려질 수 있습니다.';el.appendChild(w)}};
+ q('qAll').onchange=e=>{const v=e.target.value;set({sim:v,vol:v,ren:v,scale:null})};
+ for(const [id,ax] of [['qVol','vol'],['qRen','ren'],['qSim','sim']])q(id).onchange=e=>set({[ax]:e.target.value});
+ q('qScale').onchange=e=>set({scale:e.target.value?+e.target.value:null});
+ q('qAdaptive').onchange=e=>set({adaptive:e.target.checked});
+ sync(true);setInterval(()=>{if(document.body.classList.contains('eng')||!document.body.classList.contains('sc'))sync(false)},500)})();

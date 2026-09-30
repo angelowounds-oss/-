@@ -1,7 +1,7 @@
 /* AETHER LIVE CFD: real-time GPU incompressible flow (collocated grid, semi-Lagrangian advection,
    Jacobi pressure projection, vorticity confinement) + passive-scalar smoke with MacCormack transport. */
 const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
- vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:6,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
+ vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:3,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
 const LIVE_BENCH={D:.5,x:-1.5,z:.1,y:1.5,T:8,spin:2};
@@ -234,9 +234,20 @@ function liveBenchAnalyze(R){const D=LIVE_BENCH.D,U=LIVE.U,dt=.01,t0=LIVE_BENCH.
  if(LIVE.obs)gl.deleteTexture(LIVE.obs);if(LIVE.vol)gl.deleteTexture(LIVE.vol);if(LIVE.volFbo)gl.deleteFramebuffer(LIVE.volFbo);LIVE.tex=null;LIVE.lv=null;LIVE.red=null}
 function liveSetTier(q,why){if(!LIVE_Q[q]||q===LIVE.q&&LIVE.init)return;liveRelease();LIVE.forceQ=q;LIVE.init=false;LIVE.ok=false;LIVE.forces=null;PERF.ctl.log.push((why||'')+'→'+q)}
 function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
-function liveEmitters(){const E=[],B=window.__BODY,fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.3:-4.2;if(LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH')for(let i=0;i<7;i++)E.push([x,.15+.22*i,0,.085]);
- if(LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH')for(let i=0;i<9;i++)E.push([x,.5,-1.3+.325*i,.085]);
- if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,.09])}
+/* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
+   Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
+function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.6:-3.9,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
+ return {x,tip:x+.075,z:0,yh:.5,v:[0,1,2,3,4,5,6].map(i=>.15+.22*i),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
+function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz].join();if(LIVE.rakeKey===key||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
+ for(const o of scene.objects)if(o.name.startsWith('rake probe')&&o.gpu)for(const b of [o.gpu.pb,o.gpu.nb,o.gpu.ub,o.gpu.ib])if(b)gl.deleteBuffer(b);
+ scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));const add=(n,c,sz)=>{const o=addBox('rake probe '+n,c,sz,[.74,.76,.78],{bevel:.004,category:'instrumentation'});o.pbrMaterial=materialFor(o);bevelMesh(o);
+  const m=o._mesh,uv=m.uvs?.length===m.positions.length/3*2?m.uvs:new Float32Array(m.positions.length/3*2);o.gpu=bindMesh(m.positions,m.normals,uv,m.indices)};
+ if(R.vert){add('mast',[R.x,.86,R.z],[.034,1.72,.034]);add('base',[R.x,.012,R.z],[.26,.024,.26]);R.v.forEach((y,i)=>add('nozzle v'+i,[R.x+.037,y,R.z],[.075,.02,.02]))}
+ if(R.horz){add('bar',[R.x,R.yh,0],[.034,.034,2.96]);for(const z of [-1.5,1.5]){add('leg '+z,[R.x,R.yh/2,z],[.03,R.yh,.03]);add('foot '+z,[R.x,.012,z],[.2,.024,.2])}R.h.forEach((z,i)=>add('nozzle h'+i,[R.x+.037,R.yh,z],[.075,.02,.02]))}}
+function liveEmitters(){const E=[],B=window.__BODY,R=liveRakeGeometry();try{liveRakeHardware(R)}catch(e){LIVE.rakeErr=String(e.message||e)}
+ if(R.vert)for(const y of R.v)E.push([R.tip,y,R.z,R.r]);
+ if(R.horz)for(const z of R.h)E.push([R.tip,R.yh,z,R.r]);
+ if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,Math.max(.045,R.r)])}
  LIVE.emitters=E.slice(0,16);const a=new Float32Array(64);LIVE.emitters.forEach((v,i)=>a.set(v,i*4));return a}
 function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;macStep(dt);LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt;return}const T=LIVE.tex,B=window.__BODY,act=!!(B&&B.active);gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  LIVE.bodyV=act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0];
