@@ -1,7 +1,7 @@
 {
  "file": "dist/aether.html",
  "tag": "m8",
- "time": "2026-09-30T10:39:08.837Z",
+ "time": "2026-09-30T13:35:00.041Z",
  "failed": 0,
  "checks": [
   {
@@ -37,7 +37,7 @@
   {
    "name": "HUD·상시 고지",
    "ok": "PASS",
-   "detail": "실시간 GPU CFD · MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 RBGS-MG · 112×36×52 (21.0만 셀) · 등급 LOW\n풍속 5 m/s · 모의시간 0.15 s · 12 스텝 · 연기원 7개\n와도 보존력 보정 사용 중(LOW 전용 근사 보정, 물리 "
+   "detail": "실시간 GPU CFD · MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 RBGS-MG · 112×36×52 (21.0만 셀) · 등급 LOW\n풍속 5 m/s · 모의시간 0.05 s · 6 스텝 · 연기원 7개\n와도 보존력 보정 사용 중(LOW 전용 근사 보정, 물리 법"
   },
   {
    "name": "한국어 UI",
@@ -67,7 +67,7 @@
   {
    "name": "이동 사람 고체(유동 경계)",
    "ok": "PASS",
-   "detail": "{\"flags\":{\"fluid\":186831,\"car\":2180,\"fan\":20608,\"body\":45},\"speedAt\":4.061189886876878,\"hud\":\"내 위치 풍속 4.37 m/s  ·  몸이 흐름을 가르는 중\"}"
+   "detail": "{\"flags\":{\"fluid\":186831,\"car\":2180,\"fan\":20608,\"body\":45},\"speedAt\":4.121144270606758,\"hud\":\"내 위치 풍속 4.37 m/s  ·  몸이 흐름을 가르는 중\"}"
   },
   {
    "name": "외부 시점 마네킹",
@@ -92,7 +92,7 @@
   {
    "name": "부팅 시간(SwiftShader, 참고)",
    "ok": "INFO",
-   "detail": "17410 ms"
+   "detail": "30516 ms"
   }
  ]
 }
