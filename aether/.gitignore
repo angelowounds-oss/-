@@ -1,3 +1,7 @@
 dist/*.tmp.html
 tests/*.log
 tests/out/**/*.partial.json
+
+# deploy bundle (generated from dist/aether.html)
+site/
+site.zip
