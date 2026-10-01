@@ -1,3 +1,4 @@
+/* global __CINE, WheelEvent */
 // Cinematic director verification (headless Chromium + SwiftShader: functional/geometry checks only, never performance).
 // node tests/cinematic.mjs [hash=#q=LITE] [realSteps=160]
 // Logic scenarios run on a virtual clock (the rAF loop is paused and CINE.tick is driven by hand), the first scenario uses the real splash/rAF path.

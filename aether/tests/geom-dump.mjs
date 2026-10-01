@@ -6,7 +6,7 @@ const { browser, page, log } = await open('file://' + path.join(root, 'dist/aeth
 try {
   await page.waitForSelector('#scGo.rdy', { timeout: 240000 });
   const r = await page.evaluate(() => {
-    const D = __AETHER_DEBUG, S = D.scene, vt = AETHER.VEHICLE_TRANSFORM, l = AETHER.FLOW_LAYOUT.get(null);
+    const D = __AETHER_DEBUG, S = D.scene, vt = window.AETHER.VEHICLE_TRANSFORM, l = window.AETHER.FLOW_LAYOUT.get(null);
     const bb = a => { const lo = [1e9,1e9,1e9], hi = [-1e9,-1e9,-1e9]; for (let i = 0; i < a.length; i += 3) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], a[i+k]); hi[k] = Math.max(hi[k], a[i+k]); } return [lo, hi]; };
     const objs = S.objects.map(o => ({ n: o.name, c: o.category, m: o.material, vis: o.visible, ctr: o.center && [...o.center].map(v => +v.toFixed(2)), sz: o.size && [...o.size].map(v => +v.toFixed(2)) }));
     const vp = S.vehicleParts.map(p => ({ role: p.role, name: p.name, bb: p.positions && bb(p.positions).map(a => a.map(v => +v.toFixed(2))) }));
