@@ -6,3 +6,4 @@ gen   3  games    3840  win vs policy6 45.7% (960)  vs league -  best cand 0.593
 gen   4  games    4800  win vs policy6 42.9% (960)  vs league -  best cand 0.540
   validation: current weights vs policy 6 = 53.1% over 210 games (fixed held-out seeds)
   theta: -0.0678 0.3160 0.2928 0.0818 -0.1305 -0.1075 -0.0938 -0.1601 0.0416 -0.0971 0.0236 -0.1880 -0.1579 0.1539 0.1244 0.2261 -0.0667 0.0560 0.1971
+gen   5  games    5760  win vs policy6 54.9% (960)  vs league -  best cand 0.682
