@@ -10,3 +10,4 @@ tests/out/cine/
 tests/out/geom.json
 dist/AETHER_CINEMATIC_DIRECTOR_V1.*
 dist/AETHER_CINEMATIC_SMOKE_V2.*
+tests/out/coverage.raw.json
