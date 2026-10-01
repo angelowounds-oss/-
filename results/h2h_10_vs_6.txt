@@ -1,0 +1,16 @@
+new policy 10 vs old policy 6: new wins 48.0% over 840 games
+  as deck  1: 25%
+  as deck  2: 54%
+  as deck  3: 61%
+  as deck  4: 71%
+  as deck  5: 21%
+  as deck  6: 29%
+  as deck  7: 88%
+  as deck  8: 38%
+  as deck  9: 7%
+  as deck 10: 44%
+  as deck 11: 48%
+  as deck 12: 55%
+  as deck 13: 66%
+  as deck 14: 66%
+  as deck 15: 48%

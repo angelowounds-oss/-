@@ -109,3 +109,10 @@ against 14 meta decks played by rule-based policies 0-2.
 - vs lookahead opponents: learned 0.0% | rule 0.0% | lookahead 34.4%.
 So the learner overfits the opponents it trained against and does not generalise; the lookahead player remains the strongest.
 Training against lookahead opponents is ~100x slower (about 0.5 s per game), i.e. hours per deck.
+
+### Search AI v2 (policies 8-11) — head-to-head vs the long-horizon lookahead (policy 6), 840 games each, `results/h2h_*_vs_6.txt`
+Both seatings of every ordered deck pair (deck strength cancels; only player skill differs). Standard error about 1.7 points.
+- 8 (determinised opponent hand + opponent mixture + positional evaluation): 47.1%
+- 10 (determinisation/mixture only): 48.0%
+- 11 (positional evaluation only): 50.5%
+No measurable improvement. The three changes do not make the lookahead player stronger; its value function and rollout opponent model are the limit.
