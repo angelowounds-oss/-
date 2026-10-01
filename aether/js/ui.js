@@ -1,27 +1,27 @@
 (()=>{const $=id=>document.getElementById(id),q=(s,f)=>{try{f()}catch(e){}};
 document.body.classList.add('sc');
 const vp=document.querySelector('.viewport');
-vp.insertAdjacentHTML('beforeend','<div class="sc-vig"></div><div class="sc-bar t"></div><div class="sc-bar b"></div><div class="sc-cap" id="scCap"></div><div class="sc-dock" id="scDock"><button id="scCine">시네마틱 재생</button><button id="scHero">정면 시점</button><button id="scOut">후류 시점</button><button id="scMore">필라멘트 굵게</button><button id="scMode">필라멘트/입자 전환</button><button id="scFlow">흐름 강조 켜기/끄기</button><button id="scCol">유속 색 켜기/끄기</button><button id="scDoor">풍동 안으로 걸어 들어가기</button><button id="scEng">엔지니어 패널</button></div>');
+vp.insertAdjacentHTML('beforeend','<div class="sc-vig"></div><div class="sc-bar t"></div><div class="sc-bar b"></div><i class="sc-prog" id="scProg"></i><button id="scSkip" type="button" aria-label="시네마틱 건너뛰기">건너뛰기 ›</button><div class="sc-cap" id="scCap"></div><div class="sc-dock" id="scDock"><button id="scCine">시네마틱 재생</button><button id="scHero">정면 시점</button><button id="scOut">후류 시점</button><button id="scMore">필라멘트 굵게</button><button id="scMode">필라멘트/입자 전환</button><button id="scFlow">흐름 강조 켜기/끄기</button><button id="scCol">유속 색 켜기/끄기</button><button id="scDoor">풍동 안으로 걸어 들어가기</button><button id="scEng">엔지니어 패널</button></div>');
 document.body.insertAdjacentHTML('beforeend','<div class="sc-splash" id="scSplash"><h1>AETHER</h1><p>BMW M4 GT3 를 감싸는 공기의 흐름<br>64개의 분사구가 만드는 연기를 눈앞에서 보세요</p><button id="scGo">입장하기</button><div class="sc-load" id="scLoad">엔진 준비 중</div></div>');
 const click=id=>q(0,()=>{const e=$(id);if(e&&!e.disabled)e.click()});
 const playing=()=>$('smokePlayback')?.getAttribute('aria-pressed')!=='true';
 const ensurePlay=()=>{if(!playing())click('smokePlayback')};
-const cap=(t,s)=>{const c=$('scCap');c.classList.remove('on');setTimeout(()=>{c.innerHTML=t+(s?'<small>'+s+'</small>':'');c.classList.add('on')},500)};
-let timers=[];
-const script=[[0,'공기는 눈에 보이지 않습니다','그래서 연기로 보여드립니다','scHero'],[7000,'GPU가 매 순간 바람을 계산합니다','수십만 개 격자의 유동 방정식을 실시간으로','scHero'],[15000,'차체를 타고 흐르는 바람','지붕과 옆면을 스치며 갈라집니다',null],[23000,'뒤로 길게 남는 후류','이 흔적이 차의 공기저항을 말해줍니다','scOut'],[31000,'AETHER WIND TUNNEL','직접 들어가 보세요',null]];
-function stop(){timers.forEach(clearTimeout);timers=[];document.body.classList.remove('cine');$('scCap').classList.remove('on')}
-function cine(){stop();document.body.classList.add('cine');ensurePlay();if(!(window.__LIVE&&window.__LIVE.ok))click('wowStart');
- script.forEach(([t,a,b,v])=>timers.push(setTimeout(()=>{cap(a,b);if(v)click(v)},t)));timers.push(setTimeout(stop,37000))}
+let capH=0;const cap=(t,s)=>{const c=$('scCap');c.classList.remove('on');clearTimeout(capH);capH=setTimeout(()=>{c.innerHTML=t+(s?'<small>'+s+'</small>':'');c.classList.add('on')},500)};const capOff=()=>{clearTimeout(capH);$('scCap').classList.remove('on')};
+const CN=window.__CINE;
+/* one timeline: the director in the engine owns camera, captions and progress; the UI only renders its events */
+const stop=()=>CN.cancel('ui'),cine=()=>CN.start({source:'ui'});
+CN.on(e=>{if(e.type==='caption'){if(e.title)cap(e.title,e.sub);else capOff()}else if(e.type==='progress'){const p=$('scProg');if(p)p.style.width=(e.t/e.dur*100).toFixed(1)+'%'}else if(e.type==='state'){if(e.state==='PREPARING'){const c=$('scCap');c.innerHTML='연기 흐름을 준비하고 있습니다';c.classList.add('on')}else if(e.state==='PLAYING'){capOff()}if(e.state!=='PLAYING'&&e.state!=='PREPARING'){const p=$('scProg');if(p)p.style.width='0'}}});
+$('scSkip').onclick=()=>CN.skip();
 $('scCine').onclick=cine;$('scHero').onclick=()=>{ensurePlay();click('smokeHeroView')};$('scOut').onclick=()=>{ensurePlay();click('smokeOutletView')};
 $('scMore').onclick=()=>{const R=window.__RIB;R.gain=R.gain>1?1:1.7;R.width=R.gain>1?.07:.05;ensurePlay()};$('scMode').onclick=()=>{const R=window.__RIB;R.on=!R.on;if(R.on){target=500;setCount(500)}else{target=8000;setCount(3000)}};
-vp.insertAdjacentHTML('beforeend','<div class="sc-leg"><span>느림</span><i></i><span>빠름</span></div>');$('scFlow').onclick=()=>{const R=window.__RIB;R.flow=R.flow>0?0:1};$('scCol').onclick=()=>{const R=window.__RIB;R.cmode=R.cmode>0?0:1;document.querySelector('.sc-leg').style.display=R.cmode?'flex':'none'};$('scDoor').onclick=()=>{stop();click('walkMode');setTimeout(()=>{try{window.__doorPlace()}catch(e){}},60);cap('정면의 자동문으로 걸어가세요','W / 이동 스틱으로 전진');setTimeout(()=>$('scCap').classList.remove('on'),5000)};$('scEng').onclick=()=>document.body.classList.toggle('eng');
-vp.addEventListener('pointerdown',()=>{if(document.body.classList.contains('cine'))stop()});
+vp.insertAdjacentHTML('beforeend','<div class="sc-leg"><span>느림</span><i></i><span>빠름</span></div>');$('scFlow').onclick=()=>{const R=window.__RIB;R.flow=R.flow>0?0:1};$('scCol').onclick=()=>{const R=window.__RIB;R.cmode=R.cmode>0?0:1;document.querySelector('.sc-leg').style.display=R.cmode?'flex':'none'};$('scDoor').onclick=()=>{stop();click('walkMode');setTimeout(()=>{try{window.__doorPlace()}catch(e){}},60);cap('정면의 자동문으로 걸어가세요','W / 이동 스틱으로 전진');setTimeout(capOff,5000)};$('scEng').onclick=()=>document.body.classList.toggle('eng');
 let target=500,cur=0,good=0,fr=0,t0=performance.now();
 const setCount=n=>q(0,()=>{const d=$('smokeDensity');n=Math.max(1000,Math.min(12000,Math.round(n/250)*250));cur=n;d.value=n;d.dispatchEvent(new Event('input',{bubbles:true}))});
 const tk=()=>{fr++;requestAnimationFrame(tk)};requestAnimationFrame(tk);
 setInterval(()=>{const t=performance.now(),f=fr*1000/(t-t0);fr=0;t0=t;if(!cur||document.hidden)return;if(f<26){good=0;if(cur>1000)setCount(cur*.75)}else if(f>52){if(++good>=2&&cur<target){good=0;setCount(cur+1000)}}else good=0},2500);
 const go=$('scGo');let ready=false;
-const poll=setInterval(()=>{const w=$('wowStart');if(w&&!w.disabled&&!ready){ready=true;go.classList.add('rdy');$('scLoad').textContent='준비 완료'}else if(!ready){$('scLoad').textContent='엔진 준비 중  '+(($('readyBadge')?.textContent||'').slice(0,30))}},400);
+const pt0=performance.now(),WHY={renderer:'렌더러 준비',calibrating:'GPU 성능 측정',developing:'연기 흐름 형성',live:'엔진 시작'};
+const poll=setInterval(()=>{const r=CN.readiness(),late=performance.now()-pt0>25000&&r.why!=='renderer';if((r.ready||late)&&!ready){ready=true;go.classList.add('rdy');$('scLoad').textContent='준비 완료'}else if(!ready){$('scLoad').textContent=(WHY[r.why]||'엔진 준비')+' '+Math.round(r.p*100)+'%'}},300);
 go.onclick=()=>{if(!ready)return;clearInterval(poll);setCount(500);$('scSplash').classList.add('off');setTimeout(()=>$('scSplash').remove(),1100);cine()};
 })();
 ;

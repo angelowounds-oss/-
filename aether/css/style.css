@@ -100,3 +100,12 @@ body.mobile .sc-cap{bottom:calc(env(safe-area-inset-bottom) + 108px)!important}
 body.mobile.eng #engClose{display:flex;position:sticky;top:-12px;z-index:5;margin:-12px -12px 10px;padding:10px 12px;align-items:center;justify-content:space-between;background:#141c23f2;border-bottom:1px solid #2b3a46;border-radius:14px 14px 0 0;font-size:13px;font-weight:600;color:#cfe0ea}
 body.mobile #engClose button{font-size:14px;padding:8px 14px;min-height:40px;border-radius:10px;background:#2a3a47;color:#fff;border:1px solid #4a6275}
 body.mobile.sc.eng .m13-panel,body.mobile.sc.eng .wow-overlay{display:none!important}
+
+/* cinematic director UI: progress line, skip pill, clean frame while it plays */
+.sc-prog{position:absolute;left:0;bottom:0;height:3px;width:0;z-index:8;background:#58c8ff;opacity:.9;pointer-events:none;transition:width .12s linear}
+#scSkip{display:none;position:absolute;z-index:8;right:16px;bottom:calc(9% + 14px);padding:8px 14px;border-radius:999px;border:1px solid #8bb4c277;background:#071118cc;color:#e6f4fb;font:700 12px Inter,system-ui,sans-serif;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(6px)}
+#scSkip:hover{background:#10303fe6}
+body.cine #scSkip{display:block}
+body.cine .sc-dock,body.cine .toolbar,body.cine .hud,body.cine #lvStat,body.cine .fpv-top,body.cine .fpv-help,body.cine .swipe-note{opacity:0!important;pointer-events:none!important}
+.sc-dock,.toolbar,.hud,#lvStat{transition:opacity .6s ease}
+body.mobile #scSkip{bottom:calc(env(safe-area-inset-bottom) + 14px);right:12px;padding:10px 16px;font-size:13px}

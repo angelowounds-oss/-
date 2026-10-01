@@ -1,7 +1,7 @@
 {
  "version": "0.14.0-dev",
  "vehicle": "user",
- "time": "2026-09-30T13:07:04.141Z",
+ "time": "2026-10-01T04:51:06.330Z",
  "engineFiles": [
   "00-core.js",
   "10-webgpu-s1-s3.js",
@@ -18,6 +18,7 @@
   "87-lbm.js",
   "88-post-fx.js",
   "89-lighting-hq.js",
+  "89b-cinematic.js",
   "90-render-loop.js"
  ],
  "assets": {
@@ -34,14 +35,14 @@
    "sha256": "8c67489aadef239b"
   },
   "assets/s3-worker.js": {
-   "bytes": 51752,
-   "sha256": "55260894fcf0136e"
+   "bytes": 53040,
+   "sha256": "ffaa9cffac07b7d5"
   },
   "assets/bluenoise.js": {
    "bytes": 5603,
    "sha256": "4cd0e0ed1d0a8ebc"
   }
  },
- "outBytes": 16362140,
- "outGzipBytes": 4847897
+ "outBytes": 16392506,
+ "outGzipBytes": 4859433
 }
