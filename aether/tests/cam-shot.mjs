@@ -1,3 +1,4 @@
+/* global __CINE */
 // Renders candidate camera poses after advancing the live CFD. node tests/cam-shot.mjs shots.json [hash] [steps] [w] [h]
 // shots.json: [{name, eye:[x,y,z], target:[x,y,z], fov, cutaway?}]
 import path from 'node:path'; import fs from 'node:fs';
@@ -12,12 +13,12 @@ try {
   await page.evaluate(() => { document.getElementById('scGo').click(); });
   await sleep(1500); await page.evaluate(() => document.querySelector('.viewport').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
   await page.waitForFunction(() => window.__LIVE && (window.__LIVE.ok || window.__LIVE.err) && window.__PERF?.cal?.done, null, { timeout: 240000 });
-  await page.evaluate(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; });
-  await page.addStyleTag({ content: '.sc-cap,#lvStat,.live-stat,.hud,.sc-dock,.sc-bar,.wow-overlay,.sc-vig{display:none!important}' });
+  await page.evaluate(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; window.__CINE && __CINE.cancel('shot'); });
+  await page.addStyleTag({ content: '.sc-cap,#lvStat,.live-stat,.hud,.sc-dock,.sc-bar,.wow-overlay,.sc-vig,#scSkip,.sc-prog,.toolbar,.fpv-top,.fpv-help{display:none!important}' });
   const r = await page.evaluate(n => { const A = __LIVE.api, t0 = performance.now(); A.run(n, 0.02); return { ms: performance.now() - t0, step: __LIVE.step, ok: __LIVE.ok }; }, +steps);
   console.log(JSON.stringify(r));if(process.env.FREEZE!=="0")await page.evaluate(()=>{__LIVE.freeze=true});
   for (const s of shots) {
-    await page.evaluate(s => { const c = __AETHER_DEBUG.camera; c.preset = 'WOW'; c.eye = s.eye; c.target = s.target; c.up = [0, 1, 0]; c.fov = s.fov || 50; c.cutaway = !!s.cutaway; }, s);
+    await page.evaluate(s => { const c = __AETHER_DEBUG.camera; c.preset = 'WOW'; c.eye = s.eye; c.target = s.target; c.up = [0, 1, 0]; c.fov = s.fov || 50; c.cutaway = !!s.cutaway; if (s.tf) __LIVE.tf = s.tf; }, s);
     await sleep(+(s.wait || (process.env.FREEZE!=="0"?2500:5000)));
     await page.screenshot({ path: path.join(outDir, (process.env.PREFIX || '') + s.name + '.png'), timeout: 300000 });
     console.log('shot', s.name);

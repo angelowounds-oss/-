@@ -29,7 +29,7 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes;float d=texture(uDepth,uv).r;if(d>=.999
 aoblur:`uniform sampler2D uAO;uniform vec2 uDir;out vec4 o;
 void main(){vec2 uv=gl_FragCoord.xy/uRes;vec4 c=texture(uAO,uv);float s=c.r,w=1.;for(int i=-3;i<=3;i++){if(i==0)continue;vec4 t=texture(uAO,uv+uDir*float(i)/uRes);float k=exp(-abs(t.g-c.g)/(.05*c.g+.01))*exp(-float(i*i)*.12);s+=t.r*k;w+=k;}o=vec4(s/w,c.g,0.,1.);}`,
 /* ---- volumetric smoke (low res). MRT: 0 premultiplied colour, 1 aux (x: alpha-weighted ray distance, y: scene view depth of this texel) ---- */
-vol:`uniform sampler3D uVol;uniform sampler2D uDepth,uBlue;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD,uFwd;uniform float uDens,uCMode,uStepScale,uG,uFrame;uniform int uTaps;uniform vec3 uTF;float smk(float r){return uTF.y*pow(max(r-uTF.z,0.),uTF.x);}
+vol:`uniform sampler3D uVol;uniform sampler2D uDepth,uBlue;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD,uFwd;uniform float uDens,uCMode,uStepScale,uG,uFrame;uniform int uTaps;uniform vec4 uTF;float smk(float r){return uTF.y*pow(max(r-uTF.z,0.),uTF.x);}
 layout(location=0) out vec4 oC;layout(location=1) out vec4 oA;
 vec3 turbo(float t){t*=4.;vec3 a=vec3(.10,.18,1.),b=vec3(0.,.8,1.),c=vec3(.05,1.,.3),d=vec3(1.,.92,.05),e=vec3(1.,.12,.05);return t<1.?mix(a,b,t):t<2.?mix(b,c,t-1.):t<3.?mix(c,d,t-2.):mix(d,e,min(t-3.,1.));}
 vec3 lin(vec3 c){return pow(c,vec3(2.2));}
@@ -45,7 +45,7 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 n=uv*2.-1.;vec4 a=uInv*vec4(n,-1,1
   vec4 c=textureLod(uVol,uvw,2.);if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);vec3 e3=min(uvw,1.-uvw)*ext;float d=smk(s.r)*uDens*smoothstep(.15,.7,t)*smoothstep(0.,.4,min(min(e3.x,e3.z),(1.-uvw.y)*ext.y));if(d<.002)continue;
   float od=0.;for(int k=1;k<=6;k++){if(k>uTaps)break;od+=smk(textureLod(uVol,uvw+uLD/ext*(.12*float(k*k)),0.).r)*.12*float(2*k-1);}
   float T=exp(-od*uDens*2.2);vec3 alb=mix(vec3(.82,.86,.92),lin(turbo(clamp(.5+(s.b-1.)*1.25,0.,1.))),uCMode);
-  vec3 col=alb*(vec3(1.,.96,.9)*3.2*T*hg*12.566*.35+vec3(.55,.62,.72)*.55);
+  vec3 col=alb*(vec3(1.,.96,.9)*3.2*T*hg*12.566*.35+vec3(.55,.62,.72)*.55)*uTF.w;
   float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;wd+=al*t;wt+=al;}
  oC=acc;oA=vec4(wt>0.?wd/wt:0.,vz,0.,1.);}`,
 /* ---- smoke temporal reprojection with neighbourhood clamp (low res) ---- */
