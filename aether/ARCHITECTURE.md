@@ -17,18 +17,20 @@ tools/build.mjs                                 → dist/aether.html (단일 파
 | 파일 | 내용 |
 |---|---|
 | 00-core | AETHER 전역 상태, 진단, 기준선 |
-| 10-webgpu-s1-s3 | WebGPU 진단 솔버 S1~S3(원본 유지, 실시간 경로 아님) |
+| 10-config-state | 적용 계약·좌표 계약·시설 형상 설정·CFD 영역·롤링로드 상태(다른 모듈의 단일 기준) |
 | 20-scene-assets | 씬 구성, 관제실 콘솔, GLB 파서, 차량 계약 검사 |
-| 30-renderer-lighting | 메인 PBR 셰이더, 그림자, 반사 프로브, M13 시각화 셰이더 |
+| 30-renderer-lighting | 메인 PBR 셰이더, 그림자, 반사 프로브 |
 | 40-gl-walk-door | GL 초기화, 1인칭 보행, 자동문·계단, 차량 로딩 |
-| 50-cfd-bridge-m13 | CFD 좌표 계약, M13 과학 시각화 |
+| 50-cfd-bridge | CFD 좌표 계약(CFD_BRIDGE), 렌더↔계산 정렬 검사(M12), 롤링로드 형상 검사(M4) |
 | 60-fan-collector-layout | 팬·배기 수집기, 연기 노즐 배치 |
-| 70-smoke-particles | 기존 입자·필라멘트 연기(실시간 CFD 꺼졌을 때 대체) |
+| 70-flow-state | 팬 배치 파라미터와 FLOW_LAYOUT 기준 프레임(구형 입자 연기는 삭제) |
+| 89b-cinematic | 시네마틱 디렉터(상태기계·호장 기반 경로·단일 카메라 기록자) |
+| 89c-controls | 제어실: 팬·롤링로드·비상정지·흐름 정지/초기화·풍속, 3D 콘솔 소켓 |
 | 80-body | 사람(이동 고체) 상태·마네킹 |
 | 84-perf-quality | 계측(GPU timer·프레임 통계·할당량), 시작 벤치마크, 품질표 QUALITY, 적응 제어기, `#bench=perf` |
 | 85-live-cfd | 실시간 CFD 관리자(LIVE): 등급·방출기·볼륨·힘·API. collocated 솔버(대체 경로) 포함 |
 | 86-mac-cfd | **기본 솔버**: 엇갈린 MAC 격자, 부분체적 경계, MacCormack, Smagorinsky LES, RBGS-MG/GMG/MGPCG, 2배 연기 격자, 검증 API |
-| 87-lbm | D3Q19 TRT 격자 볼츠만(비교용, 검증 하네스 전용) |
+| src/optional/87-lbm (배포 빌드 제외) | D3Q19 TRT 격자 볼츠만(비교용, 검증 하네스 전용) |
 | 88-post-fx | HDR 포스트: GTAO, 볼류메트릭, 합성+SSR, TAA, 블룸, AgX/ACES, FXAA, 업스케일 |
 | 89-lighting-hq | GGX 사전필터 큐브맵, SH9 조도, CSM+PCF/PCSS, 클리어코트, 유리 프레넬 |
 | 90-render-loop | 프레임 루프 `draw()`, 부팅, 카메라 프리셋, UI 연결 |
@@ -58,7 +60,6 @@ fxBegin             HDR 타깃 바인드(RGBA16F 색 + RGBA16F 간접광·거칠
 fxAfterOpaque       GTAO(1/2) → 볼류메트릭(1/4~1/2, 장면 깊이로 가림) → 시간 재투영 → 합성(AO·SSR·깊이 인지 업샘플)
 유리                합성 타깃에 프레넬 유리
 fxPost              TAA → 블룸 → AgX 톤매핑 → LDR 타깃
-오버레이            M13 선/입자(LDR, 장면 깊이 테스트)
 fxPresent           FXAA(LOW) → 캔버스로 업스케일+CAS 샤프닝
 ```
 
@@ -82,7 +83,7 @@ fxPresent           FXAA(LOW) → 캔버스로 업스케일+CAS 샤프닝
 
 ## 5. LBM(D3Q19) 비교와 채택 결정 (M7)
 
-| 항목 | MAC 투영법(현행) | LBM D3Q19 (87-lbm) |
+| 항목 | MAC 투영법(현행) | LBM D3Q19 (src/optional/87-lbm, `--with=lbm`) |
 |---|---|---|
 | 구현 | 엇갈린 격자, vf 경계, MacCormack, RBGS-MG | 끌어오기 스트리밍, TRT 또는 정규화 BGK, 반중간 bounce-back, 입·출구 흡수층, 속도 램프 |
 | 저장 | 약 140 B/셀(속도 5장 RGBA32F·압력·형상, 연기 제외) | FP32 160 B/셀, FP16·MIXED 80 B/셀(분포 19개 × 2벌) |

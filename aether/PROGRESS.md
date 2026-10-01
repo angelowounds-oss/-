@@ -74,3 +74,12 @@
 | LBM | D3Q19 구현, FP32/MIXED/FP16 비교, 정확도·ms·메모리·안정성 | PASS(비교 완료) | St 0.195(3모드 모두), Cd +43 %(기준 밖 → 채택 안 함), MIXED=FP32 정확도·메모리 절반. VALIDATION "LBM 비교", ARCHITECTURE §5 |
 | 산출물 | 고정 카메라 5곳 스크린샷, 수치표, 스냅샷 | PASS | `tests/out/m8/cam1~5.png`, VALIDATION.md, `dist/snapshots/` |
 | 모바일 | 폰 화면에서 자동 모바일 모드, 터치 조작, 가벼운 등급 | PARTIAL | 크롬 에뮬레이션(아이폰 390×844, DPR 3, 터치)에서 감지·LITE·레이아웃·오류 없음 확인. 실제 iPhone Safari는 ASSUMED (KNOWN_LIMITATIONS L21) |
+
+## 0.15 정리·UI 개편 (이전 버전 보존: archive/, 태그 v0.14-pre-cleanup)
+
+| 항목 | 상태 | 근거 |
+|---|---|---|
+| 미사용 기능 삭제(구형 연기·M13·S3 진단·WebGPU S0~S3, LBM은 선택 모듈) | PASS | 엔진 596k→370k 문자, 린트 0건, tools/deps.mjs 의존성 지도 |
+| 제어실 모듈(팬·롤링로드·비상정지·흐름·풍속) | 아래 회귀 결과 참조 | tests/regression.mjs |
+| 롤링로드를 솔버 풍속으로 구동 | 아래 회귀 결과 참조 | 원본은 정지 상태였음 |
+| 새 UI(조작 막대·설정 서랍·모바일 시트) | PARTIAL | 데스크톱·모바일 세로 캡처 확인, 실제 기기 미확인 |

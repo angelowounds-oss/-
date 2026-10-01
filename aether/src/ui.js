@@ -68,6 +68,9 @@ $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('ë
  $('lvOn').onclick=()=>{const l=L();l.setEnabled(!l.enabled);refresh()};
  refresh();setInterval(refresh,500)}
 
+/* ---------- walking state class (shows the movement hint only while walking) ---------- */
+setInterval(()=>{const d=window.__AETHER_DEBUG;document.body.classList.toggle('walking',!!(d&&d.fpv&&d.fpv.enabled))},250);
+
 /* ---------- settings drawer ---------- */
 function setPanel(on){document.body.classList.toggle('eng',on);$('scEng').setAttribute('aria-expanded',String(on))}
 $('scEng').onclick=()=>setPanel(!document.body.classList.contains('eng'));
