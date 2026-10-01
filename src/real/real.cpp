@@ -98,14 +98,15 @@ static void initProfiles() {
 }
 
 // ------------------------------------------------------------------ players
-struct Policy { float react, attackElixir, spellAggro, supportElixir; int lookahead; bool cont = false; };
+struct Policy { float react, attackElixir, spellAggro, supportElixir; int lookahead; bool cont = false; int det = 0; bool pos = false; };
 static vector<Policy> POL = {
     {0.9f, 9.0f, 0.4f, 5.0f, 0}, {0.8f, 6.0f, 0.7f, 4.0f, 0}, {1.2f, 4.0f, 1.0f, 3.0f, 0},
     {0.8f, 6.0f, 0.7f, 4.0f, 60}, {0.8f, 6.0f, 0.7f, 4.0f, 100},   // 3,4: lookahead players (rollout horizon in ticks)
     {0.8f, 6.0f, 0.7f, 4.0f, 100, true}, {0.8f, 6.0f, 0.7f, 4.0f, 160, true}, {0.8f, 6.0f, 0.7f, 4.0f, 240, true},  // 5,6,7: long horizon + own continuation
+    {0.8f, 6.0f, 0.7f, 4.0f, 160, true, 2, true}, {0.8f, 6.0f, 0.7f, 4.0f, 200, true, 3, true},                      // 8,9: determinised opponent hand + opponent mixture + positional eval
 };
 static void initPolicies() {
-  if (POL.size() > 8) return;
+  if (POL.size() > 10) return;
   for (float react : {0.6f, 1.4f}) for (float att : {4.0f, 6.5f, 9.0f}) for (float sp : {0.3f, 1.0f}) for (float sup : {3.0f, 5.0f}) POL.push_back({react, att, sp, sup, 0});
 }
 
@@ -218,7 +219,7 @@ static bool think(GameManager& g, Player& P) {
 
 
 // ------------------------------------------------------------------ lookahead player
-static double evalState(const GameManager& g, int team) {
+static double evalState(const GameManager& g, int team, bool pos = false) {
   const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); double v = 0;
   for (auto& ep : ents) {
     const Entity* e = ep.get(); if (!e->isAlive()) continue; double sgn = e->team == team ? 1.0 : -1.0;
@@ -227,6 +228,7 @@ static double evalState(const GameManager& g, int team) {
     if (!e->isTargetable() && !e->isBuilding()) continue;
     double maxhp = pr.n > 0 ? pr.hp / pr.n : max(1.0f, (float)e->hp); double frac = min(1.0, (double)e->hp / max(1.0, maxhp)); double val = pr.n > 0 ? pr.cost / pr.n : 0.4;
     v += sgn * val * (0.3 + 0.7 * frac);
+    if (pos && !e->isBuilding()) { float oyE = e->team == 0 ? e->position.y : ArenaLayout::mirrorY(e->position.y); double prog = max(0.0f, oyE - 12.0f) / 20.0; v += sgn * val * frac * (e->team == team ? 0.25 : 0.35) * prog; }  // advanced units are future damage / a threat to defend
   }
   int tw = 0; for (auto& ep : ents) if (ep->isTower() && ep->isAlive() && ep->team == team) tw++;  // towers alive mine
   int te = 0; for (auto& ep : ents) if (ep->isTower() && ep->isAlive() && ep->team != team) te++;
@@ -273,12 +275,21 @@ static bool searchThink(GameManager& g, Player& P) {
     if (deep) cands.push_back({s, deep->x, P.wy(min(maxOwnY - 0.5f, max(4.0f, bestY - 2.5f)))});
   }
   if (cands.empty()) return false;
+  const vector<int>& oppDeck = (en == 0) ? g.aiDeckConfig : g.oppDeckConfig; int K = max(1, P.pol.det);
   auto rollout = [&](int ci) -> double {
-    GameManager c = g.snapshot();
-    if (ci >= 0 && !c.playCard(team, hand[cands[ci].slot], cands[ci].x, cands[ci].y)) return -1e9;
-    Player opp(en, POL[1], 77 + c.currentTick); Player me(team, POL[1], 91 + c.currentTick);
-    for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { think(c, opp); } if (P.pol.cont && k % 6 == 2) think(c, me); }
-    return evalState(c, team);
+    double tot = 0;
+    for (int d = 0; d < K; d++) {
+      GameManager c = g.snapshot();
+      if (P.pol.det > 0 && oppDeck.size() == 8) {  // hide the opponent's real hand: sample a plausible one from its (known) deck
+        Rng hr(1234567 + (uint64_t)c.currentTick * 31 + d * 7919); vector<int> idx = {0, 1, 2, 3, 4, 5, 6, 7}; for (int i = 7; i > 0; i--) swap(idx[i], idx[hr.below(i + 1)]);
+        vector<int> hnd = {oppDeck[idx[0]], oppDeck[idx[1]], oppDeck[idx[2]], oppDeck[idx[3]]}; c.setHand(en, hnd);
+      }
+      if (ci >= 0 && !c.playCard(team, hand[cands[ci].slot], cands[ci].x, cands[ci].y)) return -1e9;
+      int oppPolIdx = P.pol.det > 0 ? (d % 3) : 1; Player opp(en, POL[oppPolIdx], 77 + c.currentTick + d), me(team, POL[1], 91 + c.currentTick + d);
+      for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { think(c, opp); } if (P.pol.cont && k % 6 == 2) think(c, me); }
+      tot += evalState(c, team, P.pol.pos);
+    }
+    return tot / K;
   };
   double base = rollout(-1); double bestV = base + 0.6; int bi = -1;
   for (int i = 0; i < (int)cands.size(); i++) { double v = rollout(i); if (v > bestV) { bestV = v; bi = i; } }
@@ -431,6 +442,13 @@ int main(int argc, char** argv) {
     parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(P[i], P[j], g, 700 + k); M[i][j] = v; M[j][i] = 1 - v; });
     printf("meta round robin, %d decks, NPOL=%d, g=%d\n     ", n, NPOL, g); for (int j = 0; j < n; j++) printf("%3d ", j + 1); printf("  mean\n");
     for (int i = 0; i < n; i++) { printf("%2d:  ", i + 1); double s = 0; for (int j = 0; j < n; j++) { printf("%3d ", (int)lround(100 * M[i][j])); if (j != i) s += M[i][j]; } printf("  %.2f  %s\n", s / (n - 1), deckStr(P[i]).c_str()); }
+  } else if (mode == "h2h") {  // h2h <decksfile> <newPol> <oldPol> <g> : new vs old policy over all deck pairs (both seatings); prints new's win rate
+    vector<Deck> P = readDecks(argv[2]); int pn = atoi(argv[3]), po = atoi(argv[4]), g = atoi(argv[5]); int n = P.size(); vector<pair<int, int>> jobs; for (int i = 0; i < n; i++) for (int j = 0; j < n; j++) if (i != j) jobs.push_back({i, j});
+    vector<double> w(jobs.size(), 0), c(jobs.size(), 0);
+    parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; for (int q = 0; q < g; q++) { bool sw = q & 1; uint64_t sd = 5000 + k * 977 + q;
+      Result r = sw ? playMatch(P[j], P[i], po, pn, sd) : playMatch(P[i], P[j], pn, po, sd); double v = r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0); w[k] += v; c[k] += 1; } });
+    double tw = 0, tc = 0; vector<double> byDeck(n, 0), byN(n, 0); for (size_t k = 0; k < jobs.size(); k++) { tw += w[k]; tc += c[k]; byDeck[jobs[k].first] += w[k]; byN[jobs[k].first] += c[k]; }
+    printf("new policy %d vs old policy %d: new wins %.1f%% over %.0f games\n", pn, po, 100 * tw / tc, tc); for (int i = 0; i < n; i++) printf("  as deck %2d: %.0f%%\n", i + 1, 100 * byDeck[i] / byN[i]);
   } else if (mode == "es") {  // es <deckfile> <index(1-based)> <gens> <out> [pairs games sigma lr]
     vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; int gens = atoi(argv[4]); string out = argv[5];
     int pairs = argc > 6 ? atoi(argv[6]) : 24, games = argc > 7 ? atoi(argv[7]) : 6; float sigma = argc > 8 ? atof(argv[8]) : 0.15f, lr = argc > 9 ? atof(argv[9]) : 0.08f;
