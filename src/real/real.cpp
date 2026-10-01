@@ -117,7 +117,7 @@ struct Rng { uint64_t s; explicit Rng(uint64_t x = 1) : s(x * 268582165773633871
   uint64_t next() { s ^= s << 13; s ^= s >> 7; s ^= s << 17; return s; } float uni() { return (next() >> 11) * (1.0f / 9007199254740992.0f); } int below(int n) { return (int)(next() % (uint64_t)n); } };
 
 struct Player {
-  int team; Policy pol; Rng rng; int nextThink = 0; int atkLane = 0; const vector<float>* net = nullptr;
+  int team; Policy pol; Rng rng; int nextThink = 0; int atkLane = 0; const vector<float>* net = nullptr; const float* ew = nullptr;  // ew: learned search weights (nullptr = hand-made evaluation)
   Player(int t, const Policy& p, uint64_t seed) : team(t), pol(p), rng(seed) { nextThink = 3 + rng.below(4); }
   float oy(float y) const { return team == 0 ? y : ArenaLayout::mirrorY(y); }  // own-frame y (own side is low y)
   float wy(float y) const { return team == 0 ? y : ArenaLayout::mirrorY(y); }
@@ -240,6 +240,28 @@ static double evalState(const GameManager& g, int team, bool pos = false) {
   return v;
 }
 
+// learned search AI: same lookahead, but the value function and the rollout model are tuned by reinforcement learning (rl mode)
+static const int NW = 19;
+// 0,1 own/enemy princess tower hp (per 1000 hp); 2,3 own/enemy king tower hp; 4,5 unit value base / hp-fraction part; 6,7 own/enemy unit multiplier;
+// 8,9 own/enemy advance bonus; 10,11 crowns taken/lost; 12,13 own/enemy elixir; 14 play margin over waiting;
+// 15,16 rollout opponent react/attackElixir; 17,18 rollout self react/attackElixir. Defaults reproduce policy 11 (policy 6 + positional eval).
+static const float WDEF[NW] = {2.857f, 2.857f, 2.0f, 2.0f, 0.3f, 0.7f, 1.0f, 1.0f, 0.25f, 0.35f, 8.0f, 8.0f, 1.0f, 1.0f, 0.6f, 0.8f, 6.0f, 0.8f, 6.0f};
+static double evalStateW(const GameManager& g, int team, const float* w) {
+  const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); double v = 0; int tw = 0, te = 0;
+  for (auto& ep : ents) {
+    const Entity* e = ep.get(); if (!e->isAlive()) continue; bool mine = e->team == team; double sgn = mine ? 1.0 : -1.0;
+    if (e->isTower()) { bool king = e->name.find("King") != string::npos; v += sgn * (double)e->hp / 1000.0 * (king ? (mine ? w[2] : w[3]) : (mine ? w[0] : w[1])); (mine ? tw : te)++; continue; }
+    if (e->cardId < 0 || e->cardId >= (int)PROF.size() || !PROF[e->cardId].ok) continue; const Prof& pr = PROF[e->cardId]; if (pr.spell) continue;
+    if (!e->isTargetable() && !e->isBuilding()) continue;
+    double maxhp = pr.n > 0 ? pr.hp / pr.n : max(1.0f, (float)e->hp); double frac = min(1.0, (double)e->hp / max(1.0, maxhp)); double val = pr.n > 0 ? pr.cost / pr.n : 0.4;
+    v += sgn * val * (w[4] + w[5] * frac) * (mine ? w[6] : w[7]);
+    if (!e->isBuilding()) { float oyE = e->team == 0 ? e->position.y : ArenaLayout::mirrorY(e->position.y); double prog = max(0.0f, oyE - 12.0f) / 20.0; v += sgn * val * frac * (mine ? w[8] : w[9]) * prog; }
+  }
+  v += (3 - te) * w[10] - (3 - tw) * w[11];
+  v += w[12] * g.getElixir(team) - w[13] * g.getElixir(1 - team);
+  return v;
+}
+
 static bool searchThink(GameManager& g, Player& P) {
   int team = P.team, en = 1 - team; const auto& hand = g.getHand(team); float el = g.getElixir(team); int H = P.pol.lookahead;
   const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); const float maxOwnY = g.getOwnHalfMaxY();
@@ -288,13 +310,15 @@ static bool searchThink(GameManager& g, Player& P) {
         vector<int> hnd = {oppDeck[idx[0]], oppDeck[idx[1]], oppDeck[idx[2]], oppDeck[idx[3]]}; c.setHand(en, hnd);
       }
       if (ci >= 0 && !c.playCard(team, hand[cands[ci].slot], cands[ci].x, cands[ci].y)) return -1e9;
-      int oppPolIdx = P.pol.det > 0 ? (d % 3) : 1; Player opp(en, POL[oppPolIdx], 77 + c.currentTick + d), me(team, POL[1], 91 + c.currentTick + d);
+      int oppPolIdx = P.pol.det > 0 ? (d % 3) : 1; Policy op = POL[oppPolIdx], mp = POL[1];
+      if (P.ew) { op.react = P.ew[15]; op.attackElixir = P.ew[16]; mp.react = P.ew[17]; mp.attackElixir = P.ew[18]; }
+      Player opp(en, op, 77 + c.currentTick + d), me(team, mp, 91 + c.currentTick + d);
       for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { think(c, opp); } if (P.pol.cont && k % 6 == 2) think(c, me); }
-      tot += evalState(c, team, P.pol.pos);
+      tot += P.ew ? evalStateW(c, team, P.ew) : evalState(c, team, P.pol.pos);
     }
     return tot / K;
   };
-  double base = rollout(-1); double bestV = base + 0.6; int bi = -1;
+  double base = rollout(-1); double bestV = base + (P.ew ? P.ew[14] : 0.6); int bi = -1;
   for (int i = 0; i < (int)cands.size(); i++) { double v = rollout(i); if (v > bestV) { bestV = v; bi = i; } }
   if (bi < 0) return false;
   return g.playCard(team, hand[cands[bi].slot], cands[bi].x, cands[bi].y);
@@ -369,9 +393,9 @@ static void useAbilities(GameManager& g, int team) {
 struct Result { int winner; int crowns0, crowns1; int ticks; float hp0 = 0, hp1 = 0; };
 static int towersAlive(const GameManager& g, int team) { int n = 0; for (auto& ep : g.getBoard().getEntities()) if (ep->isAlive() && ep->isTower() && ep->team == team && ep->name.find("King") == string::npos) n++; return n; }
 
-static Result playMatch(const Deck& a, const Deck& b, int pa, int pb, uint64_t seed, const vector<float>* net0 = nullptr, const vector<float>* net1 = nullptr) {
+static Result playMatch(const Deck& a, const Deck& b, int pa, int pb, uint64_t seed, const vector<float>* net0 = nullptr, const vector<float>* net1 = nullptr, const float* ew0 = nullptr, const float* ew1 = nullptr) {
   GameManager g(vector<int>(a.begin(), a.end()), vector<int>(b.begin(), b.end()));
-  Player P0(0, POL[pa], seed * 3 + 1), P1(1, POL[pb], seed * 7 + 2); P0.net = net0; P1.net = net1;
+  Player P0(0, POL[pa], seed * 3 + 1), P1(1, POL[pb], seed * 7 + 2); P0.net = net0; P1.net = net1; P0.ew = ew0; P1.ew = ew1;
   const int MAXT = 3600;  // regular 1800 + overtime; MatchRules ends the match itself
   while (!g.isGameOver() && g.currentTick < MAXT) {
     g.step();
@@ -485,6 +509,56 @@ int main(int argc, char** argv) {
       double mean = 0; for (int i = 0; i < pairs; i++) mean += fp[i] + fm[i]; mean /= 2 * pairs;
       neval += (int)opps.size() * games * pairs * 2;
       { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 5, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (search policy 5) %.3f  [%d eval so far]\n", gen, mean, win / opps.size(), neval); fflush(stdout); saveNet(th, out); }
+    }
+  } else if (mode == "rl" || mode == "rleval") {
+    // rl <decks> <gens> <weightsfile> [pairs games sigma lr]: reinforcement learning (antithetic ES with common random numbers) over the
+    //   NW weights of the learned search AI (stored as log-multipliers of WDEF). Every game is a random ordered deck pair; the learner
+    //   (policy 6 search + weights) plays the hand-made policy 6 or a frozen snapshot of itself (league, added every 10 generations).
+    //   Resume: CR_INIT=<weightsfile> CR_GEN0=<next generation>; snapshots are kept in <weightsfile>.league.
+    // rleval <decks> <weightsfile> <gamesPerPair>: learner vs hand-made policy 6 over all ordered deck pairs (same protocol as h2h).
+    vector<Deck> D = readDecks(argv[2]); int nd = D.size(); const int LP = 6;
+    auto toW = [&](const vector<float>& t) { vector<float> w(NW); for (int q = 0; q < NW; q++) w[q] = WDEF[q] * expf(t[q]); return w; };
+    auto loadTh = [&](const string& f, vector<float>& t) { ifstream in(f); t.assign(NW, 0.0f); if (!in) return false; for (int q = 0; q < NW; q++) in >> t[q]; return (bool)in; };
+    auto thStr = [&](const vector<float>& t) { string r; char b[32]; for (int q = 0; q < NW; q++) { snprintf(b, sizeof b, "%s%.4f", q ? " " : "", t[q]); r += b; } return r; };
+    auto duel = [&](const float* w, const float* ow, int da, int db, bool sw, uint64_t sd) {  // learner plays deck da; returns {win, shaped score}
+      Result r = sw ? playMatch(D[db], D[da], LP, LP, sd, nullptr, nullptr, ow, w) : playMatch(D[da], D[db], LP, LP, sd, nullptr, nullptr, w, ow);
+      double win = r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0); float my = sw ? r.hp1 : r.hp0, op = sw ? r.hp0 : r.hp1;
+      return make_pair(win, win + 0.2 * (my - op)); };
+    auto validate = [&](const vector<float>& w, int gpp, uint64_t base) {
+      vector<array<int, 3>> jobs; for (int i = 0; i < nd; i++) for (int j = 0; j < nd; j++) if (i != j) for (int q = 0; q < gpp; q++) jobs.push_back({i, j, q});
+      vector<double> res(jobs.size());
+      parFor((int)jobs.size(), [&](int k) { auto& J = jobs[k]; res[k] = duel(w.data(), nullptr, J[0], J[1], (J[2] + (J[0] < J[1])) & 1, base + k * 7919).first; });
+      double t = 0; for (double x : res) t += x; return make_pair(t / res.size(), (int)res.size()); };
+    if (mode == "rleval") {
+      vector<float> t; if (!loadTh(argv[3], t)) { fprintf(stderr, "cannot load %s\n", argv[3]); return 1; } auto v = validate(toW(t), atoi(argv[4]), 777000);
+      printf("learned search AI vs hand-made policy 6: %.1f%% over %d games (SE %.1f)\n", 100 * v.first, v.second, 100 * sqrt(0.25 / v.second)); return 0; }
+    int gens = atoi(argv[3]); string wf = argv[4]; int pairs = argc > 5 ? atoi(argv[5]) : 10, games = argc > 6 ? atoi(argv[6]) : 48;
+    float sigma = argc > 7 ? atof(argv[7]) : 0.12f, lr = argc > 8 ? atof(argv[8]) : 0.05f;
+    vector<float> th(NW, 0.0f); if (const char* ini = getenv("CR_INIT")) if (!loadTh(ini, th)) { fprintf(stderr, "cannot load %s\n", ini); return 1; }
+    int gen0 = getenv("CR_GEN0") ? atoi(getenv("CR_GEN0")) : 0; Rng rng(424242 + gen0 * 101);
+    vector<vector<float>> league; { ifstream in(wf + ".league"); string l; while (gen0 > 0 && getline(in, l)) { stringstream ss(l); vector<float> t(NW); for (auto& x : t) ss >> x; if (ss) league.push_back(toW(t)); } while (league.size() > 6) league.erase(league.begin()); }
+    if (gen0 == 0) { ofstream(wf + ".league", ios::trunc); }
+    long long total = (long long)gen0 * 2 * pairs * games;
+    printf("rl: %d decks, %d pairs x 2 x %d games per generation, sigma %.3f lr %.3f, league %d\n", nd, pairs, games, sigma, lr, (int)league.size()); fflush(stdout);
+    for (int gen = gen0; gen < gens; gen++) {
+      vector<vector<float>> eps(pairs); for (auto& e : eps) e = gauss(rng, NW);
+      struct G { int da, db; bool sw; int opp; uint64_t sd; }; vector<G> gl(games);  // the same games for every candidate (common random numbers)
+      for (int k = 0; k < games; k++) { int a = rng.below(nd), b = rng.below(nd - 1); if (b >= a) b++; int opp = (league.empty() || k % 2 == 0) ? -1 : rng.below((int)league.size()); gl[k] = {a, b, ((k / 2) & 1) != 0, opp, rng.next() % 1000000007ULL}; }
+      int nc = 2 * pairs; vector<vector<float>> cand(nc);
+      for (int i = 0; i < pairs; i++) for (int m = 0; m < 2; m++) { vector<float> t(NW); for (int q = 0; q < NW; q++) t[q] = th[q] + (m ? -sigma : sigma) * eps[i][q]; cand[2 * i + m] = toW(t); }
+      vector<pair<double, double>> out(nc * games);
+      parFor(nc * games, [&](int idx) { int c = idx / games, k = idx % games; const G& x = gl[k]; out[idx] = duel(cand[c].data(), x.opp < 0 ? nullptr : league[x.opp].data(), x.da, x.db, x.sw, x.sd); });
+      vector<double> fit(nc, 0); double wB = 0, nB = 0, wL = 0, nL = 0;
+      for (int idx = 0; idx < nc * games; idx++) { int c = idx / games, k = idx % games; fit[c] += out[idx].second / games; if (gl[k].opp < 0) { wB += out[idx].first; nB++; } else { wL += out[idx].first; nL++; } }
+      vector<pair<double, int>> all; for (int c = 0; c < nc; c++) all.push_back({fit[c], c}); sort(all.begin(), all.end());
+      vector<double> rk(nc); for (int r = 0; r < nc; r++) rk[all[r].second] = (double)r / (nc - 1) - 0.5;
+      for (int q = 0; q < NW; q++) { double gq = 0; for (int i = 0; i < pairs; i++) gq += (rk[2 * i] - rk[2 * i + 1]) * eps[i][q]; th[q] = max(-3.0f, min(3.0f, th[q] + (float)(lr / (pairs * sigma) * gq))); }
+      total += nc * games;
+      { ofstream o(wf); o << thStr(th) << "\n"; }
+      printf("gen %3d  games %7lld  win vs policy6 %.1f%% (%d)  vs league %s  best cand %.3f\n", gen, total, 100 * wB / max(1.0, nB), (int)nB, nL > 0 ? (to_string((int)lround(100 * wL / nL)) + "%").c_str() : "-", all.back().first);
+      if ((gen + 1) % 5 == 0) { auto v = validate(toW(th), 1, 900000); printf("  validation: current weights vs policy 6 = %.1f%% over %d games (fixed held-out seeds)\n  theta: %s\n", 100 * v.first, v.second, thStr(th).c_str()); }
+      if ((gen + 1) % 10 == 0) { league.push_back(toW(th)); if (league.size() > 6) league.erase(league.begin()); ofstream(wf + ".league", ios::app) << thStr(th) << "\n"; }
+      fflush(stdout);
     }
   } else if (mode == "estest") {  // estest <deckfile> <index> <netfile> <games>   (env CR_OPPPOL = opponent policy index, default 1)
     vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; vector<float> th; if (!loadNet(th, argv[4])) { fprintf(stderr, "cannot load net\n"); return 1; } int games = atoi(argv[5]);
