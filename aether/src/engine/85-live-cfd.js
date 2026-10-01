@@ -3,7 +3,7 @@
 const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
  vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:3,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
 /* smoke display transfer (visualisation only): extinction = gain * max(dye-floor,0)^gamma, so thin diffused dye turns transparent while filament cores stay opaque. tau: smoke lifetime in seconds (0 = legacy per-step decay). */
-LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).slice(0,4);if(!LIVE.tf||LIVE.tf.length<3||LIVE.tf.some(v=>!(v>=0)))LIVE.tf=[1.8,1.7,.02];if(LIVE.tf.length<4)LIVE.tf[3]=1;LIVE.tau=+((location.hash.match(/tau=([\d.]+)/)||[])[1]??3);
+LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).slice(0,4);if(!LIVE.tf||LIVE.tf.length<3||LIVE.tf.some(v=>!(v>=0)))LIVE.tf=[2,2.6,.03,1.35];if(LIVE.tf.length<4)LIVE.tf[3]=1;LIVE.tau=+((location.hash.match(/tau=([\d.]+)/)||[])[1]??3);
 LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
 function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
