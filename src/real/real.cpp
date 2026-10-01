@@ -98,13 +98,14 @@ static void initProfiles() {
 }
 
 // ------------------------------------------------------------------ players
-struct Policy { float react, attackElixir, spellAggro, supportElixir; int lookahead; };
+struct Policy { float react, attackElixir, spellAggro, supportElixir; int lookahead; bool cont = false; };
 static vector<Policy> POL = {
     {0.9f, 9.0f, 0.4f, 5.0f, 0}, {0.8f, 6.0f, 0.7f, 4.0f, 0}, {1.2f, 4.0f, 1.0f, 3.0f, 0},
     {0.8f, 6.0f, 0.7f, 4.0f, 60}, {0.8f, 6.0f, 0.7f, 4.0f, 100},   // 3,4: lookahead players (rollout horizon in ticks)
+    {0.8f, 6.0f, 0.7f, 4.0f, 100, true}, {0.8f, 6.0f, 0.7f, 4.0f, 160, true}, {0.8f, 6.0f, 0.7f, 4.0f, 240, true},  // 5,6,7: long horizon + own continuation
 };
 static void initPolicies() {
-  if (POL.size() > 5) return;
+  if (POL.size() > 8) return;
   for (float react : {0.6f, 1.4f}) for (float att : {4.0f, 6.5f, 9.0f}) for (float sp : {0.3f, 1.0f}) for (float sup : {3.0f, 5.0f}) POL.push_back({react, att, sp, sup, 0});
 }
 
@@ -276,7 +277,7 @@ static bool searchThink(GameManager& g, Player& P) {
     GameManager c = g.snapshot();
     if (ci >= 0 && !c.playCard(team, hand[cands[ci].slot], cands[ci].x, cands[ci].y)) return -1e9;
     Player opp(en, POL[1], 77 + c.currentTick); Player me(team, POL[1], 91 + c.currentTick);
-    for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { think(c, opp); } }
+    for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { think(c, opp); } if (P.pol.cont && k % 6 == 2) think(c, me); }
     return evalState(c, team);
   };
   double base = rollout(-1); double bestV = base + 0.6; int bi = -1;
