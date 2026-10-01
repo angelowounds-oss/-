@@ -104,9 +104,11 @@ static vector<Policy> POL = {
     {0.8f, 6.0f, 0.7f, 4.0f, 60}, {0.8f, 6.0f, 0.7f, 4.0f, 100},   // 3,4: lookahead players (rollout horizon in ticks)
     {0.8f, 6.0f, 0.7f, 4.0f, 100, true}, {0.8f, 6.0f, 0.7f, 4.0f, 160, true}, {0.8f, 6.0f, 0.7f, 4.0f, 240, true},  // 5,6,7: long horizon + own continuation
     {0.8f, 6.0f, 0.7f, 4.0f, 160, true, 2, true}, {0.8f, 6.0f, 0.7f, 4.0f, 200, true, 3, true},                      // 8,9: determinised opponent hand + opponent mixture + positional eval
+    {0.8f, 6.0f, 0.7f, 4.0f, 160, true, 2, false},   // 10: determinisation/mixture only
+    {0.8f, 6.0f, 0.7f, 4.0f, 160, true, 0, true},    // 11: positional eval only
 };
 static void initPolicies() {
-  if (POL.size() > 10) return;
+  if (POL.size() > 12) return;
   for (float react : {0.6f, 1.4f}) for (float att : {4.0f, 6.5f, 9.0f}) for (float sp : {0.3f, 1.0f}) for (float sup : {3.0f, 5.0f}) POL.push_back({react, att, sp, sup, 0});
 }
 
