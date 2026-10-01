@@ -1,16 +1,16 @@
 {
  "version": "0.14.0-dev",
  "vehicle": "user",
- "time": "2026-10-01T09:53:27.347Z",
+ "time": "2026-10-01T10:08:45.857Z",
  "engineFiles": [
   "00-core.js",
-  "10-webgpu-s1-s3.js",
+  "10-config-state.js",
   "20-scene-assets.js",
   "30-renderer-lighting.js",
   "40-gl-walk-door.js",
-  "50-cfd-bridge-m13.js",
+  "50-cfd-bridge.js",
   "60-fan-collector-layout.js",
-  "70-smoke-particles.js",
+  "70-flow-state.js",
   "80-body.js",
   "84-perf-quality.js",
   "85-live-cfd.js",
@@ -18,6 +18,7 @@
   "88-post-fx.js",
   "89-lighting-hq.js",
   "89b-cinematic.js",
+  "89c-controls.js",
   "90-render-loop.js"
  ],
  "assets": {
@@ -33,15 +34,11 @@
    "bytes": 1970332,
    "sha256": "8c67489aadef239b"
   },
-  "assets/s3-worker.js": {
-   "bytes": 53040,
-   "sha256": "ffaa9cffac07b7d5"
-  },
   "assets/bluenoise.js": {
    "bytes": 5603,
    "sha256": "4cd0e0ed1d0a8ebc"
   }
  },
- "outBytes": 16378969,
- "outGzipBytes": 4855620
+ "outBytes": 16099072,
+ "outGzipBytes": 4771000
 }

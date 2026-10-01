@@ -1,3 +1,4 @@
+/* global __CINE, AETHER */
 // Regression suite for existing features + boot health. Usage: node tests/regression.mjs [file.html] [tag]
 // Writes tests/out/<tag>/regression.json, regression.md and five fixed-camera screenshots.
 import fs from 'node:fs';
@@ -22,8 +23,8 @@ try {
   check('인트로 스플래시', intro.splash && /AETHER/.test(intro.title || ''), intro);
   await ev(() => document.getElementById('scGo').click());
   // stop the 37 s cinematic tour (it moves the camera); a viewport pointerdown is the user's own way to stop it
-  await sleep(1500); await ev(() => document.querySelector('.viewport').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
-  check('시네마틱 투어 시작·중지', await ev(() => !document.body.classList.contains('cine')), '');
+  await sleep(1500); await ev(() => document.getElementById('view').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  check('시네마틱 시작·사용자 조작으로 중지', await ev(() => !document.body.classList.contains('cine') && ['CANCELLED', 'IDLE'].includes(__CINE.state)), await ev(() => __CINE.state));
   await page.waitForFunction(() => window.__LIVE && (window.__LIVE.err || (window.__LIVE.ok && window.__LIVE.step > 8)), null, { timeout: 300000 });
   const live = await ev(() => ({ ok: __LIVE.ok, err: __LIVE.err, q: __LIVE.q, N: __LIVE.N, solver: __LIVE.solver }));
   check('실시간 CFD 부팅', live.ok && !live.err, live);
@@ -39,9 +40,9 @@ try {
   check('시네마틱 버튼', await ev(() => !!document.getElementById('scCine')), '');
   // rakes
   const rake = {};
-  for (const m of ['RAKE_V', 'RAKE_H', 'BOTH']) { await ev(m2 => { __LIVE.mode = m2; }, m); await page.waitForFunction(n => __LIVE.emitters.length === n, { RAKE_V: 7, RAKE_H: 9, BOTH: 16 }[m], { timeout: 60000 }).catch(() => {}); rake[m] = await ev(() => __LIVE.emitters.length); }
+  for (const m of ['RAKE_V', 'RAKE_H', 'BOTH']) { await ev(m2 => { __LIVE.mode = m2; }, m); await page.waitForFunction(m2 => { const n = __LIVE.emitters.length; return m2 === 'RAKE_V' ? n >= 3 && n <= 7 : m2 === 'RAKE_H' ? n === 9 : n >= 12; }, m, { timeout: 60000 }).catch(() => {}); rake[m] = await ev(() => __LIVE.emitters.length); }
   await ev(() => { __LIVE.mode = 'RAKE_V'; });
-  check('스모크 레이크 세로7/가로9', rake.RAKE_V === 7 && rake.RAKE_H === 9 && rake.BOTH === 16, rake);
+  check('스모크 레이크 세로(해상도별 3~7)/가로9/둘 다', rake.RAKE_V >= 3 && rake.RAKE_V <= 7 && rake.RAKE_H === 9 && rake.BOTH === rake.RAKE_V + 9, rake);
   // walk into the tunnel (teleport past the door), body solid + wand
   await ev(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; document.getElementById('walkMode').click(); const F = __AETHER_DEBUG.fpv; F.x = -2.0; F.z = 0.4; F.yaw = Math.PI / 2; F.pitch = -0.05; F.gy = undefined; __LIVE.wand = true; });
   await page.waitForFunction(() => __BODY.active && __BODY.inTunnel && __LIVE.emitters.length === 8, null, { timeout: 120000 }).catch(() => {});
@@ -63,6 +64,15 @@ try {
   // fixed cameras
   let i = 1;
   for (const c of ['Hero', 'Side', 'Top', 'Fan']) { await ev(n => __AETHER_DEBUG.setPreset(n), c); await sleep(6000); await page.screenshot({ path: path.join(outDir, `cam${i++}-${c.toLowerCase()}.png`), timeout: 600000 }); }
+  // control room: rolling road follows the GPU solver, e-stop, flow pause/reset, wind setpoint
+  const rr0 = await ev(() => { const r = AETHER.ROLLING_ROAD.getSnapshot(); return { belt: r.beltTravel, speed: r.effectiveSpeed, w: r.wheelAngles[0] }; });
+  await sleep(5000);
+  const rr1 = await ev(() => { const r = AETHER.ROLLING_ROAD.getSnapshot(); return { belt: r.beltTravel, speed: r.effectiveSpeed, w: r.wheelAngles[0], U: __LIVE.U }; });
+  check('롤링로드·바퀴가 GPU 솔버 풍속으로 구동', rr1.speed > 0 && Math.abs(rr1.speed - rr1.U) < 1e-6 && (rr1.belt !== rr0.belt || rr1.w !== rr0.w), { rr0, rr1 });
+  const es = await ev(() => { const C = window.__CONTROLS; C.emergencyStop(); const a = { stopped: C.getSnapshot().control.emergencyStopped, frozen: __LIVE.freeze, road: AETHER.ROLLING_ROAD.getSnapshot().motorEnabled, fan: AETHER.FAN_MODULE.visualRunning, refusedWind: C.windSet(8) === false }; C.resetEmergencyStop(); a.released = !C.getSnapshot().control.emergencyStopped; a.unfrozen = !__LIVE.freeze; return a; });
+  check('비상정지: 팬·롤링로드·흐름 정지, 해제 후 흐름 재개', es.stopped && es.frozen && !es.road && !es.fan && es.refusedWind && es.released && es.unfrozen, es);
+  const ctl = await ev(() => { const C = window.__CONTROLS; const a = { pause: C.flowSetPaused(true) && __LIVE.freeze === true }; C.flowSetPaused(false); a.resume = __LIVE.freeze === false; a.wind = C.windSet(8) && __LIVE.U === 8 && __MAC.U === 8; C.windSet(5); a.back = __LIVE.U === 5 && __MAC.U === 5; a.legacyGone = !AETHER.SOLVER && !AETHER.S3_OFFICE && !document.querySelector('.toolbar,.m13-panel,#s3OfficePanel'); a.menus = document.querySelectorAll('#scDock .menu').length; a.drawer = !!document.querySelector('aside#panel #controlPanel #qualityPanel'); return a; });
+  check('제어실: 일시정지·재개·풍속 변경, 제거된 기능 없음, UI 구성', ctl.pause && ctl.resume && ctl.wind && ctl.back && ctl.legacyGone && ctl.menus === 3 && ctl.drawer, ctl);
   const shaders = await ev(() => window.__SHADERS);
   check('셰이더 컴파일(ANGLE)', shaders.failed.length === 0 && shaders.compiled > 10, { compiled: shaders.compiled, failed: shaders.failed });
   const fatal = await ev(() => __AETHER_DEBUG.errors);

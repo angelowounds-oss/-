@@ -1,0 +1,14 @@
+/* Application contract, coordinate system, facility geometry config, CFD domain and rolling-road state (the single sources of truth for the rest of the engine). */
+const applicationState={contractReady:false,productReady:false,visualApproval:'M3_GEOMETRY_APPROVED_NATIVE_ES3',m3Acceptance:{geometry:'FROZEN',scope:'M3 geometry and desktop-aspect composition',evidence:'Direct source review; VM regression; actual Mesa OpenGL ES shader compilation and Hero/Side/Top rendering',browserRuntime:'NOT_VERIFIED',iPhoneRuntime:'NOT_VERIFIED',productReady:false}};AETHER.APPLICATION=applicationState;
+const coordinateContract=Object.freeze({version:1,unit:'meter',unitsPerWorldUnit:1,axes:Object.freeze({downstream:'+X',up:'+Y',lateral:'+Z',vehicleForward:'-X'}),groundY:0,centerlineZ:0,rotationOrder:'XYZ (Rx then Ry then Rz; column-vector convention)',rotationUnit:'radians',scaleRule:'positive finite components only'});AETHER.COORDINATE_CONTRACT=coordinateContract;
+const config=Object.freeze({world:Object.freeze({unit:'meter',groundY:0,centerlineZ:0}),testSection:Object.freeze({lengthX:18,widthZ:8,heightY:5.5}),controlRoom:Object.freeze({widthX:8.5,depthZ:5.5,heightY:3.2,elevationY:.75}),vehicleReference:Object.freeze({lengthX:4.7,widthZ:1.928297490761,heightY:1.297449006023}),rollingRoad:Object.freeze({minX:-3.2,maxX:3.2,minZ:-1.35,maxZ:1.35,beltTopY:0,recessedBelowGround:true}),camera:Object.freeze({fovVerticalDegrees:50,near:.05,far:100})});AETHER.WIND_TUNNEL_CONFIG=config;
+const CFD_DOMAIN_CONTRACT=(()=>{const t=config.testSection,c=coordinateContract,min=Object.freeze([-t.lengthX/2,c.groundY,-t.widthZ/2]),max=Object.freeze([t.lengthX/2,t.heightY,t.widthZ/2]),size=Object.freeze(max.map((v,i)=>v-min[i])),volume=size[0]*size[1]*size[2],tiers=Object.freeze([64,128,256].map(res=>{const cells=res**3;return Object.freeze({resolution:res,cells,scalarFloat32Bytes:cells*Float32Array.BYTES_PER_ELEMENT,vector3Float32Bytes:cells*3*Float32Array.BYTES_PER_ELEMENT})}));return Object.freeze({version:'M12',unit:c.unit,axis:Object.freeze({...c.axes}),bounds:Object.freeze({min,max,size,volume}),resolutionTiers:tiers,activeTier:null,allocated:false,solverBound:false,fieldData:false})})();AETHER.CFD_DOMAIN=CFD_DOMAIN_CONTRACT;
+const M4_CONFIG=Object.freeze({
+  pit:Object.freeze({minX:-3.2,maxX:3.2,minZ:-1.35,maxZ:1.35,beltCenter:[0,-.03,0],beltSize:[6.20,.06,2.56],beltTopY:0,pitFloorTopY:-.42}),
+  frame:Object.freeze({sideZ:1.325,endX:3.175}),
+  roller:Object.freeze({radius:.09,centerY:-.15,segments:32}),
+  state:Object.freeze({pitch:.50,maxSpeed:100,maxDt:.05,maxBatch:8}),
+  tolerances:Object.freeze({geometry:1e-5,contact:.002,normal:1e-5})
+});
+AETHER.M4_CONFIG=M4_CONFIG;
+const rollingState={source:null,previous:null,baseline:null,beltTravel:0,wheelAngles:[0,0,0,0],rollerAngles:[0,0,0,0],effectiveSpeed:0,motorEnabled:true,emergencyStopped:false,lastSimT:null,aligned:true,motionReady:false,roadSection:false,lastRejection:null,duplicateFrames:0};

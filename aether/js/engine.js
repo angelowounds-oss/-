@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const now=()=>new Date().toISOString(),finite=Number.isFinite,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const AETHER=window.AETHER=Object.seal({VERSION:'0.13.5-M19-IMPLEMENTATION',MILESTONE:'M13_CFD_SCIENTIFIC_VISUALIZATION',BASELINE:null,CURRENT_AUTHORITIES:null,DIAGNOSTICS:null,APPLICATION:null,COORDINATE_CONTRACT:null,WIND_TUNNEL_CONFIG:null,VEHICLE_TRANSFORM:null,ROLLING_ROAD:null,M4_CONFIG:null,CFD_DOMAIN:null,CFD_BRIDGE:null,SCIENTIFIC_VIS:null,M1:null,M3:null,M4:null,M5:null,M6:null,M7:null,M8:null,M9:null,M10:null,M11:null,M12:null,M13:null,M14:null,M15:null,S3:null,S3_OFFICE:null,S2:null,S1:null,SOLVER:null,MATERIALS:null,VEHICLE_PRODUCTION:null,FAN_MODULE:null,FLOW_LAYOUT:null,EXHAUST_COLLECTOR:null,ASSETS:null});
+const AETHER=window.AETHER=Object.seal({VERSION:'0.15.0-dev',MILESTONE:'REALTIME_GPU_CFD_SHOWCASE',BASELINE:null,CURRENT_AUTHORITIES:null,DIAGNOSTICS:null,APPLICATION:null,COORDINATE_CONTRACT:null,WIND_TUNNEL_CONFIG:null,VEHICLE_TRANSFORM:null,ROLLING_ROAD:null,M4_CONFIG:null,CFD_DOMAIN:null,CFD_BRIDGE:null,M1:null,M3:null,M4:null,M5:null,M6:null,M7:null,M8:null,M9:null,M10:null,M11:null,M12:null,M14:null,M15:null,MATERIALS:null,VEHICLE_PRODUCTION:null,FAN_MODULE:null,FLOW_LAYOUT:null,EXHAUST_COLLECTOR:null,ASSETS:null});
 const diagnostics={startedAt:now(),events:[],errors:[],warnings:[],_bootStage:'BOOT',bootStageStartedAt:now(),bootStageTimes:[],get bootStage(){return this._bootStage},set bootStage(stage){const t=now();if(this._bootStage!==stage)this.bootStageTimes.push({stage:this._bootStage,next:stage,elapsedMs:t-this.bootStageStartedAt,totalMs:t-this.startedAt});this._bootStage=stage;this.bootStageStartedAt=t},contractReady:false,facilityReady:false,vehicleReady:false,texturesReady:false,event(type,message,detail=null){this.events.push({time:now(),type,message,detail});renderDiagnostics()},error(source,e){const x={time:now(),source,name:e?.name||'Error',message:e?.message||String(e),stack:e?.stack||null};this.errors.push(x);this.events.push({time:now(),type:'ERROR',message:source+': '+x.message});return x}};AETHER.DIAGNOSTICS=diagnostics;
 const baseline={contractVersion:2,milestone:'M0_BASELINE_FROZEN',mode:'USER_CONFIRMED_STABLE_REFERENCE',frozenAt:'2026-09-28T00:00:00Z',runtime:{secureContext:window.isSecureContext,webGL2Exposed:false,devicePixelRatio:devicePixelRatio,viewport:{width:innerWidth,height:innerHeight}},review:{status:'FROZEN_FROM_USER_CONFIRMED_V40; STATIC_AUDIT_COMPLETE',browserRuntimeVerified:false,baselineRunReported:true,m0Pass:true},authorities:{rendererAuthority:'M4 WebGL2 renderer',gpuDeviceAuthority:'No GPUDevice in the WebGL renderer; optional WebGPU device is owned by AETHER.SOLVER',sceneAuthority:'M4 SceneRegistry',vehicleAuthority:'AETHER.VEHICLE_TRANSFORM + embedded BMW M4 GT3 EVO geometry',solverAuthority:'AETHER.SOLVER S0 shell; production solver not connected',stateAuthority:'M4 rolling-road adapter',cameraAuthority:'M4 CameraController',inputAuthority:'M4 InputController',uiAuthority:'M4 DOM diagnostics'},coordinateContract:{unit:'meter',unitsPerWorldUnit:1,vehicleForward:'-X',airflowDownstream:'+X',up:'+Y',lateral:'+Z'},auditFacts:['M4 WebGL2 renderer; no GPUDevice on the WebGL renderer.','Optional WebGPU device ownership belongs to AETHER.SOLVER.','M4 SceneRegistry.','AETHER.VEHICLE_TRANSFORM + embedded BMW M4 GT3 EVO geometry.','AETHER.SOLVER is an S0 shell; production solver is not connected.','M4 rolling-road adapter; M4 CameraController; M4 InputController; M4 DOM diagnostics.','Canonical coordinate target for M1: 1 unit = 1 m; +X downstream; vehicle nose -X; +Y up; +Z lateral.','v40 baseline runtime was user-confirmed in prior work; browser runtime was not rerun in this turn.']};baseline.coordinateContract={unit:'meter',unitsPerWorldUnit:1,vehicleForward:'-X',airflowDownstream:'+X',up:'+Y',lateral:'+Z'};AETHER.BASELINE=baseline;
 AETHER.CURRENT_AUTHORITIES={renderer:'M4 WebGL2 production geometry renderer',gpuDevice:null,scene:'M4 SceneRegistry',vehicle:'AETHER.VEHICLE_TRANSFORM + imported BMW M4 GT3 EVO geometry',cfdDomain:'CFD_DOMAIN_CONTRACT derived from AETHER.WIND_TUNNEL_CONFIG.testSection + COORDINATE_CONTRACT',cfdBridge:'AETHER.CFD_BRIDGE / AETHER.VEHICLE_TRANSFORM shared authority',scientificVisualization:'AETHER.SCIENTIFIC_VIS / M13 dedicated WebGL2 scientific renderer',solver:null,state:'M4 rolling road state adapter',camera:'M4 CameraController',input:'M4 InputController',ui:'M4 DOM diagnostic shell',renderLoop:'M4 requestAnimationFrame',resources:'M4 WebGL resources + M13 derived resources'};
@@ -12,1034 +12,7 @@ const MOBILE=window.__MOBILE=(()=>{const o=(location.hash.match(/mobile=([01])/)
  try{return matchMedia('(pointer: coarse)').matches&&Math.min(innerWidth,innerHeight)<=820}catch(_){return false}})();
 document.documentElement.classList.toggle('mobile',MOBILE);if(document.body)document.body.classList.toggle('mobile',MOBILE);else addEventListener('DOMContentLoaded',()=>document.body.classList.toggle('mobile',MOBILE));
 window.__setMobile=v=>{try{localStorage.setItem('aether.mobile',v?'1':'0')}catch(_){}location.hash=location.hash.replace(/[#&]?mobile=[01]/,'')||'';location.reload()};
-/* BEGIN S1 MODULES */
-/* Shared WebGPU 1D/2D/3D dispatch plan and X-fastest linear index contract. */
-const AETHER_TILED_DISPATCH=(()=>{
- 'use strict';
- function plan(elementCount,workgroupSize,maxGroupsPerDimension=65535){
-  if(!Number.isSafeInteger(elementCount)||elementCount<0)return {ok:false,code:'INVALID_ELEMENT_COUNT'};
-  if(!Number.isSafeInteger(workgroupSize)||workgroupSize<1)return {ok:false,code:'INVALID_WORKGROUP_SIZE'};
-  if(!Number.isSafeInteger(maxGroupsPerDimension)||maxGroupsPerDimension<1)return {ok:false,code:'INVALID_DISPATCH_LIMIT'};
-  const requiredWorkgroups=Math.ceil(elementCount/workgroupSize);
-  if(requiredWorkgroups===0)return {ok:true,code:'EMPTY_DISPATCH',elementCount,workgroupSize,requiredWorkgroups,dispatch:[0,0,0],dispatchedWorkgroups:0,overdispatchWorkgroups:0,mode:'EMPTY'};
-  if(requiredWorkgroups>0xffffffff)return {ok:false,code:'LINEAR_GROUP_INDEX_OVERFLOW',elementCount,workgroupSize,requiredWorkgroups};
-  const limit=maxGroupsPerDimension;let x,y,z,mode;
-  if(requiredWorkgroups<=limit){x=requiredWorkgroups;y=1;z=1;mode='1D';}
-  else if(requiredWorkgroups<=limit*limit){x=Math.min(limit,Math.ceil(Math.sqrt(requiredWorkgroups)));y=Math.ceil(requiredWorkgroups/x);z=1;mode='2D';}
-  else if(requiredWorkgroups<=limit*limit*limit){x=Math.min(limit,Math.ceil(Math.cbrt(requiredWorkgroups)));y=Math.min(limit,Math.ceil(Math.sqrt(requiredWorkgroups/x)));z=Math.ceil(requiredWorkgroups/(x*y));mode='3D';}
-  else return {ok:false,code:'DISPATCH_VOLUME_EXCEEDS_DEVICE_LIMIT',elementCount,workgroupSize,requiredWorkgroups,limit};
-  const dispatchedWorkgroups=x*y*z;
-  if(![x,y,z].every(v=>Number.isSafeInteger(v)&&v>=1&&v<=limit)||dispatchedWorkgroups<requiredWorkgroups||dispatchedWorkgroups>0xffffffff)
-   return {ok:false,code:'DISPATCH_PLAN_INVALID',elementCount,workgroupSize,requiredWorkgroups,limit,dispatch:[x,y,z],dispatchedWorkgroups};
-  return {ok:true,code:'TILED_DISPATCH_READY',elementCount,workgroupSize,requiredWorkgroups,dispatch:[x,y,z],dispatchedWorkgroups,overdispatchWorkgroups:dispatchedWorkgroups-requiredWorkgroups,mode,limit,
-   indexFormula:'wg.x + wg.y * dispatch.x + wg.z * dispatch.x * dispatch.y',requiresElementBoundsGuard:true};
- }
- function linearWorkgroupIndex(x,y,z,dispatch){
-  if(!Array.isArray(dispatch)||dispatch.length!==3||![x,y,z,...dispatch].every(Number.isSafeInteger))throw new TypeError('INVALID_WORKGROUP_COORDINATE');
-  const [dx,dy,dz]=dispatch;if(x<0||y<0||z<0||x>=dx||y>=dy||z>=dz)throw new RangeError('WORKGROUP_OUT_OF_RANGE');
-  const index=x+y*dx+z*dx*dy;if(index>0xffffffff)throw new RangeError('LINEAR_GROUP_INDEX_OVERFLOW');return index;
- }
- function wgsl(length,workgroupSize,maxGroupsPerDimension=65535){
-  const p=plan(length,workgroupSize,maxGroupsPerDimension);if(!p.ok)throw Error(p.code);
-  const [x,y,z]=p.dispatch;
-  return `const DISPATCH_X:u32=${x}u;const DISPATCH_Y:u32=${y}u;const DISPATCH_Z:u32=${z}u;\n`+
-   `fn linearWorkgroupIndex(wg:vec3<u32>)->u32{return wg.x+wg.y*DISPATCH_X+wg.z*DISPATCH_X*DISPATCH_Y;}\n`+
-   `fn linearInvocationIndex(wg:vec3<u32>,local:u32)->u32{return linearWorkgroupIndex(wg)*${workgroupSize}u+local;}\n`;
- }
- return Object.freeze({plan,linearWorkgroupIndex,wgsl});
-})();
-/* S1 REFERENCE: independent CPU MAC operators and PCG oracle */
-const S1_REFERENCE=(()=>{
-  'use strict';
-  const fields={p:[0,0,0],u:[1,0,0],v:[0,1,0],w:[0,0,1]};
-  const freeze=x=>Object.freeze(x);
-  function finite(x,n,name){
-    const tag=Object.prototype.toString.call(x); if((tag!=='[object Float32Array]'&&tag!=='[object Float64Array]')||x.length!==n) throw new TypeError(name+' must be an exact Float32Array or Float64Array');
-    for(let i=0;i<n;i++) if(!Number.isFinite(x[i])) throw new TypeError(name+' contains non-finite value');
-    return x;
-  }
-  function layout(o,{gpuOnly=false}={}){
-    const maxResolution=gpuOnly?384:64;
-    if(!o||!Number.isInteger(o.nx)||!Number.isInteger(o.ny)||!Number.isInteger(o.nz)||o.nx<2||o.nx>maxResolution||o.ny<2||o.ny>maxResolution||o.nz<2||o.nz>maxResolution) throw new RangeError(`dimensions must be integers in [2,${maxResolution}]`);
-    if(!Array.isArray(o.min)||!Array.isArray(o.max)||o.min.length!==3||o.max.length!==3||o.min.some(x=>!Number.isFinite(x))||o.max.some(x=>!Number.isFinite(x))) throw new TypeError('bounds must be finite 3-vectors');
-    const nx=o.nx,ny=o.ny,nz=o.nz,min=o.min.slice(),max=o.max.slice(),h=max.map((x,q)=>(x-min[q])/([nx,ny,nz][q]));
-    if(h.some(x=>!(x>0)||!Number.isFinite(x))) throw new RangeError('bounds must have positive finite extent');
-    const dims={p:[nx,ny,nz],u:[nx+1,ny,nz],v:[nx,ny+1,nz],w:[nx,ny,nz+1]};
-    const count={p:nx*ny*nz,u:(nx+1)*ny*nz,v:nx*(ny+1)*nz,w:nx*ny*(nz+1)};
-    if(Object.values(count).some(x=>!Number.isSafeInteger(x)||x>0xffffffff)) throw new RangeError('grid element count exceeds the WGSL u32 index range');
-    const idx=(f,i,j,k)=>{if(!Object.prototype.hasOwnProperty.call(dims,f)||![i,j,k].every(Number.isInteger)||i<0||j<0||k<0||i>=dims[f][0]||j>=dims[f][1]||k>=dims[f][2])throw new RangeError('invalid index');return i+dims[f][0]*(j+dims[f][1]*k)};
-    const coords=(f,index)=>{if(!Object.prototype.hasOwnProperty.call(dims,f)||!Number.isInteger(index)||index<0||index>=count[f])throw new RangeError('invalid index');const sx=dims[f][0],sy=dims[f][1],i=index%sx,t=Math.floor(index/sx),j=t%sy,k=Math.floor(t/sy);return [i,j,k]};
-    const position=(f,i,j,k)=>{idx(f,i,j,k);const off={p:[.5,.5,.5],u:[0,.5,.5],v:[.5,0,.5],w:[.5,.5,0]}[f];return [min[0]+(i+off[0])*h[0],min[1]+(j+off[1])*h[1],min[2]+(k+off[2])*h[2]]};
-    return freeze({nx,ny,nz,min:freeze(min),max:freeze(max),h:freeze(h),dims:freeze(Object.fromEntries(Object.keys(dims).map(k=>[k,freeze(dims[k].slice())]))),counts:freeze(count),gpuOnly:gpuOnly===true,idx,coords,position});
-  }
-  function vec(L,a,n,name){if(L.gpuOnly)throw new Error('CPU_ORACLE_DISABLED_FOR_GPU_LAYOUT');return finite(a,n,name)}
-  function divergence(L,V){const u=vec(L,V.u,L.counts.u,'u'),v=vec(L,V.v,L.counts.v,'v'),w=vec(L,V.w,L.counts.w,'w'),out=new Float64Array(L.counts.p),[dx,dy,dz]=L.h;for(let k=0;k<L.nz;k++)for(let j=0;j<L.ny;j++)for(let i=0;i<L.nx;i++){const c=L.idx('p',i,j,k);out[c]=(u[L.idx('u',i+1,j,k)]-u[L.idx('u',i,j,k)])/dx+(v[L.idx('v',i,j+1,k)]-v[L.idx('v',i,j,k)])/dy+(w[L.idx('w',i,j,k+1)]-w[L.idx('w',i,j,k)])/dz}return out}
-  function gradient(L,p){p=vec(L,p,L.counts.p,'p');const [dx,dy,dz]=L.h,u=new Float64Array(L.counts.u),v=new Float64Array(L.counts.v),w=new Float64Array(L.counts.w);for(let k=0;k<L.nz;k++)for(let j=0;j<L.ny;j++)for(let i=0;i<=L.nx;i++){const q=L.idx('u',i,j,k);u[q]=i===0?0:i===L.nx?-2*p[L.idx('p',L.nx-1,j,k)]/dx:(p[L.idx('p',i,j,k)]-p[L.idx('p',i-1,j,k)])/dx}for(let k=0;k<L.nz;k++)for(let j=0;j<=L.ny;j++)for(let i=0;i<L.nx;i++)if(j>0&&j<L.ny)v[L.idx('v',i,j,k)]=(p[L.idx('p',i,j,k)]-p[L.idx('p',i,j-1,k)])/dy;for(let k=0;k<=L.nz;k++)for(let j=0;j<L.ny;j++)for(let i=0;i<L.nx;i++)if(k>0&&k<L.nz)w[L.idx('w',i,j,k)]=(p[L.idx('p',i,j,k)]-p[L.idx('p',i,j,k-1)])/dz;return {u,v,w}}
-  function applyA(L,p){p=vec(L,p,L.counts.p,'p');const out=new Float64Array(p.length),[dx,dy,dz]=L.h,hs=[1/(dx*dx),1/(dy*dy),1/(dz*dz)];for(let k=0;k<L.nz;k++)for(let j=0;j<L.ny;j++)for(let i=0;i<L.nx;i++){const c=L.idx('p',i,j,k),pc=p[c];if(i>0)out[c]+=(pc-p[L.idx('p',i-1,j,k)])*hs[0];if(i<L.nx-1)out[c]+=(pc-p[L.idx('p',i+1,j,k)])*hs[0];else out[c]+=2*pc*hs[0];if(j>0)out[c]+=(pc-p[L.idx('p',i,j-1,k)])*hs[1];if(j<L.ny-1)out[c]+=(pc-p[L.idx('p',i,j+1,k)])*hs[1];if(k>0)out[c]+=(pc-p[L.idx('p',i,j,k-1)])*hs[2];if(k<L.nz-1)out[c]+=(pc-p[L.idx('p',i,j,k+1)])*hs[2]}return out}
-  function diagonal(L){const [dx,dy,dz]=L.h,hs=[1/(dx*dx),1/(dy*dy),1/(dz*dz)],out=new Float64Array(L.counts.p);for(let k=0;k<L.nz;k++)for(let j=0;j<L.ny;j++)for(let i=0;i<L.nx;i++){let x=(i>0)+(i<L.nx-1);x*=hs[0];x+=((j>0)+(j<L.ny-1))*hs[1];x+=((k>0)+(k<L.nz-1))*hs[2];if(i===L.nx-1)x+=2*hs[0];out[L.idx('p',i,j,k)]=x}return out}
-  const dot=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s};
-  function solve(L,b,o={}){const n=L.counts.p;b=vec(L,b,n,'b');const rho=o.rho===undefined?1.225:o.rho,dt=o.dt===undefined?1/120:o.dt,tol=o.tolerance===undefined?1e-4:o.tolerance,max=o.maxIterations===undefined?400:o.maxIterations;if(!(Number.isFinite(rho)&&rho>0&&Number.isFinite(dt)&&dt>0)||!(Number.isFinite(tol)&&tol>=1e-6&&tol<=1e-3)||!Number.isInteger(max)||max<1||max>400)throw new RangeError('invalid solver options');let p=o.initialPressure===undefined?new Float64Array(n):new Float64Array(vec(L,o.initialPressure,n,'initialPressure'));const b2=dot(b,b),br=Math.sqrt(b2/n),threshold=Math.max(tol*br,(rho/dt)*1e-6);let code='';if(!Number.isFinite(b2)||!Number.isFinite(br)||!Number.isFinite(threshold))code='NONFINITE';const A=code?null:applyA(L,p),r=new Float64Array(n);if(!code)for(let i=0;i<n;i++)r[i]=b[i]-A[i];const diag=diagonal(L),z=new Float64Array(n),d=new Float64Array(n);if(!code)for(let i=0;i<n;i++){z[i]=r[i]/diag[i];d[i]=z[i]}let rz=dot(r,z),rr=dot(r,r),iter=0;if(!code&&(!Number.isFinite(rz)||!Number.isFinite(rr)))code='NONFINITE';if(!code&&Math.sqrt(rr/n)<=threshold)code='CONVERGED';while(!code){if(iter>=max){code='ITERATION_LIMIT';break}const q=applyA(L,d),dq=dot(d,q);if(!(Number.isFinite(dq)&&dq>0)||!(Number.isFinite(rz)&&rz>0)){code='BREAKDOWN';break}const alpha=rz/dq;if(!Number.isFinite(alpha)){code='NONFINITE';break}for(let i=0;i<n;i++){p[i]+=alpha*d[i];r[i]-=alpha*q[i];if(!Number.isFinite(p[i])||!Number.isFinite(r[i])){code='NONFINITE';break}}if(code)break;const old=rz;rr=dot(r,r);if(!Number.isFinite(rr)){code='NONFINITE';break}if(Math.sqrt(rr/n)<=threshold){iter++;code='CONVERGED';break}for(let i=0;i<n;i++)z[i]=r[i]/diag[i];rz=dot(r,z);if(!(Number.isFinite(rz)&&rz>0)){code='BREAKDOWN';break}const beta=rz/old;if(!Number.isFinite(beta)){code='NONFINITE';break}for(let i=0;i<n;i++)d[i]=z[i]+beta*d[i];iter++}let residual=Infinity;if(code!=='NONFINITE'){const trueR=applyA(L,p);let tr=0;for(let i=0;i<n;i++){const x=b[i]-trueR[i];tr+=x*x}residual=Math.sqrt(tr/n);if(!Number.isFinite(residual))code='NONFINITE'}const ok=code==='CONVERGED'&&residual<=threshold;if(code==='CONVERGED'&&!ok)code='TRUE_RESIDUAL_FAILED';return {ok,code,pressure:p,iterations:iter,residualRms:residual,relativeResidual:br?residual/br:0,thresholdRms:threshold}}
-  function project(L,V,o={}){const rho=o.rho===undefined?1.225:o.rho,dt=o.dt===undefined?1/120:o.dt;const db=divergence(L,V),b=new Float64Array(db.length);for(let i=0;i<b.length;i++)b[i]=-rho/dt*db[i];const s=solve(L,b,o);if(!s.ok)return s;const g=gradient(L,s.pressure),u=new Float64Array(vec(L,V.u,L.counts.u,'u')),v=new Float64Array(vec(L,V.v,L.counts.v,'v')),w=new Float64Array(vec(L,V.w,L.counts.w,'w'));for(let i=0;i<u.length;i++)u[i]-=dt/rho*g.u[i];for(let i=0;i<v.length;i++)v[i]-=dt/rho*g.v[i];for(let i=0;i<w.length;i++)w[i]-=dt/rho*g.w[i];return Object.assign({},s,{velocity:{u,v,w}})}
-  function metrics(L,V){const d=divergence(L,V);let ss=0,m=0;for(const x of d){ss+=x*x;m=Math.max(m,Math.abs(x))}const [dx,dy,dz]=L.h;let inlet=0,net=0;for(let k=0;k<L.nz;k++)for(let j=0;j<L.ny;j++){const a=V.u[L.idx('u',0,j,k)]*dy*dz,b=V.u[L.idx('u',L.nx,j,k)]*dy*dz;inlet+=a;net+=b-a}for(let k=0;k<L.nz;k++)for(let i=0;i<L.nx;i++){net+=V.v[L.idx('v',i,L.ny,k)]*dx*dz-V.v[L.idx('v',i,0,k)]*dx*dz}for(let j=0;j<L.ny;j++)for(let i=0;i<L.nx;i++){net+=V.w[L.idx('w',i,j,L.nz)]*dx*dy-V.w[L.idx('w',i,j,0)]*dx*dy}return {divergenceRms:Math.sqrt(ss/d.length),divergenceMax:m,netFlux:net,inletFlux:inlet}}
-  return freeze({layout,divergence,gradient,applyA,diagonal,solve,project,metrics});
-})();
-/* END S1 REFERENCE */
-/* BEGIN S1 GPU — WebGPU pressure projection; no CPU fallback. */
-const S1_GPU=(()=>{
- 'use strict';
- const finite=Number.isFinite,fail=(code,message)=>({ok:false,code,message,backend:'WEBGPU'});
- function floats(a,n,name){if(!(a instanceof Float32Array||a instanceof Float64Array)||a.length!==n)throw Error('INVALID_INPUT: '+name);const out=new Float32Array(a);for(let i=0;i<n;i++)if(!finite(a[i])||!finite(out[i]))throw Error('NONFINITE_INPUT: '+name);return out;}
- function settings(o={}){const rho=o.rho??1.225,dt=o.dt??(1/120),tolerance=o.tolerance??1e-4,maxIterations=o.maxIterations??400;if(!finite(rho)||rho<=0||!finite(dt)||dt<=0||!finite(tolerance)||tolerance<1e-6||tolerance>1e-3||!Number.isInteger(maxIterations)||maxIterations<1||maxIterations>400)throw Error('INVALID_CONFIG');const rate=Math.fround(rho/dt),floor=Math.fround(Math.fround(rate*1e-6)**2);if(!finite(rate)||rate<=0||!finite(floor)||floor<=0)throw Error('INVALID_CONFIG: f32 scale');return {rho,dt,tolerance,maxIterations,rate};}
- function shaderSources(L,maxGroupsPerDimension=65535,reductionInputLengths=[]){
-  const {nx,ny,nz}=L,n=L.counts.p;
-  const head=`const NX:u32=${nx}u;const NY:u32=${ny}u;const NZ:u32=${nz}u;const N:u32=${n}u;
-const HX:f32=${L.h[0]}f;const HY:f32=${L.h[1]}f;const HZ:f32=${L.h[2]}f;
-fn good(x:f32)->bool{return (bitcast<u32>(x)&0x7f800000u)!=0x7f800000u;}
-fn cell(i:u32,j:u32,k:u32)->u32{return i+NX*(j+NY*k);}\n`;
-  const bind=(i,name,write=false,type='array<f32>')=>`@group(0) @binding(${i}) var<storage,${write?'read_write':'read'}> ${name}:${type};\n`;
-  const kernel=(bindings,body,size=64,length=n)=>head+AETHER_TILED_DISPATCH.wgsl(length,size,maxGroupsPerDimension)+bindings+`@compute @workgroup_size(${size}) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32){${body}}`;
-  const coord='let t=linearInvocationIndex(wid,lid);if(t>=N){return;}let i=t%NX;let j=(t/NX)%NY;let k=t/(NX*NY);';
-  const stencil=`fn apply(t:u32)->f32{let i=t%NX;let j=(t/NX)%NY;let k=t/(NX*NY);let px=x[t];var a=0.0;
-if(i>0u){a+=(px-x[t-1u])/(HX*HX);}if(i+1u<NX){a+=(px-x[t+1u])/(HX*HX);}else{a+=2.0*px/(HX*HX);}
-if(j>0u){a+=(px-x[t-NX])/(HY*HY);}if(j+1u<NY){a+=(px-x[t+NX])/(HY*HY);}
-if(k>0u){a+=(px-x[t-NX*NY])/(HZ*HZ);}if(k+1u<NZ){a+=(px-x[t+NX*NY])/(HZ*HZ);}return a;}\n`;
-  const s={};
-  s.diagonal=kernel(bind(0,'out',true),coord+`var d=0.0;if(i>0u){d+=1.0/(HX*HX);}if(i+1u<NX){d+=1.0/(HX*HX);}else{d+=2.0/(HX*HX);}if(j>0u){d+=1.0/(HY*HY);}if(j+1u<NY){d+=1.0/(HY*HY);}if(k>0u){d+=1.0/(HZ*HZ);}if(k+1u<NZ){d+=1.0/(HZ*HZ);}out[t]=d;`);
-  for(const raw of [false,true])s[raw?'applyRaw':'apply']=head+AETHER_TILED_DISPATCH.wgsl(n,64,maxGroupsPerDimension)+bind(0,'x')+bind(1,'out',true)+(raw?'':bind(2,'c'))+stencil+`@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32){let t=linearInvocationIndex(wid,lid);if(t>=N){return;}${raw?'':'if(c[0]!=0.0){return;}'}out[t]=apply(t);}`;
-  s.init=kernel(bind(0,'b')+bind(1,'ap')+bind(2,'diag')+bind(3,'r',true)+bind(4,'z',true)+bind(5,'d',true),'let t=linearInvocationIndex(wid,lid);if(t>=N){return;}let rr=b[t]-ap[t];r[t]=rr;z[t]=rr/diag[t];d[t]=z[t];');
-  s.residual=kernel(bind(0,'b')+bind(1,'ap')+bind(2,'r',true),'let t=linearInvocationIndex(wid,lid);if(t<N){r[t]=b[t]-ap[t];}');
-  s.update=kernel(bind(0,'p',true)+bind(1,'r',true)+bind(2,'z',true)+bind(3,'d')+bind(4,'ap')+bind(5,'diag')+bind(6,'c'),'let t=linearInvocationIndex(wid,lid);if(t>=N||c[0]!=0.0){return;}p[t]+=c[2]*d[t];r[t]-=c[2]*ap[t];z[t]=r[t]/diag[t];');
-  s.direction=kernel(bind(0,'z')+bind(1,'d',true)+bind(2,'c'),'let t=linearInvocationIndex(wid,lid);if(t<N&&c[0]==0.0){d[t]=z[t]+c[3]*d[t];}');
-  const reduceHead=head+'var<workgroup> tmp:array<vec2<f32>,64>;\n';
-  const tree='tmp[lid]=v;workgroupBarrier();var stride=32u;loop{if(lid<stride){tmp[lid]+=tmp[lid+stride];}workgroupBarrier();if(stride==1u){break;}stride/=2u;}if(lid==0u){let group=linearWorkgroupIndex(wid);if(group<arrayLength(&out)){out[group]=tmp[0];}}';
-  const entry='@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32)';
-  s.dot=reduceHead+AETHER_TILED_DISPATCH.wgsl(n,64,maxGroupsPerDimension)+bind(0,'a')+bind(1,'b')+bind(2,'out',true,'array<vec2<f32>>')+entry+`{let t=linearInvocationIndex(wid,lid);var v=vec2<f32>(0.0);if(t<arrayLength(&a)){let x=a[t];let y=b[t];if(!good(x)||!good(y)){v.y=1.0;}else{let p=x*y;if(good(p)){v.x=p;}else{v.y=1.0;}}}${tree}}`;
-  for(let i=0;i<reductionInputLengths.length;i++){
-   const inputLength=reductionInputLengths[i];
-   s['reduce'+i]=reduceHead+AETHER_TILED_DISPATCH.wgsl(inputLength,64,maxGroupsPerDimension)+bind(0,'a',false,'array<vec2<f32>>')+bind(1,'out',true,'array<vec2<f32>>')+entry+`{let t=linearInvocationIndex(wid,lid);var v=vec2<f32>(0.0);if(t<arrayLength(&a)){v=a[t];}${tree}}`;
-  }
-  // Control: status,iter,alpha,beta,rz,rr,b2,dq,thresholdRMS²,rho/dt,tol,maxIter,newRz.
-  for(const slot of [4,5,6,7,12])s['sink'+slot]=kernel(bind(0,'pair',false,'array<vec2<f32>>')+bind(1,'c',true),`if(c[0]!=0.0){return;}let v=pair[0];if(v.y!=0.0||!good(v.x)){c[0]=2.0;}else{c[${slot}]=v.x;}`,1,1);
-  s.controlInit=kernel(bind(0,'c',true),'if(c[0]!=0.0){return;}let f=c[9]*1e-6;c[8]=max(c[10]*c[10]*c[6]/f32(N),f*f);if(!good(c[8])){c[0]=2.0;}else if(c[5]/f32(N)<=c[8]*c[13]){c[0]=1.0;}else if(c[4]<=0.0){c[0]=3.0;}',1,1);
-  s.alpha=kernel(bind(0,'c',true),'if(c[0]!=0.0){return;}if(c[7]<=0.0||c[4]<=0.0){c[0]=3.0;return;}c[2]=c[4]/c[7];if(!good(c[2])){c[0]=2.0;}',1,1);
-  s.beta=kernel(bind(0,'c',true),'if(c[0]!=0.0){return;}c[1]+=1.0;if(c[5]/f32(N)<=c[8]*c[13]){c[0]=1.0;return;}if(c[1]>=c[11]){c[0]=4.0;return;}if(c[12]<=0.0||c[4]<=0.0){c[0]=3.0;return;}c[3]=c[12]/c[4];c[4]=c[12];if(!good(c[3])){c[0]=2.0;}',1,1);
-  const div=coord+'let a=i+(NX+1u)*(j+NY*k);let b=i+NX*(j+(NY+1u)*k);let d=i+NX*(j+NY*k);let val=(u[a+1u]-u[a])/HX+(v[b+NX]-v[b])/HY+(w[d+NX*NY]-w[d])/HZ;';
-  s.divergence=kernel(bind(0,'u')+bind(1,'v')+bind(2,'w')+bind(3,'out',true),div+'out[t]=val;');
-  s.rhs=kernel(bind(0,'u')+bind(1,'v')+bind(2,'w')+bind(3,'out',true)+bind(4,'c'),div+'out[t]=-c[9]*val;');
-  for(const axis of ['u','v','w']){
-   const count=L.counts[axis];
-   const g=axis==='u'?'let i=t%(NX+1u);let j=(t/(NX+1u))%NY;let k=t/((NX+1u)*NY);if(i==NX){g=-2.0*p[cell(NX-1u,j,k)]/HX;}else if(i>0u){g=(p[cell(i,j,k)]-p[cell(i-1u,j,k)])/HX;}':axis==='v'?'let i=t%NX;let j=(t/NX)%(NY+1u);let k=t/(NX*(NY+1u));if(j>0u&&j<NY){g=(p[cell(i,j,k)]-p[cell(i,j-1u,k)])/HY;}':'let i=t%NX;let j=(t/NX)%NY;let k=t/(NX*NY);if(k>0u&&k<NZ){g=(p[cell(i,j,k)]-p[cell(i,j,k-1u)])/HZ;}';
-   s['gradient'+axis]=kernel(bind(0,'p')+bind(1,'out',true),`let t=linearInvocationIndex(wid,lid);if(t>=${count}u){return;}var g=0.0;${g}out[t]=g;`,64,count);
-   s['project'+axis]=kernel(bind(0,'p')+bind(1,'input')+bind(2,'out',true)+bind(3,'c'),`let t=linearInvocationIndex(wid,lid);if(t>=${count}u){return;}var g=0.0;${g}out[t]=input[t]-g/c[9];`,64,count);
-  }
-  return Object.freeze(s);
- }
- async function create(device,layout,options={}){
-  const L=S1_REFERENCE.layout({nx:layout.nx,ny:layout.ny,nz:layout.nz,min:Array.from(layout.min),max:Array.from(layout.max)},{gpuOnly:true}),n=L.counts.p;
-  const solidInput=options.solid??null;
-  if(solidInput!==null&&(Object.prototype.toString.call(solidInput)!=='[object Uint32Array]'||solidInput.length!==n))throw Error('INVALID_MASK');
-  if(solidInput&&n>64**3)throw Error('384_MASK_TOPOLOGY_REVIEW_REQUIRED');
-  if(solidInput!==null&&solidInput.some(x=>x>1))throw Error('INVALID_MASK');
-  const solid=solidInput===null?null:new Uint32Array(solidInput);
-  const preconditioner=options.preconditioner??'jacobi';
-  if(!['jacobi','jacobi4'].includes(preconditioner)||(preconditioner==='jacobi4'&&!solid))throw Error('INVALID_PRECONDITIONER');
-  const fourSweep=preconditioner==='jacobi4';
-  const fluidCount=solid?S2_REFERENCE.create(L,solid,{topologyOnly:true}).fluidCount:n;
-  const largest=Math.max(...Object.values(L.counts))*4,lim=device.limits||{},maxGroups=lim.maxComputeWorkgroupsPerDimension;
-  const needs={maxComputeWorkgroupSizeX:64,maxComputeInvocationsPerWorkgroup:64,maxComputeWorkgroupStorageSize:512,maxStorageBuffersPerShaderStage:solid?8:7,maxBufferSize:Math.max(64,largest),maxStorageBufferBindingSize:Math.max(64,largest),maxComputeWorkgroupsPerDimension:1};
-  for(const [k,v]of Object.entries(needs))if(!finite(lim[k])||lim[k]<v)throw Error('S1_LIMITS: '+k);
-  const levelCounts=[];for(let count=Math.ceil(n/64);;count=Math.ceil(count/64)){levelCounts.push(count);if(count===1)break;}
-  const reductionInputLengths=levelCounts.slice(0,-1);
-  const baseSources=shaderSources(L,maxGroups,reductionInputLengths);
-  const sources=options.s3?(solid&&typeof S3_WGSL==='function'?{...S2_WGSL(L,baseSources,fluidCount,maxGroups),...S3_WGSL(L,maxGroups)}:null):solid?S2_WGSL(L,baseSources,fluidCount,maxGroups):baseSources;
-  if(!sources)throw Error('S3_MASK_REQUIRED');
-  const s3Boundary=options.s3?S3_CONTROL(L,solid):null;let backflowStreak=0;
-  const maskedNames=new Set(['diagonal','applyRaw','apply','init','residual','update','direction','dot','divergence','rhs','pcstep',...['u','v','w'].flatMap(a=>['gradient'+a,'project'+a,'enforce'+a])]);
-  const buffers=[],pipes={},groups=new Map(),current=options.isCurrent||(()=>true);let disposed=false,busy=false,allocated=0,peak=0;
-  const check=()=>{if(disposed)throw Error('DISPOSED');if(!current())throw Error('STALE');};
-  const alloc=(name,size,usage=140)=>{check();const b=device.createBuffer({label:'S1 '+name,size,usage});buffers.push(b);allocated+=size;peak=Math.max(peak,allocated);return b;};
-  const dispose=()=>{if(disposed)return;disposed=true;for(const b of buffers)b.destroy();allocated=0;groups.clear();};
-  const stats=()=>({backend:'WEBGPU',preconditioner,disposed,allocatedBytes:allocated,allocatedPeakBytes:peak,bufferCount:disposed?0:buffers.length,createdBuffers:buffers.length,grid:[L.nx,L.ny,L.nz],fluidCells:fluidCount,solidCells:n-fluidCount});
-  let scope=false;
-  try{
-   check();if(device.pushErrorScope){device.pushErrorScope('validation');scope=true;}
-   const B={};for(const name of ['p','r','z','d','ap','b','diag'])B[name]=alloc(name,n*4);
-   if(solid){B.mask=alloc('solid',n*4);device.queue.writeBuffer(B.mask,0,solid);}
-   if(fourSweep)B.zt=alloc('preconditioner temp',n*4);
-   for(const a of ['u','v','w']){B[a]=alloc(a,L.counts[a]*4);B['g'+a]=alloc('g'+a,L.counts[a]*4);}
-   if(options.s3){for(const a of ['u','v','w']){B['q'+a]=alloc('accepted '+a,L.counts[a]*4);B['a'+a]=alloc('advected '+a,L.counts[a]*4);}B.qp=alloc('accepted pressure',n*4);B.sp=alloc('S3 parameters',48);}
-   B.c=alloc('control',64);B.read=alloc('readback',Math.max(64,largest),9);
-   const levels=levelCounts.map((count,i)=>({count,buffer:alloc('reduction'+i,count*8)}));
-   for(const [name,code]of Object.entries(sources)){
-    check();const module=device.createShaderModule({label:'S1 '+name,code});
-    if(module.getCompilationInfo){const info=await module.getCompilationInfo();check();const errors=info.messages.filter(x=>x.type==='error');if(errors.length)throw Error(name+': '+errors.map(x=>x.message).join('; '));}
-    pipes[name]=await device.createComputePipelineAsync({label:'S1 '+name,layout:'auto',compute:{module,entryPoint:'main'}});check();
-   }
-   levels.forEach((v,i)=>B['l'+i]=v.buffer);
-   const scalarNames=new Set(['sink4','sink5','sink6','sink7','sink12','controlInit','alpha','beta','restart']);
-   const op=(name,names,length=n)=>{if(solid&&maskedNames.has(name))names=[...names,'mask'];const key=name+':'+names.join(',');let bg=groups.get(key);if(!bg){bg=device.createBindGroup({layout:pipes[name].getBindGroupLayout(0),entries:names.map((name,binding)=>({binding,resource:{buffer:B[name]}}))});groups.set(key,bg);}const size=scalarNames.has(name)?1:64,plan=AETHER_TILED_DISPATCH.plan(length,size,maxGroups);if(!plan.ok)throw Error('S1_DISPATCH: '+name+': '+plan.code);return {name,bg,dispatch:plan.dispatch};};
-   const scalar=name=>op(name,['c'],1);
-   const dot=(a,b,slot)=>{const ops=[op('dot',[a,b,'l0'])];for(let i=1;i<levels.length;i++)ops.push(op('reduce'+(i-1),['l'+(i-1),'l'+i],levels[i-1].count));if(slot!==undefined)ops.push(op('sink'+slot,['l'+(levels.length-1),'c'],1));return ops;};
-   const encode=(e,ops)=>{for(const o of ops){const p=e.beginComputePass();p.setPipeline(pipes[o.name]);p.setBindGroup(0,o.bg);p.dispatchWorkgroups(...o.dispatch);p.end();}};
-   const submit=ops=>{check();const e=device.createCommandEncoder();encode(e,ops);device.queue.submit([e.finish()]);};
-   const read=async(buffer,size,ops=[])=>{check();const e=device.createCommandEncoder();encode(e,ops);e.copyBufferToBuffer(buffer,0,B.read,0,size);device.queue.submit([e.finish()]);let mapped=false;try{await B.read.mapAsync(1,0,size);mapped=true;check();return B.read.getMappedRange(0,size).slice(0);}finally{if(mapped&&!disposed)B.read.unmap();}};
-   const write=(name,a)=>{check();device.queue.writeBuffer(B[name],0,a);};
-   const copyBuffer=(source,target,length)=>{check();const e=device.createCommandEncoder();e.copyBufferToBuffer(B[source],0,B[target],0,length);device.queue.submit([e.finish()]);};
-   submit([op('diagonal',['diag'])]);
-   if(options.s3){for(const a of ['u','v','w'])write('q'+a,new Float32Array(L.counts[a]));write('qp',new Float32Array(n));}
-   if(scope){scope=false;const e=await device.popErrorScope();check();if(e)throw Error(e.message);}
-   const precondition=()=>fourSweep?[op('pczero',['z']),op('pcstep',['z','zt','r','diag']),op('pcstep',['zt','z','r','diag']),op('pcstep',['z','zt','r','diag']),op('pcstep',['zt','z','r','diag'])]:[];
-   const initOps=[op('applyRaw',['p','ap']),op('init',['b','ap','diag','r','z','d']),...precondition(),...(fourSweep?[op('direction',['z','d','c'])]:[]),...dot('b','b',6),...dot('r','r',5),...dot('r','z',4),scalar('controlInit')];
-   const iteration=[op('apply',['d','ap','c']),...dot('d','ap',7),scalar('alpha'),op('update',['p','r','z','d','ap','diag','c']),...precondition(),...dot('r','r',5),...dot('r','z',12),scalar('beta'),op('direction',['z','d','c'])];
-   async function core(rhs,o,V){
-    const s=settings(o),devicePressure=o.initialPressure==='DEVICE',deviceVelocity=V==='DEVICE';
-    if((devicePressure||deviceVelocity)&&!options.s3)throw Error('S3_NOT_ENABLED');
-    const p=devicePressure?null:o.initialPressure===undefined?new Float32Array(n):floats(o.initialPressure,n,'initialPressure');
-    if(solid&&p&&p.some((x,t)=>solid[t]&&x!==0))throw Error('SOLID_FIELD_NONZERO');
-    const inlet=o.inletSpeed??0;if(solid&&(!finite(inlet)||inlet<0||!finite(Math.fround(inlet))))throw Error('INVALID_INLET');
-    // Projection uses a 100x tighter recursive RMS target to leave flux headroom.
-    // The requested true-residual acceptance bound is unchanged.
-    const c=new Float32Array(16);c[9]=s.rate;c[10]=s.tolerance;c[11]=s.maxIterations;c[13]=V?1e-4:1e-2;c[14]=inlet;write('c',c);if(devicePressure)copyBuffer('qp','p',n*4);else write('p',p);
-    if(V){if(!deviceVelocity)for(const a of ['u','v','w'])write(a,floats(V[a],L.counts[a],a));if(solid)submit(['u','v','w'].map(a=>op('enforce'+a,[a,'c'],L.counts[a])));submit([op('rhs',['u','v','w','b','c'])]);}else{const b=floats(rhs,n,'rhs');if(solid&&b.some((x,t)=>solid[t]&&x!==0))throw Error('SOLID_FIELD_NONZERO');write('b',b);}
-    let ctl=new Float32Array(await read(B.c,64,initOps)),restarts=0,residualRms=Infinity,thresholdRms=Infinity;
-    for(;;){
-    while(ctl[0]===0&&ctl[1]<s.maxIterations){const batch=Math.min(8,s.maxIterations-ctl[1]),ops=[];for(let i=0;i<batch;i++)ops.push(...iteration);ctl=new Float32Array(await read(B.c,64,ops));}
-    check();const codes={0:'ITERATION_LIMIT',1:'CONVERGED',2:'NONFINITE',3:'BREAKDOWN',4:'ITERATION_LIMIT'};
-    if(ctl[0]!==1){
-     const diagnostic={iterations:ctl[1],recursiveResidualRms:Math.sqrt(ctl[5]/fluidCount),thresholdRms:Math.sqrt(ctl[8]),internalTargetRms:Math.sqrt(ctl[8]*ctl[13])};
-     if(ctl[0]===4){const pair=new Float32Array(await read(levels.at(-1).buffer,8,[op('applyRaw',['p','ap']),op('residual',['b','ap','r']),...dot('r','r')]));diagnostic.trueResidualRms=pair[1]===0?Math.sqrt(pair[0]/fluidCount):null;}
-     return {...fail(codes[ctl[0]]||'INVALID_GPU_STATUS'),...diagnostic,restarts};
-    }
-    const pair=new Float32Array(await read(levels.at(-1).buffer,8,[op('applyRaw',['p','ap']),op('residual',['b','ap','r']),...dot('r','r')]));
-    residualRms=Math.sqrt(pair[0]/fluidCount);thresholdRms=Math.sqrt(ctl[8]);
-    if(pair[1]!==0||!finite(residualRms)||!finite(thresholdRms))return fail('NONFINITE');
-    if(residualRms>thresholdRms){
-     // f32 recurrence drift: recompute r=b-Ap and restart the same PCG.
-     // Keep pressure, RHS, tolerance and the cumulative 400-iteration budget.
-     if(fourSweep&&ctl[1]<s.maxIterations){restarts++;ctl=new Float32Array(await read(B.c,64,[scalar('restart'),...initOps]));continue;}
-     return {...fail('TRUE_RESIDUAL_FAILED'),residualRms,thresholdRms,iterations:ctl[1],restarts};
-    }
-    break;
-    }
-    const pressure=new Float32Array(await read(B.p,n*4));check();if(!pressure.every(finite))return fail('NONFINITE');
-    return {ok:true,code:'CONVERGED',backend:'WEBGPU',preconditioner,restarts,pressure,iterations:ctl[1],residualRms,relativeResidual:ctl[6]>0?residualRms/Math.sqrt(ctl[6]/fluidCount):0,thresholdRms};
-   }
-   async function locked(task){
-    if(disposed)return fail('DISPOSED');if(!current())return fail('STALE');if(busy)return fail('BUSY');busy=true;let es=false;
-    try{if(device.pushErrorScope){device.pushErrorScope('validation');es=true;}const result=await task();check();if(es){es=false;const e=await device.popErrorScope();check();if(e)return fail('GPU_ERROR',e.message);}return result;}
-    catch(e){return fail(e.message.split(':')[0],e.message);}finally{if(es)try{await device.popErrorScope();}catch(_){}busy=false;}
-   }
-   const solve=(rhs,o={})=>locked(()=>core(rhs,o));
-   const project=(V,o={})=>locked(async()=>{const r=await core(null,o,V);if(!r.ok)return r;submit(['u','v','w'].map(a=>op('project'+a,['p',a,'g'+a,'c'],L.counts[a])));const velocity={};for(const a of ['u','v','w']){velocity[a]=new Float32Array(await read(B['g'+a],L.counts[a]*4));if(!velocity[a].every(finite))return fail('NONFINITE');}check();return {...r,velocity};});
-   const stepGPU=o=>locked(async()=>{
-    if(!options.s3)return fail('S3_NOT_ENABLED');
-    const dt=o.dt,nu=o.viscosity??1.5e-5,inletBefore=o.inletBefore??0,inletAfter=o.inletAfter??0,ground=o.groundSpeed??0,belt=o.belt;
-    if(![dt,nu,inletBefore,inletAfter,ground].every(finite)||!(dt>0)||nu<0||inletBefore<0||inletAfter<0||ground<0||
-      !belt||!Array.isArray(belt.min)||!Array.isArray(belt.max)||belt.min.length!==2||belt.max.length!==2||
-      ![...belt.min,...belt.max].every(finite))return fail('INVALID_S3_STEP');
-    const param=new Float32Array(12);param.set([dt,inletBefore,inletAfter,nu,ground,belt.min[0],belt.max[0],belt.min[1],belt.max[1]]);write('sp',param);
-    submit(['u','v','w'].map(a=>op('advect'+a,['qu','qv','qw','mask','sp','a'+a],L.counts[a])));
-    submit(['u','v','w'].map(a=>op('viscous'+a,['a'+a,'mask','sp',a],L.counts[a])));
-    const r=await core(null,{rho:o.rho??1.225,dt,tolerance:o.tolerance??1e-4,maxIterations:o.maxIterations??400,inletSpeed:inletAfter,initialPressure:'DEVICE'},'DEVICE');
-    if(!r.ok)return r;
-    submit(['u','v','w'].map(a=>op('project'+a,['p',a,'g'+a,'c'],L.counts[a])));
-    const velocity={};for(const a of ['u','v','w']){velocity[a]=new Float32Array(await read(B['g'+a],L.counts[a]*4));if(!velocity[a].every(finite))return fail('NONFINITE');}
-    const cpu=S2_REFERENCE.create(L,solid),metrics=cpu.metrics(velocity),uref=Math.max(o.targetInletSpeed??inletAfter,1),length=o.referenceLength??4.7;
-    const backflow=s3Boundary.inspectBackflow(velocity,{targetInletSpeed:o.targetInletSpeed??inletAfter,priorConsecutive:backflowStreak});
-    if(backflow.tripped)return {...fail('OUTLET_BACKFLOW'),backflow};
-    if(metrics.divergenceRms*length/uref>1e-4||metrics.divergenceMax*length/uref>1e-2||metrics.relativeFluxError>1e-3||metrics.blockedNormalMax>1e-6*uref)return {...fail('NUMERICAL_GATE_FAILED'),metrics};
-    check();for(const a of ['u','v','w'])copyBuffer('g'+a,'q'+a,L.counts[a]*4);copyBuffer('p','qp',n*4);
-    backflowStreak=backflow.consecutive;
-    return {...r,velocity,metrics,backflow,committed:true,stage:'S3_GPU_DIAGNOSTIC'};
-   });
-   const inspectOperators=(p,V)=>locked(async()=>{write('p',floats(p,n,'pressure'));for(const a of ['u','v','w'])write(a,floats(V[a],L.counts[a],a));submit([op('applyRaw',['p','ap']),op('divergence',['u','v','w','b']),...['u','v','w'].map(a=>op('gradient'+a,['p','g'+a],L.counts[a]))]);const A=new Float32Array(await read(B.ap,n*4)),divergence=new Float32Array(await read(B.b,n*4)),gradient={};for(const a of ['u','v','w'])gradient[a]=new Float32Array(await read(B['g'+a],L.counts[a]*4));return {ok:true,A,divergence,gradient};});
-   return Object.freeze({solve,project,stepGPU,inspectOperators,dispose,getStats:stats});
-  }catch(e){if(scope)try{await device.popErrorScope();}catch(_){}dispose();throw e;}
- }
- return Object.freeze({create,shaderSources});
-})();
-/* END S1 GPU */
-/* END S1 MODULES */
-/* BEGIN S2 MODULES */
-/* S2 MAC reference. Geometry and boundary state are owned snapshots. */
-const S2_REFERENCE=(()=>{
- 'use strict';
- function create(L,input,options={}){
-  const {nx,ny,nz}=L,N=nx*ny*nz,h=L.h;
-  if(Object.prototype.toString.call(input)!=='[object Uint32Array]'||input.length!==N||input.some(x=>x>1))throw Error('INVALID_MASK');
-  const mask=new Uint32Array(input),fluidCount=N-mask.reduce((a,b)=>a+b,0),idx=(i,j,k)=>i+nx*(j+ny*k);
-  if(!fluidCount)throw Error('NO_FLUID_CELLS');
-  const seen=new Uint8Array(N),queue=new Int32Array(N);let head=0,tail=0;
-  const push=t=>{if(!mask[t]&&!seen[t]){seen[t]=1;queue[tail++]=t;}};
-  for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)push(idx(nx-1,j,k));
-  while(head<tail){const t=queue[head++],i=t%nx,j=Math.floor(t/nx)%ny,k=Math.floor(t/nx/ny);if(i)push(t-1);if(i+1<nx)push(t+1);if(j)push(t-nx);if(j+1<ny)push(t+nx);if(k)push(t-nx*ny);if(k+1<nz)push(t+nx*ny);}
-  if(tail!==fluidCount)throw Error('OUTLET_DISCONNECTED');
-  if(options.topologyOnly)return Object.freeze({fluidCount});
-  const validate=(a,n)=>{if(!a||a.length!==n||!Array.from(a).every(Number.isFinite))throw Error('INVALID_FIELD');};
-  const faces={};
-  // 0 solid/wall, 1 fluid-fluid, 2 inlet, 3 outlet. Independent face enumeration.
-  for(const [axis,f]of ['u','v','w'].entries()){
-   const dims=L.dims[f],type=new Uint8Array(L.counts[f]),left=new Int32Array(type.length).fill(-1),right=new Int32Array(type.length).fill(-1);
-   for(let k=0;k<dims[2];k++)for(let j=0;j<dims[1];j++)for(let i=0;i<dims[0];i++){
-    const t=i+dims[0]*(j+dims[1]*k),p=[i,j,k],a=p.slice();a[axis]--;
-    const inside=q=>q[0]>=0&&q[0]<nx&&q[1]>=0&&q[1]<ny&&q[2]>=0&&q[2]<nz;
-    const l=inside(a)?idx(...a):-1,r=inside(p)?idx(...p):-1;left[t]=l;right[t]=r;
-    if((l>=0&&mask[l])||(r>=0&&mask[r]))continue;
-    type[t]=l>=0&&r>=0?1:axis===0?(l<0?2:3):0;
-   }faces[f]={type,left,right,h:h[axis]};
-  }
-  function gradient(p){validate(p,N);const V={};for(const f of ['u','v','w']){const {type,left,right,h}=faces[f],a=V[f]=new Float64Array(type.length);for(let t=0;t<a.length;t++)a[t]=type[t]===1?(p[right[t]]-p[left[t]])/h:type[t]===3?-2*p[left[t]]/h:0;}return V;}
-  function divergence(V){const d=new Float64Array(N);for(const f of ['u','v','w']){const {type,left,right,h}=faces[f];validate(V[f],type.length);for(let t=0;t<type.length;t++){if(type[t]===0)continue;const v=V[f][t]/h;if(left[t]>=0)d[left[t]]+=v;if(right[t]>=0)d[right[t]]-=v;}}return d;}
-  function applyA(p){const d=divergence(gradient(p));for(let t=0;t<N;t++)d[t]=-d[t];return d;}
-  function diagonal(){const d=new Float64Array(N);for(const f of ['u','v','w']){const {type,left,right,h}=faces[f];for(let t=0;t<type.length;t++){if(type[t]===1){d[left[t]]+=1/h**2;d[right[t]]+=1/h**2;}else if(type[t]===3)d[left[t]]+=2/h**2;}}return d;}
-  function enforce(V,inletSpeed){if(!Number.isFinite(inletSpeed)||inletSpeed<0)throw Error('INVALID_INLET');const out={};for(const f of ['u','v','w']){const {type}=faces[f];validate(V[f],type.length);const a=out[f]=new Float64Array(V[f]);for(let t=0;t<a.length;t++){if(type[t]===0)a[t]=0;else if(type[t]===2)a[t]=inletSpeed;}}return out;}
-  function metrics(V){const d=divergence(V);let sum=0,max=0,inlet=0,outlet=0,blockedMax=0;for(let t=0;t<N;t++)if(!mask[t]){sum+=d[t]**2;max=Math.max(max,Math.abs(d[t]));}for(const f of ['u','v','w']){const {type}=faces[f];for(let t=0;t<type.length;t++){if(type[t]===0)blockedMax=Math.max(blockedMax,Math.abs(V[f][t]));if(type[t]===2)inlet+=V[f][t]*h[1]*h[2];if(type[t]===3)outlet+=V[f][t]*h[1]*h[2];}}return {divergenceRms:Math.sqrt(sum/fluidCount),divergenceMax:max,inletFlux:inlet,outletFlux:outlet,netFlux:outlet-inlet,relativeFluxError:Math.abs(outlet-inlet)/Math.max(Math.abs(inlet),1e-9),blockedNormalMax:blockedMax};}
-  return Object.freeze({fluidCount,gradient,divergence,applyA,diagonal,enforce,metrics});
- }
- return Object.freeze({create});
-})();
-
-/* S2 operator overrides; S1 PCG orchestration/reduction stays shared. */
-const S2_WGSL=(L,base,fluidCount,maxGroupsPerDimension=65535)=>{
- const {nx,ny,nz}=L,N=L.counts.p;
- const head=`const NX:u32=${nx}u;const NY:u32=${ny}u;const NZ:u32=${nz}u;const N:u32=${N}u;
-const HX:f32=${L.h[0]}f;const HY:f32=${L.h[1]}f;const HZ:f32=${L.h[2]}f;
-fn cell(i:u32,j:u32,k:u32)->u32{return i+NX*(j+NY*k);}
-fn fluid(t:u32)->bool{return solid[t]==0u;}
-`;
- const bind=(i,name,write=false,type='array<f32>')=>`@group(0) @binding(${i}) var<storage,${write?'read_write':'read'}> ${name}:${type};\n`;
- const mask=i=>bind(i,'solid',false,'array<u32>');
- const kernel=(bindings,body,length=N,size=64)=>head+AETHER_TILED_DISPATCH.wgsl(length,size,maxGroupsPerDimension)+bindings+`@compute @workgroup_size(${size}) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32){${body}}`;
- const coord='let t=linearInvocationIndex(wid,lid);if(t>=N){return;}let i=t%NX;let j=(t/NX)%NY;let k=t/(NX*NY);';
- const links=[['i>0u','t-1u','HX'],['i+1u<NX','t+1u','HX'],['j>0u','t-NX','HY'],['j+1u<NY','t+NX','HY'],['k>0u','t-NX*NY','HZ'],['k+1u<NZ','t+NX*NY','HZ']];
- const stencil=diag=>links.map(([cond,t,h])=>`if(${cond}){if(fluid(${t})){a+=${diag?'1.0':`(x[t]-x[${t}])`}/(${h}*${h});}}`).join('')+`if(i+1u==NX){a+=2.0*${diag?'1.0':'x[t]'}/(HX*HX);}`;
- const s={...base};
- s.restart=bind(0,'c',true)+'@compute @workgroup_size(1) fn main(){c[0]=0.0;c[2]=0.0;c[3]=0.0;}';
- s.pczero=AETHER_TILED_DISPATCH.wgsl(N,64,maxGroupsPerDimension)+bind(0,'out',true)+`@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32){let t=linearInvocationIndex(wid,lid);if(t<${N}u){out[t]=0.0;}}`;
- // Four fixed damped Jacobi sweeps from zero define a symmetric positive
- // polynomial preconditioner. No tolerance-dependent inner iteration.
- s.pcstep=kernel(bind(0,'x')+bind(1,'out',true)+bind(2,'r')+bind(3,'diag')+mask(4),coord+'out[t]=0.0;if(!fluid(t)){return;}var a=0.0;'+stencil(false)+'out[t]=x[t]+(2.0/3.0)*(r[t]-a)/diag[t];');
- s.diagonal=kernel(bind(0,'out',true)+mask(1),coord+'out[t]=0.0;if(!fluid(t)){return;}var a=0.0;'+stencil(true)+'out[t]=a;');
- for(const raw of [false,true])s[raw?'applyRaw':'apply']=kernel(bind(0,'x')+bind(1,'out',true)+(raw?'':bind(2,'c'))+mask(raw?2:3),coord+(raw?'':'if(c[0]!=0.0){return;}')+'out[t]=0.0;if(!fluid(t)){return;}var a=0.0;'+stencil(false)+'out[t]=a;');
- s.init=kernel(bind(0,'b')+bind(1,'ap')+bind(2,'diag')+bind(3,'r',true)+bind(4,'z',true)+bind(5,'d',true)+mask(6),'let t=linearInvocationIndex(wid,lid);if(t>=N){return;}r[t]=0.0;z[t]=0.0;d[t]=0.0;if(!fluid(t)){return;}r[t]=b[t]-ap[t];z[t]=r[t]/diag[t];d[t]=z[t];');
- s.residual=kernel(bind(0,'b')+bind(1,'ap')+bind(2,'r',true)+mask(3),'let t=linearInvocationIndex(wid,lid);if(t>=N){return;}r[t]=0.0;if(fluid(t)){r[t]=b[t]-ap[t];}');
- s.update=kernel(bind(0,'p',true)+bind(1,'r',true)+bind(2,'z',true)+bind(3,'d')+bind(4,'ap')+bind(5,'diag')+bind(6,'c')+mask(7),'let t=linearInvocationIndex(wid,lid);if(t>=N||c[0]!=0.0){return;}if(!fluid(t)){p[t]=0.0;r[t]=0.0;z[t]=0.0;return;}p[t]+=c[2]*d[t];r[t]-=c[2]*ap[t];z[t]=r[t]/diag[t];');
- // Preserve the original direction vector while updating. Solids remain zero.
- s.direction=kernel(bind(0,'z')+bind(1,'d',true)+bind(2,'c')+mask(3),'let t=linearInvocationIndex(wid,lid);if(t<N&&c[0]==0.0){if(fluid(t)){d[t]=z[t]+c[3]*d[t];}else{d[t]=0.0;}}');
- s.dot=base.dot.replace('@compute',mask(3)+'@compute').replace('if(t<arrayLength(&a))','if(t<arrayLength(&a)&&solid[t]==0u)');
- for(const name of ['controlInit','beta'])s[name]=base[name].replaceAll('f32(N)',`f32(${fluidCount}u)`);
- const div=coord+`out[t]=0.0;if(!fluid(t)){return;}let a=i+(NX+1u)*(j+NY*k);let b=i+NX*(j+(NY+1u)*k);let d=i+NX*(j+NY*k);var val=0.0;
-if(i==0u){val-=u[a]/HX;}else if(fluid(t-1u)){val-=u[a]/HX;}
-if(i+1u==NX){val+=u[a+1u]/HX;}else if(fluid(t+1u)){val+=u[a+1u]/HX;}
-if(j>0u){if(fluid(t-NX)){val-=v[b]/HY;}}if(j+1u<NY){if(fluid(t+NX)){val+=v[b+NX]/HY;}}
-if(k>0u){if(fluid(t-NX*NY)){val-=w[d]/HZ;}}if(k+1u<NZ){if(fluid(t+NX*NY)){val+=w[d+NX*NY]/HZ;}}`;
- s.divergence=kernel(bind(0,'u')+bind(1,'v')+bind(2,'w')+bind(3,'out',true)+mask(4),div+'out[t]=val;');
- s.rhs=kernel(bind(0,'u')+bind(1,'v')+bind(2,'w')+bind(3,'out',true)+bind(4,'c')+mask(5),div+'out[t]=-c[9]*val;');
- for(const axis of ['u','v','w']){
-  const coord=axis==='u'?'let i=t%(NX+1u);let j=(t/(NX+1u))%NY;let k=t/((NX+1u)*NY);':axis==='v'?'let i=t%NX;let j=(t/NX)%(NY+1u);let k=t/(NX*(NY+1u));':'let i=t%NX;let j=(t/NX)%NY;let k=t/(NX*NY);';
-  const a={u:'i',v:'j',w:'k'}[axis],lim={u:'NX',v:'NY',w:'NZ'}[axis],h={u:'HX',v:'HY',w:'HZ'}[axis],left={u:'cell(i-1u,j,k)',v:'cell(i,j-1u,k)',w:'cell(i,j,k-1u)'}[axis];
-  const blocked=`var blocked=false;if(${a}>0u){if(!fluid(${left})){blocked=true;}}if(${a}<${lim}){if(!fluid(cell(i,j,k))){blocked=true;}}`;
-  const outer=axis==='u'?'':`if(${a}==0u||${a}==${lim}){blocked=true;}`;
-  const gradient=`var g=0.0;if(!blocked){if(${a}>0u&&${a}<${lim}){g=(p[cell(i,j,k)]-p[${left}])/${h};}${axis==='u'?'else if(i==NX){g=-2.0*p[cell(NX-1u,j,k)]/HX;}':''}}`;
-  const prefix=`let t=linearInvocationIndex(wid,lid);if(t>=${L.counts[axis]}u){return;}`+coord+blocked+outer;
-  s['gradient'+axis]=kernel(bind(0,'p')+bind(1,'out',true)+mask(2),prefix+gradient+'out[t]=g;',L.counts[axis]);
-  s['project'+axis]=kernel(bind(0,'p')+bind(1,'input')+bind(2,'out',true)+bind(3,'c')+mask(4),prefix+gradient+'out[t]=0.0;if(!blocked){out[t]=input[t]-g/c[9];}',L.counts[axis]);
-  s['enforce'+axis]=kernel(bind(0,'input',true)+bind(1,'c')+mask(2),prefix+`if(c[14]<0.0){return;}if(blocked){input[t]=0.0;}${axis==='u'?'else if(i==0u){input[t]=c[14];}':''}`,L.counts[axis]);
- }
- return Object.freeze(s);
-};
-/* END S2 MODULES */
-/* BEGIN S3 MODULES */
-/* S3 experimental GPU MAC advection and viscosity kernels. */
-const S3_WGSL=(L,maxGroupsPerDimension=65535)=>{
- const n=[L.nx,L.ny,L.nz],h=L.h,mi=L.min,ma=L.max,fs=['u','v','w'];
- const scalar=x=>Number(x).toString()+'f';
- const head=`const NX:u32=${n[0]}u;const NY:u32=${n[1]}u;const NZ:u32=${n[2]}u;
-const LO=vec3<f32>(${mi.map(scalar).join(',')});const HI=vec3<f32>(${ma.map(scalar).join(',')});
-const H=vec3<f32>(${h.map(scalar).join(',')});
-fn cell(i:u32,j:u32,k:u32)->u32{return i+NX*(j+NY*k);}
-`;
- const bind=(id,name,write=false,type='array<f32>')=>`@group(0) @binding(${id}) var<storage,${write?'read_write':'read'}> ${name}:${type};\n`;
- const dims={u:['NX+1u','NY','NZ'],v:['NX','NY+1u','NZ'],w:['NX','NY','NZ+1u']};
- const offs={u:['0.0','0.5','0.5'],v:['0.5','0.0','0.5'],w:['0.5','0.5','0.0']};
- const face=(f,p)=>{const a=fs.indexOf(f),l=p.slice(),r=p.slice();l[a]=`(${p[a]}-1u)`;
-  const lower=`${p[a]}>0u && solid[cell(${l.join(',')})]!=0u`,upper=`${p[a]}<${n[a]}u && solid[cell(${r.join(',')})]!=0u`;
-  return `(${lower})||(${upper})`;
- };
- const faceFunc=f=>`fn blocked_${f}(i:u32,j:u32,k:u32)->bool{return ${face(f,['i','j','k'])};}\n`;
- const samplers=fs.map(f=>{
-  const [sx,sy,sz]=dims[f],offset=offs[f].join(','),idx=`i+(${sx})*(j+(${sy})*k)`,at=f==='u'?'if(i==0u){return prm[1];}':'';
-  return faceFunc(f)+`fn fetch_${f}(i:u32,j:u32,k:u32)->f32{if(blocked_${f}(i,j,k)){return 0.0;}${at}return ${f}[${idx}];}
-fn sample_${f}(p:vec3<f32>)->f32{let q=(clamp(p,LO,HI)-LO)/H-vec3<f32>(${offset});
-let lo=vec3<i32>(floor(q));let w=q-vec3<f32>(lo);var total=0.0;
-for(var z=0u;z<2u;z++){for(var y=0u;y<2u;y++){for(var x=0u;x<2u;x++){
-let i=u32(clamp(lo.x+i32(x),0,i32(${sx})-1));let j=u32(clamp(lo.y+i32(y),0,i32(${sy})-1));let k=u32(clamp(lo.z+i32(z),0,i32(${sz})-1));
-let weight=select(1.0-w.x,w.x,x==1u)*select(1.0-w.y,w.y,y==1u)*select(1.0-w.z,w.z,z==1u);
-total+=weight*fetch_${f}(i,j,k);
-}}}return total;}
-`;
- }).join('');
- const steps={};
- for(const f of fs){
-  const a=fs.indexOf(f),[sx,sy,sz]=dims[f],offset=offs[f].join(',');
-  const coord=`let i=t%(${sx});let j=(t/(${sx}))%(${sy});let k=t/((${sx})*(${sy}));`;
-  const idx=`i+(${sx})*(j+(${sy})*k)`;
-  const sampleBindings=bind(0,'u')+bind(1,'v')+bind(2,'w')+bind(3,'solid',false,'array<u32>')+bind(4,'prm');
-  steps['advect'+f]=head+AETHER_TILED_DISPATCH.wgsl(L.counts[f],64,maxGroupsPerDimension)+sampleBindings+bind(5,'out',true)+samplers+
-    `fn vel(p:vec3<f32>)->vec3<f32>{return vec3<f32>(sample_u(p),sample_v(p),sample_w(p));}
-@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32){let t=linearInvocationIndex(wid,lid);if(t>=${L.counts[f]}u){return;}${coord}
-out[t]=0.0;if(blocked_${f}(i,j,k)){return;}
-let pos=LO+(vec3<f32>(f32(i),f32(j),f32(k))+vec3<f32>(${offset}))*H;
-let v0=vel(pos);let mid=clamp(pos-0.5*prm[0]*v0,LO,HI);let v1=vel(mid);
-let dep=clamp(pos-prm[0]*v1,LO,HI);out[t]=sample_${f}(dep);}
-`;
-  const arr=['i','j','k'];
-  const sampleNeighbor=(direction,sign)=>{let q=arr.map(x=>`i32(${x})`);q[direction]=`i32(${arr[direction]})${sign>0?'+':'-'}1`;const checks=q.map((x,z)=>`${x}<0||${x}>=i32(${dims[f][z]})`).join('||');const qindex=q.map(x=>`u32(${x})`);const speed=direction===1&&sign<0&&a===0?
-   `let xx=LO.x+f32(i)*H.x;let zz=LO.z+(f32(k)+0.5)*H.z;
-    if(xx>=prm[5]&&xx<=prm[6]&&zz>=prm[7]&&zz<=prm[8]){wall=prm[4];}`:'';
-   const boundary=direction===0&&sign>0?'return self;':direction===0&&sign<0&&a!==0?'return -self;':
-     `var wall=0.0;${speed}return 2.0*wall-self;`;
-   return `if(${checks}){${boundary}}if(blocked_${f}(${qindex.join(',')})){return ${direction===a?'0.0':'-self'};}
-   return input[${qindex[0]}+(${sx})*(${qindex[1]}+(${sy})*${qindex[2]})];`;
-  };
-  const neigh=Array.from({length:3},(_,d)=>[-1,1].map(s=>`fn neighbor_${d}_${s<0?'m':'p'}(i:u32,j:u32,k:u32,self:f32)->f32{${sampleNeighbor(d,s)}}`).join('\n')).join('\n');
-  const lap=Array.from({length:3},(_,d)=>`lap+=(neighbor_${d}_m(i,j,k,self)+neighbor_${d}_p(i,j,k,self)-2.0*self)/(H[${d}]*H[${d}]);`).join('');
-  steps['viscous'+f]=head+AETHER_TILED_DISPATCH.wgsl(L.counts[f],64,maxGroupsPerDimension)+bind(0,'input')+bind(1,'solid',false,'array<u32>')+bind(2,'prm')+bind(3,'out',true)+faceFunc(f)+neigh+
-  `@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(local_invocation_index) lid:u32){let t=linearInvocationIndex(wid,lid);if(t>=${L.counts[f]}u){return;}${coord}
-  out[t]=0.0;if(blocked_${f}(i,j,k)){return;}
-  ${f==='u'?'if(i==0u){out[t]=prm[2];return;}':''}
-  ${f==='v'?'if(j==0u||j==NY){return;}':''}
-  ${f==='w'?'if(k==0u||k==NZ){return;}':''}
-  let self=input[${idx}];var lap=0.0;${lap}out[t]=self+prm[0]*prm[3]*lap;}
-`;
- }
- return Object.freeze(steps);
-};
-const S3_CONTROL=(()=>{const module={exports:{}};
-'use strict';
-
-// S3 pre-step controls shared by the CPU oracle and the later GPU stepper.
-// This module does not advance velocity or produce scientific fields.
-module.exports = function createS3Control(L, inputMask) {
-  const fields = ['u', 'v', 'w'];
-  const names = ['SOLID', 'FLUID', 'INLET', 'OUTLET', 'WALL'];
-  const T = Object.freeze({ SOLID: 0, FLUID: 1, INLET: 2, OUTLET: 3, WALL: 4 });
-  if (!L || !Number.isInteger(L.nx) || !Number.isInteger(L.ny) || !Number.isInteger(L.nz) ||
-      !Array.isArray(L.h) || L.h.length !== 3 || L.h.some(x => !Number.isFinite(x) || x <= 0) ||
-      !L.counts || !L.dims) throw Error('INVALID_LAYOUT');
-  const { nx, ny, nz } = L, cellCount = nx * ny * nz;
-  if (Object.prototype.toString.call(inputMask) !== '[object Uint32Array]' ||
-      inputMask.length !== cellCount || inputMask.some(x => x > 1)) throw Error('INVALID_MASK');
-  const mask = new Uint32Array(inputMask);
-  const cell = (i, j, k) => i + nx * (j + ny * k);
-  const types = {};
-  for (let axis = 0; axis < 3; axis++) {
-    const f = fields[axis], dims = L.dims[f], a = new Uint8Array(L.counts[f]);
-    for (let k = 0; k < dims[2]; k++) for (let j = 0; j < dims[1]; j++) for (let i = 0; i < dims[0]; i++) {
-      const p = [i, j, k], left = p.slice(); left[axis]--;
-      const inside = q => q[0] >= 0 && q[0] < nx && q[1] >= 0 && q[1] < ny && q[2] >= 0 && q[2] < nz;
-      const li = inside(left) ? cell(...left) : -1, ri = inside(p) ? cell(...p) : -1;
-      const idx = i + dims[0] * (j + dims[1] * k);
-      if ((li >= 0 && mask[li]) || (ri >= 0 && mask[ri])) a[idx] = T.SOLID;
-      else if (li >= 0 && ri >= 0) a[idx] = T.FLUID;
-      else if (axis === 0 && li < 0) a[idx] = T.INLET;
-      else if (axis === 0 && ri < 0) a[idx] = T.OUTLET;
-      else a[idx] = T.WALL;
-    }
-    types[f] = a;
-  }
-
-  const finiteField = (a, n, name) => {
-    if (!(a instanceof Float32Array || a instanceof Float64Array) || a.length !== n) throw Error('INVALID_FIELD:' + name);
-    for (let i = 0; i < n; i++) if (!Number.isFinite(a[i]) || !Number.isFinite(Math.fround(a[i]))) throw Error('NONFINITE_FIELD:' + name);
-  };
-  const velocity = V => {
-    if (!V || typeof V !== 'object') throw Error('INVALID_VELOCITY');
-    for (const f of fields) finiteField(V[f], L.counts[f], f);
-  };
-  const ramp = (time, seconds) => {
-    if (!Number.isFinite(time) || time < 0 || !Number.isFinite(seconds) || seconds <= 0) throw Error('INVALID_RAMP');
-    const x = Math.max(0, Math.min(1, time / seconds));
-    return x * x * (3 - 2 * x);
-  };
-  function enforce(V, options = {}) {
-    velocity(V);
-    const speed = options.targetInletSpeed ?? 0, time = options.simulationTime ?? 0, seconds = options.rampSeconds ?? 1;
-    if (!Number.isFinite(speed) || speed < 0 || !Number.isFinite(Math.fround(speed)) || (speed > 0 && Math.fround(speed) === 0)) throw Error('INVALID_INLET_SPEED');
-    const inlet = Math.fround(speed * ramp(time, seconds)), out = {};
-    for (const f of fields) {
-      const Type = V[f].constructor, a = out[f] = new Type(V[f]);
-      for (let i = 0; i < a.length; i++) {
-        if (types[f][i] === T.SOLID || types[f][i] === T.WALL) a[i] = 0;
-        else if (types[f][i] === T.INLET) a[i] = inlet;
-      }
-    }
-    return Object.freeze({ velocity: out, inletSpeed: inlet, ramp: ramp(time, seconds) });
-  }
-  // Reference stencil for a nonperiodic MAC grid. Values at a solid-normal
-  // face are prescribed at the face itself; tangential velocities use the
-  // reflected ghost 2*u_wall-u_fluid. No interpolation through a solid cell.
-  function wallConfig(options) {
-    const belt = options.groundBelt;
-    if (belt === undefined) return null;
-    if (!L.min || !L.max || !Array.isArray(belt.min) || !Array.isArray(belt.max) ||
-        belt.min.length !== 2 || belt.max.length !== 2 ||
-        ![...belt.min, ...belt.max, belt.groundSpeed].every(Number.isFinite) ||
-        belt.groundSpeed < 0 || !Number.isFinite(Math.fround(belt.groundSpeed)) ||
-        (belt.groundSpeed > 0 && Math.fround(belt.groundSpeed) === 0) ||
-        belt.min.some((x, i) => x >= belt.max[i] || x < L.min[i === 0 ? 0 : 2]) ||
-        belt.max.some((x, i) => x > L.max[i === 0 ? 0 : 2])) throw Error('INVALID_GROUND_BELT');
-    return belt;
-  }
-  function neighborValue(V, field, index, direction, sign, options = {}) {
-    velocity(V);
-    const belt = wallConfig(options);
-    if (!fields.includes(field) || !Number.isInteger(index) || index < 0 || index >= L.counts[field] ||
-        !Number.isInteger(direction) || direction < 0 || direction > 2 || ![-1, 1].includes(sign) ||
-        types[field][index] !== T.FLUID) throw Error('INVALID_FLUID_FACE');
-    const speed = options.targetInletSpeed ?? 0;
-    if (!Number.isFinite(speed) || speed < 0) throw Error('INVALID_INLET_SPEED');
-    return rawNeighbor(V, field, index, direction, sign, belt,
-      Math.fround(speed * ramp(options.simulationTime ?? 0, options.rampSeconds ?? 1)));
-  }
-  function rawNeighbor(V, field, index, direction, sign, belt, inlet) {
-    const axis = fields.indexOf(field), dims = L.dims[field], p = L.coords(field, index), q = p.slice();
-    q[direction] += sign;
-    const current = V[field][index];
-    if (q[direction] < 0 || q[direction] >= dims[direction]) {
-      if (direction === 0 && sign === 1) return current; // outlet tangential zero gradient
-      if (direction === 0 && sign === -1) return axis === 0 ? current : -current; // inlet transverse no slip
-      let wallSpeed = 0;
-      if (direction === 1 && sign === -1 && axis === 0 && belt) {
-        const x = L.min[0] + p[0] * L.h[0], z = L.min[2] + (p[2] + .5) * L.h[2];
-        if (x >= belt.min[0] && x <= belt.max[0] && z >= belt.min[1] && z <= belt.max[1]) wallSpeed = belt.groundSpeed;
-      }
-      return 2 * wallSpeed - current;
-    }
-    const face = q[0] + dims[0] * (q[1] + dims[1] * q[2]), kind = types[field][face];
-    if (kind === T.SOLID) return direction === axis ? 0 : -current;
-    if (kind === T.WALL) return direction === axis ? 0 : -current;
-    if (kind === T.INLET) return direction === axis ? inlet : -current;
-    return V[field][face];
-  }
-  function viscous(V, dt, options = {}) {
-    velocity(V);
-    const belt = wallConfig(options), nu = options.viscosity ?? 1.5e-5;
-    if (!Number.isFinite(dt) || dt <= 0 || !Number.isFinite(Math.fround(dt)) || Math.fround(dt) === 0 ||
-        !Number.isFinite(nu) || nu < 0 || !Number.isFinite(Math.fround(nu)) ||
-        (nu > 0 && Math.fround(nu) === 0)) throw Error('INVALID_VISCOSITY_INPUT');
-    const rate = nu * L.h.reduce((s, h) => s + 1 / (h * h), 0);
-    if (!Number.isFinite(rate) || dt * rate > .45 * (1 + 1e-12)) throw Error('DIFFUSION_CFL_EXCEEDED');
-    const bc = enforce(V, options), input = bc.velocity, out = {};
-    for (const f of fields) {
-      const a = out[f] = new Float32Array(L.counts[f]);
-      for (let i = 0; i < a.length; i++) {
-        if (types[f][i] !== T.FLUID && types[f][i] !== T.OUTLET) { a[i] = input[f][i]; continue; }
-        let lap = 0;
-        for (let axis = 0; axis < 3; axis++) for (const sign of [-1, 1]) {
-          lap += (rawNeighbor(input, f, i, axis, sign, belt, bc.inletSpeed) - input[f][i]) / (L.h[axis] * L.h[axis]);
-        }
-        a[i] = Math.fround(input[f][i] + dt * nu * lap);
-        if (!Number.isFinite(a[i])) throw Error('NONFINITE_VISCOSITY');
-      }
-    }
-    return enforce(out, options).velocity;
-  }
-  function nextDownF32(x) {
-    let y = Math.fround(x);
-    if (!Number.isFinite(y) || y <= 0) throw Error('CFL_DT_UNREPRESENTABLE');
-    if (y > x) {
-      const b = new ArrayBuffer(4), d = new DataView(b);
-      d.setFloat32(0, y, false);
-      d.setUint32(0, d.getUint32(0, false) - 1, false);
-      y = d.getFloat32(0, false);
-    }
-    if (!(y > 0) || y > x) throw Error('CFL_DT_UNREPRESENTABLE');
-    return y;
-  }
-  function timestep(V, options = {}) {
-    velocity(V);
-    const nu = options.viscosity ?? 1.5e-5, maxDt = options.maxDt ?? 1 / 120;
-    const cfl = options.cfl ?? 0.5, diffusionCfl = options.diffusionCfl ?? 0.45;
-    const speed = options.targetInletSpeed ?? 0, time = options.simulationTime ?? 0, seconds = options.rampSeconds ?? 1;
-    if (!Number.isFinite(nu) || nu < 0 || !Number.isFinite(Math.fround(nu)) || (nu > 0 && Math.fround(nu) === 0) ||
-        !Number.isFinite(maxDt) || maxDt <= 0 || !Number.isFinite(Math.fround(maxDt)) || Math.fround(maxDt) === 0 ||
-        !Number.isFinite(cfl) || cfl <= 0 || cfl > 1 ||
-        !Number.isFinite(diffusionCfl) || diffusionCfl <= 0 || diffusionCfl > 0.5 ||
-        !Number.isFinite(speed) || speed < 0 || !Number.isFinite(Math.fround(speed)) || (speed > 0 && Math.fround(speed) === 0)) throw Error('INVALID_CFL_CONFIG');
-    const maxima = [0, 0, 0], inlet = Math.fround(speed * ramp(time, seconds));
-    for (let axis = 0; axis < 3; axis++) {
-      const f = fields[axis], a = V[f], t = types[f];
-      for (let i = 0; i < a.length; i++) {
-        if (t[i] === T.SOLID || t[i] === T.WALL) continue;
-        const value = t[i] === T.INLET ? inlet : Math.abs(Math.fround(a[i]));
-        maxima[axis] = Math.max(maxima[axis], value);
-      }
-    }
-    const advectiveRate = maxima.reduce((s, v, a) => s + v / L.h[a], 0);
-    const viscousRate = nu * L.h.reduce((s, h) => s + 1 / (h * h), 0);
-    if (!Number.isFinite(advectiveRate) || !Number.isFinite(viscousRate)) throw Error('CFL_RATE_NONFINITE');
-    const advectiveLimit = advectiveRate > 0 ? cfl / advectiveRate : Infinity;
-    const viscousLimit = viscousRate > 0 ? diffusionCfl / viscousRate : Infinity;
-    const selected = Math.min(maxDt, advectiveLimit, viscousLimit);
-    const dt = nextDownF32(selected);
-    const now32 = Math.fround(options.simulationTime ?? 0), next32 = Math.fround(now32 + dt);
-    if (!(next32 > now32)) throw Error('CFL_DT_NO_F32_PROGRESS');
-    return Object.freeze({ dt, advectiveRate, viscousRate, advectiveLimit, viscousLimit, maxDt,
-      maxima:Object.freeze(maxima), inletSpeed:inlet, simulationTimeF32:now32, nextSimulationTimeF32:next32,
-      constraint: selected === maxDt ? 'MAX_STEP' : selected === advectiveLimit ? 'ADVECTION_CFL' : 'VISCOSITY_CFL' });
-  }
-  function inspectBackflow(V, options = {}) {
-    velocity(V);
-    const speed = options.targetInletSpeed ?? 0, thresholdFraction = options.thresholdFraction ?? 0.01;
-    const maxAreaFraction = options.maxAreaFraction ?? 0.01, requiredSteps = options.requiredSteps ?? 5;
-    const prior = options.priorConsecutive ?? 0;
-    if (!Number.isFinite(speed) || speed < 0 || !Number.isFinite(thresholdFraction) || thresholdFraction < 0 ||
-        !Number.isFinite(maxAreaFraction) || maxAreaFraction < 0 || maxAreaFraction > 1 ||
-        !Number.isInteger(requiredSteps) || requiredSteps < 1 || !Number.isInteger(prior) || prior < 0) throw Error('INVALID_BACKFLOW_CONFIG');
-    const a = V.u, t = types.u, cutoff = -thresholdFraction * Math.max(speed, 0.1);
-    let area = 0, reverseArea = 0, reverseFlux = 0;
-    const faceArea = L.h[1] * L.h[2];
-    for (let i = 0; i < a.length; i++) if (t[i] === T.OUTLET) {
-      area += faceArea;
-      if (a[i] < cutoff) { reverseArea += faceArea; reverseFlux += -a[i] * faceArea; }
-    }
-    if (!(area > 0)) throw Error('NO_OPEN_OUTLET');
-    const fraction = reverseArea / area, exceeding = fraction > maxAreaFraction;
-    const consecutive = exceeding ? prior + 1 : 0;
-    return Object.freeze({ cutoff, outletArea:area, reverseArea, reverseFlux, reverseAreaFraction:fraction,
-      consecutive, requiredSteps, tripped:consecutive >= requiredSteps });
-  }
-  function getFaceType(field, index) {
-    if (!fields.includes(field) || !Number.isInteger(index) || index < 0 || index >= types[field].length) throw Error('INVALID_FACE');
-    return names[types[field][index]];
-  }
-  const counts = Object.freeze(Object.fromEntries(fields.map(f => [f, Object.freeze({
-    solid:Array.from(types[f]).filter(x => x === T.SOLID).length,
-    fluid:Array.from(types[f]).filter(x => x === T.FLUID).length,
-    inlet:Array.from(types[f]).filter(x => x === T.INLET).length,
-    outlet:Array.from(types[f]).filter(x => x === T.OUTLET).length,
-    wall:Array.from(types[f]).filter(x => x === T.WALL).length
-  })])));
-  return Object.freeze({ enforce, timestep, inspectBackflow, getFaceType, neighborValue, viscous, counts,
-    snapshot:() => Object.freeze({ grid:Object.freeze([nx, ny, nz]), cellCount, counts }) });
-};
-
-return module.exports;})();
-/* END S3 MODULES */
-/* S0 SOLVER: WebGPU capability/preflight shell only. No compute, fields, or renderer ownership. */
-const S0_SOLVER=(()=>{
-  const TIERS=[64,128,256], BYTES=4, WORKGROUP=4;
-  let state='UNINITIALIZED', reason=null, resolution=64, generation=0, ownedDevice=null, initFlight=null, listener=null;
-  const clone=v=>JSON.parse(JSON.stringify(v));
-  const result=(ok,code,extra={})=>Object.assign({ok,code},extra);
-  const configOf=input=>input===undefined?{resolution:64}:input;
-  function validConfig(input){
-    const c=configOf(input);
-    if(!c||typeof c!=='object'||Array.isArray(c)||Object.keys(c).some(k=>k!=='resolution'))return result(false,'INVALID_CONFIG');
-    if(!Number.isInteger(c.resolution))return result(false,'INVALID_CONFIG');
-    if(!TIERS.includes(c.resolution))return result(false,'INVALID_CONFIG');
-    if(c.resolution!==64)return result(false,'TIER_NOT_VALIDATED');
-    return result(true,'OK',{resolution:c.resolution});
-  }
-  function plan(n){
-    const C=n**3,F=3*n*n*(n+1), scalar=(name,storage=true)=>({name,bytes:C*BYTES,storage});
-    const buffers=[];
-    for(const bank of ['committed','advected','candidate'])for(const axis of ['u','v','w'])buffers.push({name:bank+'_'+axis,bytes:(F/3)*BYTES,storage:true});
-    for(const name of ['pressureAccepted','pressureWorking','rhs','r','z','d','Ad','diag'])buffers.push(scalar(name,true));
-    buffers.push(scalar('mask',true));
-    for(const name of ['exportPressure','exportU','exportV','exportW','exportVorticity'])buffers.push(scalar(name,true));
-    for(const name of ['stagingPressure','stagingU','stagingV','stagingW','stagingVorticity'])buffers.push(scalar(name,false));
-    return {resolution:n,cells:C,faces:F,gpuBytes:12*F+76*C,cpuSnapshotBytes:40*C,bufferPlan:buffers,memoryPlan:{gpuBytes:12*F+76*C,cpuSnapshotBytes:40*C,estimated:true,excluded:['geometry','reductions','alignment padding','driver','render memory']}};
-  }
-  function limitsOf(source){const l=source&&source.limits;if(!l||typeof l!=='object')return null;const names=['maxBufferSize','maxStorageBufferBindingSize','maxComputeWorkgroupSizeX','maxComputeWorkgroupSizeY','maxComputeWorkgroupSizeZ','maxComputeInvocationsPerWorkgroup','maxComputeWorkgroupsPerDimension','maxStorageBuffersPerShaderStage'];const out={};for(const k of names){const v=l[k];if(typeof v!=='number'||!Number.isFinite(v)||v<=0||!Number.isInteger(v))return null;out[k]=v}return out}
-  function checkLimits(adapter,device,n){
-    const a=limitsOf(adapter),d=limitsOf(device);if(!a||!d)return result(false,'LIMITS_UNAVAILABLE');const p=plan(n),all=p.bufferPlan,checks=[];
-    for(const b of all){for(const [label,l] of [['adapter',a],['device',d]])if(b.bytes>l.maxBufferSize)checks.push(label+'.maxBufferSize:'+b.name);if(b.storage)for(const [label,l] of [['adapter',a],['device',d]])if(b.bytes>l.maxStorageBufferBindingSize)checks.push(label+'.maxStorageBufferBindingSize:'+b.name)}
-    for(const l of [a,d]){if(l.maxComputeWorkgroupSizeX<WORKGROUP||l.maxComputeWorkgroupSizeY<WORKGROUP||l.maxComputeWorkgroupSizeZ<WORKGROUP||l.maxComputeInvocationsPerWorkgroup<64||l.maxComputeWorkgroupsPerDimension<Math.ceil(n/WORKGROUP)||l.maxStorageBuffersPerShaderStage<8)checks.push('compute-limits')}
-    return checks.length?result(false,'LIMITS_INSUFFICIENT',{details:checks}):result(true,'OK',{plan:p});
-  }
-  function statusText(){return state==='READY'?'CFD: DEVICE_READY_ONLY':state==='UNAVAILABLE'?'CFD: UNAVAILABLE '+(reason||'UNKNOWN'):state==='FAILED'?'CFD: FAILED '+(reason||'UNKNOWN'):'CFD: '+state}
-  function renderState(){s2Refresh();s3Refresh();const el=typeof document!=='undefined'&&document.getElementById('s0Status');if(el)el.textContent=statusText();if(typeof renderDiagnostics==='function'&&diagnostics.bootStage!=='BOOT')renderDiagnostics()}
-  function snapshot(){const p=plan(resolution),tiers=TIERS.map(n=>{const q=plan(n);return {resolution:n,gpuBytes:q.gpuBytes,cpuSnapshotBytes:q.cpuSnapshotBytes,cells:q.cells,faces:q.faces}});return clone({state,reason,resolution,generation,memoryPlan:Object.assign({},p.memoryPlan,{tiers}),bufferPlan:p.bufferPlan,physicsReady:false,runtimeVerified:false,allocatedBytes:0,deviceReady:state==='READY',diagnostic:reason});}
-  function clearDevice(device){if(device&&typeof device.destroy==='function')try{device.destroy()}catch(e){} }
-  function cleanupDevice(){s3Invalidate();if(listener&&ownedDevice?.removeEventListener)try{ownedDevice.removeEventListener('uncapturederror',listener)}catch(e){}listener=null;ownedDevice=null;AETHER.CURRENT_AUTHORITIES.gpuDevice=null}
-  function attach(device,g){ownedDevice=device;listener=e=>{if(g!==generation||device!==ownedDevice)return;reason='UNCAUGHT_GPU_ERROR';state='FAILED';clearDevice(device);cleanupDevice();renderState()};if(device.addEventListener)device.addEventListener('uncapturederror',listener);if(device.lost&&typeof device.lost.then==='function')device.lost.then(info=>{if(g!==generation||device!==ownedDevice)return;reason='DEVICE_LOST';state='FAILED';cleanupDevice();renderState()}).catch(()=>{});AETHER.CURRENT_AUTHORITIES.gpuDevice='AETHER.SOLVER_OWNED_DEVICE'}
-  function initialize(input){const v=validConfig(input);if(!v.ok)return Promise.resolve(v);if(state==='DISPOSED'){state='UNINITIALIZED';reason=null}if(initFlight&&initFlight.resolution===v.resolution)return initFlight.promise;if(state==='READY'&&resolution===v.resolution)return Promise.resolve(result(true,'READY',{snapshot:snapshot()}));resolution=v.resolution;const g=++generation;state='INITIALIZING';reason=null;renderState();let promise;promise=Promise.resolve().then(async()=>{let adapter=null,device=null;try{if(typeof isSecureContext==='undefined'||isSecureContext!==true)throw Object.assign(Error('SECURE_CONTEXT_REQUIRED'),{code:'SECURE_CONTEXT_REQUIRED'});if(typeof navigator==='undefined'||!navigator.gpu||typeof navigator.gpu.requestAdapter!=='function')throw Object.assign(Error('WEBGPU_UNAVAILABLE'),{code:'WEBGPU_UNAVAILABLE'});adapter=await navigator.gpu.requestAdapter().catch(()=>{throw Object.assign(Error('ADAPTER_REQUEST_FAILED'),{code:'ADAPTER_REQUEST_FAILED'})});if(g!==generation) return result(false,'STALE_INITIALIZATION');if(!adapter)throw Object.assign(Error('ADAPTER_UNAVAILABLE'),{code:'ADAPTER_UNAVAILABLE'});device=await adapter.requestDevice().catch(()=>{throw Object.assign(Error('DEVICE_REQUEST_FAILED'),{code:'DEVICE_REQUEST_FAILED'})});if(g!==generation){clearDevice(device);return result(false,'STALE_INITIALIZATION')}if(!device)throw Object.assign(Error('DEVICE_UNAVAILABLE'),{code:'DEVICE_UNAVAILABLE'});const lim=checkLimits(adapter,device,resolution);if(!lim.ok){clearDevice(device);if(g===generation){state='UNAVAILABLE';reason=lim.code;renderState()}return lim}attach(device,g);await Promise.resolve();if(g!==generation)return result(false,'STALE_INITIALIZATION');if(state==='FAILED')return result(false,reason||'DEVICE_LOST',{snapshot:snapshot()});state='READY';reason='DEVICE_READY_ONLY';renderState();return result(true,'READY',{snapshot:snapshot()})}catch(e){if(device&&g!==generation)clearDevice(device);if(g!==generation)return result(false,'STALE_INITIALIZATION');if(device)clearDevice(device);cleanupDevice();reason=e.code||'WEBGPU_UNAVAILABLE';state=['SECURE_CONTEXT_REQUIRED','WEBGPU_UNAVAILABLE','ADAPTER_UNAVAILABLE','DEVICE_UNAVAILABLE','LIMITS_INSUFFICIENT','LIMITS_UNAVAILABLE'].includes(reason)?'UNAVAILABLE':'FAILED';renderState();return result(false,reason,{snapshot:snapshot()})}finally{if(initFlight?.promise===promise)initFlight=null}});initFlight={resolution:v.resolution,promise};return promise}
-  function pause(){return result(false,'NO_COMPUTE_ACTIVE',{snapshot:snapshot()})}
-  function blocked(){return result(false,'COMPUTE_NOT_IMPLEMENTED',{snapshot:snapshot()})}
-  function reset(){if(AETHER.M14?.getSnapshot?.()?.control?.emergencyStopped){setStatus('E-STOP 래치 중 · 기존 진단 결과를 보존합니다');return false;}generation++;if(initFlight)initFlight=null;clearDevice(ownedDevice);cleanupDevice();state='UNINITIALIZED';reason=null;renderState();return result(true,'UNINITIALIZED',{snapshot:snapshot()})}
-  function setNumerics(c){if(!c||typeof c!=='object'||Array.isArray(c))return result(false,'INVALID_CONFIG');const keys=Object.keys(c);if(keys.some(k=>!['resolution','density','viscosity','residualTolerance','maxIterations'].includes(k)))return result(false,'INVALID_CONFIG');if('resolution' in c&&(!Number.isInteger(c.resolution)||c.resolution!==resolution))return result(false,'INITIALIZATION_REQUIRED');if(keys.some(k=>k!=='resolution'))return result(false,'COMPUTE_NOT_IMPLEMENTED');return result(true,'OK',{snapshot:snapshot()})}
-  function setBoundaryConditions(){return result(false,'COMPUTE_NOT_IMPLEMENTED',{snapshot:snapshot()})}
-  function dispose(){if(state==='DISPOSED')return result(true,'DISPOSED',{snapshot:snapshot()});generation++;if(initFlight)initFlight=null;clearDevice(ownedDevice);cleanupDevice();state='DISPOSED';reason='DISPOSED';renderState();return result(true,'DISPOSED',{snapshot:snapshot()})}
-
-/* BEGIN S1 API — embedded inside the S0 device-owner closure. */
-let s1Busy=false,s1Last=null,s1Peak=0,s1Active=null;
-function s1Snapshot(){
- const valid=s1Last?.generation===generation&&state==='READY';
- return JSON.parse(JSON.stringify({stage:'S1',implementationReady:true,physicsReady:false,verificationScope:'SMALL_EMPTY_DOMAIN_ONLY',runtimeVerified:!!(valid&&s1Last.ok),status:s1Busy?'BUSY':state!=='READY'?'DEVICE_NOT_READY':valid?s1Last.code:'NOT_VERIFIED',lastReport:valid?s1Last:null,allocatedBytes:s1Active?s1Active.getStats().allocatedBytes:s1Busy?null:0,allocatedPeakBytes:s1Peak}));
-}
-function s1Refresh(){
- const text=document.getElementById('s1Status'),button=document.getElementById('s1Verify');
- if(text)text.textContent='S1: '+s1Snapshot().status+' · numerical test only';
- if(button)button.disabled=s1Busy;
-}
-async function s1Verify(){
- if(s1Busy||(typeof s2Busy!=='undefined'&&s2Busy))return {ok:false,code:'BUSY'};
- if(state!=='READY'||!ownedDevice){s1Refresh();return {ok:false,code:'DEVICE_NOT_READY'};}
- const g=generation,device=ownedDevice,isCurrent=()=>g===generation&&device===ownedDevice&&state==='READY';
- s1Busy=true;s1Refresh();let workspace=null,report;
- try{
-  const bounds=AETHER.CFD_DOMAIN.bounds;
-  const L=S1_REFERENCE.layout({nx:8,ny:6,nz:4,min:Array.from(bounds.min),max:Array.from(bounds.max)});
-  workspace=await S1_GPU.create(device,L,{isCurrent});s1Active=workspace;
-  if(!isCurrent())throw Error('STALE');
-  s1Peak=workspace.getStats().allocatedPeakBytes;
-  const p=Float64Array.from({length:L.counts.p},(_,t)=>{const [i,j,k]=L.coords('p',t);return .1*Math.cos((i+.5)*Math.PI/(2*L.nx))+.01*Math.cos(j*.7)*Math.sin(k*.8);});
-  const rhs=S1_REFERENCE.applyA(L,p),V=S1_REFERENCE.gradient(L,p),options={rho:1,dt:1,tolerance:1e-6};
-  const solved=await workspace.solve(rhs,options);
-  if(!isCurrent())throw Error('STALE');if(!solved.ok)throw Error(solved.code);
-  let error=0,norm=0;for(let i=0;i<p.length;i++){error+=(solved.pressure[i]-p[i])**2;norm+=p[i]**2;}
-  const pressureRelativeError=Math.sqrt(error/norm),projection=await workspace.project(V,options);
-  if(!isCurrent())throw Error('STALE');if(!projection.ok)throw Error(projection.code);
-  const metrics=S1_REFERENCE.metrics(L,projection.velocity);
-  const ok=pressureRelativeError<=1e-3&&solved.residualRms<=solved.thresholdRms&&metrics.divergenceRms*4.7<=1e-4&&metrics.divergenceMax*4.7<=1e-2&&Math.abs(metrics.netFlux)<=1e-6;
-  report={ok,code:ok?'PASS':'NUMERICAL_GATE_FAILED',generation:g,backend:'WEBGPU',scope:'EMPTY_DOMAIN_MANUFACTURED_TEST',grid:[8,6,4],pressureRelativeError,residualRms:solved.residualRms,thresholdRms:solved.thresholdRms,iterations:solved.iterations,projection:metrics,allocatedPeakBytes:s1Peak,physicsReady:false};
- }catch(e){report={ok:false,code:isCurrent()?'VERIFY_FAILED':'STALE',message:e.message,generation:g,physicsReady:false};}
- finally{if(workspace){workspace.dispose();if(report)report.allocatedBytesAfter=workspace.getStats().allocatedBytes;}s1Active=null;s1Busy=false;}
- if(isCurrent())s1Last=report;
- s1Refresh();return report;
-}
-AETHER.S1=Object.freeze({verify:s1Verify,getSnapshot:s1Snapshot});
-document.getElementById('s1Verify')?.addEventListener('click',event=>{event.stopPropagation();void s1Verify();});
-/* END S1 API */
-/* BEGIN S2 immutable CFD-only proxy asset. Render mesh remains unchanged. */
-const S2_CFD_PROXY_ASSET=Object.freeze({format:'BMW_PROXY_NOT_BUILT',sourceGeometryFingerprint:'INVALIDATED_ON_BMW_REPLACEMENT',sourceTriangles:-1,surface:Object.freeze({})});
-window.__AETHER_S2_PROXY=S2_CFD_PROXY_ASSET;
-/* S2 mesh audits (were referenced but missing in the source build). Vertices are welded by position (1e-6 m). */
-function s2WeldedTriangles(part){const P=part.positions,I=part.indices,key=new Map(),id=new Int32Array(P.length/3);
- for(let v=0;v<id.length;v++){const k=Math.round(P[v*3]*1e6)+','+Math.round(P[v*3+1]*1e6)+','+Math.round(P[v*3+2]*1e6);let q=key.get(k);if(q===undefined){q=key.size;key.set(k,q)}id[v]=q}
- const T=new Int32Array(I.length);for(let i=0;i<I.length;i++)T[i]=id[I[i]];return {T,vertices:key.size}}
-function S2_TOPOLOGY(parts){return {parts:parts.map(part=>{const {T,vertices}=s2WeldedTriangles(part),E=new Map();let degenerate=0;
-  for(let t=0;t<T.length;t+=3){const a=T[t],b=T[t+1],c=T[t+2];if(a===b||b===c||a===c){degenerate++;continue}for(const [u,v] of [[a,b],[b,c],[c,a]]){const k=u<v?u+'_'+v:v+'_'+u,e=E.get(k)||{n:0,fwd:0};e.n++;if(u<v)e.fwd++;E.set(k,e)}}
-  let boundaryEdges=0,nonManifoldEdges=0,orientationErrors=0;for(const e of E.values()){if(e.n===1)boundaryEdges++;else if(e.n>2)nonManifoldEdges++;else if(e.fwd!==1)orientationErrors++}
-  return {name:part.name,triangles:T.length/3,vertices,edges:E.size,degenerate,boundaryEdges,nonManifoldEdges,orientationErrors,closed:boundaryEdges===0&&nonManifoldEdges===0}})}}
-function S2_BOUNDARY_COMPONENTS(parts){return parts.map(part=>{const {T}=s2WeldedTriangles(part),n=T.length/3,par=new Int32Array(n).map((_,i)=>i),find=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x},E=new Map();
-  for(let t=0;t<n;t++)for(let j=0;j<3;j++){const u=T[t*3+j],v=T[t*3+(j+1)%3],k=u<v?u+'_'+v:v+'_'+u,o=E.get(k);if(o===undefined)E.set(k,t);else{const a=find(o),b=find(t);if(a!==b)par[a]=b}}
-  const roots=new Set();for(let t=0;t<n;t++)roots.add(find(t));return {name:part.name,components:roots.size,triangles:n}})}
-const S2_PROXY_VOXEL=(()=>{
- const decoded=new WeakMap();
- function bytesFor(asset){
-  if(!asset||asset.format!=='AETHER_S2_VOXEL_PROXY_V1')throw Error('PROXY_FORMAT_MISMATCH');
-  let bytes=decoded.get(asset);
-  if(!bytes){
-   if(asset.bytes&&ArrayBuffer.isView(asset.bytes))bytes=new Uint8Array(asset.bytes.buffer,asset.bytes.byteOffset,asset.bytes.byteLength);
-   else if(typeof asset.base64==='string'){
-    if(typeof atob!=='function')throw Error('BASE64_UNAVAILABLE');
-    const raw=atob(asset.base64);bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-   }else throw Error('PROXY_BYTES_MISSING');
-   if(bytes.length!==asset.byteLength)throw Error('PROXY_BYTE_LENGTH_MISMATCH');
-   let hash=0x811c9dc5;for(let i=0;i<bytes.length;i++)hash=Math.imul(hash^bytes[i],0x01000193)>>>0;
-   if(hash.toString(16).padStart(8,'0')!==asset.checksumFNV1a32)throw Error('PROXY_CHECKSUM_MISMATCH');
-   decoded.set(asset,bytes);
-  }
-  return bytes;
- }
- function voxelize(asset,n,bounds,transform){
-  if(!Number.isInteger(n)||n<8||n>128)throw Error('INVALID_INPUT');
-  if(!bounds||!Array.isArray(bounds.min)||!Array.isArray(bounds.max)||bounds.min.length!==3||bounds.max.length!==3||![...bounds.min,...bounds.max].every(Number.isFinite)||bounds.min.some((v,a)=>v>=bounds.max[a]))throw Error('INVALID_DOMAIN');
-  if(!transform||typeof transform.worldToLocal!=='function')throw Error('INVALID_TRANSFORM_AUTHORITY');
-  const {origin,spacing,dimensions}=asset;
-  if(!Array.isArray(origin)||!Array.isArray(spacing)||!Array.isArray(dimensions)||origin.length!==3||spacing.length!==3||dimensions.length!==3||![...origin,...spacing].every(Number.isFinite)||!dimensions.every(x=>Number.isInteger(x)&&x>0))throw Error('INVALID_PROXY_METADATA');
-  const bytes=bytesFor(asset),[nx,ny,nz]=dimensions;
-  if(bytes.length!==nx*ny*nz||asset.sourceGridResolution!==384||asset.solidCells!==487067)throw Error('PROXY_GEOMETRY_CONTRACT_MISMATCH');
-  const pos=transform.position,rot=transform.rotation,scale=transform.scale;
-  const identity=Array.isArray(pos)&&Array.isArray(rot)&&Array.isArray(scale)&&pos.every(x=>Math.abs(x)<1e-12)&&rot.every(x=>Math.abs(x)<1e-12)&&scale.every(x=>Math.abs(x-1)<1e-12);
-  const h=bounds.max.map((v,a)=>(v-bounds.min[a])/n),total=n*n*n,classification=new Uint8Array(total),solid=new Uint32Array(total),idx=(x,y,z)=>x+n*(y+n*z);let offsets=[1/6,.5,5/6];
-  if(identity&&asset.sourceGridResolution%n===0){const ratio=asset.sourceGridResolution/n;offsets=[0,1,2].map(k=>(Math.floor((k+.5)*ratio/3)+.5)/ratio);}
-  let solidCells=0,outsideSamples=0;
-  for(let z=0;z<n;z++)for(let y=0;y<n;y++)for(let x=0;x<n;x++){
-   let occupied=0;
-   for(const oz of offsets)for(const oy of offsets)for(const ox of offsets){
-    const wx=bounds.min[0]+(x+ox)*h[0],wy=bounds.min[1]+(y+oy)*h[1],wz=bounds.min[2]+(z+oz)*h[2],p=identity?null:transform.worldToLocal([wx,wy,wz]);
-    const i=Math.floor(((p?p[0]:wx)-origin[0])/spacing[0]),j=Math.floor(((p?p[1]:wy)-origin[1])/spacing[1]),k=Math.floor(((p?p[2]:wz)-origin[2])/spacing[2]);
-    if(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz){outsideSamples++;continue;}
-    occupied+=bytes[i+nx*(j+ny*k)];
-   }
-   const id=idx(x,y,z),isSolid=occupied>=15;classification[id]=isSolid?1:2;solid[id]=isSolid?1:0;if(isSolid)solidCells++;
-  }
-  const cellVolume=h[0]*h[1]*h[2];
-  return{solid,classification,report:{resolution:n,bounds:{min:bounds.min.slice(),max:bounds.max.slice()},spacing:h,triangles:asset.sourceTriangles,solidVoxels:solidCells,fluidVoxels:total-solidCells,solidVolume:solidCells*cellVolume,sealingApplied:false,proxyApplied:true,physicsReady:false,proxy:{format:asset.format,sourceGridResolution:asset.sourceGridResolution,assetSha256:asset.sha256,checksumFNV1a32:asset.checksumFNV1a32,sourceHtmlSha256:asset.sourceHtmlSha256,assetDimensions:dimensions.slice(),assetSpacing:spacing.slice(),assetOrigin:origin.slice(),closedManifold:asset.surface.closedManifold,boundaryEdges:asset.surface.boundaryEdges,nonManifoldEdges:asset.surface.nonManifoldEdges,sourceToProxyP95m:asset.surface.sourceToProxyP95m,proxyToSourceP95m:asset.surface.proxyToSourceP95m,resampling:'3x3x3 cell samples; >=15/27 solid',worldToLocal:identity?'identity fast path':'VehicleTransform.worldToLocal'},solidCells,fluidCells:total-solidCells,assetBytes:bytes.length}};
- }
- return voxelize;
-})();
-/* END S2 immutable CFD-only proxy asset. */
-/* BEGIN S2 API — diagnostic only; no transient production field is published. */
-let s2Busy=false,s2Epoch=0,s2Last=null,s2Active=null;
-const S2_SELF_INTERSECTION_AUDIT=Object.freeze({status:'NOT_REASSESSED_BMW',selfIntersectionFree:false,closed:false,physicsReady:false,parts:[]});
-const S2_SELF_INTERSECTION_FINGERPRINT=S2_CFD_PROXY_ASSET.sourceGeometryFingerprint;
-const s2GeometryFingerprint=parts=>{let h=2166136261;const feed=value=>{const s=String(value);for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}h^=255;h=Math.imul(h,16777619);};for(const part of parts){feed(part.name);feed(part.positions.length);for(const v of part.positions)feed(v);feed(part.indices.length);for(const i of part.indices)feed(i);}return 'fnv1a32:'+(h>>>0).toString(16).padStart(8,'0');};
-const s2SceneStamp=()=>JSON.stringify({runtime:runtimeGeneration,bounds:AETHER.CFD_DOMAIN.bounds,matrices:AETHER.CFD_BRIDGE.getSolidParts().map(p=>Array.from(p.modelMatrix))});
-function s2DomainAudit(parts,bounds){
- const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity],min=bounds.min,max=bounds.max;let outsideVertices=0,vertices=0;
- for(const part of parts){const p=part.positions,M=part.modelMatrix;if(!p||p.length%3||!M||M.length!==16)throw Error('INVALID_GEOMETRY');for(let i=0;i<p.length;i+=3){const q=[M[0]*p[i]+M[4]*p[i+1]+M[8]*p[i+2]+M[12],M[1]*p[i]+M[5]*p[i+1]+M[9]*p[i+2]+M[13],M[2]*p[i]+M[6]*p[i+1]+M[10]*p[i+2]+M[14]];if(!q.every(Number.isFinite))throw Error('NONFINITE_GEOMETRY');vertices++;for(let a=0;a<3;a++){lo[a]=Math.min(lo[a],q[a]);hi[a]=Math.max(hi[a],q[a]);if(q[a]<min[a]-1e-6||q[a]>max[a]+1e-6)outsideVertices++;}}}
- return{withinDomain:outsideVertices===0,outsideVertices,vertices,bounds:{min:lo,max:hi},domain:{min:min.slice(),max:max.slice()},toleranceMetres:1e-6};
-}
-function s2Snapshot(){
- const valid=s2Last&&s2Last.epoch===s2Epoch&&s2Last.generation===generation&&s2Last.sceneStamp===s2SceneStamp()&&(!s2Last.numerics||state==='READY');
- return JSON.parse(JSON.stringify({stage:'S2',stagePassed:!!(valid&&s2Last.stagePassed),physicsReady:false,geometryApproved:!!(valid&&s2Last.geometryApproved),status:s2Busy?'BUSY':valid?s2Last.code:'NOT_VERIFIED',numericalPassed:!!(valid&&s2Last.numericalPassed),lastReport:valid?s2Last:null,allocatedBytes:s2Active?s2Active.getStats().allocatedBytes:0}));
-}
-function s2Refresh(){const snap=s2Snapshot(),el=document.getElementById('s2Status');if(el)el.textContent='S2: '+snap.status+' · '+(snap.geometryApproved?'CFD proxy admitted':'geometry not admitted')+' · transient CFD unavailable';const report=document.getElementById('s2Report');if(report)report.textContent=snap.lastReport?JSON.stringify(snap.lastReport,null,2):'S2 검사 결과가 없습니다.';for(const id of ['s2Inspect','s2Verify']){const button=document.getElementById(id);if(button)button.disabled=s2Busy;}}
-function s2Invalidate(){s2Epoch++;s2Last=null;if(s2Active)s2Active.dispose();s2Refresh();}
-async function s2Run(numerical){
- if(s2Busy||s1Busy)return{ok:false,code:'BUSY'};
- if(diagnostics.bootStage!=='READY')return{ok:false,code:'SCENE_NOT_READY'};
- if(numerical&&(state!=='READY'||!ownedDevice))return{ok:false,code:'DEVICE_NOT_READY'};
- const epoch=s2Epoch,g=generation,sceneStamp=s2SceneStamp(),device=ownedDevice;
- const isCurrent=()=>epoch===s2Epoch&&g===generation&&sceneStamp===s2SceneStamp()&&(!numerical||(state==='READY'&&device===ownedDevice));
- s2Busy=true;s2Refresh();let report,workspace;
- try{
-  await new Promise(resolve=>setTimeout(resolve,0));if(!isCurrent())throw Error('STALE');
-  const bounds=AETHER.CFD_DOMAIN.bounds,parts=AETHER.CFD_BRIDGE.getSolidParts(),mesh=S2_TOPOLOGY(parts);mesh.boundaryComponentAudit=S2_BOUNDARY_COMPONENTS(parts);
-  const sourceGeometryFingerprint=s2GeometryFingerprint(parts);if(sourceGeometryFingerprint!==S2_CFD_PROXY_ASSET.sourceGeometryFingerprint)throw Error('PROXY_SOURCE_MISMATCH');
-  const domainAudit=s2DomainAudit(parts,bounds);if(!domainAudit.withinDomain)throw Error('GEOMETRY_OUTSIDE_DOMAIN');
-  const sourceTriangles=parts.reduce((n,p)=>n+p.indices.length/3,0);if(sourceTriangles!==S2_CFD_PROXY_ASSET.sourceTriangles)throw Error('PROXY_TRIANGLE_COUNT_MISMATCH');
-  const voxel=S2_PROXY_VOXEL(S2_CFD_PROXY_ASSET,64,{min:Array.from(bounds.min),max:Array.from(bounds.max)},AETHER.VEHICLE_TRANSFORM);
-  const R=S2_REFERENCE.create(S1_REFERENCE.layout({nx:64,ny:64,nz:64,min:Array.from(bounds.min),max:Array.from(bounds.max)}),voxel.solid);
-  const intersectionAuditMatches=sourceGeometryFingerprint===S2_SELF_INTERSECTION_FINGERPRINT;
-  mesh.intersectionCheck=intersectionAuditMatches?'PRECOMPUTED_SOURCE_ASSET_AUDIT':'SOURCE_MISMATCH';
-  const proxyAudit=voxel.report.proxy,geometryApproved=intersectionAuditMatches&&domainAudit.withinDomain&&proxyAudit.closedManifold===true&&proxyAudit.boundaryEdges===0&&proxyAudit.nonManifoldEdges===0&&voxel.report.solidCells>0&&R.fluidCount===voxel.report.fluidCells;
-  if(!geometryApproved)throw Error('PROXY_ADMISSION_FAILED');
-  report={ok:true,code:'MASK_READY_PROXY_ADMITTED',stagePassed:false,numericalPassed:false,epoch,generation:g,sceneStamp,geometryApproved:true,physicsReady:false,proxy:{sourceGeometryFingerprint,sourceTriangles,sourceDomain:domainAudit,sourceRenderMeshAdmitted:false,sourceRenderMeshTopology:mesh.parts.map(p=>({name:p.name,closed:p.closed,boundaryEdges:p.boundaryEdges,nonManifoldEdges:p.nonManifoldEdges,orientationErrors:p.orientationErrors})),offlineSurfaceAudit:{closedManifold:proxyAudit.closedManifold,boundaryEdges:proxyAudit.boundaryEdges,nonManifoldEdges:proxyAudit.nonManifoldEdges,sourceToProxyP95m:proxyAudit.sourceToProxyP95m,sourceToProxyMaxm:S2_CFD_PROXY_ASSET.surface.sourceToProxyMaxm,proxyToSourceP95m:proxyAudit.proxyToSourceP95m,proxyToSourceMaxm:S2_CFD_PROXY_ASSET.surface.proxyToSourceMaxm},gridConvergenceEvidence:{policy:'same 3x3x3 sample points per active cell; >=15/27 solid; fluid six-connectivity to outlet required',solidVolume64m3:6.571197509765625,solidVolume96m3:6.68701171875,solidVolume128m3:6.785327911376953,relativeVolumeDelta64to128:0.031557856069460676,trappedFluidCellsAt64:0,trappedFluidCellsAt96:0,trappedFluidCellsAt128:0},activeMaskResolution:64},mask:voxel.report,mesh,selfIntersectionAudit:intersectionAuditMatches?{...S2_SELF_INTERSECTION_AUDIT,sourceFingerprint:S2_SELF_INTERSECTION_FINGERPRINT}:{status:'SOURCE_MISMATCH',selfIntersectionFree:false,closed:false,physicsReady:false},fluidCells:R.fluidCount,trappedFluidCells:0,limitations:['The render mesh remains open and has unresolved self-intersection review flags; it is not admitted as the CFD boundary.','The separately hashed 384^3 occupancy asset is an approximation derived from the render source; measured surface deviation and grid sensitivity are retained in this report.','The active 64^3 staircase mask uses 3x3x3 subcell samples with a >=15/27 solid rule; 64^3-to-128^3 solid-volume delta is about 3.16%.','Only normal-flux pressure projection is tested; tangential no-slip and moving-ground evolution are not implemented.','No transient time integration or scientific frame publication is implemented.']};
-  if(numerical){
-   workspace=await S1_GPU.create(device,S1_REFERENCE.layout({nx:64,ny:64,nz:64,min:Array.from(bounds.min),max:Array.from(bounds.max)}),{solid:voxel.solid,isCurrent,preconditioner:'jacobi4'});s2Active=workspace;if(!isCurrent())throw Error('STALE');
-   const V={u:new Float32Array(workspace.layout?.counts?.u||65*64*64).fill(1),v:new Float32Array(64*65*64),w:new Float32Array(64*64*65)};
-   const result=await workspace.project(V,{rho:1.225,dt:1/120,tolerance:1e-4,inletSpeed:1});if(!isCurrent())throw Error('STALE');
-   const{pressure,velocity,...detail}=result;report.numerics=detail;
-   if(result.ok){const m=R.metrics(velocity);report.metrics=m;report.numericalPassed=m.divergenceRms*4.7<=1e-4&&m.divergenceMax*4.7<=1e-2&&m.relativeFluxError<=1e-3&&m.blockedNormalMax<=1e-6;}
-   report.stagePassed=report.geometryApproved&&report.numericalPassed&&report.trappedFluidCells===0;report.ok=report.stagePassed;report.code=report.stagePassed?'S2_PROXY_NUMERICAL_PASS':result.ok?'NUMERICAL_GATE_FAILED':result.code;
-  }
- }catch(e){report={ok:false,code:isCurrent()?e.message:'STALE',epoch,generation:g,sceneStamp,geometryApproved:false,physicsReady:false,numericalPassed:false,stagePassed:false};}
- finally{if(workspace){workspace.dispose();if(report)report.allocatedBytesAfter=workspace.getStats().allocatedBytes;}s2Active=null;s2Busy=false;}
- if(isCurrent())s2Last=report;s2Refresh();return report;
-}
-AETHER.S2=Object.freeze({inspect:()=>s2Run(false),verify:()=>s2Run(true),getSnapshot:s2Snapshot,invalidate:s2Invalidate});
-for(const[id,fn]of[['s2Inspect',()=>s2Run(false)],['s2Verify',()=>s2Run(true)]])document.getElementById(id)?.addEventListener('click',event=>{event.stopPropagation();void fn();});
-/* END S2 API */
-/* S3 384^3 backend foundation: tiled dispatch and explicit GPU-resident state. */
-const S3_TARGET_N=384;
-const S3_TARGET_CELLS=S3_TARGET_N**3;
-const S3_TARGET_FACE_AXIS=S3_TARGET_N*S3_TARGET_N*(S3_TARGET_N+1);
-const S3_TARGET_FACES=3*S3_TARGET_FACE_AXIS;
-const S3_TARGET_MAX_FLOAT_BUFFER=S3_TARGET_FACE_AXIS*4;
-const S3_TARGET_PLAN=Object.freeze({
- resolution:[S3_TARGET_N,S3_TARGET_N,S3_TARGET_N],
- cells:S3_TARGET_CELLS,
- faces:S3_TARGET_FACES,
- faceElementsPerAxis:S3_TARGET_FACE_AXIS,
- spacingMeters:[18/S3_TARGET_N,5.5/S3_TARGET_N,8/S3_TARGET_N],
- estimatedGpuBytes:12*S3_TARGET_FACES+76*S3_TARGET_CELLS,
- estimatedCpuSnapshotBytes:40*S3_TARGET_CELLS,
- largestFloat32BufferBytes:S3_TARGET_MAX_FLOAT_BUFFER,
- workgroupSize:64,
- currentOneDimensionalWorkgroups:Math.ceil(S3_TARGET_FACE_AXIS/64),
- oneDimensionalDispatchLimit:65535,
- geometryApproved:false,
- physicsReady:false,
- solverBackendReady:false,
- kernelSourcesImplemented:true,
- kernelCompilationVerified:false
-});
-
-/* Flattened 1D work is mapped to a legal 1D/2D/3D dispatch rectangle. */
-function s3PlanTiledDispatch(elementCount,workgroupSize,maxGroupsPerDimension){
- if(!Number.isSafeInteger(elementCount)||elementCount<0)return {ok:false,code:'INVALID_ELEMENT_COUNT'};
- if(!Number.isSafeInteger(workgroupSize)||workgroupSize<1)return {ok:false,code:'INVALID_WORKGROUP_SIZE'};
- if(!Number.isSafeInteger(maxGroupsPerDimension)||maxGroupsPerDimension<1)return {ok:false,code:'INVALID_DISPATCH_LIMIT'};
- const requiredWorkgroups=Math.ceil(elementCount/workgroupSize);
- if(requiredWorkgroups===0)return {ok:true,code:'EMPTY_DISPATCH',elementCount,workgroupSize,requiredWorkgroups,dispatch:[0,0,0],dispatchedWorkgroups:0,overdispatchWorkgroups:0,mode:'EMPTY'};
- if(requiredWorkgroups>0xffffffff)return {ok:false,code:'LINEAR_GROUP_INDEX_OVERFLOW',elementCount,workgroupSize,requiredWorkgroups};
- const limit=maxGroupsPerDimension;
- let x,y,z,mode;
- if(requiredWorkgroups<=limit){x=requiredWorkgroups;y=1;z=1;mode='1D';}
- else if(requiredWorkgroups<=limit*limit){x=Math.min(limit,Math.ceil(Math.sqrt(requiredWorkgroups)));y=Math.ceil(requiredWorkgroups/x);z=1;mode='2D';}
- else if(requiredWorkgroups<=limit*limit*limit){x=Math.min(limit,Math.ceil(Math.cbrt(requiredWorkgroups)));y=Math.min(limit,Math.ceil(Math.sqrt(requiredWorkgroups/x)));z=Math.ceil(requiredWorkgroups/(x*y));mode='3D';}
- else return {ok:false,code:'DISPATCH_VOLUME_EXCEEDS_DEVICE_LIMIT',elementCount,workgroupSize,requiredWorkgroups,limit};
- const dispatchedWorkgroups=x*y*z;
- if(![x,y,z].every(v=>Number.isSafeInteger(v)&&v>=1&&v<=limit)||dispatchedWorkgroups<requiredWorkgroups||dispatchedWorkgroups>0xffffffff)
-  return {ok:false,code:'DISPATCH_PLAN_INVALID',elementCount,workgroupSize,requiredWorkgroups,limit,dispatch:[x,y,z],dispatchedWorkgroups};
- return {ok:true,code:'TILED_DISPATCH_READY',elementCount,workgroupSize,requiredWorkgroups,dispatch:[x,y,z],dispatchedWorkgroups,overdispatchWorkgroups:dispatchedWorkgroups-requiredWorkgroups,mode,limit,
-  indexFormula:'wg.x + wg.y * dispatch.x + wg.z * dispatch.x * dispatch.y',requiresElementBoundsGuard:true};
-}
-
-function s3LinearWorkgroupIndex(x,y,z,dispatch){
- if(!Array.isArray(dispatch)||dispatch.length!==3||![x,y,z,...dispatch].every(Number.isSafeInteger))throw new TypeError('INVALID_WORKGROUP_COORDINATE');
- const [dx,dy,dz]=dispatch;if(x<0||y<0||z<0||x>=dx||y>=dy||z>=dz)throw new RangeError('WORKGROUP_OUT_OF_RANGE');
- const index=x+y*dx+z*dx*dy;if(index>0xffffffff)throw new RangeError('LINEAR_GROUP_INDEX_OVERFLOW');return index;
-}
-
-function s3Build384ResourcePlan(n=384){
- if(!Number.isSafeInteger(n)||n<2)throw new RangeError('INVALID_GRID_RESOLUTION');
- const cells=n*n*n,face=(n+1)*n*n,bytesPerFloat=4;
- const specs=[];
- const add=(name,elements,kind='storage-f32')=>specs.push({name,elements,bytes:elements*bytesPerFloat,kind});
- for(const bank of ['accepted','advected','candidate'])for(const axis of ['u','v','w'])add(`mac.${bank}.${axis}`,face);
- for(const name of ['pressure.accepted','pressure.working','rhs','residual','preconditionedResidual','searchDirection','operatorDirection','diagonal'])add(`scalar.${name}`,cells);
- add('geometry.solidMask',cells,'storage-u32');
- for(const name of ['pressure','velocityX','velocityY','velocityZ','vorticityMagnitude'])add(`export.${name}`,cells);
- for(const name of ['pressure','velocityX','velocityY','velocityZ','vorticityMagnitude'])add(`staging.${name}`,cells,'staging-f32');
- const gpuBytes=specs.reduce((sum,r)=>sum+r.bytes,0);
- const snapshotFields=5,snapshotSlots=2,cpuSnapshotBytes=snapshotFields*cells*bytesPerFloat*snapshotSlots;
- return Object.freeze({resolution:[n,n,n],cells,faceElementsPerAxis:face,faces:3*face,bufferCount:specs.length,
-  largestBufferBytes:Math.max(...specs.map(r=>r.bytes)),estimatedGpuBytes:gpuBytes,estimatedCpuSnapshotBytes:cpuSnapshotBytes,
-  estimatedGpuGiB:+(gpuBytes/1024**3).toFixed(6),estimatedCpuSnapshotGiB:+(cpuSnapshotBytes/1024**3).toFixed(6),buffers:Object.freeze(specs.map(Object.freeze)),
-  allocationPolicy:'EXPLICIT_ONLY',stepReadback:'NONE',cpuSnapshotSlots:snapshotSlots,geometryApproved:false,physicsReady:false,solverBackendReady:false});
-}
-
-function s3Validate384DeviceLimits(limits,resourcePlan=s3Build384ResourcePlan(384)){
- if(!limits)return {ok:false,code:'ADAPTER_LIMITS_UNAVAILABLE'};
- const need=['maxBufferSize','maxStorageBufferBindingSize','maxComputeWorkgroupsPerDimension','maxComputeWorkgroupSizeX','maxComputeInvocationsPerWorkgroup','maxStorageBuffersPerShaderStage'];
- if(need.some(k=>!Number.isSafeInteger(limits[k])||limits[k]<1))return {ok:false,code:'ADAPTER_LIMITS_UNAVAILABLE'};
- if(limits.maxBufferSize<resourcePlan.largestBufferBytes)return {ok:false,code:'384_MAX_BUFFER_TOO_SMALL',required:resourcePlan.largestBufferBytes,available:limits.maxBufferSize};
- if(limits.maxStorageBufferBindingSize<resourcePlan.largestBufferBytes)return {ok:false,code:'384_STORAGE_BINDING_TOO_SMALL',required:resourcePlan.largestBufferBytes,available:limits.maxStorageBufferBindingSize};
- if(limits.maxComputeWorkgroupSizeX<64||limits.maxComputeInvocationsPerWorkgroup<64)return {ok:false,code:'384_WORKGROUP_SIZE_TOO_SMALL'};
- if(limits.maxStorageBuffersPerShaderStage<8)return {ok:false,code:'384_STORAGE_BINDING_COUNT_TOO_SMALL',required:8,available:limits.maxStorageBuffersPerShaderStage};
- const dispatch=s3PlanTiledDispatch(resourcePlan.faceElementsPerAxis,64,limits.maxComputeWorkgroupsPerDimension);
- if(!dispatch.ok)return {ok:false,code:'384_DISPATCH_LIMIT_TOO_SMALL',dispatch};
- return {ok:true,code:'384_DEVICE_LIMITS_COMPATIBLE',dispatch,resourcePlan:{bufferCount:resourcePlan.bufferCount,estimatedGpuBytes:resourcePlan.estimatedGpuBytes,estimatedCpuSnapshotBytes:resourcePlan.estimatedCpuSnapshotBytes,largestBufferBytes:resourcePlan.largestBufferBytes},allocationStarted:false,solverStarted:false};
-}
-
-/* Allocation is deliberately separate from preflight; never call it on page boot. */
-async function s3AllocateGpuResidentState(device,gridN,usage){
- if(!device||typeof device.createBuffer!=='function'||!usage||!Number.isSafeInteger(usage.STORAGE)||!Number.isSafeInteger(usage.COPY_DST)||!Number.isSafeInteger(usage.COPY_SRC)||!Number.isSafeInteger(usage.MAP_READ))throw new TypeError('GPU_DEVICE_OR_USAGE_UNAVAILABLE');
- const plan=s3Build384ResourcePlan(gridN),limits=device.limits||{};
- if(!Number.isSafeInteger(limits.maxBufferSize)||limits.maxBufferSize<plan.largestBufferBytes)throw new Error('384_MAX_BUFFER_TOO_SMALL');
- if(!Number.isSafeInteger(limits.maxStorageBufferBindingSize)||limits.maxStorageBufferBindingSize<plan.largestBufferBytes)throw new Error('384_STORAGE_BINDING_TOO_SMALL');
- const created=Object.create(null),allocated=[];let oomScopePushed=false,validationScopePushed=false,validationScopePopped=false,oomScopePopped=false;
- try{
-  if(typeof device.pushErrorScope==='function'){device.pushErrorScope('out-of-memory');oomScopePushed=true;device.pushErrorScope('validation');validationScopePushed=true;}
-  for(const spec of plan.buffers){
-   const staging=spec.kind==='staging-f32',flags=staging?(usage.MAP_READ|usage.COPY_DST):(usage.STORAGE|usage.COPY_DST|usage.COPY_SRC);
-   const buffer=device.createBuffer({label:`AETHER S3 ${spec.name}`,size:spec.bytes,usage:flags});
-   if(!buffer||typeof buffer.destroy!=='function')throw new Error('GPU_BUFFER_ALLOCATION_FAILED:'+spec.name);
-   created[spec.name]=buffer;allocated.push(buffer);
-  }
-  if(validationScopePushed&&typeof device.popErrorScope==='function'){const error=await device.popErrorScope();validationScopePopped=true;if(error)throw new Error(`GPU_BUFFER_VALIDATION:${error.message||error}`);}
-  if(oomScopePushed&&typeof device.popErrorScope==='function'){const error=await device.popErrorScope();oomScopePopped=true;if(error)throw new Error(`GPU_BUFFER_OUT_OF_MEMORY:${error.message||error}`);}
-  let disposed=false;
-  return Object.freeze({plan,buffers:Object.freeze(created),get disposed(){return disposed;},dispose(){if(disposed)return;disposed=true;for(const b of allocated)b.destroy();}});
- }catch(error){for(const b of allocated)try{b.destroy()}catch{};if(typeof device.popErrorScope==='function'){if(validationScopePushed&&!validationScopePopped)try{await device.popErrorScope()}catch{};if(oomScopePushed&&!oomScopePopped)try{await device.popErrorScope()}catch{}}throw error;}
-}
-
-/* Compile every generated 384^3 solver shader through the current browser's real WebGPU device.
- * Compilation creates shader modules/pipelines only: it allocates no CFD buffers and submits no work. */
-let s3CompileBusy=false,s3CompileReport=null;
-function s3GetShaderCompileReport(){return s3CompileReport;}
-async function s3Compile384Shaders(){
- if(s3CompileBusy)return s3CompileReport||{ok:false,code:'384_WGSL_COMPILE_BUSY'};
- if(s3PreflightBusy)return {ok:false,code:'384_PREFLIGHT_BUSY'};
- s3CompileBusy=true;
- const started=performance.now();let device=null;
- const finish=report=>{s3CompileReport=report;s3CompileBusy=false;s3Refresh();return report;};
- s3CompileReport={ok:false,code:'384_WGSL_COMPILING',targetGrid:S3_TARGET_PLAN.resolution.slice(),completedKernels:0,totalKernels:null,pipelinesCompiled:0,failures:[],warnings:[],allocationStarted:false,solverStarted:false};
- s3Refresh();await new Promise(resolve=>setTimeout(resolve,0));
- try{
-  if(typeof isSecureContext==='undefined'||isSecureContext!==true)return finish({ok:false,code:'SECURE_CONTEXT_REQUIRED',targetGrid:S3_TARGET_PLAN.resolution.slice(),allocationStarted:false,solverStarted:false});
-  if(typeof navigator==='undefined'||!navigator.gpu||typeof navigator.gpu.requestAdapter!=='function')return finish({ok:false,code:'WEBGPU_UNAVAILABLE',targetGrid:S3_TARGET_PLAN.resolution.slice(),allocationStarted:false,solverStarted:false});
-  const adapter=await navigator.gpu.requestAdapter();if(!adapter)return finish({ok:false,code:'ADAPTER_UNAVAILABLE',targetGrid:S3_TARGET_PLAN.resolution.slice(),allocationStarted:false,solverStarted:false});
-  device=await adapter.requestDevice();
-  const maxGroups=device.limits?.maxComputeWorkgroupsPerDimension;
-  if(!Number.isSafeInteger(maxGroups)||maxGroups<1)throw Error('WEBGPU_DISPATCH_LIMIT_UNAVAILABLE');
-  const L=S1_REFERENCE.layout({nx:384,ny:384,nz:384,min:[-9,0,-4],max:[9,5.5,4]},{gpuOnly:true});
-  const levels=[];for(let count=Math.ceil(L.counts.p/64);;count=Math.ceil(count/64)){levels.push(count);if(count===1)break;}
-  const base=S1_GPU.shaderSources(L,maxGroups,levels.slice(0,-1));
-  const masked=S2_WGSL(L,base,L.counts.p,maxGroups);
-  const sources={...base,...masked,...S3_WGSL(L,maxGroups)};
-  const entries=Object.entries(sources),failures=[],warnings=[];let compiled=0,completed=0;
-  s3CompileReport={ok:false,code:'384_WGSL_COMPILING',targetGrid:S3_TARGET_PLAN.resolution.slice(),completedKernels:0,totalKernels:entries.length,pipelinesCompiled:0,failures:[],warnings:[],allocationStarted:false,solverStarted:false};s3Refresh();
-  for(const [name,code] of entries){
-   let failure=null,scopePushed=false;
-   try{
-    if(typeof device.pushErrorScope==='function'){device.pushErrorScope('validation');scopePushed=true;}
-    const module=device.createShaderModule({label:'AETHER 384 WGSL '+name,code});
-    let messages=[];if(typeof module.getCompilationInfo==='function'){const info=await module.getCompilationInfo();messages=info?.messages||[];}
-    const compileErrors=messages.filter(m=>m.type==='error');
-    for(const m of messages.filter(m=>m.type==='warning'))if(warnings.length<80)warnings.push({kernel:name,message:m.message,lineNum:m.lineNum,linePos:m.linePos});
-    if(compileErrors.length){failure={kernel:name,stage:'WGSL',messages:compileErrors.slice(0,12).map(m=>({message:m.message,lineNum:m.lineNum,linePos:m.linePos}))};}
-    else{await device.createComputePipelineAsync({label:'AETHER 384 pipeline '+name,layout:'auto',compute:{module,entryPoint:'main'}});compiled++;}
-   }catch(error){failure={kernel:name,stage:'PIPELINE',message:error?.message||String(error)};}
-   finally{
-    if(scopePushed){try{const scoped=await device.popErrorScope();if(scoped&&!failure)failure={kernel:name,stage:'VALIDATION',message:scoped.message||String(scoped)};}catch(error){if(!failure)failure={kernel:name,stage:'ERROR_SCOPE',message:error?.message||String(error)};}}
-   }
-   if(failure)failures.push(failure);completed++;
-   s3CompileReport={ok:false,code:'384_WGSL_COMPILING',targetGrid:S3_TARGET_PLAN.resolution.slice(),completedKernels:completed,totalKernels:entries.length,pipelinesCompiled:compiled,failures:failures.slice(0,20),warnings:warnings.slice(0,20),allocationStarted:false,solverStarted:false};s3Refresh();
-   if(completed%4===0)await new Promise(resolve=>setTimeout(resolve,0));
-  }
-  return finish({ok:failures.length===0,code:failures.length===0?'384_WGSL_COMPILE_PASS':'384_WGSL_COMPILE_FAILED',targetGrid:S3_TARGET_PLAN.resolution.slice(),totalKernels:entries.length,shaderModulesChecked:entries.length,pipelinesCompiled:compiled,failedKernelCount:failures.length,failures:failures.slice(0,20),warnings:warnings.slice(0,80),warningCount:warnings.length,sourceCharacters:entries.reduce((n,[,code])=>n+code.length,0),durationMs:+(performance.now()-started).toFixed(1),adapterLimits:{maxComputeWorkgroupsPerDimension:maxGroups,maxComputeWorkgroupSizeX:device.limits.maxComputeWorkgroupSizeX,maxComputeInvocationsPerWorkgroup:device.limits.maxComputeInvocationsPerWorkgroup,maxStorageBuffersPerShaderStage:device.limits.maxStorageBuffersPerShaderStage},allocationStarted:false,solverStarted:false,dispatchesSubmitted:0,geometryApproved:false,physicsReady:false,limitation:'WGSL and compute-pipeline compilation only; no 384^3 field allocation or CFD dispatch.'});
- }catch(error){return finish({ok:false,code:'384_WGSL_COMPILE_RUNTIME_ERROR',targetGrid:S3_TARGET_PLAN.resolution.slice(),message:error?.message||String(error),allocationStarted:false,solverStarted:false,dispatchesSubmitted:0});}
- finally{try{device?.destroy?.();}catch{}}
-}
-
-let s3PreflightBusy=false,s3PreflightReport=null;
-const s3ByteMiB=n=>Number.isFinite(n)?+(n/1024**2).toFixed(2):null;
-function s3ReadAdapterLimits(adapter){
- const l=adapter?.limits;if(!l)return null;
- const keys=['maxBufferSize','maxStorageBufferBindingSize','maxComputeWorkgroupsPerDimension','maxStorageBuffersPerShaderStage','maxComputeWorkgroupSizeX','maxComputeInvocationsPerWorkgroup'];
- const out={};for(const k of keys)out[k]=Number.isSafeInteger(l[k])?l[k]:null;return out;
-}
-function s3Classify384Adapter(limits){return s3Validate384DeviceLimits(limits).code;}
-function s3FormatPlan(report){
- const el=document.getElementById('s3Plan');if(!el)return;
- const p=S3_TARGET_PLAN,resource=s3Build384ResourcePlan(384),lim=report?.adapterLimits||null;
- el.textContent=JSON.stringify({resolution:p.resolution,cells:p.cells,faces:p.faces,spacingMeters:p.spacingMeters,
-  estimatedGpuGiB:resource.estimatedGpuGiB,estimatedCpuSnapshotGiB:resource.estimatedCpuSnapshotGiB,bufferCount:resource.bufferCount,
-  largestBufferMiB:s3ByteMiB(resource.largestBufferBytes),dispatch:report?.limitCheck?.dispatch||null,adapterLimits:lim,
-  preflightCode:report?.code||'NOT_RUN',kernelSourcesImplemented:S3_TARGET_PLAN.kernelSourcesImplemented,kernelCompilationVerified:s3CompileReport?.ok===true,shaderCompilation:s3CompileReport?{code:s3CompileReport.code,pipelinesCompiled:s3CompileReport.pipelinesCompiled,totalKernels:s3CompileReport.totalKernels}:null,
-  solverBackendReady:S3_TARGET_PLAN.solverBackendReady,allocationStarted:false,solverStarted:false,geometryApproved:false,physicsReady:false},null,2);
-}
-function s3Snapshot(){return {stage:'S3_384_TILED_SOLVER_KERNEL_SOURCE',targetGrid:S3_TARGET_PLAN.resolution.slice(),geometryApproved:false,physicsReady:false,productReady:false,sequence:0,simulationTime:0,running:false,
- deviceReady:false,status:s3PreflightBusy?'CHECKING_384_LIMITS':s3CompileBusy?'COMPILING_384_WGSL':s3PreflightReport?.code||s3CompileReport?.code||'384_PREFLIGHT_NOT_RUN',lastReport:s3PreflightReport,allocatedBytes:0,
- kernelSourcesImplemented:S3_TARGET_PLAN.kernelSourcesImplemented,kernelCompilationVerified:s3CompileReport?.ok===true,shaderCompilation:s3CompileReport,solverBackendReady:S3_TARGET_PLAN.solverBackendReady,
- memoryPlan:{estimatedGpuBytes:S3_TARGET_PLAN.estimatedGpuBytes,estimatedCpuSnapshotBytes:S3_TARGET_PLAN.estimatedCpuSnapshotBytes,allocationStarted:false}};}
-function s3Refresh(){
- const el=document.getElementById('s3Status');if(el){const s=s3Snapshot();el.textContent=`384³ CFD: ${s.status} · WGSL ${s.kernelCompilationVerified?'컴파일 PASS':s3CompileBusy?'컴파일 중':'미검증'} · 격자 자동 축소 없음`;}
- const compile=document.getElementById('s3Compile');if(compile){compile.disabled=s3CompileBusy||s3PreflightBusy;compile.textContent=s3CompileBusy?'컴파일 중…':'384³ WGSL 컴파일';}
- const summary=document.getElementById('s3CompileSummary');if(summary){const c=s3CompileReport;summary.textContent=s3CompileBusy?`WGSL: 컴파일 중 ${c?.completedKernels||0}/${c?.totalKernels||'…'}`:c?.ok?`WGSL: PASS ${c.pipelinesCompiled}/${c.totalKernels}`:c?`WGSL: ${c.code}`:'WGSL: 컴파일 전';summary.className='m13-status '+(s3CompileBusy?'warn':c?.ok?'ok':c?'bad':'warn');}
- const log=document.getElementById('s3CompileLog');if(log)log.textContent=s3CompileReport?JSON.stringify(s3CompileReport,null,2):'Chrome secure context에서 시작하면 WebGPU 컴파일 진단이 표시됩니다. CFD 배열 할당이나 계산은 수행하지 않습니다.';
- const init=document.getElementById('s3Init');if(init){init.disabled=s3PreflightBusy||s3CompileBusy;init.textContent=s3PreflightBusy?'384³ 장치 확인 중':'384³ GPU 사전검사';}
- for(const id of ['s3Step','s3Run']){const e=document.getElementById(id);if(e){e.disabled=true;e.title='384³ CFD remains disabled until the WGSL compiles on WebGPU, a vehicle mask is accepted, and GPU-resident steps pass real-device numerical tests';}}
- const reset=document.getElementById('s3Reset');if(reset)reset.disabled=s3PreflightBusy||s3CompileBusy;s3FormatPlan(s3PreflightReport);
-}
-async function s3Init(){
- if(s3CompileBusy)return {ok:false,code:'384_WGSL_COMPILATION_BUSY'};if(s3PreflightBusy)return {ok:false,code:'BUSY'};s3PreflightBusy=true;s3Refresh();let code='ADAPTER_LIMITS_UNAVAILABLE',limits=null,limitCheck=null;
- try{
-  if(typeof isSecureContext==='undefined'||isSecureContext!==true)code='SECURE_CONTEXT_REQUIRED';
-  else if(typeof navigator==='undefined'||!navigator.gpu||typeof navigator.gpu.requestAdapter!=='function')code='WEBGPU_UNAVAILABLE';
-  else{const adapter=await navigator.gpu.requestAdapter();if(!adapter)code='ADAPTER_UNAVAILABLE';else{limits=s3ReadAdapterLimits(adapter);limitCheck=s3Validate384DeviceLimits(limits);code=limitCheck.code;}}
- }catch(e){code=e?.name==='NotAllowedError'?'ADAPTER_DENIED':'ADAPTER_REQUEST_FAILED';}
- const resource=s3Build384ResourcePlan(384);
- s3PreflightReport={ok:false,code,targetGrid:S3_TARGET_PLAN.resolution.slice(),adapterLimits:limits,limitCheck,
-  memoryPlan:{estimatedGpuBytes:resource.estimatedGpuBytes,estimatedGpuGiB:resource.estimatedGpuGiB,estimatedCpuSnapshotBytes:resource.estimatedCpuSnapshotBytes,estimatedCpuSnapshotGiB:resource.estimatedCpuSnapshotGiB,
-   largestBufferBytes:resource.largestBufferBytes,largestBufferMiB:s3ByteMiB(resource.largestBufferBytes),bufferCount:resource.bufferCount},
-  kernelSourcesImplemented:S3_TARGET_PLAN.kernelSourcesImplemented,kernelCompilationVerified:s3CompileReport?.ok===true,
-  solverBackendReady:false,allocationStarted:false,solverStarted:false,gridAutomaticFallback:false,geometryApproved:false,physicsReady:false,
-  nextRequirements:[...(s3CompileReport?.ok?[]:['compile every generated 384^3 WGSL pipeline on the target browser']),'run the manufactured pressure/projection oracle on real WebGPU','review and resolve the 270-cell wheel-area connectivity pockets without changing the 384 grid','replace diagnostic full-field readback in the step path with a bounded GPU-resident commit and GPU-side acceptance reductions','perform a real WebGPU allocation and short accepted 384^3 sequence; record residual, divergence, flux, blocked-face velocity, memory, and step time']};
- s3PreflightBusy=false;s3Refresh();return s3PreflightReport;
-}
-function s3BlockedAction(){return Promise.resolve({ok:false,code:'384_SOLVER_RUNTIME_UNVERIFIED',targetGrid:S3_TARGET_PLAN.resolution.slice(),solverStarted:false,kernelSourcesImplemented:true,kernelCompilationVerified:s3CompileReport?.ok===true,geometryApproved:false,physicsReady:false});}
-function s3Reset(){s3PreflightReport=null;s3Refresh();return {ok:true,code:'384_PREFLIGHT_RESET'};}
-if(window.__AETHER_S3_PRIVATE_TEST_MODE__===true)Object.defineProperty(window,'__AETHER_S3_PRIVATE_TEST__',{value:Object.freeze({plan384:S3_TARGET_PLAN,classify384Adapter:s3Classify384Adapter,readAdapterLimits:s3ReadAdapterLimits,planTiledDispatch:s3PlanTiledDispatch,linearWorkgroupIndex:s3LinearWorkgroupIndex,build384ResourcePlan:s3Build384ResourcePlan,validate384DeviceLimits:s3Validate384DeviceLimits,allocateGpuResidentState:s3AllocateGpuResidentState}),configurable:false});
-function s3Invalidate(){return s3Reset();}
-AETHER.S3=Object.freeze({initialize:s3Init,compileShaders:s3Compile384Shaders,getShaderCompileReport:s3GetShaderCompileReport,stepOnce:s3BlockedAction,start:s3BlockedAction,pause:()=>({ok:true,code:'NOT_RUNNING'}),reset:s3Reset,getSnapshot:s3Snapshot,getMemoryPlan:()=>s3Build384ResourcePlan(384),invalidate:s3Reset});
-for(const [id,fn] of [['s3Compile',s3Compile384Shaders],['s3Init',s3Init],['s3Step',s3BlockedAction],['s3Run',s3BlockedAction],['s3Reset',s3Reset]])document.getElementById(id)?.addEventListener('click',e=>{e.stopPropagation();void fn();});
-s3Refresh();
-/* END S3 API */
-
-
-const api=Object.freeze({initialize,start:blocked,pause,stepOnce:blocked,reset,setNumerics,setBoundaryConditions,getSnapshot:snapshot,dispose});AETHER.SOLVER=api;AETHER.CURRENT_AUTHORITIES.solver='AETHER.SOLVER S0 shell';return api;
-})();
-/* END S0 SOLVER */
-
+/* Application contract, coordinate system, facility geometry config, CFD domain and rolling-road state (the single sources of truth for the rest of the engine). */
 const applicationState={contractReady:false,productReady:false,visualApproval:'M3_GEOMETRY_APPROVED_NATIVE_ES3',m3Acceptance:{geometry:'FROZEN',scope:'M3 geometry and desktop-aspect composition',evidence:'Direct source review; VM regression; actual Mesa OpenGL ES shader compilation and Hero/Side/Top rendering',browserRuntime:'NOT_VERIFIED',iPhoneRuntime:'NOT_VERIFIED',productReady:false}};AETHER.APPLICATION=applicationState;
 const coordinateContract=Object.freeze({version:1,unit:'meter',unitsPerWorldUnit:1,axes:Object.freeze({downstream:'+X',up:'+Y',lateral:'+Z',vehicleForward:'-X'}),groundY:0,centerlineZ:0,rotationOrder:'XYZ (Rx then Ry then Rz; column-vector convention)',rotationUnit:'radians',scaleRule:'positive finite components only'});AETHER.COORDINATE_CONTRACT=coordinateContract;
 const config=Object.freeze({world:Object.freeze({unit:'meter',groundY:0,centerlineZ:0}),testSection:Object.freeze({lengthX:18,widthZ:8,heightY:5.5}),controlRoom:Object.freeze({widthX:8.5,depthZ:5.5,heightY:3.2,elevationY:.75}),vehicleReference:Object.freeze({lengthX:4.7,widthZ:1.928297490761,heightY:1.297449006023}),rollingRoad:Object.freeze({minX:-3.2,maxX:3.2,minZ:-1.35,maxZ:1.35,beltTopY:0,recessedBelowGround:true}),camera:Object.freeze({fovVerticalDegrees:50,near:.05,far:100})});AETHER.WIND_TUNNEL_CONFIG=config;
@@ -1052,7 +25,7 @@ const M4_CONFIG=Object.freeze({
   tolerances:Object.freeze({geometry:1e-5,contact:.002,normal:1e-5})
 });
 AETHER.M4_CONFIG=M4_CONFIG;
-const rollingState={source:null,previous:null,baseline:null,beltTravel:0,wheelAngles:[0,0,0,0],rollerAngles:[0,0,0,0],effectiveSpeed:0,aligned:true,motionReady:false,roadSection:false,lastRejection:null,duplicateFrames:0};
+const rollingState={source:null,previous:null,baseline:null,beltTravel:0,wheelAngles:[0,0,0,0],rollerAngles:[0,0,0,0],effectiveSpeed:0,motorEnabled:true,emergencyStopped:false,lastSimT:null,aligned:true,motionReady:false,roadSection:false,lastRejection:null,duplicateFrames:0};
 function identityMatrix(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])}
 function positiveMod(a,b){return ((a%b)+b)%b}
 function alignedVehicle(){const v=AETHER.VEHICLE_TRANSFORM;return v.position.every((x,i)=>x===[0,0,0][i])&&v.rotation.every((x,i)=>Math.abs(x-[0,Math.PI,0][i])<1e-10)&&v.scale.every((x,i)=>x===[1,1,1][i])}
@@ -1061,10 +34,7 @@ function sameFrame(a,b){return !!a&&!!b&&a.sourceId===b.sourceId&&a.sequence===b
 function rejectFrame(reason){rollingState.lastRejection=reason;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;diagnostics.warnings.push(reason);diagnostics.events.push({time:now(),type:'M4_REJECT',message:reason});renderDiagnostics();return false}
 function suspendRollingRoad(reason){rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;diagnostics.events.push({time:now(),type:'M4_SUSPEND',message:reason});renderDiagnostics()}
 let vehicleGeometryEpoch=0;
-function vehicleTransformChanged(){vehicleGeometryEpoch++;AETHER.S3?.invalidate();AETHER.S2?.invalidate();
- if(AETHER.S3_OFFICE)AETHER.S3_OFFICE.reset();
- if(typeof m13UnbindSolver==='function')m13UnbindSolver();
- if(typeof smokeState!=='undefined'){smokeState.frameKey=null;smokeState.frameId=null;smokeState.paths=null;smokeState.solidBounds=null;smokeState.activeCount=0;smokeState.resetRequested=true;}
+function vehicleTransformChanged(){vehicleGeometryEpoch++;
  if(typeof flowLayoutCache!=='undefined')flowLayoutCache=null;
  if(scene.vehicleParts.length===5){
   if(gl){for(const r of scene.roadParts)for(const b of [r.gpu?.pb,r.gpu?.nb,r.gpu?.ub,r.gpu?.ib])if(b)gl.deleteBuffer(b);
@@ -1074,8 +44,8 @@ function vehicleTransformChanged(){vehicleGeometryEpoch++;AETHER.S3?.invalidate(
   if(AETHER.VEHICLE_PRODUCTION){const old=AETHER.VEHICLE_PRODUCTION,vt=AETHER.VEHICLE_TRANSFORM,b=CFD_BRIDGE.getAlignmentReport().renderBounds;AETHER.VEHICLE_PRODUCTION=Object.freeze({...old,transform:Object.freeze({...old.transform,position:vt.position,rotation:vt.rotation,scale:vt.scale,dimensions:{...vt.dimensions},worldBounds:{min:b.min,max:b.max}})})}
  }
  rollingState.aligned=alignedVehicle();diagnostics.vehicleAlignment={valid:rollingState.aligned,worldAABB:AETHER.VEHICLE_TRANSFORM.worldAABB};if(!rollingState.aligned&&!diagnostics.warnings.includes('VEHICLE_NOT_ALIGNED'))diagnostics.warnings.push('VEHICLE_NOT_ALIGNED');if(rollingState.aligned)diagnostics.warnings=diagnostics.warnings.filter(w=>w!=='VEHICLE_NOT_ALIGNED');suspendRollingRoad('VEHICLE_TRANSFORM_CHANGED')}
-function snapshotState(){const src=rollingState.source?{kind:rollingState.source.kind,id:rollingState.source.id}:null;const wheels=wheelParts();const currentAligned=alignedVehicle();const effective=currentAligned?rollingState.effectiveSpeed:0;let maxContactGap=null;if(wheels.length===4){const gaps=wheels.map((p,i)=>{const b=wheelWorldBoundsAt(0,i);return Math.max(0,b.min[1])});maxContactGap=Math.max(...gaps)}return Object.freeze({sourceKind:src?.kind||null,sourceId:src?.id||null,sequence:rollingState.previous?.sequence??null,simulationTime:rollingState.previous?.simulationTime??null,inputSpeed:rollingState.previous?.freestreamSpeed??0,effectiveSpeed:effective,running:!!rollingState.previous?.running,aligned:currentAligned,beltTravel:rollingState.beltTravel,wheelAngles:rollingState.wheelAngles.slice(),rollerAngles:rollingState.rollerAngles.slice(),omegaWheel:wheels.map(p=>-effective/(p.wheel?.radius||1)),omegaRoller:scene.roadParts.map(()=>-effective/M4_CONFIG.roller.radius),roadSection:rollingState.roadSection,geometryCounts:{sceneObjects:scene.objects.length,roadParts:scene.roadParts.length,vehicleParts:scene.vehicleParts.length},gpuResourceCounts:{objects:scene.objects.filter(o=>o.gpu).length,vehicleParts:scene.vehicleParts.filter(p=>p.gpu).length,roadParts:scene.roadParts.filter(r=>r.gpu).length},maxContactGap,correctionMaxDistance:wheels.length?Math.max(...wheels.map(p=>p.wheel?.correctionMax||0)):null,lastRejection:rollingState.lastRejection,duplicateFrames:rollingState.duplicateFrames,liveSolverConnected:!!src&&src.kind==='solver'&&!!rollingState.previous&&currentAligned})}
-function makeRollingRoadAPI(){return Object.freeze({bindSource(input={}){const {kind,id}=input&&typeof input==='object'?input:{};if((kind!=='solver'&&kind!=='test')||typeof id!=='string'||!id.trim())return rejectFrame('INVALID_SOURCE');rollingState.source={kind,id:id.trim()};rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;rollingState.lastRejection=null;rollingState.duplicateFrames=0;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;diagnostics.events.push({time:now(),type:'M4_BIND',message:kind+':'+id});renderDiagnostics();return true},unbindSource(){rollingState.source=null;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;diagnostics.events.push({time:now(),type:'M4_UNBIND',message:'source=null'});renderDiagnostics();return true},acceptFrame(frame){if(!rollingState.source)return rejectFrame('SOURCE_UNBOUND');if(!frame||typeof frame!=='object')return rejectFrame('INVALID_FRAME');const keys=['sourceId','sequence','simulationTime','freestreamSpeed','running'];if(keys.some(k=>!(k in frame)))return rejectFrame('MISSING_FRAME_FIELD');if(typeof frame.sourceId!=='string'||!Number.isInteger(frame.sequence)||typeof frame.running!=='boolean'||!finite(frame.simulationTime)||!finite(frame.freestreamSpeed))return rejectFrame('FRAME_TYPE_INVALID');if(frame.sourceId!==rollingState.source.id)return rejectFrame('WRONG_SOURCE');if(frame.sequence<0||frame.simulationTime<0||frame.freestreamSpeed<0||frame.freestreamSpeed>M4_CONFIG.state.maxSpeed)return rejectFrame('FRAME_RANGE_INVALID');if(document.hidden){rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;return false}const prev=rollingState.previous;if(prev&&frame.sequence===prev.sequence){if(sameFrame(frame,prev)){rollingState.duplicateFrames++;return true}return rejectFrame('SEQUENCE_REUSE_MUTATED')}if(prev&&(frame.sequence<prev.sequence||frame.simulationTime<prev.simulationTime))return rejectFrame('FRAME_ORDER_INVALID');const aligned=alignedVehicle();rollingState.aligned=aligned;if(!aligned&&!diagnostics.warnings.includes('VEHICLE_NOT_ALIGNED'))diagnostics.warnings.push('VEHICLE_NOT_ALIGNED');if(prev){const dt=frame.simulationTime-prev.simulationTime;if(dt-M4_CONFIG.state.maxDt>1e-9)return rejectFrame('TIME_STEP_TOO_LARGE');if(dt<0)return rejectFrame('TIME_REVERSED');if(dt>0&&prev.running&&rollingState.motionReady&&aligned){const distance=prev.freestreamSpeed*dt;rollingState.beltTravel=positiveMod(rollingState.beltTravel+distance,M4_CONFIG.state.pitch);const wheels=wheelParts();for(let i=0;i<rollingState.wheelAngles.length;i++)rollingState.wheelAngles[i]=positiveMod(rollingState.wheelAngles[i]-distance/(wheels[i]?.wheel?.radius||1),Math.PI*2);for(let i=0;i<rollingState.rollerAngles.length;i++)rollingState.rollerAngles[i]=positiveMod(rollingState.rollerAngles[i]-distance/M4_CONFIG.roller.radius,Math.PI*2)}}rollingState.effectiveSpeed=(aligned&&frame.running)?frame.freestreamSpeed:0;rollingState.motionReady=aligned;rollingState.previous=cloneFrame(frame);rollingState.baseline=frame.simulationTime;rollingState.lastRejection=null;if(AETHER.M4)AETHER.M4.liveSolverConnected=rollingState.source.kind==='solver'&&aligned;renderDiagnostics();return true},setSectionView(on){if(typeof on!=='boolean')return false;rollingState.roadSection=on;renderDiagnostics();return true},resetMotion(){rollingState.beltTravel=0;rollingState.wheelAngles.fill(0);rollingState.rollerAngles.fill(0);rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;rollingState.lastRejection=null;rollingState.duplicateFrames=0;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;renderDiagnostics();return true},getSnapshot(){return snapshotState()}})}
+function snapshotState(){const src=rollingState.source?{kind:rollingState.source.kind,id:rollingState.source.id}:null;const wheels=wheelParts();const currentAligned=alignedVehicle();const effective=currentAligned?rollingState.effectiveSpeed:0;let maxContactGap=null;if(wheels.length===4){const gaps=wheels.map((p,i)=>{const b=wheelWorldBoundsAt(0,i);return Math.max(0,b.min[1])});maxContactGap=Math.max(...gaps)}return Object.freeze({motorEnabled:rollingState.motorEnabled,emergencyStopped:rollingState.emergencyStopped,sourceKind:src?.kind||null,sourceId:src?.id||null,sequence:rollingState.previous?.sequence??null,simulationTime:rollingState.previous?.simulationTime??null,inputSpeed:rollingState.previous?.freestreamSpeed??0,effectiveSpeed:effective,running:!!rollingState.previous?.running,aligned:currentAligned,beltTravel:rollingState.beltTravel,wheelAngles:rollingState.wheelAngles.slice(),rollerAngles:rollingState.rollerAngles.slice(),omegaWheel:wheels.map(p=>-effective/(p.wheel?.radius||1)),omegaRoller:scene.roadParts.map(()=>-effective/M4_CONFIG.roller.radius),roadSection:rollingState.roadSection,geometryCounts:{sceneObjects:scene.objects.length,roadParts:scene.roadParts.length,vehicleParts:scene.vehicleParts.length},gpuResourceCounts:{objects:scene.objects.filter(o=>o.gpu).length,vehicleParts:scene.vehicleParts.filter(p=>p.gpu).length,roadParts:scene.roadParts.filter(r=>r.gpu).length},maxContactGap,correctionMaxDistance:wheels.length?Math.max(...wheels.map(p=>p.wheel?.correctionMax||0)):null,lastRejection:rollingState.lastRejection,duplicateFrames:rollingState.duplicateFrames,liveSolverConnected:!!src&&src.kind==='solver'&&!!rollingState.previous&&currentAligned})}
+function makeRollingRoadAPI(){return Object.freeze({bindSource(input={}){const {kind,id}=input&&typeof input==='object'?input:{};if((kind!=='solver'&&kind!=='test')||typeof id!=='string'||!id.trim())return rejectFrame('INVALID_SOURCE');rollingState.source={kind,id:id.trim()};rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;rollingState.lastRejection=null;rollingState.duplicateFrames=0;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;diagnostics.events.push({time:now(),type:'M4_BIND',message:kind+':'+id});renderDiagnostics();return true},unbindSource(){rollingState.source=null;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;diagnostics.events.push({time:now(),type:'M4_UNBIND',message:'source=null'});renderDiagnostics();return true},acceptFrame(frame){if(!rollingState.source)return rejectFrame('SOURCE_UNBOUND');if(!frame||typeof frame!=='object')return rejectFrame('INVALID_FRAME');const keys=['sourceId','sequence','simulationTime','freestreamSpeed','running'];if(keys.some(k=>!(k in frame)))return rejectFrame('MISSING_FRAME_FIELD');if(typeof frame.sourceId!=='string'||!Number.isInteger(frame.sequence)||typeof frame.running!=='boolean'||!finite(frame.simulationTime)||!finite(frame.freestreamSpeed))return rejectFrame('FRAME_TYPE_INVALID');if(frame.sourceId!==rollingState.source.id)return rejectFrame('WRONG_SOURCE');if(frame.sequence<0||frame.simulationTime<0||frame.freestreamSpeed<0||frame.freestreamSpeed>M4_CONFIG.state.maxSpeed)return rejectFrame('FRAME_RANGE_INVALID');if(document.hidden){rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;return false}const prev=rollingState.previous;if(prev&&frame.sequence===prev.sequence){if(sameFrame(frame,prev)){rollingState.duplicateFrames++;return true}return rejectFrame('SEQUENCE_REUSE_MUTATED')}if(prev&&(frame.sequence<prev.sequence||frame.simulationTime<prev.simulationTime))return rejectFrame('FRAME_ORDER_INVALID');const aligned=alignedVehicle();rollingState.aligned=aligned;if(!aligned&&!diagnostics.warnings.includes('VEHICLE_NOT_ALIGNED'))diagnostics.warnings.push('VEHICLE_NOT_ALIGNED');if(prev){const dt=frame.simulationTime-prev.simulationTime;if(dt-M4_CONFIG.state.maxDt>1e-9)return rejectFrame('TIME_STEP_TOO_LARGE');if(dt<0)return rejectFrame('TIME_REVERSED');if(dt>0&&prev.running&&rollingState.motionReady&&aligned){const distance=prev.freestreamSpeed*dt;rollingState.beltTravel=positiveMod(rollingState.beltTravel+distance,M4_CONFIG.state.pitch);const wheels=wheelParts();for(let i=0;i<rollingState.wheelAngles.length;i++)rollingState.wheelAngles[i]=positiveMod(rollingState.wheelAngles[i]-distance/(wheels[i]?.wheel?.radius||1),Math.PI*2);for(let i=0;i<rollingState.rollerAngles.length;i++)rollingState.rollerAngles[i]=positiveMod(rollingState.rollerAngles[i]-distance/M4_CONFIG.roller.radius,Math.PI*2)}}rollingState.effectiveSpeed=(aligned&&frame.running)?frame.freestreamSpeed:0;rollingState.motionReady=aligned;rollingState.previous=cloneFrame(frame);rollingState.baseline=frame.simulationTime;rollingState.lastRejection=null;if(AETHER.M4)AETHER.M4.liveSolverConnected=rollingState.source.kind==='solver'&&aligned;renderDiagnostics();return true},setMotorEnabled(on){if(typeof on!=='boolean'||(on&&rollingState.emergencyStopped))return false;rollingState.motorEnabled=on;if(!on)rollingState.effectiveSpeed=0;return true},setEmergencyStop(on){if(typeof on!=='boolean')return false;rollingState.emergencyStopped=on;if(on){rollingState.motorEnabled=false;rollingState.effectiveSpeed=0}return true},liveAdvance(speed,simTime){const s=rollingState;if(!s.motorEnabled||s.emergencyStopped||!(speed>=0)||!finite(simTime)){s.effectiveSpeed=0;s.lastSimT=finite(simTime)?simTime:null;return false}if(s.lastSimT===null||simTime<s.lastSimT)s.lastSimT=simTime;const dt=Math.min(.1,simTime-s.lastSimT);s.lastSimT=simTime;s.effectiveSpeed=speed;s.motionReady=true;if(dt>0){const distance=speed*dt;s.beltTravel=positiveMod(s.beltTravel+distance,M4_CONFIG.state.pitch);const wheels=wheelParts();for(let i=0;i<s.wheelAngles.length;i++)s.wheelAngles[i]=positiveMod(s.wheelAngles[i]-distance/(wheels[i]?.wheel?.radius||1),Math.PI*2);for(let i=0;i<s.rollerAngles.length;i++)s.rollerAngles[i]=positiveMod(s.rollerAngles[i]-distance/M4_CONFIG.roller.radius,Math.PI*2)}return true},setSectionView(on){if(typeof on!=='boolean')return false;rollingState.roadSection=on;renderDiagnostics();return true},resetMotion(){rollingState.beltTravel=0;rollingState.wheelAngles.fill(0);rollingState.rollerAngles.fill(0);rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.aligned=alignedVehicle();rollingState.motionReady=false;rollingState.lastRejection=null;rollingState.duplicateFrames=0;if(AETHER.M4)AETHER.M4.liveSolverConnected=false;renderDiagnostics();return true},getSnapshot(){return snapshotState()}})}
 AETHER.ROLLING_ROAD=makeRollingRoadAPI();
 
 const v3=v=>Array.isArray(v)&&v.length===3&&v.every(finite),cl3=v=>[v[0],v[1],v[2]],add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s[0],a[1]*s[1],a[2]*s[2]],rx=(v,a)=>{const c=Math.cos(a),s=Math.sin(a);return[v[0],c*v[1]-s*v[2],s*v[1]+c*v[2]]},ry=(v,a)=>{const c=Math.cos(a),s=Math.sin(a);return[c*v[0]+s*v[2],v[1],-s*v[0]+c*v[2]]},rz=(v,a)=>{const c=Math.cos(a),s=Math.sin(a);return[c*v[0]-s*v[1],s*v[0]+c*v[1],v[2]]},rf=(v,r)=>rz(ry(rx(v,r[0]),r[1]),r[2]),ri=(v,r)=>rx(ry(rz(v,-r[2]),-r[1]),-r[0]);
@@ -1626,39 +596,33 @@ function captureLightingProbes(){
 }
 function lightingColor(o){return o.category==='lighting recess'||o.name.startsWith('m5.light.')?[.95,.935,.91,1]:[...o.color,1]}
 
-const m13SliceVert=`#version 300 es
-in vec3 a_position;in vec2 a_uv;uniform mat4 u_mvp;out vec2 v_uv;void main(){v_uv=a_uv;gl_Position=u_mvp*vec4(a_position,1.);}`;
-const m13SliceFrag=`#version 300 es
-precision highp float;uniform sampler2D u_field;uniform float u_alpha;in vec2 v_uv;out vec4 outColor;void main(){vec4 c=texture(u_field,v_uv);outColor=vec4(c.rgb,c.a*u_alpha);}`;
-const m13LineVert=`#version 300 es
-in vec3 a_position;in vec4 a_color;in float a_flow;uniform mat4 u_mvp;out vec4 v_color;out float v_flow;void main(){v_color=a_color;v_flow=a_flow;gl_Position=u_mvp*vec4(a_position,1.);}`;
-const m13LineFrag=`#version 300 es
-precision highp float;in vec4 v_color;in float v_flow;uniform float u_flowTime;uniform float u_flowEnabled;out vec4 outColor;void main(){float phase=mod(v_flow-u_flowTime,1.25);float pulse=(1.0-smoothstep(.06,.20,abs(phase-.10)))*u_flowEnabled;vec3 color=mix(v_color.rgb,vec3(1.0,.96,.72),pulse*.95);outColor=vec4(color,max(v_color.a,pulse*.95));}`;const m13CpVert=`#version 300 es
-in vec3 a_position;in float a_cp;uniform mat4 u_mvp;out float v_cp;void main(){v_cp=a_cp;gl_Position=u_mvp*vec4(a_position,1.);}`;const m13CpFrag=`#version 300 es
-precision highp float;in float v_cp;uniform float u_cpMin;uniform float u_cpMax;out vec4 outColor;void main(){float q=clamp((v_cp-u_cpMin)/max(u_cpMax-u_cpMin,1e-6),0.0,1.0);outColor=vec4(q,1.0-abs(q-0.5)*2.0,1.0-q,1.0);}`;
-function m13Program(vsSource,fsSource){const shaders=[],p=gl.createProgram();try{for(const [type,src] of [[gl.VERTEX_SHADER,vsSource],[gl.FRAGMENT_SHADER,fsSource]]){const sh=gl.createShader(type);shaders.push(sh);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh));gl.attachShader(p,sh)}gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p}catch(e){gl.deleteProgram(p);throw e}finally{shaders.forEach(s=>gl.deleteShader(s))}}
-function m13ReleaseResources(lost=false){const r=m13FrameState.resources;if(!r.initialized)return;if(!lost&&gl){let deleted=0;for(const b of [r.slicePositionBuffer,r.sliceUvBuffer,r.linePositionBuffer,r.lineColorBuffer,r.lineFlowBuffer,...r.cpBuffers])if(b){gl.deleteBuffer(b);deleted++}if(r.sliceTexture)gl.deleteTexture(r.sliceTexture);if(r.sliceProgram)gl.deleteProgram(r.sliceProgram);if(r.lineProgram)gl.deleteProgram(r.lineProgram);if(r.cpProgram)gl.deleteProgram(r.cpProgram);r.deleteCount=(r.deleteCount||0)+deleted}m13FrameState.resources={...r,initialized:false,sliceProgram:null,lineProgram:null,cpProgram:null,sliceTexture:null,slicePositionBuffer:null,sliceUvBuffer:null,cpBuffers:[],createCount:r.createCount,deleteCount:r.deleteCount,scientificDrawCalls:0,derivedReady:{VECTORS:false,STREAMLINES:false,WAKE:false},linePositionBuffer:null,lineColorBuffer:null,lineFlowBuffer:null,lineCount:0}}
-function m13InitResources(){m13ReleaseResources(false);const r=m13FrameState.resources;r.sliceProgram=m13Program(m13SliceVert,m13SliceFrag);r.lineProgram=m13Program(m13LineVert,m13LineFrag);r.cpProgram=m13Program(m13CpVert,m13CpFrag);r.sliceTexture=gl.createTexture();r.createCount++;gl.bindTexture(gl.TEXTURE_2D,r.sliceTexture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,0]));r.initialized=true;r.initCount=(r.initCount||0)+1;m13Sync()}
-function m13Color(value,min,max){const q=clamp((value-min)/Math.max(max-min,1e-12),0,1);return[q,Math.min(1,Math.max(0,1.5-Math.abs(q-.5)*3)),1-q,1]}
-function m13SliceGeometry(frame){const g=frame.grid,a=m13FrameState.slice.axis,ix='XYZ'.indexOf(a),u=(ix+1)%3,v=(ix+2)%3,pos=m13FrameState.slice.position,lo=[...g.min],hi=[...g.max];lo[ix]=hi[ix]=pos;const p=[lo.slice(),[hi[0],lo[1],lo[2]],[hi[0],hi[1],hi[2]],[lo[0],hi[1],hi[2]]];if(a==='X'){p[0]=[pos,g.min[1],g.min[2]];p[1]=[pos,g.max[1],g.min[2]];p[2]=[pos,g.max[1],g.max[2]];p[3]=[pos,g.min[1],g.max[2]]}else if(a==='Y'){p[0]=[g.min[0],pos,g.min[2]];p[1]=[g.max[0],pos,g.min[2]];p[2]=[g.max[0],pos,g.max[2]];p[3]=[g.min[0],pos,g.max[2]]}else{p[0]=[g.min[0],g.min[1],pos];p[1]=[g.max[0],g.min[1],pos];p[2]=[g.max[0],g.max[1],pos];p[3]=[g.min[0],g.max[1],pos]}return{positions:new Float32Array([...p[0],...p[1],...p[2],...p[0],...p[2],...p[3]]),uvs:new Float32Array([0,0,1,0,1,1,0,0,1,1,0,1])}}
-function m13SlicePixels(frame){const g=frame.grid,a=m13FrameState.slice.axis,ix='XYZ'.indexOf(a),u=(ix+1)%3,v=(ix+2)%3,nU=g.resolution[u],nV=g.resolution[v],pixels=new Uint8Array(nU*nV*4),legend=m13FrameState.legend[m13FrameState.slice.quantity==='VELOCITY'?'VELOCITY':m13FrameState.slice.quantity];for(let j=0;j<nV;j++)for(let i=0;i<nU;i++){const q=[0,0,0];q[ix]=m13FrameState.slice.position;q[u]=g.min[u]+(g.max[u]-g.min[u])*(i/Math.max(1,nU-1));q[v]=g.min[v]+(g.max[v]-g.min[v])*(j/Math.max(1,nV-1));let sample=null;if(m13FrameState.slice.quantity==='PRESSURE')sample=m13ScalarSample(frame,frame.fields.pressure,q);else if(m13FrameState.slice.quantity==='VELOCITY')sample=m13VectorSample(frame,frame.fields.velocity,q),sample=sample.available?{available:true,value:m13Magnitude(sample.value)}:sample;else if(m13FrameState.slice.quantity==='VORTICITY'&&frame.fields.vorticity){sample=frame.fields.vorticity.components===1?m13ScalarSample(frame,frame.fields.vorticity,q):m13VectorSample(frame,frame.fields.vorticity,q),sample=sample.available&&frame.fields.vorticity.components===3?{available:true,value:m13Magnitude(sample.value)}:sample}if(sample?.available){const c=m13Color(sample.value,legend.min,legend.max),o=(j*nU+i)*4;pixels[o]=c[0]*255;pixels[o+1]=c[1]*255;pixels[o+2]=c[2]*255;pixels[o+3]=220}}return{pixels,nU,nV}}
-function m13BuildSlice(frame){const r=m13FrameState.resources;if(!r.initialized||!r.sliceTexture)return;const q=m13SlicePixels(frame),geo=m13SliceGeometry(frame);if(!r.slicePositionBuffer){r.slicePositionBuffer=gl.createBuffer();r.sliceUvBuffer=gl.createBuffer();r.createCount+=2}gl.bindBuffer(gl.ARRAY_BUFFER,r.slicePositionBuffer);gl.bufferData(gl.ARRAY_BUFFER,geo.positions,gl.STATIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,r.sliceUvBuffer);gl.bufferData(gl.ARRAY_BUFFER,geo.uvs,gl.STATIC_DRAW);gl.bindTexture(gl.TEXTURE_2D,r.sliceTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,q.nU,q.nV,0,gl.RGBA,gl.UNSIGNED_BYTE,q.pixels);r.slicePixels=q.pixels;r.sliceSize=[q.nU,q.nV];m13Sync()}
-function m13UploadLines(pos,col,flow=[]){const r=m13FrameState.resources;r.linePositions=new Float32Array(pos);r.lineColors=new Float32Array(col);r.lineFlow=new Float32Array(flow.length===pos.length/3?flow:new Array(pos.length/3).fill(0));r.lineCount=pos.length/3;if(pos.length){if(!r.linePositionBuffer){r.linePositionBuffer=gl.createBuffer();r.lineColorBuffer=gl.createBuffer();r.lineFlowBuffer=gl.createBuffer();r.createCount+=3}gl.bindBuffer(gl.ARRAY_BUFFER,r.linePositionBuffer);gl.bufferData(gl.ARRAY_BUFFER,r.linePositions,gl.STATIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineColorBuffer);gl.bufferData(gl.ARRAY_BUFFER,r.lineColors,gl.STATIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineFlowBuffer);gl.bufferData(gl.ARRAY_BUFFER,r.lineFlow,gl.STATIC_DRAW)}}
-function m13SolidVoxel(frame,i,j,k){const mask=frame.solidMask?.data,g=frame.grid;if(!mask||mask.length!==g.resolution[0]*g.resolution[1]*g.resolution[2])return false;const [nx,ny,nz]=g.resolution;if(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz)return false;return mask[i+nx*(j+ny*k)]!==0}
-function m13SegmentHitsSolid(frame,a,b){const g=frame.grid,mask=frame.solidMask?.data,[nx,ny,nz]=g.resolution,dims=[nx,ny,nz],h=g.max.map((v,i)=>(v-g.min[i])/dims[i]);if(!mask||mask.length!==nx*ny*nz){const bounds=CFD_BRIDGE.getAlignmentReport().solidBounds,lo=a.map((v,i)=>Math.min(v,b[i])),hi=a.map((v,i)=>Math.max(v,b[i]));return lo.every((v,i)=>hi[i]>=bounds.min[i]&&v<=bounds.max[i])}const qa=a.map((v,i)=>(v-g.min[i])/h[i]),qb=b.map((v,i)=>(v-g.min[i])/h[i]),delta=qb.map((v,i)=>v-qa[i]),cell=q=>q.map((v,i)=>Math.max(0,Math.min(dims[i]-1,Math.floor(v))));let c=cell(qa);const solid=q=>m13SolidVoxel(frame,q[0],q[1],q[2]);if(solid(c))return true;const step=delta.map(v=>v>0?1:v<0?-1:0),tMax=[0,1,2].map(i=>step[i]===0?Infinity:(((step[i]>0?c[i]+1:c[i])-qa[i])/delta[i])),tDelta=[0,1,2].map(i=>step[i]===0?Infinity:Math.abs(1/delta[i]));for(let count=0;count<nx+ny+nz+3;count++){const t=Math.min(...tMax);if(t>1||!Number.isFinite(t))break;const axes=[0,1,2].filter(i=>Math.abs(tMax[i]-t)<1e-10);for(let bits=1;bits<(1<<axes.length);bits++){const q=c.slice();for(let n=0;n<axes.length;n++)if(bits&(1<<n))q[axes[n]]+=step[axes[n]];if(solid(q))return true}for(const i of axes){c[i]+=step[i];tMax[i]+=tDelta[i]}if(c.some((v,i)=>v<0||v>=dims[i]))break;}return false}
-function m13Streamline(frame,seed){const out=[seed.slice()],h=Math.min(...frame.grid.max.map((v,i)=>(v-frame.grid.min[i])/frame.grid.resolution[i]))*.55,maxSteps=256;let p=seed.slice(),reason='MAX_STEPS';for(let i=0;i<maxSteps;i++){const a=m13VectorSample(frame,frame.fields.velocity,p),ma=a.available?m13Magnitude(a.value):0;if(!a.available){reason='DOMAIN_EXIT';break}if(ma<1e-8){reason='NEAR_ZERO';break}const d1=a.value.map(x=>x/ma),mid=p.map((x,j)=>x+d1[j]*h*.5),b=m13VectorSample(frame,frame.fields.velocity,mid),mb=b.available?m13Magnitude(b.value):0;if(!b.available){reason='DOMAIN_EXIT';break}if(mb<1e-8){reason='NEAR_ZERO';break}const d2=b.value.map(x=>x/mb),n=p.map((x,j)=>x+d2[j]*h);if(!m13SampleCoordinate(frame,n)){reason='DOMAIN_EXIT';break}if(m13SegmentHitsSolid(frame,p,n)){reason='SOLID_VOXEL_HIT';break}out.push(n);p=n}m13Streamline.lastReason=reason;return out.length>=2?out:[]}
-function m13BuildVectors(frame){const g=frame.grid,stride=m13FrameState.quality==='high'?Math.max(1,Math.floor(Math.min(...g.resolution)/18)):Math.max(1,Math.floor(Math.min(...g.resolution)/12)),pos=[],col=[];for(let z=0;z<g.resolution[2];z+=stride)for(let y=0;y<g.resolution[1];y+=stride)for(let x=0;x<g.resolution[0];x+=stride){const p=[g.min[0]+(g.max[0]-g.min[0])*x/Math.max(1,g.resolution[0]-1),g.min[1]+(g.max[1]-g.min[1])*y/Math.max(1,g.resolution[1]-1),g.min[2]+(g.max[2]-g.min[2])*z/Math.max(1,g.resolution[2]-1)],s=m13VectorSample(frame,frame.fields.velocity,p),m=s.available?m13Magnitude(s.value):0;if(!s.available||m<1e-8)continue;const len=Math.min(.45,.08+m*.01),q=p.map((v,i)=>v+s.value[i]/m*len),c=m13Color(m,m13FrameState.legend.VELOCITY.min,m13FrameState.legend.VELOCITY.max);pos.push(...p,...q);col.push(...c,...c)}m13UploadLines(pos,col);m13FrameState.resources.derivedReady.VECTORS=pos.length>0;m13FrameState.resources.vectorStats={segments:pos.length/6,samplingStride:stride};m13Sync()}
-function m13BuildStreamlines(frame){const b=CFD_BRIDGE.getAlignmentReport().solidBounds,g=frame.grid,n=m13FrameState.streamlineDensity||64,mid=(b.min[1]+b.max[1])*.5,weights={front:12,roof:12,side:16,wheel:8,underbody:8,wake:8},names=Object.keys(weights),alloc=Object.fromEntries(names.map(k=>[k,Math.floor(n*weights[k]/64)]));let remain=n-Object.values(alloc).reduce((a,x)=>a+x,0);for(const k of names)if(remain-->0)alloc[k]++;const lerpSeeds=(count,make)=>Array.from({length:count},(_,i)=>make((i+.5)/Math.max(1,count),i)),wheelSeeds=wheelParts().slice(0,4).flatMap(w=>{const q=w.wheel.pivot,side=Math.sign(q[2]||1);return [[q[0]-.8,q[1]+w.wheel.radius+.35,q[2]+side*.3],[q[0]-.8,q[1]+w.wheel.radius+.35,q[2]+side*.55]]});const groups={front:lerpSeeds(alloc.front,(t)=>[g.min[0]+.15,mid,b.min[2]+(b.max[2]-b.min[2])*t]),roof:lerpSeeds(alloc.roof,(t)=>[b.min[0]+(b.max[0]-b.min[0])*t,b.max[1]+.12,-.65*b.max[2]+1.3*b.max[2]*((t*7)%1)]),side:Array.from({length:alloc.side},(_,i)=>{const half=Math.ceil(alloc.side/2),side=i<half?1:-1,j=i%half,t=(j+.5)/half;return[b.min[0]+(b.max[0]-b.min[0])*t,mid,side*(b.max[2]+.10)]}),wheel:Array.from({length:alloc.wheel},(_,i)=>wheelSeeds[i%wheelSeeds.length]),underbody:lerpSeeds(alloc.underbody,(t)=>[g.min[0]+.15,b.min[1]+.15,-.65*b.max[2]+1.3*b.max[2]*((t*7)%1)]),wake:lerpSeeds(alloc.wake,(t)=>[Math.min(g.max[0]-.15,b.max[0]+.5),g.min[1]+.45+(g.max[1]-g.min[1]-.9)*t,-.8*g.max[2]+1.6*g.max[2]*((t*5)%1)])},pos=[],col=[],flow=[],counts={},visible={};for(const [name,seeds] of Object.entries(groups)){counts[name]=seeds.length;visible[name]=0;for(const seed of seeds){const line=m13Streamline(frame,seed);if(line.length>1)visible[name]++;let distance=0;for(let i=1;i<line.length;i++){distance+=Math.hypot(...line[i].map((v,j)=>v-line[i-1][j]));const sm=m13VectorSample(frame,frame.fields.velocity,line[i]),c=m13Color(sm.available?m13Magnitude(sm.value):0,m13FrameState.legend.VELOCITY.min,m13FrameState.legend.VELOCITY.max);pos.push(...line[i-1],...line[i]);col.push(...c,...c);flow.push(distance-Math.hypot(...line[i].map((v,j)=>v-line[i-1][j])),distance)}}}m13UploadLines(pos,col,flow);m13FrameState.resources.derivedReady.STREAMLINES=pos.length>0;m13FrameState.resources.streamlineStats={seedGroups:6,seedCount:n,groups:counts,groupVisible:visible,segments:pos.length/6,maxSegmentsPerLine:256,solidCollision:frame.solidMask?'GRID_VOXEL_TRAVERSAL':'MASK_UNAVAILABLE'};m13Sync();}
-function m13BuildWake(frame){const g=frame.grid,planes=m13WakePlanes(frame),pos=[],col=[],stats=[],minDef={v:Infinity},maxDef={v:-Infinity},sy=Math.max(1,Math.floor(g.resolution[1]/12)),sz=Math.max(1,Math.floor(g.resolution[2]/12)),speed=m13Magnitude(frame.freestream.velocity);for(const plane of planes){if(plane.status!=='AVAILABLE'){stats.push({...plane,samples:0,meanDeficit:null});continue}const rows=[];let sum=0,count=0;for(let y=0;y<g.resolution[1];y+=sy){rows[y]=[];for(let z=0;z<g.resolution[2];z+=sz){const p=[plane.x,g.min[1]+(g.max[1]-g.min[1])*y/Math.max(1,g.resolution[1]-1),g.min[2]+(g.max[2]-g.min[2])*z/Math.max(1,g.resolution[2]-1)],sm=m13VectorSample(frame,frame.fields.velocity,p),d=sm.available?Math.max(0,speed-m13Magnitude(sm.value)):null;rows[y][z]={p,d};if(d!==null){sum+=d;count++;minDef.v=Math.min(minDef.v,d);maxDef.v=Math.max(maxDef.v,d)}}}for(let y=0;y<g.resolution[1];y+=sy)for(let z=0;z<g.resolution[2];z+=sz){const q=rows[y]?.[z];if(!q||q.d===null)continue;const c=m13Color(q.d,0,Math.max(1,speed));if(z+sz<g.resolution[2]&&rows[y]?.[z+sz]?.d!==null){pos.push(...q.p,...rows[y][z+sz].p);col.push(...c,...c)}if(y+sy<g.resolution[1]&&rows[y+sy]?.[z]?.d!==null){pos.push(...q.p,...rows[y+sy][z].p);col.push(...c,...c)}}stats.push({...plane,samples:count,meanDeficit:count?sum/count:null,gridStep:[sy,sz]})}const wakeReady=pos.length>0&&stats.some(p=>p.status==='AVAILABLE')&&finite(minDef.v)&&finite(maxDef.v);if(wakeReady)m13LegendSet('WAKE',minDef.v,maxDef.v,frame.sourceId);m13UploadLines(pos,col);m13FrameState.resources.derivedReady.WAKE=wakeReady;m13FrameState.resources.wakeStats={planes:stats,quantity:'velocity deficit',pressure:true,vorticity:!!frame.fields.vorticity};m13FrameState.resources.lineCount=pos.length/3;m13Sync();}
-function m13BuildLines(frame){if(m13FrameState.mode==='VECTORS')m13BuildVectors(frame);else if(m13FrameState.mode==='STREAMLINES')m13BuildStreamlines(frame);else if(m13FrameState.mode==='WAKE')m13BuildWake(frame)}
-function m13PrepareDerived(){const f=m13FrameState.frame;if(!f||!m13FrameState.resources.initialized)return;if(['PRESSURE','VELOCITY','VORTICITY','SLICE'].includes(m13FrameState.mode))m13BuildSlice(f);if(['VECTORS','STREAMLINES','WAKE'].includes(m13FrameState.mode))m13BuildLines(f)}
-function m13PrepareCp(){const f=m13FrameState.frame;if(!f||!m13CpReady(f)||!m13FrameState.resources.initialized)return;const r=m13FrameState.resources;const parts=CFD_BRIDGE.getSolidParts();while(r.cpBuffers.length<parts.length){r.cpBuffers.push(gl.createBuffer());r.createCount++}for(let i=0;i<parts.length;i++){gl.bindBuffer(gl.ARRAY_BUFFER,r.cpBuffers[i]);gl.bufferData(gl.ARRAY_BUFFER,m13FrameState.cp.parts[i],gl.STATIC_DRAW)}}function m13DrawCp(vp){const r=m13FrameState.resources;if(!r.cpProgram||!r.cpBuffers.length)return;gl.useProgram(r.cpProgram);const ap=gl.getAttribLocation(r.cpProgram,'a_position'),ac=gl.getAttribLocation(r.cpProgram,'a_cp'),um=gl.getUniformLocation(r.cpProgram,'u_mvp'),umin=gl.getUniformLocation(r.cpProgram,'u_cpMin'),umax=gl.getUniformLocation(r.cpProgram,'u_cpMax');const cpLegend=m13FrameState.legend.CP;const parts=CFD_BRIDGE.getSolidParts();for(let i=0;i<scene.vehicleParts.length;i++){const p=scene.vehicleParts[i],d=parts[i],idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vehicleModel();if(!p.gpu)continue;gl.bindBuffer(gl.ARRAY_BUFFER,p.gpu.pb);gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.cpBuffers[i]);gl.enableVertexAttribArray(ac);gl.vertexAttribPointer(ac,1,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.gpu.ib);gl.uniform1f(umin,cpLegend.min);gl.uniform1f(umax,cpLegend.max);gl.uniformMatrix4fv(um,false,matMul(vp,pm));gl.drawElements(gl.TRIANGLES,p.gpu.count,p.gpu.type,0);r.scientificDrawCalls++}}
-function m13FlowElapsed(){return m13FrameState.flowOffset+(m13FrameState.flowPlaying?(performance.now()-m13FrameState.flowEpoch)/1000*m13FrameState.flowSpeed:0)}
-function m13DrawOverlay(vp){const r=m13FrameState.resources,f=m13FrameState.frame;if(!r.initialized||!f||!m13FrameState.visible||m13FrameState.mode==='NONE')return;if(['PRESSURE','VELOCITY','VORTICITY','SLICE'].includes(m13FrameState.mode)){if(!r.slicePositionBuffer||!r.sliceUvBuffer||!r.slicePixels)return;gl.useProgram(r.sliceProgram);gl.bindBuffer(gl.ARRAY_BUFFER,r.slicePositionBuffer);const ap=gl.getAttribLocation(r.sliceProgram,'a_position'),au=gl.getAttribLocation(r.sliceProgram,'a_uv');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(au);gl.bindBuffer(gl.ARRAY_BUFFER,r.sliceUvBuffer);gl.vertexAttribPointer(au,2,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(r.sliceProgram,'u_mvp'),false,vp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,r.sliceTexture);gl.uniform1i(gl.getUniformLocation(r.sliceProgram,'u_field'),0);gl.uniform1f(gl.getUniformLocation(r.sliceProgram,'u_alpha'),.55);gl.drawArrays(gl.TRIANGLES,0,6);r.scientificDrawCalls++}else if(['VECTORS','STREAMLINES','WAKE'].includes(m13FrameState.mode)){if(!r.linePositionBuffer)return;gl.useProgram(r.lineProgram);gl.bindBuffer(gl.ARRAY_BUFFER,r.linePositionBuffer);const ap=gl.getAttribLocation(r.lineProgram,'a_position');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineColorBuffer);const ac=gl.getAttribLocation(r.lineProgram,'a_color');gl.enableVertexAttribArray(ac);gl.vertexAttribPointer(ac,4,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,r.lineFlowBuffer);const af=gl.getAttribLocation(r.lineProgram,'a_flow');gl.enableVertexAttribArray(af);gl.vertexAttribPointer(af,1,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(r.lineProgram,'u_mvp'),false,vp);gl.uniform1f(gl.getUniformLocation(r.lineProgram,'u_flowTime'),m13FlowElapsed());gl.uniform1f(gl.getUniformLocation(r.lineProgram,'u_flowEnabled'),m13FrameState.mode==='STREAMLINES'?1:0);gl.drawArrays(gl.LINES,0,r.lineCount);r.scientificDrawCalls++} }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function initGL(){try{gl=glCanvas.getContext('webgl2',{antialias:true,alpha:false,depth:true});if(gl)perfInstrument(gl);baseline.runtime.webGL2Exposed=!!gl;if(!gl)throw Error('WebGL2 unavailable');const vs=gl.createShader(gl.VERTEX_SHADER),fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(vs,vert);gl.compileShader(vs);if(!gl.getShaderParameter(vs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(vs));gl.shaderSource(fs,frag);gl.compileShader(fs);if(!gl.getShaderParameter(fs,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(fs));program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));loc={colorLinear:gl.getUniformLocation(program,'u_colorLinear'),surface:gl.getUniformLocation(program,'u_surface'),eye:gl.getUniformLocation(program,'u_eye'),pos:gl.getAttribLocation(program,'a_position'),normal:gl.getAttribLocation(program,'a_normal'),uv:gl.getAttribLocation(program,'a_uv'),mvp:gl.getUniformLocation(program,'u_mvp'),model:gl.getUniformLocation(program,'u_model'),color:gl.getUniformLocation(program,'u_color'),alpha:gl.getUniformLocation(program,'u_alpha'),tex:gl.getUniformLocation(program,'u_tex'),useTex:gl.getUniformLocation(program,'u_useTex'),beltSurface:gl.getUniformLocation(program,'u_beltSurface'),beltTravel:gl.getUniformLocation(program,'u_beltTravel'),rollerSurface:gl.getUniformLocation(program,'u_rollerSurface')};gl.deleteShader(vs);gl.deleteShader(fs);
-whiteTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,whiteTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);m13InitResources();gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(.08,.11,.13,1);resize();gl.viewport(0,0,glCanvas.width,glCanvas.height);return true}catch(e){diagnostics.error('WebGL2 renderer',e);return false}}
+whiteTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,whiteTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.clearColor(.08,.11,.13,1);resize();gl.viewport(0,0,glCanvas.width,glCanvas.height);return true}catch(e){diagnostics.error('WebGL2 renderer',e);return false}}
 function resize(){if(!gl)return;const d=clamp(devicePixelRatio||1,1,MOBILE?1.5:(renderQuality==='high'?2:1))*((FX.on&&!FX.err)?1:((window.__LIVE&&window.__LIVE.cs)||1)),w=Math.max(1,Math.floor(glCanvas.clientWidth*d)),h=Math.max(1,Math.floor(glCanvas.clientHeight*d));if(glCanvas.width!==w||glCanvas.height!==h){glCanvas.width=w;glCanvas.height=h;gl.viewport(0,0,w,h);diagnostics.events.push({time:now(),type:'RESIZE',message:w+'x'+h})}}
-let renderQuality='high';document.getElementById('qualityMode').addEventListener('click',()=>{renderQuality=renderQuality==='high'?'balanced':'high';m13FrameState.quality=renderQuality;document.getElementById('qualityMode').textContent='화질: '+(renderQuality==='high'?'고화질':'균형')});const scientificModeEl=document.getElementById('scientificMode');if(scientificModeEl)scientificModeEl.addEventListener('change',e=>{m13PublicApi.setMode(e.target.value);});const streamDensityEl=document.getElementById('streamDensity'),streamDensityValue=document.getElementById('streamDensityValue'),streamSpeedEl=document.getElementById('streamSpeed'),streamSpeedValue=document.getElementById('streamSpeedValue'),streamPlaybackEl=document.getElementById('streamPlayback');if(streamDensityEl)streamDensityEl.addEventListener('input',e=>{m13FrameState.streamlineDensity=Number(e.target.value);if(streamDensityValue)streamDensityValue.textContent=String(m13FrameState.streamlineDensity);if(m13FrameState.mode==='STREAMLINES')m13PrepareDerived()});if(streamSpeedEl)streamSpeedEl.addEventListener('input',e=>{m13FrameState.flowOffset=m13FlowElapsed();m13FrameState.flowEpoch=performance.now();m13FrameState.flowSpeed=Number(e.target.value);if(streamSpeedValue)streamSpeedValue.textContent=m13FrameState.flowSpeed.toFixed(2)+'×';m13Sync()});if(streamPlaybackEl)streamPlaybackEl.addEventListener('click',()=>{if(m13FrameState.flowPlaying)m13FrameState.flowOffset=m13FlowElapsed();m13FrameState.flowEpoch=performance.now();m13FrameState.flowPlaying=!m13FrameState.flowPlaying;streamPlaybackEl.textContent=m13FrameState.flowPlaying?'표식 애니메이션 일시정지':'표식 애니메이션 재개';streamPlaybackEl.setAttribute?.('aria-pressed',String(m13FrameState.flowPlaying));m13Sync()});
+let renderQuality='high';document.getElementById('qualityMode')?.addEventListener('click',()=>{renderQuality=renderQuality==='high'?'balanced':'high';document.getElementById('qualityMode').textContent='화질: '+(renderQuality==='high'?'고화질':'균형')});
 const fpv={enabled:true,x:0,z:7.5,yaw:0,pitch:-.08,vx:0,vz:0,last:null,phase:0,sway:true,keys:new Set(),stick:[0,0],look:null};
 function clearWalk(){joyId=null;fpv.keys.clear();fpv.stick=[0,0];fpv.vx=fpv.vz=0;fpv.last=null;fpv.look=null;document.getElementById('stick').style.transform='translate(0px,0px)'}
 function startWalk(){window.__CINE&&window.__CINE.cancel('walk');clearWalk();fpv.enabled=true;fpv.x=0;fpv.z=7.5;fpv.gy=undefined;fpv.yaw=0;fpv.pitch=-.08;camera.preset='FPV';camera.cutaway=false;camera.fov=72;camera.up=[0,1,0];document.getElementById('viewName').textContent='FPV · 관제실';document.getElementById('viewHint').textContent='눈높이 1.65m · 보행 속도 1.6m/s';document.getElementById('cutaway').textContent='Cutaway: Off'}
@@ -1750,44 +714,44 @@ const CFD_BRIDGE=Object.freeze({version:'M12',unit:coordinateContract.unit,axis:
 // M13 scientific visualization.  Solver fields remain direct references; only
 // sparse derived resources (the selected slice, lines and surface scalars) are
 // allocated here.  No product path can bind a test source or a fixture.
-const M13_MODES=Object.freeze(['NONE','PRESSURE','VELOCITY','CP','SLICE','VECTORS','STREAMLINES','WAKE','VORTICITY']);
-const M13_SLICE_QUANTITIES=Object.freeze(['PRESSURE','VELOCITY','CP','VORTICITY']);
-const M13_LEGEND_DEFAULTS=Object.freeze({PRESSURE:{unit:'Pa',dimensionless:false},VELOCITY:{unit:'m/s',dimensionless:false},CP:{unit:'1',dimensionless:true},VORTICITY:{unit:'1/s',dimensionless:false},WAKE:{unit:'m/s',dimensionless:false}});
-const m13FrameState={solver:null,frame:null,previous:null,sequenceLedger:new Map(),mode:'NONE',slice:{axis:'X',position:0,quantity:'PRESSURE'},visible:false,streamlineDensity:64,flowPlaying:true,flowSpeed:1,flowEpoch:performance.now(),flowOffset:0,lastRejection:null,quality:'high',cp:{parts:null,source:'NONE'},resources:{initialized:false,initCount:0,sliceProgram:null,lineProgram:null,cpProgram:null,sliceTexture:null,slicePositionBuffer:null,sliceUvBuffer:null,cpBuffers:[],linePositionBuffer:null,lineColorBuffer:null,lineFlowBuffer:null,lineCount:0,lineFlow:null,slicePixels:null,sliceSize:[0,0],linePositions:null,lineColors:null,createCount:0,deleteCount:0,scientificDrawCalls:0,derivedReady:{VECTORS:false,STREAMLINES:false,WAKE:false}},legend:Object.fromEntries(Object.entries(M13_LEGEND_DEFAULTS).map(([quantity,d])=>[quantity,{quantity,unit:d.unit,dimensionless:d.dimensionless,min:null,max:null,locked:false,sourceId:null}]))};
-function m13FiniteArray(a){return ArrayBuffer.isView(a)&&a instanceof Float32Array&&a.every(finite)}
-function m13Vec3(a){return Array.isArray(a)&&a.length===3&&a.every(finite)}
-function m13Freeze(v){if(v&&typeof v==='object'&&!Object.isFrozen(v)){Object.freeze(v);for(const x of Object.values(v))m13Freeze(x)}return v}
-function m13MetaFrame(f){if(!f)return null;return{sourceId:f.sourceId,sequence:f.sequence,simulationTime:f.simulationTime,grid:{resolution:f.grid.resolution.slice(),min:f.grid.min.slice(),max:f.grid.max.slice(),layout:f.grid.layout,axes:{...f.grid.axes},unit:f.grid.unit,tier:f.grid.tier||'PRODUCT',sampleLocation:f.grid.sampleLocation||'GRID_NODE'},freestream:{velocity:f.freestream.velocity.slice(),pressure:f.freestream.pressure,density:f.freestream.density},fields:{pressureLength:f.fields.pressure.data.length,velocityLength:f.fields.velocity.data.length,vorticity:f.fields.vorticity?{length:f.fields.vorticity.data.length,components:f.fields.vorticity.components}:null},surfaceCp:f.surfaceCp?{assetId:f.surfaceCp.assetId,parts:f.surfaceCp.parts.map(p=>({name:p.name,count:p.data.length}))}:null}}
-function m13Availability(reason){return{status:'N/A',reason}}
-function m13BootAvailability(){return{NONE:{status:'AVAILABLE',reason:null},PRESSURE:m13Availability('SOLVER_UNBOUND'),VELOCITY:m13Availability('SOLVER_UNBOUND'),CP:m13Availability('SOLVER_UNBOUND'),SLICE:m13Availability('SOLVER_UNBOUND'),VECTORS:m13Availability('SOLVER_UNBOUND'),STREAMLINES:m13Availability('SOLVER_UNBOUND'),WAKE:m13Availability('SOLVER_UNBOUND'),VORTICITY:m13Availability('SOLVER_UNBOUND')}}
-function m13SampleCoordinate(frame,p){const g=frame.grid;if(!m13Vec3(p)||p.some((v,i)=>v<g.min[i]-1e-9||v>g.max[i]+1e-9))return null;const t=[0,1,2].map(i=>{if(g.sampleLocation==='CELL_CENTER'){const h=(g.max[i]-g.min[i])/g.resolution[i];return Math.max(0,Math.min(g.resolution[i]-1,(p[i]-g.min[i])/h-.5))}return(p[i]-g.min[i])/(g.max[i]-g.min[i])*(g.resolution[i]-1)});return t}
-function m13CellIndex(g,x,y,z){return x+g.resolution[0]*(y+g.resolution[1]*z)}
-function m13ScalarSample(frame,field,p){const t=m13SampleCoordinate(frame,p);if(!t)return{available:false,value:null};const g=frame.grid,d0=Math.floor(t[0]),d1=Math.floor(t[1]),d2=Math.floor(t[2]),x0=Math.min(d0,g.resolution[0]-1),y0=Math.min(d1,g.resolution[1]-1),z0=Math.min(d2,g.resolution[2]-1),x1=Math.min(x0+1,g.resolution[0]-1),y1=Math.min(y0+1,g.resolution[1]-1),z1=Math.min(z0+1,g.resolution[2]-1),fx=t[0]-x0,fy=t[1]-y0,fz=t[2]-z0;const v=(x,y,z)=>field.data[m13CellIndex(g,x,y,z)];const c00=v(x0,y0,z0)*(1-fx)+v(x1,y0,z0)*fx,c01=v(x0,y0,z1)*(1-fx)+v(x1,y0,z1)*fx,c10=v(x0,y1,z0)*(1-fx)+v(x1,y1,z0)*fx,c11=v(x0,y1,z1)*(1-fx)+v(x1,y1,z1)*fx;return{available:true,value:(c00*(1-fy)+c10*fy)*(1-fz)+(c01*(1-fy)+c11*fy)*fz}}
-function m13VectorSample(frame,field,p){const t=m13SampleCoordinate(frame,p);if(!t)return{available:false,value:null};const g=frame.grid,d0=Math.floor(t[0]),d1=Math.floor(t[1]),d2=Math.floor(t[2]),x0=Math.min(d0,g.resolution[0]-1),y0=Math.min(d1,g.resolution[1]-1),z0=Math.min(d2,g.resolution[2]-1),x1=Math.min(x0+1,g.resolution[0]-1),y1=Math.min(y0+1,g.resolution[1]-1),z1=Math.min(z0+1,g.resolution[2]-1),fx=t[0]-x0,fy=t[1]-y0,fz=t[2]-z0,v=(x,y,z)=>{const o=m13CellIndex(g,x,y,z)*3;return[field.data[o],field.data[o+1],field.data[o+2]]},mix=(a,b,q)=>[a[0]*(1-q)+b[0]*q,a[1]*(1-q)+b[1]*q,a[2]*(1-q)+b[2]*q],a=mix(v(x0,y0,z0),v(x1,y0,z0),fx),b=mix(v(x0,y1,z0),v(x1,y1,z0),fx),c=mix(v(x0,y0,z1),v(x1,y0,z1),fx),d=mix(v(x0,y1,z1),v(x1,y1,z1),fx);return{available:true,value:mix(mix(a,b,fy),mix(c,d,fy),fz)}}
-function m13Magnitude(v){return Math.hypot(v[0],v[1],v[2])}
-function m13FiniteField(field,count){return !!field&&m13FiniteArray(field.data)&&field.data.length===count*field.components}
-function m13DomainContains(frame){const b=CFD_BRIDGE.getAlignmentReport().solidBounds,g=frame.grid;return [0,1,2].every(i=>b.min[i]>=g.min[i]-1e-9&&b.max[i]<=g.max[i]+1e-9)}
-function m13ValidateFrame(frame,{allowTestGrid=false}={}){const fail=reason=>({ok:false,reason});if(!m13FrameState.solver)return fail('SOLVER_UNBOUND');if(!frame||typeof frame!=='object')return fail('INVALID_FRAME');if(frame.sourceId!==m13FrameState.solver.id)return fail('WRONG_SOURCE');if(typeof frame.sourceId!=='string'||!Number.isInteger(frame.sequence)||frame.sequence<0||!finite(frame.simulationTime)||frame.simulationTime<0)return fail('FRAME_HEADER_INVALID');if(vehicleGeometryEpoch>0&&frame.vehicleTransformSignature!==CFD_BRIDGE.geometrySignature())return fail('STALE_VEHICLE_GEOMETRY');const g=frame.grid,officeDiagnostic=frame.sourceId==='AETHER_S3_OFFICE_CPU'&&!!g&&Array.isArray(g.resolution)&&g.resolution.length===3&&g.resolution.every(v=>v===32||v===64)&&g.tier==='OFFICE_DIAGNOSTIC'&&g.sampleLocation==='CELL_CENTER';if(!g||!Array.isArray(g.resolution)||g.resolution.length!==3||!g.resolution.every(v=>Number.isInteger(v)&&v>0)||(!allowTestGrid&&![[64,64,64],[128,128,128],[256,256,256]].some(t=>t.every((v,i)=>g.resolution[i]===v))&&!officeDiagnostic))return fail('UNSUPPORTED_RESOLUTION');if(!m13Vec3(g.min)||!m13Vec3(g.max)||g.max.some((v,i)=>v<=g.min[i]))return fail('INVALID_GRID_BOUNDS');if(g.layout!=='X_FASTEST'||g.unit!=='meter'||g.axes?.downstream!=='+X'||g.axes?.up!=='+Y'||g.axes?.lateral!=='+Z'||g.sampleLocation!==undefined&&!['GRID_NODE','CELL_CENTER'].includes(g.sampleLocation))return fail('GRID_CONTRACT_INVALID');if(!m13DomainContains(frame))return fail('DOMAIN_DOES_NOT_CONTAIN_VEHICLE');const n=g.resolution[0]*g.resolution[1]*g.resolution[2];if(frame.solidMask!==undefined){const mask=frame.solidMask?.data;if(!(mask instanceof Uint8Array)||mask.length!==n)return fail('SOLID_MASK_INVALID');for(let i=0;i<n;i++)if(mask[i]!==0&&mask[i]!==1)return fail('SOLID_MASK_INVALID')}const fs=frame.fields,fr=frame.freestream;if(!fs||!m13FiniteField(fs.pressure,n)||fs.pressure.components!==1||fs.pressure.unit!=='Pa')return fail('PRESSURE_FIELD_INVALID');if(!m13FiniteField(fs.velocity,n)||fs.velocity.components!==3||fs.velocity.unit!=='m/s')return fail('VELOCITY_FIELD_INVALID');if(fs.vorticity!==undefined&&(!m13FiniteField(fs.vorticity,n)||(fs.vorticity.components!==1&&fs.vorticity.components!==3)||fs.vorticity.unit!=='1/s'))return fail('VORTICITY_FIELD_INVALID');if(!fr||!m13Vec3(fr.velocity)||!finite(fr.pressure)||!finite(fr.density)||fr.density<=0)return fail('FREESTREAM_INVALID');if(frame.surfaceCp!==undefined){const parts=CFD_BRIDGE.getSolidParts();if(!frame.surfaceCp||frame.surfaceCp.assetId!==AETHER.VEHICLE_PRODUCTION?.assetId||frame.surfaceCp.unit!=='1'||!Array.isArray(frame.surfaceCp.parts)||frame.surfaceCp.parts.length!==parts.length)return fail('SURFACE_CP_METADATA_INVALID');for(let i=0;i<parts.length;i++){const q=frame.surfaceCp.parts[i];if(!q||q.name!==parts[i].name||!m13FiniteArray(q.data)||q.data.length!==parts[i].vertexCount)return fail('SURFACE_CP_PART_INVALID')}}if(m13FrameState.previous&&(frame.sequence<m13FrameState.previous.sequence||frame.simulationTime<m13FrameState.previous.simulationTime))return fail('FRAME_ORDER_INVALID');const prior=m13FrameState.sequenceLedger.get(frame.sequence);const equivalent=prior&&prior.sourceId===frame.sourceId&&prior.simulationTime===frame.simulationTime&&prior.frame.grid===frame.grid&&prior.frame.fields.pressure.data===frame.fields.pressure.data&&prior.frame.fields.velocity.data===frame.fields.velocity.data&&prior.frame.fields.vorticity?.data===frame.fields.vorticity?.data&&prior.frame.solidMask?.data===frame.solidMask?.data;if(prior&&!equivalent)return fail('SEQUENCE_REUSE_MUTATED');return{ok:true,n}}
-function m13LegendSet(quantity,min,max,sourceId){const l=m13FrameState.legend[quantity];if(!l||l.locked||!finite(min)||!finite(max))return;if(min===max){const e=Math.max(Math.abs(min)*1e-6,1e-6);min-=e;max+=e}l.min=min;l.max=max;l.locked=true;l.sourceId=sourceId}
-function m13WakeLegend(frame){const g=frame.grid,planes=m13WakePlanes(frame),sy=Math.max(1,Math.floor(g.resolution[1]/12)),sz=Math.max(1,Math.floor(g.resolution[2]/12)),speed=m13Magnitude(frame.freestream.velocity);let lo=Infinity,hi=-Infinity;for(const plane of planes){if(plane.status!=='AVAILABLE')continue;for(let y=0;y<g.resolution[1];y+=sy)for(let z=0;z<g.resolution[2];z+=sz){const p=[plane.x,g.min[1]+(g.max[1]-g.min[1])*y/Math.max(1,g.resolution[1]-1),g.min[2]+(g.max[2]-g.min[2])*z/Math.max(1,g.resolution[2]-1)],sm=m13VectorSample(frame,frame.fields.velocity,p);if(sm.available){const d=Math.max(0,speed-m13Magnitude(sm.value));lo=Math.min(lo,d);hi=Math.max(hi,d)}}}return finite(lo)&&finite(hi)?[lo,hi]:null}
-function m13LegendScan(frame,quantity){const g=frame.grid,n=g.resolution[0]*g.resolution[1]*g.resolution[2],p=frame.fields.pressure.data,v=frame.fields.velocity.data,lo={value:Infinity},hi={value:-Infinity};if(quantity==='PRESSURE'){for(let i=0;i<n;i++){lo.value=Math.min(lo.value,p[i]);hi.value=Math.max(hi.value,p[i])}}else if(quantity==='VELOCITY'){for(let i=0;i<n;i++){const o=i*3,s=Math.hypot(v[o],v[o+1],v[o+2]);lo.value=Math.min(lo.value,s);hi.value=Math.max(hi.value,s)}}else if(quantity==='CP'&&m13FrameState.cp.parts){for(const a of m13FrameState.cp.parts)for(const x of a){lo.value=Math.min(lo.value,x);hi.value=Math.max(hi.value,x)}}else if(quantity==='VORTICITY'&&frame.fields.vorticity){const q=frame.fields.vorticity;if(q.components===1)for(const x of q.data){lo.value=Math.min(lo.value,x);hi.value=Math.max(hi.value,x)}else for(let i=0;i<n;i++){const o=i*3,s=Math.hypot(q.data[o],q.data[o+1],q.data[o+2]);lo.value=Math.min(lo.value,s);hi.value=Math.max(hi.value,s)}}return finite(lo.value)&&finite(hi.value)?[lo.value,hi.value]:null}
-function m13CpBuffers(frame){const q=.5*frame.freestream.density*m13Magnitude(frame.freestream.velocity)**2;if(!finite(q)||q<=1e-12)return null;if(frame.surfaceCp)return frame.surfaceCp.parts.map(p=>p.data);const out=[];for(const p of CFD_BRIDGE.getSolidParts()){const a=new Float32Array(p.vertexCount);for(let i=0;i<p.vertexCount;i++){const o=i*3,w=m4point(p.modelMatrix,[p.positions[o],p.positions[o+1],p.positions[o+2]]),s=m13ScalarSample(frame,frame.fields.pressure,w);if(!s.available)return null;a[i]=(s.value-frame.freestream.pressure)/q;if(!finite(a[i]))return null}out.push(a)}return out}
-function m13CpReady(frame){if(m13FrameState.cp.parts)return true;const parts=m13CpBuffers(frame);if(!parts)return false;m13FrameState.cp={parts,source:frame.surfaceCp?'SOLVER':'PRESSURE_DERIVED'};let lo=Infinity,hi=-Infinity;for(const a of parts)for(const x of a){lo=Math.min(lo,x);hi=Math.max(hi,x)}m13LegendSet('CP',lo,hi,frame.sourceId);return true}
-function m13WakePlanes(frame){const L=AETHER.VEHICLE_TRANSFORM.dimensions.lengthX,downstream=CFD_BRIDGE.getAlignmentReport().solidBounds.min[0],out=[];for(const factor of[.5,1,2]){const x=downstream-factor*L;out.push({x,status:x>=frame.grid.min[0]&&x<=frame.grid.max[0]?'AVAILABLE':'N/A_OUTSIDE_DOMAIN'})}return out}
-function m13UpdateAvailability(){const a=m13BootAvailability(),f=m13FrameState.frame;if(f){a.PRESSURE={status:'AVAILABLE',reason:null};a.VELOCITY={status:'AVAILABLE',reason:null};a.VECTORS={status:'AVAILABLE',reason:null};a.STREAMLINES={status:'AVAILABLE',reason:null};a.CP=m13CpReady(f)?{status:'AVAILABLE',reason:null}:m13Availability('CP_UNAVAILABLE');a.SLICE=m13FrameState.slice.quantity==='CP'?m13Availability('VOLUME_CP_NOT_PROVIDED'):(m13FrameState.slice.quantity==='VORTICITY'&&!f.fields.vorticity?m13Availability('N/A_SOURCE_NOT_PROVIDED'):{status:'AVAILABLE',reason:null});a.WAKE=m13WakePlanes(f).some(p=>p.status==='AVAILABLE')?{status:'AVAILABLE',reason:null}:m13Availability('N/A_OUTSIDE_DOMAIN');a.VORTICITY=f.fields.vorticity?{status:'AVAILABLE',reason:null}:m13Availability('N/A_SOURCE_NOT_PROVIDED')}m13FrameState.availability=a}
-function m13Sync(){m13UpdateAvailability();const f=m13FrameState.frame,legend=Object.fromEntries(Object.entries(m13FrameState.legend).map(([k,v])=>[k,{...v}])),finiteLegend=(q,u,d)=>!!legend[q]&&legend[q].unit===u&&legend[q].dimensionless===d&&finite(legend[q].min)&&finite(legend[q].max)&&legend[q].locked;const alignment=!!f&&m13DomainContains(f),officeDiagnostic=!!f&&f.grid.tier==='OFFICE_DIAGNOSTIC';const checks={publicApi:true,frameContract:true,finiteValidation:true,pressureDataReady:!!f&&finiteLegend('PRESSURE','Pa',false),velocityDataReady:!!f&&finiteLegend('VELOCITY','m/s',false),cpDataReady:!!f&&m13CpReady(f)&&finiteLegend('CP','1',true),sliceDataReady:!!f&&!!m13FrameState.resources.slicePositionBuffer&&!!m13FrameState.resources.sliceUvBuffer&&!!m13FrameState.resources.slicePixels,vectorsDataReady:!!f&&m13FrameState.resources.derivedReady.VECTORS===true,streamlinesDataReady:!!f&&m13FrameState.resources.derivedReady.STREAMLINES===true,wakeDataReady:!!f&&m13FrameState.resources.derivedReady.WAKE===true&&m13WakePlanes(f).some(p=>p.status==='AVAILABLE'),vorticityDataReady:!!f&&(!!f.fields.vorticity||m13FrameState.availability.VORTICITY?.reason==='N/A_SOURCE_NOT_PROVIDED'),productionResolutionReady:!!f&&!officeDiagnostic,legendsValid:!!f&&finiteLegend('PRESSURE','Pa',false)&&finiteLegend('VELOCITY','m/s',false)&&finiteLegend('CP','1',true)&&finiteLegend('WAKE','m/s',false)&&(!f.fields.vorticity||finiteLegend('VORTICITY','1/s',false)),exactAlignment:alignment,noSyntheticField:true,noRenderOnlyTransform:alignment,solverSourceOnly:true};const phase=window.__AETHER_M13_PRIVATE_TEST_MODE__!==true&&Object.values(checks).every(Boolean)&&!!m13FrameState.solver&&!!f;AETHER.M13={codeReady:true,passed:phase,gateStatus:phase?'READY':(officeDiagnostic?'BLOCKED_OFFICE_DIAGNOSTIC_ONLY':(m13FrameState.solver?'BLOCKED_FRAME_NOT_READY':'BLOCKED_SOLVER_UNBOUND')),solverBound:!!m13FrameState.solver,dataReady:!!f,checks,source:m13FrameState.solver?{kind:'solver',id:m13FrameState.solver.id}:null,frame:m13MetaFrame(f),mode:m13FrameState.mode,modeAvailability:m13FrameState.availability,legend,resources:{initialized:m13FrameState.resources.initialized,initCount:m13FrameState.resources.initCount,slicePositionBuffer:!!m13FrameState.resources.slicePositionBuffer,sliceUvBuffer:!!m13FrameState.resources.sliceUvBuffer,lineBuffers:!!m13FrameState.resources.linePositionBuffer,lineCount:m13FrameState.resources.lineCount,cpBuffers:m13FrameState.resources.cpBuffers.length,createCount:m13FrameState.resources.createCount,deleteCount:m13FrameState.resources.deleteCount,scientificDrawCalls:m13FrameState.resources.scientificDrawCalls,derivedReady:{...m13FrameState.resources.derivedReady}},limitations:officeDiagnostic?['32³ office CPU preview only','geometry and physics are not approved','browser visual review pending']:['solver source unbound at boot','actual CFD data required before phase gate can pass','browser visual review pending'],browserVerified:false,productReady:false};const st=document.getElementById('m13Status'),lg=document.getElementById('m13Legend');if(st)st.textContent=officeDiagnostic?'OFFICE PREVIEW · 32³ · #'+f.sequence:(f?'SOURCE '+f.sourceId+' · SEQ '+f.sequence:'SOLVER UNBOUND');const streamControls=document.getElementById('streamControls');if(streamControls)streamControls.hidden=m13FrameState.mode!=='STREAMLINES';if(lg){const mode=m13FrameState.mode,previewLabel=officeDiagnostic?'32³ OFFICE PREVIEW · ':'',q=mode==='SLICE'?m13FrameState.slice.quantity:(mode==='VECTORS'||mode==='STREAMLINES'?'VELOCITY':mode),l=legend[q],av=m13FrameState.availability[mode];if(!f)lg.textContent='M13 VIS READY · SOLVER UNBOUND';else if(mode==='NONE')lg.textContent=previewLabel+f.sourceId+' · #'+f.sequence+' · t='+f.simulationTime.toFixed(3)+'s\nDATA READY · MODE NONE';else if(av?.status!=='AVAILABLE')lg.textContent=f.sourceId+' · #'+f.sequence+' · t='+f.simulationTime.toFixed(3)+'s\n'+mode+' · '+(av?.reason||'N/A');else lg.textContent=previewLabel+f.sourceId+' · #'+f.sequence+' · t='+f.simulationTime.toFixed(3)+'s\n'+q+' · '+(finite(l?.min)&&finite(l?.max)?l.min.toFixed(5)+' … '+l.max.toFixed(5):'N/A')+' '+(l?.unit||'N/A')+(mode==='STREAMLINES'?' · snapshot frozen · markers '+(m13FrameState.flowPlaying?'playing':'paused')+' '+m13FrameState.flowSpeed.toFixed(2)+'×':'')};if(typeof renderDiagnostics==='function'&&diagnostics?.bootStage!=='BOOT')renderDiagnostics()}function m13Reject(reason){m13FrameState.lastRejection=reason;diagnostics.warnings.push('M13_'+reason);m13Sync();return false}
-function m13InvalidateDerived(){const r=m13FrameState.resources;r.derivedReady={VECTORS:false,STREAMLINES:false,WAKE:false};r.lineCount=0;r.linePositions=null;r.lineColors=null;r.vectorStats=null;r.streamlineStats=null;r.wakeStats=null;r.slicePixels=null;r.sliceSize=[0,0];}
-function m13BindSolver(input={}){const kind=input&&input.kind,id=input&&input.id;if(kind!=='solver'||typeof id!=='string'||!id.trim())return m13Reject('INVALID_SOLVER_SOURCE');m13FrameState.solver={kind:'solver',id:id.trim()};m13FrameState.frame=null;m13FrameState.previous=null;m13FrameState.sequenceLedger.clear();m13FrameState.visible=false;m13InvalidateDerived();m13FrameState.cp={parts:null,source:'NONE'};for(const l of Object.values(m13FrameState.legend)){l.min=null;l.max=null;l.locked=false;l.sourceId=null}m13FrameState.lastRejection=null;m13Sync();return true}
-function m13UnbindSolver(){m13FrameState.solver=null;m13FrameState.frame=null;m13FrameState.previous=null;m13FrameState.sequenceLedger.clear();m13FrameState.visible=false;m13InvalidateDerived();m13FrameState.cp={parts:null,source:'NONE'};for(const l of Object.values(m13FrameState.legend)){l.min=null;l.max=null;l.locked=false;l.sourceId=null}m13Sync();return true}
-function m13AcceptFrame(frame){const check=m13ValidateFrame(frame);if(!check.ok)return m13Reject(check.reason);m13FrameState.previous=frame;m13FrameState.frame=frame;m13FrameState.sequenceLedger.clear();m13FrameState.sequenceLedger.set(frame.sequence,{sourceId:frame.sourceId,simulationTime:frame.simulationTime,frame});m13FrameState.visible=true;m13InvalidateDerived();m13FrameState.cp={parts:null,source:'NONE'};for(const [q,key] of [['PRESSURE','PRESSURE'],['VELOCITY','VELOCITY'],['VORTICITY','VORTICITY']]){const r=m13LegendScan(frame,key);if(r)m13LegendSet(q,r[0],r[1],frame.sourceId)}m13Sync();m13PrepareDerived();m13PrepareCp();return true}
-function m13SetMode(mode){if(!M13_MODES.includes(mode))return false;m13UpdateAvailability();if(mode!=='NONE'&&m13FrameState.availability[mode]?.status!=='AVAILABLE'){m13FrameState.lastRejection=m13FrameState.availability[mode]?.reason||'DATA_UNAVAILABLE';m13Sync();return false}m13FrameState.mode=mode;if(['PRESSURE','VELOCITY','VORTICITY'].includes(mode))m13FrameState.slice={axis:'X',position:0,quantity:mode};m13FrameState.visible=mode!=='NONE'&&!!m13FrameState.frame;m13Sync();m13PrepareDerived();return true}
-function m13SetSlice(input={}){const axis=input.axis,position=input.position,quantity=input.quantity;if(!['X','Y','Z'].includes(axis)||!finite(position)||!M13_SLICE_QUANTITIES.includes(quantity)||!m13FrameState.frame)return false;const g=m13FrameState.frame.grid,i='XYZ'.indexOf(axis);if(position<g.min[i]||position>g.max[i])return false;m13FrameState.slice={axis,position,quantity};m13FrameState.visible=false;m13UpdateAvailability();if(m13FrameState.mode==='SLICE'&&m13FrameState.availability.SLICE.status==='AVAILABLE')m13FrameState.visible=true;m13Sync();m13PrepareDerived();return true}
-function m13ResetLegend(quantity){const keys=quantity?[quantity]:Object.keys(m13FrameState.legend);if(quantity&&!m13FrameState.legend[quantity])return false;for(const k of keys){const l=m13FrameState.legend[k];l.min=null;l.max=null;l.locked=false;l.sourceId=null}if(m13FrameState.frame){for(const q of keys){const r=q==='WAKE'?m13WakeLegend(m13FrameState.frame):m13LegendScan(m13FrameState.frame,q);if(r)m13LegendSet(q,r[0],r[1],m13FrameState.frame.sourceId)}}m13Sync();return true}
-function m13Snapshot(){return m13Freeze(JSON.parse(JSON.stringify({solverBound:!!m13FrameState.solver,dataReady:!!m13FrameState.frame,source:m13FrameState.solver?{kind:'solver',id:m13FrameState.solver.id}:null,frame:m13MetaFrame(m13FrameState.frame),mode:m13FrameState.mode,modeAvailability:m13FrameState.availability,legend:m13FrameState.legend,lastRejection:m13FrameState.lastRejection}))) }
-const m13PublicApi=Object.freeze({bindSolver:m13BindSolver,unbindSolver:m13UnbindSolver,acceptFrame:m13AcceptFrame,setMode:m13SetMode,setSlice:m13SetSlice,resetLegend:m13ResetLegend,getSnapshot:m13Snapshot});AETHER.SCIENTIFIC_VIS=m13PublicApi;
-const m13PrivateHelpers=Object.freeze({scalarTrilinear:m13ScalarSample,vectorTrilinear:m13VectorSample,magnitude:m13Magnitude,finiteField:m13FiniteField,domainContains:m13DomainContains,wakePlanes:m13WakePlanes,streamline:m13Streamline,segmentHitsSolid:m13SegmentHitsSolid,flowElapsed:m13FlowElapsed,cpBuffers:m13CpBuffers});
-m13Sync();
-if(window.__AETHER_M13_PRIVATE_TEST_MODE__===true)Object.defineProperty(window,'__AETHER_M13_PRIVATE_TEST__',{value:m13PrivateHelpers,configurable:false});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function runM12Checks(){const domain=CFD_DOMAIN_CONTRACT,b=domain.bounds,derivedMin=[-config.testSection.lengthX/2,coordinateContract.groundY,-config.testSection.widthZ/2],derivedMax=[config.testSection.lengthX/2,config.testSection.heightY,config.testSection.widthZ/2],derivedSize=derivedMax.map((v,i)=>v-derivedMin[i]),descriptors=CFD_BRIDGE.getSolidParts(),report=CFD_BRIDGE.getAlignmentReport(),renderBounds=report.renderBounds,solidBounds=report.solidBounds,allDomain=[...b.min,...b.max,...b.size,b.volume],domainFinite=allDomain.every(finite)&&b.size.every(v=>v>0)&&b.volume>0,domainAxes=domain.unit==='meter'&&domain.axis.downstream==='+X'&&domain.axis.up==='+Y'&&domain.axis.lateral==='+Z'&&domain.axis.vehicleForward==='-X',eq=(a,c,t=M12_TOLERANCES.domain)=>a.length===c.length&&a.every((v,i)=>finite(v)&&Math.abs(v-c[i])<=t),vehicleContained=descriptors.length>0&&[...solidBounds.min,...solidBounds.max].every(finite)&&solidBounds.min.every((v,i)=>v>=b.min[i]-M12_TOLERANCES.geometry)&&solidBounds.max.every((v,i)=>v<=b.max[i]+M12_TOLERANCES.geometry),sharedGeometryAuthority=descriptors.length===scene.vehicleParts.length&&descriptors.every((p,i)=>p.positions===scene.vehicleParts[i].positions&&p.indices===scene.vehicleParts[i].indices),body=descriptors.filter(p=>p.role==='body'),wheels=descriptors.filter(p=>p.role==='wheel'),solidCounts=descriptors.every(p=>finite(p.vertexCount)&&finite(p.triangleCount)&&p.vertexCount>0&&p.triangleCount>0)&&descriptors.reduce((n,p)=>n+p.vertexCount,0)===scene.vehicleParts.reduce((n,p)=>n+p.positions.length/3,0)&&descriptors.reduce((n,p)=>n+p.triangleCount,0)===scene.vehicleParts.reduce((n,p)=>n+p.indices.length/3,0),noRenderOnlyOffset=report.maxMatrixError<=M12_TOLERANCES.matrix,vehiclePlacement=AETHER.VEHICLE_TRANSFORM.position.every(finite)&&AETHER.VEHICLE_TRANSFORM.scale.every(v=>finite(v)&&v>0)&&eq(AETHER.VEHICLE_TRANSFORM.rotation,[0,Math.PI,0])&&Math.abs(renderBounds.min[1]-coordinateContract.groundY)<=M12_TOLERANCES.geometry&&Math.abs(renderBounds.max[2]+renderBounds.min[2]-2*AETHER.VEHICLE_TRANSFORM.position[2])<=M12_TOLERANCES.geometry,forwardDirection=domain.axis.downstream==='+X'&&domain.axis.vehicleForward==='-X'&&vehicleFrontEvidence().verified&&FLOW_LAYOUT.get().vehicleNoseDirection[0]<-.999&&FLOW_LAYOUT.get().emitterPlane.x<FLOW_LAYOUT.get().vehicleFrontPoint[0]&&FLOW_LAYOUT.get().vehicleRearPoint[0]<FLOW_LAYOUT.get().collectorPlane.x,syntheticFieldKeys=['pressure','velocity','Cp','streamlines','wake','vorticity'],noSyntheticFields=!domain.fieldData&&!domain.allocated&&!domain.solverBound&&!CFD_BRIDGE.fieldData&&!CFD_BRIDGE.solverBound&&!syntheticFieldKeys.some(k=>Object.prototype.hasOwnProperty.call(domain,k)||Object.prototype.hasOwnProperty.call(CFD_BRIDGE,k));const checks={domainFinite,domainAxes,domainDerivedFromConfig:eq(b.min,derivedMin)&&eq(b.max,derivedMax)&&eq(b.size,derivedSize)&&Math.abs(b.volume-derivedSize[0]*derivedSize[1]*derivedSize[2])<=M12_TOLERANCES.domain,vehicleContained,sharedTransformAuthority:CFD_BRIDGE.transformAuthority===AETHER.VEHICLE_TRANSFORM,sharedGeometryAuthority,solidPartCount:descriptors.length===5&&body.length===1&&wheels.length===4,solidCounts,solidBoundsMatchRender:report.maxBoundsError<=M12_TOLERANCES.geometry,renderTransformMatch:report.maxRenderBridgeError<=M12_TOLERANCES.matrix,roundTrip:report.maxRoundTripError<=M12_TOLERANCES.roundTrip,noRenderOnlyOffset,vehiclePlacement,forwardDirection,noSyntheticFields};const passed=Object.values(checks).every(Boolean);const summary={passed,geometryReady:passed,alignmentReady:passed,checks,domain:Object.freeze({min:b.min.slice(),max:b.max.slice(),size:b.size.slice(),volume:b.volume,resolutionTiers:domain.resolutionTiers.map(t=>({resolution:t.resolution,cells:t.cells,scalarFloat32Bytes:t.scalarFloat32Bytes,vector3Float32Bytes:t.vector3Float32Bytes})),activeTier:domain.activeTier,allocated:domain.allocated,solverBound:domain.solverBound,fieldData:domain.fieldData}),solid:{partCount:descriptors.length,vertexCount:descriptors.reduce((n,p)=>n+p.vertexCount,0),triangleCount:descriptors.reduce((n,p)=>n+p.triangleCount,0),bounds:solidBounds},alignment:{maxRoundTripError:report.maxRoundTripError,maxRenderBridgeError:report.maxRenderBridgeError,maxBoundsError:report.maxBoundsError,transformAuthority:CFD_BRIDGE.transformAuthority},solverBound:false,fieldData:false,visualApproval:'PENDING',browserVerified:false,productReady:false,limitations:['solver unbound','no field allocation','actual CFD visualization deferred to M13','device visual review pending']};AETHER.M12=Object.freeze(summary);diagnostics.cfdDomain=AETHER.M12.domain;diagnostics.cfdAlignment=AETHER.M12.alignment;if(!passed)throw Error('M12 CFD domain/vehicle alignment failed: '+Object.entries(checks).filter(([,v])=>!v).map(([k])=>k).join(','));return AETHER.M12}
 function runM4Checks(){const eps=M4_CONFIG.tolerances.geometry,body=scene.vehicleParts.filter(p=>p.role==='body'),wheels=wheelParts(),belt=scene.objects.find(o=>o.name==='belt'),rollerTop=scene.roadParts.every(r=>Math.abs(r.center[1]+r.radius-(-.06))<=eps),counts=body.length===1&&wheels.length===4&&scene.roadParts.length===4&&scene.objects.filter(o=>o.name==='belt').length===1,mesh=scene.roadParts.every(r=>validateProceduralMesh(r.mesh)&&r.mesh.positions.length/3===2*(M4_CONFIG.roller.segments+1)+2+2*(M4_CONFIG.roller.segments+1)&&r.mesh.indices.length===M4_CONFIG.roller.segments*12),pit=!!belt&&Math.abs(belt.center[1]+belt.size[1]/2)<=eps&&Math.abs(belt.size[0]-6.20)<=eps&&Math.abs(belt.size[2]-2.56)<=eps,beltClearance=!!belt&&M4_CONFIG.pit.maxX-(belt.center[0]+belt.size[0]/2)>=.05-eps&&M4_CONFIG.pit.minX-(belt.center[0]-belt.size[0]/2)<=-.05+eps&&M4_CONFIG.pit.maxZ-(belt.center[2]+belt.size[2]/2)>=.05-eps&&M4_CONFIG.pit.minZ-(belt.center[2]-belt.size[2]/2)<=-.05+eps&&scene.objects.filter(o=>o.name.startsWith('frame.')).every(o=>Math.abs(o.center[2])<1e-9||Math.abs(Math.abs(o.center[2])-1.325)<eps),uniqueM4Ids=(()=>{const cats=new Set(['rolling road','rolling-road frame','rolling-road pit','boundary-layer slot','rolling-road service','wheel station']);const ids=scene.objects.filter(o=>o.name==='belt'||cats.has(o.category)).map(o=>o.name);return new Set(ids).size===ids.length})(),align=wheels.every((w,i)=>{const r=scene.roadParts[i];return !!r&&Math.hypot(AETHER.VEHICLE_TRANSFORM.localToWorld(w.wheel.pivot)[0]-r.center[0],AETHER.VEHICLE_TRANSFORM.localToWorld(w.wheel.pivot)[2]-r.center[2])<=eps}),contacts=wheels.length===4&&wheels.every((w,i)=>{const b=wheelWorldBoundsAt(0,i);return b.min[1]>=-1e-5&&b.min[1]<=M4_CONFIG.tolerances.contact}),state=!!AETHER.ROLLING_ROAD&&snapshotState().effectiveSpeed===0&&snapshotState().wheelAngles.length===4&&snapshotState().rollerAngles.length===4;const checks={body:body.length===1,wheels:wheels.length===4,stations:scene.roadParts.length===4,belt:!!belt,beltDimensions:pit,beltClearance,uniqueM4Ids,frame:scene.objects.filter(o=>o.category==='rolling-road frame').length===4,slot:scene.objects.filter(o=>o.category==='boundary-layer slot').length===3,servicePanels:scene.objects.filter(o=>o.name.startsWith('service panel')).length===2,bearings:scene.objects.filter(o=>o.category==='wheel station'&&o.name.startsWith('bearing')).length===8,rollerTopology:mesh,rollerTop,alignment:align,vehicleContact:contacts,stateContract:state,finite:scene.roadParts.every(r=>validateProceduralMesh(r.mesh))};const passed=counts&&Object.values(checks).every(Boolean);AETHER.M4={geometryReady:passed,stateContractReady:state,liveSolverConnected:false,browserVerified:false,iPhoneVerified:false,visualApproval:'PENDING',productReady:false,checks,limitations:['solver source unbound at boot','browser runtime not verified','iPhone runtime not verified']};diagnostics.m4Checks=checks;return AETHER.M4}
 function collectorMeshBuilder(name,role,color,surface){
@@ -1903,11 +867,11 @@ const FAN_VISUAL_SCALE=.90;
 let flowLayoutCache=null;
 function fanRootMatrix(position,scale=FAN_VISUAL_SCALE){return new Float64Array([scale,0,0,0,0,scale,0,0,0,0,scale,0,position[0],position[1],position[2],1])}
 function transformBounds(bounds,m){const pts=[];for(const x of[bounds.min[0],bounds.max[0]])for(const y of[bounds.min[1],bounds.max[1]])for(const z of[bounds.min[2],bounds.max[2]])pts.push(m4point(m,[x,y,z]));return{min:[0,1,2].map(i=>Math.min(...pts.map(p=>p[i]))),max:[0,1,2].map(i=>Math.max(...pts.map(p=>p[i]))),corners:pts}}
-function smokeHeightSafe(base,g,fan){let h=smokeState.height;try{const bb=transformBounds(fan.localBounds,fanRootMatrix([0,base,0]));h=Math.min(Math.max(h,g.min[1]-bb.min[1]+.02),g.max[1]-bb.max[1]-.02)}catch(e){}return Math.max(-2,Math.min(2,h))}
+function smokeHeightSafe(base,g,fan){let h=FLOW_PLACEMENT.height;try{const bb=transformBounds(fan.localBounds,fanRootMatrix([0,base,0]));h=Math.min(Math.max(h,g.min[1]-bb.min[1]+.02),g.max[1]-bb.max[1]-.02)}catch(e){}return Math.max(-2,Math.min(2,h))}
 function flowLayout(frame){
  const g=frame?.grid||{min:CFD_DOMAIN_CONTRACT.bounds.min,max:CFD_DOMAIN_CONTRACT.bounds.max,resolution:[32,32,32]},vt=AETHER.VEHICLE_TRANSFORM,signature=CFD_BRIDGE.geometrySignature(),fan=AETHER.FAN_MODULE;
  if(!fan?.loaded)throw Error('FLOW_LAYOUT: embedded fan asset is unavailable');
- const key=[signature,g.min.join(','),g.max.join(','),g.resolution.join(','),smokeState.height,smokeState.lateral,smokeState.emitterFraction,frame?.sourceId||'FACILITY',frame?.sequence??-1].join('|');
+ const key=[signature,g.min.join(','),g.max.join(','),g.resolution.join(','),FLOW_PLACEMENT.height,FLOW_PLACEMENT.lateral,FLOW_PLACEMENT.emitterFraction,frame?.sourceId||'FACILITY',frame?.sequence??-1].join('|');
  if(flowLayoutCache?.key===key)return flowLayoutCache.value;
  const evidence=vehicleFrontEvidence();if(!evidence.verified)throw Error('FLOW_LAYOUT: vehicle front is not verified from body geometry');
  const origin=vt.localToWorld([0,0,0]),nosePoint=vt.localToWorld(evidence.localNose),nd=nosePoint.map((v,i)=>v-origin[i]),nl=Math.hypot(...nd),vehicleNoseDirection=nd.map(v=>v/nl),flowDirection=[1,0,0];
@@ -1915,20 +879,20 @@ function flowLayout(frame){
  for(let i=0;i<body.length;i+=3){lo=Math.min(lo,body[i]);hi=Math.max(hi,body[i]);}
  const vehicleFrontPoint=vt.localToWorld([hi,0,0]),vehicleRearPoint=vt.localToWorld([lo,0,0]),vehicleLength=vehicleRearPoint[0]-vehicleFrontPoint[0];
  if(!(vehicleLength>0&&vehicleNoseDirection[0]<-.999&&vehicleFrontPoint[0]<vehicleRearPoint[0]))throw Error('FLOW_LAYOUT: vehicle nose/rear do not align with +X downstream');
- const emitterDistance=vehicleLength*smokeState.emitterFraction,emitterX=vehicleFrontPoint[0]-emitterDistance,collectorX=g.max[0]-.42;
+ const emitterDistance=vehicleLength*FLOW_PLACEMENT.emitterFraction,emitterX=vehicleFrontPoint[0]-emitterDistance,collectorX=g.max[0]-.42;
  const centerY=(g.min[1]+g.max[1])*.5,centerZ=(g.min[2]+g.max[2])*.5,src=fan.smokeSources;if(src.length!==64)throw Error('FLOW_LAYOUT: expected the 64 authored fan ports');
  const sourceCenter=[0,1,2].map(a=>src.reduce((q,s)=>q+s.position[a],0)/src.length);
  if(src.some(s=>Math.abs(s.position[0]-sourceCenter[0])>1e-8))throw Error('FLOW_LAYOUT: fan outlet ports do not share one plane');
- const fanBoundsCenter=fan.localBounds.min.map((v,i)=>(v+fan.localBounds.max[i])*.5),fanRoot=[emitterX-FAN_VISUAL_SCALE*sourceCenter[0],centerY-FAN_VISUAL_SCALE*fanBoundsCenter[1]+smokeHeightSafe(centerY-FAN_VISUAL_SCALE*fanBoundsCenter[1],g,fan),centerZ-FAN_VISUAL_SCALE*fanBoundsCenter[2]+smokeState.lateral],fanRootMatrixValue=fanRootMatrix(fanRoot),fanBounds=transformBounds(fan.localBounds,fanRootMatrixValue);
+ const fanBoundsCenter=fan.localBounds.min.map((v,i)=>(v+fan.localBounds.max[i])*.5),fanRoot=[emitterX-FAN_VISUAL_SCALE*sourceCenter[0],centerY-FAN_VISUAL_SCALE*fanBoundsCenter[1]+smokeHeightSafe(centerY-FAN_VISUAL_SCALE*fanBoundsCenter[1],g,fan),centerZ-FAN_VISUAL_SCALE*fanBoundsCenter[2]+FLOW_PLACEMENT.lateral],fanRootMatrixValue=fanRootMatrix(fanRoot),fanBounds=transformBounds(fan.localBounds,fanRootMatrixValue);
  const nozzleTransforms=src.map((s,index)=>{const p=m4point(fanRootMatrixValue,s.position),d=m4vector(fanRootMatrixValue,s.direction),n=Math.hypot(...d);return Object.freeze({id:s.id,index,sourceIndex:index,position:p,direction:d.map(v=>v/n),radius:.045,fanRootMatrix:fanRootMatrixValue})});
  const collectorOpening={halfHeight:(g.max[1]-g.min[1])*.38,halfWidth:(g.max[2]-g.min[2])*.38,throatRatio:.66,hoodDepth:.86,overhangMeters:.55},collectorRoot=[collectorX+.035,centerY,centerZ],collectorRootMatrix=new Float64Array([-1,0,0,0,0,1,0,0,0,0,-1,0,collectorRoot[0],collectorRoot[1],collectorRoot[2],1]),collectorDuctEndLocalX=-(collectorOpening.hoodDepth+collectorOpening.overhangMeters),collectorDuctEndWorldX=collectorRoot[0]-collectorDuctEndLocalX;
  const collectorPlane=Object.freeze({x:collectorX,point:Object.freeze([collectorX,centerY,centerZ]),normal:Object.freeze([-1,0,0])}),emitterPlane=Object.freeze({x:emitterX,point:Object.freeze([emitterX,centerY,centerZ]),normal:Object.freeze([1,0,0])}),inletPlane=Object.freeze({x:g.min[0],point:Object.freeze([g.min[0],centerY,centerZ]),normal:Object.freeze([-1,0,0])}),outletPlane=Object.freeze({x:g.max[0],point:Object.freeze([g.max[0],centerY,centerZ]),normal:Object.freeze([1,0,0])});
  const inside=(p,b=.02)=>p.every((v,i)=>v>=g.min[i]+b&&v<=g.max[i]-b),portsInDomain=nozzleTransforms.every(n=>inside(n.position,.01)),fanInDomain=fanBounds.min.every((v,i)=>v>=g.min[i]-.002)&&fanBounds.max.every((v,i)=>v<=g.max[i]+.002),collectorCorners=[[-1,-1],[-1,1],[1,-1],[1,1]].map(([a,b])=>[collectorX,centerY+a*collectorOpening.halfHeight,centerZ+b*collectorOpening.halfWidth]),collectorFrameCorners=[[-1,-1],[-1,1],[1,-1],[1,1]].map(([a,b])=>[collectorX,centerY+a*(collectorOpening.halfHeight+.28),centerZ+b*(collectorOpening.halfWidth+.28)]),collectorInside=collectorCorners.every(p=>inside(p))&&collectorFrameCorners.every(p=>inside(p));
- if(frame?.solidMask?.data){for(const n of nozzleTransforms){const c=n.position.map((v,i)=>Math.floor((v-g.min[i])/(g.max[i]-g.min[i])*g.resolution[i]));if(m13SolidVoxel(frame,...c))throw Error('FLOW_LAYOUT: authored nozzle '+n.index+' intersects a CFD solid voxel');}}
- const checks={vehicleNoseOpposesMeanFlow:vehicleNoseDirection[0]<-.999,actualBodyFrontVerified:evidence.verified,emitterUpstreamOfActualFront:emitterX<vehicleFrontPoint[0],emitterDistanceAboutHalfLength:smokeState.emitterFraction>=.35&&smokeState.emitterFraction<=.65,all64PortsShareEmitterPlane:nozzleTransforms.every(n=>Math.abs(n.position[0]-emitterX)<1e-8),allPortsFaceDownstream:nozzleTransforms.every(n=>n.direction[0]>.999),allPortsInsideDomain:portsInDomain,fanInsideDomain:fanInDomain,collectorDownstreamOfActualRear:collectorX>vehicleRearPoint[0],collectorFaceInsideDomain:collectorInside,collectorMouthFacesUpstream:collectorPlane.normal[0]<-.999,collectorDuctExtendsDownstream:collectorDuctEndWorldX>collectorX,clearanceWithinUIBounds:Math.abs(smokeState.height)<=2+1e-9&&Math.abs(smokeState.lateral)<=.30+1e-9};
+
+ const checks={vehicleNoseOpposesMeanFlow:vehicleNoseDirection[0]<-.999,actualBodyFrontVerified:evidence.verified,emitterUpstreamOfActualFront:emitterX<vehicleFrontPoint[0],emitterDistanceAboutHalfLength:FLOW_PLACEMENT.emitterFraction>=.35&&FLOW_PLACEMENT.emitterFraction<=.65,all64PortsShareEmitterPlane:nozzleTransforms.every(n=>Math.abs(n.position[0]-emitterX)<1e-8),allPortsFaceDownstream:nozzleTransforms.every(n=>n.direction[0]>.999),allPortsInsideDomain:portsInDomain,fanInsideDomain:fanInDomain,collectorDownstreamOfActualRear:collectorX>vehicleRearPoint[0],collectorFaceInsideDomain:collectorInside,collectorMouthFacesUpstream:collectorPlane.normal[0]<-.999,collectorDuctExtendsDownstream:collectorDuctEndWorldX>collectorX,clearanceWithinUIBounds:Math.abs(FLOW_PLACEMENT.height)<=2+1e-9&&Math.abs(FLOW_PLACEMENT.lateral)<=.30+1e-9};
  const clearanceLimits={emitterFraction:[.35,.65],heightOffsetMeters:[Math.max(g.min[1]-fanBounds.min[1],-2),Math.min(g.max[1]-fanBounds.max[1],2)],lateralOffsetMeters:[Math.max(g.min[2]-fanBounds.min[2],-.30),Math.min(g.max[2]-fanBounds.max[2],.30)],fanBoundsInDomain:fanInDomain,collectorFaceMargins:{x:[collectorX-g.min[0],g.max[0]-collectorX],y:[collectorOpening.halfHeight,(g.max[1]-g.min[1])*.5-collectorOpening.halfHeight],z:[collectorOpening.halfWidth,(g.max[2]-g.min[2])*.5-collectorOpening.halfWidth]}};
  const errors=Object.entries(checks).filter(([,v])=>!v).map(([k])=>k);if(errors.length)throw Error('FLOW_LAYOUT blocked: '+errors.join(', '));
- const value=Object.freeze({version:'FLOW_LAYOUT_V4',unit:'meter',flowDirection:Object.freeze(flowDirection),vehicleNoseDirection:Object.freeze(vehicleNoseDirection),vehicleFrontPoint:Object.freeze(vehicleFrontPoint),vehicleRearPoint:Object.freeze(vehicleRearPoint),vehicleLength,emitterPlane,emitterDistance,emitterFraction:smokeState.emitterFraction,fanRoot:Object.freeze(fanRoot),fanRootMatrix:fanRootMatrixValue,fanBounds,fanScale:FAN_VISUAL_SCALE,nozzleTransforms:Object.freeze(nozzleTransforms),collectorPlane,inletPlane,outletPlane,collectorRoot:Object.freeze(collectorRoot),collectorRootMatrix,collectorOpening,collectorDuctEndLocalX,collectorDuctEndWorldX,collectorFadeStartX:collectorX-SMOKE_CONFIG.outletFadeMeters,domainBounds:{min:g.min.slice(),max:g.max.slice()},clearanceLimits,checks,valid:true,diagnostics:{status:'VALIDATED_GEOMETRY',vehicleNoseFlowDot:vehicleNoseDirection[0],portCount:nozzleTransforms.length,emitterDistanceMeters:emitterDistance,emitterFraction:smokeState.emitterFraction,collectorBehindRearMeters:collectorX-vehicleRearPoint[0],collectorFaceX:collectorX,fanBounds,collectorDuctEndWorldX,errors:[]}});
+ const value=Object.freeze({version:'FLOW_LAYOUT_V4',unit:'meter',flowDirection:Object.freeze(flowDirection),vehicleNoseDirection:Object.freeze(vehicleNoseDirection),vehicleFrontPoint:Object.freeze(vehicleFrontPoint),vehicleRearPoint:Object.freeze(vehicleRearPoint),vehicleLength,emitterPlane,emitterDistance,emitterFraction:FLOW_PLACEMENT.emitterFraction,fanRoot:Object.freeze(fanRoot),fanRootMatrix:fanRootMatrixValue,fanBounds,fanScale:FAN_VISUAL_SCALE,nozzleTransforms:Object.freeze(nozzleTransforms),collectorPlane,inletPlane,outletPlane,collectorRoot:Object.freeze(collectorRoot),collectorRootMatrix,collectorOpening,collectorDuctEndLocalX,collectorDuctEndWorldX,collectorFadeStartX:collectorX-SMOKE_CONFIG.outletFadeMeters,domainBounds:{min:g.min.slice(),max:g.max.slice()},clearanceLimits,checks,valid:true,diagnostics:{status:'VALIDATED_GEOMETRY',vehicleNoseFlowDot:vehicleNoseDirection[0],portCount:nozzleTransforms.length,emitterDistanceMeters:emitterDistance,emitterFraction:FLOW_PLACEMENT.emitterFraction,collectorBehindRearMeters:collectorX-vehicleRearPoint[0],collectorFaceX:collectorX,fanBounds,collectorDuctEndWorldX,errors:[]}});
  fan.layout=value;if(AETHER.EXHAUST_COLLECTOR?.loaded)refreshExhaustCollectorLayout(value);diagnostics.flowLayout=value.diagnostics;flowLayoutCache={key,value};return value;
 }
 const FLOW_LAYOUT=Object.freeze({get:flowLayout});AETHER.FLOW_LAYOUT=FLOW_LAYOUT;
@@ -1937,152 +901,20 @@ const SMOKE_CONFIG=Object.freeze({baseSize:.105,maxSize:.26,birthFade:.10,deathF
 const smokeEvents={OUTLET_RECOVERED:0,OUTLET_BACKFLOW:0,SIDE_ESCAPE:0,FLOOR_ESCAPE:0,CEILING_ESCAPE:0,SOLID_COLLISION:0,TTL_EXPIRED:0,INVALID:0,MANUAL_RESET:0,unknown:0};
 const smokePerf={frames:[],lastFrame:performance.now(),fps:0,meanMs:0,p95Ms:0,updateMs:0,renderMs:0,webglError:'not checked'};
 let appState='BOOT',cfdSimulationTime=0,particlePlaybackTime=0,smokeSpawnCount=0;
-function smokeSetState(next){appState=next;const s=document.getElementById('smokeAppState');if(s)s.textContent=next;}
-function smokeRecordFrame(now){const dt=Math.max(0,now-smokePerf.lastFrame);smokePerf.lastFrame=now;if(dt>0&&dt<1000){smokePerf.frames.push(dt);if(smokePerf.frames.length>120)smokePerf.frames.shift();const a=smokePerf.frames.slice().sort((x,y)=>x-y);smokePerf.meanMs=smokePerf.frames.reduce((x,y)=>x+y,0)/smokePerf.frames.length;smokePerf.p95Ms=a[Math.min(a.length-1,Math.floor(a.length*.95))]||0;smokePerf.fps=1000/Math.max(.1,smokePerf.meanMs)}}
-function smokeDiagnosticsSnapshot(){const f=m13FrameState.frame;return{appState,cfd:{grid:f?.grid?.resolution||[32,32,32],step:f?.sequence??0,timeSeconds:f?.simulationTime??cfdSimulationTime,status:f?'LATEST_ACCEPTED_SNAPSHOT':'WAITING'},particlePlayback:{timeSeconds:smokeState.playbackTime,displayScale:smokeState.speedMultiplier,count:smokeState.count,active:smokeState.activeCount,spawnCount:smokeSpawnCount},recycle:{...smokeEvents},performance:{fps:smokePerf.fps,meanFrameMs:smokePerf.meanMs,p95FrameMs:smokePerf.p95Ms,particleUpdateMs:smokePerf.updateMs,renderMs:smokePerf.renderMs},velocityClamp:{active:Number.isFinite(smokeState.localStepSpeedCap),maxStepMps:smokeState.localStepSpeedCap},fieldStatus:f?'Latest accepted diagnostic CFD snapshot':'CFD unavailable',smokeStatus:!f?'WAITING':!smokeState.enabled?'OFF':smokeState.playing?'PLAYING':'PAUSED',webglError:smokePerf.webglError,flowDriver:'CFD VELOCITY FIELD · FLOW +X',fan:'VISUALIZATION ONLY',flowDirection:'VEHICLE NOSE -X; FREESTREAM +X'}}
-function smokeParticleEvent(frame,index,reason,context={}){if(reason==='SPAWN'){smokeState.lastRecycle={index,reason,context,time:smokeState.playbackTime};smokeRespawn(frame,index,!!context.initial);smokeSpawnCount++;return reason}if(!(reason in smokeEvents)){smokeEvents.unknown++;reason='INVALID'}smokeEvents[reason]++;if(reason==='OUTLET_RECOVERED')smokeState.captured++;smokeState.lastRecycle={index,reason,context,time:smokeState.playbackTime};smokeRespawn(frame,index,!!context.initial);smokeSpawnCount++;return reason}
-function smokeRecycleParticle(frame,index,reason,context={}){return smokeParticleEvent(frame,index,reason,context)}
-const smokeState={enabled:true,playing:true,count:2000,capacity:12000,positions:null,sizes:null,ages:null,lifetimes:null,alphas:null,sizeVariation:null,random:null,program:null,posBuffer:null,sizeBuffer:null,alphaBuffer:null,frameId:null,lastTime:null,accumulator:0,sequence:-1,frameKey:null,activeCount:0,resetRequested:false,paths:null,solidBounds:null,height:-.12,lateral:0,emitterFraction:.50,seed:0x51a7e,drawCalls:0,resourceCreates:0,resourceDeletes:0,warmStartMs:0,playbackTime:0,speedMultiplier:5000,effectiveMultiplier:5000,maxFieldSpeed:0,localStepSpeedCap:Infinity,captured:0,lastStatusAt:0,lastRecycle:null,layoutError:null,prefill:false,selectedNozzle:-1,nozzleOffsets:Array.from({length:64},()=>[0,0])};
-function smokeRand(){smokeState.seed=(Math.imul(smokeState.seed,1664525)+1013904223)>>>0;return smokeState.seed/4294967296}
-function smokeCompile(type,source){const sh=gl.createShader(type);gl.shaderSource(sh,source);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){const why=gl.getShaderInfoLog(sh);gl.deleteShader(sh);throw Error('SMOKE_SHADER_COMPILE '+why)}return sh}
-function smokeRelease(){if(window.__RIB){window.__RIB.prog=null;window.__RIB.vao=null;window.__RIB.key=''}smokeState.frameKey=null;smokeState.activeCount=0;smokeState.lastTime=null;smokeHardwareRelease();if(!gl)return;for(const k of ['posBuffer','sizeBuffer','alphaBuffer'])if(smokeState[k]){gl.deleteBuffer(smokeState[k]);smokeState[k]=null;smokeState.resourceDeletes++}if(smokeState.program){gl.deleteProgram(smokeState.program);smokeState.program=null;smokeState.resourceDeletes++}}
-function smokeEnsureResources(){if(smokeState.program&&smokeState.posBuffer&&smokeState.sizeBuffer&&smokeState.alphaBuffer)return;const vs=smokeCompile(gl.VERTEX_SHADER,`#version 300 es
-precision highp float;in vec3 a_position;in float a_size;in float a_alpha;uniform mat4 u_mvp;uniform float u_viewScale;out float v_alpha;out float v_life;out float v_seed;void main(){vec4 p=u_mvp*vec4(a_position,1.0);gl_Position=p;gl_PointSize=clamp(a_size*1.25*u_viewScale/max(.35,p.w),4.0,64.0);v_alpha=a_alpha;v_life=clamp((a_size-.105)/.155,0.0,1.0);v_seed=fract(sin(float(gl_VertexID)*12.9898)*43758.5453);}`),fs=smokeCompile(gl.FRAGMENT_SHADER,`#version 300 es
-precision highp float;in float v_alpha;in float v_life;in float v_seed;out vec4 outColor;
-float hs(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float vn(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hs(i),hs(i+vec2(1.0,0.0)),f.x),mix(hs(i+vec2(0.0,1.0)),hs(i+vec2(1.0,1.0)),f.x),f.y);}
-void main(){vec2 q=gl_PointCoord*2.0-1.0;float r2=dot(q,q);if(r2>1.0)discard;float ang=v_seed*6.2831;vec2 w=vec2(cos(ang)*q.x-sin(ang)*q.y,sin(ang)*q.x+cos(ang)*q.y);
-float nz=vn(w*2.6+v_seed*40.0)*0.6+vn(w*5.3+v_seed*17.0)*0.4;
-float edge=1.0-smoothstep(0.12,1.0,r2+(nz-0.5)*0.6);float core=exp(-3.4*r2);
-float dens=clamp(edge*0.72+core*0.5,0.0,1.0)*(0.7+0.6*nz);
-float lit=clamp(0.5+0.45*(-q.y)+0.2*q.x*-1.0+0.25*(nz-0.5),0.0,1.0);
-vec3 shade=mix(vec3(0.30,0.46,0.60),vec3(1.0,1.0,1.0),lit);
-vec3 col=mix(vec3(0.58,0.90,1.0)*shade+0.08,shade*vec3(0.86,0.93,1.0),v_life*0.8);
-col+=vec3(0.35,0.7,1.0)*pow(1.0-r2,3.0)*0.12*(1.0-v_life);
-float a=dens*v_alpha*0.95;if(a<0.004)discard;outColor=vec4(col*a,a*0.62);}`),program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);gl.deleteShader(vs);gl.deleteShader(fs);if(!gl.getProgramParameter(program,gl.LINK_STATUS)){gl.deleteProgram(program);throw Error('SMOKE_PROGRAM_LINK '+gl.getProgramInfoLog(program))}smokeState.program=program;smokeState.posBuffer=gl.createBuffer();smokeState.sizeBuffer=gl.createBuffer();smokeState.alphaBuffer=gl.createBuffer();smokeState.resourceCreates+=4;smokeState.positions=new Float32Array(smokeState.capacity*3);smokeState.sizes=new Float32Array(smokeState.capacity);smokeState.ages=new Float32Array(smokeState.capacity);smokeState.lifetimes=new Float32Array(smokeState.capacity);smokeState.alphas=new Float32Array(smokeState.capacity);smokeState.sizeVariation=new Float32Array(smokeState.capacity);smokeState.seed=0x51a7e;for(let i=0;i<smokeState.capacity;i++){smokeState.sizes[i]=.19+smokeRand()*.21;smokeState.sizeVariation[i]=.9+smokeRand()*.2;smokeState.lifetimes[i]=(8+smokeRand()*5)*(.9+smokeRand()*.2);smokeState.ages[i]=0}gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.posBuffer);gl.bufferData(gl.ARRAY_BUFFER,smokeState.positions.byteLength,gl.DYNAMIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.sizeBuffer);gl.bufferData(gl.ARRAY_BUFFER,smokeState.sizes.byteLength,gl.DYNAMIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.alphaBuffer);gl.bufferData(gl.ARRAY_BUFFER,smokeState.alphas.byteLength,gl.DYNAMIC_DRAW);smokeState.frameId=null;smokeState.lastTime=null;smokeState.accumulator=0;smokeState.resourceCreates+=3}
+/* Fan placement parameters and the fallback domain frame that FLOW_LAYOUT is derived from.
+   (The legacy 32^3 particle/ribbon smoke engine was removed; the smoke is the GPU solver's dye field.) */
+const FLOW_PLACEMENT={height:-.12,lateral:0,emitterFraction:.50,layoutError:null};
+const FLOW_FRAME={grid:{resolution:[32,32,32],min:AETHER.CFD_DOMAIN.bounds.min.slice(),max:AETHER.CFD_DOMAIN.bounds.max.slice()}};
 function smokeNozzleTransform(frame,index){const t=FLOW_LAYOUT.get(frame).nozzleTransforms[index];if(!t)throw Error('FLOW_LAYOUT: invalid nozzle index '+index);return t}
-function smokeNozzle(frame,index,out){const t=smokeNozzleTransform(frame,index);out[0]=t.position[0];out[1]=t.position[1];out[2]=t.position[2];return t}
-
-function smokeRespawn(frame,i,initial=false){const o=i*3,total=FLOW_LAYOUT.get(frame).nozzleTransforms.length,n=smokeState.selectedNozzle>=0?smokeState.selectedNozzle:i%total,p=smokeState.positions,origin=[0,0,0];smokeNozzle(frame,n,origin);const spreadY=(smokeRand()-.5)*.075,spreadZ=(smokeRand()-.5)*.18;p[o]=origin[0];p[o+1]=origin[1]+spreadY;p[o+2]=origin[2]+spreadZ;if(!smokeInside(frame,p[o],p[o+1],p[o+2]))throw Error('SMOKE_SPAWN_OUTSIDE_DOMAIN');const g=frame.grid,cell=[p[o],p[o+1],p[o+2]].map((v,k)=>Math.floor((v-g.min[k])/(g.max[k]-g.min[k])*g.resolution[k]));if(m13SolidVoxel(frame,...cell))throw Error('SMOKE_SPAWN_INSIDE_SOLID_VOXEL');smokeState.ages[i]=initial&&smokeState.playing&&!smokeState.prefill?-(i/smokeState.count)*3:0;smokeState.lifetimes[i]=(8+smokeRand()*5)*(.9+smokeRand()*.2);if(smokeState.alphas)smokeState.alphas[i]=0;}
-function smokeSample(frame,x,y,z,out){const g=frame.grid,v=frame.fields.velocity.data,nx=g.resolution[0],ny=g.resolution[1],nz=g.resolution[2],hx=(g.max[0]-g.min[0])/nx,hy=(g.max[1]-g.min[1])/ny,hz=(g.max[2]-g.min[2])/nz,tx=clamp((x-g.min[0])/hx-.5,0,nx-1),ty=clamp((y-g.min[1])/hy-.5,0,ny-1),tz=clamp((z-g.min[2])/hz-.5,0,nz-1),x0=Math.floor(tx),y0=Math.floor(ty),z0=Math.floor(tz),x1=Math.min(x0+1,nx-1),y1=Math.min(y0+1,ny-1),z1=Math.min(z0+1,nz-1),fx=tx-x0,fy=ty-y0,fz=tz-z0;for(let c=0;c<3;c++){const a=v[(x0+nx*(y0+ny*z0))*3+c]*(1-fx)+v[(x1+nx*(y0+ny*z0))*3+c]*fx,b=v[(x0+nx*(y1+ny*z0))*3+c]*(1-fx)+v[(x1+nx*(y1+ny*z0))*3+c]*fx,d=v[(x0+nx*(y0+ny*z1))*3+c]*(1-fx)+v[(x1+nx*(y0+ny*z1))*3+c]*fx,e=v[(x0+nx*(y1+ny*z1))*3+c]*(1-fx)+v[(x1+nx*(y1+ny*z1))*3+c]*fx;out[c]=(a*(1-fy)+b*fy)*(1-fz)+(d*(1-fy)+e*fy)*fz}return true}
-function smokeAdvectionSample(frame,x,y,z,out){flowSample(frame,x,y,z,out);let speed=Math.hypot(out[0],out[1],out[2]);if(speed<1e-9)return false;out[0]*=smokeState.speedMultiplier;out[1]*=smokeState.speedMultiplier;out[2]*=smokeState.speedMultiplier;speed*=smokeState.speedMultiplier;if(speed>smokeState.localStepSpeedCap){const q=smokeState.localStepSpeedCap/speed;out[0]*=q;out[1]*=q;out[2]*=q}return true}
-function smokeMeasureMaxSpeed(frame){const v=frame.fields.velocity.data,m=frame.solidMask.data,n=m.length;let hi=0;for(let i=0;i<n;i++)if(!m[i]){const o=i*3,q=Math.hypot(v[o],v[o+1],v[o+2]);if(q>hi)hi=q}smokeState.maxFieldSpeed=hi}
-
-function smokeInside(frame,x,y,z){const g=frame.grid;return x>=g.min[0]&&x<=g.max[0]&&y>=g.min[1]&&y<=g.max[1]&&z>=g.min[2]&&z<=g.max[2]}
-function smokeMayHitSolid(frame,x0,y0,z0,x1,y1,z1){const g=frame.grid,m=frame.solidMask.data,[nx,ny,nz]=g.resolution,b=smokeState.solidBounds||(smokeState.solidBounds=CFD_BRIDGE.getAlignmentReport().solidBounds),hx=(g.max[0]-g.min[0])/nx,hy=(g.max[1]-g.min[1])/ny,hz=(g.max[2]-g.min[2])/nz,pad=Math.max(hx,hy,hz);if(Math.max(x0,x1)<b.min[0]-pad||Math.min(x0,x1)>b.max[0]+pad||Math.max(y0,y1)<b.min[1]-pad||Math.min(y0,y1)>b.max[1]+pad||Math.max(z0,z1)<b.min[2]-pad||Math.min(z0,z1)>b.max[2]+pad)return false;const ix0=Math.max(0,Math.floor((Math.min(x0,x1)-g.min[0])/hx)-1),ix1=Math.min(nx-1,Math.floor((Math.max(x0,x1)-g.min[0])/hx)+1),iy0=Math.max(0,Math.floor((Math.min(y0,y1)-g.min[1])/hy)-1),iy1=Math.min(ny-1,Math.floor((Math.max(y0,y1)-g.min[1])/hy)+1),iz0=Math.max(0,Math.floor((Math.min(z0,z1)-g.min[2])/hz)-1),iz1=Math.min(nz-1,Math.floor((Math.max(z0,z1)-g.min[2])/hz)+1);for(let k=iz0;k<=iz1;k++)for(let j=iy0;j<=iy1;j++)for(let i=ix0;i<=ix1;i++)if(m[i+nx*(j+ny*k)])return true;return false}
-function smokeBoundaryHit(frame,p0,p1){const g=frame?.grid;if(!g||!Array.isArray(p0)||!Array.isArray(p1)||p0.length!==3||p1.length!==3||!p0.every(Number.isFinite)||!p1.every(Number.isFinite))return null;const d=p1.map((v,i)=>v-p0[i]),hits=[];const add=(axis,value,reason,normal)=>{if(!Number.isFinite(value)||!Number.isFinite(d[axis])||Math.abs(d[axis])<1e-12)return;const t=(value-p0[axis])/d[axis];if(!Number.isFinite(t)||t<0||t>1)return;const q=p0.map((v,i)=>v+d[i]*t);if(q.every((v,i)=>Number.isFinite(v)&&v>=g.min[i]-1e-6&&v<=g.max[i]+1e-6))hits.push({t,point:q,reason,normal})};add(0,FLOW_DOMAIN.outletPlane(frame),'OUTLET',FLOW_DOMAIN.outletNormal);add(0,FLOW_DOMAIN.inletPlane(frame),'INLET',[-1,0,0]);add(2,g.min[2],'SIDE_ESCAPE',[0,0,-1]);add(2,g.max[2],'SIDE_ESCAPE',[0,0,1]);add(1,g.min[1],'FLOOR_ESCAPE',[0,-1,0]);add(1,g.max[1],'CEILING_ESCAPE',[0,1,0]);hits.sort((a,b)=>a.t-b.t);return hits[0]||null}
-function smokeClassifyBoundary(frame,hit,velocity){if(!hit||!velocity||!velocity.every(Number.isFinite))return 'INVALID';const dot=velocity[0]*hit.normal[0]+velocity[1]*hit.normal[1]+velocity[2]*hit.normal[2];if(hit.reason==='OUTLET')return dot>0?'OUTLET_RECOVERED':'OUTLET_BACKFLOW';if(hit.reason==='INLET')return dot>0?'OUTLET_BACKFLOW':'INVALID';return hit.reason}
-function smokeWobble(v,P,i,fr){const g=fr.grid,x=Math.max(0,Math.min(1,(P[0]-g.min[0])/(g.max[0]-g.min[0]))),s=Math.hypot(v[0],v[1],v[2])*.07*(.25+.75*x),t=smokeState.playbackTime*2.2,k=i*.618;v[1]+=s*Math.sin(P[0]*9+t+k)*Math.cos(P[2]*7-t*.7);v[2]+=s*Math.sin(P[1]*8-t*1.1+k*1.7)}
-function smokeAdvanceOne(frame,i,dt,checkLifetime=true){const a=smokeTmpA,b=smokeTmpB,p=smokeState.positions,o=i*3;if(smokeState.ages[i]<0){smokeState.ages[i]=Math.min(0,smokeState.ages[i]+dt);return true}const P0=[p[o],p[o+1],p[o+2]];if(!P0.every(Number.isFinite)){smokeRecycleParticle(frame,i,'INVALID',{phase:'old-position'});return false}if(checkLifetime&&smokeState.ages[i]>=smokeState.lifetimes[i]){smokeRecycleParticle(frame,i,'TTL_EXPIRED',{age:smokeState.ages[i]});return false}if(!smokeAdvectionSample(frame,...P0,a)){smokeRecycleParticle(frame,i,'INVALID',{phase:'velocity-at-old'});return false}const mid=P0.map((v,k)=>v+a[k]*dt*.5);if(!mid.every(Number.isFinite)){smokeRecycleParticle(frame,i,'INVALID',{phase:'midpoint'});return false}const validMid=smokeInside(frame,...mid);if(validMid&&!smokeAdvectionSample(frame,...mid,b)){smokeRecycleParticle(frame,i,'INVALID',{phase:'velocity-at-midpoint'});return false}if(!validMid)b.set(a);smokeWobble(b,P0,i,frame);const P1=P0.map((v,k)=>v+b[k]*dt);if(!P1.every(Number.isFinite)){smokeRecycleParticle(frame,i,'INVALID',{phase:'new-position'});return false}smokeState.ages[i]+=dt;if(bodyInside(P1[0],P1[1],P1[2])){smokeRecycleParticle(frame,i,'SOLID_COLLISION',{body:true});return false}const solid=smokeMayHitSolid(frame,...P0,...P1)&&m13SegmentHitsSolid(frame,P0,P1);if(solid){smokeRecycleParticle(frame,i,'SOLID_COLLISION',{from:P0,to:P1});return false}const hit=smokeBoundaryHit(frame,P0,P1);if(hit){let reason;if(hit.reason==='OUTLET'){const crossVelocity=smokeTmpB;smokeSample(frame,...hit.point,crossVelocity);reason=smokeClassifyBoundary(frame,hit,Array.from(crossVelocity))}else if(hit.reason==='INLET')reason=smokeClassifyBoundary(frame,hit,Array.from(smokeTmpB));else reason=hit.reason;smokeRecycleParticle(frame,i,reason,{point:hit.point,t:hit.t});return false}if(!smokeInside(frame,...P1)){const reason=P1[0]>frame.grid.max[0]?'OUTLET_BACKFLOW':Math.abs(P1[2]-frame.grid.min[2])<1e-5||Math.abs(P1[2]-frame.grid.max[2])<1e-5?'SIDE_ESCAPE':P1[1]<frame.grid.min[1]?'FLOOR_ESCAPE':'CEILING_ESCAPE';smokeRecycleParticle(frame,i,reason,{fallback:true,to:P1});return false}p[o]=P1[0];p[o+1]=P1[1];p[o+2]=P1[2];return true}
-
-function smokeBuildRoute(frame,seed){const points=[seed.slice()],times=[0],dt=.05,maxSteps=240;let p=seed.slice(),time=0;for(let n=0;n<maxSteps;n++){const a=smokeTmpA,b=smokeTmpB;if(!smokeAdvectionSample(frame,p[0],p[1],p[2],a))break;const mid=[p[0]+a[0]*dt*.5,p[1]+a[1]*dt*.5,p[2]+a[2]*dt*.5];if(!smokeInside(frame,mid[0],mid[1],mid[2]))break;if(!smokeAdvectionSample(frame,mid[0],mid[1],mid[2],b))break;const q=[p[0]+b[0]*dt,p[1]+b[1]*dt,p[2]+b[2]*dt];if(!smokeInside(frame,q[0],q[1],q[2])||smokeBoundaryHit(frame,p,q)||(smokeMayHitSolid(frame,p[0],p[1],p[2],q[0],q[1],q[2])&&m13SegmentHitsSolid(frame,p,q)))break;points.push(q);time+=dt;times.push(time);p=q}return{points,times,duration:time,endX:p[0]}}
-function smokeWarmStart(frame,from=0,to=smokeState.count){const started=Date.now(),paths=[];smokeState.effectiveMultiplier=smokeState.speedMultiplier;const minCell=Math.min(...frame.grid.max.map((v,i)=>(v-frame.grid.min[i])/frame.grid.resolution[i]));smokeState.localStepSpeedCap=minCell*.45/.05;for(let n=0;n<8;n++){const seed=[0,0,0];smokeNozzle(frame,n,seed);paths.push(smokeBuildRoute(frame,seed))}smokeState.paths=paths;for(let i=from;i<to;i++){const route=paths[i&7],maxAge=Math.min(smokeState.lifetimes[i],route.duration),age=smokeRand()*maxAge;let lo=0,hi=route.times.length-1;while(lo<hi){const mid=(lo+hi)>>1;if(route.times[mid]<age)lo=mid+1;else hi=mid}const k=Math.max(1,lo),t0=route.times[k-1]||0,t1=route.times[k]||0,f=t1>t0?clamp((age-t0)/(t1-t0),0,1):0,a=route.points[k-1]||route.points[0],b=route.points[k]||a,o=i*3;smokeState.positions[o]=a[0]+(b[0]-a[0])*f;smokeState.positions[o+1]=a[1]+(b[1]-a[1])*f+(smokeRand()-.5)*.035;smokeState.positions[o+2]=a[2]+(b[2]-a[2])*f+(smokeRand()-.5)*.08;smokeState.ages[i]=age}smokeState.warmStartMs=Date.now()-started;smokeState.effectiveMultiplier=smokeState.speedMultiplier}
-
-function smokeAdvance(frame,dt){if(!frame||!frame.fields?.velocity?.data||!frame.solidMask?.data)return false;const total=clamp(dt,0,.1),minCell=Math.min(...frame.grid.max.map((v,i)=>(v-frame.grid.min[i])/frame.grid.resolution[i])),stepLen=minCell*.45,demand=smokeState.maxFieldSpeed*smokeState.speedMultiplier*total/stepLen,steps=Math.max(1,Math.min(16,Math.ceil(demand))),h=total/steps;smokeState.effectiveMultiplier=smokeState.speedMultiplier;smokeState.localStepSpeedCap=stepLen/h;for(let s=0;s<steps;s++)for(let i=0;i<smokeState.count;i++)smokeAdvanceOne(frame,i,h);smokeState.playbackTime+=total;particlePlaybackTime=smokeState.playbackTime;return true}
-const smokeTmpA=new Float32Array(3),smokeTmpB=new Float32Array(3);
-function smokeOutletOpacity(frame,x){const start=FLOW_DOMAIN.outletFadeStart(frame),end=FLOW_DOMAIN.outletPlane(frame);return 1-clamp((x-start)/Math.max(.01,end-start),0,1)}
-function smokeUpdate(frame,now){const begun=performance.now();smokeSetState(smokeState.playing?'SMOKE_PLAYING':'PAUSED');smokeEnsureResources();const g=frame.grid,key=CFD_BRIDGE.geometrySignature()+'|'+frame.sourceId+'|'+g.resolution.join('x')+'|'+g.min.join(',')+'|'+g.max.join(','),newField=smokeState.sequence!==frame.sequence;if(newField){smokeMeasureMaxSpeed(frame);cfdSimulationTime=frame.simulationTime}if(key!==smokeState.frameKey||smokeState.resetRequested){const manualReset=smokeState.resetRequested&&key===smokeState.frameKey;smokeState.frameKey=key;smokeState.solidBounds=null;smokeState.frameId=frame;smokeState.sequence=frame.sequence;smokeState.resetRequested=false;smokeState.captured=0;for(let i=0;i<smokeState.count;i++)smokeParticleEvent(frame,i,manualReset?'MANUAL_RESET':'SPAWN',{initial:true});smokeState.activeCount=smokeState.count;smokeState.paths=null;if(smokeState.prefill)smokeWarmStart(frame);smokeState.lastTime=now;smokeState.accumulator=0}else{smokeState.frameId=frame;smokeState.sequence=frame.sequence;if(smokeState.count>smokeState.activeCount)for(let i=smokeState.activeCount;i<smokeState.count;i++){smokeParticleEvent(frame,i,'SPAWN',{initial:true})}smokeState.activeCount=smokeState.count}if(smokeState.lastTime===null)smokeState.lastTime=now;if(smokeState.playing){const elapsed=clamp((now-smokeState.lastTime)/1000,0,.1);smokeState.accumulator+=elapsed;let steps=0;while(smokeState.accumulator>=1/60&&steps<2){smokeAdvance(frame,1/60);smokeState.accumulator-=1/60;steps++}if(steps===2)smokeState.accumulator=0}smokeState.lastTime=now;particlePlaybackTime=smokeState.playbackTime;for(let i=0;i<smokeState.count;i++){const o=i*3,x=smokeState.positions[o],life=clamp(smokeState.ages[i]/Math.max(.001,smokeState.lifetimes[i]),0,1),birth=clamp(life/SMOKE_CONFIG.birthFade,0,1),death=1-clamp((life-SMOKE_CONFIG.deathFadeStart)/(1-SMOKE_CONFIG.deathFadeStart),0,1),outlet=smokeOutletOpacity(frame,x),smooth=q=>q*q*(3-2*q),variation=.92+(i%17)/100;smokeState.alphas[i]=smokeState.ages[i]<0?0:.38*Math.min(1,Math.pow(2000/smokeState.count,.6))*smooth(birth)*smooth(death)*smooth(outlet)*variation;smokeState.sizes[i]=clamp(SMOKE_CONFIG.baseSize+(SMOKE_CONFIG.maxSize-SMOKE_CONFIG.baseSize)*smooth(life)*smokeState.sizeVariation[i],SMOKE_CONFIG.baseSize,SMOKE_CONFIG.maxSize)}for(const [key,data,len] of [['posBuffer',smokeState.positions,smokeState.count*3],['sizeBuffer',smokeState.sizes,smokeState.count],['alphaBuffer',smokeState.alphas,smokeState.count]]){gl.bindBuffer(gl.ARRAY_BUFFER,smokeState[key]);gl.bufferSubData(gl.ARRAY_BUFFER,0,data,0,len)}smokePerf.updateMs=performance.now()-begun}
-
-/* Scene fixtures mark the vehicle-front tracer release and the downstream -X collector.
-   The animated fan is a visual cue; only the worker's field drives particles. */
-const smokeHardware={program:null,buffer:null,storage:new Float32Array(18000*3),created:0,draws:0,triangleCount:0};
-function smokeHardwareRelease(){if(!gl)return;if(smokeHardware.buffer)gl.deleteBuffer(smokeHardware.buffer);if(smokeHardware.program)gl.deleteProgram(smokeHardware.program);smokeHardware.buffer=null;smokeHardware.program=null}
-function smokeHardwareEnsure(){if(smokeHardware.program&&smokeHardware.buffer)return;const vs=smokeCompile(gl.VERTEX_SHADER,`#version 300 es\nprecision highp float;in vec3 a_position;uniform mat4 u_mvp;void main(){gl_Position=u_mvp*vec4(a_position,1.0);}`),fs=smokeCompile(gl.FRAGMENT_SHADER,`#version 300 es\nprecision highp float;uniform vec4 u_color;out vec4 outColor;void main(){outColor=u_color;}`),p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);gl.deleteShader(vs);gl.deleteShader(fs);if(!gl.getProgramParameter(p,gl.LINK_STATUS)){gl.deleteProgram(p);throw Error('SMOKE_HARDWARE_SHADER '+gl.getProgramInfoLog(p))}smokeHardware.program=p;smokeHardware.buffer=gl.createBuffer();smokeHardware.created+=2;gl.bindBuffer(gl.ARRAY_BUFFER,smokeHardware.buffer);gl.bufferData(gl.ARRAY_BUFFER,smokeHardware.storage.byteLength,gl.DYNAMIC_DRAW)}
-function smokeHardwareGeometry(frame,seconds){const v=smokeHardware.storage;let n=0;const nozzleSources=[];const tri=(a,b,c)=>{if(n+3>v.length/3)throw Error('SMOKE_HARDWARE_BUFFER_LIMIT');v.set(a,n++*3);v.set(b,n++*3);v.set(c,n++*3)},quad=(a,b,c,d)=>{tri(a,b,c);tri(a,c,d)},box=(x0,y0,z0,x1,y1,z1)=>{quad([x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]);quad([x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[x1,y0,z1]);quad([x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[x0,y0,z1]);quad([x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0]);quad([x0,y0,z0],[x0,y0,z1],[x1,y0,z1],[x1,y0,z0]);quad([x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1])},cylX=(x0,x1,y,z,ry,rz,segs=10)=>{for(let i=0;i<segs;i++){const a=i*2*Math.PI/segs,b=(i+1)*2*Math.PI/segs,pa=[y+Math.sin(a)*ry,z+Math.cos(a)*rz],pb=[y+Math.sin(b)*ry,z+Math.cos(b)*rz];quad([x0,...pa],[x0,...pb],[x1,...pb],[x1,...pa]);tri([x0,y,z],[x0,...pb],[x0,...pa]);tri([x1,y,z],[x1,...pa],[x1,...pb])}},cylY=(x,y0,y1,z,r,segs=8)=>{for(let i=0;i<segs;i++){const a=i*2*Math.PI/segs,b=(i+1)*2*Math.PI/segs,p0=[x+Math.cos(a)*r,y0,z+Math.sin(a)*r],p1=[x+Math.cos(b)*r,y0,z+Math.sin(b)*r],q0=[p0[0],y1,p0[2]],q1=[p1[0],y1,p1[2]];quad(p0,p1,q1,q0)}};
-for(let i=0;i<8;i++){const p=[0,0,0];smokeNozzle(frame,i,p);const x=p[0],y=p[1],z=p[2];nozzleSources.push(smokeNozzleTransform(frame,i));cylY(x-.24,y-.20,y+.20,z,.045,8);cylX(x-.19,x-.04,y,z,.065,.065,10);cylX(x-.04,x,y,z,.027,.027,10);box(x-.34,y-.035,z-.035,x-.20,y+.035,z+.035)}
-const first=[0,0,0],last=[0,0,0];smokeNozzle(frame,0,first);smokeNozzle(frame,7,last);const minY=frame.grid.min[1]+.11,beamY=(first[1]+last[1])/2,zMin=Math.min(...nozzleSources.map(t=>t.position[2])),zMax=Math.max(...nozzleSources.map(t=>t.position[2]));box(first[0]-.30,beamY-.055,zMin-.18,first[0]-.22,beamY+.055,zMax+.18);box(first[0]-.30,minY,zMin-.12,first[0]-.22,beamY,zMin-.04);box(first[0]-.30,minY,zMax+.04,first[0]-.22,beamY,zMax+.12);const sourceCount=n,layout=FLOW_LAYOUT.get(frame),g=frame.grid,x=layout.collectorPlane.x;
-const cy=(g.min[1]+g.max[1])/2,cz=(g.min[2]+g.max[2])/2,H=(g.max[1]-g.min[1])*.35,W=(g.max[2]-g.min[2])*.33;
-const plenum=layout.emitterPlane.x-2.22,grill=plenum+.20,fan=plenum+.53,honey=plenum+1.15,contraction=plenum+1.40,throat=layout.emitterPlane.x-.53;
-const ring=(ax,hh,ww,t=.07)=>{box(ax-t,cy-hh-t,cz-ww-t,ax+t,cy-hh+t,cz+ww+t);box(ax-t,cy+hh-t,cz-ww-t,ax+t,cy+hh+t,cz+ww+t);box(ax-t,cy-hh,cz-ww-t,ax+t,cy+hh,cz-ww+t);box(ax-t,cy-hh,cz+ww-t,ax+t,cy+hh,cz+ww+t)};
-ring(plenum,H,W,.10);ring(grill,H,W);ring(honey,H,W);ring(contraction,H,W);ring(throat,H*.75,W*.73);
-for(const sign of [-1,1]){const yEdge=cy+sign*H,zEdge=cz+sign*W;
- box(plenum,yEdge-.035,cz-W,contraction,yEdge+.035,cz+W);
- box(plenum,cy-H,zEdge-.035,contraction,cy+H,zEdge+.035);
- quad([contraction,yEdge,cz-W],[contraction,yEdge,cz+W],[throat,cy+sign*H*.75,cz+W*.73],[throat,cy+sign*H*.75,cz-W*.73]);
- quad([contraction,cy-H,zEdge],[contraction,cy+H,zEdge],[throat,cy+H*.75,cz+sign*W*.73],[throat,cy-H*.75,cz+sign*W*.73]);}
-// Intake safety grill and downstream flow straightener are visual fixtures.
-for(let k=-6;k<=6;k++){const u=k/7;
- box(grill-.016,cy-H,cz+u*W-.012,grill+.016,cy+H,cz+u*W+.012);
- box(grill-.016,cy+u*H-.012,cz-W,grill+.016,cy+u*H+.012,cz+W);
- box(honey-.015,cy-H,cz+u*W-.008,honey+.015,cy+H,cz+u*W+.008);
- box(honey-.015,cy+u*H-.008,cz-W,honey+.015,cy+u*H+.008,cz+W);}
-cylX(fan-.10,fan+.10,cy,cz,.18,.18,12);
-for(let i=0;i<8;i++){const a=seconds*1.4+i*Math.PI/4,r0=.16,r1=Math.min(H,W)*.73;
- const p0=[fan,cy+Math.sin(a)*r0,cz+Math.cos(a)*r0],p1=[fan,cy+Math.sin(a+.25)*r0,cz+Math.cos(a+.25)*r0],p2=[fan,cy+Math.sin(a+.5)*r1,cz+Math.cos(a+.5)*r1],p3=[fan,cy+Math.sin(a+.8)*r1,cz+Math.cos(a+.8)*r1];quad(p0,p1,p3,p2)}
-// A separate collector ring and duct remain behind the vehicle.
-ring(x,H*.96,W*.96,.12);ring(x+.24,H*.96,W*.96,.08);
-for(const sign of [-1,1]){
- box(x,cy+sign*H*.96-.04,cz-W*.96,x+.28,cy+sign*H*.96+.04,cz+W*.96);
- box(x,cy-H*.96,cz+sign*W*.96-.04,x+.28,cy+H*.96,cz+sign*W*.96+.04);}
-const housingCount=n-sourceCount;smokeHardware.triangleCount=n/3;return{total:n,sourceCount,housingCount,pulseStart:n,outletX:x,triangles:n/3,nozzleSources}}
-function smokeDrawHardware(vp,frame){smokeHardwareEnsure();const g=smokeHardwareGeometry(frame,smokeState.playbackTime),p=smokeHardware.program;gl.useProgram(p);gl.bindBuffer(gl.ARRAY_BUFFER,smokeHardware.buffer);gl.bufferSubData(gl.ARRAY_BUFFER,0,smokeHardware.storage,0,g.total*3);const attr=gl.getAttribLocation(p,'a_position');gl.enableVertexAttribArray(attr);gl.vertexAttribPointer(attr,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(p,'u_mvp'),false,vp);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);const tint=gl.getUniformLocation(p,'u_color');gl.uniform4f(tint,.22,.39,.48,1);gl.drawArrays(gl.TRIANGLES,0,g.total);smokeHardware.draws++;gl.disableVertexAttribArray(attr)}
-const smokeHardwarePreviewFrame={grid:{resolution:[32,32,32],min:AETHER.CFD_DOMAIN.bounds.min.slice(),max:AETHER.CFD_DOMAIN.bounds.max.slice()}};
-if(!window.__RIB)window.__RIB={on:true,gain:1,width:.05,prog:null,flow:1,cmode:1,t:0,last:0};
-const RIB_VS=`#version 300 es
-precision highp float;in vec3 a_pos;in vec3 a_tan;in vec4 a_info;in vec2 a_tau;uniform mat4 u_mvp;uniform vec3 u_eye;uniform float u_time;uniform float u_width;uniform float u_view;out vec2 v_uv;out float v_arc;out float v_seed;out float v_t;out float v_tau;out float v_ratio;
-void main(){float arc=a_info.y,seed=a_info.z;vec3 P=a_pos;float g=smoothstep(2.0,9.0,arc);
-P+=vec3(0.0,sin(arc*3.1+u_time*1.7+seed*20.0),cos(arc*2.3-u_time*1.3+seed*11.0))*0.018*g;
-vec3 view=normalize(u_eye-P);vec3 sd=normalize(cross(a_tan,view));vec4 c0=u_mvp*vec4(P,1.0);
-float minW=3.0*c0.w/u_view;float w=max(u_width*(0.5+1.0*smoothstep(0.0,10.0,arc)),minW);
-P+=sd*a_info.x*w;gl_Position=u_mvp*vec4(P,1.0);v_uv=vec2(a_info.x,arc);v_arc=arc;v_seed=seed;v_t=a_info.w;v_tau=a_tau.x;v_ratio=a_tau.y;}`;
-const RIB_FS=`#version 300 es
-precision highp float;in vec2 v_uv;in float v_arc;in float v_seed;in float v_t;in float v_tau;in float v_ratio;uniform float u_time;uniform float u_gain;uniform float u_flow;uniform float u_cmode;out vec4 outColor;
-void main(){float x=v_uv.x;float core=exp(-x*x*9.0);float halo=exp(-x*x*2.2)*0.35;
-float lam=0.85+0.3*fract(v_seed*7.0);float d=mod(u_time*1.4+v_seed*lam*5.0-v_tau,lam);
-float packet=smoothstep(0.0,0.03,d)*exp(-d/(0.3*lam));float mag=mix(1.0,0.16+0.84*packet*1.4,u_flow);
-float fin=smoothstep(0.0,0.35,v_arc);float fout=1.0-smoothstep(0.85,1.0,v_t);float soft=smoothstep(3.0,10.0,v_arc);
-float prof=mix(core+halo,exp(-x*x*3.0)*0.8,soft);float a=prof*mag*fin*fout*u_gain;
-vec3 bc=mix(vec3(0.72,0.92,1.0),vec3(1.0),core);bc=mix(bc,vec3(0.6,0.8,1.0),soft*0.6);
-float tt=clamp(0.5+(v_ratio-1.0)*1.25,0.0,1.0)*4.0;vec3 cs=tt<1.0?mix(vec3(0.10,0.18,1.0),vec3(0.0,0.80,1.0),tt):tt<2.0?mix(vec3(0.0,0.80,1.0),vec3(0.05,1.0,0.30),tt-1.0):tt<3.0?mix(vec3(0.05,1.0,0.30),vec3(1.0,0.92,0.05),tt-2.0):mix(vec3(1.0,0.92,0.05),vec3(1.0,0.12,0.05),min(tt-3.0,1.0));
-cs*=1.0+0.35*core;float am=mix(a*0.5,a*0.95,u_cmode);if(u_cmode>0.5)a=max(a,prof*fin*fout*u_gain*0.30);
-vec3 col=mix(bc,cs,u_cmode);am=mix(a*0.5,a*0.95,u_cmode);if(a<0.003)discard;outColor=vec4(col*a,am);}`;
-function ribBuild(frame){const R=window.__RIB,g=frame.grid,h=Math.min(...g.max.map((v,i)=>(v-g.min[i])/g.resolution[i]))*.5,K=3,M=260,total=FLOW_LAYOUT.get(frame).nozzleTransforms.length,list=smokeState.selectedNozzle>=0?[smokeState.selectedNozzle]:Array.from({length:total},(_,i)=>i);
-if(!R.vb){R.vb=new Float32Array(64*K*M*24);R.ix=new Uint32Array(64*K*M*6)}
-const vb=R.vb,ix=R.ix,o=[0,0,0],v=[0,0,0],v2=[0,0,0],bad=(a,c)=>bodyInside(c[0],c[1],c[2])||smokeMayHitSolid(frame,...a,...c)&&m13SegmentHitsSolid(frame,a,c);let vc=0,ic=0;
-for(const n of list)for(let k=0;k<K;k++){smokeNozzle(frame,n,o);const P=[o[0],o[1]+(k-1)*.03,o[2]+(k-1)*.025];if(!smokeInside(frame,...P))continue;
-const cl=P.map((x,a)=>Math.floor((x-g.min[a])/(g.max[a]-g.min[a])*g.resolution[a]));if(m13SolidVoxel(frame,...cl)||bodyInside(...P))continue;
-const pts=[P.slice()],arcs=[0],spd=[];let p=P.slice(),arc=0;
-for(let s=0;s<M-1;s++){flowSample(frame,p[0],p[1],p[2],v);const sp=Math.hypot(v[0],v[1],v[2]);if(sp<1e-6)break;spd[pts.length-1]=sp;let d=[v[0]/sp,v[1]/sp,v[2]/sp];
-const mid=[p[0]+d[0]*h*.5,p[1]+d[1]*h*.5,p[2]+d[2]*h*.5];if(smokeInside(frame,...mid)){flowSample(frame,mid[0],mid[1],mid[2],v2);const s2=Math.hypot(v2[0],v2[1],v2[2]);if(s2>1e-6)d=[v2[0]/s2,v2[1]/s2,v2[2]/s2]}
-let st=h,q=[p[0]+d[0]*st,p[1]+d[1]*st,p[2]+d[2]*st];if(!smokeInside(frame,...q))break;
-if(bad(p,q)){st=h*.4;q=[p[0]+d[0]*st,p[1]+d[1]*st,p[2]+d[2]*st];if(bad(p,q))break}
-arc+=st;pts.push(q);arcs.push(arc);p=q}
-const L=pts.length;if(L<2)continue;const base=vc/12,seed=((n*7+k*3)%17)/17;while(spd.length<L)spd.push(spd[spd.length-1]||1e-6);let ref=0;const rc=Math.min(5,L);for(let i=0;i<rc;i++)ref+=spd[i];ref=Math.max(ref/rc,1e-9);const tau=[0];for(let i=1;i<L;i++){const sm=Math.max((spd[i]+spd[i-1])*.5,ref*.05);tau.push(tau[i-1]+(arcs[i]-arcs[i-1])*ref/sm)}
-for(let i=0;i<L;i++){const a=pts[Math.max(0,i-1)],c=pts[Math.min(L-1,i+1)];let tx=c[0]-a[0],ty=c[1]-a[1],tz=c[2]-a[2];const tl=Math.hypot(tx,ty,tz)||1;tx/=tl;ty/=tl;tz/=tl;
-for(const sd of [-1,1]){vb.set([pts[i][0],pts[i][1],pts[i][2],tx,ty,tz,sd,arcs[i],seed,i/(L-1),tau[i],Math.min(3,spd[i]/ref)],vc);vc+=12}}
-for(let i=0;i<L-1;i++){const a=base+2*i;ix.set([a,a+1,a+2,a+1,a+3,a+2],ic);ic+=6}}
-R.indexCount=ic;gl.bindVertexArray(R.vao);gl.bindBuffer(gl.ARRAY_BUFFER,R.vbo);gl.bufferData(gl.ARRAY_BUFFER,vb.subarray(0,vc),gl.DYNAMIC_DRAW);
-gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,R.ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,ix.subarray(0,ic),gl.DYNAMIC_DRAW);gl.bindVertexArray(null)}
-function RIB_DRAW(vp,frame){const R=window.__RIB;try{
-if(!R.prog){const vs=smokeCompile(gl.VERTEX_SHADER,RIB_VS),fs=smokeCompile(gl.FRAGMENT_SHADER,RIB_FS),pr=gl.createProgram();gl.attachShader(pr,vs);gl.attachShader(pr,fs);gl.linkProgram(pr);gl.deleteShader(vs);gl.deleteShader(fs);
-if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw Error('RIB_LINK '+gl.getProgramInfoLog(pr));R.prog=pr;const U=n=>gl.getUniformLocation(pr,n);R.loc={mvp:U('u_mvp'),eye:U('u_eye'),time:U('u_time'),width:U('u_width'),view:U('u_view'),gain:U('u_gain'),flow:U('u_flow'),cmode:U('u_cmode')};
-R.vao=gl.createVertexArray();R.vbo=gl.createBuffer();R.ibo=gl.createBuffer();gl.bindVertexArray(R.vao);gl.bindBuffer(gl.ARRAY_BUFFER,R.vbo);
-for(const [nm,sz,off] of [['a_pos',3,0],['a_tan',3,12],['a_info',4,24],['a_tau',2,40]]){const l=gl.getAttribLocation(pr,nm);gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,sz,gl.FLOAT,false,48,off)}gl.bindVertexArray(null);R.key=''}
-const o1=[0,0,0],o2=[0,0,0],tot=FLOW_LAYOUT.get(frame).nozzleTransforms.length;smokeNozzle(frame,0,o1);smokeNozzle(frame,tot-1,o2);
-const key=bodyKey()+frame.sequence+'|'+smokeState.selectedNozzle+'|'+frame.sourceId+'|'+o1.map(x=>x.toFixed(3))+'|'+o2.map(x=>x.toFixed(3));
-if(key!==R.key){R.key=key;ribBuild(frame)}if(!R.indexCount)return false;
-gl.useProgram(R.prog);gl.uniformMatrix4fv(R.loc.mvp,false,vp);gl.uniform3f(R.loc.eye,camera.eye[0],camera.eye[1],camera.eye[2]);{const nw=performance.now();R.t+=R.last?Math.min(.1,(nw-R.last)/1000)*(smokeState.playing?1:0):0;R.last=nw}gl.uniform1f(R.loc.time,R.t%1000);gl.uniform1f(R.loc.width,R.width);gl.uniform1f(R.loc.view,glCanvas.height*.95);gl.uniform1f(R.loc.gain,R.gain);gl.uniform1f(R.loc.flow,R.flow);gl.uniform1f(R.loc.cmode,R.cmode);
-gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(R.vao);gl.drawElements(gl.TRIANGLES,R.indexCount,gl.UNSIGNED_INT,0);gl.bindVertexArray(null);return true
-}catch(e){R.on=false;R.error=String(e&&e.message||e);try{gl.bindVertexArray(null)}catch(_){}return false}}
 if(!window.__BODY)window.__BODY={active:false,x:0,z:0,g:0,H:1.78,yaw:0,anchor:null,speed:0,t:0,parts:null,gen:-1,inTunnel:false};
-const BODY_TMP=new Float64Array(3);
-function bodyRadius(yRel){if(yRel<0||yRel>window.__BODY.H)return 0;return yRel<.85?.17:yRel<1.5?.25:.12}
-function bodyInside(x,y,z){const B=window.__BODY;if(!B.active)return false;const R=bodyRadius(y-B.g);if(!R)return false;const dx=x-B.x,dz=z-B.z;return dx*dx+dz*dz<R*R}
-function flowSample(frame,x,y,z,out){smokeSample(frame,x,y,z,out);const B=window.__BODY;if(!B.active)return true;const yr=y-B.g;if(yr<0||yr>B.H+.6)return true;
- const u=out[0],w=out[2],U=Math.hypot(u,w);if(U<1e-9)return true;const dx=x-B.x,dz=z-B.z,r2=dx*dx+dz*dz;if(r2>36)return true;
- const fy=yr<=B.H?1:1-(yr-B.H)/.6,Rl=Math.max(bodyRadius(Math.min(yr,B.H)),.12);
- if(r2<Rl*Rl*fy){out[0]=0;out[1]=0;out[2]=0;return true}
- const r=Math.sqrt(r2),nx=dx/r,nz=dz/r,Un=u*nx+w*nz,k=Rl*Rl/r2*fy;out[0]=u-k*(2*Un*nx-u);out[2]=w-k*(2*Un*nz-w);
- const ex=u/U,ez=w/U,s=dx*ex+dz*ez,l=-dx*ez+dz*ex;
- if(s>0){const wd=Rl*1.4+.2*s,env=Math.exp(-(l/wd)*(l/wd))*Math.exp(-s/3.2)*fy,ph=6.2832*(B.t/1.4-s/1.3),grow=1-Math.exp(-s/.35);
-  const def=1-.5*env*grow;out[0]*=def;out[2]*=def;const vl=.8*U*env*grow*Math.sin(ph);out[0]+=-ez*vl;out[2]+=ex*vl;out[1]+=.22*U*env*grow*Math.sin(ph*1.3+1.1)}
- else if(r<1.2){const up=Math.exp(-(r-Rl)/.35)*Math.max(0,-s/r)*.25*U*Math.max(0,1-Math.abs(yr-B.H)/.4);out[1]+=up}
- return true}
-function bodyKey(){const B=window.__BODY;return B.active?('B'+Math.round(B.x*25)+','+Math.round(B.z*25)+','+Math.round(B.g*20)+','+Math.floor(B.t*12)+'|'):''}
-function bodyTick(){const B=window.__BODY;B.t=window.__RIB?.t||0;
+
+
+
+
+function bodyTick(){const B=window.__BODY;B.t=0;
  if(fpv.enabled){B.anchor=null;const inT=fpv.z<DOOR.landZ;B.inTunnel=inT;B.active=inT;if(inT){B.x=fpv.x;B.z=fpv.z;B.g=fpv.gy??doorGround(fpv.x,fpv.z);B.yaw=fpv.yaw}}
  else if(B.anchor){B.active=true;B.inTunnel=true;B.x=B.anchor.x;B.z=B.anchor.z;B.g=B.anchor.g;B.yaw=B.anchor.yaw}else{B.active=false;B.inTunnel=false}
- const f=m13FrameState.frame;B.speed=0;if(B.active&&f&&f.fields?.velocity?.data&&smokeInside(f,B.x,B.g+1.2,B.z)){smokeSample(f,B.x,B.g+1.2,B.z,BODY_TMP);B.speed=Math.hypot(BODY_TMP[0],BODY_TMP[1],BODY_TMP[2])}if(window.__LIVE&&window.__LIVE.ok&&window.__LIVE.enabled)B.speed=B.active?window.__LIVE.speedAt:0}
+ B.speed=(window.__LIVE&&window.__LIVE.ok&&window.__LIVE.enabled&&B.active)?window.__LIVE.speedAt:0}
 function bodyDraw(vp){const B=window.__BODY;if(!B.active||fpv.enabled)return;try{
  if(!B.parts||B.gen!==runtimeGeneration){const P=[[[-.1,.45,0],[.15,.9,.17]],[[.1,.45,0],[.15,.9,.17]],[[0,1.19,0],[.46,.62,.26]],[[-.31,1.16,0],[.1,.62,.12]],[[.31,1.16,0],[.1,.62,.12]],[[0,1.56,0],[.1,.08,.1]],[[0,1.7,0],[.2,.24,.22]]];
   B.parts=P.map(([c,s])=>{const o={type:'box',name:'body',center:c,size:s,bevel:.035,color:[.9,.93,.95]};bevelMesh(o);const m=o._mesh,uv=new Float32Array(m.positions.length/3*2);return bindMesh(m.positions,m.normals,uv,m.indices)});B.gen=runtimeGeneration}
@@ -2537,12 +1369,12 @@ function liveRead(x,y,z){if(LIVE.impl==='MAC')return macRead(x,y,z);const N=LIVE
  const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,buf=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.tex.velA.f);gl.readPixels(ax,ay,1,1,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return [buf[0],buf[1],buf[2]]}
 function liveStep(now){if(!LIVE.enabled)return;if(!LIVE.init||LIVE.gen!==runtimeGeneration)liveInit();if(!LIVE.ok||LIVE.freeze)return;
  if(!PERF.cal){const M=perfManualFromHash();PERF.cal=(M.sim&&M.vol&&M.ren)?{done:true,result:{skipped:'manual #q'}}:{};if(PERF.cal.done)for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax])}
- if(!PERF.cal.done){try{smokeState.enabled=false;perfCalibrateStep(now)}catch(e){PERF.cal={done:true,result:{error:String(e?.message||e)}};for(const ax of ['sim','vol','ren'])perfApplyTier(ax,'LOW')}if(!LIVE.init)return}if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
- try{smokeState.enabled=false;const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
+ if(!PERF.cal.done){try{perfCalibrateStep(now)}catch(e){PERF.cal={done:true,result:{error:String(e?.message||e)}};for(const ax of ['sim','vol','ren'])perfApplyTier(ax,'LOW')}if(!LIVE.init)return}if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
+ try{const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
   const hmin=Math.min(...LIVE.h),cfl=.9*hmin/(1.6*Math.max(LIVE.U,.5)),n=LIVE.step<40?6:LIVE.sub,dt=Math.min(cfl,Math.max(fdt,1/60)/LIVE.sub);
   for(let s=0;s<n;s++){livePasses(dt);if(LIVE.benchRec)liveBenchSample()}liveCopyVolume();
   liveForcesPoll();if(now-LIVE.lastRead>250){LIVE.lastRead=now;liveForcesKick();const B=window.__BODY;if(B&&B.active){const R=.55,P=[[R,0],[-R,0],[0,R],[0,-R]].map(([dx,dz])=>liveRead(B.x+dx,B.g+1.2,B.z+dz)),v=[0,1,2].map(i=>P.reduce((q,w)=>q+w[i],0)/4);LIVE.speedAt=P.reduce((q,w)=>q+Math.hypot(...w),0)/4;LIVE.vAt=v}}
- }catch(e){LIVE.ok=false;LIVE.err=String(e?.message||e);smokeState.enabled=true}
+ }catch(e){LIVE.ok=false;LIVE.err=String(e?.message||e)}
  finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}}
 function liveInv(m){const a=Array.from(m),inv=new Float32Array(16);
  inv[0]=a[5]*a[10]*a[15]-a[5]*a[11]*a[14]-a[9]*a[6]*a[15]+a[9]*a[7]*a[14]+a[13]*a[6]*a[11]-a[13]*a[7]*a[10];inv[4]=-a[4]*a[10]*a[15]+a[4]*a[11]*a[14]+a[8]*a[6]*a[15]-a[8]*a[7]*a[14]-a[12]*a[6]*a[11]+a[12]*a[7]*a[10];
@@ -2611,7 +1443,7 @@ Object.assign(LIVE.api,{
 function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
  for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const t=vox.type[i+N[0]*(j+N[1]*k)];if(!t)continue;const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,o=(ay*LIVE.W+ax)*4;obs[o+(t===1?0:1)]=255;obs[o+3]=255}
  gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs)}catch(e){LIVE.err='reobstacle: '+e.message}}
-LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)};
+LIVE.setEnabled=v=>{LIVE.enabled=!!v};
 /* ===== M3/M4: staggered MAC solver (default when it initialises; the collocated solver in 85-live-cfd.js is the fallback).
    - velocity: faces. vel.x = u on the -x face of cell (i,j,k), vel.y = v on the -y face, vel.z = w on the -z face.
      The +x outlet face is not stored (zero-gradient predictor + Dirichlet p=0 ghost), +y/+z faces are walls.
@@ -3343,7 +2175,7 @@ const lerp=(a,b,s)=>a+(b-a)*s,sstep=s=>{s=s<0?0:s>1?1:s;return s*s*(3-2*s)};
 /* ---------- geometry from the real scene ---------- */
 function bodyLocalBox(){const b=scene.vehicleParts.find(p=>p.role==='body');if(!b||!b.positions)return null;if(b._cineBox&&b._cineBox.src===b.positions)return b._cineBox;const P=b.positions,lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];for(let i=0;i<P.length;i+=3)for(let k=0;k<3;k++){const v=P[i+k];if(v<lo[k])lo[k]=v;if(v>hi[k])hi[k]=v}return b._cineBox={src:P,lo,hi}}
 function cineGeometry(){
- const lay=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),vt=AETHER.VEHICLE_TRANSFORM,lb=bodyLocalBox();if(!lb)throw Error('CINE: vehicle body unavailable');
+ const lay=FLOW_LAYOUT.get(FLOW_FRAME),vt=AETHER.VEHICLE_TRANSFORM,lb=bodyLocalBox();if(!lb)throw Error('CINE: vehicle body unavailable');
  const key=[...vt.position,...vt.rotation,...vt.scale,lay.vehicleLength,lay.fanBounds.max[0],lay.collectorPlane.x].join();if(G&&geoKey===key)return G;
  const M=vehicleModel(),lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
  for(const x of[lb.lo[0],lb.hi[0]])for(const y of[lb.lo[1],lb.hi[1]])for(const z of[lb.lo[2],lb.hi[2]]){const w=[M[0]*x+M[4]*y+M[8]*z+M[12],M[1]*x+M[5]*y+M[9]*z+M[13],M[2]*x+M[6]*y+M[10]*z+M[14]];for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],w[k]);hi[k]=Math.max(hi[k],w[k])}}
@@ -3417,14 +2249,12 @@ let cueList=null;
 function cueTick(tt){if(!cueList)cueList=cues();let idx=-1;for(let i=0;i<cueList.length;i++)if(tt>=cueList[i].a&&tt<cueList[i].b){idx=i;break}if(idx!==cueIdx){cueIdx=idx;emit(idx<0?{type:'caption',title:'',sub:''}:{type:'caption',title:cueList[idx].t,sub:cueList[idx].s})}}
 
 /* ---------- state ---------- */
-function setState(s,why){const prev=state;if(prev===s&&!why)return;state=s;reason=why||'';emit({type:'state',state:s,prev,reason});syncWowUi()}
-function syncWowUi(){try{const done=state===ST.FINISHED,active=state===ST.PREPARING||state===ST.PLAYING;wowUI.overlay.classList.toggle('playing',active);wowUI.skip.style.display=active?'block':'none';wow.active=active;wowUI.start.disabled=active||!wow.ready;wowUI.start.textContent=active?'관람 진행 중':(done?'30초 다시 보기':'풍동 가동 · 30초 체험');wowUI.kicker.textContent=active?'AETHER · LIVE FACILITY TOUR':(done?'AETHER · EXPERIENCE COMPLETE':'AETHER · WIND TUNNEL');if(!active){wowUI.title.textContent=done?'이제 직접 둘러보십시오.':'자동차 풍동, 눈앞에서 가동하십시오.';wowUI.description.textContent=done?'카메라를 이동하고 단면·진단 데이터를 살펴보실 수 있습니다.':'팬 월부터 BMW M4 GT3 EVO의 후류까지 이어지는 30초 관람입니다.';wowUI.source.textContent=wowSourceLabel();wowUI.progress.style.width=done?'100%':'0%'}}catch(_){}}
+function setState(s,why){const prev=state;if(prev===s&&!why)return;state=s;reason=why||'';emit({type:'state',state:s,prev,reason})}
 function estopped(full){try{return !!(rollingState.emergencyStopped||(full&&AETHER.M14?.getSnapshot?.().control.emergencyStopped))}catch(_){return false}}
 function rendererOk(){return !!gl&&!gl.isContextLost()&&!!wow.ready&&diagnostics.bootStage!=='FAILED'&&diagnostics.bootStage!=='CONTEXT_LOST'}
 function smokeReadiness(){const live=window.__LIVE;if(!live)return{ready:false,p:0,why:'live'};if(live.err)return{ready:true,p:1,why:'live-unavailable',smoke:false};const calDone=!!(window.__PERF&&window.__PERF.cal&&window.__PERF.cal.done);if(!live.ok||!calDone)return{ready:false,p:.05,why:'calibrating'};const p=clamp(live.t/SMOKE_READY_T,0,1);return{ready:p>=1,p:.1+.9*p,why:p>=1?'ready':'developing',smoke:true}}
 function readiness(){if(!rendererOk())return{ready:false,p:0,why:'renderer'};return smokeReadiness()}
 function takeCamera(){fpv.enabled=false;clearWalk();try{if(document.exitPointerLock)document.exitPointerLock()}catch(_){}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.remove('active'));camera.cutaway=false}
-function fallbackSmoke(){/* only when the GPU solver is unavailable: the legacy 32^3 CPU diagnostic provides the smoke */try{if(!AETHER.S3_OFFICE?.getSnapshot?.().history.length)Promise.resolve(AETHER.S3_OFFICE.start(2)).catch(e=>diagnostics.warnings.push({time:now(),source:'cinematic-diagnostic',message:String(e)}));smokeState.enabled=true;const cb=document.getElementById('smokeEnabled');if(cb)cb.checked=true;smokeControlStatus()}catch(e){diagnostics.warnings.push({time:now(),source:'cinematic-diagnostic',message:String(e)})}}
 function applyHud(){try{document.getElementById('viewName').textContent='AETHER';document.getElementById('viewHint').textContent=state===ST.PLAYING||state===ST.PREPARING?'시네마틱':'Drag to orbit · wheel/pinch to zoom';document.getElementById('cutaway').textContent='Cutaway: Off'}catch(_){}}
 
 function start(opts){
@@ -3432,12 +2262,11 @@ function start(opts){
  const nowMs=performance.now();if(state===ST.PREPARING)return true;if(state===ST.PLAYING&&nowMs-lastStart<500)return true;lastStart=nowMs;
  try{buildSets()}catch(e){diagnostics.warnings.push({time:now(),source:'cinematic',message:String(e.message||e)});return false}
  token++;t=0;prepT=0;postT=0;cueIdx=-2;lastNow=null;lastProg=-1;cueList=null;takeCamera();
- try{AETHER.FAN_MODULE?.setVisualRunning(true);document.getElementById('m14FanToggle')?.setAttribute('aria-pressed','true')}catch(_){}
- try{window.__smokeSetPlaying&&window.__smokeSetPlaying(true)}catch(_){}
+ try{window.__CONTROLS&&window.__CONTROLS.fanSet(true)}catch(_){}
+ try{window.__CONTROLS&&window.__CONTROLS.flowSetPaused(false)}catch(_){}
  evalPose(0,0);writeCamera();cutHistory();applyHud();
  document.body.classList.add('cine');
  emit({type:'caption',title:'',sub:''});
- const r=readiness();if(!r.ready&&r.why==='live-unavailable')fallbackSmoke();
  setState(ST.PREPARING,opts&&opts.source||'start');
  if(readiness().ready)beginPlay();
  return true}
@@ -3456,7 +2285,7 @@ function tick(nowMs){
  const dt=lastNow==null?0:clamp((nowMs-lastNow)/1000,0,.25);lastNow=nowMs;
  if(state===ST.PREPARING){prepT+=dt;const r=readiness();emit({type:'prepare',p:r.p});if(r.ready||prepT>=PREP_MAX){if(!r.ready)diagnostics.warnings.push({time:now(),source:'cinematic',message:'smoke not fully developed after '+PREP_MAX+' s; starting anyway ('+r.why+')'});beginPlay()}else{evalPose(0,dt);writeCamera();return}}
  t=Math.min(DUR,t+dt);evalPose(t,dt);writeCamera();cueTick(t);
- if(t-lastProg>=.05||t>=DUR){lastProg=t;emit({type:'progress',t,dur:DUR});try{wowUI.progress.style.width=(t/DUR*100).toFixed(1)+'%'}catch(_){}}
+ if(t-lastProg>=.05||t>=DUR){lastProg=t;emit({type:'progress',t,dur:DUR})}
  if(t>=DUR)finish('done')}
 
 /* ---------- verification (used at start in dev and by tests/cinematic.mjs) ---------- */
@@ -3484,42 +2313,97 @@ const api={ST,start,skip,cancel,tick,readiness,verify,resetClock(){lastNow=null}
  _forceState(s){state=s}};
 return api})();
 window.__CINE=CINE;
+/* ===== Control room: fan, rolling road, emergency stop, flow pause/reset and wind setpoint =====
+   One state authority for the engineer-panel buttons, the 3D console (buttons and sockets in the control room)
+   and the cinematic director. Everything acts on the real systems: the fan visuals, the rolling road (belt, wheels and
+   rollers follow the GPU solver's free-stream speed) and the GPU CFD solver (pause, reset, inlet speed). */
+const CONTROLS=(()=>{
+ const $=id=>document.getElementById(id),WINDS=[3,5,8,12],PRESETS=['Hero','Side','Top','Fan','Control','Outlet'];
+ const live=()=>window.__LIVE,fan=()=>AETHER.FAN_MODULE;
+ const stopped=()=>rollingState.emergencyStopped;
+ let pausedByEstop=false,lastCmd='';
+ /* ---- actions ---- */
+ function fanSet(on){if(stopped()&&on)return false;const f=fan();if(!f?.loaded)return false;f.setVisualRunning(!!on);render();return true}
+ function fanToggle(){const f=fan();return f?.loaded?fanSet(!f.visualRunning):false}
+ function roadSet(on){const ok=AETHER.ROLLING_ROAD.setMotorEnabled(!!on);if(ok)lastCmd=on?'롤링로드 가동':'롤링로드 정지';render();return ok}
+ function roadToggle(){return roadSet(!rollingState.motorEnabled)}
+ function flowPaused(){return !!live()?.freeze}
+ function flowSetPaused(p){const l=live();if(!l)return false;if(stopped()&&!p)return false;l.freeze=!!p;if(!p)l.lastT=0;lastCmd=p?'흐름 일시정지':'흐름 재개';render();return true}
+ function flowReset(){const l=live();if(!l||!l.ok||stopped())return false;try{l.api.reset();rollingState.lastSimT=null;lastCmd='흐름 초기화'}catch(e){diagnostics.warnings.push({time:now(),source:'controls',message:String(e)});return false}render();return true}
+ function windSet(u){const l=live();u=Number(u);if(!l||!WINDS.includes(u)||stopped())return false;l.U=u;if(window.__MAC)window.__MAC.U=u;l.forces=null;lastCmd='유입 풍속 '+u+' m/s';render();return true}
+ function windStep(d){const l=live();if(!l)return false;const i=Math.max(0,WINDS.indexOf(l.U));return windSet(WINDS[Math.max(0,Math.min(WINDS.length-1,i+d))])}
+ function smokeToggle(){const l=live();if(!l)return false;l.mode=l.mode==='OFF'?'RAKE_V':'OFF';lastCmd='연기 '+(l.mode==='OFF'?'끄기':'켜기');render();return true}
+ function colorToggle(){const l=live();if(!l)return false;l.colorMode=!l.colorMode;render();return true}
+ function emergencyStop(){if(stopped())return true;AETHER.ROLLING_ROAD.setEmergencyStop(true);fan()?.setVisualRunning?.(false);const l=live();if(l&&!l.freeze){l.freeze=true;pausedByEstop=true}lastCmd='비상정지 작동';render();return true}
+ function resetEmergencyStop(){if(!stopped())return true;AETHER.ROLLING_ROAD.setEmergencyStop(false);const l=live();if(l&&pausedByEstop){l.freeze=false;l.lastT=0}pausedByEstop=false;lastCmd='비상정지 해제 · 팬과 롤링로드는 정지 상태 유지';render();return true}
+ /* ---- snapshot (kept under AETHER.M14 for the cinematic and tests) ---- */
+ function getSnapshot(){const l=live(),f=fan(),road=AETHER.ROLLING_ROAD.getSnapshot();return Object.freeze({fan:Object.freeze({module:f?.assetName||'LOADING',visualRunning:!!f?.visualRunning}),collector:Object.freeze({loaded:!!AETHER.EXHAUST_COLLECTOR?.loaded,valid:!!AETHER.EXHAUST_COLLECTOR?.valid}),control:Object.freeze({windSpeed:l?l.U:0,rollingRoadEnabled:road.motorEnabled,emergencyStopped:road.emergencyStopped,flowPaused:flowPaused()}),solver:Object.freeze({ok:!!(l&&l.ok),impl:l?.impl||null,tier:l?.q||null}),rollingRoad:road})}
+ const checks=()=>{const s=getSnapshot();return Object.freeze({estopLatched:s.control.emergencyStopped,rollingRoadInterlocked:!s.control.emergencyStopped||!s.rollingRoad.motorEnabled,windSetpointValid:WINDS.includes(s.control.windSpeed),pass:(!s.control.emergencyStopped||!s.rollingRoad.motorEnabled)&&WINDS.includes(s.control.windSpeed)})};
+ /* ---- 3D console colours follow the state ---- */
+ function paintObject(name,color){const o=scene.objects.find(x=>x.name===name)||(['m5.m14.monitor.solver','m5.m14.monitor.flow','m5.m14.monitor.estop'].includes(name)?scene.objects.find(x=>x.name==='m6.glb.ScreenUI'):null);if(o)o.color=color}
+ function sync3D(s){updateMonitorAtlas();const e=s.control.emergencyStopped,r=s.control.rollingRoadEnabled,ok=s.solver.ok&&!s.control.flowPaused;paintObject('m5.m14.button.estop',e?[1,.07,.045]:[.80,.12,.10]);paintObject('m5.m14.button.road',r?[.16,.70,.42]:[.26,.30,.33]);paintObject('m5.m14.monitor.solver',ok?[.18,.75,.40]:[.86,.48,.12]);paintObject('m5.m14.monitor.flow',[.18+s.control.windSpeed/20,.38+s.control.windSpeed/24,.58]);paintObject('m5.m14.monitor.road',r?[.15,.62,.38]:[.35,.39,.42]);paintObject('m5.m14.monitor.estop',e?[1,.08,.05]:[.24,.62,.35])}
+ /* ---- panel rendering (elements are optional) ---- */
+ const fx=(x,n)=>Number.isFinite(x)?x.toFixed(n):'—';
+ function render(){const s=getSnapshot(),e=s.control.emergencyStopped,f=fan(),l=live();
+  const set=(id,fn)=>{const el=$(id);if(el)fn(el)};
+  set('ctlBanner',el=>{el.classList.toggle('estop',e);el.textContent=e?'비상정지 작동 중 · 팬·롤링로드·흐름이 멈췄습니다. 해제 후 다시 켤 수 있습니다.':(s.solver.ok?'정상 가동 · '+(s.control.flowPaused?'흐름 일시정지':'실시간 계산 중'):'GPU 솔버 대기 중')});
+  set('ctlFan',el=>{el.disabled=!f?.loaded||e;el.setAttribute('aria-pressed',String(!!f?.visualRunning));el.textContent=f?.visualRunning?'팬 회전 정지':'팬 회전 시작'});
+  set('ctlRoad',el=>{el.disabled=e;el.setAttribute('aria-pressed',String(s.control.rollingRoadEnabled));el.textContent=s.control.rollingRoadEnabled?'롤링로드 정지':'롤링로드 가동'});
+  set('ctlFlow',el=>{el.disabled=!l||!l.ok||e;el.setAttribute('aria-pressed',String(s.control.flowPaused));el.textContent=s.control.flowPaused?'흐름 재개':'흐름 일시정지'});
+  set('ctlFlowReset',el=>{el.disabled=!l||!l.ok||e});
+  set('ctlEstop',el=>{el.disabled=e;el.setAttribute('aria-pressed',String(e))});
+  set('ctlReset',el=>{el.disabled=!e});
+  set('ctlWind',el=>{if(document.activeElement!==el)el.value=String(s.control.windSpeed);el.disabled=!l||e});
+  set('ctlStatus',el=>{const road=s.rollingRoad;el.textContent=['유입 팬 · '+(f?.loaded?(f.visualRunning?'회전 중(시각 효과, 계산에 영향 없음)':'정지'):'로딩 중'),'후방 수거부 · '+(AETHER.EXHAUST_COLLECTOR?.loaded?(AETHER.EXHAUST_COLLECTOR.valid?'정렬됨':'배치 확인 필요'):'준비 중'),'롤링로드 · '+(road.effectiveSpeed>0?fx(road.effectiveSpeed,1)+' m/s로 이동 중':(s.control.rollingRoadEnabled?'대기(흐름 대기 중)':'정지'))+' · 벨트 이동 '+fx(road.beltTravel,2)+' m','GPU 솔버 · '+(l&&l.ok?(l.impl==='MAC'?'MAC 격자':'collocated')+' · 등급 '+l.q+' · 유입 '+l.U+' m/s':(l?.err?'사용 불가: '+l.err:'준비 중'))+(lastCmd?'\n마지막 명령: '+lastCmd:'')].join('\n')});
+  sync3D(s)}
+ /* ---- 3D picking in the control room (console buttons and sockets) ---- */
+ const norm3=v=>{const n=Math.hypot(v[0],v[1],v[2])||1;return v.map(x=>x/n)},crs=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+ function rayFromEvent(ev){const r=glCanvas.getBoundingClientRect(),f=norm3(camera.target.map((v,i)=>v-camera.eye[i])),right=norm3(crs(f,norm3(camera.up))),up=crs(right,f),nx=(ev.clientX-r.left)/r.width*2-1,ny=1-(ev.clientY-r.top)/r.height*2,t=Math.tan(camera.fov*Math.PI/360),a=r.width/r.height;return{origin:camera.eye,dir:norm3(f.map((v,i)=>v+right[i]*nx*t*a+up[i]*ny*t))}}
+ function rayAabb(o,d,obj){let lo=-Infinity,hi=Infinity;for(let a=0;a<3;a++){const h=obj.size[a]/2+.045,mn=obj.center[a]-h,mx=obj.center[a]+h;if(Math.abs(d[a])<1e-9){if(o[a]<mn||o[a]>mx)return null;continue}let t0=(mn-o[a])/d[a],t1=(mx-o[a])/d[a];if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(hi<lo)return null}return hi<0?null:Math.max(0,lo)}
+ function socketAction(id){switch(id){
+  case'EMERGENCY_STOP':return emergencyStop();
+  case'FAN_ENABLE':return fanToggle();
+  case'SMOKE_ENABLE':return smokeToggle();
+  case'FAN_SPEED':{const f=fan();if(!f?.loaded||stopped())return false;f.visualRPM=Math.max(6,Math.min(36,f.visualRPM+6));f.setVisualRunning(true);render();return true}
+  case'VIEW_MODE':return colorToggle();
+  case'CAMERA_SELECT':{const i=PRESETS.indexOf(camera.preset);setPreset(PRESETS[(i+1)%PRESETS.length]);return true}
+  case'SOLVER_RUN':return flowSetPaused(!flowPaused());
+  case'CFD_RESET':return flowReset();
+  default:return false}}
+ function pick3D(ev){if(camera.preset!=='Control')return;const{origin,dir}=rayFromEvent(ev);
+  let best=null,dist=Infinity;for(const o of scene.objects){if(!o.m14Action||!o.visible)continue;const h=rayAabb(origin,dir,o);if(h!==null&&h<dist){best=o;dist=h}}
+  if(best){ev.preventDefault();switch(best.m14Action){case'ESTOP':emergencyStop();break;case'ROAD':if(!stopped())roadToggle();break;case'WIND_DOWN':windStep(-1);break;case'WIND_UP':windStep(1);break}return}
+  if(!AETHER.M6?.sockets?.length)return;let hit=null;dist=Infinity;for(const s of AETHER.M6.sockets){const oc=origin.map((v,i)=>v-s.position[i]),b=oc.reduce((q,v,i)=>q+v*dir[i],0),c=oc.reduce((q,v)=>q+v*v,0)-s.hitRadiusM*s.hitRadiusM,disc=b*b-c;if(disc<0)continue;let t=-b-Math.sqrt(disc);if(t<0)t=-b+Math.sqrt(disc);if(t>=0&&t<dist){dist=t;hit=s}}
+  if(hit){ev.preventDefault();socketAction(hit.id)}}
+ let press=null;glCanvas.addEventListener('pointerdown',e=>{press={id:e.pointerId,x:e.clientX,y:e.clientY}},true);glCanvas.addEventListener('pointerup',e=>{const p=press;press=null;if(p&&p.id===e.pointerId&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<5)pick3D(e)},true);glCanvas.addEventListener('pointercancel',()=>{press=null},true);
+ if(AETHER.M6)AETHER.M6.interactionReady=true;
+ /* ---- panel wiring ---- */
+ const on=(id,fn)=>$(id)?.addEventListener('click',fn);
+ on('ctlFan',fanToggle);on('ctlRoad',roadToggle);on('ctlFlow',()=>flowSetPaused(!flowPaused()));on('ctlFlowReset',flowReset);on('ctlEstop',emergencyStop);on('ctlReset',resetEmergencyStop);
+ $('ctlWind')?.addEventListener('change',e=>windSet(e.target.value));
+ setInterval(()=>{if(!document.hidden)render()},500);
+ const api=Object.freeze({getSnapshot,checks,setRollingRoadEnabled:roadSet,emergencyStop,resetEmergencyStop,fanSet,fanToggle,flowSetPaused,flowReset,windSet,smokeToggle,colorToggle,render});
+ return api})();
+AETHER.M14=CONTROLS;window.__CONTROLS=CONTROLS;
 
-function smokeDraw(vp){const f=m13FrameState.frame,fieldReady=!!(f&&f.fields?.velocity?.data&&f.solidMask?.data);const renderStart=performance.now();try{if(fieldReady&&smokeState.enabled)smokeUpdate(f,performance.now());smokeState.layoutError=null}catch(error){smokeState.layoutError=String(error?.message||error);smokeControlStatus();smokePerf.renderMs=performance.now()-renderStart;return}if(!fieldReady||!smokeState.enabled){smokePerf.renderMs=performance.now()-renderStart;return}const p=smokeState.program;gl.useProgram(p);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.posBuffer);const ap=gl.getAttribLocation(p,'a_position');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.sizeBuffer);const as=gl.getAttribLocation(p,'a_size');gl.enableVertexAttribArray(as);gl.vertexAttribPointer(as,1,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,smokeState.alphaBuffer);const aa=gl.getAttribLocation(p,'a_alpha');gl.enableVertexAttribArray(aa);gl.vertexAttribPointer(aa,1,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(gl.getUniformLocation(p,'u_mvp'),false,vp);gl.uniform1f(gl.getUniformLocation(p,'u_viewScale'),glCanvas.height*.95);gl.enable(gl.DEPTH_TEST);gl.depthMask(false);gl.enable(gl.BLEND);if(!(window.__RIB&&window.__RIB.on&&RIB_DRAW(vp,f))){gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.POINTS,0,smokeState.count)};smokeState.drawCalls++;const clock=performance.now();if(clock-smokeState.lastStatusAt>950){smokeState.lastStatusAt=clock;smokeControlStatus()}for(const a of [ap,as,aa])gl.disableVertexAttribArray(a);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);smokePerf.renderMs=performance.now()-renderStart}
-function smokeControlStatus(){const el=document.getElementById('smokeStatus'),quick=document.getElementById('smokeQuickStatus'),f=m13FrameState.frame,office=!!f&&f.sourceId==='AETHER_S3_OFFICE_CPU',ready=!!(f?.fields?.velocity?.data&&f?.solidMask?.data),source=office?'32³ OFFICE CPU 진단 스냅샷':ready?'제품 solver 속도장 스냅샷':'사용 가능한 CFD 속도장 없음';if(quick)quick.textContent=ready?(smokeState.enabled?(smokeState.playing?' · '+source+' 입자 재생':' · 연기 일시정지'):' · 연기 표시 꺼짐'):' · '+source;if(el)el.textContent=smokeState.layoutError?'FLOW LAYOUT ERROR · '+smokeState.layoutError:f?source+' · CFD t='+f.simulationTime.toFixed(5)+'s · 입자 재생 t='+smokeState.playbackTime.toFixed(2)+'s · 정지장 재생 배속 ×'+smokeState.speedMultiplier+' · '+(smokeState.playing?'PLAYING':'PAUSED')+' · 수거 '+smokeState.captured:'CFD 속도장 대기 · 제품 solver 미연결 / 32³ OFFICE는 별도 CPU 진단';const d=document.getElementById('smokeDiagnostics');if(d&&!d.hidden)d.textContent=JSON.stringify(smokeDiagnosticsSnapshot(),null,2)}
-function smokeSetupControls(){
- const byId=id=>document.getElementById(id),enabled=byId('smokeEnabled'),density=byId('smokeDensity'),play=byId('smokePlayback'),height=byId('smokeHeight'),lateral=byId('smokeLateral'),distance=byId('smokeDistance'),quality=byId('smokeQuality'),nozzle=byId('smokeNozzleSelect'),prefill=byId('smokePrefill');
- const update=()=>{flowLayoutCache=null;smokeState.resetRequested=true;try{const l=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame);diagnostics.flowLayout=l.diagnostics;const h=byId('smokeHeightValue'),z=byId('smokeLateralValue'),d=byId('smokeDistanceValue');if(h)h.textContent=(smokeState.height>=0?'+':'')+smokeState.height.toFixed(2)+' m';if(z)z.textContent=(smokeState.lateral>=0?'+':'')+smokeState.lateral.toFixed(2)+' m';if(d)d.textContent=l.emitterDistance.toFixed(2)+' m · '+l.emitterFraction.toFixed(2)+'L';}catch(e){smokeState.layoutError=String(e?.message||e)}smokeControlStatus()};
- enabled?.addEventListener('change',()=>{smokeState.enabled=enabled.checked;smokeSetState(!enabled.checked?'READY':smokeState.playing?'SMOKE_PLAYING':'PAUSED');smokeControlStatus()});
- density?.addEventListener('input',()=>{smokeState.count=clamp(Math.round(Number(density.value)/250)*250,500,12000);byId('smokeDensityValue').textContent=String(smokeState.count);smokeControlStatus()});
- function smokeSetPlaying(on){if(AETHER.M14?.getSnapshot?.()?.control?.emergencyStopped)return false;on=!!on;if(smokeState.playing===on&&play&&play.getAttribute('aria-pressed')===String(!on))return true;smokeState.playing=on;smokeSetState(on?'SMOKE_PLAYING':'PAUSED');if(play){play.textContent=on?'연기 일시정지':'연기 재생';play.setAttribute('aria-pressed',String(!on))}smokeState.lastTime=performance.now();smokeControlStatus();return true}
- window.__smokeSetPlaying=smokeSetPlaying;play?.addEventListener('click',()=>{smokeSetPlaying(!smokeState.playing)});
- byId('smokeSpeed')?.addEventListener('input',e=>{smokeState.speedMultiplier=clamp(Number(e.target.value),1,5000);byId('smokeSpeedValue').textContent=smokeState.speedMultiplier+'×';smokeControlStatus()});
- nozzle?.addEventListener('change',()=>{smokeState.selectedNozzle=Number(nozzle.value);smokeState.resetRequested=true;smokeControlStatus()});prefill?.addEventListener('change',()=>{smokeState.prefill=prefill.checked;smokeState.resetRequested=true});
- height?.addEventListener('input',()=>{smokeState.height=clamp(Number(height.value)/100,-2,2);update()});lateral?.addEventListener('input',()=>{smokeState.lateral=clamp(Number(lateral.value)/100,-.30,.30);update()});distance?.addEventListener('input',()=>{smokeState.emitterFraction=clamp(Number(distance.value)/100,.35,.65);update()});
- quality?.addEventListener('change',()=>{const q=SMOKE_CONFIG.quality[quality.value]||SMOKE_CONFIG.quality.OFFICE;smokeState.count=q.particles;density.value=String(q.particles);byId('smokeDensityValue').textContent=String(q.particles);smokeControlStatus()});
- byId('smokeOutletView')?.addEventListener('click',()=>setPreset('Outlet'));byId('smokeHeroView')?.addEventListener('click',()=>setPreset('Hero'));const toggle=byId('smokeDiagnosticsToggle');toggle?.addEventListener('click',()=>{const d=byId('smokeDiagnostics');d.hidden=!d.hidden;toggle.setAttribute('aria-expanded',String(!d.hidden));toggle.textContent=d.hidden?'증기 진단 보기':'증기 진단 숨기기';smokeControlStatus()});if(prefill)prefill.checked=smokeState.prefill;update();
-}
-smokeSetupControls();
 
-function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)return;try{const frameStart=performance.now();perfBeginFrame(frameStart);smokeRecordFrame(frameStart);updateWalk(frameStart);CINE.tick(frameStart);resize();perfMark('sim');liveStep(frameStart);perfMark('scene');renderLightingShadow();hqCsm();fxBegin();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);bindLighting();gl.uniform4f(loc.eye,camera.eye[0],camera.eye[1],camera.eye[2],1);const view=lookAt(camera.eye,camera.target,camera.up),proj=fxJitter(perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far)),vp=matMul(proj,view),id=identityMatrix();gl.disable(gl.BLEND);gl.depthMask(true);gl.disable(gl.CULL_FACE);const PL=OPT.cull?frustumPlanes(vp,.03):null;let culled=0,drawn=0;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,vp);for(const o of scene.objects){if(!o.gpu||o.material==='glass'||!visibleInView(o))continue;if(PL&&!aabbVisible(PL,o)){culled++;continue}drawn++;drawMesh(o.gpu,id,{color:lightingColor(o),colorLinear:!!o.colorLinear,texture:o.texture||null,surface:surfaceFor(o),belt:o.name==='belt',beltTravel:rollingState.beltTravel},1)}for(const r of scene.roadParts){if(!r.visible||!r.gpu)continue;const rm=rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0);gl.uniformMatrix4fv(loc.model,false,rm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,rm));drawMesh(r.gpu,rm,{color:[.30,.34,.37,1],surface:r.pbrMaterial.surface,roller:true},1)}if(AETHER.FAN_MODULE?.loaded&&AETHER.EXHAUST_COLLECTOR?.loaded){const layout=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),rotor=fanRotorVisualAngle(frameStart);for(const p of scene.fanParts){if(!p.gpu)continue;const fm=fanPartModel(p,rotor,layout);gl.uniformMatrix4fv(loc.model,false,fm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,fm));drawMesh(p.gpu,fm,{color:p.color,colorLinear:true,surface:p.surface},1)}for(const p of scene.collectorParts){if(!p.gpu)continue;const cm=collectorPartModel(p,layout);gl.uniformMatrix4fv(loc.model,false,cm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,cm));drawMesh(p.gpu,cm,{color:p.color,colorLinear:true,surface:p.surface},1)}}const cpVisible=m13FrameState.mode==='CP'&&m13FrameState.availability?.CP?.status==='AVAILABLE';const vm=vehicleModel();if(cpVisible){if(FX.active)gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.NONE]);m13DrawCp(vp);if(FX.active)gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1])}else for(const p of scene.vehicleParts){if(!p.gpu)continue;const idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vm;gl.uniformMatrix4fv(loc.model,false,pm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,pm));drawMesh(p.gpu,pm,{color:p.color,texture:p.texture,surface:p.surface,colorLinear:true,clearcoat:p.role==='body',vatlas:!!p.texture},1)}bodyDraw(vp);if(FX.active){perfMark('smoke');fxAfterOpaque();perfMark('overlay')}else{gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp);smokeDraw(vp);perfMark('smoke');liveRender(vp);perfMark('overlay')}gl.disable(gl.BLEND);gl.depthMask(true);gl.useProgram(program);const transparent=scene.objects.filter(o=>visibleInView(o)&&o.material==='glass'&&(!PL||aabbVisible(PL,o))).sort((a,b)=>Math.hypot(...sub(b.center,camera.eye))-Math.hypot(...sub(a.center,camera.eye)));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);for(const o of transparent){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:[...o.color,1]},.25)}gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.depthMask(true);if(FX.active){perfMark('post');fxPost();const vp0=FX.m.vp;gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);m13DrawOverlay(vp0);smokeDraw(vp0);gl.disable(gl.BLEND);gl.depthMask(true);fxPresent();perfMark('overlay')}gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);OPT.stats.culled=culled;OPT.stats.drawn=drawn;perfEndFrame(performance.now());diagnostics.frames=(diagnostics.frames||0)+1;if(diagnostics.frames===1||(diagnostics.frames%120)===0){const err=gl.getError();smokePerf.webglError=err===gl.NO_ERROR?'NO_ERROR':String(err);if(err!==gl.NO_ERROR)throw Error('WebGL sampled error: '+err);}if(diagnostics.frames===1){diagnostics.bootStage='READY';wow.ready=true;wowUI.start.disabled=false;wowUI.start.textContent='풍동 가동 · 30초 체험';smokeSetState(m13FrameState.frame?(smokeState.playing?'SMOKE_PLAYING':'PAUSED'):'READY');const badge=document.getElementById('readyBadge');badge.textContent='M13 VIS READY · PRODUCT SOLVER UNBOUND';badge.className='badge warn';renderDiagnostics()}if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){smokeSetState('ERROR');failRuntime('frame',e)}}
 
-function setPreset(name){CINE.cancel('preset');fpv.enabled=false;clearWalk();if(document.exitPointerLock)document.exitPointerLock();camera.fov=50;camera.preset=name;camera.cutaway=name!=='Hero';const p=AETHER.VEHICLE_TRANSFORM.position,l=AETHER.FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame);if(name==='Hero'){camera.eye=[p[0]-1.8,p[1]+2.4,p[2]+9.1];camera.target=[p[0],p[1]+1.05,p[2]];camera.up=[0,1,0]}if(name==='Side'){camera.fov=62;camera.eye=[p[0]+.35,p[1]+1.35,p[2]-3.72];camera.target=[p[0]+.35,p[1]+.72,p[2]];camera.up=[0,1,0]}if(name==='Top'){camera.eye=[p[0],p[1]+22,p[2]+.001];camera.target=p.slice();camera.up=[0,0,-1]}if(name==='Fan'){camera.eye=[l.emitterPlane.x-3.0,2.72,0];camera.target=[l.emitterPlane.x-.4,2.72,0];camera.up=[0,1,0]}if(name==='Control'){camera.eye=[-2.8,1.90,8.65];camera.target=[-2.8,1.48,5.65];camera.up=[0,1,0]}if(name==='Outlet'){camera.eye=[l.collectorPlane.x+1.5,2.75,.05];camera.target=[l.collectorPlane.x-.7,2.75,0];camera.up=[0,1,0]}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===name));document.getElementById('viewName').textContent=name.toUpperCase();document.getElementById('cutaway').textContent='Cutaway: '+(camera.cutaway?'On':'Off');diagnostics.events.push({time:now(),type:'CAMERA',message:name+' preset'})}
 
-// M20 visitor sequence: camera choreography, not synthetic CFD.
-const wow={active:false,startAt:0,elapsed:0,pausedAt:0,ready:false};
-const wowUI={overlay:document.getElementById('wowOverlay'),start:document.getElementById('wowStart'),skip:document.getElementById('wowSkip'),title:document.getElementById('wowTitle'),description:document.getElementById('wowDescription'),kicker:document.getElementById('wowKicker'),source:document.getElementById('wowSource'),progress:document.getElementById('wowProgress')};
-function wowSourceLabel(){const f=m13FrameState.frame,office=AETHER.S3_OFFICE?.getSnapshot?.();if(office?.error)return '연기 데이터 없음 · 32³ 진단 실패: '+String(office.error).slice(0,100);if(f?.sourceId==='AETHER_S3_OFFICE_CPU')return '32³ OFFICE CPU 진단 · 제품 CFD 미연결';if(f)return '필드 출처: '+String(f.sourceId||'UNKNOWN');const status=document.getElementById('officeStatus')?.textContent||'';return status.includes('계산')||status.includes('매핑')?'32³ OFFICE CPU 계산 중 · 연기 준비 중':'제품 CFD 미연결 · 풍동 가동을 누르면 32³ 진단 시작';}
-/* the wow overlay is only a status view of the cinematic director (89b-cinematic.js) */
-function wowStop(){CINE.cancel('overlay')}
-function wowStart(){CINE.start({source:'overlay'})}
-wowUI.start.addEventListener('click',wowStart);wowUI.skip.addEventListener('click',wowStop);
-document.querySelectorAll('[data-camera],#reset,#walkMode').forEach(b=>b.addEventListener('click',()=>CINE.cancel('control'),true));for(const ev of['pointerdown','wheel','touchstart'])glCanvas.addEventListener(ev,()=>CINE.cancel('user'),{capture:true,passive:true});window.addEventListener('keydown',e=>{if(e.key==='Escape')CINE.skip()});
+
+
+function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)return;try{const frameStart=performance.now();perfBeginFrame(frameStart);updateWalk(frameStart);CINE.tick(frameStart);resize();perfMark('sim');liveStep(frameStart);AETHER.ROLLING_ROAD.liveAdvance(window.__LIVE.ok&&window.__LIVE.enabled?window.__LIVE.U:0,window.__LIVE.t);perfMark('scene');renderLightingShadow();hqCsm();fxBegin();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);bindLighting();gl.uniform4f(loc.eye,camera.eye[0],camera.eye[1],camera.eye[2],1);const view=lookAt(camera.eye,camera.target,camera.up),proj=fxJitter(perspective(camera.fov,glCanvas.width/glCanvas.height,camera.near,camera.far)),vp=matMul(proj,view),id=identityMatrix();gl.disable(gl.BLEND);gl.depthMask(true);gl.disable(gl.CULL_FACE);const PL=OPT.cull?frustumPlanes(vp,.03):null;let culled=0,drawn=0;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,vp);for(const o of scene.objects){if(!o.gpu||o.material==='glass'||!visibleInView(o))continue;if(PL&&!aabbVisible(PL,o)){culled++;continue}drawn++;drawMesh(o.gpu,id,{color:lightingColor(o),colorLinear:!!o.colorLinear,texture:o.texture||null,surface:surfaceFor(o),belt:o.name==='belt',beltTravel:rollingState.beltTravel},1)}for(const r of scene.roadParts){if(!r.visible||!r.gpu)continue;const rm=rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0);gl.uniformMatrix4fv(loc.model,false,rm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,rm));drawMesh(r.gpu,rm,{color:[.30,.34,.37,1],surface:r.pbrMaterial.surface,roller:true},1)}if(AETHER.FAN_MODULE?.loaded&&AETHER.EXHAUST_COLLECTOR?.loaded){const layout=FLOW_LAYOUT.get(FLOW_FRAME),rotor=fanRotorVisualAngle(frameStart);for(const p of scene.fanParts){if(!p.gpu)continue;const fm=fanPartModel(p,rotor,layout);gl.uniformMatrix4fv(loc.model,false,fm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,fm));drawMesh(p.gpu,fm,{color:p.color,colorLinear:true,surface:p.surface},1)}for(const p of scene.collectorParts){if(!p.gpu)continue;const cm=collectorPartModel(p,layout);gl.uniformMatrix4fv(loc.model,false,cm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,cm));drawMesh(p.gpu,cm,{color:p.color,colorLinear:true,surface:p.surface},1)}}const vm=vehicleModel();for(const p of scene.vehicleParts){if(!p.gpu)continue;const idx=p.role==='wheel'?wheelParts().indexOf(p):-1,pm=p.role==='wheel'?wheelModel(p,rollingState.wheelAngles[idx]||0):vm;gl.uniformMatrix4fv(loc.model,false,pm);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,pm));drawMesh(p.gpu,pm,{color:p.color,texture:p.texture,surface:p.surface,colorLinear:true,clearcoat:p.role==='body',vatlas:!!p.texture},1)}bodyDraw(vp);if(FX.active){perfMark('smoke');fxAfterOpaque();perfMark('overlay')}else{gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);perfMark('smoke');liveRender(vp);perfMark('overlay')}gl.disable(gl.BLEND);gl.depthMask(true);gl.useProgram(program);const transparent=scene.objects.filter(o=>visibleInView(o)&&o.material==='glass'&&(!PL||aabbVisible(PL,o))).sort((a,b)=>Math.hypot(...sub(b.center,camera.eye))-Math.hypot(...sub(a.center,camera.eye)));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);for(const o of transparent){if(!o.gpu)continue;gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,matMul(vp,id));drawMesh(o.gpu,id,{color:[...o.color,1]},.25)}gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.depthMask(true);if(FX.active){perfMark('post');fxPost();fxPresent();perfMark('overlay')}gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);OPT.stats.culled=culled;OPT.stats.drawn=drawn;perfEndFrame(performance.now());diagnostics.frames=(diagnostics.frames||0)+1;if(diagnostics.frames===1||(diagnostics.frames%120)===0){const err=gl.getError();smokePerf.webglError=err===gl.NO_ERROR?'NO_ERROR':String(err);if(err!==gl.NO_ERROR)throw Error('WebGL sampled error: '+err);}if(diagnostics.frames===1){diagnostics.bootStage='READY';wow.ready=true;const badge=document.getElementById('readyBadge');if(badge){badge.textContent='렌더러 준비 완료';badge.className='badge ok'}renderDiagnostics()}if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){failRuntime('frame',e)}}
+
+const PRESET_KO={Hero:'정면',Side:'측면',Top:'상단',Fan:'팬',Control:'제어실',Outlet:'후류'};
+function setPreset(name){CINE.cancel('preset');fpv.enabled=false;clearWalk();if(document.exitPointerLock)document.exitPointerLock();camera.fov=50;camera.preset=name;camera.cutaway=name!=='Hero';const p=AETHER.VEHICLE_TRANSFORM.position,l=AETHER.FLOW_LAYOUT.get(FLOW_FRAME);if(name==='Hero'){camera.eye=[p[0]-1.8,p[1]+2.4,p[2]+9.1];camera.target=[p[0],p[1]+1.05,p[2]];camera.up=[0,1,0]}if(name==='Side'){camera.fov=62;camera.eye=[p[0]+.35,p[1]+1.35,p[2]-3.72];camera.target=[p[0]+.35,p[1]+.72,p[2]];camera.up=[0,1,0]}if(name==='Top'){camera.eye=[p[0],p[1]+22,p[2]+.001];camera.target=p.slice();camera.up=[0,0,-1]}if(name==='Fan'){camera.eye=[l.emitterPlane.x-3.0,2.72,0];camera.target=[l.emitterPlane.x-.4,2.72,0];camera.up=[0,1,0]}if(name==='Control'){camera.eye=[-2.8,1.90,8.65];camera.target=[-2.8,1.48,5.65];camera.up=[0,1,0]}if(name==='Outlet'){camera.eye=[l.collectorPlane.x+1.5,2.75,.05];camera.target=[l.collectorPlane.x-.7,2.75,0];camera.up=[0,1,0]}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===name));document.getElementById('viewName').textContent=PRESET_KO[name]||name;document.getElementById('cutaway').textContent='단면 보기: '+(camera.cutaway?'켜짐':'꺼짐');diagnostics.events.push({time:now(),type:'CAMERA',message:name+' preset'})}
+
+/* engine-ready flag (first frame drawn); the cinematic director owns the visitor sequence */
+const wow={ready:false};
+document.querySelectorAll('[data-camera],#walkMode').forEach(b=>b.addEventListener('click',()=>CINE.cancel('control'),true));for(const ev of['pointerdown','wheel','touchstart'])glCanvas.addEventListener(ev,()=>CINE.cancel('user'),{capture:true,passive:true});window.addEventListener('keydown',e=>{if(e.key==='Escape')CINE.skip()});
 let pointers=new Map(),lastPinch=0;glCanvas.addEventListener('pointerdown',e=>{if(fpv.enabled)return;captureInput(glCanvas,e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY])});glCanvas.addEventListener('pointermove',e=>{if(fpv.enabled)return;if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);if(pointers.size===1&&camera.preset!=='Top'){const dx=e.clientX-old[0],dy=e.clientY-old[1],off=sub(camera.eye,camera.target),dist=Math.hypot(...off),yaw=Math.atan2(off[0],off[2])+dx*.008,pitch=clamp(Math.asin(clamp(off[1]/dist,-1,1))+dy*.008,-1.45,1.45),h=dist*Math.cos(pitch);camera.eye=[camera.target[0]+Math.sin(yaw)*h,camera.target[1]+Math.sin(pitch)*dist,camera.target[2]+Math.cos(yaw)*h]}else if(pointers.size===2){const pts=[...pointers.values()],pinch=Math.hypot(pts[0][0]-pts[1][0],pts[0][1]-pts[1][1]);if(lastPinch>1&&pinch>1){const d=norm(sub(camera.eye,camera.target)),dist=Math.hypot(...sub(camera.eye,camera.target)),nd=clamp(dist*lastPinch/pinch,2,50);camera.eye=add(camera.target,mul(d,[nd,nd,nd]))}lastPinch=pinch}});['pointerup','pointercancel','lostpointercapture'].forEach(t=>glCanvas.addEventListener(t,e=>{if(fpv.enabled)return;pointers.delete(e.pointerId);if(pointers.size<2)lastPinch=0}));glCanvas.addEventListener('wheel',e=>{if(fpv.enabled)return;e.preventDefault();const d=norm(sub(camera.eye,camera.target)),dist=Math.hypot(...sub(camera.eye,camera.target)),nd=clamp(dist*Math.exp(e.deltaY*.001),2,50);camera.eye=add(camera.target,mul(d,[nd,nd,nd]))},{passive:false});
-document.querySelectorAll('[data-camera]').forEach(b=>b.addEventListener('click',()=>setPreset(b.dataset.camera)));document.getElementById('reset').addEventListener('click',()=>setPreset('Hero'));document.getElementById('cutaway').addEventListener('click',e=>{camera.cutaway=!camera.cutaway;e.currentTarget.textContent='Cutaway: '+(camera.cutaway?'On':'Off')});document.getElementById('roadSection').addEventListener('click',e=>{AETHER.ROLLING_ROAD.setSectionView(!rollingState.roadSection);e.currentTarget.textContent='Road section: '+(rollingState.roadSection?'On':'Off')});window.addEventListener('resize',resize,{passive:true});
+document.querySelectorAll('[data-camera]').forEach(b=>b.addEventListener('click',()=>setPreset(b.dataset.camera)));document.getElementById('cutaway').addEventListener('click',e=>{camera.cutaway=!camera.cutaway;e.currentTarget.textContent='단면 보기: '+(camera.cutaway?'켜짐':'꺼짐')});document.getElementById('roadSection').addEventListener('click',e=>{AETHER.ROLLING_ROAD.setSectionView(!rollingState.roadSection);e.currentTarget.textContent='롤링로드 단면: '+(rollingState.roadSection?'켜짐':'꺼짐')});window.addEventListener('resize',resize,{passive:true});
 
-function renderStatus(){const el=document.getElementById('status'),vals=[['Renderer',gl&&program&&!gl.isContextLost()?'WebGL2 M12':'UNAVAILABLE',gl&&program&&!gl.isContextLost()?'ok':'bad'],['Vehicle',diagnostics.vehicleReady?(diagnostics.vehicleBounds.primitives+' primitives / '+diagnostics.vehicleBounds.vertices+' vertices'):'FAIL',diagnostics.vehicleReady?'ok':'bad'],['M3 facility',diagnostics.facilityReady?'GEOMETRY CHECKED':'FAIL',diagnostics.facilityReady?'ok':'bad'],['M4 road',diagnostics.m4Checks?.stations?'GEOMETRY CHECKED':'PENDING',diagnostics.m4Checks?.stations?'ok':'warn'],['M11 vehicle',AETHER.M11?.passed?'INTEGRATION CHECKED':'PENDING',AETHER.M11?.passed?'ok':'warn'],['M12 CFD bridge',AETHER.M12?.passed?'ALIGNMENT CHECKED':'PENDING',AETHER.M12?.passed?'ok':'warn'],['State',rollingState.source?rollingState.source.kind.toUpperCase():'UNBOUND',rollingState.source?'warn':'ok'],['Live solver',rollingState.source?.kind==='solver'&&!!rollingState.previous?'CONNECTED':'false','warn'],['Product ready','false','warn'],['Visual approval',applicationState.visualApproval,'warn'],['Textures',diagnostics.texturesReady?'READY':'PENDING',diagnostics.texturesReady?'ok':'warn']];el.textContent='';for(const[k,v,c]of vals){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;dd.className=c;el.append(dt,dd)}const r=document.getElementById('roadStatus');if(r){const q=snapshotState();r.textContent='';for(const [k,v] of [['Source',q.sourceKind||'UNBOUND'],['Speed',q.effectiveSpeed.toFixed(3)+' m/s'],['Belt',q.beltTravel.toFixed(3)+' m'],['Section',q.roadSection?'ON':'OFF']]){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;r.append(dt,dd)}}}
-function renderDiagnostics(){document.getElementById('diagnostics').textContent=JSON.stringify({bootStage:diagnostics.bootStage,errors:diagnostics.errors,warnings:diagnostics.warnings.slice(-8),vehicle:diagnostics.vehicleBounds,wheelNormalization:diagnostics.wheelNormalization,roadGeometry:diagnostics.roadGeometry,m4:diagnostics.m4Checks,m5:AETHER.M5,m6:AETHER.M6,m7:AETHER.M7,m8:AETHER.M8,m9:AETHER.M9,m10:AETHER.M10,m11:AETHER.M11,m12:AETHER.M12,cfdDomain:diagnostics.cfdDomain,cfdAlignment:diagnostics.cfdAlignment,texture:diagnostics.textureUpload,geometry:diagnostics.geometryValidation,runtime:{frames:diagnostics.frames||0,webgl2:!!gl&&!!program&&!gl.isContextLost(),canvas:[glCanvas.width,glCanvas.height],camera:camera.preset}},null,2);const m4=document.getElementById('m4View');if(m4)m4.textContent=JSON.stringify(snapshotState(),null,2);renderStatus()}
+function renderStatus(){const el=document.getElementById('status');if(el){const ok=gl&&program&&!gl.isContextLost(),vals=[['렌더러',ok?'WebGL2 정상':'사용 불가',ok?'ok':'bad'],['차량 메쉬',diagnostics.vehicleReady?(diagnostics.vehicleBounds.primitives+'개 파트 · 정점 '+diagnostics.vehicleBounds.vertices.toLocaleString()+'개'):'오류',diagnostics.vehicleReady?'ok':'bad'],['풍동 시설 형상',diagnostics.facilityReady?'검사 통과':'오류',diagnostics.facilityReady?'ok':'bad'],['롤링로드 형상',diagnostics.m4Checks?.stations?'검사 통과':'대기',diagnostics.m4Checks?.stations?'ok':'warn'],['차량 통합 검사',AETHER.M11?.passed?'통과':'대기',AETHER.M11?.passed?'ok':'warn'],['좌표 정렬(렌더↔계산)',AETHER.M12?.passed?'통과':'대기',AETHER.M12?.passed?'ok':'warn'],['텍스처',diagnostics.texturesReady?'준비됨':'대기',diagnostics.texturesReady?'ok':'warn']];el.textContent='';for(const[k,v,cl]of vals){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;dd.className=cl;el.append(dt,dd)}}const r=document.getElementById('roadStatus');if(r){const q=snapshotState();r.textContent='';for(const [k,v] of [['이동 속도',q.effectiveSpeed.toFixed(2)+' m/s'],['벨트 이동 거리',q.beltTravel.toFixed(2)+' m'],['단면 보기',q.roadSection?'켜짐':'꺼짐']]){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;r.append(dt,dd)}}}
+function renderDiagnostics(){const dg=document.getElementById('diagnostics');if(dg)dg.textContent=JSON.stringify({bootStage:diagnostics.bootStage,errors:diagnostics.errors,warnings:diagnostics.warnings.slice(-8),vehicle:diagnostics.vehicleBounds,wheelNormalization:diagnostics.wheelNormalization,roadGeometry:diagnostics.roadGeometry,m4:diagnostics.m4Checks,m5:AETHER.M5,m6:AETHER.M6,m7:AETHER.M7,m8:AETHER.M8,m9:AETHER.M9,m10:AETHER.M10,m11:AETHER.M11,m12:AETHER.M12,cfdDomain:diagnostics.cfdDomain,cfdAlignment:diagnostics.cfdAlignment,texture:diagnostics.textureUpload,geometry:diagnostics.geometryValidation,runtime:{frames:diagnostics.frames||0,webgl2:!!gl&&!!program&&!gl.isContextLost(),canvas:[glCanvas.width,glCanvas.height],camera:camera.preset}},null,2);renderStatus()}
 
 const m3Checklist={correctDimensions:false,wallPanels:false,ceilingPanels:false,floorSeams:false,serviceDoor:false,maintenanceHatch:false,measurementMarkers:false,rails:false,lightingRecess:false,equipmentMounts:false,structuralTransitions:false,majorBevels:false,bevelTopology:false,observationOpening:false,vehicleVisibility:false,industrialPlausibility:false,finiteGeometry:false,vehicleBounds:false};
 function sightThroughObservationOpening(eye,target){const z=3.90,dz=target[2]-eye[2];if(Math.abs(dz)<1e-9)return true;const t=(z-eye[2])/dz;if(t<0||t>1)return true;const x=eye[0]+(target[0]-eye[0])*t,y=eye[1]+(target[1]-eye[1])*t;return x>=-3.5&&x<=3.5&&y>=.95&&y<=3.05}
@@ -3534,120 +2418,26 @@ function validateBoxMesh(m){
 
 function inspectGeometry(){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];let triangles=0;for(const p of scene.vehicleParts){if(!p.positions.every(finite)||!p.normals.every(finite)||!p.uvs.every(finite)||!p.indices.every(i=>i>=0&&i<p.positions.length/3))throw Error('Vehicle geometry invalid');triangles+=p.indices.length/3;const M=p.role==='wheel'?wheelModel(p,0):vehicleModel();for(let i=0;i<p.positions.length;i+=3){const q=m4point(M,[p.positions[i],p.positions[i+1],p.positions[i+2]]);for(let d=0;d<3;d++){lo[d]=Math.min(lo[d],q[d]);hi[d]=Math.max(hi[d],q[d])}}}const expected=AETHER.VEHICLE_TRANSFORM.localBounds,vehicleFits=lo.every((v,d)=>Math.abs(v-expected.min[d])<2e-3)&&hi.every((v,d)=>Math.abs(v-expected.max[d])<2e-3);const belt=scene.objects.find(o=>o.name==='belt'),beltTop=belt.center[1]+belt.size[1]/2;diagnostics.geometryValidation={vehicleFits,closedBoxes:scene.objects.filter(o=>o.type!=='authored-mesh').every(o=>validateBoxMesh(o._mesh)),authoredMeshesValid:scene.objects.filter(o=>o.type==='authored-mesh').every(o=>validateAuthoredConsoleMesh(o._mesh)),wallsFit:scene.objects.filter(o=>o.category==='wall panels').every(o=>Math.abs(o.center[0])+o.size[0]/2<=config.testSection.lengthX/2+1e-6),beltTop,contactGap:lo[1]-beltTop,triangles,actualMin:lo,actualMax:hi};return vehicleFits&&diagnostics.geometryValidation.closedBoxes&&diagnostics.geometryValidation.authoredMeshesValid&&diagnostics.geometryValidation.wallsFit&&Math.abs(lo[1]-beltTop)<.002}
 
-function runM3Checks(){for(const o of scene.objects)if(!o._mesh)bevelMesh(o);const names=new Set(scene.objects.map(o=>o.category)),dim=config.testSection.lengthX===18&&config.testSection.widthZ===8&&config.testSection.heightY===5.5,finiteGeometry=scene.objects.every(o=>o.center.every(finite)&&o.size.every(v=>finite(v)&&v>0)&&o.bevel>=0);const b=AETHER.VEHICLE_TRANSFORM.worldAABB,vehicleBounds=b.min[1]===0&&Math.abs((b.max[0]-b.min[0])-config.vehicleReference.lengthX)<1e-9&&Math.abs((b.max[2]-b.min[2])-config.vehicleReference.widthZ)<1e-9;const bevelObjects=scene.objects.filter(o=>o.bevel>=.03),bevelTopology=bevelObjects.length>=20&&bevelObjects.every(o=>{const m=o._mesh,t=m&&m.topology;return t&&t.closed===true&&t.coreFaces===6&&t.edgeQuads===12&&t.cornerTriangles===8&&t.faces===26&&t.indexCount===132&&m.indices.length===132&&m.positions.length===96*3&&m.normals.length===m.positions.length&&m.indices.every(i=>Number.isInteger(i)&&i>=0&&i<m.positions.length/3)&&m.positions.every(finite)&&m.normals.every(finite)});const views={Hero:sightThroughObservationOpening([-1.8,2.4,9.1],[0,1.05,0]),Side:sightThroughObservationOpening([0,3,13],[0,1,0]),Top:true},observationOpening=names.has('observation opening')&&names.has('observation glass')&&!scene.objects.some(o=>o.name==='observation barrier'),vehicleVisibility=Object.values(views).every(Boolean);m3Checklist.correctDimensions=dim;m3Checklist.wallPanels=names.has('wall panels');m3Checklist.ceilingPanels=names.has('ceiling');m3Checklist.floorSeams=names.has('floor seams');m3Checklist.serviceDoor=names.has('service door');m3Checklist.maintenanceHatch=names.has('maintenance hatch');m3Checklist.measurementMarkers=names.has('measurement');m3Checklist.rails=names.has('rails');m3Checklist.lightingRecess=names.has('lighting recess');m3Checklist.equipmentMounts=names.has('equipment mounts');m3Checklist.structuralTransitions=names.has('transitions');m3Checklist.majorBevels=bevelObjects.length>=20;m3Checklist.bevelTopology=bevelTopology;m3Checklist.observationOpening=observationOpening;m3Checklist.vehicleVisibility=vehicleVisibility;m3Checklist.industrialPlausibility=finiteGeometry&&dim&&observationOpening&&bevelTopology;m3Checklist.finiteGeometry=finiteGeometry;m3Checklist.vehicleBounds=vehicleBounds;m3Checklist.measuredGeometry=inspectGeometry();AETHER.M3={passed:Object.values(m3Checklist).every(Boolean),checklist:m3Checklist,section:{lengthX:18,widthZ:8,heightY:5.5},observation:{opening:{widthX:7,heightY:2.1,minX:-3.5,maxX:3.5,minY:.95,maxY:3.05,z:3.90},visibilityViews:views,vehicleLineOfSight:'Center ray through portal only; Side/Top use cutaway; full silhouette not certified'},bevel:{appliedCount:bevelObjects.length,topology:{closed:true,coreFaces:6,edgeQuads:12,cornerTriangles:8,faces:26,indicesPerObject:132}},vehicle:{clearanceGround:b.min[1],bounds:b},geometry:{objects:scene.objects.length}};document.getElementById('m3View').textContent=JSON.stringify(AETHER.M3,null,2);return AETHER.M3}
+function runM3Checks(){for(const o of scene.objects)if(!o._mesh)bevelMesh(o);const names=new Set(scene.objects.map(o=>o.category)),dim=config.testSection.lengthX===18&&config.testSection.widthZ===8&&config.testSection.heightY===5.5,finiteGeometry=scene.objects.every(o=>o.center.every(finite)&&o.size.every(v=>finite(v)&&v>0)&&o.bevel>=0);const b=AETHER.VEHICLE_TRANSFORM.worldAABB,vehicleBounds=b.min[1]===0&&Math.abs((b.max[0]-b.min[0])-config.vehicleReference.lengthX)<1e-9&&Math.abs((b.max[2]-b.min[2])-config.vehicleReference.widthZ)<1e-9;const bevelObjects=scene.objects.filter(o=>o.bevel>=.03),bevelTopology=bevelObjects.length>=20&&bevelObjects.every(o=>{const m=o._mesh,t=m&&m.topology;return t&&t.closed===true&&t.coreFaces===6&&t.edgeQuads===12&&t.cornerTriangles===8&&t.faces===26&&t.indexCount===132&&m.indices.length===132&&m.positions.length===96*3&&m.normals.length===m.positions.length&&m.indices.every(i=>Number.isInteger(i)&&i>=0&&i<m.positions.length/3)&&m.positions.every(finite)&&m.normals.every(finite)});const views={Hero:sightThroughObservationOpening([-1.8,2.4,9.1],[0,1.05,0]),Side:sightThroughObservationOpening([0,3,13],[0,1,0]),Top:true},observationOpening=names.has('observation opening')&&names.has('observation glass')&&!scene.objects.some(o=>o.name==='observation barrier'),vehicleVisibility=Object.values(views).every(Boolean);m3Checklist.correctDimensions=dim;m3Checklist.wallPanels=names.has('wall panels');m3Checklist.ceilingPanels=names.has('ceiling');m3Checklist.floorSeams=names.has('floor seams');m3Checklist.serviceDoor=names.has('service door');m3Checklist.maintenanceHatch=names.has('maintenance hatch');m3Checklist.measurementMarkers=names.has('measurement');m3Checklist.rails=names.has('rails');m3Checklist.lightingRecess=names.has('lighting recess');m3Checklist.equipmentMounts=names.has('equipment mounts');m3Checklist.structuralTransitions=names.has('transitions');m3Checklist.majorBevels=bevelObjects.length>=20;m3Checklist.bevelTopology=bevelTopology;m3Checklist.observationOpening=observationOpening;m3Checklist.vehicleVisibility=vehicleVisibility;m3Checklist.industrialPlausibility=finiteGeometry&&dim&&observationOpening&&bevelTopology;m3Checklist.finiteGeometry=finiteGeometry;m3Checklist.vehicleBounds=vehicleBounds;m3Checklist.measuredGeometry=inspectGeometry();AETHER.M3={passed:Object.values(m3Checklist).every(Boolean),checklist:m3Checklist,section:{lengthX:18,widthZ:8,heightY:5.5},observation:{opening:{widthX:7,heightY:2.1,minX:-3.5,maxX:3.5,minY:.95,maxY:3.05,z:3.90},visibilityViews:views,vehicleLineOfSight:'Center ray through portal only; Side/Top use cutaway; full silhouette not certified'},bevel:{appliedCount:bevelObjects.length,topology:{closed:true,coreFaces:6,edgeQuads:12,cornerTriangles:8,faces:26,indicesPerObject:132}},vehicle:{clearanceGround:b.min[1],bounds:b},geometry:{objects:scene.objects.length}};return AETHER.M3}
 
 function loadTextures(g,generation){const jobs=[];const images=g.json.images||[];for(let i=0;i<images.length;i++){const im=images[i],bv=g.json.bufferViews[im.bufferView];if(!bv||!Number.isInteger(bv.byteLength))throw Error('texture '+i+' missing bufferView');const off=bv.byteOffset||0,bytes=g.bin.subarray(off,off+bv.byteLength);if(bytes.byteLength!==bv.byteLength)throw Error('texture '+i+' truncated');jobs.push(createImageBitmap(new Blob([bytes],{type:im.mimeType||'image/png'}),{imageOrientation:'flipY'}).then(bitmap=>{if(generation!==runtimeGeneration||!gl||gl.isContextLost()){bitmap.close();return false}if(!bitmap.width||!bitmap.height)throw Error('texture '+i+' has invalid dimensions');const t=gl.createTexture(),pot=(bitmap.width&(bitmap.width-1))===0&&(bitmap.height&(bitmap.height-1))===0;gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,pot?gl.LINEAR_MIPMAP_LINEAR:gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bitmap);if(pot)gl.generateMipmap(gl.TEXTURE_2D);textures[i]=t;bitmap.close();return true}).catch(e=>{if(generation!==runtimeGeneration)return false;diagnostics.error('texture '+i,e);throw e;}));}return Promise.all(jobs).then(results=>{if(generation!==runtimeGeneration)return false;if(results.some(v=>v!==true))return false;let uploaded=0;for(const p of scene.vehicleParts){const tex=p.textureIndex===null?null:g.json.textures?.[p.textureIndex];if(tex&&textures[tex.source]){p.texture=textures[tex.source];uploaded++}}diagnostics.textureUpload={requested:images.length,uploaded:textures.filter(Boolean).length,partsBound:uploaded,embeddedMime:images[0]?.mimeType||'unknown',resolution:'decoded'};diagnostics.texturesReady=images.length>0&&uploaded===scene.vehicleParts.length;if(!diagnostics.texturesReady)throw Error('texture binding incomplete');return true;}).catch(e=>{if(generation!==runtimeGeneration)return false;diagnostics.texturesReady=false;diagnostics.textureUpload={error:e.message};throw e;})}
 function failRuntime(source,e){cancelAnimationFrame(raf);const failureStage=diagnostics.bootStage;diagnostics.bootStage='FAILED';diagnostics.error(source,e);renderDiagnostics();const badge=document.getElementById('readyBadge');badge.textContent='AETHER RUNTIME FAILED · '+String(e?.message||e).slice(0,100);badge.className='badge bad';badge.title='실패 단계: '+failureStage+' / '+(e?.stack||'');fatalNotice(e);}
 function fatalNotice(e){try{const m=String(e?.message||e),webgl=/WebGL2|EXT_color_buffer_float|float targets/i.test(m);let el=document.getElementById('fatalNotice');if(!el){el=document.createElement('div');el.id='fatalNotice';el.style.cssText='position:fixed;left:12px;right:12px;top:72px;z-index:99;padding:14px 16px;border-radius:12px;background:rgba(40,16,18,.96);color:#ffd9d6;font:14px/1.5 system-ui,sans-serif;border:1px solid #a33;box-shadow:0 8px 32px #000a';document.body.appendChild(el)}
  el.textContent=webgl?'이 기기/브라우저에서는 실시간 3D 계산에 필요한 WebGL2(부동소수점 렌더링)를 쓸 수 없습니다. iPhone은 iOS 15 이상의 Safari 또는 Chrome에서 열어 주세요. (원인: '+m.slice(0,80)+')':'실행 중 오류가 발생해 중단했습니다: '+m.slice(0,120)+' — 새로고침하거나 #mobile=1 / #q=LITE 로 다시 열어 보세요.'}catch(_){}}
-glCanvas.addEventListener('webglcontextlost',e=>{e.preventDefault();CINE.cancel('contextlost');smokeRelease();m13ReleaseResources(true);runtimeGeneration++;cancelAnimationFrame(raf);diagnostics.bootStage='CONTEXT_LOST';diagnostics.texturesReady=false;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;rollingState.aligned=alignedVehicle();if(AETHER.M4)AETHER.M4.liveSolverConnected=false;renderDiagnostics();const badge=document.getElementById('readyBadge');badge.textContent='GPU CONTEXT LOST — restoring';badge.className='badge bad';});
-glCanvas.addEventListener('webglcontextrestored',()=>{smokeRelease();disposeLighting(true);m13ReleaseResources(true);buffers=[];textures=[];program=null;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;rollingState.aligned=alignedVehicle();if(AETHER.M4)AETHER.M4.liveSolverConnected=false;for(const o of scene.objects)o.gpu=null;for(const p of scene.vehicleParts){p.gpu=null;p.texture=null;}for(const r of scene.roadParts)r.gpu=null;boot();});if(document.addEventListener)document.addEventListener('visibilitychange',()=>{CINE.resetClock();suspendRollingRoad(document.hidden?'DOCUMENT_HIDDEN':'DOCUMENT_VISIBLE');if(document.hidden){cancelAnimationFrame(raf);raf=0}else{resize();smokeState.lastTime=performance.now();if(!raf)raf=requestAnimationFrame(draw)}});window.addEventListener('orientationchange',()=>setTimeout(resize,120),{passive:true});window.visualViewport?.addEventListener('resize',resize,{passive:true});
+glCanvas.addEventListener('webglcontextlost',e=>{e.preventDefault();CINE.cancel('contextlost');runtimeGeneration++;cancelAnimationFrame(raf);diagnostics.bootStage='CONTEXT_LOST';diagnostics.texturesReady=false;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;rollingState.aligned=alignedVehicle();if(AETHER.M4)AETHER.M4.liveSolverConnected=false;renderDiagnostics();const badge=document.getElementById('readyBadge');badge.textContent='GPU CONTEXT LOST — restoring';badge.className='badge bad';});
+glCanvas.addEventListener('webglcontextrestored',()=>{disposeLighting(true);buffers=[];textures=[];program=null;rollingState.previous=null;rollingState.baseline=null;rollingState.effectiveSpeed=0;rollingState.motionReady=false;rollingState.aligned=alignedVehicle();if(AETHER.M4)AETHER.M4.liveSolverConnected=false;for(const o of scene.objects)o.gpu=null;for(const p of scene.vehicleParts){p.gpu=null;p.texture=null;}for(const r of scene.roadParts)r.gpu=null;boot();});if(document.addEventListener)document.addEventListener('visibilitychange',()=>{CINE.resetClock();suspendRollingRoad(document.hidden?'DOCUMENT_HIDDEN':'DOCUMENT_VISIBLE');if(document.hidden){cancelAnimationFrame(raf);raf=0}else{resize();if(!raf)raf=requestAnimationFrame(draw)}});window.addEventListener('orientationchange',()=>setTimeout(resize,120),{passive:true});window.visualViewport?.addEventListener('resize',resize,{passive:true});
 
 
 async function boot(){const generation=++runtimeGeneration;try{cancelAnimationFrame(raf);diagnostics.frames=0;diagnostics.bootStage='M1';if(!AETHER.M1.passed)throw Error('M1 contract failed');applicationState.contractReady=true;diagnostics.contractReady=true;diagnostics.bootStage='GLB';const g=loadVehicle();if(g.json.meshes.length!==VEHICLE_ASSET.sourceMeshBlocks||diagnostics.vehicleBounds.primitives!==VEHICLE_ASSET.sourceMeshBlocks||diagnostics.vehicleBounds.vertices<=0)throw Error('BMW M4 GT3 EVO source geometry contract mismatch');diagnostics.vehicleReady=true;diagnostics.bootStage='FAN_ASSET';loadFanModule();diagnostics.fanAssetReady=true;diagnostics.bootStage='M4_GEOMETRY';buildRollingRoadGeometry();diagnostics.facilityReady=runM3Checks().passed;if(!diagnostics.facilityReady)throw Error('M3 geometry gate failed');const m4=runM4Checks();if(!m4.geometryReady||!m4.stateContractReady)throw Error('M4 geometry/state gate failed');const m11=runM11Checks(g);if(!m11.passed)throw Error('M11 vehicle gate failed');diagnostics.bootStage='M12_ALIGNMENT';const m12=runM12Checks();if(!m12.passed)throw Error('M12 CFD alignment gate failed');diagnostics.bootStage='FLOW_LAYOUT';const initialLayout=FLOW_LAYOUT.get();buildExhaustCollector(initialLayout);if(!AETHER.EXHAUST_COLLECTOR.valid)throw Error('M15 rear collector layout invalid');validateEquipmentMeshes();AETHER.M8.fanAsset={asset:FAN_ASSET.name,sha256:FAN_ASSET.sha256,bytes:Math.floor(FAN_ASSET.base64.length*3/4)-(FAN_ASSET.base64.endsWith('==')?2:FAN_ASSET.base64.endsWith('=')?1:0),parts:FAN_ASSET.primitiveCount,triangles:FAN_ASSET.triangleCount,visualOnly:true,solverCoupled:false};AETHER.M8.checks.fanAssetValidated=Object.values(AETHER.FAN_MODULE.validation).every(Boolean);AETHER.M8.checks.fanAlignedToFlow=Object.values(initialLayout.checks).every(Boolean);AETHER.M8.geometryReady=Object.values(AETHER.M8.checks).every(Boolean);AETHER.M15={collector:{parts:AETHER.EXHAUST_COLLECTOR.parts.length,triangles:AETHER.EXHAUST_COLLECTOR.triangleCount,valid:AETHER.EXHAUST_COLLECTOR.valid,solverCoupled:false},fan:{parts:AETHER.FAN_MODULE.parts.length,triangles:FAN_ASSET.triangleCount,solverCoupled:false},status:'GEOMETRY_READY_VISUAL_REVIEW_PENDING'};doorBuild();bindM9Materials();diagnostics.bootStage='WEBGL';if(!initGL())throw Error('WebGL2 unavailable');setupResources();diagnostics.bootStage='MONITOR_ATLAS';try{diagnostics.monitorAtlasReady=initMonitorAtlas();if(!diagnostics.monitorAtlasReady)throw Error('M14_MONITOR_ATLAS_INIT_FAILED')}catch(atlasError){diagnostics.monitorAtlasReady=false;diagnostics.warnings.push({time:now(),source:'monitor-atlas',message:atlasError?.message||String(atlasError)});if(monitorAtlasTexture){gl.deleteTexture(monitorAtlasTexture);monitorAtlasTexture=null;}monitorAtlasCanvas=null;monitorAtlasContext=null;for(const o of scene.objects)if(o.name.startsWith('m6.glb.MonitorGlass.screen.'))o.texture=null;const note=document.getElementById('m14CommandStatus');if(note)note.textContent='3D 모니터 atlas를 사용할 수 없습니다. 기본 장면은 계속 표시합니다. '+(atlasError?.message||String(atlasError));}diagnostics.bootStage='TEXTURE';lastTextureJob=loadTextures(g,generation).catch(textureError=>{if(generation!==runtimeGeneration)return false;diagnostics.texturesReady=false;diagnostics.warnings.push({time:now(),source:'vehicle-textures',message:textureError?.message||String(textureError)});for(const tex of textures)if(tex)gl?.deleteTexture(tex);textures=[];for(const part of scene.vehicleParts)part.texture=null;const note=document.getElementById('m14CommandStatus');if(note)note.textContent='차량 텍스처를 불러오지 못해 기본 재질로 표시합니다. '+(textureError?.message||String(textureError));return true;});if(generation!==runtimeGeneration)return;diagnostics.bootStage='M10_LIGHTING';initLighting();setPreset('Hero');diagnostics.bootStage='M12_ALIGNMENT_CHECKED';diagnostics.bootStage='FIRST_FRAME';renderDiagnostics();if(!document.hidden)raf=requestAnimationFrame(draw)}catch(e){const failureStage=diagnostics.bootStage;diagnostics.bootStage='FAILED';diagnostics.error('boot',e);renderDiagnostics();const badge=document.getElementById('readyBadge');badge.textContent='AETHER BOOT FAILED · '+String(e?.message||e).slice(0,100);badge.className='badge bad';badge.title='실패 단계: '+failureStage+' / '+(e?.stack||'');}}
-let lastTextureJob;document.getElementById('m1View').textContent=JSON.stringify(AETHER.M1,null,2);document.getElementById('configView').textContent=JSON.stringify({...config,m4:M4_CONFIG},null,2);window.addEventListener('error',e=>failRuntime('window.error',e.error||new Error(e.message)));window.addEventListener('unhandledrejection',e=>failRuntime('promise',e.reason));window.addEventListener('beforeunload',()=>{cancelAnimationFrame(raf);m13ReleaseResources(false);disposeLighting();for(const b of buffers)gl?.deleteBuffer(b);for(const o of scene.objects)for(const b of [o.gpu?.pb,o.gpu?.nb,o.gpu?.ub,o.gpu?.ib])if(b)gl?.deleteBuffer(b);for(const p of scene.vehicleParts)for(const b of [p.gpu?.pb,p.gpu?.nb,p.gpu?.ub,p.gpu?.ib])if(b)gl?.deleteBuffer(b);for(const r of scene.roadParts)for(const b of [r.gpu?.pb,r.gpu?.nb,r.gpu?.ub,r.gpu?.ib])if(b)gl?.deleteBuffer(b);for(const t of textures)gl?.deleteTexture(t);if(whiteTexture)gl.deleteTexture(whiteTexture);if(program)gl.deleteProgram(program)});
-const S3_OFFICE_WORKER_SOURCE=window.__ASSETS.S3_OFFICE_WORKER_SOURCE;
-(()=>{
- 'use strict';
- const ui={resolution:document.getElementById('officeResolution'),speed:document.getElementById('officeSpeed'),steps:document.getElementById('officeSteps'),run:document.getElementById('officeRun'),live:document.getElementById('officeLive'),step:document.getElementById('officeStep'),stop:document.getElementById('officeStop'),reset:document.getElementById('officeReset'),download:document.getElementById('officeDownload'),status:document.getElementById('officeStatus'),report:document.getElementById('officeReport'),canvas:document.getElementById('officeSlice'),legend:document.getElementById('officeLegend')};
- const state={worker:null,url:null,signature:null,ready:false,busy:false,live:false,liveStartMs:0,pendingStep:false,stepTimer:null,remaining:0,history:[],historyTruncated:0,mask:null,startedAt:null,initMs:null,sliceHeightMeters:null,resolution:32,speed:1,lastError:null,m13Status:'SOLVER_UNBOUND',m13Frame:null};
- const setStatus=s=>{ui.status.textContent=s;smokeControlStatus()};
- function render(){
-  const n=state.resolution,c=ui.canvas.getContext('2d');if(!c||!state.lastSpeed)return;
-  ui.canvas.width=n;ui.canvas.height=n;const max=Math.max(.01,...state.lastSpeed),img=c.createImageData(n,n);
-  for(let i=0;i<n*n;i++){const q=i*4,v=Math.max(0,Math.min(1,state.lastSpeed[i]/max));
-   if(state.lastSolid?.[i]){img.data[q]=20;img.data[q+1]=25;img.data[q+2]=35;}
-   else{img.data[q]=Math.round(20+235*v);img.data[q+1]=Math.round(70+150*Math.sqrt(v));img.data[q+2]=Math.round(180-145*v);}
-   img.data[q+3]=255;
-  }c.putImageData(img,0,0);ui.legend.textContent=`차량 중심 높이 y=${state.sliceHeightMeters?.toFixed(3)||'—'}m · 속도 0–${max.toFixed(3)}m/s · 어두운 칸은 고체`;
- }
- function report(){
-  const value={status:state.lastError?'NUMERICAL_DIAGNOSTIC_BLOCKED':state.history.length?'NUMERICAL_DIAGNOSTIC_PASS_GEOMETRY_HOLD':'NOT_RUN',backend:'CPU_WORKER_REFERENCE',grid:[state.resolution,state.resolution,state.resolution],cells:state.resolution**3,cellSpacingMeters:[18/state.resolution,5.5/state.resolution,8/state.resolution],sliceHeightMeters:state.sliceHeightMeters,initializationMs:state.initMs,history:state.history,historyTruncated:state.historyTruncated,liveDiagnostic:{active:state.busy&&state.live,remainingSteps:state.remaining,maxSteps:6,timeBudgetMs:20000,elapsedMs:state.liveStartMs?Math.max(0,Date.now()-state.liveStartMs):0,stepIntervalMs:350},mask:state.mask,geometryApproved:false,physicsReady:false,M13:state.m13Status,m13Frame:state.m13Frame,error:state.lastError,scope:'32-cubed CPU solver preview only; geometry and physics are not approved and no force-coefficient result is produced'};
-  ui.report.textContent=JSON.stringify(value,null,2);ui.download.disabled=!state.history.length;return value;
- }
- const OFFICE_SOLVER_ID='AETHER_S3_OFFICE_CPU';
- function releaseOfficeM13(){const api=AETHER.SCIENTIFIC_VIS,snap=api?.getSnapshot?.();if(snap?.source?.id===OFFICE_SOLVER_ID){api.unbindSolver();state.m13Status='SOLVER_UNBOUND';state.m13Frame=null;}}
- function publishOfficeM13(m){cfdSimulationTime=m.time;smokeSetState(smokeState.playing?'SMOKE_PLAYING':'FLOW_READY');const api=AETHER.SCIENTIFIC_VIS,snap=api?.getSnapshot?.();if(!api||!snap){state.m13Status='M13_API_UNAVAILABLE';return false;}if(snap.solverBound&&snap.source?.id!==OFFICE_SOLVER_ID){state.m13Status='OTHER_SOLVER_BOUND';return false;}if(!snap.solverBound&&!api.bindSolver({kind:'solver',id:OFFICE_SOLVER_ID})){state.m13Status='SOLVER_BIND_FAILED';return false;}const b=AETHER.CFD_DOMAIN.bounds,frame={vehicleTransformSignature:AETHER.CFD_BRIDGE.geometrySignature(),sourceId:OFFICE_SOLVER_ID,sequence:m.sequence,simulationTime:m.time,grid:{resolution:[state.resolution,state.resolution,state.resolution],min:b.min.slice(),max:b.max.slice(),layout:'X_FASTEST',unit:'meter',axes:{downstream:'+X',vehicleForward:'-X',up:'+Y',lateral:'+Z'},tier:'OFFICE_DIAGNOSTIC',sampleLocation:'CELL_CENTER'},freestream:{velocity:[state.speed,0,0],pressure:101325,density:1.225},fields:{pressure:{data:m.pressureField,components:1,unit:'Pa'},velocity:{data:m.velocityField,components:3,unit:'m/s'}},solidMask:{data:m.solidField}};if(!api.acceptFrame(frame)){state.m13Status='FRAME_REJECTED · '+(api.getSnapshot().lastRejection||'UNKNOWN');return false;}state.m13Status='OFFICE_PREVIEW_READY';smokeControlStatus();state.m13Frame={sourceId:OFFICE_SOLVER_ID,sequence:m.sequence,simulationTime:m.time,resolution:frame.grid.resolution.slice(),tier:'OFFICE_DIAGNOSTIC',sampleLocation:'CELL_CENTER'};const select=document.getElementById('scientificMode');if(select&&select.value==='NONE'){select.value='STREAMLINES';api.setMode('STREAMLINES');}return true;}
- function updateButtons(){ui.run.disabled=state.busy;ui.live.disabled=state.busy;ui.step.disabled=state.busy;ui.stop.disabled=!state.busy;ui.reset.disabled=state.busy;}
- function closeWorker(){if(state.stepTimer!==null){clearTimeout(state.stepTimer);state.stepTimer=null}state.pendingStep=false;releaseOfficeM13();if(state.worker){state.worker.terminate();state.worker=null;}if(state.url){URL.revokeObjectURL(state.url);state.url=null;}state.ready=false;state.signature=null;}
- function fail(message){smokeSetState('ERROR');state.lastError=String(message||'UNKNOWN_ERROR');closeWorker();state.busy=false;state.live=false;state.remaining=0;setStatus(`계산 중단: ${state.lastError}`);report();updateButtons();}
- function createWorker(){
-  smokeSetState('CFD_COMPUTING');closeWorker();
-  if(typeof Worker==='undefined'||typeof Blob==='undefined'||!URL.createObjectURL)throw Error('WEB_WORKER_UNAVAILABLE');
-  state.url=URL.createObjectURL(new Blob([S3_OFFICE_WORKER_SOURCE],{type:'text/javascript'}));state.worker=new Worker(state.url);state.signature=`${state.resolution}:${state.speed}`;
-  const activeWorker=state.worker;state.worker.onmessage=event=>{if(state.worker!==activeWorker)return;const m=event.data||{};
-   if(m.type==='STATUS'){setStatus('차량 메시를 '+m.resolution+'³ 격자에 매핑하는 중…');return;}
-   if(m.type==='READY'){state.ready=true;state.mask=m.mask;state.initMs=m.initializationMs;if(!state.busy){setStatus('초기화 완료 · 계산 중지');report();updateButtons();return}setStatus(`초기화 완료 · 고체 ${m.mask.shellVoxels+m.mask.interiorVoxels}셀 · 이제 시간 단계 계산`);report();next();return;}
-   if(m.type==='ERROR'){fail(`${m.phase} / ${m.code}`);return;}
-   if(m.type==='STEP_RESULT'){if(!state.pendingStep)return;state.pendingStep=false;if(!m.step?.ok){fail('NUMERICAL_STEP_REJECTED');return}if(!publishOfficeM13(m)){fail('FRAME_NOT_ACCEPTED / '+state.m13Status);return}state.history.push({sequence:m.sequence,time:m.time,stepMs:m.stepMs,dt:m.step.dt,pressureIterations:m.step.pressureIterations,residualRms:m.step.residualRms,metrics:m.step.metrics,backflow:m.step.backflow,accepted:true});if(state.history.length>64){state.history.shift();state.historyTruncated++}state.lastSpeed=m.speedSlice;state.lastSolid=m.solidSlice;state.sliceHeightMeters=m.sliceHeightMeters;render();report();state.remaining=Math.max(0,state.remaining-1);if(state.live&&Date.now()-state.liveStartMs>=20000)state.remaining=0;
-    if(state.remaining>0){if(state.live){state.stepTimer=setTimeout(()=>{state.stepTimer=null;next()},350)}else next();return;}state.busy=false;state.live=false;setStatus(`완료 · ${m.sequence}단계 · 모의 시간 ${m.time.toFixed(4)}s · 계산된 CPU 단계 ${m.stepMs.toFixed(1)}ms`);updateButtons();return;
-   }
-  };
-  state.worker.onerror=event=>{if(state.worker===activeWorker)fail(event.message||'WORKER_RUNTIME_ERROR')};
-  const parts=AETHER.CFD_BRIDGE?.getSolidParts?.();if(!parts?.length)throw Error('VEHICLE_MESH_NOT_READY');
-  const road=AETHER.M4_CONFIG.pit,belt={min:[road.beltCenter[0]-road.beltSize[0]/2,road.beltCenter[2]-road.beltSize[2]/2],max:[road.beltCenter[0]+road.beltSize[0]/2,road.beltCenter[2]+road.beltSize[2]/2],groundSpeed:state.speed};
-  state.worker.postMessage({type:'INIT',resolution:state.resolution,parts,bounds:JSON.parse(JSON.stringify(AETHER.CFD_DOMAIN.bounds)),speed:state.speed,groundBelt:belt});
-  state.startedAt=new Date().toISOString();
- }
- function next(){if(!state.busy||!state.worker||!state.ready||state.pendingStep)return;if(state.remaining<=0||(state.live&&state.liveStartMs&&Date.now()-state.liveStartMs>=20000)){state.busy=false;state.live=false;setStatus('연속 진단 종료 · 최신 승인 결과 유지');report();updateButtons();return;}if(state.live&&!state.liveStartMs)state.liveStartMs=Date.now();state.pendingStep=true;setStatus(`CPU ${state.resolution}³ 진단 계산 중 · 남은 단계 ${state.remaining}`);state.worker.postMessage({type:'STEP'});}
- function start(count,live=false){if(AETHER.M14?.getSnapshot?.()?.control?.emergencyStopped){setStatus('E-STOP 래치 중 · 계산 시작 명령 거부');return false;}if(state.busy||!Number.isInteger(count)||count<1||count>12)return false;const n=Number(ui.resolution.value),speed=Number(ui.speed.value);if(n!==32&&n!==64){fail('unsupported resolution');return false;}if(!Number.isFinite(speed)||speed<0||speed>5){fail('유입 속도는 0–5 m/s 범위여야 합니다.');return false;}
-  const signature=`${n}:${speed}`;if(state.worker&&state.signature!==signature){closeWorker();state.history=[];state.historyTruncated=0;state.mask=null;state.lastSpeed=null;state.lastSolid=null;state.initMs=null;state.sliceHeightMeters=null;}
-  state.resolution=n;state.speed=speed;state.remaining=count;state.busy=true;state.live=!!live;state.liveStartMs=0;state.pendingStep=false;state.lastError=null;updateButtons();setStatus('CPU 32³ 작업자 초기화 중…');
-  try{const sig=`${n}:${speed}`;if(!state.worker||state.signature!==sig)createWorker();if(state.ready)next();return true;}catch(e){fail(e.message);return false;}
- }
- function pause(){if(!state.busy)return false;state.remaining=0;state.live=false;if(state.stepTimer!==null){clearTimeout(state.stepTimer);state.stepTimer=null}if(!state.pendingStep){state.busy=false;setStatus('중지됨 · 마지막 승인된 CFD 결과 유지');report();updateButtons();return true}setStatus('현재 계산 단계가 끝나면 중지합니다.');return true;}
- function reset(){closeWorker();state.busy=false;state.live=false;state.liveStartMs=0;state.remaining=0;state.history=[];state.historyTruncated=0;state.mask=null;state.lastSpeed=null;state.lastSolid=null;state.initMs=null;state.sliceHeightMeters=null;state.lastError=null;state.startedAt=null;ui.canvas.width=32;ui.canvas.height=32;ui.canvas.getContext('2d')?.clearRect(0,0,32,32);ui.legend.textContent='중앙 단면 속도: 아직 계산되지 않았습니다.';ui.report.textContent='실제 계산 뒤 결과가 표시됩니다.';setStatus(`초기화됨 · ${state.resolution}³ CPU 진단 대기`);updateButtons();return true;}
- function download(){const data=report(),blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='AETHER_S3_OFFICE_CPU_DIAGNOSTIC.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
- ui.run.addEventListener('click',()=>start(Number(ui.steps.value)));ui.live.addEventListener('click',()=>start(6,true));ui.step.addEventListener('click',()=>start(1));ui.stop.addEventListener('click',pause);ui.reset.addEventListener('click',reset);ui.download.addEventListener('click',download);
- AETHER.S3_OFFICE=Object.freeze({start,startLive:()=>start(6,true),pause,reset,getSnapshot:report});updateButtons();
-})();
+let lastTextureJob;window.addEventListener('error',e=>failRuntime('window.error',e.error||new Error(e.message)));window.addEventListener('unhandledrejection',e=>failRuntime('promise',e.reason));window.addEventListener('beforeunload',()=>{cancelAnimationFrame(raf);disposeLighting();for(const b of buffers)gl?.deleteBuffer(b);for(const o of scene.objects)for(const b of [o.gpu?.pb,o.gpu?.nb,o.gpu?.ub,o.gpu?.ib])if(b)gl?.deleteBuffer(b);for(const p of scene.vehicleParts)for(const b of [p.gpu?.pb,p.gpu?.nb,p.gpu?.ub,p.gpu?.ib])if(b)gl?.deleteBuffer(b);for(const r of scene.roadParts)for(const b of [r.gpu?.pb,r.gpu?.nb,r.gpu?.ub,r.gpu?.ib])if(b)gl?.deleteBuffer(b);for(const t of textures)gl?.deleteTexture(t);if(whiteTexture)gl.deleteTexture(whiteTexture);if(program)gl.deleteProgram(program)});
+
+
 
 // M14 CONTROL ROOM: canonical operator state shared by the HTML panel, 3D console,
 // rolling-road adapter, and engineering-data atlas. Product CFD remains explicitly unbound.
-(()=>{
- const el={speed:document.getElementById('m14WindSpeed'),speedValue:document.getElementById('m14WindSpeedValue'),officeSpeed:document.getElementById('officeSpeed'),road:document.getElementById('m14RoadToggle'),estop:document.getElementById('m14Estop'),reset:document.getElementById('m14ResetEstop'),banner:document.getElementById('m14StateBanner'),command:document.getElementById('m14CommandStatus'),product:document.getElementById('m14ProductStatus'),diagnostic:document.getElementById('m14DiagnosticStatus'),time:document.getElementById('m14TimeStatus'),residual:document.getElementById('m14ResidualStatus'),roadStatus:document.getElementById('m14RoadStatus')};
- const state={windSpeed:Number(el.officeSpeed?.value||1),rollingRoadEnabled:rollingState.motorEnabled,emergencyStopped:rollingState.emergencyStopped,lastCommand:'INITIALIZED',lastSolverCommand:'SETPOINT_ONLY_UNBOUND'};
- const controlsBlocked=['officeRun','officeLive','officeStep','smokePlayback','m14FanToggle'];
- const fixed=(x,n=3)=>Number.isFinite(x)?x.toFixed(n):'—';
- function safeSolverSnapshot(){try{return AETHER.SOLVER?.getSnapshot?.()||null}catch(_){return null}}
- function productSolverReady(s=safeSolverSnapshot()){return !!s&&(s.productionBound===true||s.productionSolverBound===true)&&s.boundaryControlReady===true;}
- function rejectWhileStopped(action){if(!state.emergencyStopped)return false;state.lastCommand='REJECTED_ESTOP_'+action;el.command.textContent='E-STOP 래치 중 허용되지 않는 변경 명령을 거부했습니다. 해제 후 필요한 작업을 별도로 실행하세요.';render();return true;}
- function officeSnapshot(){try{return AETHER.S3_OFFICE?.getSnapshot?.()||null}catch(_){return null}}
- function getSnapshot(){const road=AETHER.ROLLING_ROAD?.getSnapshot?.()||{motorEnabled:false,emergencyStopped:false,effectiveSpeed:0,liveSolverConnected:false},office=officeSnapshot(),last=office?.history?.length?office.history[office.history.length-1]:null,solver=safeSolverSnapshot();return Object.freeze({milestone:'M14_CONTROL_ROOM_FUNCTIONAL_INTEGRATION',fan:Object.freeze({module:AETHER.FAN_MODULE?.assetName||'LOADING',visualRunning:!!AETHER.FAN_MODULE?.visualRunning,solverCoupled:false}),collector:Object.freeze({loaded:!!AETHER.EXHAUST_COLLECTOR?.loaded,valid:!!AETHER.EXHAUST_COLLECTOR?.valid,visualOnly:true,solverCoupled:false}),integrationStatus:'FOUNDATION_ONLY_M13_PRODUCT_SOLVER_UNBOUND',integrationReady:productSolverReady(solver),control:Object.freeze({windSpeed:state.windSpeed,windSetpointMode:solver?.boundaryControlReady===true?'LIVE_SOLVER_BOUNDARY':'32^3_CPU_DIAGNOSTIC_NEXT_RUN_ONLY',rollingRoadEnabled:road.motorEnabled,emergencyStopped:road.emergencyStopped}),solver:Object.freeze({productionBound:productSolverReady(solver),boundaryControlReady:solver?.boundaryControlReady===true,state:solver?.state||'S0_SHELL'}),rollingRoad:road,diagnostic:Object.freeze({status:office?.status||'NOT_RUN',resolution:office?.grid||[32,32,32],lastStep:last||null,historyCount:office?.history?.length||0,M13:office?.M13||'WAITING_FOR_FIELD'})})}
- function paintObject(name,color){const o=scene.objects.find(x=>x.name===name)||(['m5.m14.monitor.solver','m5.m14.monitor.flow','m5.m14.monitor.estop'].includes(name)?scene.objects.find(x=>x.name==='m6.glb.ScreenUI'):null);if(o)o.color=color}
- function sync3D(snap){updateMonitorAtlas();const stopped=snap.control.emergencyStopped,enabled=snap.control.rollingRoadEnabled;paintObject('m5.m14.button.estop',stopped?[1,.07,.045]:[.80,.12,.10]);paintObject('m5.m14.button.road',enabled?[.16,.70,.42]:[.26,.30,.33]);paintObject('m5.m14.monitor.solver',snap.solver.productionBound?[.18,.75,.40]:[.86,.48,.12]);paintObject('m5.m14.monitor.flow',[.18+snap.control.windSpeed/10,.38+snap.control.windSpeed/12,.58]);paintObject('m5.m14.monitor.road',enabled?[.15,.62,.38]:[.35,.39,.42]);paintObject('m5.m14.monitor.estop',stopped?[1,.08,.05]:[.24,.62,.35]);}
- function render(){const fan=AETHER.FAN_MODULE,collector=AETHER.EXHAUST_COLLECTOR,fanStatus=document.getElementById('m14FanStatus'),collectorStatus=document.getElementById('m14CollectorStatus'),fanButton=document.getElementById('m14FanToggle');if(fanStatus)fanStatus.textContent=fan?.loaded?(fan.visualRunning?'시각 회전 중 · CFD 영향 없음':'시각 정지 · CFD 영향 없음'):'AETHER FAN V2 로딩 중';if(collectorStatus)collectorStatus.textContent=collector?.loaded?(collector.valid?'정렬됨 · CFD 출구 미연결':'배치 검토 필요 · FLOW_LAYOUT 진단 확인'):'후방 수거부 준비 중';if(fanButton){fanButton.disabled=!fan?.loaded;fanButton.setAttribute('aria-pressed',String(!!fan?.visualRunning));fanButton.textContent=fan?.visualRunning?'팬 시각 회전 정지':'팬 시각 회전 시작'}const s=getSnapshot(),last=s.diagnostic.lastStep,solverText=s.solver.productionBound?'BOUND':'UNBOUND · WAITING_FOR_FIELD';el.speed.value=String(state.windSpeed);el.speedValue.textContent=fixed(state.windSpeed,1)+' m/s';el.officeSpeed.value=String(state.windSpeed);el.road.setAttribute('aria-pressed',String(s.control.rollingRoadEnabled));el.road.textContent=s.control.rollingRoadEnabled?'롤링로드 정지':'롤링로드 준비';el.road.disabled=s.control.emergencyStopped;el.estop.setAttribute('aria-pressed',String(s.control.emergencyStopped));el.reset.disabled=!s.control.emergencyStopped;el.banner.classList.toggle('estop',s.control.emergencyStopped);el.banner.textContent=s.control.emergencyStopped?'E-STOP LATCHED · solver pause 요청 · smoke/롤링로드 정지':`제어 연결됨 · 제품 CFD ${solverText}`;el.product.textContent=solverText;el.diagnostic.textContent=s.diagnostic.historyCount?`32³ OFFICE CPU · ${s.diagnostic.status}`:`32³ OFFICE CPU · ${s.diagnostic.status}`;el.time.textContent=last?`t=${fixed(last.time,4)} s · step ${last.sequence}`:'—';el.residual.textContent=last?`${fixed(last.residualRms,5)} · ${last.pressureIterations} iter`:'—';const r=s.rollingRoad;el.roadStatus.textContent=`${r.motorEnabled?'명령 ON':'정지'} · ${r.liveSolverConnected?'solver source':'source 미연결'} · ${fixed(r.effectiveSpeed,2)} m/s`;el.command.textContent=s.solver.productionBound?'제품 solver 제어 연결됨':(s.control.emergencyStopped?'중지됨 · 재개에는 E-STOP 해제가 필요합니다':`Setpoint ${fixed(s.control.windSpeed,1)} m/s · OFFICE 다음 진단에 적용 · 제품 solver 미연결`);sync3D(s);}
- function setWindSpeed(value,source='panel'){const n=Number(value);if(!Number.isFinite(n)||n<0||n>5||Math.abs(n*2-Math.round(n*2))>1e-8){state.lastCommand='REJECTED_WIND_SETPOINT';el.command.textContent='풍속은 0–5 m/s, 0.5 m/s 간격으로 입력해야 합니다.';return false;}if(state.emergencyStopped&&n!==0){state.lastCommand='REJECTED_ESTOP_WIND_SETPOINT';el.command.textContent='E-STOP 해제 전 풍속 목표 변경은 거부됩니다.';return false;}state.windSpeed=n;state.lastCommand='WIND_SETPOINT_UPDATED';state.lastSolverCommand='SETPOINT_ONLY_UNBOUND';if(AETHER.SOLVER?.getSnapshot?.()?.boundaryControlReady===true&&typeof AETHER.SOLVER.setBoundaryConditions==='function'){try{const result=AETHER.SOLVER.setBoundaryConditions({freestreamSpeed:n});state.lastSolverCommand=result?.ok?'BOUNDARY_ACCEPTED':(result?.code||'BOUNDARY_REJECTED');}catch(_){state.lastSolverCommand='BOUNDARY_REJECTED';}}render();if(source==='panel'&&officeSnapshot()?.busy)el.command.textContent=`목표 ${fixed(n,1)} m/s 저장 · 현재 CPU 단계에는 미적용, 다음 진단 실행부터 적용`;return true;}
- function setRoadEnabled(enabled){if(state.emergencyStopped&&enabled)return false;const ok=AETHER.ROLLING_ROAD.setMotorEnabled(enabled);if(!ok)return false;state.rollingRoadEnabled=enabled;state.lastCommand=enabled?'ROLLING_ROAD_ARMED':'ROLLING_ROAD_STOPPED';render();return true;}
- function emergencyStop(){if(state.emergencyStopped)return true;state.emergencyStopped=true;state.windSpeed=0;AETHER.FAN_MODULE?.setVisualRunning(false);state.lastCommand='E_STOP_LATCHED';state.rollingRoadEnabled=false;AETHER.ROLLING_ROAD.setEmergencyStop(true);try{const ss=safeSolverSnapshot();if(productSolverReady(ss)&&typeof AETHER.SOLVER.setBoundaryConditions==='function'){const ack=AETHER.SOLVER.setBoundaryConditions({freestreamSpeed:0});state.lastSolverCommand=ack?.ok?'ESTOP_ZERO_BOUNDARY_ACCEPTED':(ack?.code||'ESTOP_ZERO_BOUNDARY_REJECTED');}}catch(_){state.lastSolverCommand='ESTOP_ZERO_BOUNDARY_REJECTED';}try{AETHER.S3_OFFICE?.pause?.()}catch(_){}try{AETHER.SOLVER?.pause?.()}catch(_){}if(smokeState){smokeState.playing=false;smokeState.lastTime=performance.now();smokeSetState('PAUSED');const b=document.getElementById('smokePlayback');if(b){b.textContent='연기 재생';b.setAttribute('aria-pressed','false')}smokeControlStatus()}render();return true;}
- function resetEmergencyStop(){if(!state.emergencyStopped)return true;AETHER.ROLLING_ROAD.setEmergencyStop(false);state.emergencyStopped=false;state.rollingRoadEnabled=false;state.lastCommand='E_STOP_RESET_ROAD_REMAINS_STOPPED';render();return true;}
- el.speed.addEventListener('input',()=>setWindSpeed(el.speed.value));el.officeSpeed.addEventListener('input',()=>{if(!setWindSpeed(el.officeSpeed.value,'office'))el.officeSpeed.value=String(state.windSpeed)});el.road.addEventListener('click',()=>setRoadEnabled(!state.rollingRoadEnabled));el.estop.addEventListener('click',emergencyStop);el.reset.addEventListener('click',resetEmergencyStop);document.getElementById('m14FanToggle')?.addEventListener('click',()=>{if(rejectWhileStopped('FAN_ENABLE'))return;const fan=AETHER.FAN_MODULE;if(!fan?.loaded)return;fan.setVisualRunning(!fan.visualRunning);render()});
- document.addEventListener('click',event=>{const button=event.target?.closest?.('button');if(state.emergencyStopped&&button&&controlsBlocked.includes(button.id)){event.preventDefault();event.stopImmediatePropagation();}},true);
- function rayAabb(origin,dir,obj){let lo=-Infinity,hi=Infinity;for(let a=0;a<3;a++){const half=obj.size[a]/2+.045,min=obj.center[a]-half,max=obj.center[a]+half;if(Math.abs(dir[a])<1e-9){if(origin[a]<min||origin[a]>max)return null;continue;}let t0=(min-origin[a])/dir[a],t1=(max-origin[a])/dir[a];if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(hi<lo)return null;}return hi<0?null:Math.max(0,lo);}
- function pick3DControl(event){if(camera.preset!=='Control')return;const rect=glCanvas.getBoundingClientRect(),f=normalize3(camera.target.map((v,i)=>v-camera.eye[i])),u=normalize3(camera.up),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],right=normalize3(cross(f,u)),up=cross(right,f),nx=(event.clientX-rect.left)/rect.width*2-1,ny=1-(event.clientY-rect.top)/rect.height*2,tan=Math.tan(camera.fov*Math.PI/360),aspect=rect.width/rect.height,dir=normalize3(f.map((v,i)=>v+right[i]*nx*tan*aspect+up[i]*ny*tan)),origin=camera.eye;let best=null,distance=Infinity;for(const o of scene.objects){if(!o.m14Action||!o.visible)continue;const hit=rayAabb(origin,dir,o);if(hit!==null&&hit<distance){best=o;distance=hit;}}if(!best)return;event.preventDefault();switch(best.m14Action){case'ESTOP':emergencyStop();break;case'ROAD':if(!state.emergencyStopped)setRoadEnabled(!state.rollingRoadEnabled);break;case'WIND_DOWN':setWindSpeed(state.windSpeed-.5,'3d');break;case'WIND_UP':setWindSpeed(state.windSpeed+.5,'3d');break;}}
- function normalize3(v){const n=Math.hypot(v[0],v[1],v[2])||1;return v.map(x=>x/n)}
- let press=null;glCanvas.addEventListener('pointerdown',e=>{press={id:e.pointerId,x:e.clientX,y:e.clientY};},true);glCanvas.addEventListener('pointerup',e=>{const p=press;press=null;if(p&&p.id===e.pointerId&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<5)pick3DControl(e);},true);glCanvas.addEventListener('pointercancel',()=>{press=null},true);
 
- function socketAction(id){switch(id){
-  case'EMERGENCY_STOP':return emergencyStop();
-  case'FAN_ENABLE':{if(rejectWhileStopped('FAN_ENABLE'))return false;const f=AETHER.FAN_MODULE;if(f?.loaded)f.setVisualRunning(!f.visualRunning);render();return true}
-  case'SMOKE_ENABLE':{smokeState.enabled=!smokeState.enabled;const e=document.getElementById('smokeEnabled');if(e)e.checked=smokeState.enabled;smokeControlStatus();render();return true}
-  case'FAN_SPEED':{if(rejectWhileStopped('FAN_SPEED'))return false;const f=AETHER.FAN_MODULE;if(!f?.loaded)return false;f.visualRPM=Math.max(6,Math.min(36,f.visualRPM+6));f.setVisualRunning(true);render();return true}
-  case'VIEW_MODE':{const e=document.getElementById('scientificMode');if(!e)return false;e.selectedIndex=(e.selectedIndex+1)%e.options.length;e.dispatchEvent(new Event('change',{bubbles:true}));return true}
-  case'CAMERA_SELECT':{const names=['Hero','Side','Top','Fan','Control','Outlet'],i=names.indexOf(camera.preset);setPreset(names[(i+1)%names.length]);return true}
-  case'SOLVER_RUN':{if(rejectWhileStopped('SOLVER_RUN'))return false;const s=safeSolverSnapshot();if(productSolverReady(s)&&typeof AETHER.SOLVER.start==='function'){AETHER.SOLVER.start();return true}el.command.textContent='제품 solver가 연결되지 않아 실행 요청을 거부했습니다. OFFICE CPU 진단은 별도 제어입니다.';return false}
-  case'CFD_RESET':{if(rejectWhileStopped('CFD_RESET'))return false;const s=safeSolverSnapshot();if(productSolverReady(s)&&typeof AETHER.SOLVER.reset==='function')AETHER.SOLVER.reset();else AETHER.S3_OFFICE?.reset?.();smokeState.resetRequested=true;el.command.textContent=s?.productionBound?'연결된 solver 초기화 요청 전송':'제품 solver 미연결 · OFFICE 진단만 초기화';render();return true}
-  default:return false;
- }}
- function pickM6Socket(event){if(camera.preset!=='Control'||!AETHER.M6?.sockets?.length)return;const rect=glCanvas.getBoundingClientRect(),f=normalize3(camera.target.map((v,i)=>v-camera.eye[i])),u=normalize3(camera.up),right=normalize3([f[1]*u[2]-f[2]*u[1],f[2]*u[0]-f[0]*u[2],f[0]*u[1]-f[1]*u[0]]),up=[right[1]*f[2]-right[2]*f[1],right[2]*f[0]-right[0]*f[2],right[0]*f[1]-right[1]*f[0]],nx=(event.clientX-rect.left)/rect.width*2-1,ny=1-(event.clientY-rect.top)/rect.height*2,tan=Math.tan(camera.fov*Math.PI/360),aspect=rect.width/rect.height,dir=normalize3(f.map((v,i)=>v+right[i]*nx*tan*aspect+up[i]*ny*tan)),origin=camera.eye;let hit=null,best=Infinity;for(const socket of AETHER.M6.sockets){const oc=origin.map((v,i)=>v-socket.position[i]),b=oc.reduce((q,v,i)=>q+v*dir[i],0),c=oc.reduce((q,v)=>q+v*v,0)-socket.hitRadiusM*socket.hitRadiusM,disc=b*b-c;if(disc<0)continue;let t=-b-Math.sqrt(disc);if(t<0)t=-b+Math.sqrt(disc);if(t>=0&&t<best){best=t;hit=socket}}if(hit){event.preventDefault();socketAction(hit.id);}}
- let socketPress=null;glCanvas.addEventListener('pointerdown',e=>{socketPress={id:e.pointerId,x:e.clientX,y:e.clientY}},true);glCanvas.addEventListener('pointerup',e=>{const p=socketPress;socketPress=null;if(p&&p.id===e.pointerId&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<5)pickM6Socket(e)},true);glCanvas.addEventListener('pointercancel',()=>{socketPress=null},true);if(AETHER.M6)AETHER.M6.interactionReady=true;
 
- const checks=()=>{const s=getSnapshot(),controlLayerPass=s.control.windSpeed>=0&&s.control.windSpeed<=5&&s.rollingRoad.emergencyStopped===s.control.emergencyStopped&&(!s.rollingRoad.emergencyStopped||!s.rollingRoad.motorEnabled),fullPass=controlLayerPass&&s.solver.productionBound&&s.solver.boundaryControlReady&&s.rollingRoad.liveSolverConnected&&s.diagnostic.historyCount>0;return Object.freeze({controlLayerPass,fullMilestonePass:fullPass,estopLatched:s.control.emergencyStopped,rollingRoadInterlocked:s.rollingRoad.emergencyStopped&&!s.rollingRoad.motorEnabled,windSetpointInRange:s.control.windSpeed>=0&&s.control.windSpeed<=5,productSolverTruthful:!s.solver.productionBound||s.solver.boundaryControlReady,liveDataDiagnosticOnly:s.diagnostic.historyCount===0||(s.diagnostic.resolution[0]===32||s.diagnostic.resolution[0]===64),pass:fullPass});};
- AETHER.M14=Object.freeze({getSnapshot,checks,setWindSpeed,setRollingRoadEnabled:setRoadEnabled,emergencyStop,resetEmergencyStop});
- render();setInterval(()=>{if(!document.hidden)render()},500);
-})();
 
-Promise.resolve().then(()=>AETHER.SOLVER.initialize()).catch(e=>{diagnostics.error('S0 initialize',e)});
 boot();
 /* test hooks: single deterministic frame (used by tests/ab-render.mjs); the rAF loop is paused by renderOnce and restarted by resume */
 Object.defineProperties(window.__AETHER_DEBUG,{rolling:{get:()=>rollingState,configurable:true},hq:{get:()=>HQ,configurable:true},scene:{get:()=>scene,configurable:true},wow:{get:()=>wow,configurable:true}});

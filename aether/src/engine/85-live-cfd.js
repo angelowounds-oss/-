@@ -274,12 +274,12 @@ function liveRead(x,y,z){if(LIVE.impl==='MAC')return macRead(x,y,z);const N=LIVE
  const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,buf=new Float32Array(4);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.tex.velA.f);gl.readPixels(ax,ay,1,1,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return [buf[0],buf[1],buf[2]]}
 function liveStep(now){if(!LIVE.enabled)return;if(!LIVE.init||LIVE.gen!==runtimeGeneration)liveInit();if(!LIVE.ok||LIVE.freeze)return;
  if(!PERF.cal){const M=perfManualFromHash();PERF.cal=(M.sim&&M.vol&&M.ren)?{done:true,result:{skipped:'manual #q'}}:{};if(PERF.cal.done)for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax])}
- if(!PERF.cal.done){try{smokeState.enabled=false;perfCalibrateStep(now)}catch(e){PERF.cal={done:true,result:{error:String(e?.message||e)}};for(const ax of ['sim','vol','ren'])perfApplyTier(ax,'LOW')}if(!LIVE.init)return}if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
- try{smokeState.enabled=false;const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
+ if(!PERF.cal.done){try{perfCalibrateStep(now)}catch(e){PERF.cal={done:true,result:{error:String(e?.message||e)}};for(const ax of ['sim','vol','ren'])perfApplyTier(ax,'LOW')}if(!LIVE.init)return}if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
+ try{const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
   const hmin=Math.min(...LIVE.h),cfl=.9*hmin/(1.6*Math.max(LIVE.U,.5)),n=LIVE.step<40?6:LIVE.sub,dt=Math.min(cfl,Math.max(fdt,1/60)/LIVE.sub);
   for(let s=0;s<n;s++){livePasses(dt);if(LIVE.benchRec)liveBenchSample()}liveCopyVolume();
   liveForcesPoll();if(now-LIVE.lastRead>250){LIVE.lastRead=now;liveForcesKick();const B=window.__BODY;if(B&&B.active){const R=.55,P=[[R,0],[-R,0],[0,R],[0,-R]].map(([dx,dz])=>liveRead(B.x+dx,B.g+1.2,B.z+dz)),v=[0,1,2].map(i=>P.reduce((q,w)=>q+w[i],0)/4);LIVE.speedAt=P.reduce((q,w)=>q+Math.hypot(...w),0)/4;LIVE.vAt=v}}
- }catch(e){LIVE.ok=false;LIVE.err=String(e?.message||e);smokeState.enabled=true}
+ }catch(e){LIVE.ok=false;LIVE.err=String(e?.message||e)}
  finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}}
 function liveInv(m){const a=Array.from(m),inv=new Float32Array(16);
  inv[0]=a[5]*a[10]*a[15]-a[5]*a[11]*a[14]-a[9]*a[6]*a[15]+a[9]*a[7]*a[14]+a[13]*a[6]*a[11]-a[13]*a[7]*a[10];inv[4]=-a[4]*a[10]*a[15]+a[4]*a[11]*a[14]+a[8]*a[6]*a[15]-a[8]*a[7]*a[14]-a[12]*a[6]*a[11]+a[12]*a[7]*a[10];
@@ -348,4 +348,4 @@ Object.assign(LIVE.api,{
 function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
  for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const t=vox.type[i+N[0]*(j+N[1]*k)];if(!t)continue;const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,o=(ay*LIVE.W+ax)*4;obs[o+(t===1?0:1)]=255;obs[o+3]=255}
  gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs)}catch(e){LIVE.err='reobstacle: '+e.message}}
-LIVE.setEnabled=v=>{LIVE.enabled=!!v;smokeState.enabled=!(LIVE.enabled&&LIVE.ok)};
+LIVE.setEnabled=v=>{LIVE.enabled=!!v};

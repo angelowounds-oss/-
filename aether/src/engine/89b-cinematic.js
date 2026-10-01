@@ -13,7 +13,7 @@ const lerp=(a,b,s)=>a+(b-a)*s,sstep=s=>{s=s<0?0:s>1?1:s;return s*s*(3-2*s)};
 /* ---------- geometry from the real scene ---------- */
 function bodyLocalBox(){const b=scene.vehicleParts.find(p=>p.role==='body');if(!b||!b.positions)return null;if(b._cineBox&&b._cineBox.src===b.positions)return b._cineBox;const P=b.positions,lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];for(let i=0;i<P.length;i+=3)for(let k=0;k<3;k++){const v=P[i+k];if(v<lo[k])lo[k]=v;if(v>hi[k])hi[k]=v}return b._cineBox={src:P,lo,hi}}
 function cineGeometry(){
- const lay=FLOW_LAYOUT.get(m13FrameState.frame||smokeHardwarePreviewFrame),vt=AETHER.VEHICLE_TRANSFORM,lb=bodyLocalBox();if(!lb)throw Error('CINE: vehicle body unavailable');
+ const lay=FLOW_LAYOUT.get(FLOW_FRAME),vt=AETHER.VEHICLE_TRANSFORM,lb=bodyLocalBox();if(!lb)throw Error('CINE: vehicle body unavailable');
  const key=[...vt.position,...vt.rotation,...vt.scale,lay.vehicleLength,lay.fanBounds.max[0],lay.collectorPlane.x].join();if(G&&geoKey===key)return G;
  const M=vehicleModel(),lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
  for(const x of[lb.lo[0],lb.hi[0]])for(const y of[lb.lo[1],lb.hi[1]])for(const z of[lb.lo[2],lb.hi[2]]){const w=[M[0]*x+M[4]*y+M[8]*z+M[12],M[1]*x+M[5]*y+M[9]*z+M[13],M[2]*x+M[6]*y+M[10]*z+M[14]];for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],w[k]);hi[k]=Math.max(hi[k],w[k])}}
@@ -87,14 +87,12 @@ let cueList=null;
 function cueTick(tt){if(!cueList)cueList=cues();let idx=-1;for(let i=0;i<cueList.length;i++)if(tt>=cueList[i].a&&tt<cueList[i].b){idx=i;break}if(idx!==cueIdx){cueIdx=idx;emit(idx<0?{type:'caption',title:'',sub:''}:{type:'caption',title:cueList[idx].t,sub:cueList[idx].s})}}
 
 /* ---------- state ---------- */
-function setState(s,why){const prev=state;if(prev===s&&!why)return;state=s;reason=why||'';emit({type:'state',state:s,prev,reason});syncWowUi()}
-function syncWowUi(){try{const done=state===ST.FINISHED,active=state===ST.PREPARING||state===ST.PLAYING;wowUI.overlay.classList.toggle('playing',active);wowUI.skip.style.display=active?'block':'none';wow.active=active;wowUI.start.disabled=active||!wow.ready;wowUI.start.textContent=active?'관람 진행 중':(done?'30초 다시 보기':'풍동 가동 · 30초 체험');wowUI.kicker.textContent=active?'AETHER · LIVE FACILITY TOUR':(done?'AETHER · EXPERIENCE COMPLETE':'AETHER · WIND TUNNEL');if(!active){wowUI.title.textContent=done?'이제 직접 둘러보십시오.':'자동차 풍동, 눈앞에서 가동하십시오.';wowUI.description.textContent=done?'카메라를 이동하고 단면·진단 데이터를 살펴보실 수 있습니다.':'팬 월부터 BMW M4 GT3 EVO의 후류까지 이어지는 30초 관람입니다.';wowUI.source.textContent=wowSourceLabel();wowUI.progress.style.width=done?'100%':'0%'}}catch(_){}}
+function setState(s,why){const prev=state;if(prev===s&&!why)return;state=s;reason=why||'';emit({type:'state',state:s,prev,reason})}
 function estopped(full){try{return !!(rollingState.emergencyStopped||(full&&AETHER.M14?.getSnapshot?.().control.emergencyStopped))}catch(_){return false}}
 function rendererOk(){return !!gl&&!gl.isContextLost()&&!!wow.ready&&diagnostics.bootStage!=='FAILED'&&diagnostics.bootStage!=='CONTEXT_LOST'}
 function smokeReadiness(){const live=window.__LIVE;if(!live)return{ready:false,p:0,why:'live'};if(live.err)return{ready:true,p:1,why:'live-unavailable',smoke:false};const calDone=!!(window.__PERF&&window.__PERF.cal&&window.__PERF.cal.done);if(!live.ok||!calDone)return{ready:false,p:.05,why:'calibrating'};const p=clamp(live.t/SMOKE_READY_T,0,1);return{ready:p>=1,p:.1+.9*p,why:p>=1?'ready':'developing',smoke:true}}
 function readiness(){if(!rendererOk())return{ready:false,p:0,why:'renderer'};return smokeReadiness()}
 function takeCamera(){fpv.enabled=false;clearWalk();try{if(document.exitPointerLock)document.exitPointerLock()}catch(_){}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.remove('active'));camera.cutaway=false}
-function fallbackSmoke(){/* only when the GPU solver is unavailable: the legacy 32^3 CPU diagnostic provides the smoke */try{if(!AETHER.S3_OFFICE?.getSnapshot?.().history.length)Promise.resolve(AETHER.S3_OFFICE.start(2)).catch(e=>diagnostics.warnings.push({time:now(),source:'cinematic-diagnostic',message:String(e)}));smokeState.enabled=true;const cb=document.getElementById('smokeEnabled');if(cb)cb.checked=true;smokeControlStatus()}catch(e){diagnostics.warnings.push({time:now(),source:'cinematic-diagnostic',message:String(e)})}}
 function applyHud(){try{document.getElementById('viewName').textContent='AETHER';document.getElementById('viewHint').textContent=state===ST.PLAYING||state===ST.PREPARING?'시네마틱':'Drag to orbit · wheel/pinch to zoom';document.getElementById('cutaway').textContent='Cutaway: Off'}catch(_){}}
 
 function start(opts){
@@ -102,12 +100,11 @@ function start(opts){
  const nowMs=performance.now();if(state===ST.PREPARING)return true;if(state===ST.PLAYING&&nowMs-lastStart<500)return true;lastStart=nowMs;
  try{buildSets()}catch(e){diagnostics.warnings.push({time:now(),source:'cinematic',message:String(e.message||e)});return false}
  token++;t=0;prepT=0;postT=0;cueIdx=-2;lastNow=null;lastProg=-1;cueList=null;takeCamera();
- try{AETHER.FAN_MODULE?.setVisualRunning(true);document.getElementById('m14FanToggle')?.setAttribute('aria-pressed','true')}catch(_){}
- try{window.__smokeSetPlaying&&window.__smokeSetPlaying(true)}catch(_){}
+ try{window.__CONTROLS&&window.__CONTROLS.fanSet(true)}catch(_){}
+ try{window.__CONTROLS&&window.__CONTROLS.flowSetPaused(false)}catch(_){}
  evalPose(0,0);writeCamera();cutHistory();applyHud();
  document.body.classList.add('cine');
  emit({type:'caption',title:'',sub:''});
- const r=readiness();if(!r.ready&&r.why==='live-unavailable')fallbackSmoke();
  setState(ST.PREPARING,opts&&opts.source||'start');
  if(readiness().ready)beginPlay();
  return true}
@@ -126,7 +123,7 @@ function tick(nowMs){
  const dt=lastNow==null?0:clamp((nowMs-lastNow)/1000,0,.25);lastNow=nowMs;
  if(state===ST.PREPARING){prepT+=dt;const r=readiness();emit({type:'prepare',p:r.p});if(r.ready||prepT>=PREP_MAX){if(!r.ready)diagnostics.warnings.push({time:now(),source:'cinematic',message:'smoke not fully developed after '+PREP_MAX+' s; starting anyway ('+r.why+')'});beginPlay()}else{evalPose(0,dt);writeCamera();return}}
  t=Math.min(DUR,t+dt);evalPose(t,dt);writeCamera();cueTick(t);
- if(t-lastProg>=.05||t>=DUR){lastProg=t;emit({type:'progress',t,dur:DUR});try{wowUI.progress.style.width=(t/DUR*100).toFixed(1)+'%'}catch(_){}}
+ if(t-lastProg>=.05||t>=DUR){lastProg=t;emit({type:'progress',t,dur:DUR})}
  if(t>=DUR)finish('done')}
 
 /* ---------- verification (used at start in dev and by tests/cinematic.mjs) ---------- */
