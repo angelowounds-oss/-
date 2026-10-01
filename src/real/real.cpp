@@ -462,24 +462,28 @@ int main(int argc, char** argv) {
       Result r = sw ? playMatch(P[j], P[i], po, pn, sd) : playMatch(P[i], P[j], pn, po, sd); double v = r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0); w[k] += v; c[k] += 1; } });
     double tw = 0, tc = 0; vector<double> byDeck(n, 0), byN(n, 0); for (size_t k = 0; k < jobs.size(); k++) { tw += w[k]; tc += c[k]; byDeck[jobs[k].first] += w[k]; byN[jobs[k].first] += c[k]; }
     printf("new policy %d vs old policy %d: new wins %.1f%% over %.0f games\n", pn, po, 100 * tw / tc, tc); for (int i = 0; i < n; i++) printf("  as deck %2d: %.0f%%\n", i + 1, 100 * byDeck[i] / byN[i]);
-  } else if (mode == "es") {  // es <deckfile> <index(1-based)> <gens> <out> [pairs games sigma lr]
+  } else if (mode == "es") {  // es <deckfile> <index(1-based)> <gens> <out> [pairs games sigma lr mix_pol]
     vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; int gens = atoi(argv[4]); string out = argv[5];
     int pairs = argc > 6 ? atoi(argv[6]) : 24, games = argc > 7 ? atoi(argv[7]) : 6; float sigma = argc > 8 ? atof(argv[8]) : 0.15f, lr = argc > 9 ? atof(argv[9]) : 0.08f;
+    int mix_pol = argc > 10 ? atoi(argv[10]) : 1;  // opponent policy mix: 0,1,2=rule; 5,6,7=search
     Deck mine = P[di]; vector<Deck> opps; for (int i = 0; i < (int)P.size(); i++) if (i != di) opps.push_back(P[i]);
     Rng rng(12345); vector<float> th = gauss(rng, NPARAM); for (auto& x : th) x *= 0.1f; { float* b2 = th.data() + NIN * NHID + NHID + NHID * NOUT; b2[NSLOT - 1] = 0.5f; }
     if (const char* ini = getenv("CR_INIT")) loadNet(th, ini);
+    vector<int> pols; if (mix_pol == 0) { pols = {0, 1, 2}; } else if (mix_pol == 1) { pols = {0, 1, 2}; } else if (mix_pol == 5) { pols = {5, 6, 7}; } else { pols = {5, 6}; }  // default 5,6
+    int neval = 0;
     for (int gen = 0; gen < gens; gen++) {
       vector<vector<float>> eps(pairs); for (int i = 0; i < pairs; i++) eps[i] = gauss(rng, NPARAM);
       vector<double> fp(pairs), fm(pairs); uint64_t gseed = 1000 + gen * 31;
       parFor(pairs * 2, [&](int idx) { int i = idx / 2; bool minus = idx & 1; vector<float> t(NPARAM); for (int q = 0; q < NPARAM; q++) t[q] = th[q] + (minus ? -sigma : sigma) * eps[i][q];
-        double tot = 0; for (int o = 0; o < (int)opps.size(); o++) { int pol = (o % 3 == 0) ? 0 : (o % 3 == 1 ? 1 : 2); tot += netScore(t, mine, opps[o], pol, games, gseed + o * 13 + i * 0); } (minus ? fm : fp)[i] = tot / opps.size(); });
+        double tot = 0; for (int o = 0; o < (int)opps.size(); o++) { int pol = pols[o % pols.size()]; tot += netScore(t, mine, opps[o], pol, games, gseed + o * 13 + i * 0); } (minus ? fm : fp)[i] = tot / opps.size(); });
       // rank-based shaping over all 2*pairs fitnesses
       vector<pair<double, int>> all; for (int i = 0; i < pairs; i++) { all.push_back({fp[i], 2 * i}); all.push_back({fm[i], 2 * i + 1}); } sort(all.begin(), all.end());
       vector<double> rk(2 * pairs); for (int r = 0; r < (int)all.size(); r++) rk[all[r].second] = (double)r / (all.size() - 1) - 0.5;
       vector<double> grad(NPARAM, 0.0); for (int i = 0; i < pairs; i++) { double w = rk[2 * i] - rk[2 * i + 1]; for (int q = 0; q < NPARAM; q++) grad[q] += w * eps[i][q]; }
       for (int q = 0; q < NPARAM; q++) th[q] += (float)(lr / (pairs * sigma) * grad[q]);
       double mean = 0; for (int i = 0; i < pairs; i++) mean += fp[i] + fm[i]; mean /= 2 * pairs;
-      if (gen % 5 == 0 || gen == gens - 1) { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 1, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (rule policy 1) %.3f\n", gen, mean, win / opps.size()); fflush(stdout); saveNet(th, out); }
+      neval += (int)opps.size() * games * pairs * 2;
+      if (gen % 5 == 0 || gen == gens - 1) { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 5, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (search policy 5) %.3f  [%d eval so far]\n", gen, mean, win / opps.size(), neval); fflush(stdout); saveNet(th, out); }
     }
   } else if (mode == "estest") {  // estest <deckfile> <index> <netfile> <games>   (env CR_OPPPOL = opponent policy index, default 1)
     vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; vector<float> th; if (!loadNet(th, argv[4])) { fprintf(stderr, "cannot load net\n"); return 1; } int games = atoi(argv[5]);
