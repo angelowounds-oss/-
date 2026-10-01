@@ -1,0 +1,17 @@
+deck: evo:Cannon,Hero Musketeer,evo:Skeletons,Hog Rider,Fireball,Ice Golem,Ice Spirit,The Log
+opp  learned   rule1     search5     (win rate of OUR deck, 8 games per cell, opponent plays policy 5)
+ 2   0.00      0.00      0.12
+ 3   0.00      0.00      0.12
+ 4   0.00      0.00      0.12
+ 5   0.00      0.00      0.69
+ 6   0.00      0.00      1.00
+ 7   0.00      0.00      0.00
+ 8   0.00      0.00      0.12
+ 9   0.00      0.00      0.75
+10   0.00      0.00      0.50
+11   0.00      0.00      0.38
+12   0.00      0.00      0.38
+13   0.00      0.00      0.38
+14   0.00      0.00      0.00
+15   0.00      0.00      0.25
+mean 0.000      0.000      0.344

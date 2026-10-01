@@ -450,14 +450,17 @@ int main(int argc, char** argv) {
       double mean = 0; for (int i = 0; i < pairs; i++) mean += fp[i] + fm[i]; mean /= 2 * pairs;
       if (gen % 5 == 0 || gen == gens - 1) { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 1, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (rule policy 1) %.3f\n", gen, mean, win / opps.size()); fflush(stdout); saveNet(th, out); }
     }
-  } else if (mode == "estest") {  // estest <deckfile> <index> <netfile> <games>
+  } else if (mode == "estest") {  // estest <deckfile> <index> <netfile> <games>   (env CR_OPPPOL = opponent policy index, default 1)
     vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; vector<float> th; if (!loadNet(th, argv[4])) { fprintf(stderr, "cannot load net\n"); return 1; } int games = atoi(argv[5]);
-    Deck mine = P[di]; printf("deck: %s\n%-4s %-9s %-9s %-9s   (win rate of OUR deck, %d games per cell, opponent plays rule policy 1)\n", deckStr(mine).c_str(), "opp", "learned", "rule1", "search5", games);
+    int opp = getenv("CR_OPPPOL") ? atoi(getenv("CR_OPPPOL")) : 1;
+    Deck mine = P[di]; printf("deck: %s\n%-4s %-9s %-9s %-9s   (win rate of OUR deck, %d games per cell, opponent plays policy %d)\n", deckStr(mine).c_str(), "opp", "learned", "rule1", "search5", games, opp);
     double tl = 0, tr = 0, ts = 0; int n = 0; vector<array<double, 3>> res(P.size());
-    parFor((int)P.size(), [&](int o) { if (o == di) return; double w1, w2, w3; netScore(th, mine, P[o], 1, games, 9000 + o, &w1);
-      double sr = 0, ss = 0; for (int k = 0; k < games; k++) { bool sw = k & 1; uint64_t sd = (9000 + o) * 7919 + k * 104729; Result r = sw ? playMatch(P[o], mine, 1, 1, sd) : playMatch(mine, P[o], 1, 1, sd); sr += r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0);
-        Result q = sw ? playMatch(P[o], mine, 1, 5, sd) : playMatch(mine, P[o], 5, 1, sd); ss += q.winner < 0 ? 0.5 : ((q.winner == 0) == !sw ? 1.0 : 0.0); }
-      w2 = sr / games; w3 = ss / games; res[o] = {w1, w2, w3}; });
+    parFor((int)P.size(), [&](int o) { if (o == di) return; double w1; double sr = 0, ss = 0, sl = 0;
+      for (int k = 0; k < games; k++) { bool sw = k & 1; uint64_t sd = (9000 + o) * 7919 + k * 104729;
+        Result l = sw ? playMatch(P[o], mine, opp, 0, sd, nullptr, &th) : playMatch(mine, P[o], 0, opp, sd, &th, nullptr); sl += l.winner < 0 ? 0.5 : ((l.winner == 0) == !sw ? 1.0 : 0.0);
+        Result r = sw ? playMatch(P[o], mine, opp, 1, sd) : playMatch(mine, P[o], 1, opp, sd); sr += r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0);
+        Result q = sw ? playMatch(P[o], mine, opp, 5, sd) : playMatch(mine, P[o], 5, opp, sd); ss += q.winner < 0 ? 0.5 : ((q.winner == 0) == !sw ? 1.0 : 0.0); }
+      (void)w1; res[o] = {sl / games, sr / games, ss / games}; });
     for (int o = 0; o < (int)P.size(); o++) { if (o == di) continue; printf("%2d   %.2f      %.2f      %.2f\n", o + 1, res[o][0], res[o][1], res[o][2]); tl += res[o][0]; tr += res[o][1]; ts += res[o][2]; n++; }
     printf("mean %.3f      %.3f      %.3f\n", tl / n, tr / n, ts / n);
   } else printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");

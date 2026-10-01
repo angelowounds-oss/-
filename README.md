@@ -101,3 +101,11 @@ Hero Dark Prince is not in the engine (Dark Prince base card is used in the Mine
 Golem rose 5% -> 19% and games became close (1-2, 2-1), but the polarisation remains (Pekka bridge-spam 85%, Log-bait 84%,
 Mega Knight 4%). Longer horizon alone does not remove the bias. PyTorch cannot be installed here (pip cannot reach PyPI, no GPU),
 so the repo's PPO stack cannot run as-is; a pure-C++ evolution-strategy learner is the feasible substitute.
+
+### Evolution-strategies learner (pure C++, `real es` / `real estest`) — 2.6 Hog only, `results/es_hog26*.txt`
+MLP policy (70 inputs, 48 hidden, 5+9 outputs, 4.1k parameters), 300 generations of antithetic ES (~35 min on 4 cores) trained
+against 14 meta decks played by rule-based policies 0-2.
+- vs rule-policy opponents: learned 56.6% | rule 27.0% | lookahead(policy 5) 92.5%.
+- vs lookahead opponents: learned 0.0% | rule 0.0% | lookahead 34.4%.
+So the learner overfits the opponents it trained against and does not generalise; the lookahead player remains the strongest.
+Training against lookahead opponents is ~100x slower (about 0.5 s per game), i.e. hours per deck.

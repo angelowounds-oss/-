@@ -46,3 +46,16 @@ gen 220  pop mean score 0.489  current-net winrate vs pool (rule policy 1) 0.540
 gen 225  pop mean score 0.484  current-net winrate vs pool (rule policy 1) 0.598
 gen 230  pop mean score 0.484  current-net winrate vs pool (rule policy 1) 0.580
 gen 235  pop mean score 0.480  current-net winrate vs pool (rule policy 1) 0.536
+gen 240  pop mean score 0.489  current-net winrate vs pool (rule policy 1) 0.482
+gen 245  pop mean score 0.494  current-net winrate vs pool (rule policy 1) 0.545
+gen 250  pop mean score 0.502  current-net winrate vs pool (rule policy 1) 0.518
+gen 255  pop mean score 0.501  current-net winrate vs pool (rule policy 1) 0.545
+gen 260  pop mean score 0.480  current-net winrate vs pool (rule policy 1) 0.571
+gen 265  pop mean score 0.498  current-net winrate vs pool (rule policy 1) 0.603
+gen 270  pop mean score 0.493  current-net winrate vs pool (rule policy 1) 0.585
+gen 275  pop mean score 0.494  current-net winrate vs pool (rule policy 1) 0.536
+gen 280  pop mean score 0.488  current-net winrate vs pool (rule policy 1) 0.567
+gen 285  pop mean score 0.512  current-net winrate vs pool (rule policy 1) 0.478
+gen 290  pop mean score 0.500  current-net winrate vs pool (rule policy 1) 0.589
+gen 295  pop mean score 0.503  current-net winrate vs pool (rule policy 1) 0.661
+gen 299  pop mean score 0.497  current-net winrate vs pool (rule policy 1) 0.545
