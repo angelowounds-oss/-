@@ -1,3 +1,5 @@
 rl: 15 decks, 10 pairs x 2 x 48 games per generation, sigma 0.120 lr 0.050, league 0
 gen   0  games     960  win vs policy6 49.4% (960)  vs league -  best cand 0.607
 gen   1  games    1920  win vs policy6 48.2% (960)  vs league -  best cand 0.544
+gen   2  games    2880  win vs policy6 46.1% (960)  vs league -  best cand 0.530
+gen   3  games    3840  win vs policy6 45.7% (960)  vs league -  best cand 0.593
