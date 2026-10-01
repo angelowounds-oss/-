@@ -66,7 +66,7 @@ try {
   for (const c of ['Hero', 'Side', 'Top', 'Fan']) { await ev(n => __AETHER_DEBUG.setPreset(n), c); await sleep(6000); await page.screenshot({ path: path.join(outDir, `cam${i++}-${c.toLowerCase()}.png`), timeout: 600000 }); }
   // control room: rolling road follows the GPU solver, e-stop, flow pause/reset, wind setpoint
   const rr0 = await ev(() => { const r = AETHER.ROLLING_ROAD.getSnapshot(); return { belt: r.beltTravel, speed: r.effectiveSpeed, w: r.wheelAngles[0] }; });
-  const t0 = await ev(() => __LIVE.t); await page.waitForFunction(t => __LIVE.t > t + 0.1, t0, { timeout: 300000 });
+  const simT0 = await ev(() => __LIVE.t); await page.waitForFunction(t => __LIVE.t > t + 0.1, simT0, { timeout: 300000 });
   const rr1 = await ev(() => { const r = AETHER.ROLLING_ROAD.getSnapshot(); return { belt: r.beltTravel, speed: r.effectiveSpeed, w: r.wheelAngles[0], U: __LIVE.U }; });
   check('롤링로드·바퀴가 GPU 솔버 풍속으로 구동', rr1.speed > 0 && Math.abs(rr1.speed - rr1.U) < 1e-6 && (rr1.belt !== rr0.belt || rr1.w !== rr0.w), { rr0, rr1 });
   const es = await ev(() => { const C = window.__CONTROLS; C.emergencyStop(); const a = { stopped: C.getSnapshot().control.emergencyStopped, frozen: __LIVE.freeze, road: AETHER.ROLLING_ROAD.getSnapshot().motorEnabled, fan: AETHER.FAN_MODULE.visualRunning, refusedWind: C.windSet(8) === false }; C.resetEmergencyStop(); a.released = !C.getSnapshot().control.emergencyStopped; a.unfrozen = !__LIVE.freeze; return a; });

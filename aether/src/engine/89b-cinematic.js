@@ -34,8 +34,8 @@ function cineShots(g,tall){
  /* t: 0 low front quarter | 4 start of side tracking | 10 passing the cabin | 15 rear quarter on the spoiler | 17 hold | 24 wake | 30 reveal */
  const t=[0,.8,4,10,15,17,24,30];
  const eye=[[n-1.65,.55,c+2.2],[n-1.6,.56,c+2.25],[n-.95,.85,c+2.9],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
- const tgt=tall?[[n+1.0,.6,c-.1],[n+1.05,.6,c-.1],[n+1.9,.78,c],[m+1.2,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.3,.85,c],[m-.3,.8,c]]
-  :[[n+1.05,.65,c-.3],[n+1.1,.65,c-.3],[n+1.9,.78,c-.1],[m+1.4,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.25,.8,c],[m-.3,.8,c]];
+ const tgt=tall?[[n+1.0,.6,c-.1],[n+1.05,.6,c-.1],[n+1.9,.78,c],[m+1.2,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.3,.85,c],[m-.3,1.3,c]]
+  :[[n+1.05,.65,c-.3],[n+1.1,.65,c-.3],[n+1.9,.78,c-.1],[m+1.4,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.25,.8,c],[m-.3,1.3,c]];
  return{t,eye,tgt,fov:[[0,40],[24,40],[30,46]],hfov:46}}
 
 /* ---------- path tables ---------- */
@@ -72,7 +72,7 @@ function evalPose(tt,dt){
  if(Math.abs(tallW-wantTall)<.002)tallW=wantTall;
  poseAt(S.wide,tt,eW,tW);let fw=fullFov(fovVis(S.wide,tt),false,A,bf);
  if(tallW>0){poseAt(S.tall,tt,eT,tT);const ft=fullFov(fovVis(S.tall,tt),true,A,bf,S.tall.shots.hfov);const s=sstep(tallW);for(let k=0;k<3;k++){eW[k]=lerp(eW[k],eT[k],s);tW[k]=lerp(tW[k],tT[k],s)}fw=lerp(fw,ft,s)}
- fovOut=fw}
+ if(dt>0&&fovOut>0){const mx=30*dt;fovOut+=Math.max(-mx,Math.min(mx,fw-fovOut))}else fovOut=fw}
 function writeCamera(){const c=camera;c.preset='CINE';c.cutaway=false;c.up[0]=0;c.up[1]=1;c.up[2]=0;for(let k=0;k<3;k++){c.eye[k]=eW[k];c.target[k]=tW[k]}c.fov=fovOut}
 function cutHistory(){try{FX.reset=true}catch(_){}}
 
