@@ -5,11 +5,11 @@
 /* One table for every quality knob. sim = simulation, vol = volumetric smoke, ren = scene rendering.
    Knobs whose feature is not implemented report available()=false and are skipped by the controller. */
 const QUALITY={
- tiers:['LOW','MID','HIGH','ULTRA'],
- sim:{LOW:{grid:[112,36,52],sub:2,vc:.25},MID:{grid:[144,46,66],sub:2,vc:0},HIGH:{grid:[176,56,80],sub:2,vc:0},ULTRA:{grid:[224,72,100],sub:2,vc:0}},
- vol:{LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
- ren:{LOW:{scale:1,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
- budgetMs:{LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
+ tiers:['LITE','LOW','MID','HIGH','ULTRA'],
+ sim:{LITE:{grid:[80,26,38],sub:1,vc:.25},LOW:{grid:[112,36,52],sub:2,vc:.25},MID:{grid:[144,46,66],sub:2,vc:0},HIGH:{grid:[176,56,80],sub:2,vc:0},ULTRA:{grid:[224,72,100],sub:2,vc:0}},
+ vol:{LITE:{res:.4,steps:.6,taps:0},LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
+ ren:{LITE:{scale:.75,ao:0,shadow:1,aa:'FXAA',bloom:0,ssr:0},LOW:{scale:1,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
+ budgetMs:{LITE:33.3,LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
  /* degrade order required by the spec; upgrade walks it backwards */
  ladder:[
   {k:'volRes',  get:()=>LIVE.rs,   set:v=>LIVE.rs=v,   steps:[.25,.375,.5,.625,.75,1]},
@@ -20,7 +20,7 @@ const QUALITY={
   {k:'renderScale',get:()=>LIVE.cs,set:v=>LIVE.cs=v,steps:[.5,.6,.7,.8,.9,1,1.25,1.5]},
   {k:'scalar',  get:()=>LIVE.dyeScale||1,set:v=>{LIVE.dyeScaleWanted=v},steps:[1,2],available:()=>!!LIVE.dyeScalable},
   {k:'cfdRate', get:()=>LIVE.sub,set:v=>LIVE.sub=v,steps:[1,2]},
-  {k:'grid',    get:()=>QUALITY.tiers.indexOf(LIVE.q),set:v=>liveSetTier(QUALITY.tiers[v],'ctl'),steps:[0,1,2,3]}]};
+  {k:'grid',    get:()=>QUALITY.tiers.indexOf(LIVE.q),set:v=>liveSetTier(QUALITY.tiers[v],'ctl'),steps:[0,1,2,3,4]}]};
 const PERF={frames:[],gpuFrames:[],sections:{},cur:null,pool:[],pending:[],ext:null,disjoint:0,mem:new Map(),memPeak:0,firstFrameMs:null,
  set:{ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:0},manual:{sim:null,vol:null,ren:null},cal:null,ctl:{last:0,cool:0,calm:0,log:[],switches:0,maxGrid:3},sync:false,syncMs:{}};
 window.__PERF=PERF;
@@ -67,7 +67,7 @@ function perfStats(a){if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y
 function perfFrameCost(){const g=PERF.sections.total;return g&&PERF.gpuFrames.length>10?{ms:g.ema,src:'GPU timer'}:{ms:perfStats(PERF.frames.slice(-60))?.p95||16.7,src:'frame interval'}}
 
 /* ---------- startup calibration (2~3 s): measure sim step, volume march and scene cost on this GPU ---------- */
-function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
+function perfManualFromHash(){const h=location.hash,g=k=>(h.match(new RegExp(k+'=(LITE|LOW|MID|MED|HIGH|ULTRA)'))||[])[1],n=v=>v==='MED'?'MID':v,q=g('q');
  PERF.manual={sim:n(g('sim')||q)||null,vol:n(g('vol')||q)||null,ren:n(g('render')||q)||null};
  /* no address override: restore the viewer's own choice from the engineer panel (per-browser convenience) */
  if(!PERF.manual.sim&&!PERF.manual.vol&&!PERF.manual.ren){const u=perfUserLoad();if(u){const t=v=>QUALITY.tiers.includes(v)?v:null;PERF.manual={sim:t(u.sim),vol:t(u.vol),ren:t(u.ren)};
@@ -105,10 +105,10 @@ function perfDecide(){const C=PERF.cal,med=a=>{const s=a.slice().sort((x,y)=>x-y
  const px=glCanvas.width*glCanvas.height,pred={};
  for(const t of QUALITY.tiers){const g=QUALITY.sim[t].grid,sv=QUALITY.vol[t],rn=QUALITY.ren[t];
   pred[t]={sim:simPerMcell*g[0]*g[1]*g[2]/1e6*QUALITY.sim[t].sub,vol:volPerMpx*px*sv.res*sv.res*sv.steps/1e6,scene:sceneMs*rn.scale*rn.scale};pred[t].total=pred[t].sim+pred[t].vol+pred[t].scene}
- let pick='LOW';for(const t of QUALITY.tiers)if(Number.isFinite(pred[t].total)&&pred[t].total<=QUALITY.budgetMs[t]*.8)pick=t;
+ let pick=QUALITY.tiers[0];const capI=MOBILE?QUALITY.tiers.indexOf('MID'):QUALITY.tiers.length-1;for(const t of QUALITY.tiers){if(QUALITY.tiers.indexOf(t)>capI)break;if(Number.isFinite(pred[t].total)&&pred[t].total<=QUALITY.budgetMs[t]*.8)pick=t}
  C.result={pick,simMsPerMcellStep:simPerMcell,volMsPerMpx:volPerMpx,sceneMs,pred,samples:{sim:C.sim.length,vol:C.vol.length,scene:C.scene.length},timerQuery:!!PERF.ext,renderer:perfRenderer()};
  const M=PERF.manual;for(const ax of ['sim','vol','ren'])perfApplyTier(ax,M[ax]||pick);if(PERF.userScale)LIVE.cs=PERF.userScale;
- PERF.ctl.maxGrid=QUALITY.tiers.indexOf(M.sim||'ULTRA');
+ PERF.ctl.maxGrid=M.sim?QUALITY.tiers.indexOf(M.sim):(MOBILE?QUALITY.tiers.indexOf('MID'):QUALITY.tiers.length-1);
  if((M.sim||pick)!==LIVE.q)liveSetTier(M.sim||pick,'cal');else liveReapplyAfterCal();
  PERF.ctl.cool=performance.now()+4000;PERF.ctl.log.push('cal→'+pick)}
 function liveReapplyAfterCal(){LIVE.api&&LIVE.api.reset&&LIVE.ok&&LIVE.api.reset()}
@@ -127,7 +127,7 @@ function perfControl(now){const C=PERF.ctl,M=PERF.manual;if(!PERF.cal?.done||LIV
  else C.calm=0}
 /* upgrades never exceed the tier's own table value except for the grid (promotion path) */
 function perfTierCap(k){const t=PERF.tier||{},v=QUALITY.vol[t.vol||'LOW'],r=QUALITY.ren[t.ren||'LOW'],s=QUALITY.sim[t.sim||'LOW'],f=x=>k.steps.findIndex(y=>Math.abs(y-x)<1e-6);
- return ({volRes:f(v.res),raySteps:f(v.steps),ao:r.ao,ssr:r.ssr,shadow:r.shadow-1,renderScale:f(r.scale),scalar:1,cfdRate:f(s.sub),grid:3})[k.k]??k.steps.length-1}
+ return ({volRes:f(v.res),raySteps:f(v.steps),ao:r.ao,ssr:r.ssr,shadow:r.shadow-1,renderScale:f(r.scale),scalar:1,cfdRate:f(s.sub),grid:QUALITY.tiers.length-1})[k.k]??k.steps.length-1}
 
 /* ---------- #bench=perf : fixed camera path, JSON result ---------- */
 const PERF_BENCH_PATH=[['Hero',5000],['Side',5000],['Top',5000],['Fan',5000],['FPV',6000]];

@@ -73,3 +73,4 @@
 | 그래픽 | 약한 블룸, 동적 해상도 | PASS | |
 | LBM | D3Q19 구현, FP32/MIXED/FP16 비교, 정확도·ms·메모리·안정성 | PASS(비교 완료) | St 0.195(3모드 모두), Cd +43 %(기준 밖 → 채택 안 함), MIXED=FP32 정확도·메모리 절반. VALIDATION "LBM 비교", ARCHITECTURE §5 |
 | 산출물 | 고정 카메라 5곳 스크린샷, 수치표, 스냅샷 | PASS | `tests/out/m8/cam1~5.png`, VALIDATION.md, `dist/snapshots/` |
+| 모바일 | 폰 화면에서 자동 모바일 모드, 터치 조작, 가벼운 등급 | PARTIAL | 크롬 에뮬레이션(아이폰 390×844, DPR 3, 터치)에서 감지·LITE·레이아웃·오류 없음 확인. 실제 iPhone Safari는 ASSUMED (KNOWN_LIMITATIONS L21) |

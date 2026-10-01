@@ -5,10 +5,10 @@ const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',ma
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
 const LIVE_BENCH={D:.5,x:-1.5,z:.1,y:1.5,T:8,spin:2};
-const LIVE_Q={LOW:QUALITY.sim.LOW.grid,MID:QUALITY.sim.MID.grid,MED:QUALITY.sim.MID.grid,HIGH:QUALITY.sim.HIGH.grid,ULTRA:QUALITY.sim.ULTRA.grid};
+const LIVE_Q={LITE:QUALITY.sim.LITE.grid,LOW:QUALITY.sim.LOW.grid,MID:QUALITY.sim.MID.grid,MED:QUALITY.sim.MID.grid,HIGH:QUALITY.sim.HIGH.grid,ULTRA:QUALITY.sim.ULTRA.grid};
 const LIVE_TIERS=QUALITY.tiers;
 /* start tier: manual (#q / #sim) or the calibrated choice; before calibration the LOW grid is used to measure */
-function liveStartTier(){const m=perfManualFromHash().sim;if(m)return {q:m,auto:false};return {q:LIVE.forceQ||'LOW',auto:true}}
+function liveStartTier(){const m=perfManualFromHash().sim;if(m)return {q:m,auto:false};return {q:LIVE.forceQ||(MOBILE?'LITE':'LOW'),auto:true}}
 const LIVE_VS=`#version 300 es
 void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0.,1.);}`;
 const LIVE_H=`#version 300 es
@@ -295,7 +295,7 @@ function liveCalibrationMarch(w,h){const RT=liveSmokeRT(w,h),p=LIVE.prog.ray;gl.
  gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform1f(liveU(p,'uCMode'),1);
  gl.uniform1i(liveU(p,'uQ'),1);gl.uniform1f(liveU(p,'uStepScale'),1);gl.uniform1f(liveU(p,'uCal'),1);gl.uniform1i(liveU(p,'uFrame'),0);gl.drawArrays(gl.TRIANGLES,0,3);LIVE.calSteps=Math.round(18/.085)}
 function liveRender(vp){if(!LIVE.enabled||!LIVE.ok)return;const dep=gl.isEnabled(gl.DEPTH_TEST),cull=gl.isEnabled(gl.CULL_FACE),cw=glCanvas.width,ch=glCanvas.height;try{
- const rs=LIVE.rs,w=Math.max(64,Math.round(cw*rs)),h=Math.max(64,Math.round(ch*rs)),RT=liveSmokeRT(w,h),p=LIVE.prog.ray,tq=LIVE.q==='LOW'?0:(LIVE.q==='MED'||LIVE.q==='HIGH'?1:2);
+ const rs=LIVE.rs,w=Math.max(64,Math.round(cw*rs)),h=Math.max(64,Math.round(ch*rs)),RT=liveSmokeRT(w,h),p=LIVE.prog.ray,tq=(LIVE.q==='LOW'||LIVE.q==='LITE')?0:(LIVE.q==='MED'||LIVE.q==='HIGH'?1:2);
  gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.bindFramebuffer(gl.FRAMEBUFFER,RT.f);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  gl.useProgram(p);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_3D,LIVE.vol);gl.uniform1i(liveU(p,'uVol'),8);gl.uniformMatrix4fv(liveU(p,'uInv'),false,liveInv(vp));
  gl.uniform3f(liveU(p,'uEye'),...camera.eye);gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);

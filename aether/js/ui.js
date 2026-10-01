@@ -67,7 +67,7 @@ setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classL
 })();
 /* engineer panel: quality / resolution (any tier selectable on any device; warns above the measured recommendation) */
 (()=>{const q=id=>document.getElementById(id),P=()=>window.__PERF;if(!q('qualityPanel'))return;
- const T=['LOW','MID','HIGH','ULTRA'],set=o=>{const p=P();if(p&&p.userSet){p.userSet(o);sync(true)}};
+ const T=['LITE','LOW','MID','HIGH','ULTRA'],set=o=>{const p=P();if(p&&p.userSet){p.userSet(o);sync(true)}};
  const sync=force=>{const p=P();if(!p||!p.userState)return;const s=p.userState(),m=s.manual;
   if(force||document.activeElement?.closest?.('#qualityPanel')==null){q('qVol').value=m.vol;q('qRen').value=m.ren;q('qSim').value=m.sim;
    if(m.vol===m.ren&&m.ren===m.sim)q('qAll').value=m.sim;else q('qAll').selectedIndex=-1;
@@ -79,10 +79,14 @@ setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classL
   lines.push('프레임 '+(s.p95!=null?'p95 '+s.p95.toFixed(1)+' ms':'—')+(s.frameMs!=null?' · 비용 '+s.frameMs.toFixed(1)+' ms('+(s.frameSrc||'')+')':'')+' · 자동 조절 '+(s.adaptive?'켜짐':'꺼짐'));
   if(s.log.length)lines.push('최근 조정: '+s.log.join(', '));
   const el=q('qStatus');el.textContent=lines.join('\n');
-  const hi=s.measured&&s.pick&&['sim','vol','ren'].some(a=>T.indexOf(m[a])>T.indexOf(s.pick))||(s.scale&&s.scale>1&&s.pick==='LOW');
+  const hi=s.measured&&s.pick&&['sim','vol','ren'].some(a=>T.indexOf(m[a])>T.indexOf(s.pick))||(s.scale&&s.scale>1&&(s.pick==='LOW'||s.pick==='LITE'));
   if(hi){const w=document.createElement('span');w.className='warn';w.textContent='\n주의: 선택한 설정이 측정 추천('+s.pick+')보다 높아 느려질 수 있습니다.';el.appendChild(w)}};
  q('qAll').onchange=e=>{const v=e.target.value;set({sim:v,vol:v,ren:v,scale:null})};
  for(const [id,ax] of [['qVol','vol'],['qRen','ren'],['qSim','sim']])q(id).onchange=e=>set({[ax]:e.target.value});
  q('qScale').onchange=e=>set({scale:e.target.value?+e.target.value:null});
  q('qAdaptive').onchange=e=>set({adaptive:e.target.checked});
  sync(true);setInterval(()=>{if(document.body.classList.contains('eng')||!document.body.classList.contains('sc'))sync(false)},500)})();
+/* mobile mode: tap the HUD to expand, touch hint, PC <-> mobile switch */
+(()=>{if(!document.body)return;const hud=document.getElementById('lvStat');if(hud&&window.__MOBILE)hud.addEventListener('click',()=>hud.classList.toggle('open'));
+ const dock=document.getElementById('scDock');if(dock&&!document.getElementById('scMobileSwitch')){const b=document.createElement('button');b.id='scMobileSwitch';b.type='button';b.textContent=window.__MOBILE?'PC 화면':'모바일 화면';b.title='모바일/PC 화면 전환(이 브라우저에 저장)';b.onclick=()=>window.__setMobile(!window.__MOBILE);dock.appendChild(b)}
+ if(window.__MOBILE){const h=document.getElementById('fpvHelp');if(h)h.textContent='왼쪽 조이스틱: 이동 · 오른쪽 화면 드래그: 시점 · 두 손가락: 확대'}})();
