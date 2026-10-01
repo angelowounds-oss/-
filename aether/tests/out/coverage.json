@@ -1,0 +1,725 @@
+{
+ "per": [
+  {
+   "file": "00-core.js",
+   "bytes": 5376,
+   "executed": 4906,
+   "never": 470,
+   "pct": 91.3
+  },
+  {
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 112795,
+   "executed": 15906,
+   "never": 96889,
+   "pct": 14.1
+  },
+  {
+   "file": "20-scene-assets.js",
+   "bytes": 53591,
+   "executed": 43743,
+   "never": 9848,
+   "pct": 81.6
+  },
+  {
+   "file": "30-renderer-lighting.js",
+   "bytes": 40785,
+   "executed": 23868,
+   "never": 16917,
+   "pct": 58.5
+  },
+  {
+   "file": "40-gl-walk-door.js",
+   "bytes": 29299,
+   "executed": 25021,
+   "never": 4278,
+   "pct": 85.4
+  },
+  {
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 33045,
+   "executed": 15862,
+   "never": 17183,
+   "pct": 48
+  },
+  {
+   "file": "60-fan-collector-layout.js",
+   "bytes": 32174,
+   "executed": 29061,
+   "never": 3113,
+   "pct": 90.3
+  },
+  {
+   "file": "70-smoke-particles.js",
+   "bytes": 33116,
+   "executed": 4830,
+   "never": 28286,
+   "pct": 14.6
+  },
+  {
+   "file": "80-body.js",
+   "bytes": 3803,
+   "executed": 957,
+   "never": 2846,
+   "pct": 25.2
+  },
+  {
+   "file": "84-perf-quality.js",
+   "bytes": 22113,
+   "executed": 11400,
+   "never": 10713,
+   "pct": 51.6
+  },
+  {
+   "file": "85-live-cfd.js",
+   "bytes": 49351,
+   "executed": 25856,
+   "never": 23495,
+   "pct": 52.4
+  },
+  {
+   "file": "86-mac-cfd.js",
+   "bytes": 49291,
+   "executed": 38443,
+   "never": 10848,
+   "pct": 78
+  },
+  {
+   "file": "87-lbm.js",
+   "bytes": 12930,
+   "executed": 6962,
+   "never": 5968,
+   "pct": 53.8
+  },
+  {
+   "file": "88-post-fx.js",
+   "bytes": 22951,
+   "executed": 21959,
+   "never": 992,
+   "pct": 95.7
+  },
+  {
+   "file": "89-lighting-hq.js",
+   "bytes": 13196,
+   "executed": 7179,
+   "never": 6017,
+   "pct": 54.4
+  },
+  {
+   "file": "89b-cinematic.js",
+   "bytes": 20702,
+   "executed": 14116,
+   "never": 6586,
+   "pct": 68.2
+  },
+  {
+   "file": "90-render-loop.js",
+   "bytes": 62344,
+   "executed": 35808,
+   "never": 26536,
+   "pct": 57.4
+  }
+ ],
+ "dead": [
+  {
+   "name": "create",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 14095
+  },
+  {
+   "name": "createS3Control",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 12171
+  },
+  {
+   "name": "shaderSources",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 6013
+  },
+  {
+   "name": "S2_WGSL",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 5655
+  },
+  {
+   "name": "s3Compile384Shaders",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 5291
+  },
+  {
+   "name": "S3_WGSL",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 4667
+  },
+  {
+   "name": "smokeHardwareGeometry",
+   "file": "70-smoke-particles.js",
+   "bytes": 4117
+  },
+  {
+   "name": "create",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 3718
+  },
+  {
+   "name": "m13ValidateFrame",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 3617
+  },
+  {
+   "name": "voxelize",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 3331
+  },
+  {
+   "name": "smokeEnsureResources",
+   "file": "70-smoke-particles.js",
+   "bytes": 3239
+  },
+  {
+   "name": "lbmSetup",
+   "file": "87-lbm.js",
+   "bytes": 2664
+  },
+  {
+   "name": "createWorker",
+   "file": "90-render-loop.js",
+   "bytes": 2636
+  },
+  {
+   "name": "smokeUpdate",
+   "file": "70-smoke-particles.js",
+   "bytes": 2629
+  },
+  {
+   "name": "acceptFrame",
+   "file": "20-scene-assets.js",
+   "bytes": 2507
+  },
+  {
+   "name": "ribBuild",
+   "file": "70-smoke-particles.js",
+   "bytes": 2504
+  },
+  {
+   "name": "m13BuildStreamlines",
+   "file": "30-renderer-lighting.js",
+   "bytes": 2423
+  },
+  {
+   "name": "s3AllocateGpuResidentState",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 2387
+  },
+  {
+   "name": "liveVoxelize",
+   "file": "85-live-cfd.js",
+   "bytes": 2301
+  },
+  {
+   "name": "solve",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 2276
+  },
+  {
+   "name": "smokeAdvanceOne",
+   "file": "70-smoke-particles.js",
+   "bytes": 2186
+  },
+  {
+   "name": "s3Init",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 2178
+  },
+  {
+   "name": "verifyPath",
+   "file": "89b-cinematic.js",
+   "bytes": 2146
+  },
+  {
+   "name": "plan",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 2052
+  },
+  {
+   "name": "s3PlanTiledDispatch",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 2046
+  },
+  {
+   "name": "RIB_DRAW",
+   "file": "70-smoke-particles.js",
+   "bytes": 2042
+  },
+  {
+   "name": "layout",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 2018
+  },
+  {
+   "name": "liveRender",
+   "file": "85-live-cfd.js",
+   "bytes": 1965
+  },
+  {
+   "name": "hqCsmAlloc",
+   "file": "89-lighting-hq.js",
+   "bytes": 1825
+  },
+  {
+   "name": "macCvForce",
+   "file": "86-mac-cfd.js",
+   "bytes": 1812
+  },
+  {
+   "name": "m13BuildWake",
+   "file": "30-renderer-lighting.js",
+   "bytes": 1768
+  },
+  {
+   "name": "socketAction",
+   "file": "90-render-loop.js",
+   "bytes": 1717
+  },
+  {
+   "name": "vehicleTransformChanged",
+   "file": "20-scene-assets.js",
+   "bytes": 1713
+  },
+  {
+   "name": "s3Validate384DeviceLimits",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 1680
+  },
+  {
+   "name": "publishOfficeM13",
+   "file": "90-render-loop.js",
+   "bytes": 1648
+  },
+  {
+   "name": "s3Build384ResourcePlan",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 1618
+  },
+  {
+   "name": "perfDecide",
+   "file": "84-perf-quality.js",
+   "bytes": 1500
+  },
+  {
+   "name": "m13SlicePixels",
+   "file": "30-renderer-lighting.js",
+   "bytes": 1327
+  },
+  {
+   "name": "perfBenchShow",
+   "file": "84-perf-quality.js",
+   "bytes": 1268
+  },
+  {
+   "name": "m13SegmentHitsSolid",
+   "file": "30-renderer-lighting.js",
+   "bytes": 1266
+  },
+  {
+   "name": "perfBenchFinish",
+   "file": "84-perf-quality.js",
+   "bytes": 1225
+  },
+  {
+   "name": "liveBenchAnalyze",
+   "file": "85-live-cfd.js",
+   "bytes": 1206
+  },
+  {
+   "name": "m13DrawCp",
+   "file": "30-renderer-lighting.js",
+   "bytes": 1165
+  },
+  {
+   "name": "perfCalibrateStep",
+   "file": "84-perf-quality.js",
+   "bytes": 1144
+  },
+  {
+   "name": "smokeWarmStart",
+   "file": "70-smoke-particles.js",
+   "bytes": 1132
+  },
+  {
+   "name": "lbmStep",
+   "file": "87-lbm.js",
+   "bytes": 1083
+  },
+  {
+   "name": "start",
+   "file": "90-render-loop.js",
+   "bytes": 1056
+  },
+  {
+   "name": "m13LegendScan",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 1049
+  },
+  {
+   "name": "pick3DControl",
+   "file": "90-render-loop.js",
+   "bytes": 1037
+  },
+  {
+   "name": "liveCalibrationMarch",
+   "file": "85-live-cfd.js",
+   "bytes": 1019
+  },
+  {
+   "name": "pickM6Socket",
+   "file": "90-render-loop.js",
+   "bytes": 1015
+  },
+  {
+   "name": "m13BuildVectors",
+   "file": "30-renderer-lighting.js",
+   "bytes": 1008
+  },
+  {
+   "name": "flowSample",
+   "file": "80-body.js",
+   "bytes": 1007
+  },
+  {
+   "name": "smokeMayHitSolid",
+   "file": "70-smoke-particles.js",
+   "bytes": 1003
+  },
+  {
+   "name": "setWindSpeed",
+   "file": "90-render-loop.js",
+   "bytes": 1003
+  },
+  {
+   "name": "livePass",
+   "file": "85-live-cfd.js",
+   "bytes": 981
+  },
+  {
+   "name": "liveReobstacle",
+   "file": "85-live-cfd.js",
+   "bytes": 955
+  },
+  {
+   "name": "bytesFor",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 919
+  },
+  {
+   "name": "checkLimits",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 915
+  },
+  {
+   "name": "smokeBoundaryHit",
+   "file": "70-smoke-particles.js",
+   "bytes": 915
+  },
+  {
+   "name": "m13Streamline",
+   "file": "30-renderer-lighting.js",
+   "bytes": 898
+  },
+  {
+   "name": "liveBuildLevels",
+   "file": "85-live-cfd.js",
+   "bytes": 883
+  },
+  {
+   "name": "smokeHardwareEnsure",
+   "file": "70-smoke-particles.js",
+   "bytes": 875
+  },
+  {
+   "name": "smokeRespawn",
+   "file": "70-smoke-particles.js",
+   "bytes": 852
+  },
+  {
+   "name": "window.__perfHudText",
+   "file": "84-perf-quality.js",
+   "bytes": 838
+  },
+  {
+   "name": "s2DomainAudit",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 836
+  },
+  {
+   "name": "checks",
+   "file": "90-render-loop.js",
+   "bytes": 836
+  },
+  {
+   "name": "buildObstacles",
+   "file": "89b-cinematic.js",
+   "bytes": 834
+  },
+  {
+   "name": "smokeSample",
+   "file": "70-smoke-particles.js",
+   "bytes": 823
+  },
+  {
+   "name": "m13VectorSample",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 805
+  },
+  {
+   "name": "s3Snapshot",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 804
+  },
+  {
+   "name": "m13SliceGeometry",
+   "file": "30-renderer-lighting.js",
+   "bytes": 797
+  },
+  {
+   "name": "macDivStats",
+   "file": "86-mac-cfd.js",
+   "bytes": 797
+  },
+  {
+   "name": "macSolveBench",
+   "file": "86-mac-cfd.js",
+   "bytes": 789
+  },
+  {
+   "name": "poisson",
+   "file": "85-live-cfd.js",
+   "bytes": 781
+  },
+  {
+   "name": "macForces",
+   "file": "86-mac-cfd.js",
+   "bytes": 781
+  },
+  {
+   "name": "casters",
+   "file": "89-lighting-hq.js",
+   "bytes": 781
+  },
+  {
+   "name": "m13UploadLines",
+   "file": "30-renderer-lighting.js",
+   "bytes": 760
+  },
+  {
+   "name": "lbmProbe",
+   "file": "87-lbm.js",
+   "bytes": 756
+  },
+  {
+   "name": "perfFence",
+   "file": "84-perf-quality.js",
+   "bytes": 741
+  },
+  {
+   "name": "smokeDrawHardware",
+   "file": "70-smoke-particles.js",
+   "bytes": 739
+  },
+  {
+   "name": "S2_TOPOLOGY",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 732
+  },
+  {
+   "name": "m13ScalarSample",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 728
+  },
+  {
+   "name": "m13WakeLegend",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 720
+  },
+  {
+   "name": "divStats",
+   "file": "85-live-cfd.js",
+   "bytes": 711
+  },
+  {
+   "name": "macValidate",
+   "file": "86-mac-cfd.js",
+   "bytes": 709
+  },
+  {
+   "name": "smokeBuildRoute",
+   "file": "70-smoke-particles.js",
+   "bytes": 706
+  },
+  {
+   "name": "m13BuildSlice",
+   "file": "30-renderer-lighting.js",
+   "bytes": 681
+  },
+  {
+   "name": "render",
+   "file": "90-render-loop.js",
+   "bytes": 680
+  },
+  {
+   "name": "gradient",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 678
+  },
+  {
+   "name": "smokeAdvance",
+   "file": "70-smoke-particles.js",
+   "bytes": 659
+  },
+  {
+   "name": "m13AcceptFrame",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 648
+  },
+  {
+   "name": "metrics",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 596
+  },
+  {
+   "name": "m13CpBuffers",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 596
+  },
+  {
+   "name": "project",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 594
+  },
+  {
+   "name": "bindSource",
+   "file": "20-scene-assets.js",
+   "bytes": 594
+  },
+  {
+   "name": "m13SetSlice",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 591
+  },
+  {
+   "name": "macVrun",
+   "file": "86-mac-cfd.js",
+   "bytes": 590
+  },
+  {
+   "name": "applyA",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 575
+  },
+  {
+   "name": "m13BindSolver",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 571
+  },
+  {
+   "name": "liveCycle",
+   "file": "85-live-cfd.js",
+   "bytes": 561
+  },
+  {
+   "name": "lbmForce",
+   "file": "87-lbm.js",
+   "bytes": 558
+  },
+  {
+   "name": "reset",
+   "file": "90-render-loop.js",
+   "bytes": 552
+  },
+  {
+   "name": "attach",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 550
+  },
+  {
+   "name": "liveRead",
+   "file": "85-live-cfd.js",
+   "bytes": 543
+  },
+  {
+   "name": "settings",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 538
+  },
+  {
+   "name": "macReadCell",
+   "file": "86-mac-cfd.js",
+   "bytes": 538
+  },
+  {
+   "name": "S2_BOUNDARY_COMPONENTS",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 536
+  },
+  {
+   "name": "fallbackSmoke",
+   "file": "89b-cinematic.js",
+   "bytes": 533
+  },
+  {
+   "name": "setNumerics",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 532
+  },
+  {
+   "name": "smokeParticleEvent",
+   "file": "70-smoke-particles.js",
+   "bytes": 525
+  },
+  {
+   "name": "m13SetMode",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 513
+  },
+  {
+   "name": "wgsl",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 508
+  },
+  {
+   "name": "limitsOf",
+   "file": "10-webgpu-s1-s3.js",
+   "bytes": 493
+  },
+  {
+   "name": "perfBenchNext",
+   "file": "84-perf-quality.js",
+   "bytes": 489
+  },
+  {
+   "name": "smokeRelease",
+   "file": "70-smoke-particles.js",
+   "bytes": 485
+  },
+  {
+   "name": "converge",
+   "file": "85-live-cfd.js",
+   "bytes": 483
+  },
+  {
+   "name": "m13ResetLegend",
+   "file": "50-cfd-bridge-m13.js",
+   "bytes": 482
+  },
+  {
+   "name": "next",
+   "file": "90-render-loop.js",
+   "bytes": 482
+  },
+  {
+   "name": "liveSolve",
+   "file": "85-live-cfd.js",
+   "bytes": 439
+  }
+ ]
+}
