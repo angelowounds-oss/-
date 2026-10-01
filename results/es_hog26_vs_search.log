@@ -1,0 +1,3 @@
+gen   0  pop mean score -0.091  current-net winrate vs pool (search policy 5) 0.011  [3168 eval so far]
+gen   5  pop mean score -0.078  current-net winrate vs pool (search policy 5) 0.011  [19008 eval so far]
+gen  10  pop mean score -0.066  current-net winrate vs pool (search policy 5) 0.057  [34848 eval so far]

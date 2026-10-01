@@ -469,9 +469,10 @@ int main(int argc, char** argv) {
     Deck mine = P[di]; vector<Deck> opps; for (int i = 0; i < (int)P.size(); i++) if (i != di) opps.push_back(P[i]);
     Rng rng(12345); vector<float> th = gauss(rng, NPARAM); for (auto& x : th) x *= 0.1f; { float* b2 = th.data() + NIN * NHID + NHID + NHID * NOUT; b2[NSLOT - 1] = 0.5f; }
     if (const char* ini = getenv("CR_INIT")) loadNet(th, ini);
+    int gen0 = getenv("CR_GEN0") ? atoi(getenv("CR_GEN0")) : 0; if (gen0) rng = Rng(12345 + gen0);  // resume: continue generation numbering with fresh noise
     vector<int> pols; if (mix_pol == 0) { pols = {0, 1, 2}; } else if (mix_pol == 1) { pols = {0, 1, 2}; } else if (mix_pol == 5) { pols = {5, 6, 7}; } else { pols = {5, 6}; }  // default 5,6
-    int neval = 0;
-    for (int gen = 0; gen < gens; gen++) {
+    int neval = gen0 * (int)opps.size() * games * pairs * 2;
+    for (int gen = gen0; gen < gens; gen++) {
       vector<vector<float>> eps(pairs); for (int i = 0; i < pairs; i++) eps[i] = gauss(rng, NPARAM);
       vector<double> fp(pairs), fm(pairs); uint64_t gseed = 1000 + gen * 31;
       parFor(pairs * 2, [&](int idx) { int i = idx / 2; bool minus = idx & 1; vector<float> t(NPARAM); for (int q = 0; q < NPARAM; q++) t[q] = th[q] + (minus ? -sigma : sigma) * eps[i][q];
@@ -483,7 +484,7 @@ int main(int argc, char** argv) {
       for (int q = 0; q < NPARAM; q++) th[q] += (float)(lr / (pairs * sigma) * grad[q]);
       double mean = 0; for (int i = 0; i < pairs; i++) mean += fp[i] + fm[i]; mean /= 2 * pairs;
       neval += (int)opps.size() * games * pairs * 2;
-      if (gen % 5 == 0 || gen == gens - 1) { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 5, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (search policy 5) %.3f  [%d eval so far]\n", gen, mean, win / opps.size(), neval); fflush(stdout); saveNet(th, out); }
+      { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 5, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (search policy 5) %.3f  [%d eval so far]\n", gen, mean, win / opps.size(), neval); fflush(stdout); saveNet(th, out); }
     }
   } else if (mode == "estest") {  // estest <deckfile> <index> <netfile> <games>   (env CR_OPPPOL = opponent policy index, default 1)
     vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; vector<float> th; if (!loadNet(th, argv[4])) { fprintf(stderr, "cannot load net\n"); return 1; } int games = atoi(argv[5]);
