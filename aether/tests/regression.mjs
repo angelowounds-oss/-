@@ -45,10 +45,10 @@ try {
   check('스모크 레이크 세로(해상도별 3~7)/가로9/둘 다', rake.RAKE_V >= 3 && rake.RAKE_V <= 7 && rake.RAKE_H === 9 && rake.BOTH === rake.RAKE_V + 9, rake);
   // walk into the tunnel (teleport past the door), body solid + wand
   await ev(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; document.getElementById('walkMode').click(); const F = __AETHER_DEBUG.fpv; F.x = -2.0; F.z = 0.4; F.yaw = Math.PI / 2; F.pitch = -0.05; F.gy = undefined; __LIVE.wand = true; });
-  await page.waitForFunction(() => __BODY.active && __BODY.inTunnel && __LIVE.emitters.length === 8, null, { timeout: 120000 }).catch(() => {});
+  await page.waitForFunction(n => __BODY.active && __BODY.inTunnel && __LIVE.emitters.length === n, rake.RAKE_V + 1, { timeout: 120000 }).catch(() => {});
   const walk = await ev(() => ({ fpv: __AETHER_DEBUG.fpv.enabled, active: __BODY.active, inTunnel: __BODY.inTunnel, emitters: __LIVE.emitters.length }));
   check('1인칭 보행·풍동 진입', walk.fpv && walk.active && walk.inTunnel, walk);
-  check('스모크 완드', walk.emitters === 8, { emitters: walk.emitters });
+  check('스모크 완드(레이크 + 1)', walk.emitters === rake.RAKE_V + 1, { emitters: walk.emitters, rake: rake.RAKE_V });
   await sleep(4000);
   const body = await ev(() => ({ flags: __LIVE.api.flagCounts(), speedAt: __LIVE.speedAt, hud: document.getElementById('bdHud')?.textContent }));
   check('이동 사람 고체(유동 경계)', body.flags.body > 0 && Number.isFinite(body.speedAt) && body.speedAt > 0.3, body);
@@ -66,12 +66,12 @@ try {
   for (const c of ['Hero', 'Side', 'Top', 'Fan']) { await ev(n => __AETHER_DEBUG.setPreset(n), c); await sleep(6000); await page.screenshot({ path: path.join(outDir, `cam${i++}-${c.toLowerCase()}.png`), timeout: 600000 }); }
   // control room: rolling road follows the GPU solver, e-stop, flow pause/reset, wind setpoint
   const rr0 = await ev(() => { const r = AETHER.ROLLING_ROAD.getSnapshot(); return { belt: r.beltTravel, speed: r.effectiveSpeed, w: r.wheelAngles[0] }; });
-  await sleep(5000);
+  const t0 = await ev(() => __LIVE.t); await page.waitForFunction(t => __LIVE.t > t + 0.1, t0, { timeout: 300000 });
   const rr1 = await ev(() => { const r = AETHER.ROLLING_ROAD.getSnapshot(); return { belt: r.beltTravel, speed: r.effectiveSpeed, w: r.wheelAngles[0], U: __LIVE.U }; });
   check('롤링로드·바퀴가 GPU 솔버 풍속으로 구동', rr1.speed > 0 && Math.abs(rr1.speed - rr1.U) < 1e-6 && (rr1.belt !== rr0.belt || rr1.w !== rr0.w), { rr0, rr1 });
   const es = await ev(() => { const C = window.__CONTROLS; C.emergencyStop(); const a = { stopped: C.getSnapshot().control.emergencyStopped, frozen: __LIVE.freeze, road: AETHER.ROLLING_ROAD.getSnapshot().motorEnabled, fan: AETHER.FAN_MODULE.visualRunning, refusedWind: C.windSet(8) === false }; C.resetEmergencyStop(); a.released = !C.getSnapshot().control.emergencyStopped; a.unfrozen = !__LIVE.freeze; return a; });
   check('비상정지: 팬·롤링로드·흐름 정지, 해제 후 흐름 재개', es.stopped && es.frozen && !es.road && !es.fan && es.refusedWind && es.released && es.unfrozen, es);
-  const ctl = await ev(() => { const C = window.__CONTROLS; const a = { pause: C.flowSetPaused(true) && __LIVE.freeze === true }; C.flowSetPaused(false); a.resume = __LIVE.freeze === false; a.wind = C.windSet(8) && __LIVE.U === 8 && __MAC.U === 8; C.windSet(5); a.back = __LIVE.U === 5 && __MAC.U === 5; a.legacyGone = !AETHER.SOLVER && !AETHER.S3_OFFICE && !document.querySelector('.toolbar,.m13-panel,#s3OfficePanel'); a.menus = document.querySelectorAll('#scDock .menu').length; a.drawer = !!document.querySelector('aside#panel #controlPanel #qualityPanel'); return a; });
+  const ctl = await ev(() => { const C = window.__CONTROLS; const a = { pause: C.flowSetPaused(true) && __LIVE.freeze === true }; C.flowSetPaused(false); a.resume = __LIVE.freeze === false; a.wind = C.windSet(8) && __LIVE.U === 8 && __MAC.U === 8; C.windSet(5); a.back = __LIVE.U === 5 && __MAC.U === 5; a.legacyGone = !AETHER.SOLVER && !AETHER.S3_OFFICE && !document.querySelector('.toolbar,.m13-panel,#s3OfficePanel'); a.menus = document.querySelectorAll('#scDock .menu').length; a.drawer = !!document.querySelector('aside#panel #controlPanel') && !!document.querySelector('aside#panel #qualityPanel'); return a; });
   check('제어실: 일시정지·재개·풍속 변경, 제거된 기능 없음, UI 구성', ctl.pause && ctl.resume && ctl.wind && ctl.back && ctl.legacyGone && ctl.menus === 3 && ctl.drawer, ctl);
   const shaders = await ev(() => window.__SHADERS);
   check('셰이더 컴파일(ANGLE)', shaders.failed.length === 0 && shaders.compiled > 10, { compiled: shaders.compiled, failed: shaders.failed });

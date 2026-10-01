@@ -68,7 +68,7 @@ try {
   }
   // other camera writers cancel it
   for (const how of ['preset', 'walk', 'estop']) {
-    const r = await virt(how => { __CINE.cancel('test'); window.AETHER.M14?.resetEmergencyStop?.(); __CINE.start({ source: 'test' }); window.__vt.step(1000 / 60, 60 * 3); if (how === 'preset') document.getElementById('smokeHeroView').click(); if (how === 'walk') document.getElementById('walkMode').click(); if (how === 'estop') { window.AETHER.M14.emergencyStop(); window.__vt.step(1000 / 60, 2); } return { s: __CINE.state, reason: __CINE.reason }; }, how);
+    const r = await virt(how => { __CINE.cancel('test'); window.AETHER.M14?.resetEmergencyStop?.(); __CINE.start({ source: 'test' }); window.__vt.step(1000 / 60, 60 * 3); if (how === 'preset') document.querySelector('[data-camera="Hero"]').click(); if (how === 'walk') document.getElementById('walkMode').click(); if (how === 'estop') { window.AETHER.M14.emergencyStop(); window.__vt.step(1000 / 60, 2); } return { s: __CINE.state, reason: __CINE.reason }; }, how);
     rec('cancel by ' + how + ' (single camera owner)', r.s === 'CANCELLED', r);
   }
   const est = await virt(() => { const r = { refused: __CINE.start({ source: 'test' }) === false }; window.AETHER.M14?.resetEmergencyStop?.(); return r; });
