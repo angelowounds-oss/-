@@ -96,3 +96,8 @@ Findings (honest): the engine is fine; the *players* are the limit.
 - Lookahead players (6-10 s horizon) flip the bias: cycle/chip decks do well (Goblin-Drill 77%), Golem collapses to 5%.
 - Mixing both families does not remove the bias. No "neutral deck" is reported from this engine yet.
 Hero Dark Prince is not in the engine (Dark Prince base card is used in the Miner-Rocket list).
+
+### Long-horizon lookahead (policies 5-7: 10/16/24 s rollouts, own continuation) — `results/real_meta_long.txt`
+Golem rose 5% -> 19% and games became close (1-2, 2-1), but the polarisation remains (Pekka bridge-spam 85%, Log-bait 84%,
+Mega Knight 4%). Longer horizon alone does not remove the bias. PyTorch cannot be installed here (pip cannot reach PyPI, no GPU),
+so the repo's PPO stack cannot run as-is; a pure-C++ evolution-strategy learner is the feasible substitute.
