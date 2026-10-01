@@ -113,7 +113,7 @@ struct Rng { uint64_t s; explicit Rng(uint64_t x = 1) : s(x * 268582165773633871
   uint64_t next() { s ^= s << 13; s ^= s >> 7; s ^= s << 17; return s; } float uni() { return (next() >> 11) * (1.0f / 9007199254740992.0f); } int below(int n) { return (int)(next() % (uint64_t)n); } };
 
 struct Player {
-  int team; Policy pol; Rng rng; int nextThink = 0; int atkLane = 0;
+  int team; Policy pol; Rng rng; int nextThink = 0; int atkLane = 0; const vector<float>* net = nullptr;
   Player(int t, const Policy& p, uint64_t seed) : team(t), pol(p), rng(seed) { nextThink = 3 + rng.below(4); }
   float oy(float y) const { return team == 0 ? y : ArenaLayout::mirrorY(y); }  // own-frame y (own side is low y)
   float wy(float y) const { return team == 0 ? y : ArenaLayout::mirrorY(y); }
@@ -286,25 +286,87 @@ static bool searchThink(GameManager& g, Player& P) {
   return g.playCard(team, hand[cands[bi].slot], cands[bi].x, cands[bi].y);
 }
 
+
+// ------------------------------------------------------------------ learned policy (small MLP, trained by evolution strategies)
+static const int NIN = 70, NHID = 48, NSLOT = 5, NPLACE = 9, NOUT = NSLOT + NPLACE;
+static const int NPARAM = NIN * NHID + NHID + NHID * NOUT + NOUT;
+
+static void placements(GameManager& g, Player& P, int slot, vector<pair<float, float>>& out) {
+  out.clear(); int team = P.team, en = 1 - team; int cid = g.getHand(team)[slot]; const Prof& pr = PROF[cid]; auto* def = CardRegistry::getInstance().getCard(cid);
+  const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); const float maxOwnY = g.getOwnHalfMaxY();
+  const float lx[2] = {ArenaLayout::LEFT_LANE_X, ArenaLayout::RIGHT_LANE_X}; const float C = ArenaLayout::CENTER_X;
+  struct En { float x, y, v; }; vector<En> enemies; const Entity* tow[2] = {nullptr, nullptr}; const Entity* lead = nullptr; float leadY = -1;
+  for (auto& ep : ents) { const Entity* e = ep.get(); if (!e->isAlive()) continue;
+    if (e->team == en) { if (e->isTower()) { if (e->name.find("King") == string::npos) tow[e->position.x < C ? 0 : 1] = e; continue; } if (e->isTargetable()) enemies.push_back({e->position.x, e->position.y, entVal(*e, ents)}); }
+    else if (!e->isTower() && !e->isBuilding() && dynamic_cast<const Troop*>(e)) { float ey = P.oy(e->position.y); if (ey > leadY) { leadY = ey; lead = e; } } }
+  sort(enemies.begin(), enemies.end(), [](const En& a, const En& b) { return a.v > b.v; });
+  const En* deep = nullptr; float deepY = -99; for (auto& e : enemies) { float ey = P.oy(e.y); if (ey < 15.5f && (ey > deepY || !deep)) { deepY = ey; deep = &e; } }
+  auto push = [&](float x, float y) { out.push_back({x, y}); };
+  float bridgeY = min(maxOwnY - 0.5f, 13.5f);
+  if (pr.spell) {
+    for (int k = 0; k < 3; k++) { if (k < (int)enemies.size()) push(enemies[k].x, enemies[k].y); else push(C, P.wy(22.0f)); }
+    for (int l = 0; l < 2; l++) { if (tow[l]) push(tow[l]->position.x, tow[l]->position.y); else push(lx[l], P.wy(25.0f)); }
+    push(lx[0], P.wy(24.5f)); push(lx[1], P.wy(24.5f)); push(C, P.wy(27.0f)); if (deep) push(deep->x, deep->y); else push(C, P.wy(12.0f));
+  } else if (pr.building && !pr.anywhere) {
+    push(C - 2.5f, P.wy(9.5f)); push(C + 2.5f, P.wy(9.5f)); push(C, P.wy(10.5f)); push(lx[0], P.wy(12.0f)); push(lx[1], P.wy(12.0f)); push(C - 4.5f, P.wy(8.0f)); push(C + 4.5f, P.wy(8.0f)); push(C, P.wy(7.0f)); push(C, P.wy(12.5f));
+  } else if (pr.anywhere || (def && def->deployAnywhere)) {
+    push(lx[0], P.wy(22.5f)); push(lx[1], P.wy(22.5f)); push(lx[0], P.wy(24.0f)); push(lx[1], P.wy(24.0f)); push(lx[0], P.wy(20.5f)); push(lx[1], P.wy(20.5f)); push(C, P.wy(23.0f)); push(lx[0], P.wy(26.0f)); push(lx[1], P.wy(26.0f));
+  } else {
+    for (int l = 0; l < 2; l++) { push(lx[l], P.wy(3.5f)); push(lx[l], P.wy(8.0f)); push(lx[l], P.wy(bridgeY)); }
+    if (deep) push(deep->x, P.wy(min(maxOwnY - 0.5f, max(4.0f, deepY - 2.5f)))); else push(lx[0], P.wy(6.0f));
+    if (lead) push(lead->position.x, P.wy(min(maxOwnY - 0.5f, max(2.0f, P.oy(lead->position.y) - 4.0f)))); else push(lx[1], P.wy(6.0f));
+    push(C, P.wy(8.0f));
+  }
+  while ((int)out.size() < NPLACE) out.push_back(out.back());
+}
+
+static void features(GameManager& g, Player& P, float* f) {
+  int team = P.team, en = 1 - team; const auto& hand = g.getHand(team); const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); int k = 0;
+  f[k++] = g.getElixir(team) / 10.0f; f[k++] = g.getElixir(en) / 10.0f; f[k++] = min(1.0f, g.currentTick / 3600.0f); f[k++] = GameManager::elixirMultiplierAtTick(g.currentTick) / 3.0f;
+  float th[2][3] = {{0, 0, 0}, {0, 0, 0}}; int cnt[2][2] = {{0, 0}, {0, 0}};
+  for (auto& ep : ents) { const Entity* e = ep.get(); if (!e->isAlive() || !e->isTower()) continue; int side = e->team == team ? 0 : 1; int idx = e->name.find("King") != string::npos ? 2 : (cnt[side][0]++ == 0 ? 0 : 1); th[side][idx] = min(1.0f, e->hp / (idx == 2 ? 4824.0f : 3052.0f)); }
+  for (int sd = 0; sd < 2; sd++) for (int i = 0; i < 3; i++) f[k++] = th[sd][i];
+  for (int s = 0; s < 4; s++) { if (s < (int)hand.size()) { const Prof& pr = PROF[hand[s]]; f[k++] = pr.cost / 10.0f; f[k++] = g.getElixir(team) >= pr.cost ? 1.0f : 0.0f; f[k++] = pr.spell ? 1.0f : 0.0f; f[k++] = pr.building ? 1.0f : 0.0f; f[k++] = pr.bo ? 1.0f : 0.0f; f[k++] = pr.air ? 1.0f : 0.0f; f[k++] = min(1.0f, pr.hp / 3000.0f); f[k++] = min(1.0f, pr.dps / 500.0f); f[k++] = min(1.0f, pr.range / 7.0f); f[k++] = pr.flying ? 1.0f : 0.0f; } else for (int q = 0; q < 10; q++) f[k++] = 0; }
+  // board: 2 lanes x 3 zones (own half / middle / enemy half in own frame) x (own value, enemy value) + enemy air per lane
+  float own[2][3] = {{0, 0, 0}, {0, 0, 0}}, foe[2][3] = {{0, 0, 0}, {0, 0, 0}}, air[2] = {0, 0}; const float C = ArenaLayout::CENTER_X;
+  for (auto& ep : ents) { const Entity* e = ep.get(); if (!e->isAlive() || e->isTower() || !e->isTargetable()) continue; int lane = e->position.x < C ? 0 : 1; float ey = P.oy(e->position.y); int z = ey < 12 ? 0 : (ey < 22 ? 1 : 2); float v = entVal(*e, ents);
+    if (e->team == team) own[lane][z] += v; else { foe[lane][z] += v; if (e->isFlying) air[lane] += 1; } }
+  for (int l = 0; l < 2; l++) { for (int z = 0; z < 3; z++) { f[k++] = min(1.0f, own[l][z] / 10.0f); f[k++] = min(1.0f, foe[l][z] / 10.0f); } f[k++] = min(1.0f, air[l] / 4.0f); }
+  while (k < NIN) f[k++] = 0.0f;
+}
+
+static bool netThink(GameManager& g, Player& P) {
+  const vector<float>& th = *P.net; int team = P.team; const auto& hand = g.getHand(team); float el = g.getElixir(team);
+  float in[NIN]; features(g, P, in); float h[NHID]; const float* W1 = th.data(); const float* b1 = W1 + NIN * NHID; const float* W2 = b1 + NHID; const float* b2 = W2 + NHID * NOUT;
+  for (int j = 0; j < NHID; j++) { float a = b1[j]; for (int i = 0; i < NIN; i++) a += in[i] * W1[i * NHID + j]; h[j] = tanhf(a); }
+  float o[NOUT]; for (int q = 0; q < NOUT; q++) { float a = b2[q]; for (int j = 0; j < NHID; j++) a += h[j] * W2[j * NOUT + q]; o[q] = a; }
+  int bs = -1; float bv = o[NSLOT - 1] + 0.0f;  // slot 4 = wait
+  for (int s = 0; s < (int)hand.size() && s < 4; s++) { const Prof& pr = PROF[hand[s]]; if ((!pr.ok && hand[s] != GameManager::MIRROR_CARD_ID) || el < pr.cost) continue; if (o[s] > bv) { bv = o[s]; bs = s; } }
+  if (bs < 0) return false;
+  vector<pair<float, float>> pl; placements(g, P, bs, pl); int bp = 0; float pv = -1e9f; for (int p = 0; p < NPLACE; p++) if (o[NSLOT + p] > pv) { pv = o[NSLOT + p]; bp = p; }
+  return g.playCard(team, hand[bs], pl[bp].first, pl[bp].second);
+}
+
 // champion / hero abilities: use when ready and enemies are close to own units or towers
 static void useAbilities(GameManager& g, int team) {
   for (int slot = 1; slot <= 2; slot++) { if (g.isChampionAbilityReady(team, slot)) { int cnt = 0; for (auto& ep : g.getBoard().getEntities()) if (ep->isAlive() && ep->team != team && !ep->isTower() && ep->isTargetable()) cnt++; if (cnt >= 2) g.activateChampionAbility(team, slot); } }
 }
 
-struct Result { int winner; int crowns0, crowns1; int ticks; };
+struct Result { int winner; int crowns0, crowns1; int ticks; float hp0 = 0, hp1 = 0; };
 static int towersAlive(const GameManager& g, int team) { int n = 0; for (auto& ep : g.getBoard().getEntities()) if (ep->isAlive() && ep->isTower() && ep->team == team && ep->name.find("King") == string::npos) n++; return n; }
 
-static Result playMatch(const Deck& a, const Deck& b, int pa, int pb, uint64_t seed) {
+static Result playMatch(const Deck& a, const Deck& b, int pa, int pb, uint64_t seed, const vector<float>* net0 = nullptr, const vector<float>* net1 = nullptr) {
   GameManager g(vector<int>(a.begin(), a.end()), vector<int>(b.begin(), b.end()));
-  Player P0(0, POL[pa], seed * 3 + 1), P1(1, POL[pb], seed * 7 + 2);
+  Player P0(0, POL[pa], seed * 3 + 1), P1(1, POL[pb], seed * 7 + 2); P0.net = net0; P1.net = net1;
   const int MAXT = 3600;  // regular 1800 + overtime; MatchRules ends the match itself
   while (!g.isGameOver() && g.currentTick < MAXT) {
     g.step();
-    if (g.currentTick >= P0.nextThink) { useAbilities(g, 0); if (P0.pol.lookahead) searchThink(g, P0); else think(g, P0); P0.nextThink = g.currentTick + (P0.pol.lookahead ? 6 : 4) + P0.rng.below(4); }
-    if (g.currentTick >= P1.nextThink) { useAbilities(g, 1); if (P1.pol.lookahead) searchThink(g, P1); else think(g, P1); P1.nextThink = g.currentTick + (P1.pol.lookahead ? 6 : 4) + P1.rng.below(4); }
+    if (g.currentTick >= P0.nextThink) { useAbilities(g, 0); if (P0.net) netThink(g, P0); else if (P0.pol.lookahead) searchThink(g, P0); else think(g, P0); P0.nextThink = g.currentTick + (P0.pol.lookahead ? 6 : 4) + P0.rng.below(4); }
+    if (g.currentTick >= P1.nextThink) { useAbilities(g, 1); if (P1.net) netThink(g, P1); else if (P1.pol.lookahead) searchThink(g, P1); else think(g, P1); P1.nextThink = g.currentTick + (P1.pol.lookahead ? 6 : 4) + P1.rng.below(4); }
   }
   Result r{-1, 3 - towersAlive(g, 1) - 0, 3 - towersAlive(g, 0), g.currentTick};
   r.crowns0 = 2 - towersAlive(g, 1); r.crowns1 = 2 - towersAlive(g, 0);
+  for (auto& ep : g.getBoard().getEntities()) if (ep->isTower() && ep->isAlive()) { float fr = ep->hp / (ep->name.find("King") != string::npos ? 4824.0f : 3052.0f); (ep->team == 0 ? r.hp0 : r.hp1) += min(1.0f, fr) / 3.0f; }
   if (g.isGameOver()) r.winner = g.getLoserTeam() < 0 ? -1 : 1 - g.getLoserTeam();
   return r;
 }
@@ -334,6 +396,21 @@ static float matchupValue(const Deck& a, const Deck& b, int g, uint64_t seed) {
   return solveValue(m);
 }
 
+
+// ------------------------------------------------------------------ evolution strategies trainer
+static vector<float> gauss(Rng& r, int n) { vector<float> v(n); for (int i = 0; i < n; i += 2) { float u1 = max(1e-7f, r.uni()), u2 = r.uni(); float m = sqrtf(-2.0f * logf(u1)); v[i] = m * cosf(6.2831853f * u2); if (i + 1 < n) v[i + 1] = m * sinf(6.2831853f * u2); } return v; }
+// score of net playing `mine` vs `opp` (opponent uses rule/search policy index); alternates sides
+static double netScore(const vector<float>& th, const Deck& mine, const Deck& opp, int oppPol, int games, uint64_t seed, double* winOut = nullptr) {
+  double sc = 0, w = 0;
+  for (int k = 0; k < games; k++) { bool sw = k & 1; uint64_t sd = seed * 7919 + k * 104729;
+    Result r = sw ? playMatch(opp, mine, oppPol, 0, sd, nullptr, &th) : playMatch(mine, opp, 0, oppPol, sd, &th, nullptr);
+    double win = r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0); float myhp = sw ? r.hp1 : r.hp0, ophp = sw ? r.hp0 : r.hp1;
+    sc += win + 0.15 * (myhp - ophp); w += win; }
+  if (winOut) *winOut = w / games; return sc / games;
+}
+static void saveNet(const vector<float>& th, const string& f) { ofstream o(f, ios::binary); o.write((const char*)th.data(), th.size() * sizeof(float)); }
+static bool loadNet(vector<float>& th, const string& f) { ifstream in(f, ios::binary); if (!in) return false; th.resize(NPARAM); in.read((char*)th.data(), NPARAM * sizeof(float)); return (bool)in; }
+
 static void parFor(int n, const function<void(int)>& fn) { atomic<int> nx(0); vector<thread> th; for (int t = 0; t < NT; t++) th.emplace_back([&] { for (;;) { int i = nx++; if (i >= n) break; fn(i); } }); for (auto& x : th) x.join(); }
 static vector<Deck> readDecks(const string& f) { vector<Deck> v; ifstream in(f); string l; while (getline(in, l)) { if (l.empty() || l[0] == '#') continue; size_t p = l.find('|'); if (p != string::npos) l = l.substr(p + 1); v.push_back(parseDeck(l)); } return v; }
 
@@ -354,6 +431,35 @@ int main(int argc, char** argv) {
     parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(P[i], P[j], g, 700 + k); M[i][j] = v; M[j][i] = 1 - v; });
     printf("meta round robin, %d decks, NPOL=%d, g=%d\n     ", n, NPOL, g); for (int j = 0; j < n; j++) printf("%3d ", j + 1); printf("  mean\n");
     for (int i = 0; i < n; i++) { printf("%2d:  ", i + 1); double s = 0; for (int j = 0; j < n; j++) { printf("%3d ", (int)lround(100 * M[i][j])); if (j != i) s += M[i][j]; } printf("  %.2f  %s\n", s / (n - 1), deckStr(P[i]).c_str()); }
+  } else if (mode == "es") {  // es <deckfile> <index(1-based)> <gens> <out> [pairs games sigma lr]
+    vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; int gens = atoi(argv[4]); string out = argv[5];
+    int pairs = argc > 6 ? atoi(argv[6]) : 24, games = argc > 7 ? atoi(argv[7]) : 6; float sigma = argc > 8 ? atof(argv[8]) : 0.15f, lr = argc > 9 ? atof(argv[9]) : 0.08f;
+    Deck mine = P[di]; vector<Deck> opps; for (int i = 0; i < (int)P.size(); i++) if (i != di) opps.push_back(P[i]);
+    Rng rng(12345); vector<float> th = gauss(rng, NPARAM); for (auto& x : th) x *= 0.1f; { float* b2 = th.data() + NIN * NHID + NHID + NHID * NOUT; b2[NSLOT - 1] = 0.5f; }
+    if (const char* ini = getenv("CR_INIT")) loadNet(th, ini);
+    for (int gen = 0; gen < gens; gen++) {
+      vector<vector<float>> eps(pairs); for (int i = 0; i < pairs; i++) eps[i] = gauss(rng, NPARAM);
+      vector<double> fp(pairs), fm(pairs); uint64_t gseed = 1000 + gen * 31;
+      parFor(pairs * 2, [&](int idx) { int i = idx / 2; bool minus = idx & 1; vector<float> t(NPARAM); for (int q = 0; q < NPARAM; q++) t[q] = th[q] + (minus ? -sigma : sigma) * eps[i][q];
+        double tot = 0; for (int o = 0; o < (int)opps.size(); o++) { int pol = (o % 3 == 0) ? 0 : (o % 3 == 1 ? 1 : 2); tot += netScore(t, mine, opps[o], pol, games, gseed + o * 13 + i * 0); } (minus ? fm : fp)[i] = tot / opps.size(); });
+      // rank-based shaping over all 2*pairs fitnesses
+      vector<pair<double, int>> all; for (int i = 0; i < pairs; i++) { all.push_back({fp[i], 2 * i}); all.push_back({fm[i], 2 * i + 1}); } sort(all.begin(), all.end());
+      vector<double> rk(2 * pairs); for (int r = 0; r < (int)all.size(); r++) rk[all[r].second] = (double)r / (all.size() - 1) - 0.5;
+      vector<double> grad(NPARAM, 0.0); for (int i = 0; i < pairs; i++) { double w = rk[2 * i] - rk[2 * i + 1]; for (int q = 0; q < NPARAM; q++) grad[q] += w * eps[i][q]; }
+      for (int q = 0; q < NPARAM; q++) th[q] += (float)(lr / (pairs * sigma) * grad[q]);
+      double mean = 0; for (int i = 0; i < pairs; i++) mean += fp[i] + fm[i]; mean /= 2 * pairs;
+      if (gen % 5 == 0 || gen == gens - 1) { double win = 0; vector<double> ws(opps.size()); parFor((int)opps.size(), [&](int o) { double w; netScore(th, mine, opps[o], 1, 8, 555 + o, &w); ws[o] = w; }); for (double x : ws) win += x; printf("gen %3d  pop mean score %.3f  current-net winrate vs pool (rule policy 1) %.3f\n", gen, mean, win / opps.size()); fflush(stdout); saveNet(th, out); }
+    }
+  } else if (mode == "estest") {  // estest <deckfile> <index> <netfile> <games>
+    vector<Deck> P = readDecks(argv[2]); int di = atoi(argv[3]) - 1; vector<float> th; if (!loadNet(th, argv[4])) { fprintf(stderr, "cannot load net\n"); return 1; } int games = atoi(argv[5]);
+    Deck mine = P[di]; printf("deck: %s\n%-4s %-9s %-9s %-9s   (win rate of OUR deck, %d games per cell, opponent plays rule policy 1)\n", deckStr(mine).c_str(), "opp", "learned", "rule1", "search5", games);
+    double tl = 0, tr = 0, ts = 0; int n = 0; vector<array<double, 3>> res(P.size());
+    parFor((int)P.size(), [&](int o) { if (o == di) return; double w1, w2, w3; netScore(th, mine, P[o], 1, games, 9000 + o, &w1);
+      double sr = 0, ss = 0; for (int k = 0; k < games; k++) { bool sw = k & 1; uint64_t sd = (9000 + o) * 7919 + k * 104729; Result r = sw ? playMatch(P[o], mine, 1, 1, sd) : playMatch(mine, P[o], 1, 1, sd); sr += r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0);
+        Result q = sw ? playMatch(P[o], mine, 1, 5, sd) : playMatch(mine, P[o], 5, 1, sd); ss += q.winner < 0 ? 0.5 : ((q.winner == 0) == !sw ? 1.0 : 0.0); }
+      w2 = sr / games; w3 = ss / games; res[o] = {w1, w2, w3}; });
+    for (int o = 0; o < (int)P.size(); o++) { if (o == di) continue; printf("%2d   %.2f      %.2f      %.2f\n", o + 1, res[o][0], res[o][1], res[o][2]); tl += res[o][0]; tr += res[o][1]; ts += res[o][2]; n++; }
+    printf("mean %.3f      %.3f      %.3f\n", tl / n, tr / n, ts / n);
   } else printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");
   return 0;
 }

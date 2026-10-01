@@ -1,0 +1,4 @@
+gen   0  pop mean score -0.050  current-net winrate vs pool (rule policy 1) 0.040
+gen   5  pop mean score 0.008  current-net winrate vs pool (rule policy 1) 0.071
+gen  10  pop mean score 0.041  current-net winrate vs pool (rule policy 1) 0.112
+gen  15  pop mean score 0.061  current-net winrate vs pool (rule policy 1) 0.219
