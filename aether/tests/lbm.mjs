@@ -1,4 +1,5 @@
 // M7: LBM D3Q19 (TRT) cylinder Re=200, same domain as the MAC validation (16D x 10D, cylinder at x=4D, y=5D).
+// needs a build with the optional LBM module:  node tools/build.mjs --with=lbm --out=dist/aether-lbm.html
 // node tests/lbm.mjs [Dl] [modes...]   e.g. node tests/lbm.mjs 8 FP32 FP16 MIXED
 import fs from 'node:fs'; import path from 'node:path';
 import { open } from './lib.mjs';
@@ -12,7 +13,7 @@ function dft(t, y, fmin, fmax) { const n = y.length, m = y.reduce((a, b) => a + 
 const stats = a => { const n = a.length, m = a.reduce((x, y) => x + y, 0) / n; return { mean: m, std: Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / n), n }; };
 for (const mode of modes) {
   const res = { mode, coll, Dl, Ul, Cs, Re: 200, T, total, every, time: new Date().toISOString() };
-  const { browser, page, log } = await open('file://' + path.join(root, 'dist/aether.html') + '#q=LOW', { width: 160, height: 90 });
+  const { browser, page, log } = await open('file://' + path.join(root, 'dist/aether-lbm.html') + '#q=LOW', { width: 160, height: 90 });
   try {
     await page.waitForFunction(() => window.__LIVE && (window.__LIVE.ok || window.__LIVE.err), null, { timeout: 240000 });
     res.setup = await page.evaluate(c => __LIVE.api.lbmSetup(c), { N: [16 * Dl, 10 * Dl, 4], Dl, c: [4 * Dl, 5 * Dl], Re: 200, Ul, mode, Cs, coll });

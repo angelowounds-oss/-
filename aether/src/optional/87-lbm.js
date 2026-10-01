@@ -94,3 +94,5 @@ function lbmProbe(i,j,k){const g=LBM.g,N=LBM.N,T=LBM.t[LBM.cur],x=(k%g.tx)*N[0]+
  for(let a=0;a<5;a++){gl.readBuffer(gl.COLOR_ATTACHMENT0+a);const b=new Float32Array(4);gl.readPixels(x,y,1,1,gl.RGBA,gl.FLOAT,b);f.push(...b)}gl.readBuffer(gl.COLOR_ATTACHMENT0);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
  const E=[[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,1,0],[-1,-1,0],[1,-1,0],[-1,1,0],[1,0,1],[-1,0,-1],[1,0,-1],[-1,0,1],[0,1,1],[0,-1,-1],[0,1,-1],[0,-1,1]],W=[1/3,...Array(6).fill(1/18),...Array(12).fill(1/36)];
  let r=0;const m=[0,0,0];for(let q=0;q<19;q++){const v=f[q]+LBM.shift*W[q];r+=v;for(let d=0;d<3;d++)m[d]+=v*E[q][d]}return {rho:r,u:m.map(v=>v/r)}}
+/* optional module: only present in builds made with --with=lbm; registers its entry points on the live API */
+Object.assign(LIVE.api,{lbmSetup,lbmRun,lbmProbe,lbmStep:n=>{lbmStep(n)},lbmForce});

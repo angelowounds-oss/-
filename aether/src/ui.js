@@ -1,7 +1,7 @@
 (()=>{const $=id=>document.getElementById(id),q=(s,f)=>{try{f()}catch(e){}};
 document.body.classList.add('sc');
 const vp=document.querySelector('.viewport');
-vp.insertAdjacentHTML('beforeend','<div class="sc-vig"></div><div class="sc-bar t"></div><div class="sc-bar b"></div><i class="sc-prog" id="scProg"></i><button id="scSkip" type="button" aria-label="시네마틱 건너뛰기">건너뛰기 ›</button><div class="sc-cap" id="scCap"></div><div class="sc-dock" id="scDock"><button id="scCine">시네마틱 재생</button><button id="scHero">정면 시점</button><button id="scOut">후류 시점</button><button id="scMore">필라멘트 굵게</button><button id="scMode">필라멘트/입자 전환</button><button id="scFlow">흐름 강조 켜기/끄기</button><button id="scCol">유속 색 켜기/끄기</button><button id="scDoor">풍동 안으로 걸어 들어가기</button><button id="scEng">엔지니어 패널</button></div>');
+vp.insertAdjacentHTML('beforeend','<div class="sc-vig"></div><div class="sc-bar t"></div><div class="sc-bar b"></div><i class="sc-prog" id="scProg"></i><button id="scSkip" type="button" aria-label="시네마틱 건너뛰기">건너뛰기 ›</button><div class="sc-cap" id="scCap"></div><div class="sc-dock" id="scDock"><button id="scCine">시네마틱 재생</button><button id="scHero">정면 시점</button><button id="scOut">후류 시점</button><button id="scCol">유속 색 켜기/끄기</button><button id="scDoor">풍동 안으로 걸어 들어가기</button><button id="scEng">엔지니어 패널</button></div>');
 document.body.insertAdjacentHTML('beforeend','<div class="sc-splash" id="scSplash"><h1>AETHER</h1><p>BMW M4 GT3 를 감싸는 공기의 흐름<br>64개의 분사구가 만드는 연기를 눈앞에서 보세요</p><button id="scGo">입장하기</button><div class="sc-load" id="scLoad">엔진 준비 중</div></div>');
 const click=id=>q(0,()=>{const e=$(id);if(e&&!e.disabled)e.click()});
 const playing=()=>$('smokePlayback')?.getAttribute('aria-pressed')!=='true';
@@ -13,16 +13,11 @@ const stop=()=>CN.cancel('ui'),cine=()=>CN.start({source:'ui'});
 CN.on(e=>{if(e.type==='caption'){if(e.title)cap(e.title,e.sub);else capOff()}else if(e.type==='progress'){const p=$('scProg');if(p)p.style.width=(e.t/e.dur*100).toFixed(1)+'%'}else if(e.type==='state'){if(e.state==='PREPARING'){const c=$('scCap');c.innerHTML='연기 흐름을 준비하고 있습니다';c.classList.add('on')}else if(e.state==='PLAYING'){capOff()}if(e.state!=='PLAYING'&&e.state!=='PREPARING'){const p=$('scProg');if(p)p.style.width='0'}}});
 $('scSkip').onclick=()=>CN.skip();
 $('scCine').onclick=cine;$('scHero').onclick=()=>{ensurePlay();click('smokeHeroView')};$('scOut').onclick=()=>{ensurePlay();click('smokeOutletView')};
-$('scMore').onclick=()=>{const R=window.__RIB;R.gain=R.gain>1?1:1.7;R.width=R.gain>1?.07:.05;ensurePlay()};$('scMode').onclick=()=>{const R=window.__RIB;R.on=!R.on;if(R.on){target=500;setCount(500)}else{target=8000;setCount(3000)}};
-vp.insertAdjacentHTML('beforeend','<div class="sc-leg"><span>느림</span><i></i><span>빠름</span></div>');$('scFlow').onclick=()=>{const R=window.__RIB;R.flow=R.flow>0?0:1};$('scCol').onclick=()=>{const R=window.__RIB;R.cmode=R.cmode>0?0:1;document.querySelector('.sc-leg').style.display=R.cmode?'flex':'none'};$('scDoor').onclick=()=>{stop();click('walkMode');setTimeout(()=>{try{window.__doorPlace()}catch(e){}},60);cap('정면의 자동문으로 걸어가세요','W / 이동 스틱으로 전진');setTimeout(capOff,5000)};$('scEng').onclick=()=>document.body.classList.toggle('eng');
-let target=500,cur=0,good=0,fr=0,t0=performance.now();
-const setCount=n=>q(0,()=>{const d=$('smokeDensity');n=Math.max(1000,Math.min(12000,Math.round(n/250)*250));cur=n;d.value=n;d.dispatchEvent(new Event('input',{bubbles:true}))});
-const tk=()=>{fr++;requestAnimationFrame(tk)};requestAnimationFrame(tk);
-setInterval(()=>{const t=performance.now(),f=fr*1000/(t-t0);fr=0;t0=t;if(!cur||document.hidden)return;if(f<26){good=0;if(cur>1000)setCount(cur*.75)}else if(f>52){if(++good>=2&&cur<target){good=0;setCount(cur+1000)}}else good=0},2500);
+vp.insertAdjacentHTML('beforeend','<div class="sc-leg"><span>느림</span><i></i><span>빠름</span></div>');$('scDoor').onclick=()=>{stop();click('walkMode');setTimeout(()=>{try{window.__doorPlace()}catch(e){}},60);cap('정면의 자동문으로 걸어가세요','W / 이동 스틱으로 전진');setTimeout(capOff,5000)};$('scEng').onclick=()=>document.body.classList.toggle('eng');
 const go=$('scGo');let ready=false;
 const pt0=performance.now(),WHY={renderer:'렌더러 준비',calibrating:'GPU 성능 측정',developing:'연기 흐름 형성',live:'엔진 시작'};
 const poll=setInterval(()=>{const r=CN.readiness(),late=performance.now()-pt0>25000&&r.why!=='renderer';if((r.ready||late)&&!ready){ready=true;go.classList.add('rdy');$('scLoad').textContent='준비 완료'}else if(!ready){$('scLoad').textContent=(WHY[r.why]||'엔진 준비')+' '+Math.round(r.p*100)+'%'}},300);
-go.onclick=()=>{if(!ready)return;clearInterval(poll);setCount(500);$('scSplash').classList.add('off');setTimeout(()=>$('scSplash').remove(),1100);cine()};
+go.onclick=()=>{if(!ready)return;clearInterval(poll);$('scSplash').classList.add('off');setTimeout(()=>$('scSplash').remove(),1100);cine()};
 })();
 ;
 (()=>{const $=id=>document.getElementById(id),vp=document.querySelector('.viewport');if(!vp)return;
@@ -50,8 +45,8 @@ $('lvRake').onclick=()=>{const l=L();const i=(RK.findIndex(r=>r[0]===l.mode)+1)%
 $('lvWand').onclick=()=>{const l=L();l.wand=!l.wand;$('lvWand').textContent=l.wand?'스모크 완드 끄기':'스모크 완드 켜기';if(l.wand)cap('손에 연기봉을 들었습니다','풍동 안에서 차 주변을 비춰 보세요')};
 const US=[3,5,8,12];$('lvU').onclick=()=>{const l=L();const i=(US.indexOf(l.U)+1)%US.length;l.U=US[i];$('lvU').textContent='풍속 '+US[i]+' m/s'};
 $('lvOn').onclick=()=>{const l=L();l.setEnabled(!l.enabled);$('lvOn').textContent=l.enabled?'실시간 CFD 끄기':'실시간 CFD 켜기'};
-{const l0=L(),g0=document.querySelector('.sc-leg');if(l0&&g0&&!l0.colorMode){g0.style.display='none';if(window.__RIB)window.__RIB.cmode=0}}
-const col=$('scCol');if(col)col.onclick=()=>{const l=L();l.colorMode=!l.colorMode;if(window.__RIB)window.__RIB.cmode=l.colorMode?1:0;const g=document.querySelector('.sc-leg');if(g)g.style.display=l.colorMode?'flex':'none'};
+{const l0=L(),g0=document.querySelector('.sc-leg');if(l0&&g0&&!l0.colorMode)g0.style.display='none'}
+const col=$('scCol');if(col)col.onclick=()=>{const l=L();l.colorMode=!l.colorMode;const g=document.querySelector('.sc-leg');if(g)g.style.display=l.colorMode?'flex':'none'};
 const leg=document.querySelector('.sc-leg');if(leg)leg.innerHTML='<span>느림</span><i></i><span>빠름</span><small style="opacity:.75;margin-left:4px">(기준풍속 대비)</small>';
 setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classList.toggle('live-cfd',!!(l.ok&&l.enabled));{const b=$('readyBadge');if(b&&l.ok&&l.enabled){const t='실시간 CFD · '+(l.impl==='MAC'?'MAC 격자':'collocated(대체)')+' · '+(window.__MAC&&l.impl==="MAC"?window.__MAC.solver:l.solver);if(b.textContent!==t){b.textContent=t;b.className='badge live'}}}
  if(l.ok&&l.enabled){const N=l.N,F=l.forces,r=l.benchRes;const M=window.__MAC,mac=l.impl==='MAC'&&M;let x='실시간 GPU CFD · '+(mac?'MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 '+(M.solver==='RBGS'?'RBGS-MG':M.solver):'collocated 대체 솔버(비점성)')+' · '+N.join('×')+' ('+(N[0]*N[1]*N[2]/1e4).toFixed(1)+'만 셀) · 등급 '+l.q+'\n풍속 '+l.U+' m/s · 모의시간 '+l.t.toFixed(2)+' s · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
@@ -60,10 +55,9 @@ setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classL
   x+='\n계산값: 유동·연기·풍속·Cd/Cl  |  근사: 사람 형상(원기둥)·부분체적 경계·셀 크기 '+(l.h?Math.round(Math.min(...l.h)*100):'?')+' cm  |  연출: 팬 회전 속도·바람 소리·자막·연기 서서히 옅어짐(스텝당 0.15%)';
   if(l.bench){x+='\n벤치마크(계산 형상은 원기둥, 화면의 차량은 계산에 포함되지 않음): 원기둥 D=0.5m '+(r&&r.ok?'스트라우할 수 St = '+r.St.toFixed(3)+' (문헌 약 0.2 · 격자 '+r.cells.toFixed(1)+'셀/지름)':'측정 중 '+Math.min(100,Math.round(100*l.t/8))+'%')}
   if(/perf=1/.test(location.hash)&&window.__PERF)x+='\n'+window.__perfHudText();
-  x+='\n정성적 시각화이며 공학 해석 도구가 아닙니다';s.textContent=x;
-  for(const id of ['scMore','scMode','scFlow']){const e=$(id);if(e)e.style.display='none'}}
- else if(l.err){s.textContent='실시간 CFD 사용 불가: '+l.err+'\n기존 필라멘트 방식으로 표시합니다';for(const id of ['scMore','scMode','scFlow']){const e=$(id);if(e)e.style.display=''}}
- else s.textContent=l.enabled?'실시간 CFD 준비 중':'실시간 CFD 꺼짐 · 기존 필라멘트 방식';},300);
+  x+='\n정성적 시각화이며 공학 해석 도구가 아닙니다';s.textContent=x;}
+ else if(l.err){s.textContent='실시간 CFD 사용 불가: '+l.err}
+ else s.textContent=l.enabled?'실시간 CFD 준비 중':'실시간 CFD 꺼짐';},300);
 })();
 /* engineer panel: quality / resolution (any tier selectable on any device; warns above the measured recommendation) */
 (()=>{const q=id=>document.getElementById(id),P=()=>window.__PERF;if(!q('qualityPanel'))return;

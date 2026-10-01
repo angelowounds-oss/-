@@ -13,8 +13,13 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const rd = p => fs.readFileSync(path.join(root, p), 'utf8');
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith('--' + k + '=')); return a ? a.split('=')[1] : d; };
 
-const engineFiles = fs.readdirSync(path.join(root, 'src/engine')).filter(f => f.endsWith('.js')).sort();
-const engine = engineFiles.map(f => rd('src/engine/' + f)).join('');
+// optional modules (src/optional/*.js) are left out of the shipped build; --with=lbm adds the LBM comparison solver (used by tests/lbm.mjs)
+const withMods = (arg('with', '') || '').split(',').filter(Boolean);
+const entries = fs.readdirSync(path.join(root, 'src/engine')).filter(f => f.endsWith('.js')).map(f => ({ f, dir: 'src/engine/' }))
+  .concat(fs.readdirSync(path.join(root, 'src/optional')).filter(f => f.endsWith('.js') && withMods.some(m => f.includes(m))).map(f => ({ f, dir: 'src/optional/' })))
+  .sort((a, b) => a.f < b.f ? -1 : a.f > b.f ? 1 : 0);
+const engineFiles = entries.map(e => e.f);
+const engine = entries.map(e => rd(e.dir + e.f)).join('');
 const ui = rd('src/ui.js');
 fs.mkdirSync(path.join(root, 'js'), { recursive: true });
 fs.writeFileSync(path.join(root, 'js/engine.js'), engine);

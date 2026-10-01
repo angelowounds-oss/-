@@ -1,7 +1,7 @@
 {
  "version": "0.14.0-dev",
  "vehicle": "user",
- "time": "2026-10-01T09:47:02.410Z",
+ "time": "2026-10-01T09:53:27.347Z",
  "engineFiles": [
   "00-core.js",
   "10-webgpu-s1-s3.js",
@@ -15,7 +15,6 @@
   "84-perf-quality.js",
   "85-live-cfd.js",
   "86-mac-cfd.js",
-  "87-lbm.js",
   "88-post-fx.js",
   "89-lighting-hq.js",
   "89b-cinematic.js",
@@ -43,6 +42,6 @@
    "sha256": "4cd0e0ed1d0a8ebc"
   }
  },
- "outBytes": 16393589,
- "outGzipBytes": 4859888
+ "outBytes": 16378969,
+ "outGzipBytes": 4855620
 }
