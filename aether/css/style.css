@@ -96,3 +96,7 @@ body.mobile .toolbar span,body.mobile .toolbar small,body.mobile .toolbar .statu
 body.mobile #viewHint{display:none}
 body.mobile .fpv-help{bottom:calc(env(safe-area-inset-bottom) + 186px);left:calc(env(safe-area-inset-left) + 14px)}
 body.mobile .sc-cap{bottom:calc(env(safe-area-inset-bottom) + 108px)!important}
+#engClose{display:none}
+body.mobile.eng #engClose{display:flex;position:sticky;top:-12px;z-index:5;margin:-12px -12px 10px;padding:10px 12px;align-items:center;justify-content:space-between;background:#141c23f2;border-bottom:1px solid #2b3a46;border-radius:14px 14px 0 0;font-size:13px;font-weight:600;color:#cfe0ea}
+body.mobile #engClose button{font-size:14px;padding:8px 14px;min-height:40px;border-radius:10px;background:#2a3a47;color:#fff;border:1px solid #4a6275}
+body.mobile.sc.eng .m13-panel,body.mobile.sc.eng .wow-overlay{display:none!important}

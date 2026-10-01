@@ -90,3 +90,7 @@ setInterval(()=>{const l=L(),s=$('lvStat');if(!l||!s)return;document.body.classL
 (()=>{if(!document.body)return;const hud=document.getElementById('lvStat');if(hud&&window.__MOBILE)hud.addEventListener('click',()=>hud.classList.toggle('open'));
  const dock=document.getElementById('scDock');if(dock&&!document.getElementById('scMobileSwitch')){const b=document.createElement('button');b.id='scMobileSwitch';b.type='button';b.textContent=window.__MOBILE?'PC 화면':'모바일 화면';b.title='모바일/PC 화면 전환(이 브라우저에 저장)';b.onclick=()=>window.__setMobile(!window.__MOBILE);dock.appendChild(b)}
  if(window.__MOBILE){const h=document.getElementById('fpvHelp');if(h)h.textContent='왼쪽 조이스틱: 이동 · 오른쪽 화면 드래그: 시점 · 두 손가락: 확대'}})();
+/* mobile: the engineer panel is a bottom sheet that covers the button row holding its toggle -> own close bar (always visible at the top of the sheet) */
+(()=>{const aside=document.querySelector('aside');if(!aside||document.getElementById('engClose'))return;const bar=document.createElement('div');bar.id='engClose';bar.innerHTML='<span>엔지니어 패널</span><button type="button" aria-label="엔지니어 패널 닫기">닫기 ✕</button>';
+ bar.querySelector('button').onclick=()=>document.body.classList.remove('eng');aside.insertBefore(bar,aside.firstChild);
+ addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('eng')&&window.__MOBILE)document.body.classList.remove('eng')})})();
