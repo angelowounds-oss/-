@@ -19,7 +19,7 @@ try {
   for (const s of shots) {
     await page.evaluate(s => { const c = __AETHER_DEBUG.camera; c.preset = 'WOW'; c.eye = s.eye; c.target = s.target; c.up = [0, 1, 0]; c.fov = s.fov || 50; c.cutaway = !!s.cutaway; }, s);
     await sleep(+(s.wait || (process.env.FREEZE!=="0"?2500:5000)));
-    await page.screenshot({ path: path.join(outDir, s.name + '.png'), timeout: 300000 });
+    await page.screenshot({ path: path.join(outDir, (process.env.PREFIX || '') + s.name + '.png'), timeout: 300000 });
     console.log('shot', s.name);
   }
 } catch (e) { console.log('ERR', String(e).slice(0, 400)); }

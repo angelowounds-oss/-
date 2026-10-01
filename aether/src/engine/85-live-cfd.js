@@ -2,6 +2,10 @@
    Jacobi pressure projection, vorticity confinement) + passive-scalar smoke with MacCormack transport. */
 const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
  vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:3,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
+/* smoke display transfer (visualisation only): extinction = gain * max(dye-floor,0)^gamma, so thin diffused dye turns transparent while filament cores stay opaque. tau: smoke lifetime in seconds (0 = legacy per-step decay). */
+LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).slice(0,3);if(!LIVE.tf||LIVE.tf.length<3||LIVE.tf.some(v=>!(v>=0)))LIVE.tf=[1.8,1.7,.02];LIVE.tau=+((location.hash.match(/tau=([\d.]+)/)||[])[1]??3);
+LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
+function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
 const LIVE_BENCH={D:.5,x:-1.5,z:.1,y:1.5,T:8,spin:2};
@@ -106,7 +110,7 @@ precision highp float;precision highp sampler2D;uniform sampler2D uS;uniform ive
 void main(){ivec2 b=ivec2(gl_FragCoord.xy)*8;vec4 s=vec4(0.);for(int j=0;j<8;j++)for(int i=0;i<8;i++){ivec2 q=b+ivec2(i,j);if(q.x<uSz.x&&q.y<uSz.y)s+=texelFetch(uS,q,0);}o=s;}`;
 const LIVE_RAY=`#version 300 es
 precision highp float;precision highp sampler3D;
-uniform sampler3D uVol;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD;uniform vec2 uRes;uniform float uDens,uCMode,uStepScale,uCal;uniform int uQ,uFrame;out vec4 o;
+uniform sampler3D uVol;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD;uniform vec2 uRes;uniform float uDens,uCMode,uStepScale,uCal;uniform vec3 uTF;uniform int uQ,uFrame;out vec4 o;float smk(float r){return uTF.y*pow(max(r-uTF.z,0.),uTF.x);}
 vec3 turbo(float t){t*=4.;vec3 a=vec3(.10,.18,1.),b=vec3(0.,.8,1.),c=vec3(.05,1.,.3),d=vec3(1.,.92,.05),e=vec3(1.,.12,.05);return t<1.?mix(a,b,t):t<2.?mix(b,c,t-1.):t<3.?mix(c,d,t-2.):mix(d,e,min(t-3.,1.));}
 void main(){vec2 n=gl_FragCoord.xy/uRes*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*vec4(n,1,1);vec3 ro=uEye,rd=normalize(b.xyz/b.w-a.xyz/a.w);
  vec3 iv=1./rd,t0=(uBMin-ro)*iv,t1=(uBMax-ro)*iv,mn=min(t0,t1),mx=max(t0,t1);float tn=max(max(mn.x,mn.y),max(mn.z,0.)),tf=min(min(mx.x,mx.y),mx.z);
@@ -116,8 +120,8 @@ void main(){vec2 n=gl_FragCoord.xy/uRes*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*ve
  vec3 ext=uBMax-uBMin,ld=uLD/ext;vec4 acc=vec4(0);float t=tn+j*dt,te=tn+L;float ph=1.+.35*pow(max(dot(rd,uLD),0.),3.);
  for(int i=0;i<260;i++){if(t>=te||acc.a>.985)break;vec3 uvw=(ro+rd*t-uBMin)/ext;
   vec4 c=textureLod(uVol,uvw,2.);if(uCal<.5&&c.g<.002&&c.r*dens<.0012){t+=dt*4.;continue;}
-  vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=uCal>.5?.004:s.r*dens;if(d<.003){t+=dt;continue;}
-  float sh=textureLod(uVol,uvw+ld*.17,0.).r;if(uQ>0)sh+=.7*textureLod(uVol,uvw+ld*.4,0.).r;if(uQ>1)sh+=.5*textureLod(uVol,uvw+ld*.75,0.).r;
+  vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=uCal>.5?.004:smk(s.r)*dens;if(d<.003){t+=dt;continue;}
+  float sh=smk(textureLod(uVol,uvw+ld*.17,0.).r);if(uQ>0)sh+=.7*smk(textureLod(uVol,uvw+ld*.4,0.).r);if(uQ>1)sh+=.5*smk(textureLod(uVol,uvw+ld*.75,0.).r);
   float lit=.32+.68*exp(-sh*dens*.9);d*=smoothstep(.15,.7,t);
   vec3 col=mix(vec3(.86,.92,1.),turbo(clamp(.5+(s.b-1.)*1.25,0.,1.)),uCMode)*lit*ph;float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;t+=dt;}
  if(acc.a<.004)discard;o=acc;}`;
@@ -237,8 +241,9 @@ function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
 /* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
    Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
 function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.6:-3.9,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
- return {x,tip:x+.075,z:0,yh:.5,v:[0,1,2,3,4,5,6].map(i=>.15+.22*i),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
-function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz].join();if(LIVE.rakeKey===key||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
+ const r=Math.max(.035,.75*hd),n=LIVE.rakeN||Math.max(3,Math.min(7,Math.round(1.32/Math.max(.22,5.2*r))+1));
+ return {x,tip:x+.075,z:0,yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
+function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length].join();if(LIVE.rakeKey===key||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
  for(const o of scene.objects)if(o.name.startsWith('rake probe')&&o.gpu)for(const b of [o.gpu.pb,o.gpu.nb,o.gpu.ub,o.gpu.ib])if(b)gl.deleteBuffer(b);
  scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));const add=(n,c,sz)=>{const o=addBox('rake probe '+n,c,sz,[.74,.76,.78],{bevel:.004,category:'instrumentation'});o.pbrMaterial=materialFor(o);bevelMesh(o);
   const m=o._mesh,uv=m.uvs?.length===m.positions.length/3*2?m.uvs:new Float32Array(m.positions.length/3*2);o.gpu=bindMesh(m.positions,m.normals,uv,m.indices)};
@@ -258,7 +263,7 @@ function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;
  livePass('div',T.div,{uVel:T.velA.t},{});liveSolve();if(LIVE.diag)livePass('res',T.res,{uP:T.pA.t,uB:T.div.t},{});
  livePass('proj',T.velB,{uVel:T.velA.t,uP:T.pA.t},{});liveSwap('velA','velB');
  livePass('advd',T.hat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt});livePass('advd',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
- livePass('corr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.hat.t,uBar:T.bar.t},{uDt:dt,uDecay:.9985,uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}});liveSwap('dyeA','dyeB');
+ livePass('corr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.hat.t,uBar:T.bar.t},{uDt:dt,uDecay:liveDecay(dt),uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}});liveSwap('dyeA','dyeB');
  LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt}
 function liveCopyVolume(){if(LIVE.impl==='MAC')return macCopyVolume();const p=LIVE.prog.copy,N=LIVE.N,T=LIVE.tex;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.volFbo);gl.viewport(0,0,N[0],N[1]);
  gl.uniform3i(liveU(p,'uN'),N[0],N[1],N[2]);gl.uniform1i(liveU(p,'uTX'),LIVE.tx);gl.uniform3f(liveU(p,'uMin'),...LIVE.min);gl.uniform3f(liveU(p,'uH'),...LIVE.h);gl.uniform1f(liveU(p,'uU'),LIVE.U);
@@ -292,14 +297,14 @@ function liveSmokeRT(w,h){const R=LIVE.smokeRT;if(R&&R.w===w&&R.h===h)return R;i
 function liveCalibrationMarch(w,h){const RT=liveSmokeRT(w,h),p=LIVE.prog.ray;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.bindFramebuffer(gl.FRAMEBUFFER,RT.f);gl.viewport(0,0,w,h);
  const eye=[-8.5,2.2,0],view=lookAt(eye,[6,1,0],[0,1,0]),proj=perspective(55,w/h,.05,60),vp=matMul(proj,view);
  gl.useProgram(p);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_3D,LIVE.vol);gl.uniform1i(liveU(p,'uVol'),8);gl.uniformMatrix4fv(liveU(p,'uInv'),false,liveInv(vp));gl.uniform3f(liveU(p,'uEye'),...eye);
- gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform1f(liveU(p,'uCMode'),1);
+ gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform3f(liveU(p,'uTF'),...LIVE.tf);gl.uniform1f(liveU(p,'uCMode'),1);
  gl.uniform1i(liveU(p,'uQ'),1);gl.uniform1f(liveU(p,'uStepScale'),1);gl.uniform1f(liveU(p,'uCal'),1);gl.uniform1i(liveU(p,'uFrame'),0);gl.drawArrays(gl.TRIANGLES,0,3);LIVE.calSteps=Math.round(18/.085)}
 function liveRender(vp){if(!LIVE.enabled||!LIVE.ok)return;const dep=gl.isEnabled(gl.DEPTH_TEST),cull=gl.isEnabled(gl.CULL_FACE),cw=glCanvas.width,ch=glCanvas.height;try{
  const rs=LIVE.rs,w=Math.max(64,Math.round(cw*rs)),h=Math.max(64,Math.round(ch*rs)),RT=liveSmokeRT(w,h),p=LIVE.prog.ray,tq=(LIVE.q==='LOW'||LIVE.q==='LITE')?0:(LIVE.q==='MED'||LIVE.q==='HIGH'?1:2);
  gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.bindFramebuffer(gl.FRAMEBUFFER,RT.f);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  gl.useProgram(p);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_3D,LIVE.vol);gl.uniform1i(liveU(p,'uVol'),8);gl.uniformMatrix4fv(liveU(p,'uInv'),false,liveInv(vp));
  gl.uniform3f(liveU(p,'uEye'),...camera.eye);gl.uniform3f(liveU(p,'uBMin'),...LIVE.min);gl.uniform3f(liveU(p,'uBMax'),...LIVE.max);gl.uniform2f(liveU(p,'uRes'),w,h);gl.uniform3f(liveU(p,'uLD'),.24,.95,.18);
- gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform1f(liveU(p,'uCMode'),LIVE.colorMode?1:0);gl.uniform1i(liveU(p,'uQ'),Math.min(tq,LIVE.rq));gl.uniform1f(liveU(p,'uStepScale'),LIVE.stepScale||1);gl.uniform1f(liveU(p,'uCal'),0);gl.uniform1i(liveU(p,'uFrame'),LIVE.frame=(LIVE.frame|0)+1);gl.drawArrays(gl.TRIANGLES,0,3);
+ gl.uniform1f(liveU(p,'uDens'),LIVE.dens);gl.uniform3f(liveU(p,'uTF'),...LIVE.tf);gl.uniform1f(liveU(p,'uCMode'),LIVE.colorMode?1:0);gl.uniform1i(liveU(p,'uQ'),Math.min(tq,LIVE.rq));gl.uniform1f(liveU(p,'uStepScale'),LIVE.stepScale||1);gl.uniform1f(liveU(p,'uCal'),0);gl.uniform1i(liveU(p,'uFrame'),LIVE.frame=(LIVE.frame|0)+1);gl.drawArrays(gl.TRIANGLES,0,3);
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cw,ch);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
  const c=LIVE.prog.comp;gl.useProgram(c);gl.activeTexture(gl.TEXTURE0+8);gl.bindTexture(gl.TEXTURE_2D,RT.t);gl.uniform1i(liveU(c,'uT'),8);gl.uniform2f(liveU(c,'uRes'),cw,ch);gl.drawArrays(gl.TRIANGLES,0,3);
 }catch(e){LIVE.err='render: '+String(e?.message||e)}finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.clearColor(.08,.11,.13,1);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);if(dep)gl.enable(gl.DEPTH_TEST);if(cull)gl.enable(gl.CULL_FACE);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA)}}
