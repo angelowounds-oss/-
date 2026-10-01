@@ -1,8 +1,1 @@
 rl: 15 decks, 10 pairs x 2 x 48 games per generation, sigma 0.120 lr 0.050, league 0
-gen   0  games     960  win vs policy6 50.7% (960)  vs league -  best cand 0.648
-gen   1  games    1920  win vs policy6 48.6% (960)  vs league -  best cand 0.609
-gen   2  games    2880  win vs policy6 43.0% (960)  vs league -  best cand 0.518
-gen   3  games    3840  win vs policy6 48.9% (960)  vs league -  best cand 0.632
-gen   4  games    4800  win vs policy6 47.9% (960)  vs league -  best cand 0.620
-  validation: current weights vs policy 6 = 54.0% over 210 games (fixed held-out seeds)
-  theta: 0.2033 -0.1796 0.1306 0.0201 -0.1505 -0.2598 0.0082 -0.1303 -0.0830 -0.1307 0.1334 -0.1779 -0.0840 -0.0862 0.1559 -0.0189 0.2010 0.0030 0.3221
