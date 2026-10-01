@@ -153,4 +153,4 @@ const api={ST,start,skip,cancel,tick,readiness,verify,resetClock(){lastNow=null}
  seek(tt){t=clamp(tt,0,DUR);evalPose(t,0);writeCamera();cutHistory()},
  _forceState(s){state=s}};
 return api})();
-window.__CINE=CINE;AETHER.CINEMATIC=CINE;
+window.__CINE=CINE;
