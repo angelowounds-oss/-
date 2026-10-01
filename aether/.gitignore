@@ -13,3 +13,9 @@ dist/AETHER_CINEMATIC_SMOKE_V2.*
 tests/out/coverage.raw.json
 dist/aether-lbm.*
 dist/AETHER_CLEAN_UI_V3.*
+
+# generated
+dist/aether.html
+dist/aether.manifest.json
+js/
+tests/out/
