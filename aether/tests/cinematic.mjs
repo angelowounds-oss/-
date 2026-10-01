@@ -101,10 +101,6 @@ try {
   rec('rotate to portrait during play: no restart, no pose jump', rot.s === 'PLAYING' && rot.t > rot0.t && rot.maxStepPerFrame < 0.06 && rot.maxFovStep < 1.2, { rot0, rot });
   await page.setViewportSize({ width: 960, height: 540 }); await sleep(300);
 
-  // ----- 10: context loss
-  const cl = await page.evaluate(async () => { __CINE.cancel('test'); __CINE.start({ source: 'test' }); window.__vt.step(1000 / 60, 30); const gl = document.getElementById('view').getContext('webgl2'), ext = gl.getExtension('WEBGL_lose_context'); if (!ext) return { noExt: true }; ext.loseContext(); await new Promise(r => setTimeout(r, 300)); const s = __CINE.state, reason = __CINE.reason, refused = __CINE.start({ source: 'test' }) === false; return { s, reason, refused }; });
-  if (cl.noExt) rec('context loss: extension unavailable in this browser', false, cl); else rec('context loss: cinematic cancels, start refused while lost', cl.s === 'CANCELLED' && cl.reason === 'contextlost', cl);
-
   // ----- path verification (geometry, obstacles, sightlines)
   await page.evaluate(() => { try { document.getElementById('view').getContext('webgl2').getExtension('WEBGL_lose_context').restoreContext(); } catch (e) { } });
   const ver = await page.evaluate(() => __CINE.verify());
@@ -145,6 +141,13 @@ try {
       await page.screenshot({ path: path.join(outDir, `${nm}-t${String(T).padStart(2, '0')}.png`), timeout: 300000 });
     }
   }
+  // ----- 10: context loss
+  const cl = await page.evaluate(async () => { __CINE.cancel('test'); __CINE.start({ source: 'test' }); window.__vt.step(1000 / 60, 30); const gl = document.getElementById('view').getContext('webgl2'), ext = gl.getExtension('WEBGL_lose_context'); if (!ext) return { noExt: true }; ext.loseContext(); await new Promise(r => setTimeout(r, 300)); const s = __CINE.state, reason = __CINE.reason, refused = __CINE.start({ source: 'test' }) === false; return { s, reason, refused }; });
+  if (cl.noExt) rec('context loss: extension unavailable in this browser', false, cl); else rec('context loss: cinematic cancels, start refused while lost', cl.s === 'CANCELLED' && cl.reason === 'contextlost', cl);
+
+  await page.evaluate(() => { try { document.getElementById('view').getContext('webgl2').getExtension('WEBGL_lose_context').restoreContext(); } catch (e) { /* ignore */ } });
+  const rec2 = await page.waitForFunction(() => window.__LIVE && window.__LIVE.ok && window.__LIVE.step > 0 && !/CONTEXT LOST/.test(document.getElementById('readyBadge').textContent), null, { timeout: 240000 }).then(() => true).catch(() => false);
+  rec('context restore: engine boots again and the live solver runs', rec2);
 } catch (e) { rec('harness', false, String(e).slice(0, 500)); }
 rec('no page errors', log.pageErrors.length === 0, log.pageErrors.slice(0, 3));
 rec('no external requests', log.external.length === 0, log.external.slice(0, 3));
