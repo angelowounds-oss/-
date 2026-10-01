@@ -38,6 +38,7 @@
 #include "BuildingTargeter.h"
 #include "AreaSpell.h"
 #include "Tower.h"
+#include "GameLogger.h"
 #undef private
 #undef protected
 
@@ -444,6 +445,16 @@ int main(int argc, char** argv) {
     parFor((int)jobs.size(), [&](int k) { int i = jobs[k].first, j = jobs[k].second; float v = matchupValue(P[i], P[j], g, 700 + k); M[i][j] = v; M[j][i] = 1 - v; });
     printf("meta round robin, %d decks, NPOL=%d, g=%d\n     ", n, NPOL, g); for (int j = 0; j < n; j++) printf("%3d ", j + 1); printf("  mean\n");
     for (int i = 0; i < n; i++) { printf("%2d:  ", i + 1); double s = 0; for (int j = 0; j < n; j++) { printf("%3d ", (int)lround(100 * M[i][j])); if (j != i) s += M[i][j]; } printf("  %.2f  %s\n", s / (n - 1), deckStr(P[i]).c_str()); }
+  } else if (mode == "replay" && argc >= 5) {  // replay <deckA> <deckB> <out.json> [seed polA polB]: record one match for web/viewer.html
+    Deck a = parseDeck(argv[2]), b = parseDeck(argv[3]); string out = argv[4]; uint64_t seed = argc > 5 ? atoll(argv[5]) : 1; int pa = argc > 6 ? atoi(argv[6]) : 8, pb = argc > 7 ? atoi(argv[7]) : 8;
+    GameManager g(vector<int>(a.begin(), a.end()), vector<int>(b.begin(), b.end())); GameLogger logger; Player P0(0, POL[pa], seed * 3 + 1), P1(1, POL[pb], seed * 7 + 2); logger.logTick(0, g);
+    while (!g.isGameOver() && g.currentTick < 3600) {
+      g.step();
+      if (g.currentTick >= P0.nextThink) { useAbilities(g, 0); if (P0.pol.lookahead) searchThink(g, P0); else think(g, P0); P0.nextThink = g.currentTick + (P0.pol.lookahead ? 6 : 4) + P0.rng.below(4); }
+      if (g.currentTick >= P1.nextThink) { useAbilities(g, 1); if (P1.pol.lookahead) searchThink(g, P1); else think(g, P1); P1.nextThink = g.currentTick + (P1.pol.lookahead ? 6 : 4) + P1.rng.below(4); }
+      logger.logTick(g.currentTick, g);
+    }
+    printf("saved=%d ticks=%d loserTeam=%d\n", (int)logger.save(out), g.currentTick, g.getLoserTeam());
   } else if (mode == "h2h") {  // h2h <decksfile> <newPol> <oldPol> <g> : new vs old policy over all deck pairs (both seatings); prints new's win rate
     vector<Deck> P = readDecks(argv[2]); int pn = atoi(argv[3]), po = atoi(argv[4]), g = atoi(argv[5]); int n = P.size(); vector<pair<int, int>> jobs; for (int i = 0; i < n; i++) for (int j = 0; j < n; j++) if (i != j) jobs.push_back({i, j});
     vector<double> w(jobs.size(), 0), c(jobs.size(), 0);
