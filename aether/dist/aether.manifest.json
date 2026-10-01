@@ -1,7 +1,7 @@
 {
- "version": "0.14.0-dev",
+ "version": "0.15.0-dev",
  "vehicle": "user",
- "time": "2026-10-01T10:08:45.857Z",
+ "time": "2026-10-01T10:13:26.865Z",
  "engineFiles": [
   "00-core.js",
   "10-config-state.js",
@@ -39,6 +39,6 @@
    "sha256": "4cd0e0ed1d0a8ebc"
   }
  },
- "outBytes": 16099072,
- "outGzipBytes": 4771000
+ "outBytes": 16099067,
+ "outGzipBytes": 4770994
 }

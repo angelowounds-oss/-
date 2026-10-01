@@ -37,10 +37,10 @@
 
 | 항목 | 모바일 모드 |
 |---|---|
-| 화면 | 전체 화면, 상단 HUD는 2줄(탭하면 펼침), 아래에 스크롤되는 버튼 줄 2개 |
+| 화면 | 전체 화면, 계산 상태 카드는 2줄(탭하면 펼침), 아래 조작 막대(시네마틱 · 시점 · 연기 · 걷기) |
 | 조작 | 드래그: 회전 · 두 손가락: 확대 · 1인칭: 왼쪽 조이스틱 이동 + 오른쪽 화면 드래그 시점 |
 | 화질 | **LITE** 등급(격자 80×26×38)에서 시작, 시작 GPU 측정으로 최대 MID까지 올림. 화면 해상도는 기기 배율 최대 1.5배로 제한 |
-| 엔지니어 패널 | 아래에서 올라오는 시트. 모든 등급을 직접 고를 수 있음 |
+| 설정 패널 | 아래에서 올라오는 시트(가로 화면은 오른쪽 서랍). 모든 등급을 직접 고를 수 있음 |
 | 지원 | iOS 15 이상(WebGL2). 미지원이면 이유를 화면에 안내 |
 
 **실제 iPhone Safari에서는 확인하지 못했습니다.** 이 환경에서는 크롬으로 아이폰 크기·터치·배율 3을 흉내 낸 검증만 했습니다(`tests/mobile.mjs`).
@@ -48,9 +48,15 @@
 ### 첫 입장 시네마틱 (30초)
 입장하기 또는 "시네마틱 재생" → 연기 흐름이 형성될 때까지 첫 구도에서 대기(촬영 시간 소모 없음) → 30초 재생: 0–4 s 앞 사선 낮은 시점 / 4–10 s 차 옆 이동(앞→지붕·측면) / 10–17 s 후방 사선에서 리어 스포일러 / 17–24 s 후류 관찰(거의 정지) / 24–30 s 상승·후퇴하며 풍동 전체. 드래그·휠·터치 또는 "건너뛰기 ›"(Esc)로 즉시 끝나며, 끝난 구도에서 바로 둘러볼 수 있습니다. 카메라는 `src/engine/89b-cinematic.js` 한 곳(`window.__CINE`)에서만 쓰며 검증은 `node tests/cinematic.mjs`.
 
-### 엔지니어 패널 → 화질 · 해상도
+### 화면 구성과 설정 패널
 
-화면 아래 **엔지니어 패널** 버튼을 누르면 오른쪽 패널 맨 위에 있습니다. 어느 기기에서든 모든 등급을 고를 수 있고, 측정 추천보다 높으면 경고만 표시합니다. 선택은 이 브라우저에 저장됩니다(주소 옵션이 있으면 주소 옵션이 우선).
+- **조작 막대**(아래 가운데): `시네마틱`, `시점 ▾`(정면·측면·상단·팬·후류·제어실, 단면 보기, 롤링로드 단면), `연기 ▾`(레이크 모양, 유속 색, 스모크 완드, 실시간 CFD 켜기/끄기), `걷기 ▾`(풍동 안으로 걸어 들어가기, 1인칭 보행, 밖에서 나 보기, 흔들림, 화질, 바람 소리).
+- **설정 패널**(오른쪽 위 `설정`): 화질·해상도 / 제어실(팬·롤링로드·흐름 일시정지·초기화·유입 풍속·비상정지) / 시스템 상태 / 화면 모드(PC↔모바일) / 진단 정보. 제어실 안 3D 콘솔의 버튼과 소켓도 같은 기능입니다.
+- 왼쪽 위 카드는 계산 상태 두 줄 요약이며 누르면 상세(격자·솔버·Cd/Cl·계산/근사/연출 구분)가 펼쳐집니다.
+
+### 설정 패널 → 화질 · 해상도
+
+오른쪽 위 **설정** 버튼을 누르면 패널 맨 위에 있습니다. 어느 기기에서든 모든 등급을 고를 수 있고, 측정 추천보다 높으면 경고만 표시합니다. 선택은 이 브라우저에 저장됩니다(주소 옵션이 있으면 주소 옵션이 우선).
 
 | 항목 | 내용 |
 |---|---|
@@ -96,8 +102,10 @@ dist/aether.html        최종 단일 파일 (빌드 산출물)
 dist/snapshots/         마일스톤별 해시·크기 기록
 index.html, css/, js/   개발용 (js/는 빌드 산출물)
 src/engine/NN-*.js      엔진 (이름순으로 이어 붙여 하나의 IIFE)
+src/optional/           배포 빌드에 넣지 않는 선택 모듈(LBM). 포함: node tools/build.mjs --with=lbm
+archive/                이전 버전 단일 파일(정리 전, 태그 v0.14-pre-cleanup)
 src/ui.js               UI
-assets/*.js             차량·팬·콘솔 GLB(base64), 워커, 블루노이즈
+assets/*.js             차량·팬·콘솔 GLB(base64), 블루노이즈
 tools/build.mjs         빌드 (Node 내장 모듈만 사용)
 tools/lint.mjs          빌드 + eslint
 tools/validation-report.mjs   VALIDATION.md 생성
@@ -115,7 +123,8 @@ docs/                   작업 지침서
 | 린트 | `node tools/lint.mjs` |
 | 회귀 테스트 | `node tests/regression.mjs dist/aether.html <이름>` |
 | 검증 | `node tests/validate.mjs uniform cyl8 sphere` → `node tools/validation-report.mjs` |
-| LBM 비교 | `node tests/lbm.mjs 8 FP32 FP16 MIXED` (`COLL=TRT`로 TRT 충돌) |
+| LBM 비교 | `node tools/build.mjs --with=lbm --out=dist/aether-lbm.html` 후 `node tests/lbm.mjs 8 FP32 FP16 MIXED` (`COLL=TRT`로 TRT 충돌) |
+| 코드 정리 도구 | `node tools/deps.mjs --remove=파일,…` (의존성 지도·삭제 후보), `node tools/undef.mjs` (정의 없는 참조의 원본 위치), `node tests/coverage.mjs` + `node tools/coverage-report.mjs` (실행된 적 없는 코드) |
 | 솔버 비교 | `node tests/solver-compare.mjs` |
 
 테스트는 Playwright + 헤드리스 Chromium(SwiftShader)을 씁니다. 동시에 브라우저 3개 이상 띄우면 페이지가 종료되므로 2개까지만 돌립니다.

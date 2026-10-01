@@ -80,7 +80,7 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
   if(l.ok&&l.enabled){const N=l.N,F=l.forces,r=l.benchRes,cells=(N[0]*N[1]*N[2]/1e4).toFixed(1);
    if(b){const t='실시간 CFD · '+(mac?'MAC 격자':'collocated(대체)')+' · 등급 '+l.q;if(b.textContent!==t){b.textContent=t;b.className='badge live'}}
    let x='실시간 GPU CFD · '+(mac?'MAC 격자':'collocated(대체)')+' · 등급 '+l.q+' · '+cells+'만 셀\n풍속 '+l.U+' m/s · 모의 '+l.t.toFixed(1)+' s'+(F&&F.n>2?' · Cd '+(F.CdMean??F.Cd).toFixed(2)+' · Cl '+(F.ClMean??F.Cl).toFixed(2):'');
-   x+='\n—\n'+(mac?'MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 '+(M.solver==='RBGS'?'RBGS-MG':M.solver):'collocated 대체 솔버(비점성)')+' · '+N.join('×')+' · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
+   x+='\n'+(mac?'MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 '+(M.solver==='RBGS'?'RBGS-MG':M.solver):'collocated 대체 솔버(비점성)')+' · '+N.join('×')+' · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
    if(F&&F.n>2)x+='\nCd '+(F.CdMean??F.Cd).toFixed(2)+' ± '+(F.CdStd??0).toFixed(2)+' · Cl '+(F.ClMean??F.Cl).toFixed(2)+' ± '+(F.ClStd??0).toFixed(2)+' (최근 '+(F.window||0).toFixed(1)+' s 평균±표준편차 · '+(mac?(M.ibm==='vf'?'운동량 수지: 압력·점성·경계 강제':'압력+벽전단'):'압력항력만')+' · Cl은 차 밑 틈(약 7 cm)이 셀보다 작아 신뢰 낮음)';
    if(mac&&M.eps>0)x+='\n와도 보존력 보정 사용 중(LOW 전용 근사 보정, 물리 법칙 아님)';
    x+='\n계산값: 유동·연기·풍속·Cd/Cl  |  근사: 사람 형상(원기둥)·부분체적 경계·셀 크기 '+(l.h?Math.round(Math.min(...l.h)*100):'?')+' cm  |  연출: 팬 회전 속도·바람 소리·자막·연기 서서히 옅어짐(수명 3 s)·연기 표시 곡선';
