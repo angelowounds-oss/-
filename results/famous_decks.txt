@@ -1,0 +1,22 @@
+2.6 순호               | Cannon,Musketeer,Skeletons,Hog Rider,Fireball,Ice Golem,Ice Spirit,The Log
+2.9 순호               | Cannon,Musketeer,Skeletons,Hog Rider,Fireball,Zap,Ice Golem,Ice Spirit
+3.0 광켓               | Skeletons,Miner,Inferno Tower,Poison,The Log,Rocket,Zap,Electro Spirit
+3.5 광켓               | Skeletons,Miner,Bomb Tower,Poison,The Log,Rocket,Zap,Mini PEKKA
+2.9 X보우              | X-Bow,Tesla,Archers,Knight,Skeletons,Ice Spirit,Fireball,The Log
+3.0 모르타르             | Mortar,Knight,Archers,Skeleton Army,Bats,Ice Spirit,Fireball,The Log
+페카 브릿지               | PEKKA,Battle Ram,Electro Wizard,Magic Archer,Zap,Dark Prince,Bats,Mini PEKKA
+페카 도니                | PEKKA,Baby Dragon,Electro Wizard,Zap,The Log,Tornado,Tornado,Arrows
+골렘 덱                 | Golem,Night Witch,Baby Dragon,Mega Minion,Lightning,Zap,Tombstone,Electro Wizard
+라바룬                  | Lava Hound,Balloon,Skeleton Dragons,Mega Minion,Tombstone,Arrows,Zap,Barbarian Barrel
+메가나이트                | Mega Knight,Elixir Collector,Bats,Skeleton Barrel,Minions,Inferno Tower,Zap,The Log
+자이언트 프린스             | Giant,Prince,Dark Prince,Mega Minion,Electro Wizard,Zap,Arrows,Mini PEKKA
+스팩키 통제               | Sparky,Inferno Tower,Zap,The Log,Rocket,Skeleton Army,Skeleton Dragons,Ice Spirit
+스팩키 성                | Sparky,Firecracker,Goblins,Ice Golem,Rocket,Skeleton Army,The Log,Arrows
+로그배이트                | Spear Goblins,Goblins,Skeleton Barrel,Princess,Ice Spirit,Zap,The Log,Arrows
+로그배이트(도니)            | Goblins,Skeleton Barrel,Princess,Arrows,Ice Spirit,Zap,The Log,Tornado
+엘릭서 모르타르             | Mortar,Elixir Collector,Knight,Arrows,Skeletons,Bats,Barbarian Barrel,The Log
+엘릭서 X보우              | X-Bow,Elixir Collector,Tesla,Archers,Skeletons,Ice Spirit,Fireball,The Log
+로열 호그                | Royal Hogs,Royal Recruits,Flying Machine,Zappies,Fireball,Arrows,Electro Spirit,Barbarian Hut
+배틀램 통제               | Battle Ram,Electro Wizard,Zap,Tornado,The Log,Skeleton Army,Bats,Ice Spirit
+3M 덱                 | Three Musketeers,Ice Spirit,Miner,Battle Ram,Elixir Collector,X-Bow,Rocket,Giant Snowball
+빅배롤                  | Balloon,Ice Golem,Ice Spirit,Skeletons,Musketeer,Inferno Tower,The Log,Fireball
