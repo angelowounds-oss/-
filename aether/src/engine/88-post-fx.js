@@ -166,7 +166,7 @@ function fxAfterOpaque(){const T=FX.t,M=FX.m=fxMatrices(),rw=FX.rw,rh=FX.rh;gl.b
   fxPass('aoblur',T.aoF[1],FX.aw,FX.ah,{uAO:T.ao[0]},{uDir:[1,0]});fxPass('aoblur',T.aoF[0],FX.aw,FX.ah,{uAO:T.ao[1]},{uDir:[0,1]})}
  /* volumetric smoke */
  const smokeOn=LIVE.enabled&&LIVE.ok&&!!LIVE.vol;if(smokeOn){const fwd=norm(sub(camera.target,camera.eye));
-  fxPass('vol',T.smF,FX.vw,FX.vh,{uVol:{__3d:true,t:LIVE.vol},uDepth:T.depth,uBlue:FX.blue},{uInv:M.inv,uEye:[...camera.eye],uBMin:[...LIVE.min],uBMax:[...LIVE.max],uLD:[.24,.95,.18],uFwd:fwd,uDens:LIVE.dens,uTF:[...LIVE.tf],uFD:[LIVE.tipX,LIVE.wand?0:.4,LIVE.wisp],uWT:[LIVE.t,LIVE.U],uCMode:LIVE.colorMode?1:0,uStepScale:LIVE.stepScale||1,uG:FX.g,uFrame:FX.frame%64,uTaps:{int:2+2*(LIVE.rq|0)}});
+  fxPass('vol',T.smF,FX.vw,FX.vh,{uVol:{__3d:true,t:LIVE.vol},uDepth:T.depth,uBlue:FX.blue},{uInv:M.inv,uEye:[...camera.eye],uBMin:[...LIVE.min],uBMax:[...LIVE.max],uLD:[.24,.95,.18],uFwd:fwd,uDens:LIVE.dens,uTF:[...LIVE.tf],uFD:[LIVE.tipX-.08,LIVE.wand?0:.22,LIVE.wisp],uWT:[LIVE.t,LIVE.U],uCMode:LIVE.colorMode?1:0,uStepScale:LIVE.stepScale||1,uG:FX.g,uFrame:FX.frame%64,uTaps:{int:2+2*(LIVE.rq|0)}});
   gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_3D,null);
   const cur=FX.shist,nxt=1-cur;fxPass('vtemp',T.shF[nxt],FX.vw,FX.vh,{uCur:T.sm,uAux:T.sa,uHist:T.sh[cur]},{uInv:M.inv,uPrevVP:FX.prevVP||M.vp,uEye:[...camera.eye],uBlend:FX.reset?0:.8});FX.shist=nxt}
  fxPass('comp',T.compF,rw,rh,{uScene:T.color,uAmb:T.amb,uDepth:T.depth,uAO:T.ao[0],uSmoke:T.sh[FX.shist],uSAux:T.sa},{uLo:[FX.vw,FX.vh],uAOOn:aoOn?1:0,uAOK:FX.aoStrength,uSmokeOn:smokeOn?1:0,uSSR:PERF.set.ssr|0,uProj:projP,uP:fxProj()});
