@@ -40,7 +40,7 @@ $('scCine').onclick=cine;
 /* ---------- splash: enter when the renderer, GPU measurement and first smoke are ready ---------- */
 const go=$('scGo');let ready=false;
 const pt0=performance.now(),WHY={renderer:'렌더러 준비',calibrating:'GPU 성능 측정',developing:'연기 흐름 형성',live:'엔진 시작'};
-const poll=setInterval(()=>{const r=CN.readiness(),late=performance.now()-pt0>25000&&r.why!=='renderer';
+const poll=setInterval(()=>{if(!$('scLoad')){clearInterval(poll);return}const r=CN.readiness(),late=performance.now()-pt0>25000&&r.why!=='renderer';
  if((r.ready||late)&&!ready){ready=true;go.classList.add('rdy');$('scLoad').textContent='준비 완료'}
  else if(!ready)$('scLoad').textContent=(WHY[r.why]||'엔진 준비')+' '+Math.round(r.p*100)+'%'},300);
 go.onclick=()=>{if(!ready)return;clearInterval(poll);$('scSplash').classList.add('off');setTimeout(()=>$('scSplash').remove(),1100);cine()};

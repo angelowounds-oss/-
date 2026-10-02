@@ -21,8 +21,8 @@ try {
     const snap = () => ({ e: C.getSnapshot().control.emergencyStopped, road: C.getSnapshot().control.rollingRoadEnabled, w: __LIVE.U, fan: AETHER.FAN_MODULE.visualRunning, paused: !!__LIVE.freeze, mode: __LIVE.mode, color: __LIVE.colorMode, preset: __AETHER_DEBUG.camera.preset });
     const tryOne = (name, p) => { const sc = toScreen(p); if (!sc || !sc.vis) { rep.results[name] = 'not on screen'; return; } const b = JSON.stringify(snap()); click(sc); const a = JSON.stringify(snap()); rep.results[name] = b !== a ? 'changed' : 'no change'; };
     for (const o of objs) { if (o.m14Action === 'ESTOP') continue; tryOne('btn ' + o.m14Action, o.center); }
-    for (const s of socks) { if (s.id === 'EMERGENCY_STOP') continue; tryOne('socket ' + s.id, s.position); __AETHER_DEBUG.setPreset('Control'); }
-    for (const o of objs) if (o.m14Action === 'ESTOP') tryOne('btn ESTOP', o.center);
+    for (const s of socks) { if (s.id === 'EMERGENCY_STOP') continue; if (s.id === 'CFD_RESET' || s.id === 'FAN_SPEED') { const sc = toScreen(s.position); if (sc && sc.vis) { click(sc); rep.results['socket ' + s.id] = 'clicked (no snapshot field)'; } continue; } tryOne('socket ' + s.id, s.position); __AETHER_DEBUG.setPreset('Control'); }
+    { const s = socks.find(x => x.id === 'EMERGENCY_STOP'); if (s) { __AETHER_DEBUG.setPreset('Control'); tryOne('socket EMERGENCY_STOP', s.position); } }
     rep.estopLatched = C.getSnapshot().control.emergencyStopped;
     return rep;
   });
