@@ -1,0 +1,240 @@
+import * as THREE from 'three';
+import { buildHuman } from './models.js';
+import { N, R, SW, roadC } from './world.js';
+import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
+
+export const WEAPONS = [
+  { name: '9MM PISTOL', short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
+  { name: 'CARBINE', short: 'rifle', clip: 30, reserve: 180, damage: 21, head: 1.9, rate: 0.085, spread: 0.012, range: 200, reload: 1.7, recoil: 0.011, auto: true, tracer: [0.5, 0.95, 1], snd: 'rifle' },
+];
+const SW_MID = R / 2 + SW / 2;
+let uid = 0;
+
+export class Human {
+  constructor(G, team, o = {}) {
+    this.G = G; this.team = team; this.id = ++uid;
+    const look = o.look || {};
+    this.m = buildHuman(look);
+    this.group = this.m.group;
+    this.x = 0; this.z = 0; this.y = 0; this.vy = 0; this.ry = rand(0, TAU);
+    this.vx = 0; this.vz = 0;
+    this.hp = o.hp ?? 60; this.maxHp = this.hp;
+    this.dead = false; this.deadT = 0; this.hidden = false;
+    this.state = 'walk'; this.stateT = 0; this.phase = Math.random() * 10;
+    this.speed = 0; this.moveSpeed = 0;
+    this.node = null; this.target = null;
+    this.armed = !!o.weapon; this.weapon = o.weapon ? WEAPONS[o.weapon - 1] : null;
+    this.fireCd = rand(0, 1); this.burst = 0;
+    this.threat = null; this.fleeT = 0;
+    this.offset = rand(-1.6, 1.6);
+    this.cash = Math.floor(rand(8, 60));
+    this.aimT = 0; this.alert = 0;
+    this.radius = 0.35;
+    this.crouch = 0;
+    this.pose = 0;
+    this.group.userData.human = this;
+    this.inCar = null;
+    this.m.pistol.visible = this.armed && this.weapon.short === 'pistol';
+    this.m.rifle.visible = this.armed && this.weapon.short === 'rifle';
+  }
+  get alive() { return !this.dead; }
+  setWeapon(i) {
+    this.weapon = WEAPONS[i]; this.armed = true;
+    this.m.pistol.visible = i === 0; this.m.rifle.visible = i === 1;
+  }
+  // ---- sidewalk graph for civilians ----
+  placeOnSidewalk(i, j, sx, sz) { this.node = { i, j, sx, sz }; this.x = roadC(i) + sx * SW_MID + this.offset; this.z = roadC(j) + sz * SW_MID; this.chooseNext(); }
+  nodePos(n) { return [roadC(n.i) + n.sx * SW_MID, roadC(n.j) + n.sz * SW_MID]; }
+  chooseNext() {
+    const n = this.node; if (!n) return;
+    const opts = [];
+    // along road j (east-west) heading +x / -x
+    if (n.i < N) opts.push([{ i: n.i + 1, j: n.j, sx: -1, sz: n.sz }, 2]);
+    if (n.i > 0) opts.push([{ i: n.i - 1, j: n.j, sx: 1, sz: n.sz }, 2]);
+    if (n.j < N) opts.push([{ i: n.i, j: n.j + 1, sx: n.sx, sz: -1 }, 2]);
+    if (n.j > 0) opts.push([{ i: n.i, j: n.j - 1, sx: n.sx, sz: 1 }, 2]);
+    opts.push([{ i: n.i, j: n.j, sx: -n.sx, sz: n.sz }, 1.2], [{ i: n.i, j: n.j, sx: n.sx, sz: -n.sz }, 1.2]);
+    // prefer continuing straight
+    const prev = this.prevNode;
+    let tot = 0; for (const o of opts) { o.w = o[1] * (prev && o[0].i === prev.i && o[0].j === prev.j && o[0].sx === prev.sx && o[0].sz === prev.sz ? 0.15 : 1); tot += o.w; }
+    let t = Math.random() * tot, pick = opts[0][0];
+    for (const o of opts) { t -= o.w; if (t <= 0) { pick = o[0]; break; } }
+    this.prevNode = n; this.node = pick;
+  }
+  hurt(dmg, from, headshot, src) {
+    if (this.dead) return;
+    const G = this.G;
+    this.hp -= dmg;
+    this.hitFlash = 0.12;
+    if (this.team === 'civ' || this.team === 'gang') { this.threat = from; }
+    if (this.hp <= 0) { this.die(from, src); return true; }
+    if (this.team === 'civ') { this.state = 'flee'; this.fleeT = rand(6, 10); G.audio.scream(0); }
+    else if (this.team === 'gang') { this.alert = 1; this.state = 'attack'; }
+    return false;
+  }
+  die(from, src) {
+    this.dead = true; this.deadT = 0; this.state = 'dead'; this.speed = 0;
+    this.G.onHumanKilled?.(this, src);
+    this.fallDir = rand(-1, 1);
+    this.m.pistol.visible = false; this.m.rifle.visible = false;
+  }
+  ragdoll(vx, vz, up = 4) { this.knock = 1; this.vx = vx; this.vz = vz; this.vy = up; }
+
+  update(dt) {
+    const G = this.G;
+    if (this.hitFlash > 0) this.hitFlash -= dt;
+    if (this.dead) {
+      this.deadT += dt;
+      const k = Math.min(1, this.deadT * 3);
+      this.m.body.rotation.x = lerp(this.m.body.rotation.x, -1.5, 1 - Math.exp(-10 * dt));
+      this.m.body.rotation.z = lerp(this.m.body.rotation.z, this.fallDir * 0.4, 1 - Math.exp(-8 * dt));
+      this.m.body.position.y = lerp(this.m.body.position.y, 0.17, 1 - Math.exp(-10 * dt));
+      this.m.legL.rotation.x = this.m.legR.rotation.x = 0.2;
+      if (this.knock) { this.stepKnock(dt); }
+      if (this.deadT > 22) this.group.scale.setScalar(Math.max(0.001, 1 - (this.deadT - 22) * 0.8));
+      return;
+    }
+    if (this.knock) { this.stepKnock(dt); if (this.knock) return; }
+    const px = G.player.x, pz = G.player.z;
+    const dxp = px - this.x, dzp = pz - this.z, dp = Math.hypot(dxp, dzp);
+    let wantX = 0, wantZ = 0, spd = 0, face = null;
+    if (this.team === 'civ') {
+      if (this.state === 'flee') {
+        this.fleeT -= dt;
+        const t = this.threat || G.player;
+        let ax = this.x - t.x, az = this.z - t.z; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
+        // follow sidewalk-ish: prefer fleeing along dominant axis
+        wantX = ax; wantZ = az; spd = 5.2;
+        if (this.fleeT <= 0) { this.state = 'walk'; this.snapToNode(); }
+      } else {
+        if (this.node) {
+          const [tx, tz] = this.nodePos(this.node);
+          const dx = tx + (this.node.sx ? this.offset * (this.node.along ? 0 : 0) : 0) - this.x, dz = tz - this.z;
+          const d = Math.hypot(dx, dz);
+          if (d < 1.4) this.chooseNext(); else { wantX = dx / d; wantZ = dz / d; spd = this.stateT > 0 ? 0 : 1.5; }
+        }
+        // stop & stare
+        if (this.stateT > 0) this.stateT -= dt;
+        else if (Math.random() < dt * 0.04) this.stateT = rand(1.5, 4);
+        // startled by nearby fast cars or player gun
+        if (G.player.weaponDrawn && dp < 14 && G.playerOnFoot) { this.state = 'flee'; this.fleeT = 6; this.threat = G.player; }
+      }
+    } else if (this.team === 'gang' || this.team === 'cop') {
+      this.updateCombat(dt, dp, dxp, dzp);
+      wantX = this.cmdX || 0; wantZ = this.cmdZ || 0; spd = this.cmdSpeed || 0; face = this.faceAngle;
+    }
+    // movement integration
+    const tvx = wantX * spd, tvz = wantZ * spd;
+    this.vx = damp(this.vx, tvx, 9, dt); this.vz = damp(this.vz, tvz, 9, dt);
+    let nx = this.x + this.vx * dt, nz = this.z + this.vz * dt;
+    const r = G.world.colliders.resolve(nx, nz, this.radius, this.y);
+    this.x = r.x; this.z = r.z;
+    // slide blocked sidewalk walkers: if blocked, pick another node
+    if (r.hit && this.team === 'civ' && this.state !== 'flee') { if (Math.random() < 0.05) this.chooseNext(); }
+    this.speed = Math.hypot(this.vx, this.vz);
+    // vehicles block
+    for (const v of G.vehicles) {
+      if (!v.group.visible) continue;
+      const dx = this.x - v.x, dz = this.z - v.z;
+      if (Math.abs(dx) > 4 || Math.abs(dz) > 4) continue;
+      const s = Math.sin(v.h), c = Math.cos(v.h);
+      const lf = dx * s + dz * c, ll = dx * c - dz * s;
+      const hl = v.L / 2 + this.radius, hw = v.W / 2 + this.radius;
+      if (Math.abs(lf) < hl && Math.abs(ll) < hw) {
+        // push out nearest side
+        if (hl - Math.abs(lf) < hw - Math.abs(ll)) { const k = Math.sign(lf) * hl; this.x += s * (k - lf); this.z += c * (k - lf); }
+        else { const k = Math.sign(ll) * hw; this.x += c * (k - ll); this.z -= s * (k - ll); }
+      }
+    }
+    // facing
+    if (face != null) this.ry = dampAngle(this.ry, face, 12, dt);
+    else if (this.speed > 0.4) this.ry = dampAngle(this.ry, Math.atan2(this.vx, this.vz), 9, dt);
+    this.animate(dt, spd);
+  }
+  snapToNode() {
+    // pick nearest sidewalk corner as new node
+    const G = this.G;
+    let best = null, bd = 1e9;
+    const i0 = clamp(Math.round((this.x + (N * 84) / 2) / 84), 0, N), j0 = clamp(Math.round((this.z + (N * 84) / 2) / 84), 0, N);
+    for (let i = Math.max(0, i0 - 1); i <= Math.min(N, i0 + 1); i++) for (let j = Math.max(0, j0 - 1); j <= Math.min(N, j0 + 1); j++) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const n = { i, j, sx, sz }; const [x, z] = this.nodePos(n); const d = Math.hypot(x - this.x, z - this.z); if (d < bd) { bd = d; best = n; }
+    }
+    this.node = best; this.prevNode = null;
+  }
+  stepKnock(dt) {
+    this.vy -= 22 * dt;
+    this.x += this.vx * dt; this.z += this.vz * dt; this.y += this.vy * dt;
+    const r = this.G.world.colliders.resolve(this.x, this.z, this.radius, this.y); this.x = r.x; this.z = r.z;
+    if (this.y <= 0) { this.y = 0; if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) this.knock = 0; } }
+    this.group.position.set(this.x, this.y, this.z);
+    if (!this.dead) { this.m.body.rotation.x += dt * 9; this.group.rotation.y = this.ry; }
+    else this.group.rotation.y = this.ry;
+    if (!this.knock && !this.dead) { this.m.body.rotation.x = 0; this.state = 'flee'; this.fleeT = 5; }
+  }
+
+  // armed AI
+  updateCombat(dt, dp, dxp, dzp) {
+    const G = this.G;
+    const pl = G.player;
+    this.cmdSpeed = 0; this.faceAngle = null;
+    const los = dp < 80 && G.hasLOS(this.x, 1.5, this.z, pl.x, 1.4, pl.z);
+    if (this.team === 'cop') {
+      const hunt = G.wanted > 0;
+      if (!hunt) { this.cmdSpeed = 0; this.faceAngle = null; return; }
+      this.alert = 1;
+    } else {
+      if (this.state !== 'attack') {
+        if (los && dp < (this.detect || 38)) { this.state = 'attack'; this.alert = 1; this.fireCd = rand(0.7, 1.4); G.alertGang?.(this); }
+        else { this.cmdSpeed = 0; if (this.patrol) this.doPatrol(dt); return; }
+      }
+    }
+    // attack
+    const ideal = this.team === 'cop' ? 11 : 13;
+    const toP = Math.atan2(dxp, dzp);
+    this.faceAngle = toP; this.aimT = 1;
+    let mx = 0, mz = 0;
+    if (dp > ideal + 4 || !los) { mx = dxp / dp; mz = dzp / dp; this.cmdSpeed = dp > 30 ? 6.3 : 4.2; }
+    else if (dp < ideal - 4) { mx = -dxp / dp; mz = -dzp / dp; this.cmdSpeed = 2.4; }
+    else { // strafe
+      this.strafeT = (this.strafeT || 0) - dt; if (this.strafeT <= 0) { this.strafeT = rand(1, 2.5); this.strafeDir = Math.random() < 0.5 ? -1 : 1; }
+      mx = Math.cos(toP) * this.strafeDir; mz = -Math.sin(toP) * this.strafeDir; this.cmdSpeed = 2.2;
+    }
+    this.cmdX = mx; this.cmdZ = mz;
+    // shoot
+    this.fireCd -= dt;
+    if (los && dp < 60 && this.fireCd <= 0 && !this.dead) {
+      this.fireCd = this.burstLeft > 0 ? (this.weapon.short === 'rifle' ? 0.14 : 0.28) : rand(1.1, 2.2);
+      if (this.burstLeft > 0) this.burstLeft--; else this.burstLeft = Math.floor(rand(1, 4));
+      G.enemyShoot(this, pl);
+    }
+  }
+  doPatrol(dt) {
+    this.patrolT = (this.patrolT || 0) - dt;
+    if (this.patrolT <= 0) { this.patrolT = rand(2, 5); const a = rand(0, TAU); this.pdx = Math.sin(a); this.pdz = Math.cos(a); this.pmove = Math.random() < 0.6; }
+    if (this.pmove) { this.cmdX = this.pdx; this.cmdZ = this.pdz; this.cmdSpeed = 1.2; this.faceAngle = Math.atan2(this.pdx, this.pdz); }
+    // keep near home
+    if (this.home) { const dx = this.home.x - this.x, dz = this.home.z - this.z, d = Math.hypot(dx, dz); if (d > 12) { this.cmdX = dx / d; this.cmdZ = dz / d; this.cmdSpeed = 1.6; } }
+  }
+
+  animate(dt, desired) {
+    const m = this.m;
+    this.phase += this.speed * dt * 2.1;
+    const sw = Math.sin(this.phase), amp = clamp(this.speed / 3.2, 0, 1.25);
+    m.legL.rotation.x = sw * 0.75 * amp; m.legR.rotation.x = -sw * 0.75 * amp;
+    const aiming = this.aimT > 0 || this.forceAim;
+    if (aiming && this.armed) {
+      this.pose = damp(this.pose, 1, 14, dt);
+    } else this.pose = damp(this.pose, 0, 10, dt);
+    const swingA = -sw * 0.6 * amp * (1 - this.pose);
+    m.armL.rotation.x = lerp(-swingA, -1.35, this.pose * 0.9); m.armL.rotation.z = lerp(0, 0.35, this.pose);
+    m.armR.rotation.x = lerp(swingA, -1.5 - (this.recoil || 0) * 1.5, this.pose); m.armR.rotation.z = lerp(0, -0.05, this.pose);
+    if (this.recoil > 0) this.recoil = Math.max(0, this.recoil - dt * 8);
+    m.body.rotation.x = lerp(0, 0.12 * clamp(this.speed / 5, 0, 1), 1) + (this.pitchLean || 0);
+    m.body.rotation.z = 0;
+    m.body.position.y = Math.abs(Math.cos(this.phase)) * 0.04 * amp - this.crouch * 0.3;
+    m.torso.rotation.y = this.pose * 0.25;
+    this.group.position.set(this.x, this.y, this.z);
+    this.group.rotation.y = this.ry;
+    if (this.aimT > 0) this.aimT -= dt * 0.5;
+  }
+}
