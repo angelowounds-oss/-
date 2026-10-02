@@ -30,15 +30,15 @@
 #include <cstdlib>
 #define private public
 #define protected public
-#include "GameManager.h"
-#include "CardRegistry.h"
-#include "HeuristicOpponent.h"
-#include "Troop.h"
-#include "Building.h"
-#include "BuildingTargeter.h"
-#include "AreaSpell.h"
-#include "Tower.h"
-#include "GameLogger.h"
+#include "core/GameManager.h"
+#include "core/CardRegistry.h"
+#include "core/HeuristicOpponent.h"
+#include "entities/Troop.h"
+#include "entities/Building.h"
+#include "entities/BuildingTargeter.h"
+#include "entities/AreaSpell.h"
+#include "entities/Tower.h"
+#include "core/GameLogger.h"
 #undef private
 #undef protected
 
@@ -555,7 +555,8 @@ int main(int argc, char** argv) {
       for (int q = 0; q < NW; q++) { double gq = 0; for (int i = 0; i < pairs; i++) gq += (rk[2 * i] - rk[2 * i + 1]) * eps[i][q]; th[q] = max(-3.0f, min(3.0f, th[q] + (float)(lr / (pairs * sigma) * gq))); }
       total += nc * games;
       { ofstream o(wf); o << thStr(th) << "\n"; }
-      printf("gen %3d  games %7lld  win vs policy6 %.1f%% (%d)  vs league %s  best cand %.3f\n", gen, total, 100 * wB / max(1.0, nB), (int)nB, nL > 0 ? (to_string((int)lround(100 * wL / nL)) + "%").c_str() : "-", all.back().first);
+      string leagueStr = nL > 0 ? (to_string((int)lround(100 * wL / nL)) + "%") : "-";
+      printf("gen %3d  games %7lld  win vs policy6 %.1f%% (%d)  vs league %s  best cand %.3f\n", gen, total, 100 * wB / max(1.0, nB), (int)nB, leagueStr.c_str(), all.back().first);
       if ((gen + 1) % 5 == 0) { auto v = validate(toW(th), 1, 900000); printf("  validation: current weights vs policy 6 = %.1f%% over %d games (fixed held-out seeds)\n  theta: %s\n", 100 * v.first, v.second, thStr(th).c_str()); }
       if ((gen + 1) % 10 == 0) { league.push_back(toW(th)); if (league.size() > 6) league.erase(league.begin()); ofstream(wf + ".league", ios::app) << thStr(th) << "\n"; }
       fflush(stdout);
