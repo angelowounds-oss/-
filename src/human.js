@@ -248,6 +248,7 @@ export class Human {
     // distance LOD: fog hides far actors anyway, so skip their skinning and animation
     const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
     m.body.visible = cd < 75;
+    const sh = cd < 28; if (sh !== m.shadowOn) { m.shadowOn = sh; for (const o of m.skinMeshes) o.castShadow = sh; }
     if (cd > 75) return;
     if (cd > 35) { this.lodT = (this.lodT || 0) + dt; if ((this.lodF = !this.lodF)) return; dt = this.lodT; this.lodT = 0; }
     m.mixer.update(dt);
