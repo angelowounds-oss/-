@@ -262,7 +262,7 @@ function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.m
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 미지원');
  macRelease();MAC.cfg=cfg;MAC.N=N;MAC.min=min;MAC.max=max;MAC.h=h;
  /* nozzle mass balance: the fan face emits U*fanK so that the nozzle exit (area Ae) carries U; the inlet supplies the same flux over the domain section */
- MAC.cond=null;MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.nozzle.xb-.35,cfg.nozzle.xb,60,LIVE.screenK];const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.inK=MAC.fanK*Af/Ad}
+ MAC.cond=null;MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.nozzle.xb-.35,cfg.nozzle.xb,60,LIVE.screenK];MAC.afad=0;const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.afad=Af/Ad;MAC.inK=MAC.fanK*MAC.afad;MAC.refPts=[0,.6,-.6].map(z=>[n.xb+.3,1.0,z]).concat([[n.xb+.3,1.8,0]])}
  const G=MAC.G=macAtlas(N),Nd=N.map(v=>v*2),D=MAC.D=macAtlas(Nd);MAC.hd=h.map(v=>v/2);
  const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
  MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
@@ -390,14 +390,17 @@ function macReadCell(i,j,k){const G=MAC.G,N=MAC.N,px=(ii,jj,kk)=>{ii=Math.min(N[
  gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.t.velA.f);const a=px(i,j,k),bx=i<N[0]-1?px(i+1,j,k)[0]:a[0],by=j<N[1]-1?px(i,j+1,k)[1]:0,bz=k<N[2]-1?px(i,j,k+1)[2]:0;gl.bindFramebuffer(gl.FRAMEBUFFER,null);
  return [(a[0]+bx)/2,(a[1]+by)/2,(a[2]+bz)/2]}
 /* asynchronous probe: all pixels of all probe points go into one PBO, a fence is polled on later frames, the CPU never stalls */
-function macProbeKick(P){if(MAC.probeJob||!MAC.t)return;const G=MAC.G,N=MAC.N,cl=(v,d)=>Math.min(N[d]-1,Math.max(0,v)),f=(v,d)=>cl(Math.floor((v-MAC.min[d])/MAC.h[d]),d),pix=[];
+function macProbeKick(P,kind){if(MAC.probeJob||!MAC.t)return;const G=MAC.G,N=MAC.N,cl=(v,d)=>Math.min(N[d]-1,Math.max(0,v)),f=(v,d)=>cl(Math.floor((v-MAC.min[d])/MAC.h[d]),d),pix=[];
  for(const [x,y,z] of P){const i=f(x,0),j=f(y,1),k=f(z,2);pix.push([i,j,k],[i<N[0]-1?i+1:i,j,k],[i,j<N[1]-1?j+1:j,k],[i,j,k<N[2]-1?k+1:k])}
  const bytes=pix.length*16;if(!MAC.pbo)MAC.pbo=gl.createBuffer();gl.bindBuffer(gl.PIXEL_PACK_BUFFER,MAC.pbo);if(MAC.pboBytes!==bytes){gl.bufferData(gl.PIXEL_PACK_BUFFER,bytes,gl.STREAM_READ);MAC.pboBytes=bytes}
  gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.t.velA.f);pix.forEach(([i,j,k],n)=>gl.readPixels((k%G.tx)*N[0]+i,Math.floor(k/G.tx)*N[1]+j,1,1,gl.RGBA,gl.FLOAT,n*16));
- gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);gl.bindFramebuffer(gl.FRAMEBUFFER,null);MAC.probeJob={fence:gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0),np:P.length,gen:LIVE.gen};gl.flush()}
+ gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);gl.bindFramebuffer(gl.FRAMEBUFFER,null);MAC.probeJob={fence:gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0),np:P.length,gen:LIVE.gen,kind:kind||'body'};gl.flush()}
 function macProbePoll(){const J=MAC.probeJob;if(!J)return null;const r=gl.clientWaitSync(J.fence,0,0);if(r===gl.TIMEOUT_EXPIRED)return null;gl.deleteSync(J.fence);MAC.probeJob=null;if(r===gl.WAIT_FAILED||J.gen!==LIVE.gen)return null;
  const b=new Float32Array(J.np*16);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,MAC.pbo);gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,0,b);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
- const out=[];for(let n=0;n<J.np;n++){const o=n*16;out.push([(b[o]+b[o+4])/2,(b[o+1]+b[o+9])/2,(b[o+2]+b[o+14])/2])}return out}
+ const out=[];for(let n=0;n<J.np;n++){const o=n*16;out.push([(b[o]+b[o+4])/2,(b[o+1]+b[o+9])/2,(b[o+2]+b[o+14])/2])}out.kind=J.kind;return out}
+/* closed-loop fan speed: a real tunnel holds the reference dynamic pressure by trimming the fan; here the fan-face emission follows the mean x-velocity of 4 reference points behind the nozzle exit */
+function macWindCtl(vals){if(!MAC.cond||!MAC.afad||!vals||!vals.length)return;const m=vals.reduce((a,v)=>a+v[0],0)/vals.length;if(!(m>.3)||!(MAC.U>0))return;
+ MAC.fanK=Math.min(1.8,Math.max(.25,MAC.fanK*Math.pow(MAC.U/m,.3)));MAC.inK=MAC.fanK*MAC.afad;MAC.refSpeed=m}
 function macRead(x,y,z){const f=(v,d)=>Math.min(MAC.N[d]-1,Math.max(0,Math.floor((v-MAC.min[d])/MAC.h[d])));return macReadCell(f(x,0),f(y,1),f(z,2))}
 /* full-field reads (tests / validation) */
 function macReadAll(t,ch){const G=MAC.G,buf=new Float32Array(G.W*G.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,G.W,G.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
