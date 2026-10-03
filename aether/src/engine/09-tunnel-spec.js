@@ -45,5 +45,5 @@ const TUNNEL_SPEC=(()=>{
  d.smoothstep=ss;
  return Object.freeze({...S,derived:Object.freeze(d)});
 })();
-/* profile switch: the v2 tunnel is opt-in (#tunnel=v2) until it passes the whole regression suite; the legacy 18 x 8 x 5.5 m room stays the default */
-const TUNNEL_V2_ON=/tunnel=v2/.test(location.hash);
+/* profile switch: the v2 tunnel is the default; #tunnel=legacy brings back the old 18 x 8 x 5.5 m room (kept for A/B comparison and the validation suites) */
+const TUNNEL_V2_ON=!/tunnel=legacy/.test(location.hash);
