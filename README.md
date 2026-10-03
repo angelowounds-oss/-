@@ -42,3 +42,8 @@
 - `assets/props/living_set.glb`: furniture pieces (TV, glass coffee table, piano, pot, rug) from the supplied `InteriorTest.blend` living room, re-textured with Poly Haven wood/marble and flat colours via `build/bake_livingroom.py` + `build/living_pack.mjs`; instanced into every apartment living room by `src/livingset.js`.
 - `assets/facade/*.jpg`: "Building Displacement 01/02" facade texture sets (supplied by the project owner), packed by `build/facade_pack.mjs` (color 1024, emissive 512, normal+roughness 512) and sampled as WebGL2 array textures in the facade shader (`src/facade.js`, `createFacadeMaterial` in `src/world.js`).
 - `assets/props/street_props.glb`, `street_signs.glb`: the supplied `street_props.blend` (vending machines, garbage container, garbage bags, cardboard boxes, 15 shop signs; textures reduced), baked by `build/bake_street_props.py`. Props are scattered by `src/dressing.js`, signs are mounted on every entrance by `src/signs.js`.
+
+## Added in this round
+- `assets/interior/furniture.glb`: 65 CC0 Poly Haven furniture models merged onto one 2048px atlas by `build/interior_pack.mjs`; placed per room type by `src/rooms.js` / `src/furnish.js` (one merged mesh per floor).
+- `assets/Soldier.glb` now also carries 32 `U_*` clips retargeted from the CC0 Quaternius *Universal Animation Library (Standard)* by `build/retarget_ual.mjs` (world-space delta retarget, A-pose to T-pose reference; base rig kept in `build/Soldier_base.glb`). Used for death, hit reactions, crouch, swim and punches.
+- Controls overlay: press **K** in game. Crouch **Z**, prone **P**, camera/first-person **C**, aim-down-sights with iron sights / red dot / sniper scope on right mouse.
