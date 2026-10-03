@@ -325,6 +325,7 @@ export class Game {
     const { eng, camera } = this;
     const pl = this.player;
     const focus = this.vehicle ? this.vehicle : pl;
+    Human.camX = camera.position.x; Human.camZ = camera.position.z;
     this.world.animate(dt, this.time, camera.position);
     if (!still) {
       this.fakeT = (this.fakeT || 0) - dt;

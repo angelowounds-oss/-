@@ -16,7 +16,7 @@ export class Vehicle {
     this.type = type; this.kind = kind; // parked | traffic | police | player
     const police = kind === 'police', taxi = opts.taxi;
     const base = CAR_SPECS[type] || CRAFT_SPECS[type];
-    const mo = { police, taxi, glow: opts.glow || GLOWS[Math.floor(Math.random() * GLOWS.length)] };
+    const mo = { police, taxi, hero: kind === 'player' || !!opts.glow, glow: opts.glow || GLOWS[Math.floor(Math.random() * GLOWS.length)] };
     this.model = base.custom ? buildCustom(type, color, mo) : buildCar(type, police ? 0x0c1220 : taxi ? 0xe8b820 : color, mo);
     this.group = this.model.group;
     if (police) {

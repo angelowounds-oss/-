@@ -1,0 +1,13 @@
+import { NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { simplify, weld, prune, dequantize } from '@gltf-transform/functions';
+import { MeshoptSimplifier } from 'meshoptimizer';
+const [,, file, ratio = '0.18', err = '0.004'] = process.argv;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+const doc = await io.read(file);
+const count = () => { let n = 0; for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) n += (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3; return n | 0; };
+const before = count();
+await MeshoptSimplifier.ready;
+await doc.transform(dequantize(), weld({ tolerance: 0.0005 }), simplify({ simplifier: MeshoptSimplifier, ratio: +ratio, error: +err, lockBorder: false }), prune());
+await io.write(file, doc);
+console.log(file, before, '->', count());

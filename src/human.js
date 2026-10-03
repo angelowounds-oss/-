@@ -245,7 +245,11 @@ export class Human {
     a.Walk.timeScale = clamp(sp / 1.55, 0.6, 2.2); a.Run.timeScale = clamp(sp / 5.2, 0.8, 1.7);
     const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
     this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
-    if (this.team === 'civ' || !this.visibleNear) { /* mixer cost gate handled by caller */ }
+    // distance LOD: fog hides far actors anyway, so skip their skinning and animation
+    const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
+    m.body.visible = cd < 75;
+    if (cd > 75) return;
+    if (cd > 35) { this.lodT = (this.lodT || 0) + dt; if ((this.lodF = !this.lodF)) return; dt = this.lodT; this.lodT = 0; }
     m.mixer.update(dt);
     m.applyPose(this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
@@ -279,3 +283,4 @@ export class Human {
     if (this.aimT > 0) this.aimT -= dt * 0.5;
   }
 }
+Human.camX = 0; Human.camZ = 0;

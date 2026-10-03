@@ -102,7 +102,8 @@ function buildFerrari(color, opts) {
 }
 
 export function buildCar(type, color, opts = {}) {
-  if (type === 'sport' && A.ok && !opts.police) return buildFerrari(color, opts);
+  // the 190k-triangle glTF is reserved for the player's own car; ambient traffic uses the procedural model
+  if (type === 'sport' && A.ok && !opts.police && opts.hero) return buildFerrari(color, opts);
   const sp = CAR_SPECS[type];
   const { L, W, belt, roof, hood } = sp;
   const hl = L / 2;
