@@ -6,7 +6,7 @@ import { Human, WEAPONS } from './human.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
 import { glowSpriteMat } from './models.js';
-import { timeUniform, flashUniform } from './shaders.js';
+import { timeUniform, flashUniform, nightU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
@@ -335,6 +335,7 @@ export class Game {
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
     this.daynight.update(dt, focus);
+    if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); }
     this.rain.material.uniforms.uCam.value.copy(camera.position);
     const g = eng.grade.uniforms;
     g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) : 0, 3, dt);
@@ -1346,6 +1347,18 @@ export class Game {
     if (this.ui.fps.style.display !== 'none') { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc > 0.5) { ui.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.eng.q.name} ×${this.eng.scale.toFixed(1)}`; this.fpsAcc = this.fpsN = 0; } }
     this.autoQuality(dt);
     if (this.input.touch) this.input.audioUnlock = true;
+  }
+  // glow sprites, beams and underglow are invisible by day or far away: skip their draw calls
+  vehicleLOD(cp) {
+    const night = nightU.value;
+    for (const v of this.vehicles) {
+      const m = v.model; if (!v.group.visible || !m || v.dead) continue;
+      const d = Math.hypot(v.x - cp.x, v.z - cp.z), lit = night > 0.1, near = d < 80;
+      m.beams.visible = v.lightsOn && d < 45 && night > 0.2;
+      m.ug.visible = v.lightsOn && v.kind !== 'parked' && d < 45 && lit;
+      for (const sp of m.headSprites) sp.visible = v.lightsOn && near && lit;
+      for (const sp of m.tailSprites) sp.visible = (v.lightsOn || m.brake.visible) && near && lit;
+    }
   }
   autoQuality(dt) {
     // frame-time driven dynamic resolution; tier drop only when already at minimum scale

@@ -31,6 +31,7 @@ const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.
 const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.06, 0.04).multiplyScalar(1.1) });
 const brakeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.08, 0.06).multiplyScalar(3.4) });
 const tireMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.85, metalness: 0.0 });
+const wheelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.55 });
 const rimMat = new THREE.MeshStandardMaterial({ color: 0xaab4c4, roughness: 0.25, metalness: 1.0 });
 const lightBarRed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.05, 0.05).multiplyScalar(4) });
 const lightBarBlue = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.25, 1).multiplyScalar(4) });
@@ -67,7 +68,10 @@ function wheelPair(track, y) {
     const r = new THREE.CylinderGeometry(WHEEL_R * 0.66, WHEEL_R * 0.66, 0.28, 10); r.rotateZ(Math.PI / 2); r.translate(s * (track + 0.005), y, 0); rp.push(r);
     for (let k = 0; k < 5; k++) { const sp = new THREE.BoxGeometry(0.03, WHEEL_R * 1.3, 0.05); sp.rotateX((k / 5) * Math.PI); sp.translate(s * (track + 0.15 * s * 0.1 + 0.02 * s), y, 0); rp.push(sp); }
   }
-  return { tires, rims: mergeSafe(rp) };
+  // one geometry per axle: vertex colors tell tire from rim, saving a draw call per axle
+  const paint = (g, c) => { const n = g.attributes.position.count, a = new Float32Array(n * 3), col = new THREE.Color(c); for (let i = 0; i < n; i++) { a[i * 3] = col.r; a[i * 3 + 1] = col.g; a[i * 3 + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+  const rims = mergeSafe(rp);
+  return { tires, rims, both: mergeSafe([paint(tires.clone(), 0x15151a), paint(rims.clone(), 0xc8d2e0)]) };
 }
 
 export const CAR_SPECS = {
@@ -167,7 +171,7 @@ export function buildCar(type, color, opts = {}) {
   const wr = WHEEL_R;
   const front = new THREE.Group(), rear = new THREE.Group();
   const wp = wheelPair(W / 2 - 0.1, 0);
-  const mkAxle = () => { const g = new THREE.Group(); const t = new THREE.Mesh(wp.tires, tireMat), r = new THREE.Mesh(wp.rims, rimMat); t.castShadow = true; g.add(t, r); return g; };
+  const mkAxle = () => { const g = new THREE.Group(); const t = new THREE.Mesh(wp.both, wheelMat); t.castShadow = true; g.add(t); return g; };
   const fa = mkAxle(), ra = mkAxle();
   front.add(fa); rear.add(ra);
   front.position.set(0, wr, sp.wb * (sp.boxy ? 1.55 : 1.0) * (sp.boxy ? 1 : 1)); rear.position.set(0, wr, -sp.wb * (sp.boxy ? 1.0 : 1.0));
