@@ -148,13 +148,36 @@ export class Building {
     else this.furnishRooms(fl, L);
     // ---- finish meshes ----
     B.finish(fl.group);
+    this.buildGlassMesh(fl);
     this.floors.set(k, fl);
     this.built.add(k);
     this.M.onFloorBuilt?.(this, fl, L);
   }
+  buildGlassMesh(fl) {
+    if (!fl.glass.length) return;
+    const geo = new THREE.BoxGeometry(1, 1, 1), im = new THREE.InstancedMesh(geo, mats().glass, fl.glass.length);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+    fl.glass.forEach((gb, i) => { const e = gb.pane.ex; p.set((e[0] + e[3]) / 2, (e[1] + e[4]) / 2, (e[2] + e[5]) / 2); sc.set(e[3] - e[0], e[4] - e[1], e[5] - e[2]); m.compose(p, q, sc); im.setMatrixAt(i, m); gb.pane.idx = i; });
+    im.frustumCulled = false; im.renderOrder = 3; fl.group.add(im); fl.glassMesh = im;
+  }
+  breakPane(box, by) {
+    const pn = box.pane; if (!pn || pn.broken) return false;
+    pn.broken = true; const G = this.G, fl = pn.fl;
+    G.world.colliders.removeBox(box); const i = fl.boxes.indexOf(box); if (i >= 0) fl.boxes.splice(i, 1);
+    const j = fl.glass.indexOf(box); if (j >= 0) fl.glass.splice(j, 1);
+    const m = new THREE.Matrix4().makeScale(0, 0, 0); fl.glassMesh.setMatrixAt(pn.idx, m); fl.glassMesh.instanceMatrix.needsUpdate = true;
+    G.state.glass[pn.key] = 1;
+    const e = pn.ex, cx = (e[0] + e[3]) / 2, cy = (e[1] + e[4]) / 2, cz = (e[2] + e[5]) / 2;
+    for (let n = 0; n < 26; n++) G.sparksP.emit(cx + (Math.random() - 0.5) * (e[3] - e[0]), cy + (Math.random() - 0.5) * (e[4] - e[1]), cz + (Math.random() - 0.5) * (e[5] - e[2]), (Math.random() - 0.5) * 5, Math.random() * 3 - 1, (Math.random() - 0.5) * 5, 0.5 + Math.random() * 0.8, 0.07 + Math.random() * 0.08, 1.4, 1.9, 2.4, 1, -14, 0.3);
+    G.audio.glass?.(Math.hypot(cx - G.camera.position.x, cz - G.camera.position.z));
+    G.noise?.(cx, cz, 40);
+    if (by === G.player) G.noteCrime?.(by, 'vandal', 2);
+    return true;
+  }
   dropFloor(k) {
     const fl = this.floors.get(k); if (!fl) return;
     const col = this.G.world.colliders;
+    if (fl.glassMesh) fl.glassMesh.dispose();
     for (const b of fl.boxes) col.removeBox(b);
     for (const c of fl.bodies) this.G.phys.world.removeCollider(c, false);
     for (const d of [...fl.doors]) { d.destroy(); const i = this.doors.indexOf(d); if (i >= 0) this.doors.splice(i, 1); }
@@ -200,12 +223,14 @@ export class Building {
         if (i === dBay) { box(ca, cb, y + 2.7, y + h, 'decor', wallC); this.makeEntrance(fl, sd, ca, cb, y, mn, mx); continue; }
         box(ca, cb, y, y + sill, 'decor', wallC);
         box(ca, cb, y + head, y + h, 'decor', wallC);
-        // glass pane (breakable)
-        const gm = sd.d > 0 ? mn + 0.2 : mx - 0.28, gt = 0.06;
-        const gex = sd.ax === 'x' ? [ca, y + sill, gm, cb, y + head, gm + gt] : [gm, y + sill, ca, gm + gt, y + head, cb];
-        B.ext('glass', gex[0], gex[1], gex[2], gex[3], gex[4], gex[5], 0x9fb8d0);
-        const gb = cc(gex[0], gex[2], gex[3], gex[5], gex[1], gex[4], 'glass');
-        gb.pane = { fl, i, y, sd: sd.s }; fl.glass.push(gb);
+        // glass pane (breakable, persisted)
+        const gkey = `g${this.id}:${L.k}:${sd.s}:${i}`;
+        if (!this.G.state.glass[gkey]) {
+          const gm = sd.d > 0 ? mn + 0.2 : mx - 0.28, gt = 0.06;
+          const gex = sd.ax === 'x' ? [ca, y + sill, gm, cb, y + head, gm + gt] : [gm, y + sill, ca, gm + gt, y + head, cb];
+          const gb = cc(gex[0], gex[2], gex[3], gex[5], gex[1], gex[4], 'glass');
+          gb.pane = { key: gkey, fl, ex: gex, b: this }; fl.glass.push(gb);
+        }
       }
     }
   }
@@ -309,18 +334,22 @@ export class Building {
   }
   furnishOpen(fl, L, kind) {
     const { B, solid, R } = fl, r = L.rect, c = this.core;
-    // shelves & counters across the podium floor (avoid core)
     const free = (x0, z0, x1, z1) => !(x1 > c.x0 - 1.2 && x0 < c.x0 + CORE_W + 1.2 && z1 > c.z0 - 1.2 && z0 < c.zc + 3.2);
     const cols = [0x4a3a2a, 0x2c3a4a, 0x3a2c4a, 0x2c4a3a];
-    let n = 0;
+    fl.shelves = []; let n = 0;
     for (let x = r.x0 + 3; x < r.x1 - 3; x += 4.2) {
       if (!free(x - 0.5, r.z1 - 6, x + 0.5, r.z1 - 1.5)) continue;
       const col = cols[(n++) % 4];
-      solid('decor', x - 0.4, 0, r.z1 - 6, x + 0.4, 1.9, r.z1 - 2, col);
-      B.ext('emit', x - 0.42, 0.4, r.z1 - 6, x - 0.38, 0.5, r.z1 - 2, fl.acc.clone().multiplyScalar(1.5));
+      solid('decor', x - 0.4, L.y, r.z1 - 6, x + 0.4, L.y + 1.9, r.z1 - 2, col);
+      B.ext('emit', x - 0.42, L.y + 0.4, r.z1 - 6, x - 0.38, L.y + 0.5, r.z1 - 2, fl.acc.clone().multiplyScalar(1.5));
+      fl.shelves.push({ x, z0: r.z1 - 6, z1: r.z1 - 2 });
     }
-    solid('decor', r.x0 + 2, 0, r.z0 + 2, r.x0 + 7, 1.05, r.z0 + 3.2, 0x1b1d28);
-    B.ext('emit', r.x0 + 2, 1.05, r.z0 + 2, r.x0 + 7, 1.1, r.z0 + 3.2, fl.acc.clone().multiplyScalar(2.2));
+    const spots = [[r.x0 + 2, r.z0 + 2], [r.x1 - 7, r.z0 + 2], [r.x0 + 2, r.z1 - 9]];
+    for (const [cx, cz] of spots) if (free(cx, cz, cx + 5, cz + 1.2)) {
+      solid('decor', cx, L.y, cz, cx + 5, L.y + 1.05, cz + 1.2, 0x1b1d28);
+      B.ext('emit', cx, L.y + 1.05, cz, cx + 5, L.y + 1.1, cz + 1.2, fl.acc.clone().multiplyScalar(2.2));
+      fl.counter = { x0: cx, z0: cz, x1: cx + 5, z1: cz + 1.2 }; break;
+    }
     this.M.populateFloor?.(this, fl, L);
   }
   furnishRoof(fl, L) {
@@ -338,6 +367,7 @@ export class Building {
       solid('steel', ax - 1.0, this.roofY, az - 1.0, ax + 1.0, this.roofY + 1.3, az + 1.0, 0x3b414d);
     }
     fl.fixtures.push([cx, this.roofY + 4, cz, [0.8, 0.9, 1]]);
+    this.M.populateFloor?.(this, fl, L);
   }
   furnishRooms(fl, L) {
     const { B, solid, cc, R, rnd } = fl, r = L.rect, c = this.core, zc = c.zc;
@@ -713,13 +743,15 @@ export class Buildings {
     this.lights = Array.from({ length: 6 }, () => { const l = new THREE.PointLight(0xffe2b0, 0, 17, 1.6); G.scene.add(l); return l; });
     this.lt = 0;
   }
+  populateFloor(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); }
+  onFloorDropped(b, fl) { this.G.life.dropFloor(b, fl); }
   // nearest ceiling fixtures around the player become real lights
   updateLights(dt, pl) {
     this.lt -= dt; if (this.lt > 0) return; this.lt = 0.15;
     const b = this.at(pl.x, pl.z); const cand = [];
     if (b && b.open) {
       const k = b.levelAt(pl.y + 0.3);
-      for (const kk of [k - 1, k, k + 1]) { const fl = b.floors.get(kk); if (fl) for (const f of fl.fixtures) cand.push(f); }
+      for (const kk of [k - 1, k, k + 1]) { const fl = b.floors.get(kk); if (fl) for (const f of fl.fixtures) if (!f.room || f.room.on) cand.push(f); }
     }
     cand.sort((a, c) => ((a[0] - pl.x) ** 2 + (a[1] - pl.y - 1.5) ** 2 + (a[2] - pl.z) ** 2) - ((c[0] - pl.x) ** 2 + (c[1] - pl.y - 1.5) ** 2 + (c[2] - pl.z) ** 2));
     this.lights.forEach((l, i) => {
@@ -746,5 +778,6 @@ export class Buildings {
       b.tick(dt);
     }
   }
+  ridingElevator(pl) { for (const b of this.active) if (b.elev && b.elev.state === 'moving' && b.elev.riding(pl)) return true; return false; }
   current(x, z, y) { const b = this.at(x, z); return b && b.open ? b : null; }
 }

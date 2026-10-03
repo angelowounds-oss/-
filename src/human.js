@@ -98,7 +98,9 @@ export class Human {
     const px = G.player.x, pz = G.player.z;
     const dxp = px - this.x, dzp = pz - this.z, dp = Math.hypot(dxp, dzp);
     let wantX = 0, wantZ = 0, spd = 0, face = null;
-    if (this.team === 'civ') {
+    if (this.team === 'civ' && this.static && this.state !== 'flee') {
+      face = this.lookAtPlayer && dp < 9 ? Math.atan2(dxp, dzp) : null;
+    } else if (this.team === 'civ') {
       if (this.state === 'flee') {
         this.fleeT -= dt;
         const t = this.threat || G.player;
@@ -165,7 +167,7 @@ export class Human {
     this.vy -= 22 * dt;
     this.x += this.vx * dt; this.z += this.vz * dt; this.y += this.vy * dt;
     const r = this.G.world.colliders.resolve(this.x, this.z, this.radius, this.y); this.x = r.x; this.z = r.z;
-    if (this.y <= 0) { this.y = 0; if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) this.knock = 0; } }
+    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) this.knock = 0; } }
     this.group.position.set(this.x, this.y, this.z);
     if (!this.dead) { this.m.body.rotation.x += dt * 9; this.group.rotation.y = this.ry; }
     else this.group.rotation.y = this.ry;
@@ -178,9 +180,7 @@ export class Human {
     const pl = G.player;
     this.cmdSpeed = 0; this.faceAngle = null;
     const los = dp < 80 && G.hasLOS(this.x, 1.5, this.z, pl.x, 1.4, pl.z);
-    if (this.cell) {
-      if (this.guard && this.state !== 'attack') { if (los && dp < this.detect && (pl.weaponDrawn || G.alarm)) { this.state = 'attack'; this.fireCd = rand(0.8, 1.5); } else { this.cmdSpeed = 0; this.faceAngle = null; return; } }
-    } else if (G.indoor) { this.cmdSpeed = 0; this.faceAngle = null; return; }
+    if (this.guard && this.state !== 'attack') { if (los && dp < this.detect && (pl.weaponDrawn || G.alarm)) { this.state = 'attack'; this.fireCd = rand(0.8, 1.5); G.alertGang?.(this); } else { this.cmdSpeed = 0; this.faceAngle = null; return; } }
     if (this.team === 'cop') {
       const hunt = G.wanted > 0;
       if (!hunt) { this.cmdSpeed = 0; this.faceAngle = null; return; }
@@ -231,7 +231,7 @@ export class Human {
     m.mixer.update(dt);
     m.applyPose(this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
-    m.body.position.y = -this.crouch * 0.3;
+    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5;
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if (this.aimT > 0) this.aimT -= dt * 0.5;

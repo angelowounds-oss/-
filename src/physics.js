@@ -6,6 +6,7 @@ export const PHYS = {
 };
 
 export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32 };
+export const RAY_DEFAULT = 1 | 16 | 8 | 32;
 export const grp = (mem, filt) => ((mem << 16) | filt) >>> 0;
 const ALL = 0xffff;
 
@@ -17,6 +18,8 @@ export class Physics {
     this.acc = 0;
     this.bodies = new Map();
     this.colRef = new Map();
+    this.events = new R.EventQueue(true);
+    this.onGlassHit = null;
     // tiled: very large single cuboids break the character shape-cast
     for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) this.world.createCollider(R.ColliderDesc.cuboid(300, 2, 300).setTranslation(i * 600, -2, j * 600).setFriction(1.0).setRestitution(0).setCollisionGroups(grp(GR.STATIC, ALL)));
   }
@@ -24,7 +27,7 @@ export class Physics {
     const R = this.R, w = this.world;
     const y0 = b.y0 || 0, hh = (Math.min(b.h, 400) - y0) / 2;
     if (hh <= 0) return;
-    b.col = w.createCollider(R.ColliderDesc.cuboid((b.x1 - b.x0) / 2, hh, (b.z1 - b.z0) / 2).setTranslation((b.x0 + b.x1) / 2, y0 + hh, (b.z0 + b.z1) / 2).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(b.tag === 'glass' ? GR.GLASS : b.tag === 'elev' ? GR.OBJ : GR.STATIC, ALL)));
+    b.col = w.createCollider(R.ColliderDesc.cuboid((b.x1 - b.x0) / 2, hh, (b.z1 - b.z0) / 2).setTranslation((b.x0 + b.x1) / 2, y0 + hh, (b.z0 + b.z1) / 2).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(b.tag === 'glass' ? GR.GLASS : b.tag === 'elev' ? GR.OBJ : GR.STATIC, ALL)).setActiveEvents(b.tag === 'glass' ? R.ActiveEvents.COLLISION_EVENTS : 0));
     this.colRef.set(b.col.handle, b);
   }
   // static inclined slab (stairs). dz,dy: run/rise vector of the surface
@@ -33,9 +36,20 @@ export class Physics {
     const R = this.R;
     return this.world.createCollider(R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy - hy, cz).setRotation(q).setFriction(0.8).setCollisionGroups(grp(GR.STATIC, ALL)));
   }
+  drainEvents() {
+    this.events.drainCollisionEvents((h1, h2, started) => {
+      if (!started || !this.onGlassHit) return;
+      for (const [a, b] of [[h1, h2], [h2, h1]]) {
+        const ref = this.colRef.get(a); if (!ref || ref.tag !== 'glass') continue;
+        const col = this.world.getCollider(b), body = col && col.parent(); if (!body || body.isFixed()) continue;
+        const v = body.linvel();
+        this.onGlassHit(ref, Math.hypot(v.x, v.y, v.z), body);
+      }
+    });
+  }
   removeBox(b) { if (b.col) { this.colRef.delete(b.col.handle); this.world.removeCollider(b.col, false); b.col = null; } }
   // Ray against the Rapier world. mask: GR bits to hit. Returns {t, ref, nx,ny,nz} or null
-  ray(ox, oy, oz, dx, dy, dz, max, mask = GR.STATIC | GR.OBJ | GR.PROP) {
+  ray(ox, oy, oz, dx, dy, dz, max, mask = RAY_DEFAULT) {
     const r = new this.R.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz });
     const h = this.world.castRayAndGetNormal(r, max, true, undefined, grp(0xffff, mask));
     if (!h) return null;
@@ -57,7 +71,8 @@ export class Physics {
     while (this.acc >= PHYS.dt) {
       pre?.(PHYS.dt);
       for (const v of list) v.ctrl.updateVehicle(PHYS.dt, undefined, grp(GR.VEH, GR.STATIC | GR.PROP | GR.OBJ));
-      this.world.step();
+      this.world.step(this.events);
+      this.drainEvents();
       for (const v of list) stabilize(v);
       this.acc -= PHYS.dt; n++;
     }
@@ -92,7 +107,7 @@ export class Physics {
     const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
     const body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, PHYS.bodyY, z).setRotation(q)
       .setLinearDamping(0.04).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true));
-    const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ)), body);
+    const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS)), body);
     // low centre of mass + realistic inertia
     const ix = (mass / 12) * (4 * hy * hy + 4 * hz * hz) * 0.55, iy = (mass / 12) * (4 * hx * hx + 4 * hz * hz) * 0.7, iz = (mass / 12) * (4 * hx * hx + 4 * hy * hy) * 0.55;
     body.setAdditionalMassProperties(mass, { x: 0, y: -0.42, z: 0 }, { x: ix, y: iy, z: iz }, { x: 0, y: 0, z: 0, w: 1 });

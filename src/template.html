@@ -140,6 +140,25 @@ body.touch #keys{display:none}
 #prog.on{display:block}
 #progLbl{font-size:11px;letter-spacing:.2em;color:var(--green);margin-bottom:6px}
 #prog .bar{height:8px}#progFill{background:linear-gradient(90deg,#47ffa8,#4de3ff);width:0}
+
+#inv{position:fixed;inset:0;z-index:14;display:none;align-items:center;justify-content:center;background:rgba(2,4,8,.55);backdrop-filter:blur(5px);pointer-events:auto}
+#inv.on{display:flex}
+#invCard{width:min(760px,95vw);max-height:86vh;display:flex;flex-direction:column;padding:16px 18px;border-radius:18px}
+#invCard header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+#invCard h2{margin:0;font-size:13px;letter-spacing:.22em;color:var(--cyan);flex:1}
+#invCols{display:flex;gap:14px;min-height:0;flex:1;overflow:hidden}
+#invCols section{flex:1;min-width:0;display:flex;flex-direction:column}
+#invCols h3{margin:0 0 6px;font-size:10px;letter-spacing:.2em;color:var(--muted)}
+.ul{list-style:none;margin:0;padding:0;overflow-y:auto;max-height:52vh}
+.ul li{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:9px;background:rgba(255,255,255,.04);margin-bottom:4px;font-size:13px}
+.ul li .n{flex:1;min-width:0}.ul li small{display:block;color:var(--muted);font-size:10px}
+.ul li button,.xb{border:1px solid var(--line);background:#0e1626;color:#fff;border-radius:8px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer}
+.ul li button:hover,.xb:hover{border-color:var(--cyan);color:var(--cyan)}
+#invF{margin-top:10px;font-size:11px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+#needs{display:flex;gap:6px;margin-top:6px}
+#needs .nb{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
+#needs .nb i{display:block;height:100%}
+#phoneCard{width:min(340px,94vw)}
 @media(max-width:700px){#miniBox{width:120px;height:120px}#clock{display:none}#feed{top:calc(max(16px,env(safe-area-inset-top)) + 140px)}#weapon{bottom:auto;top:calc(max(16px,env(safe-area-inset-top)) + 300px);right:14px;min-width:0;padding:7px 11px}#ammo{font-size:22px}#mission{width:min(240px,calc(100vw - 150px))}#status{width:min(250px,calc(100vw - 150px))}}
 </style>
 </head>
@@ -151,6 +170,7 @@ body.touch #keys{display:none}
   <div id="status" class="glass">
     <div class="row"><span class="lbl">HP</span><div class="bar"><i id="hpFill"></i></div></div>
     <div class="row" style="margin-top:6px"><span class="lbl">AR</span><div class="bar"><i id="arFill"></i></div></div>
+    <div id="needs"><div class="nb" title="식량"><i id="nFood" style="background:#ffc94d"></i></div><div class="nb" title="수분"><i id="nWater" style="background:#4de3ff"></i></div><div class="nb" title="체력(피로)"><i id="nEnergy" style="background:#47ffa8"></i></div></div>
     <div id="cashRow"><span id="cash">$0</span><span id="stars">★★★★★</span></div>
   </div>
   <div id="mission" class="glass"><div id="mTitle">MISSION</div><div id="mText">…</div><div id="mDist"></div></div>
@@ -184,6 +204,7 @@ body.touch #keys{display:none}
   <button id="bPause" class="mb" type="button">II</button>
 </div>
 <div id="elev"><div id="elevCard" class="glass"><h2 id="elevTitle">ELEVATOR</h2><p>층을 선택하세요 (숫자키 1~9 · Esc 닫기)</p><div id="elevBtns"></div></div></div>
+<div id="inv"><div id="invCard" class="glass"><header><h2 id="invT">가방</h2><span id="invW" style="font-size:11px;color:var(--muted)"></span><button class="xb" id="invX" type="button">닫기 (Esc)</button></header><div id="invCols"><section><h3 id="invLT">소지품</h3><ul class="ul" id="invL"></ul></section><section id="invRS"><h3 id="invRT"></h3><ul class="ul" id="invR"></ul></section></div><div id="invF"></div></div></div>
 <div id="pause"><div id="pc" class="glass">
   <h2>PAUSED</h2>
   <div class="set"><span>그래픽 품질</span><select id="qSel"><option value="0">낮음</option><option value="1">보통</option><option value="2">높음</option><option value="3">울트라</option></select></div>

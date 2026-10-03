@@ -91,6 +91,7 @@ export class Audio {
   empty() { this.tone(900, 0.04, 'square', 0.08, 500); }
   explosion(vol = 1, pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.noiseShot(1.6, 'lowpass', 1400, 1.0 * vol, 0.5, d, 0, 60); this.tone(90, 1.2, 'sine', 1.1 * vol, 25, d); this.noiseShot(0.4, 'bandpass', 800, 0.6 * vol, 0.7, d, 0, 200); }
   crash(power = 1, pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.noiseShot(0.35 + power * 0.3, 'lowpass', 1800, 0.6 * power, 0.7, d, 0, 150); this.noiseShot(0.25, 'highpass', 2500, 0.3 * power, 2, d, 0.01); this.tone(80, 0.3, 'sine', 0.5 * power, 40, d); }
+  glass(dist = 0) { if (!this.ctx) return; const v = Math.max(0.15, 1 - dist / 70); this.noiseShot(0.35, 'highpass', 4500, 0.5 * v, 1); for (let i = 0; i < 6; i++) this.tone(2400 + Math.random() * 3000, 0.25 + Math.random() * 0.3, 'sine', 0.05 * v, 0, null, Math.random() * 0.25); }
   horn() { this.tone(420, 0.5, 'sawtooth', 0.12); this.tone(530, 0.5, 'sawtooth', 0.1); }
   cash() { this.tone(1200, 0.1, 'sine', 0.18, 0); this.tone(1800, 0.2, 'sine', 0.16, 0, null, 0.08); }
   door() { this.noiseShot(0.12, 'lowpass', 600, 0.4); this.tone(120, 0.1, 'square', 0.2, 60, null, 0.1); }

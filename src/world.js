@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLSL_NOISE, patchStandard, timeUniform, createGlareMaterial, createSky } from './shaders.js';
+import { GLSL_NOISE, patchStandard, timeUniform, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 
 // ---------- City layout constants ----------
@@ -176,7 +176,7 @@ function createGround(fakeLights) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.0 });
   const MAXL = 24;
   const uniforms = {
-    uTime: timeUniform,
+    uTime: timeUniform, uNight: nightU,
     uFL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uFC: { value: Array.from({ length: MAXL }, () => new THREE.Vector3()) },
     uWet: { value: 1.0 },
@@ -186,7 +186,7 @@ function createGround(fakeLights) {
     vertexDecl: 'varying vec3 vWP;',
     vertexMain: 'vWP=(modelMatrix*vec4(transformed,1.)).xyz;',
     fragDecl: `${GLSL_NOISE}
-      varying vec3 vWP;uniform float uTime,uWet;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
+      varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
       float fRough,fMetal;vec3 fEmit;float fPud;
       const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.;`,
     fragMain: `
@@ -273,7 +273,7 @@ function createGround(fakeLights) {
         float ill=at*(.35+.65*(1.-pud))*.9+streak*pud*1.4*(L.y*.02+.4);
         acc+=uFC[i]*ill;
       }
-      fEmit=acc*alb*1.1+acc*pud*.16;
+      fEmit=(acc*alb*1.1+acc*pud*.16)*uNight;
     `,
   });
   // wet ripples on puddles perturb normal
@@ -304,7 +304,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uTime: timeUniform };
+  const uniforms = { uTime: timeUniform, uNight: nightU };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
@@ -318,7 +318,7 @@ function createFacadeMaterial() {
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;`,
     fragDecl: `${GLSL_NOISE}
-      varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime;
+      varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime,uNight;
       float fRough,fMetal;vec3 fEmit;
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -409,6 +409,7 @@ function createFacadeMaterial() {
         // crown glow
         if(fromTop<.55&&style>.5&&vInfo.w<.5)fEmit+=acc*2.6;
       }
+      fEmit*=mix(.14,1.,uNight);
       diffuseColor.rgb=alb;
     `,
   });
@@ -453,19 +454,19 @@ function createSignAtlas() {
 function createSignMaterial(atlas) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uMap: { value: atlas }, uTime: timeUniform }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uMap: { value: atlas }, uTime: timeUniform, uNight: nightU }]),
     vertexShader: `attribute vec4 aCell;varying vec2 vUv;varying vec4 vCell;
       #include <fog_pars_vertex>
       void main(){vUv=(uv+aCell.xy)*vec2(.25,.25);vCell=aCell;
         vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform sampler2D uMap;uniform float uTime;varying vec2 vUv;varying vec4 vCell;
+    fragmentShader: `uniform sampler2D uMap;uniform float uTime,uNight;varying vec2 vUv;varying vec4 vCell;
       #include <fog_pars_fragment>
       void main(){vec4 t=texture2D(uMap,vUv);float s=vCell.z;
         float fl=1.;float ph=fract(s*7.31);
         if(ph>.8){fl=step(.08,fract(uTime*(.7+ph)+s*13.));fl=mix(.25,1.,fl);}
-        vec3 c=pow(t.rgb,vec3(2.2))*(2.4*fl);
+        vec3 c=pow(t.rgb,vec3(2.2))*(2.4*fl)*mix(.18,1.,uNight);
         gl_FragColor=vec4(c,t.a*(.55+.45*fl));
         #include <fog_fragment>
       }`,
@@ -476,13 +477,13 @@ function createSignMaterial(atlas) {
 function createHoloMaterial() {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU }]),
     vertexShader: `attribute vec4 aHolo;varying vec2 vUv;varying vec4 vH;
       #include <fog_pars_vertex>
       void main(){vUv=uv;vH=aHolo;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
       #include <fog_vertex>
       }`,
-    fragmentShader: `${GLSL_NOISE}uniform float uTime;varying vec2 vUv;varying vec4 vH;
+    fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;varying vec2 vUv;varying vec4 vH;
       #include <fog_pars_fragment>
       vec3 pal(float k){k=mod(k,3.);return k<1.?vec3(1.,.15,.8):(k<2.?vec3(.1,.85,1.):vec3(1.,.6,.15));}
       void main(){
@@ -506,7 +507,7 @@ function createHoloMaterial() {
         float frame=smoothstep(.02,.0,min(min(uv.x,1.-uv.x),min(uv.y,1.-uv.y)));
         vec3 col=mix(c1,c2,uv.y)*(shape*1.7+frame*1.3+.12)*scan;
         float a=clamp(shape+frame+.18,0.,1.)*.95;
-        gl_FragColor=vec4(col*2.,a);
+        gl_FragColor=vec4(col*2.,a*mix(.25,1.,uNight));
         #include <fog_fragment>
       }`,
   });
@@ -854,7 +855,7 @@ export function buildWorld(scene, quality) {
       addFake(hx, 0, hz, l.c, 14, 1.0);
       world.colliders.addCircle(l.x, l.z, 0.25, 9, 'lamp');
     });
-    poles.castShadow = true; poles.frustumCulled = false; heads.frustumCulled = false;
+    poles.castShadow = true; poles.frustumCulled = false; heads.frustumCulled = false; (world.dayMats = world.dayMats || []).push(heads.material);
     scene.add(poles, heads);
   }
 

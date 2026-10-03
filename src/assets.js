@@ -63,9 +63,18 @@ export function buildSoldier(look = {}, gunParts) {
   const stub = () => new THREE.Object3D();
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
+    applySit(k) { this.sit = k; },
     mixer, act, bones, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
     // called after mixer update each frame
     applyPose(pose, pitch) {
+      if (this.sit > 0.01) {
+        const k2 = this.sit; wrap.updateWorldMatrix(true, false); wrap.getWorldQuaternion(wq);
+        const rot2 = (b, axis, ang) => { b.parent.updateWorldMatrix(true, false); b.parent.getWorldQuaternion(pq); pq.invert(); la.copy(axis).applyQuaternion(wq).applyQuaternion(pq).normalize(); qa.setFromAxisAngle(la, ang * k2); b.quaternion.premultiply(qa); };
+        rot2(bones.LeftUpLeg, X, AIM.sitThigh); rot2(bones.RightUpLeg, X, AIM.sitThigh); rot2(bones.LeftLeg, X, AIM.sitKnee); rot2(bones.RightLeg, X, AIM.sitKnee);
+        body.position.y = -0.5 * k2;
+        return;
+      }
+      body.position.y = 0;
       if (pose < 0.01) return;
       const k = pose;
       wrap.updateWorldMatrix(true, false);
@@ -87,7 +96,7 @@ export function buildSoldier(look = {}, gunParts) {
 }
 const wq = new THREE.Quaternion(), pq = new THREE.Quaternion(), la = new THREE.Vector3();
 const clamp01 = (v) => Math.max(-0.7, Math.min(0.7, v));
-export const AIM = { rx: -1.35, ry: 0.35, rfx: -0.2, lx: -1.25, ly: -0.55, lfx: -0.5, spine: 0 };
+export const AIM = { sitThigh: -1.45, sitKnee: 1.5, rx: -1.35, ry: 0.35, rfx: -0.2, lx: -1.25, ly: -0.55, lfx: -0.5, spine: 0 };
 // ---- Ferrari ----
 const glowTexLazy = {};
 export function buildFerrariModel(color) {

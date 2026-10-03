@@ -13,6 +13,12 @@ import { loadAssets } from './assets.js';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
 import { Interact } from './interact.js';
+import { ItemWorld } from './items.js';
+import { Panels } from './panels.js';
+import { Life } from './life.js';
+import { Clock, Needs } from './needs.js';
+import { actions } from './actions.js';
+import { DayNight } from './daynight.js';
 import { Character } from './character.js';
 
 const V3 = THREE.Vector3;
@@ -35,6 +41,8 @@ export class Game {
     this.state = this.saveData.world || { doors: {}, glass: {}, taken: {}, moved: {} };
     this.interact = new Interact(this);
     this.indoor = false;
+    this.state.homes = this.state.homes || {}; this.state.bank = this.state.bank ?? 0;
+    this.clock = new Clock(this); this.needs = new Needs(this); this.daynight = new DayNight(this);
   }
 
   load() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
@@ -50,7 +58,9 @@ export class Game {
     this.world = buildWorld(this.scene, eng.q);
     this.phys = new Physics(this.RAPIER); this.phys.addStatic(this.world.colliders);
     this.buildings = new Buildings(this);
+    this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
+    this.items = new ItemWorld(this); this.life = new Life(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -72,6 +82,8 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
+    this.panels = new Panels(this);
+    if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate();
     this.spawnPickups();
     this.startMission(this.missionIndex);
@@ -212,7 +224,7 @@ export class Game {
   // ====================================================================
   cacheUI() {
     const g = el;
-    this.ui = { hp: g('hpFill'), ar: g('arFill'), cash: g('cash'), stars: g('stars'), mText: g('mText'), mTitle: g('mTitle'), mDist: g('mDist'), wName: g('wName'), ammo: g('ammo'), speedo: g('speedo'), spd: g('spd'), carHp: g('carHpFill'), hint: g('hint'), toast: g('toast'), cross: g('cross'), dmg: g('dmg'), dir: g('dir'), feed: g('feed'), flash: g('flash'), hud: g('hud'), mini: g('minimap'), weapon: g('weapon'), fps: g('fps'), lt: g('letterT'), lb: g('letterB') };
+    this.ui = { hp: g('hpFill'), ar: g('arFill'), cash: g('cash'), stars: g('stars'), mText: g('mText'), mTitle: g('mTitle'), mDist: g('mDist'), wName: g('wName'), ammo: g('ammo'), speedo: g('speedo'), spd: g('spd'), carHp: g('carHpFill'), hint: g('hint'), toast: g('toast'), cross: g('cross'), dmg: g('dmg'), dir: g('dir'), feed: g('feed'), flash: g('flash'), hud: g('hud'), mini: g('minimap'), weapon: g('weapon'), fps: g('fps'), lt: g('letterT'), lb: g('letterB'), nFood: g('nFood'), nWater: g('nWater'), nEnergy: g('nEnergy') };
     this.minictx = this.ui.mini.getContext('2d');
     this._ui = {};
   }
@@ -284,6 +296,10 @@ export class Game {
     this.updatePolice(sdt);
     this.updateMission(sdt);
     this.updateTimed(sdt);
+    this.theftT = (this.theftT || 0) - sdt; if (this.theftT <= 0) { this.theftT = 0.5; this.life.checkTheft(this.player); }
+    this.clock.update(sdt); this.needs.update(sdt); this.items.update(sdt); this.updateFlashlight();
+    if (this.input.edge('inv')) this.openInventory();
+    this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
@@ -306,11 +322,7 @@ export class Game {
       const ph = Math.floor(this.time * 2);
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
-    // moon follows focus (snapped to texel grid to avoid shimmer)
-    const moon = eng.moon, snap = 4;
-    const fx = Math.round(focus.x / snap) * snap, fz = Math.round(focus.z / snap) * snap;
-    moon.target.position.set(fx, 0, fz);
-    moon.position.set(fx - 55, 120, fz - 70);
+    this.daynight.update(dt, focus);
     this.rain.material.uniforms.uCam.value.copy(camera.position);
     const g = eng.grade.uniforms;
     g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) : 0, 3, dt);
@@ -354,17 +366,24 @@ export class Game {
   footControl(dt, inp) {
     const pl = this.player, cam = this.cam, w = WEAPONS[pl.cur], ammo = pl.ammo[pl.cur];
     pl.group.visible = true;
+    if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
+    if (this.input.edge('crouch')) pl.crouching = !pl.crouching;
+    pl.crouch = damp(pl.crouch || 0, pl.crouching ? 0.65 : 0, 10, dt);
+    const carry = this.items.carry;
+    if (carry && inp.fire && !pl.fireHeld) { this.items.release(true); pl.fireHeld = true; inp = { ...inp, fire: false }; }
+    else if (carry) inp = { ...inp, fire: false };
     const aim = inp.aim; pl.aiming = aim;
-    const sprint = inp.sprint && !aim && !inp.fire && inp.my > 0.3;
+    const sprint = inp.sprint && !aim && !inp.fire && inp.my > 0.3 && !pl.crouching && (!this.needs.on || this.needs.canSprint !== false);
     const fwdX = Math.sin(cam.yaw), fwdZ = Math.cos(cam.yaw), rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
     let mx = inp.mx, my = inp.my; const mag = Math.min(1, Math.hypot(mx, my));
     let dx = fwdX * my + rX * mx, dz = fwdZ * my + rZ * mx;
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    const base = aim ? 2.6 : sprint ? 8.4 : 5.2;
+    const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1);
     const spd = base * (mag < 0.15 ? 0 : clamp(mag * 1.1, 0.5, 1));
     pl.vx = damp(pl.vx, dx * spd, 10, dt); pl.vz = damp(pl.vz, dz * spd, 10, dt);
     const c3 = pl.body3;
-    const impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') ? 7.2 : 0);
+    const riding = this.buildings.ridingElevator(pl);
+    const impact = riding ? 0 : c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching ? 7.2 : 0);
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;
     if (impact > 12) { this.hurtPlayer((impact - 12) * 5, null, 'fall'); this.shake(0.4); this.audio.impact(0.8, 0); }
     if (c3.y < -30) c3.teleport(this.world.spawn.x, 0, this.world.spawn.z);
@@ -455,7 +474,7 @@ export class Game {
       inside = L.tier !== 'roof' && pl.y < b.roofY - 0.3 && pl.x > r.x0 && pl.x < r.x1 && pl.z > r.z0 && pl.z < r.z1 && b.floors.has(k);
       info = { b, k, L };
     }
-    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); this.rain.visible = !inside; this.eng.hemi.intensity = inside ? 0.5 : 0.22; }
+    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); this.rain.visible = !inside; }
     this.where = inside ? info : null;
   }
   openElevatorUI(b) {
@@ -565,8 +584,15 @@ export class Game {
   hitscan(ox, oy, oz, dx, dy, dz, range, owner, damage, headMul = 2) {
     const G = this, res = this.hit;
     let best = range, kind = 'none', obj = null, head = false;
-    const tw = this.world.colliders.raycast(ox, oy, oz, dx, dy, dz, best);
-    if (tw >= 0) { best = tw; kind = 'world'; }
+    let tw = -1, acc = 0, hitRef = null;
+    for (let n = 0; n < 5; n++) {
+      const t = this.world.colliders.raycast(ox + dx * acc, oy + dy * acc, oz + dz * acc, dx, dy, dz, best - acc);
+      if (t < 0) break;
+      const ref = this.world.colliders.lastRef;
+      if (ref && ref.tag === 'glass' && ref.pane) { ref.pane.b.breakPane(ref, owner === this.player ? this.player : null); acc += t + 0.04; continue; }
+      tw = acc + t; hitRef = ref; break;
+    }
+    if (tw >= 0) { best = tw; kind = 'world'; if (hitRef && hitRef.isProp) { hitRef.hit?.(dx, dy, dz, damage); } }
     if (dy < -1e-4) { const tg = -oy / dy; if (tg > 0 && tg < best) { best = tg; kind = 'ground'; } }
     // humans
     for (const h of this.humans) {
@@ -1070,8 +1096,8 @@ export class Game {
     if (this.nextLightning <= 0) { this.nextLightning = rand(14, 32); this.bolt = 0.5; this.thunderT = rand(0.6, 3); }
     if (this.bolt > 0) {
       this.bolt -= dt; const f = Math.max(0, Math.sin(this.bolt * 38) * 0.5 + 0.5) * Math.min(1, this.bolt * 3);
-      flashUniform.value = f * 2.2; this.eng.moon.intensity = 0.85 + f * 2.6; this.eng.hemi.intensity = 0.22 + f * 0.8;
-      if (this.bolt <= 0) { flashUniform.value = 0; this.eng.moon.intensity = 0.85; this.eng.hemi.intensity = 0.22; }
+      flashUniform.value = f * 2.2 * (1 - (this.dayK || 0) * 0.7); this.boltAdd = f;
+      if (this.bolt <= 0) { flashUniform.value = 0; this.boltAdd = 0; }
     }
     if (this.thunderT > 0 && (this.thunderT -= dt) <= 0) this.audio.explosion?.call(this.audio, 0.35, 0);
   }
@@ -1180,7 +1206,7 @@ export class Game {
     // direction
     const bearing = ((Math.PI - this.cam.yaw) * 180 / Math.PI % 360 + 360) % 360;
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; this.setText('dir', ui.dir, dirs[Math.round(bearing / 45) % 8] + ' · ' + (bearing | 0) + '°');
-    this.drawMinimap();
+    this.drawMinimap(); this.updateNeedsHUD();
     if (this.ui.fps.style.display !== 'none') { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc > 0.5) { ui.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.eng.q.name}`; this.fpsAcc = this.fpsN = 0; } }
     this.autoQuality(dt);
     if (this.input.touch) this.input.audioUnlock = true;
@@ -1220,7 +1246,7 @@ export class Game {
   }
   drawMinimap() {
     const g = this.minictx, W = 340, S = this.mapScale, pl = this.player;
-    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F` : 'NEON CITY · 02:47 AM · 비');
+    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `NEON CITY · ${this.clock.fmt()} · 비`);
     const p = this.vehicle || pl; const zoom = this.vehicle ? 1.1 : 1.5;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W); g.fillStyle = '#05080f'; g.fillRect(0, 0, W, W);
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);
@@ -1244,3 +1270,4 @@ export class Game {
     g.fillStyle = gr; g.fillRect(0, 0, W, W);
   }
 }
+Object.assign(Game.prototype, actions);

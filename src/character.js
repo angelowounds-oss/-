@@ -5,7 +5,7 @@ export class Character {
   constructor(phys, x, y, z, { radius = 0.36, height = 1.78 } = {}) {
     const R = phys.R, w = phys.world;
     this.phys = phys; this.r = radius; this.h = height;
-    this.body = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y + height / 2, z));
+    this.body = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y + 0.06 + height / 2, z));
     const half = (height - radius * 2) / 2;
     this.col = w.createCollider(R.ColliderDesc.capsule(half, radius).setFriction(0).setCollisionGroups(grp(GR.CHAR, GR.STATIC | GR.PROP | GR.OBJ | GR.GLASS)), this.body);
     const c = this.ctrl = w.createCharacterController(0.03);
@@ -16,7 +16,7 @@ export class Character {
     c.setMinSlopeSlideAngle(62 * Math.PI / 180);
     c.setApplyImpulsesToDynamicBodies(true);
     c.setCharacterMass(75);
-    this.x = x; this.y = y; this.z = z; this.vy = 0; this.grounded = true; this.fallSpeed = 0;
+    y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0; this.grounded = true; this.fallSpeed = 0;
     this.query = grp(GR.CHAR, GR.STATIC | GR.PROP | GR.OBJ | GR.GLASS | GR.VEH);
     this.pred = (col) => {
       const p = col.parent(); if (!p) return true;
@@ -27,7 +27,7 @@ export class Character {
     this.platformDy = 0;
   }
   teleport(x, y, z) {
-    this.x = x; this.y = y; this.z = z; this.vy = 0;
+    y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0;
     this.body.setTranslation({ x, y: y + this.h / 2, z }, true);
   }
   // returns landing impact speed (>0) on the frame we land
