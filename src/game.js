@@ -598,6 +598,12 @@ export class Game {
     v.doorFx?.(); this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
     v.setLights(true);
     this.playerOnFoot = false; pl.group.visible = false;
+    this.setFirstPerson(false);
+    if (v.type === 'moto' && v.model.frame) {
+      // rider stays visible, seated on the bike and leaning with the frame
+      v.model.frame.add(pl.group); pl.group.position.set(0, 0.42, -0.4); pl.group.rotation.set(0, 0, 0); pl.group.scale.setScalar(0.92);
+      pl.group.visible = true; pl.m.applySit(1); pl.m.pistol.visible = pl.m.rifle.visible = false; this.rider = v;
+    }
     document.body.classList.remove('onfoot'); document.body.classList.add('incar');
     this.ui.speedo.classList.add('on');
     this.audio.door();
@@ -617,6 +623,7 @@ export class Game {
     if (!placed) { pl.x = v.x + c * (v.W / 2 + 1); pl.z = v.z - s * (v.W / 2 + 1); }
     v.driver = null; v.throttle = 0; v.brake = 0.5; v.steer = 0; v.hand = false;
     if (v.kind === 'player') v.kind = 'parked';
+    if (this.rider) { this.scene.add(pl.group); pl.group.scale.setScalar(1); pl.group.rotation.set(0, 0, 0); pl.m.applySit(0); this.rider = null; pl.m.pistol.visible = pl.armed && pl.weapon.short === 'pistol'; pl.m.rifle.visible = pl.armed && pl.weapon.short === 'rifle'; }
     v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true; pl.y = 0; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, 0, pl.z);
     pl.hpv = Math.max(pl.hpv, 1);
     document.body.classList.add('onfoot'); document.body.classList.remove('incar');
@@ -624,6 +631,7 @@ export class Game {
     this.cam.yaw = v.h; this.audio.door();
   }
   driveControl(dt, inp) {
+    if (this.rider) { const m = this.player.m; m.mixer.update(dt); m.applyPose(0, 0); m.body.position.y = -0.5; }
     const v = this.vehicle, pl = this.player;
     if (this.passenger) { this.taxiTick(); pl.x = v.x; pl.z = v.z; pl.body3.teleport(pl.x, 0, pl.z); if (this.input.edge('use') && v.speed < 3) this.endPassenger(false); if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3; return; }
     v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
