@@ -688,7 +688,7 @@ export class Game {
   }
   meleeAttack() {
     const pl = this.player, m = pl.melee || { dmg: 9, rate: 0.45, name: '맨손' };
-    pl.fireCd = m.rate; pl.punchT = 0.22; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
+    pl.fireCd = m.rate; pl.punchT = 0.22; if (pl.m.playOnce && pl.m.playOnce(Math.random() < 0.5 ? 'U_Punch_Jab' : 'U_Punch_Cross', false)) pl.reactT = 0.42; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
     const fx = Math.sin(pl.ry), fz = Math.cos(pl.ry);
     let best = null, bd = 2.2;
     for (const h of this.humans) {
