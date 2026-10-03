@@ -7,6 +7,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { el, LIGHT_CAP } from './util.js';
+import hdriPlaza from '../assets/env/hansaplatz.rgbe';
 
 export const QUALITY = [
   { name: 'LOW', shadowEvery: 2, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: false, traffic: 12, npc: 18, parked: 18, rain: 1800, far: 1 },
@@ -84,7 +85,8 @@ export function createEngine(parent, qIndex) {
   Object.assign(moon.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 420 });
   scene.add(moon, moon.target);
 
-  const env = buildEnvironment(renderer);
+  // real night-plaza HDRI by default; ?env=0 falls back to the procedural neon sky
+  const env = new URLSearchParams(location.search).get('env') === '0' ? buildEnvironment(renderer) : hdriEnv(renderer, hdriPlaza);
   scene.environment = env;
   scene.environmentIntensity = 0.45;
 
@@ -198,5 +200,20 @@ function buildEnvironment(renderer) {
   const rt = pm.fromScene(s, 0.02, 0.1, 200);
   pm.dispose();
   skyGeo.dispose();
+  return rt.texture;
+}
+
+// Poly Haven 'hansaplatz' night HDRI (CC0), stored as 512x256 flat RGBE and decoded to half-float for reflections
+function hdriEnv(renderer, b64) {
+  const bin = atob(b64), w = 512, h = 256, data = new Uint16Array(w * h * 4), one = THREE.DataUtils.toHalfFloat(1);
+  for (let i = 0; i < w * h; i++) {
+    const e = bin.charCodeAt(i * 4 + 3), f = e ? 2 ** (e - 136) : 0;
+    for (let c = 0; c < 3; c++) data[i * 4 + c] = THREE.DataUtils.toHalfFloat(bin.charCodeAt(i * 4 + c) * f);
+    data[i * 4 + 3] = one;
+  }
+  const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.HalfFloatType);
+  tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.LinearSRGBColorSpace; tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  const pm = new THREE.PMREMGenerator(renderer), rt = pm.fromEquirectangular(tex);
+  pm.dispose(); tex.dispose();
   return rt.texture;
 }
