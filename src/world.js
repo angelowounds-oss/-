@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { Builder } from './gfx.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, patchStandard, timeUniform, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 
@@ -41,11 +43,23 @@ export class Colliders {
         a.push(item);
       }
   }
-  addBox(x0, z0, x1, z1, h, tag) {
-    const b = { x0, z0, x1, z1, h, tag, kind: 0 };
+  addBox(x0, z0, x1, z1, h, tag, y0 = 0) {
+    const b = { x0, z0, x1, z1, h, y0, tag, kind: 0 };
     this.boxes.push(b);
     this._add(b, x0, z0, x1, z1);
+    if (this.sink) this.sink.addBox(b);
     return b;
+  }
+  removeBox(b) {
+    const i = this.boxes.indexOf(b); if (i < 0) return;
+    const last = this.boxes.pop(); if (last !== b) this.boxes[i] = last;
+    const c = this.cell;
+    for (let cx = Math.floor(b.x0 / c); cx <= Math.floor(b.x1 / c); cx++)
+      for (let cz = Math.floor(b.z0 / c); cz <= Math.floor(b.z1 / c); cz++) {
+        const a = this.grid.get(this._key(cx, cz)); if (!a) continue;
+        const k = a.indexOf(b); if (k >= 0) a.splice(k, 1);
+      }
+    if (this.sink) this.sink.removeBox(b);
   }
   addCircle(x, z, r, h, tag) {
     const c = { x, z, r, h, tag, kind: 1 };
@@ -71,7 +85,7 @@ export class Colliders {
     let hit = false, nxs = 0, nzs = 0, depth = 0;
     const list = this.near(x, z, r + 2, tmp);
     for (const b of list) {
-      if (y > b.h) continue;
+      if (y > b.h - 0.05 || y + 1.7 < b.y0) continue;
       if (b.kind === 0) {
         const cx = clamp(x, b.x0, b.x1), cz = clamp(z, b.z0, b.z1);
         let dx = x - cx, dz = z - cz;
@@ -106,7 +120,11 @@ export class Colliders {
     return { x, z, nx: nxs / l, nz: nzs / l, hit, depth };
   }
   // 3D ray vs static world (boxes + circles as vertical cylinders). returns t or -1
-  raycast(ox, oy, oz, dx, dy, dz, maxT) {
+  raycast(ox, oy, oz, dx, dy, dz, maxT, mask) {
+    if (this.sink) { const h = this.sink.ray(ox, oy, oz, dx, dy, dz, maxT, mask); this.lastRef = h ? h.ref : null; this.lastHit = h; return h ? h.t : -1; }
+    return this.raycastGrid(ox, oy, oz, dx, dy, dz, maxT);
+  }
+  raycastGrid(ox, oy, oz, dx, dy, dz, maxT) {
     let best = maxT + 1, found = false;
     // march through grid cells approximately: gather by bounding of segment
     const ex = ox + dx * maxT, ez = oz + dz * maxT;
@@ -122,7 +140,7 @@ export class Colliders {
           seen.add(b);
           let t0 = 0, t1 = best;
           if (b.kind === 0) {
-            const bounds = [[ox, dx, b.x0, b.x1], [oz, dz, b.z0, b.z1], [oy, dy, 0, b.h]];
+            const bounds = [[ox, dx, b.x0, b.x1], [oz, dz, b.z0, b.z1], [oy, dy, b.y0 || 0, b.h]];
             let ok = true;
             for (const [o, d, lo, hi] of bounds) {
               if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { ok = false; break; } continue; }
@@ -548,12 +566,14 @@ export function buildWorld(scene, quality) {
     const tw = w - ins * 2, td = d - ins * 2;
     const th = Math.max(H - podiumH, 6);
     tiers.push({ x: cx, z: cz, w: tw, d: td, h: th, y: podiumH, style, accent, seed: seed + 1, podium: 0, color: col.clone().multiplyScalar(0.92) });
+    const lotTiers = { podium: { x0, z0, x1, z1, y0: 0, y1: podiumH }, tower: { x0: cx - tw / 2, z0: cz - td / 2, x1: cx + tw / 2, z1: cz + td / 2, y0: podiumH, y1: podiumH + th }, crown: null };
     let topY = podiumH + th, topW = tw, topD = td;
     if (H > 55 && rnd() < 0.8) {
       const i2 = Math.min(R_(3, 7), Math.min(tw, td) * 0.22);
       const ch = R_(10, 32);
       const sx = R_(-1, 1) * i2 * 0.5, sz = R_(-1, 1) * i2 * 0.5;
       tiers.push({ x: cx + sx, z: cz + sz, w: tw - i2 * 2, d: td - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, color: col.clone().multiplyScalar(0.8) });
+      lotTiers.crown = { x0: cx + sx - (tw - i2 * 2) / 2, z0: cz + sz - (td - i2 * 2) / 2, x1: cx + sx + (tw - i2 * 2) / 2, z1: cz + sz + (td - i2 * 2) / 2, y0: topY, y1: topY + ch };
       topY += ch; topW = tw - i2 * 2; topD = td - i2 * 2;
       if (rnd() < 0.5 && ch > 14) { // spire
         const sh = R_(14, 40);
@@ -580,8 +600,8 @@ export function buildWorld(scene, quality) {
       holoInst.push({ x: face ? cx : cx + (rnd() < 0.5 ? 1 : -1) * (topW / 2 + 0.3), y: by + bh / 2, z: face ? cz + (rnd() < 0.5 ? 1 : -1) * (topD / 2 + 0.3) : cz, w: bw, h: bh, rotY: face ? 0 : Math.PI / 2, seed: Math.floor(R_(0, 3)) + R_(0, 0.5) });
       addFake(cx, 0, cz, accentColor(accent), 40, 0.6);
     }
-    world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
-    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed });
+    const solid = world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
+    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, solid, topY });
 
     // signs on road-facing facades
     const ground = podiumH;
@@ -1040,7 +1060,7 @@ export function buildWorld(scene, quality) {
     return Math.min(lx, P - lx) < R / 2 || Math.min(lz, P - lz) < R / 2;
   };
   world.facade = facade;
-  buildEnterables(world, scene, rnd);
+  buildEntrances(world, scene);
   world.objects = scene.children.slice(objStart);
   return world;
 }
@@ -1055,54 +1075,56 @@ function patchTreeSway(mat) {
   mat.customProgramCacheKey = () => 'tree-sway';
 }
 
-// ---------- Enterable buildings: street doors ----------
-const BUILDING_NAMES = ['NEXUS TOWER', 'ORCHID HOTEL', 'HELIX CORP', 'KAIROS PLAZA', 'AURORA SUITES', 'VERTEX DYNAMICS', 'NOVA RESIDENCE', 'SYNAPSE LABS', 'ONYX FINANCIAL', 'LOTUS TOWER', 'ARCADIA HOTEL', 'ZENITH TECH', 'CRIMSON PLAZA', 'ECHO SUITES'];
+// ---------- Building entrances (visual markers; physical doors live in building.js) ----------
+export const BAY = 3.2;
+export function doorSpec(l) {
+  const sides = [['w', l.x0, 0, -1, 0], ['e', l.x1, 0, 1, 0], ['n', 0, l.z0, 0, -1], ['s', 0, l.z1, 0, 1]].filter((e) => l.edges[e[0]]);
+  if (!sides.length) return null;
+  const [side, ex, ez, nx, nz] = sides[Math.floor((l.seed * 7) % sides.length)];
+  const alongZ = nx !== 0, len = alongZ ? l.z1 - l.z0 : l.x1 - l.x0, start = alongZ ? l.z0 : l.x0;
+  const nb = Math.max(3, Math.round(len / BAY)), bay = len / nb, mid = Math.floor(nb / 2);
+  const c = start + (mid + 0.5) * bay;
+  return { side, nx, nz, bayIndex: mid, bays: nb, bay, px: alongZ ? ex : c, pz: alongZ ? c : ez };
+}
+const NAME_A = ['NEXUS', 'ORCHID', 'HELIX', 'KAIROS', 'AURORA', 'VERTEX', 'NOVA', 'SYNAPSE', 'ONYX', 'LOTUS', 'ARCADIA', 'ZENITH', 'CRIMSON', 'ECHO', 'PRISM', 'ATLAS', 'VORTEX', 'HALCYON'];
+const NAME_B = ['TOWER', 'HOTEL', 'CORP', 'PLAZA', 'SUITES', 'LABS', 'RESIDENCE', 'FINANCIAL', 'CENTER', 'APARTMENTS'];
 function nameTexture(name, color) {
-  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 220;
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 112;
   const g = cv.getContext('2d');
-  g.fillStyle = 'rgba(3,4,10,.92)'; g.fillRect(0, 0, 1024, 220);
+  g.fillStyle = 'rgba(3,4,10,.92)'; g.fillRect(0, 0, 512, 112);
   const c = `rgb(${color.map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`;
-  g.strokeStyle = c; g.lineWidth = 8; g.shadowColor = c; g.shadowBlur = 24; g.strokeRect(14, 14, 996, 192);
-  g.font = '900 96px "Pretendard","Noto Sans KR",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#fff'; g.shadowBlur = 30; g.fillText(name, 512, 116);
+  g.strokeStyle = c; g.lineWidth = 5; g.shadowColor = c; g.shadowBlur = 14; g.strokeRect(8, 8, 496, 96);
+  g.font = '900 46px "Pretendard","Noto Sans KR",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#fff'; g.shadowBlur = 16; g.fillText(name, 256, 60);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
-function buildEnterables(world, scene, rnd) {
-  const cand = world.lots.filter((l) => !l.ring && l.h >= 38 && (l.edges.w || l.edges.e || l.edges.n || l.edges.s) && Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 18);
-  const sp = world.spawn;
-  cand.sort((a, b) => Math.hypot((a.x0 + a.x1) / 2 - sp.x, (a.z0 + a.z1) / 2 - sp.z) - Math.hypot((b.x0 + b.x1) / 2 - sp.x, (b.z0 + b.z1) / 2 - sp.z));
-  const chosen = [];
-  // nearest ones first, then spread out with minimum separation
-  for (const l of cand) {
-    const cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2;
-    if (chosen.some((c) => Math.hypot(c.cx - cx, c.cz - cz) < 110)) continue;
-    chosen.push({ l, cx, cz });
-    if (chosen.length >= BUILDING_NAMES.length) break;
-  }
+function buildEntrances(world, scene) {
+  const lots = world.lots.filter((l) => !l.ring && Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 17 && l.h >= 20);
   world.enterables = [];
-  const frameGeo = new THREE.BoxGeometry(1, 1, 1);
-  chosen.forEach(({ l, cx, cz }, id) => {
-    const order = [['w', l.x0, cz, -1, 0], ['e', l.x1, cz, 1, 0], ['n', cx, l.z0, 0, -1], ['s', cx, l.z1, 0, 1]].filter((e) => l.edges[e[0]]);
-    const [, dx, dz, nx, nz] = order[0];
-    const accent = accentColor(l.accent);
-    const name = BUILDING_NAMES[id];
-    const g = new THREE.Group();
-    g.position.set(dx + nx * 0.05, 0, dz + nz * 0.05); g.rotation.y = Math.atan2(nx, nz);
-    const emi = new THREE.MeshBasicMaterial({ color: new THREE.Color(...accent).multiplyScalar(2.8), toneMapped: false });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x0b0d14, roughness: 0.25, metalness: 0.85 });
-    const box = (m, w, h, d, x, y, z) => { const o = new THREE.Mesh(frameGeo, m); o.scale.set(w, h, d); o.position.set(x, y, z); g.add(o); return o; };
-    box(emi, 0.14, 3.5, 0.22, -1.9, 1.75, 0.1); box(emi, 0.14, 3.5, 0.22, 1.9, 1.75, 0.1); box(emi, 3.95, 0.14, 0.22, 0, 3.5, 0.1);
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.7, 3.4), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.8, 0.55).multiplyScalar(0.9) }));
-    glow.position.set(0, 1.7, 0.03); g.add(glow);
-    box(dark, 1.8, 3.3, 0.06, -0.92, 1.65, 0.12).material = new THREE.MeshPhysicalMaterial({ color: 0x0a1018, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55, clearcoat: 1 });
-    box(g.children[g.children.length - 1].material, 1.8, 3.3, 0.06, 0.92, 1.65, 0.12);
-    box(dark, 6.2, 0.18, 2.8, 0, 3.95, 1.35); box(emi, 5.8, 0.06, 0.06, 0, 3.84, 2.7);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 1.32), new THREE.MeshBasicMaterial({ map: nameTexture(name, accent), toneMapped: false, transparent: true }));
-    sign.position.set(0, 5.1, 0.12); g.add(sign);
-    scene.add(g);
-    const lightPos = [dx + nx * 2.5, dz + nz * 2.5];
-    world.fakeLights.push({ x: lightPos[0], y: 0, z: lightPos[1], c: accent.map((v) => v * 1.2), rad: 12 });
-    const floors = Math.max(6, Math.min(48, Math.floor(l.h / 3.6)));
-    world.enterables.push({ id, name, x: dx + nx * 2.2, z: dz + nz * 2.2, nx, nz, lot: l, accent, floors, kind: l.style === 3 || l.style === 1 ? 'office' : 'hotel', doorX: dx, doorZ: dz });
+  const B = new Builder();
+  const signs = new Map();
+  lots.forEach((l, id) => {
+    const d = doorSpec(l); if (!d) return;
+    const accent = accentColor(l.accent), th = Math.atan2(d.nx, d.nz), cs = Math.cos(th), sn = Math.sin(th);
+    const W = (lx, lz) => [d.px + lx * cs + lz * sn, d.pz - lx * sn + lz * cs];
+    const name = NAME_A[(id * 5 + Math.floor(l.seed)) % NAME_A.length] + ' ' + NAME_B[(id * 3 + Math.floor(l.seed * 3)) % NAME_B.length];
+    l.name = name; l.id = id; l.door = d;
+    const em = new THREE.Color(...accent).multiplyScalar(2.8);
+    const bx = (lx, y, lz, w, h, dd, col, key = 'emit') => { const [wx, wz] = W(lx, lz); B.box(key, wx, y, wz, w, h, dd, col, th); };
+    bx(-1.3, 0, 0.1, 0.14, 3.1, 0.22, em); bx(1.3, 0, 0.1, 0.14, 3.1, 0.22, em); bx(0, 3.1, 0.1, 2.74, 0.14, 0.22, em);
+    bx(0, 0.0, 0.06, 2.6, 3.0, 0.02, new THREE.Color(1, 0.72, 0.45).multiplyScalar(0.5));
+    bx(0, 0.02, 0.9, 3.4, 0.02, 1.8, new THREE.Color(1, 0.75, 0.5).multiplyScalar(0.55));
+    bx(0, 3.55, 1.35, 6.2, 0.18, 2.8, new THREE.Color(0.04, 0.05, 0.08), 'decor'); bx(0, 3.44, 2.7, 5.8, 0.06, 0.06, em);
+    const sc = new THREE.Color(...accent);
+    let sg = signs.get(name); if (!sg) { sg = { tex: nameTexture(name, accent), list: [] }; signs.set(name, sg); }
+    const [sx, sz] = W(0, 0.14); sg.list.push({ x: sx, y: 5.0, z: sz, th });
+    world.fakeLights.push({ x: d.px + d.nx * 2.5, y: 0, z: d.pz + d.nz * 2.5, c: accent.map((v) => v * 1.2), rad: 12 });
+    world.enterables.push({ id, name, x: d.px + d.nx * 2.2, z: d.pz + d.nz * 2.2, nx: d.nx, nz: d.nz, lot: l, accent, door: d });
   });
+  B.finish(scene);
+  for (const sg of signs.values()) {
+    const geos = sg.list.map((p) => { const g = new THREE.PlaneGeometry(6.2, 1.35); g.rotateY(p.th); g.translate(p.x, p.y, p.z); return g; });
+    const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ map: sg.tex, toneMapped: false, transparent: true }));
+    m.frustumCulled = false; scene.add(m);
+  }
 }

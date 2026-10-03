@@ -5,6 +5,10 @@ export const PHYS = {
   mass: 1300, rest: 0.34, radius: 0.35, connY: -0.12, bodyY: 0.78,
 };
 
+export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32 };
+export const grp = (mem, filt) => ((mem << 16) | filt) >>> 0;
+const ALL = 0xffff;
+
 export class Physics {
   constructor(R) {
     this.R = R;
@@ -12,18 +16,38 @@ export class Physics {
     this.world.timestep = PHYS.dt;
     this.acc = 0;
     this.bodies = new Map();
-    const g = this.world.createCollider(R.ColliderDesc.cuboid(2000, 2, 2000).setTranslation(0, -2, 0).setFriction(1.0).setRestitution(0));
-    this.ground = g;
+    this.colRef = new Map();
+    // tiled: very large single cuboids break the character shape-cast
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) this.world.createCollider(R.ColliderDesc.cuboid(300, 2, 300).setTranslation(i * 600, -2, j * 600).setFriction(1.0).setRestitution(0).setCollisionGroups(grp(GR.STATIC, ALL)));
+  }
+  addBox(b) {
+    const R = this.R, w = this.world;
+    const y0 = b.y0 || 0, hh = (Math.min(b.h, 400) - y0) / 2;
+    if (hh <= 0) return;
+    b.col = w.createCollider(R.ColliderDesc.cuboid((b.x1 - b.x0) / 2, hh, (b.z1 - b.z0) / 2).setTranslation((b.x0 + b.x1) / 2, y0 + hh, (b.z0 + b.z1) / 2).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(b.tag === 'glass' ? GR.GLASS : b.tag === 'elev' ? GR.OBJ : GR.STATIC, ALL)));
+    this.colRef.set(b.col.handle, b);
+  }
+  // static inclined slab (stairs). dz,dy: run/rise vector of the surface
+  addRamp(cx, cy, cz, hx, hy, hz, dy, dz) {
+    const al = Math.atan2(-dy, dz), q = { x: Math.sin(al / 2), y: 0, z: 0, w: Math.cos(al / 2) };
+    const R = this.R;
+    return this.world.createCollider(R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy - hy, cz).setRotation(q).setFriction(0.8).setCollisionGroups(grp(GR.STATIC, ALL)));
+  }
+  removeBox(b) { if (b.col) { this.colRef.delete(b.col.handle); this.world.removeCollider(b.col, false); b.col = null; } }
+  // Ray against the Rapier world. mask: GR bits to hit. Returns {t, ref, nx,ny,nz} or null
+  ray(ox, oy, oz, dx, dy, dz, max, mask = GR.STATIC | GR.OBJ | GR.PROP) {
+    const r = new this.R.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz });
+    const h = this.world.castRayAndGetNormal(r, max, true, undefined, grp(0xffff, mask));
+    if (!h) return null;
+    return { t: h.timeOfImpact, ref: this.colRef.get(h.collider.handle) || null, collider: h.collider, nx: h.normal.x, ny: h.normal.y, nz: h.normal.z };
   }
   addStatic(colliders) {
     const R = this.R, w = this.world;
-    for (const b of colliders.boxes) {
-      const hx = (b.x1 - b.x0) / 2, hz = (b.z1 - b.z0) / 2, hh = Math.min(b.h, 400) / 2;
-      w.createCollider(R.ColliderDesc.cuboid(hx, hh, hz).setTranslation((b.x0 + b.x1) / 2, hh, (b.z0 + b.z1) / 2).setFriction(0.4).setRestitution(0.15));
-    }
+    for (const b of colliders.boxes) this.addBox(b);
+    colliders.sink = this;
     for (const c of colliders.circles) {
       const hh = Math.min(c.h, 12) / 2;
-      w.createCollider(R.ColliderDesc.cylinder(hh, c.r).setTranslation(c.x, hh, c.z).setFriction(0.4).setRestitution(0.1));
+      w.createCollider(R.ColliderDesc.cylinder(hh, c.r).setTranslation(c.x, hh, c.z).setFriction(0.4).setRestitution(0.1).setCollisionGroups(grp(GR.STATIC, ALL)));
     }
   }
   // Fixed-step; calls pre(dt) before each step so callers can set wheel forces
@@ -32,7 +56,7 @@ export class Physics {
     let n = 0;
     while (this.acc >= PHYS.dt) {
       pre?.(PHYS.dt);
-      for (const v of list) v.ctrl.updateVehicle(PHYS.dt);
+      for (const v of list) v.ctrl.updateVehicle(PHYS.dt, undefined, grp(GR.VEH, GR.STATIC | GR.PROP | GR.OBJ));
       this.world.step();
       for (const v of list) stabilize(v);
       this.acc -= PHYS.dt; n++;
@@ -44,7 +68,7 @@ export class Physics {
     const R = this.R, w = this.world;
     this.props = { mesh, bodies: list.map((b) => {
       const body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(b.x, hh + 0.01, b.z).setLinearDamping(0.3).setAngularDamping(0.6).setCcdEnabled(true));
-      w.createCollider(R.ColliderDesc.cylinder(hh, r).setMass(mass).setFriction(0.6).setRestitution(0.35), body);
+      w.createCollider(R.ColliderDesc.cylinder(hh, r).setMass(mass).setFriction(0.6).setRestitution(0.35).setCollisionGroups(grp(GR.PROP, ALL)), body);
       body.sleep();
       return { body, hh, moved: false };
     }) };
@@ -68,7 +92,7 @@ export class Physics {
     const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
     const body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, PHYS.bodyY, z).setRotation(q)
       .setLinearDamping(0.04).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true));
-    const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18), body);
+    const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ)), body);
     // low centre of mass + realistic inertia
     const ix = (mass / 12) * (4 * hy * hy + 4 * hz * hz) * 0.55, iy = (mass / 12) * (4 * hx * hx + 4 * hz * hz) * 0.7, iz = (mass / 12) * (4 * hx * hx + 4 * hy * hy) * 0.55;
     body.setAdditionalMassProperties(mass, { x: 0, y: -0.42, z: 0 }, { x: ix, y: iy, z: iz }, { x: 0, y: 0, z: 0, w: 1 });
