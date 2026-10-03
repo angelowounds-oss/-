@@ -10,6 +10,8 @@ import bagB64 from '../assets/props/trashbag.glb';
 import plantB64 from '../assets/props/potted_plant_01.glb';
 import sniperMagB64 from '../assets/props/sniper_mag.glb';
 import livingB64 from '../assets/props/living_set.glb';
+import streetPropsB64 from '../assets/props/street_props.glb';
+import streetSignsB64 from '../assets/props/street_signs.glb';
 import res01B64 from '../assets/res/res_01.glb';
 import res02B64 from '../assets/res/res_02.glb';
 import res03B64 from '../assets/res/res_03.glb';
@@ -32,7 +34,7 @@ export async function loadAssets() {
     A.soldier = s; A.ferrari = f;
     // CC0 Poly Haven street props (decimated, 256px textures); a failure here must not take the characters down with it
     try {
-      const src = { fire_hydrant: hydrantB64, metal_trash_can: trashB64, utility_box_01: boxB64, trashbag: bagB64, potted_plant_01: plantB64, sniper_mag: sniperMagB64, living_set: livingB64 };
+      const src = { fire_hydrant: hydrantB64, metal_trash_can: trashB64, utility_box_01: boxB64, trashbag: bagB64, potted_plant_01: plantB64, sniper_mag: sniperMagB64, living_set: livingB64, street_props: streetPropsB64, street_signs: streetSignsB64 };
       const out = {};
       await Promise.all(Object.entries(src).map(async ([k, b]) => { out[k] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
       A.props = out;
