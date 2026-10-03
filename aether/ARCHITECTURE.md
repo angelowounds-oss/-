@@ -109,14 +109,15 @@ fxPresent           FXAA(LOW) → 캔버스로 업스케일+CAS 샤프닝
 src/engine/09-tunnel-spec.js  (TUNNEL_SPEC: 치수·파생값·isSolid(x,y,z))      <- 단일 진실
    |  Node에서도 평가됨
    +--> tools/gen/tunnel.mjs + glb.mjs  --> assets/tunnel-v2.glb --> assets/tunnel-asset.js (base64)
-   |         validate.mjs: 수밀·치수·법선 (69 검사)                               |
+   |         validate.mjs: 수밀·치수·법선·계단·팬 룸 (110 검사)                               |
    |                                                                                v
    |                                                       src/engine/20b-tunnel-v2.js (GLB 읽기 -> scene.objects, 'tv2.*')
    +--> 10-config-state.js   CFD_DOMAIN_CONTRACT (영역 = 사양 domain)
    +--> 84-perf-quality.js   격자 등급 (영역 / 목표 셀 크기)
    +--> 86-mac-cfd.js        macStaticSolids: TUNNEL_SPEC.derived.isSolid -> 부분체적 id 4
    |                          macInit: 입구 배율 U·A_e/A_in, 정류 슬랩, 기준점 4개, macWindCtl(폐루프)
-   +--> 89b-cinematic.js / 90-render-loop.js(프리셋) / 40-gl-walk-door.js(보행): 플레넘 경계
+   +--> 89b-cinematic.js / 90-render-loop.js(프리셋) / 40-gl-walk-door.js(보행: 플레넘·계단·문·제어실·수집부 옆 통로 영역 합집합, doorBuildV2 슬라이딩 문)
+   +--> 60-fan-collector-layout.js fanLayoutFor: 사용자 팬 GLB를 TUNNEL_SPEC.fanRoom 위치(계산 영역 밖)에 그림
 ```
 - 형상(렌더)과 계산(솔버)은 서로의 산출물이 아니라 **같은 사양의 두 해석**입니다. 사양을 바꾸면 `node tools/gen/make-tunnel.mjs && node tools/gen/validate.mjs` 후 빌드.
 - 이전 방은 `#tunnel=legacy`(`TUNNEL_V2_ON=false`)로 같은 빌드에서 열립니다.

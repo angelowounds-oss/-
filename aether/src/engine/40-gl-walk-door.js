@@ -4,9 +4,19 @@ function resize(){if(!gl)return;const d=clamp(devicePixelRatio||1,1,MOBILE?1.5:(
 let renderQuality='high';document.getElementById('qualityMode')?.addEventListener('click',()=>{renderQuality=renderQuality==='high'?'balanced':'high';document.getElementById('qualityMode').textContent='화질: '+(renderQuality==='high'?'고화질':'균형')});
 const fpv={enabled:true,x:0,z:7.5,yaw:0,pitch:-.08,vx:0,vz:0,last:null,phase:0,sway:true,keys:new Set(),stick:[0,0],look:null};
 function clearWalk(){joyId=null;fpv.keys.clear();fpv.stick=[0,0];fpv.vx=fpv.vz=0;fpv.last=null;fpv.look=null;document.getElementById('stick').style.transform='translate(0px,0px)'}
-function startWalk(){window.__CINE&&window.__CINE.cancel('walk');clearWalk();fpv.enabled=true;fpv.x=0;fpv.z=7.5;fpv.gy=undefined;fpv.yaw=0;fpv.pitch=-.08;camera.preset='FPV';camera.cutaway=false;camera.fov=72;camera.up=[0,1,0];document.getElementById('viewName').textContent='FPV · 관제실';document.getElementById('viewHint').textContent='눈높이 1.65m · 보행 속도 1.6m/s';document.getElementById('cutaway').textContent='Cutaway: Off'}
+function startWalk(){window.__CINE&&window.__CINE.cancel('walk');clearWalk();fpv.enabled=true;fpv.x=0;fpv.z=TUNNEL_V2.active?TUNNEL_SPEC.plenum.zh+3.1:7.5;fpv.gy=undefined;fpv.yaw=0;fpv.pitch=-.08;camera.preset='FPV';camera.cutaway=false;camera.fov=72;camera.up=[0,1,0];document.getElementById('viewName').textContent='FPV · 관제실';document.getElementById('viewHint').textContent='눈높이 1.65m · 보행 속도 1.6m/s';document.getElementById('cutaway').textContent='Cutaway: Off'}
 const DOOR={x0:2.3,x1:3.5,y0:.75,y1:2.95,zPanel:4.13,N:12,t:0,built:false,landZ:3.72,steps:4,rise:.15,tread:.30};
-function doorBuild(){if(TUNNEL_V2.active||DOOR.built||scene.objects.some(o=>o.name.startsWith('door.')))return;const {x0,x1}=DOOR,shift=3.5-x0,add=[],drop=new Set();
+/* v2 sliding glass leaf in the +Z plenum wall (TUNNEL_SPEC.door): same 12-frame slide as the legacy door, leaf on the plenum side of the frame, sliding toward +X */
+function doorBuildV2(){if(DOOR.built)return;const d=TUNNEL_SPEC.door,zh=TUNNEL_SPEC.plenum.zh;Object.assign(DOOR,{x0:d.x0,x1:d.x1,y0:d.y0,y1:d.y1,zPanel:zh-.15,N:d.N,v2:true});
+ const w=d.x1-d.x0,mid=(d.x0+d.x1)/2,B=(n,c,s,col,opt={})=>addBox('door.'+n,c,s,col,{bevel:.003,category:'door',...opt});
+ DOOR.light=B('light',[d.x1+.05,d.y1+.13,zh-.13],[.1,.04,.02],[.9,.2,.15]);
+ DOOR.frames=[];for(let k=0;k<d.N;k++){const cx=mid+(w+.12)*k/(d.N-1),vis=k===0,f=[],zc=DOOR.zPanel;
+  f.push(B('panel.'+k,[cx,(d.y0+d.y1)/2,zc],[w-.06,d.y1-d.y0-.04,.02],[.70,.82,.86],{material:'glass',visible:vis,bevel:.002}));
+  for(const dx of [-(w-.06)/2,(w-.06)/2])f.push(B('stile.'+k+'.'+dx.toFixed(2),[cx+dx,(d.y0+d.y1)/2,zc],[.05,d.y1-d.y0-.02,.05],[.30,.33,.35],{visible:vis}));
+  for(const y of [d.y0+.03,d.y1-.03])f.push(B('rail.'+k+'.'+y,[cx,y,zc],[w-.06,.05,.05],[.30,.33,.35],{visible:vis}));
+  f.push(B('handle.'+k,[cx+(w-.06)/2-.12,1.75,zc-.05],[.03,.45,.03],[.72,.75,.77],{visible:vis}));DOOR.frames.push(f)}
+ DOOR.built=true}
+function doorBuild(){if(TUNNEL_V2.active)return doorBuildV2();if(DOOR.built||scene.objects.some(o=>o.name.startsWith('door.')))return;const {x0,x1}=DOOR,shift=3.5-x0,add=[],drop=new Set();
  DOOR.report=[];for(const o of scene.objects){const lo=o.center.map((v,i)=>v-o.size[i]/2),hi=o.center.map((v,i)=>v+o.size[i]/2);
   if(hi[2]<=3.70||lo[2]>=4.12)continue;const cuttable=o.name.startsWith('m7.')||o.name.startsWith('m5.window')||o.category==='observation opening'||o.category==='observation glass';if(!cuttable){if(hi[1]>DOOR.y0+.12&&lo[1]<DOOR.y1&&hi[0]>x0&&lo[0]<x1)DOOR.report.push(o.name);continue}
   if(o.name.startsWith('m7.')&&o.center[0]>3.4&&o.size[0]<.2){o.center=[o.center[0]-shift,o.center[1],o.center[2]];o._mesh=null;continue}
@@ -32,13 +42,29 @@ function doorBuild(){if(TUNNEL_V2.active||DOOR.built||scene.objects.some(o=>o.na
   f.push(B('handle.'+k,[cx+(w-.06)/2-.12,1.75,DOOR.zPanel+.05],[.03,.45,.03],[.72,.75,.77],{visible:vis}));DOOR.frames.push(f)}
  DOOR.built=true}
 window.__doorPlace=()=>{if(TUNNEL_V2.active){fpv.x=TUNNEL_SPEC.nozzle.x1+1.6;fpv.z=3.2;fpv.yaw=Math.PI/2;fpv.pitch=-.05;fpv.gy=undefined;return}fpv.x=(DOOR.x0+DOOR.x1)/2;fpv.z=5.6;fpv.yaw=0;fpv.pitch=-.12;fpv.gy=undefined};
-function doorGround(x,z){const {x0,x1,landZ,tread,steps,rise,y0}=DOOR,inX=x>=x0&&x<=x1;if(z>=3.96)return y0;if(inX&&z>=landZ)return y0;if(inX&&z>=landZ-tread*steps){const i=Math.min(steps-1,Math.floor((landZ-z)/tread));return y0-rise*(i+1)}return 0}
+window.__WALK={fpv,DOOR,canWalk:(x,z,fx,fz)=>canWalk(x,z,fx,fz),ground:(x,z)=>doorGround(x,z),update:dt=>doorUpdate(dt)};
+/* v2 ground height: 0 on the plenum floor, a 4-riser stair against the +Z wall under the door, control-room floor (y0) behind the wall */
+function stairV2(x,z){const d=TUNNEL_SPEC.door,zh=TUNNEL_SPEC.plenum.zh;if(x<d.x0-.05||x>d.x1+.05)return null;const zl=zh-d.landing;if(z>=zl)return d.y0;
+ const i=Math.floor((zl-z)/d.tread);if(i>=d.steps-1||z<zl-d.tread*(d.steps-1))return 0;return d.y0-d.y0/d.steps*(i+1)}
+function doorGround(x,z){if(TUNNEL_V2.active){const zh=TUNNEL_SPEC.plenum.zh;if(z>=zh)return TUNNEL_SPEC.door.y0;return stairV2(x,z)??0}
+ const {x0,x1,landZ,tread,steps,rise,y0}=DOOR,inX=x>=x0&&x<=x1;if(z>=3.96)return y0;if(inX&&z>=landZ)return y0;if(inX&&z>=landZ-tread*steps){const i=Math.min(steps-1,Math.floor((landZ-z)/tread));return y0-rise*(i+1)}return 0}
 function doorUpdate(dt){if(!DOOR.built)return;const near=fpv.enabled&&Math.hypot(fpv.x-(DOOR.x0+DOOR.x1)/2,fpv.z-DOOR.zPanel)<1.9;DOOR.t=clamp(DOOR.t+(near?1:-1)*dt*1.4,0,1);const e=DOOR.t*DOOR.t*(3-2*DOOR.t),k=Math.round(e*(DOOR.N-1));
  if(k!==DOOR.shown){DOOR.shown=k;DOOR.frames.forEach((f,i)=>f.forEach(o=>o.visible=i===k))}if(DOOR.light)DOOR.light.color=DOOR.t>.9?[.15,.95,.35]:DOOR.t>0?[.95,.7,.15]:[.9,.2,.15]}
-/* v2: free walking inside the plenum (wedge tips keep a 0.9 m margin), the car, the turntable-pit edge and the jet's nozzle/collector are obstacles; the observation window and control room are not walkable */
-function canWalkV2(x,z,fromX,fromZ,r){const sp=TUNNEL_SPEC,p=sp.plenum,m=sp.plenum.wedge.depth+.2;
- if(x<sp.nozzle.x1+.6||x>sp.collector.x0-.6||Math.abs(z)>p.zh-m)return false;
- const vb=AETHER.VEHICLE_TRANSFORM?.worldAABB;if(vb&&x+r>vb.min[0]-.1&&x-r<vb.max[0]+.1&&z+r>vb.min[2]-.1&&z-r<vb.max[2]+.1)return false;void fromX;void fromZ;return true}
+/* v2: free walking inside the plenum (wedge tips keep a 0.9 m margin), the car, the turntable-pit edge and the jet's nozzle/collector are obstacles; the control room (via the door and stair) and the aisle beside the collector to the fan hatches are walkable */
+function canWalkV2(x,z,fromX,fromZ,r){const sp=TUNNEL_SPEC,p=sp.plenum,d=sp.door,cr=sp.controlRoom,m=p.wedge.depth+.2,zh=p.zh,vb=AETHER.VEHICLE_TRANSFORM?.worldAABB;
+ const w=sp.window,rx0=w.x0-1.5,rx1=w.x1+1.5,rz1=zh+cr.depth;
+ /* stair + door passage: a corridor just narrower than the opening, from the plenum floor up to the control-room floor */
+ const inPass=x>=d.x0+.17&&x<=d.x1-.17&&z>=zh-m-.3&&z<=zh+.45;
+ const inRoom=x>=rx0+r&&x<=rx1-r&&z>=zh+.45&&z<=rz1-r;
+ const inPlenum=x>=sp.nozzle.x1+.6&&x<=sp.collector.x0-.6&&Math.abs(z)<=zh-m;
+ /* aisle beside the collector funnel up to the inspection hatches in the back wall (wedge tips keep the usual margin; the funnel/duct skin + lip + body radius stay clear) */
+ const inAisle=x>sp.collector.x0-.6&&x<=p.x1-.9&&Math.abs(z)<=zh-m&&Math.abs(z)>=sp.derived.collectorAt(Math.max(x,sp.collector.x0)).hw+.06+.25+r;
+ if(!inPass&&!inRoom&&!inPlenum&&!inAisle)return false;
+ if(inPass&&Math.abs(z-zh)<.12&&DOOR.t<.85)return false; /* closed door */
+ if(vb&&x+r>vb.min[0]-.1&&x-r<vb.max[0]+.1&&z+r>vb.min[2]-.1&&z-r<vb.max[2]+.1)return false;
+ const cb=AETHER.M6?.bounds;if(inRoom&&cb&&x+r>cb.min[0]&&x-r<cb.max[0]&&z+r>cb.min[2]&&z-r<cb.max[2])return false;
+ if(Math.abs(doorGround(x,z)-doorGround(fromX,fromZ))>.2)return false;
+ return true}
 function canWalk(x,z,fromX=fpv.x,fromZ=fpv.z){const r=.22,{x0,x1}=DOOR;
  if(TUNNEL_V2.active)return canWalkV2(x,z,fromX,fromZ,r);
  const room=x>=-3.86&&x<=3.86&&z>=4.34&&z<=9.08,corridor=DOOR.built&&x>=x0+r&&x<=x1-r&&z>=DOOR.landZ-DOOR.tread*DOOR.steps-.01&&z<4.34;

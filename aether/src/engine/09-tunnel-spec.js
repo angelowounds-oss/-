@@ -14,6 +14,11 @@ const TUNNEL_SPEC=(()=>{
   turntable:{r:3.75,thickness:.3,gap:.025,pit:{hx:3.2,hz:1.35},squareHalf:4.2},
   window:{x0:-3,x1:3,y0:1.1,y1:4.3,wallZ:1}, /* observation window in the +Z side wall */
   controlRoom:{depth:5.5,floorY:.75},
+  /* personnel door in the +Z plenum wall beside the window, reached by a 4-step stair from the plenum floor to the control-room floor (sill = floorY) */
+  door:{x0:3.55,x1:4.4,y0:.75,y1:2.85,steps:4,tread:.28,landing:.36,N:12},
+  /* fan room behind the plenum back wall (visual only, outside the CFD domain x <= 19.5): diffuser -> fan wall -> contraction -> return duct leaving through the east wall.
+     Two inspection hatches (glass) in the plenum back wall look into it. fanX is the fan asset's centre x. */
+  fanRoom:{x0:18.5,x1:30,y1:7.2,zh:6.5,diffuser:{x0:19.5,x1:22.5,hw:3.6,h:4.95},fanX:23.6,ret:{x0:24.85,x1:27.85,hw:2.2,h:3.4,xEnd:30},hatch:{z0:4.1,z1:5.3,y0:1.0,y1:3.2}},
   car:{noseGap:3.65} /* nozzle exit plane to the nose of the 4.7 m car centred on the turntable */
  };
  /* quintic smoothstep: zero slope and curvature at both ends, monotone */

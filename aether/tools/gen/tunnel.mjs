@@ -73,12 +73,23 @@ function shellMeshes() {
   const nz = D.nozzleAt(p.x0), fh = [-nz.hw - .18, nz.hw + .18, 0, nz.h + .18];
   wallWithHole(walls, (u, v) => [p.x0, v, u], -p.zh, p.zh, 0, p.y1, [fh[0], fh[1], fh[2], fh[3]], inside);
   const ch = D.collectorAt(c.throatX), bh = [-ch.hw - .12, ch.hw + .12, 0, ch.h + .12];
-  wallWithHole(walls, (u, v) => [p.x1, v, u], -p.zh, p.zh, 0, p.y1, bh, inside);
+  const hz = S.fanRoom.hatch, hl = [-hz.z1, -hz.z0, hz.y0, hz.y1], hr = [hz.z0, hz.z1, hz.y0, hz.y1];
+  wallWithHoles(walls, (u, v) => [p.x1, v, u], -p.zh, p.zh, 0, p.y1, [hl, bh, hr], inside);
   // side walls: -Z solid, +Z with the observation window opening
   walls.quad([p.x0, 0, -p.zh], [p.x1, 0, -p.zh], [p.x1, p.y1, -p.zh], [p.x0, p.y1, -p.zh], { toward: inside });
-  wallWithHole(walls, (u, v) => [u, v, p.zh], p.x0, p.x1, 0, p.y1, [w.x0 - .1, w.x1 + .1, w.y0 - .1, w.y1 + .1], inside);
+  const dr = S.door, seam = dr.x0 - .15;
+  wallWithHole(walls, (u, v) => [u, v, p.zh], p.x0, seam, 0, p.y1, [w.x0 - .1, w.x1 + .1, w.y0 - .1, w.y1 + .1], inside);
+  wallWithHole(walls, (u, v) => [u, v, p.zh], seam, p.x1, 0, p.y1, [dr.x0, dr.x1, dr.y0, dr.y1], inside);
   ceil.quad([p.x0, p.y1, -p.zh], [p.x1, p.y1, -p.zh], [p.x1, p.y1, p.zh], [p.x0, p.y1, p.zh], { toward: inside });
   return { walls, ceil, fh, bh };
+}
+
+// wall with several rectangular holes (holes sorted by u, non-overlapping in u): full-height strips between the holes, bottom/top strips under/over each
+function wallWithHoles(mesh, map, u0, u1, v0, v1, holes, toward) {
+  const q = (ua, va, ub, vb) => { if (ub - ua > 1e-9 && vb - va > 1e-9) mesh.quad(map(ua, va), map(ub, va), map(ub, vb), map(ua, vb), { toward }); };
+  let cur = u0;
+  for (const [a0, a1, b0, b1] of [...holes].sort((x, y) => x[0] - y[0])) { q(cur, v0, a0, v1); q(a0, v0, a1, b0); q(a0, b1, a1, v1); cur = a1; }
+  q(cur, v0, u1, v1);
 }
 
 // anechoic wedges: 0.4 m pitch, 0.8 m deep, ridge direction alternating 90 degrees (checkerboard), skipping openings
@@ -102,17 +113,17 @@ function wedges(openings) {
   };
   const inRect = (pt, r) => pt[0] > r[0] && pt[0] < r[1] && pt[1] > r[2] && pt[1] < r[3];
   const nx = Math.floor((p.x1 - p.x0) / pitch), ny = Math.floor((p.y1 - p.y0) / pitch), nzc = Math.floor((2 * p.zh) / pitch);
-  const [fh, bh, win] = openings;
+  const [fh, bh, win] = openings, hz2 = S.fanRoom.hatch, dd = S.door, dskip = [dd.x0 - .25, dd.x1 + 1.15, -1, dd.y1 + .35];
   // side wall -Z (inward +Z): u along x, v along y
   field([p.x0, p.y0, -p.zh], [1, 0, 0], [0, 1, 0], nx, ny, [0, 0, 1], null);
   // side wall +Z (inward -Z) with the window cut out
-  field([p.x0, p.y0, p.zh], [1, 0, 0], [0, 1, 0], nx, ny, [0, 0, -1], c => inRect([c[0], c[1]], [win[0] - .3, win[1] + .3, win[2] - .3, win[3] + .3]));
+  field([p.x0, p.y0, p.zh], [1, 0, 0], [0, 1, 0], nx, ny, [0, 0, -1], c => inRect([c[0], c[1]], [win[0] - .3, win[1] + .3, win[2] - .3, win[3] + .3]) || inRect([c[0], c[1]], dskip));
   // ceiling (inward -Y): u along x, v along z
   field([p.x0, p.y1, -p.zh], [1, 0, 0], [0, 0, 1], nx, nzc, [0, -1, 0], null);
   // front wall (inward +X): u along z, v along y, skip the nozzle opening
   field([p.x0, p.y0, -p.zh], [0, 0, 1], [0, 1, 0], nzc, ny, [1, 0, 0], c => inRect([c[2], c[1]], [fh[0] - .4, fh[1] + .4, fh[2] - .4, fh[3] + .4]));
   // back wall (inward -X): skip the collector opening
-  field([p.x1, p.y0, -p.zh], [0, 0, 1], [0, 1, 0], nzc, ny, [-1, 0, 0], c => inRect([c[2], c[1]], [bh[0] - .4, bh[1] + .4, bh[2] - .4, bh[3] + .4]));
+  field([p.x1, p.y0, -p.zh], [0, 0, 1], [0, 1, 0], nzc, ny, [-1, 0, 0], c => inRect([c[2], c[1]], [bh[0] - .4, bh[1] + .4, bh[2] - .4, bh[3] + .4]) || [-1, 1].some(sg => inRect([c[2], c[1]], [Math.min(sg * hz2.z0, sg * hz2.z1) - .3, Math.max(sg * hz2.z0, sg * hz2.z1) + .3, hz2.y0 - .3, hz2.y1 + .3])));
   return m;
 }
 
@@ -223,8 +234,74 @@ function windowMeshes() {
   room.quad([rx0, ry0, z], [rx0, ry1, z], [rx0, ry1, rz1], [rx0, ry0, rz1], { toward: ctr });
   room.quad([rx1, ry0, z], [rx1, ry1, z], [rx1, ry1, rz1], [rx1, ry0, rz1], { toward: ctr });
   // front (plenum-side) wall of the control room, with the window cut out
-  wallWithHole(room, (u, v) => [u, v, z], rx0, rx1, ry0, ry1, [w.x0 - .1, w.x1 + .1, w.y0 - .1, w.y1 + .1], ctr);
-  return [frame, glass, room];
+  const dr = S.door, seam = dr.x0 - .15;
+  wallWithHole(room, (u, v) => [u, v, z], rx0, seam, ry0, ry1, [w.x0 - .1, w.x1 + .1, w.y0 - .1, w.y1 + .1], ctr);
+  wallWithHole(room, (u, v) => [u, v, z], seam, rx1, ry0, ry1, [dr.x0, dr.x1, dr.y0, dr.y1], ctr);
+  // door frame (same reveal as the window) and the access stair from the plenum floor up to the sill
+  const df = new Mesh('AETHER_DOOR_FRAME', 'BlackPowderCoat', { category: 'door frame', role: 'static' });
+  df.box([dr.x0 - .1, dr.y0 - .05, z - t], [dr.x1 + .1, dr.y0, z + t]); df.box([dr.x0 - .1, dr.y1, z - t], [dr.x1 + .1, dr.y1 + .1, z + t]);
+  df.box([dr.x0 - .1, dr.y0 + .002, z - t], [dr.x0, dr.y1 - .002, z + t]); df.box([dr.x1, dr.y0 + .002, z - t], [dr.x1 + .1, dr.y1 - .002, z + t]);
+  df.box([dr.x0 - .02, dr.y1 + .12, z - .2], [dr.x1 + 1.2, dr.y1 + .16, z - .1]); // sliding-leaf track
+  const st = new Mesh('AETHER_ACCESS_STAIRS', 'GalvanizedSteel', { category: 'access stairs', role: 'static', solid: true }),
+    nos = new Mesh('AETHER_STAIR_NOSING', 'SafetyYellow', { category: 'access stairs', role: 'static' }),
+    rl = new Mesh('AETHER_STAIR_RAILS', 'BlackPowderCoat', { category: 'access rails', role: 'static' });
+  const sx0 = dr.x0 - .05, sx1 = dr.x1 + .05, zl = z - dr.landing, rise = dr.y0 / dr.steps, g = .002;
+  st.box([sx0, 0, zl], [sx1, dr.y0, z]); nos.box([sx0, dr.y0, zl - .005], [sx1, dr.y0 + .006, zl + .06]);
+  for (let i = 0; i < dr.steps - 1; i++) {
+    const top = dr.y0 - rise * (i + 1), z1 = zl - dr.tread * i - g, z0 = zl - dr.tread * (i + 1);
+    st.box([sx0, 0, z0], [sx1, top, z1]); nos.box([sx0, top, z0 - .005], [sx1, top + .006, z0 + .06]);
+  }
+  const zEnd = zl - dr.tread * (dr.steps - 1);
+  for (const x of [sx0 - .04, sx1 + .04]) {
+    rl.box([x - .02, 1.0, zEnd], [x + .02, 1.04, z - .04]);
+    for (const [zz, y0] of [[zEnd + .03, .28], [zl - .06, dr.y0 + .002]]) rl.box([x - .02, y0, zz - .02], [x + .02, 1.0 - .002, zz + .02]);
+  }
+  return [frame, glass, room, df, st, nos, rl];
+}
+
+// ---------- fan room behind the plenum back wall: diffuser, fan-wall frame, return duct, shell, inspection hatches (visual only, outside the CFD domain) ----------
+function fanRoomMeshes() {
+  const F = SPEC.fanRoom, c = SPEC.collector, ss = D.smoothstep, t = c.wall, zh = F.zh, hz = F.hatch;
+  const dif = F.diffuser, ret = F.ret;
+  const dSec = x => { const s = ss((x - dif.x0) / (dif.x1 - dif.x0)); return { hw: c.thW / 2 + (dif.hw - c.thW / 2) * s, h: c.thH + (dif.h - c.thH) * s }; };
+  const rSec = x => { const s = ss((x - ret.x0) / (ret.x1 - ret.x0)); return { hw: dif.hw + (ret.hw - dif.hw) * s, h: dif.h + (ret.h - dif.h) * s }; };
+  const dOut = new Mesh('AETHER_DIFFUSER_OUTER', 'NozzleOuter', { category: 'diffuser', role: 'static' }), dIn = new Mesh('AETHER_DIFFUSER_INNER', 'GalvanizedSteel', { category: 'diffuser inner', role: 'static' });
+  const rOut = new Mesh('AETHER_RETURN_DUCT_OUTER', 'NozzleOuter', { category: 'return duct', role: 'static' }), rIn = new Mesh('AETHER_RETURN_DUCT_INNER', 'GalvanizedSteel', { category: 'return duct inner', role: 'static' });
+  const xsD = smooth(dif.x0, dif.x1, 24), xsR = [...smooth(ret.x0, ret.x1, 24), ...smooth(ret.x1, ret.xEnd, 4).slice(1)];
+  const rr = (x, a, d) => rrLoop(x, a.hw + d, a.h + d, .2 + d, 8, 0);
+  dOut.grid(xsD.map(x => rr(x, dSec(x), t)), i => [xsD[i], dSec(xsD[i]).h / 2, 0], 'out', false); dIn.grid(xsD.map(x => rr(x, dSec(x), 0)), i => [xsD[i], dSec(xsD[i]).h / 2, 0], 'in', false);
+  rOut.grid(xsR.map(x => rr(x, rSec(x), t)), i => [xsR[i], rSec(xsR[i]).h / 2, 0], 'out', false); rIn.grid(xsR.map(x => rr(x, rSec(x), 0)), i => [xsR[i], rSec(xsR[i]).h / 2, 0], 'in', false);
+  // flanges at the diffuser exit, the return-duct entry and where the return duct leaves the room
+  const fl = new Mesh('AETHER_FANROOM_FLANGES', 'GalvanizedSteel', { category: 'fan room flange', role: 'static' });
+  for (const [x, a, dirx] of [[dif.x1 - .02, dSec(dif.x1), 1], [ret.x0 + .02, rSec(ret.x0), -1], [ret.xEnd - .02, rSec(ret.xEnd), 1], [dif.x0 + .02, dSec(dif.x0), -1]]) {
+    const A = rrLoop(x, a.hw + t, a.h + t, .2 + t), B = rrLoop(x, a.hw + t + .2, a.h + t + .2, .4 + t), cc = [x + dirx * 5, a.h / 2, 0];
+    for (let j = 0; j < A.length - 1; j++) fl.quad(A[j], A[j + 1], B[j + 1], B[j], { toward: cc });
+  }
+  // fan wall frame: four posts and two beams around the fan asset (the fan itself is the user's GLB, placed at runtime)
+  const fr = new Mesh('AETHER_FAN_FRAME', 'BlackPowderCoat', { category: 'fan frame', role: 'static' });
+  const fx0 = dif.x1, fx1 = ret.x0, ph = dif.h + .1;
+  for (const sg of [-1, 1]) for (const [a, b] of [[fx0, fx0 + .25], [fx1 - .25, fx1]]) fr.box([a, 0, sg * (dif.hw + .05) - .125], [b, ph, sg * (dif.hw + .05) + .125]);
+  fr.box([fx0 + .25, ph, -dif.hw - .2], [fx1 - .25, ph + .2, dif.hw + .2]); fr.box([fx0 + .25, 0, -dif.hw - .2], [fx1 - .25, .12, dif.hw + .2]);
+  // room shell (inside faces) and inspection hatches in the plenum back wall
+  const sh = new Mesh('AETHER_FANROOM_SHELL', 'PlenumPaint', { category: 'fan room', role: 'static' }), fl2 = new Mesh('AETHER_FANROOM_FLOOR', 'ConcreteFloor', { category: 'fan room floor', role: 'static' });
+  const x0 = F.x0, x1 = F.x1, y1 = F.y1, ctr = [(x0 + x1) / 2, y1 / 2, 0];
+  fl2.quad([x0, 0, -zh], [x1, 0, -zh], [x1, 0, zh], [x0, 0, zh], { toward: ctr });
+  sh.quad([x0, y1, -zh], [x1, y1, -zh], [x1, y1, zh], [x0, y1, zh], { toward: ctr });
+  sh.quad([x0, 0, -zh], [x1, 0, -zh], [x1, y1, -zh], [x0, y1, -zh], { toward: ctr }); sh.quad([x0, 0, zh], [x1, 0, zh], [x1, y1, zh], [x0, y1, zh], { toward: ctr });
+  const re = rSec(ret.xEnd), eh = [-re.hw - .12, re.hw + .12, 0, re.h + .12];
+  wallWithHole(sh, (u, v) => [x1, v, u], -zh, zh, 0, y1, eh, ctr);
+  const ch = D.collectorAt(c.throatX), bh = [-ch.hw - .12, ch.hw + .12, 0, ch.h + .12], hl = [-hz.z1, -hz.z0, hz.y0, hz.y1], hr = [hz.z0, hz.z1, hz.y0, hz.y1];
+  wallWithHoles(sh, (u, v) => [x0, v, u], -zh, zh, 0, y1, [hl, bh, hr], ctr);
+  const hf = new Mesh('AETHER_HATCH_FRAMES', 'BlackPowderCoat', { category: 'hatch frame', role: 'static' }), hg = new Mesh('AETHER_HATCH_GLASS', 'AcousticGlass', { category: 'hatch glass', role: 'static', glass: true });
+  const tt = .12;
+  for (const h of [hl, hr]) {
+    hf.box([x0 - tt, h[3], h[0] - .12], [x0 + tt, h[3] + .12, h[1] + .12]); hf.box([x0 - tt, h[2] - .12, h[0] - .12], [x0 + tt, h[2], h[1] + .12]);
+    hf.box([x0 - tt, h[2] + .002, h[0] - .12], [x0 + tt, h[3] - .002, h[0]]); hf.box([x0 - tt, h[2] + .002, h[1]], [x0 + tt, h[3] - .002, h[1] + .12]);
+    hg.quad([x0, h[2], h[0]], [x0, h[2], h[1]], [x0, h[3], h[1]], [x0, h[3], h[0]], { toward: [x0 - 5, 2, 0] });
+  }
+  const lights = new Mesh('AETHER_FANROOM_LIGHTS', 'PlenumLight', { category: 'lighting recess', role: 'static', emissive: true });
+  for (const x of [21, 24, 27]) for (const z of [-3.2, 3.2]) lights.box([x - 1.0, y1 - .06, z - .25], [x + 1.0, y1, z + .25]);
+  return [dOut, dIn, rOut, rIn, fl, fr, sh, fl2, hf, hg, lights];
 }
 
 // ---------- ceiling light troffers (emissive panels between the wedge field) and a service catwalk ----------
@@ -242,7 +319,7 @@ export function buildTunnel() {
   const parts = [];
   const { walls, ceil, fh, bh } = shellMeshes();
   const w = SPEC.window, win = [w.x0, w.x1, w.y0, w.y1];
-  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes());
+  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...fanRoomMeshes());
   return parts;
 }
 export { rrLoop, D };
