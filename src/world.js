@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLSL_NOISE, patchStandard, timeUniform, nightU, createGlareMaterial, createSky } from './shaders.js';
+import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
@@ -338,7 +338,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.55 }, ...facadeUniforms() };
+  const uniforms = { uDoorCam: doorCamU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.55 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
@@ -352,7 +352,7 @@ function createFacadeMaterial() {
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;`,
     fragDecl: `${GLSL_NOISE}
-      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform vec3 uDoorCam;uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -375,7 +375,7 @@ function createFacadeMaterial() {
       else{
         float horiz=abs(N.x)>.5?vWP.z:vWP.x;float y=vWP.y;
         // entrance face of a podium: open the glazed ground-floor bays (between the 0.7 m pillars) so the lobby behind the glass doors is visible
-        if(vDoor.w>.5&&y>.3&&y<3.1){
+        if(vDoor.w>.5&&y>.3&&y<3.1&&distance(vWP.xz,uDoorCam.xz)<58.){
           float code=N.x<-.5?0.:(N.x>.5?1.:(N.z<-.5?2.:3.));
           if(abs(code-vDoor.z)<.5){float f=fract((horiz-vDoor.x)/vDoor.y);float pw=.35/vDoor.y;if(f>pw&&f<1.-pw)discard;}
         }

@@ -10,7 +10,7 @@ import { livingSet, LIVING_COLLIDERS } from './livingset.js';
 // a stair core, a working elevator and an accessible roof. Interiors are streamed around the
 // player (shell colliders + meshes are built per-floor on demand and torn down when far).
 // ====================================================================
-const FH = 4.0, SLAB = 0.35, WALL = 0.5, ACT_R = 62, DROP_R = 96;
+const FH = 4.0, SLAB = 0.35, WALL = 0.5, ACT_R = 62, DROP_R = 96, MAX_ACTIVE = 6;
 const CORE_W = 6.6, CORE_D = 6.0, COR_W = 2.6;
 
 const hexc = (h) => new THREE.Color(h);
@@ -560,6 +560,7 @@ export class Door {
     const st = this.G.state.doors[this.id];
     this.locked = st ? st.locked : (o.lock ? Math.random() < 0.28 : false);
     this.ang = st ? st.ang : 0; this.target = this.ang; this.vel = 0;
+    if (st && st.swing) this.swing = st.swing;
     this.broken = st?.broken || false;
     const m = mats();
     const color = o.kind === 'glass' ? 0x9fb8d0 : 0x5a4636;
@@ -578,7 +579,7 @@ export class Door {
     this.isDoor = true;
     this.verbs = this.makeVerbs();
     fl.doors.push(this); b.doors.push(this);
-    this.x = this.axis === 'x' ? (o.from + o.to) / 2 : o.wallC; this.z = this.axis === 'x' ? o.wallC : (o.from + o.to) / 2; this.r = 2.0; this.cy = o.y + 1.0;
+    this.x = this.axis === 'x' ? (o.from + o.to) / 2 : o.wallC; this.z = this.axis === 'x' ? o.wallC : (o.from + o.to) / 2; this.r = 2.0; this.cy = o.y + 1.0; if (o.kind === 'glass') this.r = 2.8;
     this.apply(true);
     this.G.interact.add(this);
   }
@@ -621,10 +622,10 @@ export class Door {
     this.G.shake(0.2); this.G.audio.impact(0.8, 0);
     this.G.noteCrime?.(pl, 'breakin', 4);
     if (this.locked && Math.random() < 0.55) { this.locked = false; }
-    if (!this.locked) { const dir = this.axis === 'x' ? Math.sign(pl.z - this.o.wallC) : Math.sign(pl.x - this.o.wallC); this.swing = dir >= 0 ? -1 : 1; this.target = 1.55; this.vel = 6; this.G.toast('문이 벌컥 열렸다'); } else this.G.toast('끄떡도 안 한다');
+    if (!this.locked) { const dir = this.axis === 'x' ? Math.sign(pl.z - this.o.wallC) : Math.sign(pl.x - this.o.wallC); this.swing = dir >= 0 ? -1 : 1; this.target = 1.55; this.vel = 6; if (this.partner && this.o.kind === 'glass') { this.partner.vel = 6; } this.G.toast('문이 벌컥 열렸다'); } else this.G.toast('끄떡도 안 한다');
     this.save();
   }
-  save() { this.G.state.doors[this.id] = { locked: this.locked, ang: this.target, broken: this.broken }; }
+  save(inner) { this.G.state.doors[this.id] = { locked: this.locked, ang: this.target, broken: this.broken, swing: this.swing }; if (!inner && this.partner && this.o.kind === 'glass') { this.partner.target = this.target; this.partner.swing = this.swing; this.partner.save(true); } }
   update(dt) {
     if (Math.abs(this.ang - this.target) > 0.004) {
       const sp = 2.6 + Math.abs(this.vel);
@@ -805,10 +806,23 @@ export class Buildings {
     this.t -= dt;
     if (this.t <= 0) {
       this.t = 0.4;
+      const dist = (b) => Math.hypot(b.cx - fx, b.cz - fz) - Math.max(b.lot.x1 - b.lot.x0, b.lot.z1 - b.lot.z0) * 0.5;
+      const near = [];
       for (const b of this.list) {
-        const d = Math.hypot(b.cx - fx, b.cz - fz) - Math.max(b.lot.x1 - b.lot.x0, b.lot.z1 - b.lot.z0) * 0.5;
-        if (!b.open && d < ACT_R) { if (this.active.size < 4) { b.activate(); this.active.add(b); } }
-        else if (b.open && d > DROP_R) { b.deactivate(); this.active.delete(b); }
+        const d = dist(b);
+        if (b.open) { if (d > DROP_R) { b.deactivate(); this.active.delete(b); } }
+        else if (d < ACT_R) near.push([d, b]);
+      }
+      // nearest first; a full pool gives up its farthest building so the one the player stands at is never left without doors
+      near.sort((a, c) => a[0] - c[0]);
+      for (const [d, b] of near) {
+        if (this.active.size >= MAX_ACTIVE) {
+          let far = null, fd = -1;
+          for (const o of this.active) { const od = dist(o); if (od > fd) { fd = od; far = o; } }
+          if (!far || fd <= d + 8) break;
+          far.deactivate(); this.active.delete(far);
+        }
+        b.activate(); this.active.add(b);
       }
     }
     this.updateLights(dt, this.G.player);

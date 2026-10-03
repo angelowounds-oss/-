@@ -10,6 +10,8 @@ float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*vnoise(p);p=p*2.03+1
 `;
 
 export const timeUniform = { value: 0 };
+// player position: entrance apertures only open where building.js has a lobby to look into
+export const doorCamU = { value: new THREE.Vector3() };
 export const flashUniform = { value: 0 };
 export const nightU = { value: 1 };
 export const skyU = { uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0.5, -0.5, -0.3) }, uMoon: { value: new THREE.Vector3(-0.45, 0.62, -0.65) }, uTwi: { value: 0 } };

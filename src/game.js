@@ -6,7 +6,7 @@ import { Human, WEAPONS } from './human.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
 import { glowSpriteMat } from './models.js';
-import { timeUniform, flashUniform, nightU } from './shaders.js';
+import { timeUniform, flashUniform, nightU, doorCamU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
@@ -344,6 +344,7 @@ export class Game {
     this.daynight.update(dt, focus);
     if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); this.signs?.update(camera.position); }
     this.rain.material.uniforms.uCam.value.copy(camera.position);
+    doorCamU.value.set(this.player.x, this.player.y, this.player.z);
     const g = eng.grade.uniforms;
     g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) : 0, 3, dt);
     g.uDamage.value = damp(g.uDamage.value, 0, 2.2, dt);

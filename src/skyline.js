@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
+import { doorCamU } from './shaders.js';
 
 // Exterior skin of the outer-ring towers (supplied residential models). Interiors come from building.js; this is the one-sided shell.
 
@@ -51,14 +52,15 @@ function wallMaterial(url) {
 // Fog is far too dense for a skyline (everything past ~200 m is flat colour), so these materials use a much thinner haze.
 function haze(m) {
   m.onBeforeCompile = (sh) => {
+    sh.uniforms.uDoorCam = doorCamU;
     // entrance face: open the glazed ground-floor bays (between 0.7 m pillars) so the lobby is visible, same rule as the city facades
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 aDoor;varying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDoorS=aDoor;vWPs=(modelMatrix*vec4(transformed,1.)).xyz;vWNs=normalize(mat3(modelMatrix)*objectNormal);');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;')
+      .replace('#include <common>', '#include <common>\nvarying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;uniform vec3 uDoorCam;')
       .replace('#include <color_fragment>', `#include <color_fragment>
-      if(vDoorS.w>.5&&vWPs.y>.3&&vWPs.y<3.1){
+      if(vDoorS.w>.5&&vWPs.y>.3&&vWPs.y<3.1&&distance(vWPs.xz,uDoorCam.xz)<58.){
         vec3 Ns=normalize(vWNs);float code=Ns.x<-.5?0.:(Ns.x>.5?1.:(Ns.z<-.5?2.:(Ns.z>.5?3.:-1.)));
         if(abs(code-vDoorS.z)<.5){float h=abs(Ns.x)>.5?vWPs.z:vWPs.x;float f=fract((h-vDoorS.x)/vDoorS.y);float pw=.35/vDoorS.y;if(f>pw&&f<1.-pw)discard;}
       }`)
