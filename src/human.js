@@ -72,6 +72,7 @@ export class Human {
     this.hitFlash = 0.12;
     if (this.team === 'civ' || this.team === 'gang') { this.threat = from; }
     if (this.hp <= 0) { this.die(from, src); return true; }
+    if (this.m.playOnce && !this.knock && this.speed < 4 && this.m.playOnce(headshot ? 'U_Hit_Head' : 'U_Hit_Chest', false)) this.reactT = 0.4;
     if (this.team === 'civ') { this.state = 'flee'; this.fleeT = rand(6, 10); G.audio.scream(0); }
     else if (this.team === 'gang') { this.alert = 1; this.state = 'attack'; }
     return false;
@@ -81,6 +82,8 @@ export class Human {
     this.G.onHumanKilled?.(this, src);
     this.fallDir = rand(-1, 1);
     this.m.pistol.visible = false; this.m.rifle.visible = false;
+    this.clipDeath = !!(this.m.playOnce && this.m.playOnce('U_Death01'));
+    if (this.clipDeath) { this.m.body.rotation.set(0, 0, 0); this.m.body.position.y = 0; }
   }
   ragdoll(vx, vz, up = 4) { this.knock = 1; this.vx = vx; this.vz = vz; this.vy = up; }
 
@@ -90,6 +93,13 @@ export class Human {
     if (this.dead) {
       this.deadT += dt;
       const k = Math.min(1, this.deadT * 3);
+      if (this.clipDeath) {
+        const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
+        if (cd < 75) { this.m.mixer.update(dt); this.m.applyPose(0, 0); }
+        if (this.knock) { this.stepKnock(dt); }
+        if (this.deadT > 22) this.group.scale.setScalar(Math.max(0.001, 1 - (this.deadT - 22) * 0.8));
+        return;
+      }
       this.m.body.rotation.x = lerp(this.m.body.rotation.x, -1.5, 1 - Math.exp(-10 * dt));
       this.m.body.rotation.z = lerp(this.m.body.rotation.z, this.fallDir * 0.4, 1 - Math.exp(-8 * dt));
       this.m.body.position.y = lerp(this.m.body.position.y, 0.17, 1 - Math.exp(-10 * dt));
@@ -239,6 +249,12 @@ export class Human {
 
   animateSkinned(dt) {
     const m = this.m, a = m.act, sp = this.speed;
+    if (this.reactT > 0) {
+      this.reactT -= dt;
+      if (this.reactT <= 0) { m.stopOnce(); a.Idle.weight = 1; }
+      else { m.mixer.update(dt); m.applyPose(0, 0); this.group.position.set(this.x, this.y, this.z); this.group.rotation.y = this.ry; return; }
+    }
+    if (m.onceName && !this.dead) m.stopOnce();
     const idle = clamp(1 - sp / 0.6, 0, 1), run = clamp((sp - 3.4) / 2, 0, 1), walk = clamp(1 - idle - run, 0, 1);
     const k = 1 - Math.exp(-10 * dt);
     a.Idle.weight = lerp(a.Idle.weight, idle, k); a.Walk.weight = lerp(a.Walk.weight, walk, k); a.Run.weight = lerp(a.Run.weight, run, k);

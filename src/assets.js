@@ -101,6 +101,13 @@ export function buildSoldier(look = {}, gunParts) {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
     setTop(hex) { for (const mm of topMats) { mm.color.set(hex).multiplyScalar(3.2); mm.emissive.set(hex); } },
+    // one-shot full-body clip (death, hit reaction): everything else fades out until stopOnce()
+    playOnce(name, hold = true) {
+      const a = clip(name); if (!a) return false;
+      for (const k in act) act[k].weight = 0;
+      a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = hold; a.weight = 1; a.enabled = true; a.play(); this.onceName = name; return true;
+    },
+    stopOnce() { const a = act[this.onceName]; if (a) { a.weight = 0; a.setLoop(THREE.LoopRepeat, Infinity); a.clampWhenFinished = false; } this.onceName = null; },
     mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
     // called after mixer update each frame
     applyPose(pose, pitch) {
