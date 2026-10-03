@@ -4,15 +4,16 @@
 <link rel="canonical" href="https://YOUR-DOMAIN.example/bmi.html">
 <link rel="stylesheet" href="style.css"></head><body>
 <header><a href="index.html">간편계산기</a>
-<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a></nav></header>
+<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a><a href="vat.html">부가세</a><a href="wage.html">시급</a></nav></header>
 <main><h1>BMI 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="h">키 (cm)</label><input type="number" id="h" value="170"><label for="w">몸무게 (kg)</label><input type="number" id="w" value="65" step="0.1">
 <button onclick="go()">계산하기</button><div class="result" id="r"></div></div>
 <h2>BMI 기준 (대한비만학회)</h2><p>18.5 미만 저체중 · 18.5~22.9 정상 · 23~24.9 비만 전단계(과체중) · 25~29.9 1단계 비만 · 30~34.9 2단계 비만 · 35 이상 3단계 비만. BMI는 근육량을 반영하지 못하는 참고 지표이며 의학적 진단이 아닙니다.</p>
+<div class="faq-block"><h2>자주 묻는 질문</h2><h3>BMI 정상 범위는 얼마인가요?</h3><p>대한비만학회 기준 18.5 이상 23 미만입니다.</p><h3>BMI 공식은 무엇인가요?</h3><p>몸무게(kg) ÷ 키(m)의 제곱입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><a href="privacy.html">개인정보처리방침</a> · 입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다.</footer>
 <script>function go(){const hm=+h.value/100,b=+w.value/(hm*hm);if(!isFinite(b)){return}
 const s=b<18.5?'저체중':b<23?'정상':b<25?'비만 전단계(과체중)':b<30?'1단계 비만':b<35?'2단계 비만':'3단계 비만';
-r.innerHTML='BMI '+b.toFixed(1)+' · '+s;}go();</script></body></html>
+r.innerHTML='BMI '+b.toFixed(1)+' · '+s;}go();</script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "BMI 정상 범위는 얼마인가요?", "acceptedAnswer": {"@type": "Answer", "text": "대한비만학회 기준 18.5 이상 23 미만입니다."}}, {"@type": "Question", "name": "BMI 공식은 무엇인가요?", "acceptedAnswer": {"@type": "Answer", "text": "몸무게(kg) ÷ 키(m)의 제곱입니다."}}]}</script></body></html>

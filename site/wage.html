@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시급 계산기 - 주휴수당 포함 월급 환산</title><meta name="description" content="시급과 주당 근무시간으로 주휴수당 포함 주급·월급을 계산합니다. 2026년 최저시급 10,320원 기준 확인용.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/wage.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html">간편계산기</a>
+<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a><a href="vat.html">부가세</a><a href="wage.html">시급</a></nav></header>
+<main><h1>시급 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="h">시급 (원)</label><input type="number" id="h" value="10320">
+<label for="d">하루 근무시간</label><input type="number" id="d" value="8" step="0.5">
+<label for="n">주 근무일수</label><input type="number" id="n" value="5">
+<div class="result" id="r"></div></div>
+<h2>주휴수당이란?</h2><p>1주 소정근로시간이 15시간 이상이고 그 주를 개근하면 유급휴일(주휴일)에 대한 수당이 지급됩니다. 주 40시간 근무 시 주휴수당은 시급 × 8시간이며, 월 환산 시간은 주 소정근로시간에 주휴시간을 더해 (365÷7÷12 ≈ 4.345주)를 곱해 계산합니다. 최저시급은 매년 바뀌므로 고용노동부 고시를 확인하세요. 세전 금액이며 실제 수령액은 4대 보험 등에 따라 달라집니다.</p>
+<div class="faq-block"><h2>자주 묻는 질문</h2><h3>주휴수당은 누구에게 지급되나요?</h3><p>주 15시간 이상 일하고 소정근로일을 개근한 근로자에게 지급됩니다.</p><h3>월 환산 시간은 어떻게 계산하나요?</h3><p>주 소정근로시간 + 주휴시간을 합쳐 365÷7÷12주를 곱합니다. 주 40시간이면 약 209시간입니다.</p></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="privacy.html">개인정보처리방침</a> · 입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다.</footer>
+<script>const w=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+function go(){const H=+h.value,D=+d.value,N=+n.value,wk=D*N;if(!(H>0&&wk>0)){r.textContent='';return}
+const ju=wk>=15?Math.min(wk/N,8)*H:0;const week=wk*H+ju;const mon=week*365/7/12;
+r.innerHTML='주급 '+w(week)+' (주휴수당 '+w(ju)+')<br>월급(세전) '+w(mon)}
+[h,d,n].forEach(e=>e.oninput=go);go();</script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "주휴수당은 누구에게 지급되나요?", "acceptedAnswer": {"@type": "Answer", "text": "주 15시간 이상 일하고 소정근로일을 개근한 근로자에게 지급됩니다."}}, {"@type": "Question", "name": "월 환산 시간은 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "주 소정근로시간 + 주휴시간을 합쳐 365÷7÷12주를 곱합니다. 주 40시간이면 약 209시간입니다."}}]}</script></body></html>

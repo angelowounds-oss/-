@@ -4,13 +4,14 @@
 <link rel="canonical" href="https://YOUR-DOMAIN.example/dday.html">
 <link rel="stylesheet" href="style.css"></head><body>
 <header><a href="index.html">간편계산기</a>
-<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a></nav></header>
+<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a><a href="vat.html">부가세</a><a href="wage.html">시급</a></nav></header>
 <main><h1>D-day 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="d1">시작일 (비우면 오늘)</label><input type="date" id="d1">
 <label for="d2">목표일</label><input type="date" id="d2"><button onclick="go()">계산하기</button>
 <div class="result" id="r"></div></div>
 <h2>기념일 날짜 계산</h2><div class="card"><label for="s">처음 만난 날(시작일)</label><input type="date" id="s"><button onclick="ann()">기념일 보기</button><div id="a"></div></div>
+<div class="faq-block"><h2>자주 묻는 질문</h2><h3>D-day는 오늘을 포함해서 세나요?</h3><p>목표일까지 남은 일수는 오늘을 제외하고 계산합니다. 기념일(100일 등)은 시작일을 1일로 칩니다.</p><h3>100일 기념일은 어떻게 계산하나요?</h3><p>시작일을 1일로 보고 99일 뒤가 100일째 되는 날입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><a href="privacy.html">개인정보처리방침</a> · 입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다.</footer>
@@ -18,4 +19,4 @@
 function go(){if(!d2.value){r.textContent='목표일을 입력하세요';return}const a=day(d1.value?new Date(d1.value):new Date()),b=day(new Date(d2.value));
 const n=Math.round((b-a)/864e5);r.innerHTML=(n>0?'D-'+n:n===0?'D-Day':'D+'+(-n))+'<br><small>'+Math.abs(n)+'일 ('+Math.floor(Math.abs(n)/7)+'주 '+Math.abs(n)%7+'일)</small>';}
 function ann(){if(!s.value){a.textContent='시작일을 입력하세요';return}const b=new Date(s.value);let h='';
-for(const n of [100,200,300,365,500,1000]){const d=new Date(b);d.setDate(d.getDate()+n-1);h+='<p>'+n+'일: <b>'+fmt(d)+'</b></p>'}a.innerHTML=h;}</script></body></html>
+for(const n of [100,200,300,365,500,1000]){const d=new Date(b);d.setDate(d.getDate()+n-1);h+='<p>'+n+'일: <b>'+fmt(d)+'</b></p>'}a.innerHTML=h;}</script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "D-day는 오늘을 포함해서 세나요?", "acceptedAnswer": {"@type": "Answer", "text": "목표일까지 남은 일수는 오늘을 제외하고 계산합니다. 기념일(100일 등)은 시작일을 1일로 칩니다."}}, {"@type": "Question", "name": "100일 기념일은 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "시작일을 1일로 보고 99일 뒤가 100일째 되는 날입니다."}}]}</script></body></html>

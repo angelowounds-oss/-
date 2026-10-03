@@ -20,3 +20,5 @@ button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10
 footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);margin-top:32px}
 footer a{color:var(--muted)}
 h1{font-size:26px}h2{font-size:19px;margin-top:28px}
+.faq-block h3{font-size:16px;margin:16px 0 4px}.faq-block p{margin:0;color:var(--muted)}
+select{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}

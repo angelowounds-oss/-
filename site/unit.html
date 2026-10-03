@@ -4,7 +4,7 @@
 <link rel="canonical" href="https://YOUR-DOMAIN.example/unit.html">
 <link rel="stylesheet" href="style.css"></head><body>
 <header><a href="index.html">간편계산기</a>
-<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a></nav></header>
+<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a><a href="vat.html">부가세</a><a href="wage.html">시급</a></nav></header>
 <main><h1>단위 변환기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="k">종류</label><select id="k" style="width:100%;padding:10px"></select>
@@ -13,6 +13,7 @@
 <div><label for="t">to</label><select id="t" style="width:100%;padding:10px"></select></div></div>
 <div class="result" id="r"></div></div>
 <h2>자주 쓰는 환산</h2><p>1inch = 2.54cm, 1feet = 30.48cm, 1lb ≈ 0.4536kg, 1근(고기) = 600g, 화씨 = 섭씨 × 1.8 + 32.</p>
+<div class="faq-block"><h2>자주 묻는 질문</h2><h3>1인치는 몇 cm인가요?</h3><p>정확히 2.54cm입니다.</p><h3>화씨를 섭씨로 바꾸는 공식은?</h3><p>섭씨 = (화씨 - 32) ÷ 1.8 입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><a href="privacy.html">개인정보처리방침</a> · 입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다.</footer>
@@ -23,4 +24,4 @@ for(const x in U)k.add(new Option(x,x));
 function fill(){f.innerHTML=t.innerHTML='';for(const u in U[k.value]){f.add(new Option(u,u));t.add(new Option(u,u))}if(t.options[1])t.selectedIndex=1;go()}
 function go(){const x=+v.value;let o;if(k.value==='온도'){let c=f.value==='섭씨'?x:f.value==='화씨'?(x-32)/1.8:x-273.15;o=t.value==='섭씨'?c:t.value==='화씨'?c*1.8+32:c+273.15}
 else o=x*U[k.value][f.value]/U[k.value][t.value];r.textContent=+o.toPrecision(8)+' '+t.value}
-[k].forEach(e=>e.onchange=fill);[v,f,t].forEach(e=>e.oninput=go);fill();</script></body></html>
+[k].forEach(e=>e.onchange=fill);[v,f,t].forEach(e=>e.oninput=go);fill();</script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "1인치는 몇 cm인가요?", "acceptedAnswer": {"@type": "Answer", "text": "정확히 2.54cm입니다."}}, {"@type": "Question", "name": "화씨를 섭씨로 바꾸는 공식은?", "acceptedAnswer": {"@type": "Answer", "text": "섭씨 = (화씨 - 32) ÷ 1.8 입니다."}}]}</script></body></html>

@@ -4,7 +4,7 @@
 <link rel="canonical" href="https://YOUR-DOMAIN.example/percent.html">
 <link rel="stylesheet" href="style.css"></head><body>
 <header><a href="index.html">간편계산기</a>
-<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a></nav></header>
+<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a><a href="loan.html">대출 이자</a><a href="dday.html">D-day</a><a href="unit.html">단위 변환</a><a href="bmi.html">BMI</a><a href="vat.html">부가세</a><a href="wage.html">시급</a></nav></header>
 <main><h1>퍼센트 계산기 - 증감률·비율 계산</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><h2 style="margin-top:0">A의 B%는?</h2>
@@ -14,6 +14,7 @@
 <div class="card"><h2 style="margin-top:0">A에서 B로 변화율</h2>
 <div class="grid"><input type="number" id="a3" placeholder="A (이전)"><input type="number" id="b3" placeholder="B (이후)"></div><div class="result" id="r3"></div></div>
 <h2>활용 예시</h2><p>할인가 계산(정가 × (100 - 할인율)%), 급여 인상률, 주식 수익률, 시험 점수 비율 등에 쓸 수 있습니다.</p>
+<div class="faq-block"><h2>자주 묻는 질문</h2><h3>할인율은 어떻게 계산하나요?</h3><p>(정가 - 할인가) ÷ 정가 × 100으로 계산합니다. 변화율 계산기에 정가와 할인가를 넣으면 -%로 표시됩니다.</p><h3>증가율 공식은 무엇인가요?</h3><p>(나중 값 - 처음 값) ÷ 처음 값 × 100입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><a href="privacy.html">개인정보처리방침</a> · 입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다.</footer>
@@ -21,4 +22,4 @@
 function u(){const A=+a1.value,B=+b1.value;r1.textContent=a1.value&&b1.value?f(A*B/100):'';
 const C=+a2.value,D=+b2.value;r2.textContent=a2.value&&b2.value&&D?f(C/D*100)+'%':'';
 const E=+a3.value,F=+b3.value;r3.textContent=a3.value&&b3.value&&E?(F>=E?'+':'')+f((F-E)/E*100)+'%':'';}
-document.querySelectorAll('input').forEach(i=>i.addEventListener('input',u));</script></body></html>
+document.querySelectorAll('input').forEach(i=>i.addEventListener('input',u));</script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "할인율은 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "(정가 - 할인가) ÷ 정가 × 100으로 계산합니다. 변화율 계산기에 정가와 할인가를 넣으면 -%로 표시됩니다."}}, {"@type": "Question", "name": "증가율 공식은 무엇인가요?", "acceptedAnswer": {"@type": "Answer", "text": "(나중 값 - 처음 값) ÷ 처음 값 × 100입니다."}}]}</script></body></html>
