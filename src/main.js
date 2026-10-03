@@ -1,6 +1,8 @@
 import { createEngine, QUALITY } from './engine.js';
 import { Game } from './game.js';
 import { el } from './util.js';
+import * as V from './vehicle.js';
+import { AIM } from './assets.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -17,7 +19,7 @@ function fatal(e) {
   try {
     eng = createEngine(el('game'), q);
     game = new Game(eng);
-    window.__game = game;
+    window.__game = game; window.__V = V; window.__AIM = AIM;
     const bar = el('loadBar').firstElementChild, txt = el('loadTxt');
     await game.init((p, t) => { bar.style.width = p * 100 + '%'; txt.textContent = t; });
   } catch (e) { fatal(e); return; }

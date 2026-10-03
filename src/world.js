@@ -938,7 +938,7 @@ export function buildWorld(scene, quality) {
     const vg = new THREE.BoxGeometry(0.9, 1.9, 0.8); vg.translate(0, 0.95, 0);
     const vmesh = new THREE.InstancedMesh(vg, new THREE.MeshBasicMaterial({ color: 0xffffff }), vm.length);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), c = new THREE.Color();
-    vm.forEach((v, k) => { e.set(0, v.ry, 0); q.setFromEuler(e); p.set(v.x, 0, v.z); m4.compose(p, q, one); vmesh.setMatrixAt(k, m4); const a = accentColor(v.ci); vmesh.setColorAt(k, c.setRGB(a[0] * 0.9 + 0.05, a[1] * 0.9 + 0.05, a[2] * 0.9 + 0.05)); world.colliders.addCircle(v.x, v.z, 0.5, 2, 'vm'); addGlare(v.x, 1.2, v.z, a.map((x) => x * 0.35), 9); });
+    vm.forEach((v, k) => { e.set(0, v.ry, 0); q.setFromEuler(e); p.set(v.x, 0, v.z); m4.compose(p, q, one); vmesh.setMatrixAt(k, m4); const a = accentColor(v.ci); vmesh.setColorAt(k, c.setRGB(a[0] * 0.38 + 0.03, a[1] * 0.38 + 0.03, a[2] * 0.38 + 0.03)); world.colliders.addCircle(v.x, v.z, 0.5, 2, 'vm'); addGlare(v.x, 1.2, v.z, a.map((x) => x * 0.35), 9); });
     vmesh.castShadow = true; vmesh.frustumCulled = false; scene.add(vmesh);
     const bg = new THREE.CylinderGeometry(0.32, 0.28, 0.9, 10); bg.translate(0, 0.45, 0);
     const bmesh = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ color: 0x2c3340, roughness: 0.5, metalness: 0.6 }), bins.length);

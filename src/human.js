@@ -216,7 +216,25 @@ export class Human {
     if (this.home) { const dx = this.home.x - this.x, dz = this.home.z - this.z, d = Math.hypot(dx, dz); if (d > 12) { this.cmdX = dx / d; this.cmdZ = dz / d; this.cmdSpeed = 1.6; } }
   }
 
+  animateSkinned(dt) {
+    const m = this.m, a = m.act, sp = this.speed;
+    const idle = clamp(1 - sp / 0.6, 0, 1), run = clamp((sp - 3.4) / 2, 0, 1), walk = clamp(1 - idle - run, 0, 1);
+    const k = 1 - Math.exp(-10 * dt);
+    a.Idle.weight = lerp(a.Idle.weight, idle, k); a.Walk.weight = lerp(a.Walk.weight, walk, k); a.Run.weight = lerp(a.Run.weight, run, k);
+    a.Walk.timeScale = clamp(sp / 1.55, 0.6, 2.2); a.Run.timeScale = clamp(sp / 5.2, 0.8, 1.7);
+    const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
+    this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
+    if (this.team === 'civ' || !this.visibleNear) { /* mixer cost gate handled by caller */ }
+    m.mixer.update(dt);
+    m.applyPose(this.pose, this.aimPitch || 0);
+    if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
+    m.body.position.y = -this.crouch * 0.3;
+    this.group.position.set(this.x, this.y, this.z);
+    this.group.rotation.y = this.ry;
+    if (this.aimT > 0) this.aimT -= dt * 0.5;
+  }
   animate(dt, desired) {
+    if (this.m.skinned) return this.animateSkinned(dt);
     const m = this.m;
     this.phase += this.speed * dt * 2.1;
     const sw = Math.sin(this.phase), amp = clamp(this.speed / 3.2, 0, 1.25);

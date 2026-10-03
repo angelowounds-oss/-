@@ -9,6 +9,7 @@ import { glowSpriteMat } from './models.js';
 import { timeUniform, flashUniform } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
 import { QUALITY } from './engine.js';
+import { loadAssets } from './assets.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -35,6 +36,8 @@ export class Game {
   // ====================================================================
   async init(progress) {
     const { eng } = this;
+    progress(0.05, '에셋 로딩 중…');
+    await loadAssets();
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q);
@@ -357,7 +360,7 @@ export class Game {
     const shooting = inp.fire || aim;
     if (shooting || pl.aimT > 0) pl.ry = dampAngle(pl.ry, cam.yaw, 16, dt);
     else if (pl.speed > 0.5) pl.ry = dampAngle(pl.ry, Math.atan2(pl.vx, pl.vz), 11, dt);
-    pl.forceAim = shooting || pl.fireT > 0;
+    pl.forceAim = shooting || pl.fireT > 0; pl.aimPitch = cam.pitch;
     if (shooting) pl.aimT = 1.2;
     pl.weaponDrawn = shooting || pl.aimT > 0;
     // reload / fire

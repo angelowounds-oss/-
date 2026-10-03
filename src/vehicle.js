@@ -60,8 +60,8 @@ export class Vehicle {
     g.rotation.y = this.h;
     // body lean applied via inner rotation of children order: use quaternion composition
     if (this.pitch || this.roll) { g.rotateX(this.pitch); g.rotateZ(this.roll); }
-    this.model.front.rotation.y = -this.steerA;
-    this.model.fa.rotation.x = this.wheelSpin; this.model.ra.rotation.x = this.wheelSpin;
+    if (this.model.syncWheels) this.model.syncWheels(this.wheelSpin, -this.steerA);
+    else { this.model.front.rotation.y = -this.steerA; this.model.fa.rotation.x = this.wheelSpin; this.model.ra.rotation.x = this.wheelSpin; }
   }
   damage(amount, src) {
     if (this.dead) return;

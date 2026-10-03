@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rand, TAU } from './util.js';
+import { A, buildSoldier, buildFerrariModel, setFerrariWheels } from './assets.js';
 
 const shapeGeo = (pts, depth, bevel = 0.06, curve = 6) => {
   const s = new THREE.Shape();
@@ -76,7 +77,32 @@ export const CAR_SPECS = {
   truck: { L: 6.3, W: 2.2, belt: 1.2, roof: 2.9, wb: 2.0, cab: [-0.2, -0.1, 2.1, 2.45], hood: 1.0, mass: 2.4, maxSpeed: 31, accel: 9, grip: 5.2, hp: 220, track: 0.95, boxy: true },
 };
 
+function buildFerrari(color, opts) {
+  const sp = CAR_SPECS.sport, { L, W } = sp, hl = L / 2;
+  const group = new THREE.Group();
+  const fm = buildFerrariModel(color);
+  group.add(fm.wrap);
+  const dummy = () => new THREE.Object3D();
+  const ug = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.7, L * 1.35), underMat.clone());
+  ug.rotation.x = -Math.PI / 2; ug.position.y = 0.06; ug.material.uniforms.uColor.value = new THREE.Color(...(opts.glow || [0.2, 0.9, 1])); ug.renderOrder = 1; group.add(ug);
+  const beams = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.35, 17), beamMat);
+  beams.rotation.x = -Math.PI / 2; beams.position.set(0, 0.07, hl + 8.5); beams.renderOrder = 1; group.add(beams);
+  const headSprMat = glowSpriteMat(0xfff0cc, 1.4), tailSprMat = glowSpriteMat(0xff1a10, 1.1);
+  const sprites = []; const spr = (x, y, z, mat, s) => { const t = new THREE.Sprite(mat); t.position.set(x, y, z); t.scale.setScalar(s); group.add(t); return t; };
+  const hs = [spr(-0.68, 0.62, hl - 0.05, headSprMat, 0.9), spr(0.68, 0.62, hl - 0.05, headSprMat, 0.9)];
+  const ts = [spr(-0.7, 0.8, -hl + 0.05, tailSprMat, 0.5), spr(0.7, 0.8, -hl + 0.05, tailSprMat, 0.5)];
+  const brake = new THREE.Group();
+  for (const s of [-1, 1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.09, 0.04), brakeMat); m.position.set(s * 0.62, 0.84, -hl + 0.04); brake.add(m); }
+  brake.visible = false; group.add(brake);
+  return {
+    group, spec: sp, paint: fm.bodyMesh, dark: dummy(), head: dummy(), tail: dummy(), brake, front: dummy(), rear: dummy(), fa: dummy(), ra: dummy(), ug, beams,
+    headSprites: hs, tailSprites: ts, siren: null, wheelR: 0.36, steerPivot: null,
+    syncWheels(spin, steer) { setFerrariWheels(fm.wheels, spin, steer); },
+  };
+}
+
 export function buildCar(type, color, opts = {}) {
+  if (type === 'sport' && A.ok && !opts.police) return buildFerrari(color, opts);
   const sp = CAR_SPECS[type];
   const { L, W, belt, roof, hood } = sp;
   const hl = L / 2;
@@ -195,7 +221,16 @@ const torsoGeo = new THREE.CapsuleGeometry(0.19, 0.38, 4, 10);
 const gunBody = new THREE.BoxGeometry(0.05, 0.1, 0.22), gunBarrel = new THREE.BoxGeometry(0.035, 0.035, 0.12);
 const rifleBody = new THREE.BoxGeometry(0.06, 0.1, 0.55), rifleBarrel = new THREE.BoxGeometry(0.03, 0.03, 0.3), rifleStock = new THREE.BoxGeometry(0.05, 0.13, 0.2), rifleMag = new THREE.BoxGeometry(0.04, 0.16, 0.07);
 
+function makeGuns() {
+  const gunMat = stdMat(0x15171d, 0.35, 0.9), accent = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.9, 1).multiplyScalar(2.5), toneMapped: false });
+  const pistol = new THREE.Group(); { const b = new THREE.Mesh(gunBody, gunMat); b.position.z = 0.1; const br = new THREE.Mesh(gunBarrel, gunMat); br.position.set(0, 0.03, 0.22); const st = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.02, 0.2), accent); st.position.set(0, 0.052, 0.1); pistol.add(b, br, st); }
+  const rifle = new THREE.Group(); { const b = new THREE.Mesh(rifleBody, gunMat); b.position.z = 0.22; const br = new THREE.Mesh(rifleBarrel, gunMat); br.position.set(0, 0.02, 0.62); const sk = new THREE.Mesh(rifleStock, gunMat); sk.position.set(0, -0.01, -0.1); const mg = new THREE.Mesh(rifleMag, gunMat); mg.position.set(0, -0.12, 0.25); const st = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.015, 0.4), accent); st.position.set(0, 0.058, 0.25); rifle.add(b, br, sk, mg, st); }
+  rifle.visible = false;
+  return { pistol, rifle };
+}
+
 export function buildHuman(o = {}) {
+  if (A.ok) return buildSoldier(o, makeGuns);
   const skin = o.skin ?? skinTones[Math.floor(Math.random() * skinTones.length)];
   const top = o.top ?? new THREE.Color().setHSL(Math.random(), 0.45, 0.22).getHex();
   const pants = o.pants ?? new THREE.Color().setHSL(Math.random(), 0.2, 0.12).getHex();
@@ -220,10 +255,8 @@ export function buildHuman(o = {}) {
   for (const l of [legL, legR]) { const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.24), stdMat(0x0a0a0c, 0.4)); shoe.position.set(0, -0.72, 0.05); l.add(shoe); }
   // hand slot with weapon
   const hand = new THREE.Group(); hand.position.set(0, -0.55, 0); armR.add(hand);
-  const gunMat = stdMat(0x15171d, 0.35, 0.9), accent = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.9, 1).multiplyScalar(2.5), toneMapped: false });
-  const pistol = new THREE.Group(); { const b = new THREE.Mesh(gunBody, gunMat); b.position.z = 0.1; const br = new THREE.Mesh(gunBarrel, gunMat); br.position.set(0, 0.03, 0.22); const st = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.02, 0.2), accent); st.position.set(0, 0.052, 0.1); pistol.add(b, br, st); }
-  const rifle = new THREE.Group(); { const b = new THREE.Mesh(rifleBody, gunMat); b.position.z = 0.22; const br = new THREE.Mesh(rifleBarrel, gunMat); br.position.set(0, 0.02, 0.62); const sk = new THREE.Mesh(rifleStock, gunMat); sk.position.set(0, -0.01, -0.1); const mg = new THREE.Mesh(rifleMag, gunMat); mg.position.set(0, -0.12, 0.25); const st = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.015, 0.4), accent); st.position.set(0, 0.058, 0.25); rifle.add(b, br, sk, mg, st); }
-  hand.add(pistol, rifle); rifle.visible = false;
+  const { pistol, rifle } = makeGuns();
+  hand.add(pistol, rifle);
   hand.rotation.x = Math.PI / 2; // gun points forward when arm raised
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.03, 0.3); hand.add(muzzle);
   g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
