@@ -31,7 +31,7 @@ const vehicleFile = 'assets/vehicle-asset.js';
 const out = path.resolve(root, arg('out', 'dist/aether.html'));
 
 // ---- inline assets
-const assetFiles = ['assets/console-asset.js', vehicleFile, 'assets/fan-asset.js', 'assets/bluenoise.js'];
+const assetFiles = ['assets/console-asset.js', vehicleFile, 'assets/fan-asset.js', 'assets/tunnel-asset.js', 'assets/bluenoise.js'];
 const build = { version: rd('VERSION').trim(), vehicle, time: new Date().toISOString(), engineFiles, assets: {} };
 let html = rd('index.html');
 html = html.replace('<link rel="stylesheet" href="css/style.css">', () => '<style>' + rd('css/style.css') + '</style>');

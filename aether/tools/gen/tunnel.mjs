@@ -1,9 +1,9 @@
-// Parametric generator for the v2 tunnel parts. Everything is derived from src/engine/12-tunnel-spec.js (evaluated here as plain JS).
+// Parametric generator for the v2 tunnel parts. Everything is derived from src/engine/09-tunnel-spec.js (evaluated here as plain JS).
 import fs from 'node:fs'; import path from 'node:path';
 import { Mesh, sub, add, mul, dot, cross, norm, len } from './glb.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-export const SPEC = new Function(fs.readFileSync(path.join(root, 'src/engine/12-tunnel-spec.js'), 'utf8') + ';return TUNNEL_SPEC')();
+export const SPEC = new Function(fs.readFileSync(path.join(root, 'src/engine/09-tunnel-spec.js'), 'utf8') + ';return TUNNEL_SPEC')();
 const D = SPEC.derived;
 
 // materials: engine surface names (src/engine/20-scene-assets.js materialLibrary, plus the v2 additions registered by the loader)
