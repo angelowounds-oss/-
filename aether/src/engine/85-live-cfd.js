@@ -248,12 +248,12 @@ function liveSetTier(q,why){if(!LIVE_Q[q]||q===LIVE.q&&LIVE.init)return;liveRele
 function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
 /* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
    Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
-function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.6:-3.9,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
+function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+1.4:-3.1,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
  const r=Math.max(.035,.75*hd),C=LIVE.cols,n=LIVE.rakeN||Math.max(3,Math.min(11,Math.floor(39/C),Math.round(1.32/Math.max(.13,LIVE.rakeK*r))+1));
  return {x,tip:x+.075,z:0,zs:Array.from({length:C},(_,i)=>(i-(C-1)/2)*LIVE.colGap),yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
 /* flow-straightener grille (egg-crate honeycomb) between the fan face and the rake, as in real tunnels: the jet leaves a straightener, not a bare fan.
    Visual only: it is not voxelised, so the solver sees an open inlet. One merged mesh of thin slats inside a frame. */
-function liveBoxesMesh(list){const P=[],Nn=[],I=[],box=(x0,x1,y0,y1,z0,z1)=>{
+function liveBoxesMesh(list,base){const P=base?base.positions.slice():[],Nn=base?base.normals.slice():[],I=base?base.indices.slice():[],box=(x0,x1,y0,y1,z0,z1)=>{
   const f=[[[1,0,0],[[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]]],[[-1,0,0],[[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]]],[[0,1,0],[[x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0]]],[[0,-1,0],[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]]],[[0,0,1],[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]]],[[0,0,-1],[[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0]]]];
   for(const [n,q] of f){const k=P.length/3;for(const v of q){P.push(v[0],v[1],v[2]);Nn.push(n[0],n[1],n[2])}
    const ab=[q[1][0]-q[0][0],q[1][1]-q[0][1],q[1][2]-q[0][2]],ac=[q[2][0]-q[0][0],q[2][1]-q[0][1],q[2][2]-q[0][2]],c=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]],fl=c[0]*n[0]+c[1]*n[1]+c[2]*n[2]<0;
@@ -264,13 +264,27 @@ function liveStraightenerMesh(b){const {x0,x1,y0,y1,z0,z1,cell,t,fr}=b,L=[],nz=M
  for(let i=1;i<nz;i++){const z=z0+(z1-z0)*i/nz;L.push([x0,x1,y0+fr,y1-fr,z-t/2,z+t/2])}
  for(let j=1;j<ny;j++){const y=y0+(y1-y0)*j/ny;L.push([x0,x1,y-t/2,y+t/2,z0+fr,z1-fr])}
  return liveBoxesMesh(L)}
+/* contraction nozzle (visual only, not seen by the solver): straightener frame -> smooth cubic taper -> exit lip.
+   Returns the thin-shell mesh plus tight per-segment boxes for the cinematic clearance check. */
+function liveNozzleMesh(n){const P=[],Nn=[],I=[],boxes=[],q=(a,b,c,d)=>{const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],k=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...k)||1,m=k.map(x=>x/l);
+  for(const sg of [1,-1]){const b0=P.length/3,vs=sg>0?[a,b,c,d]:[d,c,b,a];for(const p of vs){P.push(...p);Nn.push(m[0]*sg,m[1]*sg,m[2]*sg)}I.push(b0,b0+1,b0+2,b0,b0+2,b0+3)}};
+ const S=n.seg,ss=t=>t*t*(3-2*t),at=i=>{const t=i/S,s=ss(t);return {x:n.xa+(n.xb-n.xa)*t,w:n.wa+(n.wb-n.wa)*s,h:n.ha+(n.hb-n.ha)*s}};
+ for(let i=0;i<S;i++){const a=at(i),b=at(i+1),y0=n.y0;
+  q([a.x,y0,a.w],[b.x,y0,b.w],[b.x,b.h,b.w],[a.x,a.h,a.w]);q([a.x,y0,-a.w],[a.x,a.h,-a.w],[b.x,b.h,-b.w],[b.x,y0,-b.w]);q([a.x,a.h,-a.w],[a.x,a.h,a.w],[b.x,b.h,b.w],[b.x,b.h,-b.w]);
+  const w0=Math.min(a.w,b.w),w1=Math.max(a.w,b.w),hh=Math.max(a.h,b.h),t=.05;
+  boxes.push({min:[a.x,y0,w0],max:[b.x,hh,w1+t]},{min:[a.x,y0,-w1-t],max:[b.x,hh,-w0]},{min:[a.x,Math.min(a.h,b.h)-t,-w1],max:[b.x,hh+t,w1]})}
+ const e=at(S),f=.06,lip=[[e.x,e.x+.07,y0lip(n),n.hb,e.w,e.w+f],[e.x,e.x+.07,y0lip(n),n.hb,-e.w-f,-e.w],[e.x,e.x+.07,n.hb,n.hb+f,-e.w-f,e.w+f]];
+ return {mesh:liveBoxesMesh(lip,{positions:P,normals:Nn,indices:I}),boxes:boxes.concat(lip.map(l=>({min:[l[0],l[2],l[4]],max:[l[1],l[3],l[5]]})))}}
+function y0lip(n){return n.y0}
 function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,R.zs.length,LIVE.colGap].join();if(LIVE.rakeKey===key&&scene.objects.some(o=>o.name==='rake probe hardware'&&o.gpu)||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
  for(const o of scene.objects)if(o.name.startsWith('rake probe')&&o.gpu)for(const b of [o.gpu.pb,o.gpu.nb,o.gpu.ub,o.gpu.ib])if(b)gl.deleteBuffer(b);
  scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));
- const attach=(name,c,sz,color,mat,mesh)=>{const o=addBox('rake probe '+name,c,sz,color,{bevel:.004,category:'instrumentation'});o.pbrMaterial=mat;o._mesh=mesh;o.gpu=bindMesh(mesh.positions,mesh.normals,new Float32Array(mesh.positions.length/3*2),mesh.indices)};
+ const attach=(name,c,sz,color,mat,mesh,boxes)=>{const o=addBox('rake probe '+name,c,sz,color,{bevel:.004,category:'instrumentation'});o.pbrMaterial=mat;o._mesh=mesh;if(boxes)o.obstacleBoxes=boxes;o.gpu=bindMesh(mesh.positions,mesh.normals,new Float32Array(mesh.positions.length/3*2),mesh.indices)};
  const fb=AETHER.FAN_MODULE?.layout?.fanBounds;
  if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2];
-  attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.085,.09,.1],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.28,t:.012,fr:.08}))}
+  attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.085,.09,.1],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.28,t:.012,fr:.08}));
+  const nz=liveNozzleMesh({xa:sx1,xb:fb.max[0]+1.2,wa:sz1,wb:2.1,y0:sy0,ha:sy1,hb:3.2,seg:10});
+  attach('nozzle',[(sx1+fb.max[0]+1.2)/2,(sy0+sy1)/2,0],[fb.max[0]+1.2-sx1,sy1-sy0,sz1*2],[.62,.65,.68],materialLibrary.PaintedSteelGray,nz.mesh,nz.boxes)}
  const L=[],x=R.x,top=1.72;
  if(R.vert){for(const z of R.zs){L.push([x-.017,x+.017,0,top,z-.017,z+.017],[x-.13,x+.13,0,.024,z-.13,z+.13]);for(const y of R.v)L.push([x,x+.075,y-.01,y+.01,z-.01,z+.01])}
   if(R.zs.length>1)L.push([x-.015,x+.015,top-.03,top,R.zs[0],R.zs[R.zs.length-1]])}

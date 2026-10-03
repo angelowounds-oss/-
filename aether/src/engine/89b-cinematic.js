@@ -24,7 +24,7 @@ function cineGeometry(){
  for(let i=0;i<body.length;i+=3){const x=body[i],y=body[i+1],z=body[i+2],wx=M[0]*x+M[4]*y+M[8]*z+M[12],wy=M[1]*x+M[5]*y+M[9]*z+M[13],wz=M[2]*x+M[6]*y+M[10]*z+M[14];if(wx>=rear-.25*L&&wy>=top-.12){wn++;wl[0]=Math.min(wl[0],wx);wl[1]=Math.min(wl[1],wy);wl[2]=Math.min(wl[2],wz);wh[0]=Math.max(wh[0],wx);wh[1]=Math.max(wh[1],wy);wh[2]=Math.max(wh[2],wz)}}
  const wing=wn>20?{x:(wl[0]+wh[0])/2,y:(wl[1]+wh[1])/2,z:(wl[2]+wh[2])/2,hw:(wh[2]-wl[2])/2,estimated:true,n:wn}:{x:rear-.12*L,y:top-.05,z:cz,hw:hw*.9,estimated:true,n:0};
  const dom=lay.domainBounds,wallZ=Math.min(dom.max[2],3.9)-R_CAM-.15; /* inner wall faces sit ~0.1 m inside the domain box */
- G=Object.freeze({key,L,nose,rear,mid,cz,hw,top,floor,wing,fanX:lay.fanBounds.max[0],rakeX:lay.fanBounds.max[0]+.6,collX:lay.collectorPlane.x,env:{x0:lay.fanBounds.max[0]+.45,x1:lay.collectorPlane.x-.8,y0:.5,y1:Math.min(dom.max[1],5.5)-.5,z0:dom.min[2]+R_CAM+.15,z1:wallZ},fanBox:{min:lay.fanBounds.min.slice(),max:lay.fanBounds.max.slice()}});geoKey=key;sets=null;obst=null;return G}
+ G=Object.freeze({key,L,nose,rear,mid,cz,hw,top,floor,wing,fanX:lay.fanBounds.max[0],rakeX:lay.fanBounds.max[0]+1.4,collX:lay.collectorPlane.x,env:{x0:lay.fanBounds.max[0]+.45,x1:lay.collectorPlane.x-.8,y0:.5,y1:Math.min(dom.max[1],5.5)-.5,z0:dom.min[2]+R_CAM+.15,z1:wallZ},fanBox:{min:lay.fanBounds.min.slice(),max:lay.fanBounds.max.slice()}});geoKey=key;sets=null;obst=null;return G}
 
 /* ---------- shot lists (car-relative; metres) ----------
    x: along the flow (+ downstream), z: lateral (+ toward the observation window), y: height above the floor.
@@ -33,7 +33,7 @@ function cineShots(g,tall){
  const m=g.mid,n=g.nose,r=g.rear,w=g.wing,c=g.cz,T=g.top;
  /* t: 0 low front quarter | 4 start of side tracking | 10 passing the cabin | 15 rear quarter on the spoiler | 17 hold | 24 wake | 30 reveal */
  const t=[0,.8,4,10,15,17,24,30];
- const eye=[[n-1.35,.55,c+2.2],[n-1.3,.56,c+2.25],[n-.95,.85,c+2.9],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
+ const eye=[[n-1.35,.55,c+3.3],[n-1.3,.56,c+3.25],[n-.95,.85,c+2.9],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
  const tgt=tall?[[n+1.0,.6,c-.1],[n+1.05,.6,c-.1],[n+1.9,.78,c],[m+1.2,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+.3,.85,c],[m-.3,1.3,c]]
   :[[n+1.05,.65,c-.3],[n+1.1,.65,c-.3],[n+1.9,.78,c-.1],[m+1.4,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.25,.8,c],[m-.3,1.3,c]];
  return{t,eye,tgt,fov:[[0,40],[24,40],[30,46]],hfov:46}}
@@ -127,7 +127,7 @@ function tick(nowMs){
  if(t>=DUR)finish('done')}
 
 /* ---------- verification (used at start in dev and by tests/cinematic.mjs) ---------- */
-function buildObstacles(g){if(obst)return obst;const B=[];for(const o of scene.objects){if(!o.center||!o.size||o.material==='glass'||o.visible===false)continue;if(['floor seams','measurement'].includes(o.category))continue;const h=[o.size[0]/2,o.size[1]/2,o.size[2]/2];if(o.center[1]+h[1]<.3)continue;B.push({n:o.name,c:o.category,min:[o.center[0]-h[0],o.center[1]-h[1],o.center[2]-h[2]],max:[o.center[0]+h[0],o.center[1]+h[1],o.center[2]+h[2]],big:Math.max(...o.size)>.6&&(o.size[0]>.3)+(o.size[1]>.3)+(o.size[2]>.3)>=2})}
+function buildObstacles(g){if(obst)return obst;const B=[];for(const o of scene.objects){if(!o.center||!o.size||o.material==='glass'||o.visible===false)continue;if(['floor seams','measurement'].includes(o.category))continue;if(o.obstacleBoxes){for(const b of o.obstacleBoxes)B.push({n:o.name,c:o.category,min:b.min,max:b.max,big:false});continue}const h=[o.size[0]/2,o.size[1]/2,o.size[2]/2];if(o.center[1]+h[1]<.3)continue;B.push({n:o.name,c:o.category,min:[o.center[0]-h[0],o.center[1]-h[1],o.center[2]-h[2]],max:[o.center[0]+h[0],o.center[1]+h[1],o.center[2]+h[2]],big:Math.max(...o.size)>.6&&(o.size[0]>.3)+(o.size[1]>.3)+(o.size[2]>.3)>=2})}
  B.push({n:'fan',c:'fan',min:g.fanBox.min,max:g.fanBox.max,big:true,pad:.1});B.push({n:'collector',c:'collector',min:[g.collX-.05,0,-9],max:[g.collX+3,9,9],big:true});
  const car={n:'vehicle',c:'vehicle',min:[g.nose,g.floor,g.cz-g.hw],max:[g.rear,g.top,g.cz+g.hw],big:false,car:true};B.push(car);return obst=B}
 function boxDist(p,b){const dx=Math.max(b.min[0]-p[0],0,p[0]-b.max[0]),dy=Math.max(b.min[1]-p[1],0,p[1]-b.max[1]),dz=Math.max(b.min[2]-p[2],0,p[2]-b.max[2]);return Math.hypot(dx,dy,dz)}
