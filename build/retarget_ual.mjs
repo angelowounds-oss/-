@@ -19,6 +19,8 @@ const MAP = { pelvis: 'Hips', spine_01: 'Spine', spine_02: 'Spine1', spine_03: '
   clavicle_r: 'RightShoulder', upperarm_r: 'RightArm', lowerarm_r: 'RightForeArm', hand_r: 'RightHand',
   thigh_l: 'LeftUpLeg', calf_l: 'LeftLeg', foot_l: 'LeftFoot', ball_l: 'LeftToeBase',
   thigh_r: 'RightUpLeg', calf_r: 'RightLeg', foot_r: 'RightFoot', ball_r: 'RightToeBase' };
+const UPPER = ['Pistol_Idle_Loop', 'Pistol_Aim_Up', 'Pistol_Aim_Neutral', 'Pistol_Aim_Down', 'Pistol_Shoot', 'Pistol_Reload']; // also written as UB_* (spine, head and arms only)
+const UPPER_BONES = new Set(['Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand']);
 const FPS = 30;
 // the two rigs face opposite ways in model space (left arms point to +x vs -x): conjugate the world delta with a 180 deg turn about Y
 const FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), FLIPI = FLIP.clone().invert();
@@ -103,11 +105,11 @@ const tgtHipsParentInv = parentWorld(tgtHips).clone().invert();
 
 const buffer = tRoot.listBuffers()[0] || tdoc.createBuffer();
 let added = 0;
-for (const name of CLIPS) {
+for (const [name, upperOnly] of [...CLIPS.map((n) => [n, false]), ...UPPER.map((n) => [n, true])]) {
   const sa = anims.get(name); if (!sa) { console.log('skip (missing)', name); continue; }
   const ch = sampleChannels(sa), dur = Math.max(...sa.listChannels().map((c) => c.getSampler().getInput().getMax([])[0]));
   const nF = Math.max(2, Math.round(dur * FPS) + 1), times = new Float32Array(nF);
-  const rots = new Map(order.filter((n) => srcOf.has(n)).map((n) => [n, new Float32Array(nF * 4)])), hipsP = new Float32Array(nF * 3);
+  const rots = new Map(order.filter((n) => srcOf.has(n) && (!upperOnly || UPPER_BONES.has(n.getName().replace('mixamorig:', '')))).map((n) => [n, new Float32Array(nF * 4)])), hipsP = new Float32Array(nF * 3);
   for (let f = 0; f < nF; f++) {
     const t = Math.min(dur, f / FPS); times[f] = t;
     const sp = srcPose(ch, t), cur = new Map();
@@ -119,7 +121,7 @@ for (const name of CLIPS) {
         const delta = FLIP.clone().multiply(wq(sp.get(s)).multiply(wq(refPose.get(s)).invert())).multiply(FLIPI);
         const W = delta.multiply(wq(tRest.get(n)));
         local = wq(pm).invert().multiply(W);
-        rots.get(n).set([local.x, local.y, local.z, local.w], f * 4);
+        if (rots.has(n)) rots.get(n).set([local.x, local.y, local.z, local.w], f * 4);
       } else local = q(n.getRotation());
       let pos = new THREE.Vector3(...n.getTranslation());
       if (n === tgtHips) {
@@ -129,14 +131,16 @@ for (const name of CLIPS) {
       cur.set(n, pm.clone().multiply(new THREE.Matrix4().compose(pos, local, new THREE.Vector3(...n.getScale()))));
     }
   }
-  const anim = tdoc.createAnimation('U_' + name.replace(/_Loop$/, ''));
+  const anim = tdoc.createAnimation((upperOnly ? 'UB_' : 'U_') + name.replace(/_Loop$/, ''));
   const tin = tdoc.createAccessor().setType('SCALAR').setArray(times).setBuffer(buffer);
   for (const [n, arr] of rots) {
     const smp = tdoc.createAnimationSampler().setInput(tin).setOutput(tdoc.createAccessor().setType('VEC4').setArray(arr).setBuffer(buffer)).setInterpolation('LINEAR');
     anim.addSampler(smp).addChannel(tdoc.createAnimationChannel().setTargetNode(n).setTargetPath('rotation').setSampler(smp));
   }
+  if (!upperOnly) {
   const smp = tdoc.createAnimationSampler().setInput(tin).setOutput(tdoc.createAccessor().setType('VEC3').setArray(hipsP).setBuffer(buffer)).setInterpolation('LINEAR');
   anim.addSampler(smp).addChannel(tdoc.createAnimationChannel().setTargetNode(tgtHips).setTargetPath('translation').setSampler(smp));
+  }
   added++;
 }
 // drop previous U_ clips on re-run

@@ -275,8 +275,26 @@ export class Human {
     const sh = cd < 38; if (sh !== m.shadowOn) { m.shadowOn = sh; for (const o of m.skinMeshes) o.castShadow = sh; }
     if (cd > 75) return;
     if (cd > 35) { this.lodT = (this.lodT || 0) + dt; if ((this.lodF = !this.lodF)) return; dt = this.lodT; this.lodT = 0; }
+    // pistol-class weapons use the retargeted UAL upper-body clips (idle / aim up-neutral-down / shoot / reload); the limbs below keep walking
+    const pistolish = this.armed && this.weapon && this.weapon.short === 'pistol' && !m.sit && !this.swimming && !this.prone && !this.lying;
+    if (this.recoil > (this._rc || 0) + 0.4) this.shootT = 0.38;
+    this._rc = this.recoil;
+    if (this.shootT > 0) this.shootT -= dt;
+    {
+      const pitch = this.aimPitch || 0, up = clamp(pitch / 0.5, 0, 1), dn = clamp(-pitch / 0.5, 0, 1), neu = 1 - Math.max(up, dn);
+      const act = pistolish ? 1 : 0, shoot = this.shootT > 0 ? 1 : 0, rel = this.reloadT > 0 ? 1 : 0;
+      const base = act * (rel ? 0 : 1) * (shoot ? 0 : 1), aimK = aiming ? 1 : 0;
+      const tw = { UB_Pistol_Idle: base * (1 - aimK), UB_Pistol_Aim_Up: base * aimK * up, UB_Pistol_Aim_Neutral: base * aimK * neu, UB_Pistol_Aim_Down: base * aimK * dn, UB_Pistol_Shoot: act * shoot, UB_Pistol_Reload: act * rel * (1 - shoot) };
+      for (const key in tw) {
+        let ac = m.act[key]; if (!ac && tw[key] > 0) ac = m.clip(key); if (!ac) continue;
+        if (key === 'UB_Pistol_Shoot' && shoot && this.shootT > 0.36) { ac.reset(); ac.play(); }
+        if (key === 'UB_Pistol_Reload' && rel && !this._rl) { ac.reset(); ac.play(); }
+        ac.weight = lerp(ac.weight, tw[key] * 40, 1 - Math.exp(-14 * dt)); if (ac.weight < 0.4 && tw[key] === 0) ac.weight = 0;
+      }
+      this._rl = rel;
+    }
     m.mixer.update(dt);
-    m.applyPose(this.pose, this.aimPitch || 0);
+    m.applyPose(pistolish ? 0 : this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
     m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sit || 0) * 0.5 - (this.swimming ? 0 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
