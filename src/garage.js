@@ -55,8 +55,17 @@ export const garage = {
     if (!st[key]) { const it = {}; if (Math.random() < 0.6) it[['water', 'bandage', 'crowbar', 'soda', 'flashlight', 'cashroll'][Math.floor(Math.random() * 6)]] = 1; st[key] = { name: '트렁크', items: it }; }
     this.openContainer({ key, ...st[key], ref: st[key] });
   },
+  buildPier(w) {
+    const G = this, B = new Builder(), x = (w.x0 + w.x1) / 2, z0 = w.z0 - 2.5, z1 = w.z0 + 20, hw = 1.6;
+    B.ext('decor', x - hw, 0.12, z0, x + hw, 0.4, z1, 0x5a4330);
+    for (let z = z0 + 1; z < z1; z += 2.5) for (const sx of [-hw, hw]) B.ext('decor', x + sx - 0.12, -1.8, z - 0.12, x + sx + 0.12, 0.9, z + 0.12, 0x2a2018);
+    for (let z = z0 + 1; z < z1; z += 5) B.ext('emit', x - hw, 0.9, z, x - hw + 0.1, 1.0, z + 0.1, new THREE.Color(1, 0.75, 0.3), 2.5);
+    G.world.colliders.addBox(x - hw, z0, x + hw, z1, 0.4, 'pier', 0.0);
+    B.finish(G.scene); G.world.fakeLights.push({ x, y: 0, z: z0 + 8, c: [1, 0.7, 0.3], rad: 14 });
+  },
   spawnCrafts() {
     const G = this;
+    for (const w of G.world.waters) if (w.harbor) G.buildPier(w);
     // boats on the lake
     for (const w of G.world.waters) for (const [fx, fz, h] of [[0.25, 0.3, 0.6], [0.7, 0.65, 2.4]]) {
       const v = new Vehicle(G, 'boat', 0xdde4ee, 'parked'); v.x = w.x0 + (w.x1 - w.x0) * fx; v.z = w.z0 + (w.z1 - w.z0) * fz; v.h = h; v.startY = w.y + 0.12; v.awake = false; G.addVehicle(v);
