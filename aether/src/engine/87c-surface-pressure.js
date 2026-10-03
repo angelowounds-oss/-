@@ -18,7 +18,7 @@ void main(){vec4 w=uM*vec4(aP,1.);vec3 n=normalize(mat3(uM)*aN);vec3 q=w.xyz+n*u
  float pr=PT((uRef-uMin)/uH-.5);vCp=(PT(g)-pr)/(.5*max(uU,.5)*max(uU,.5));gl_Position=uVP*w;}`;
 const CP_FS=`#version 300 es
 precision highp float;in float vCp;uniform float uA,uRange;out vec4 o;
-void main(){float t=clamp(vCp/uRange,-1.,1.);vec3 lo=vec3(.1,.3,1.),hi=vec3(1.,.14,.08);float a=uA*smoothstep(.12,.75,abs(t));o=vec4((t<0.?lo:hi)*1.15,a);}`;
+void main(){float t=clamp(vCp/uRange,-1.,1.);vec3 lo=vec3(.1,.3,1.),hi=vec3(1.,.14,.08);float a=uA*smoothstep(.28,.9,abs(t));o=vec4((t<0.?lo:hi)*1.15,a);}`;
 function cpDraw(vp){if(!CPMAP.on||!MAC.lv||!MAC.t||LIVE.impl!=='MAC'||!LIVE.ok||CPMAP.err)return;
  try{if(CPMAP.gen!==runtimeGeneration||!CPMAP.prog){CPMAP.prog=liveCompile(CP_FS,CP_VS);CPMAP.gen=runtimeGeneration}
   const p=CPMAP.prog,G=MAC.G,N=MAC.N,pa=MAC.lv[0].T.pA.t,wp=wheelParts();gl.useProgram(p);
