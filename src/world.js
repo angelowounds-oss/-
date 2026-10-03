@@ -853,9 +853,9 @@ export function buildWorld(scene, quality) {
       farInst.push({ ...f, h: 6, y: 0, podium: 1 });
       farInst.push({ ...f, h: f.h - 6, y: 6, podium: 0 });
     }
-    const L = 1200, T = 12; // boundary of the playable world, behind every far tower
-    world.colliders.addBox(-L - T, L, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 40, 'wall');
-    world.colliders.addBox(L, -L - T, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 40, 'wall');
+    const L = 1475, T = 12; // boundary of the playable world, behind the hill rim (see terrain.js)
+    world.colliders.addBox(-L - T, L, L + T, L + T, 400, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 400, 'wall');
+    world.colliders.addBox(L, -L - T, L + T, L + T, 400, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 400, 'wall');
   }
 
   // Plaza centerpiece

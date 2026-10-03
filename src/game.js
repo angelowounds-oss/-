@@ -13,6 +13,7 @@ import { loadAssets } from './assets.js';
 import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
+import { buildTerrain, addTerrainPhysics, heightAt } from './terrain.js';
 import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
@@ -70,7 +71,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders);
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt;
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
@@ -627,7 +628,7 @@ export class Game {
     v.driver = null; v.throttle = 0; v.brake = 0.5; v.steer = 0; v.hand = false;
     if (v.kind === 'player') v.kind = 'parked';
     if (this.rider) { this.scene.add(pl.group); pl.group.scale.setScalar(1); pl.group.rotation.set(0, 0, 0); pl.m.applySit(0); this.rider = null; pl.m.pistol.visible = pl.armed && pl.weapon.short === 'pistol'; pl.m.rifle.visible = pl.armed && pl.weapon.short === 'rifle'; }
-    v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true; pl.y = 0; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, 0, pl.z);
+    v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true; { const gy = heightAt(pl.x, pl.z); pl.y = gy; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, gy, pl.z); }
     pl.hpv = Math.max(pl.hpv, 1);
     document.body.classList.add('onfoot'); document.body.classList.remove('incar');
     this.ui.speedo.classList.remove('on');
