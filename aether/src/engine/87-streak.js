@@ -10,6 +10,7 @@ void main(){ivec2 t=ivec2(gl_FragCoord.xy);if(t.y>=uEmN){o=vec4(0);return;}
  if(any(lessThan(Pn,vec3(.5)))||any(greaterThan(Pn,vec3(uN)-.5))){o=vec4(0);return;}
  float sid;if(PHIT(uSol,Pn-.5,uN,uTX,sid)>.5){o=vec4(0);return;}
  o=vec4(uMin+Pn*uH,1.+clamp(length(v2)/max(uU,.1)*.5,0.,1.));}`;
+window.__STREAK=STREAK;
 const STREAK_VS=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
 uniform sampler2D uP;uniform int uHead,uL;uniform mat4 uVP;uniform vec2 uPx;uniform float uPW;

@@ -169,3 +169,7 @@ body.mobile .form{grid-template-columns:1fr}
 }
 @media (max-width:720px){.brand small{display:none}.dock{gap:6px}}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+.cp-leg{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--panel,rgba(12,18,26,.82));color:var(--text,#dbe6f2);font-size:12px;pointer-events:none}
+.cp-leg[hidden]{display:none}
+.cp-leg i{width:140px;height:8px;border-radius:4px;background:linear-gradient(90deg,#1a47f2,#fff,#f21f14)}

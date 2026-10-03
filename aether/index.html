@@ -27,8 +27,12 @@
       </div></div>
     <div class="menu" id="menuSmoke"><button class="btn menu-btn" type="button" aria-haspopup="true" aria-expanded="false">연기</button>
       <div class="menu-pop" role="menu">
-        <button id="lvRake" type="button">연기: 세로 레이크</button><button id="scCol" type="button">유속 색 보기</button><button id="lvWand" type="button">스모크 완드 켜기</button>
+        <button id="lvRake" type="button">연기: 세로 레이크</button><button id="stkMode" type="button">표현: 입자선+볼륨</button><button id="cpMode" type="button">차체 압력: 끔</button><button id="scCol" type="button">유속 색 보기</button><button id="lvWand" type="button">스모크 완드 켜기</button>
         <hr><button id="lvOn" type="button">실시간 CFD 끄기</button>
+      </div></div>
+    <div class="menu" id="menuSave"><button class="btn menu-btn" type="button" aria-haspopup="true" aria-expanded="false">저장</button>
+      <div class="menu-pop" role="menu">
+        <button id="capPhoto" type="button">사진 저장 (1.5배 슈퍼샘플)</button><button id="capRec" type="button">화면 녹화 시작</button><button id="capArm" type="button">시네마틱 자동 녹화: 꺼짐</button>
       </div></div>
     <div class="menu" id="menuWalk"><button class="btn menu-btn" type="button" aria-haspopup="true" aria-expanded="false">걷기</button>
       <div class="menu-pop" role="menu">
@@ -37,6 +41,7 @@
         <hr><button id="swayMode" type="button">흔들림: 켬</button><button id="qualityMode" type="button">화질: 고화질</button><button id="bdSnd" type="button">바람 소리 켜기</button>
       </div></div>
   </div>
+  <div id="cpLeg" class="cp-leg" hidden><span>흡입</span><i></i><span>정체압</span></div>
   <div class="hud"><strong id="viewName">정면</strong><span id="viewHint">드래그: 회전 · 휠/핀치: 확대</span></div>
 </section>
 <aside id="panel" aria-label="설정 패널">
@@ -66,6 +71,7 @@
       <button id="ctlFlowReset" class="btn" type="button">흐름 초기화</button>
     </div>
     <label class="field">유입 풍속 <select id="ctlWind"><option value="3">3 m/s</option><option value="5" selected>5 m/s</option><option value="8">8 m/s</option><option value="12">12 m/s</option></select></label>
+    <label class="field">요각(턴테이블) <select id="ctlYaw"><option value="-10">-10°</option><option value="-5">-5°</option><option value="0" selected>0°</option><option value="5">+5°</option><option value="10">+10°</option></select></label>
     <div class="btn-grid">
       <button id="ctlEstop" class="btn danger" type="button" aria-pressed="false">비상정지</button>
       <button id="ctlReset" class="btn" type="button" disabled>비상정지 해제</button>
@@ -81,7 +87,11 @@
     <dl id="roadStatus"></dl>
   </section>
 
+  <section class="card" aria-labelledby="aeroTitle"><h2 id="aeroTitle">공력 계수 (압력 항력만)</h2><canvas id="aeroChart" width="320" height="150" aria-label="항력·양력·측력 계수 시계열"></canvas><div class="status" id="aeroNow">측정 중…</div><p class="help">Cd 항력 · Cl 양력 · Cs 측력(측풍). 점성 마찰이 없는 정성 참고값이며 실측 풍동 결과와 직접 비교할 수 없습니다.</p></section>
+
   <section class="card" id="screenMode"><h2>화면</h2><div id="screenModeBtns" class="btn-grid"></div></section>
+
+  <section class="card" aria-labelledby="gpTitle"><h2 id="gpTitle">WebGPU 진단</h2><button id="gpRun" class="btn" type="button">WebGPU 계산 속도 측정</button><pre id="gpOut" class="status" aria-live="polite">아직 측정하지 않았습니다.</pre><p class="help">이 기기에서 WebGPU 계산이 가능한지, 솔버와 같은 셀 수에서 스텐실 1회가 몇 ms인지 측정합니다. 결과는 솔버를 WebGPU로 옮길 가치가 있는지 판단하는 근거입니다. 이 브라우저가 WebGPU를 지원하지 않으면 그렇게 표시됩니다.</p></section>
 
   <details class="card"><summary>진단 정보 (개발용)</summary><pre id="diagnostics">시작 중…</pre></details>
 </aside>

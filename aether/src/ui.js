@@ -23,7 +23,7 @@ for(const m of menus){const b=m.querySelector('.menu-btn');
 document.addEventListener('click',e=>{if(!e.target.closest('.menu'))closeMenus()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMenus();if(document.body.classList.contains('eng'))setPanel(false)}});
 for(const ev of ['pointerdown','wheel'])$('view').addEventListener(ev,()=>closeMenus(),{passive:true});
-for(const id of ['scCol','lvRake','lvWand','lvOn','cutaway','roadSection','swayMode','qualityMode','bdSnd'])$(id)?.setAttribute('data-keep','');
+for(const id of ['capPhoto','capRec','capArm','scCol','lvRake','stkMode','cpMode','lvWand','lvOn','cutaway','roadSection','swayMode','qualityMode','bdSnd'])$(id)?.setAttribute('data-keep','');
 
 /* ---------- cinematic: one timeline; the director in the engine owns camera, captions and progress ---------- */
 const stop=()=>CN.cancel('ui'),cine=()=>CN.start({source:'ui'});
@@ -62,6 +62,11 @@ $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('�
 /* ---------- smoke menu: rake pattern, velocity colour, wand, live CFD on/off ---------- */
 {const RK=[['RAKE_V','세로 레이크'],['RAKE_H','가로 레이크'],['BOTH','세로+가로'],['OFF','끄기']];
  const refresh=()=>{const l=L();if(!l)return;const r=RK.find(x=>x[0]===l.mode)||RK[0];$('lvRake').textContent='연기: '+r[1];$('scCol').textContent=l.colorMode?'유속 색 끄기':'유속 색 보기';$('scCol').classList.toggle('active',!!l.colorMode);$('lvWand').textContent=l.wand?'스모크 완드 끄기':'스모크 완드 켜기';$('lvWand').classList.toggle('active',!!l.wand);$('lvOn').textContent=l.enabled?'실시간 CFD 끄기':'실시간 CFD 켜기';$('scLeg').style.display=l.colorMode?'flex':'none'};
+ const SM=[['both','입자선+볼륨'],['streak','입자선만'],['vol','볼륨만']],stk=()=>window.__STREAK;
+ $('stkMode').onclick=()=>{const S=stk();if(!S)return;S.mode=SM[(SM.findIndex(m=>m[0]===S.mode)+1)%SM.length][0];$('stkMode').textContent='표현: '+SM.find(m=>m[0]===S.mode)[1]};
+ {const S=stk();if(S)$('stkMode').textContent='표현: '+SM.find(m=>m[0]===S.mode)[1]}
+ $('cpMode').onclick=()=>{const C=window.__CPMAP;if(!C)return;C.on=!C.on;C.err=null;$('cpMode').textContent='차체 압력: '+(C.on?'켬':'끔');$('cpLeg').hidden=!C.on};
+ if(window.__CPMAP?.on){$('cpMode').textContent='차체 압력: 켬';$('cpLeg').hidden=false}
  $('lvRake').onclick=()=>{const l=L();l.mode=RK[(RK.findIndex(r=>r[0]===l.mode)+1)%RK.length][0];refresh()};
  $('scCol').onclick=()=>{const l=L();l.colorMode=!l.colorMode;refresh()};
  $('lvWand').onclick=()=>{const l=L();l.wand=!l.wand;refresh();if(l.wand)capFor('손에 연기봉을 들었습니다','풍동 안에서 차 주변을 비춰 보세요')};
@@ -120,4 +125,33 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
  if(box){const mk=(label,mob)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.setAttribute('aria-pressed',String(!!window.__MOBILE===mob));b.onclick=()=>{if(!!window.__MOBILE!==mob)window.__setMobile(mob)};box.appendChild(b)};mk('PC 화면',false);mk('모바일 화면',true);
   const note=document.createElement('p');note.className='help';note.style.gridColumn='1/-1';note.textContent='터치 기기는 자동으로 모바일 화면이 선택됩니다. 선택은 이 브라우저에 저장됩니다.';box.appendChild(note)}
  if(window.__MOBILE){const h=$('fpvHelp');if(h)h.textContent='왼쪽 조이스틱: 이동 · 오른쪽 화면 드래그: 시점 · 두 손가락: 확대'}}
+
+/* yaw (turntable) + aerodynamic coefficient chart */
+{const sel=$('ctlYaw');if(sel)sel.addEventListener('change',e=>{const l=window.__LIVE;if(!l)return;const d=l.api.setYaw(+e.target.value);capFor('요각 '+(d>0?'+':'')+d+'°','차를 돌린 뒤 흐름을 다시 계산합니다')});
+ const cv=$('aeroChart'),now=$('aeroNow');
+ if(cv&&now){const g=cv.getContext('2d'),css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const draw=()=>{const l=window.__LIVE,A=l?.aero||[];const W=cv.width,H=cv.height;g.clearRect(0,0,W,H);
+   if(A.length<3){now.textContent=l&&l.ok?'측정 중…':'CFD 꺼짐';return}
+   const ser=[['Cd','#f2b84b',1],['Cl','#5bc0eb',2],['Cs','#b08cf2',3]];let lo=1e9,hi=-1e9;for(const a of A)for(const k of [1,2,3]){lo=Math.min(lo,a[k]);hi=Math.max(hi,a[k])}
+   lo=Math.min(lo,0);hi=Math.max(hi,.1);const pad=(hi-lo)*.1||.1;lo-=pad;hi+=pad;const X=i=>10+i/(A.length-1)*(W-20),Y=v=>H-8-(v-lo)/(hi-lo)*(H-16);
+   g.strokeStyle='rgba(160,180,200,.35)';g.lineWidth=1;g.beginPath();g.moveTo(10,Y(0));g.lineTo(W-10,Y(0));g.stroke();
+   for(const [n,c,k] of ser){g.strokeStyle=c;g.lineWidth=1.6;g.beginPath();A.forEach((a,i)=>{const x=X(i),y=Y(a[k]);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke()}
+   const z=A[A.length-1];now.textContent='Cd '+z[1].toFixed(3)+' · Cl '+z[2].toFixed(3)+' · Cs '+z[3].toFixed(3)+' (요각 '+(window.__YAW?.deg||0)+'°)';void css};
+  setInterval(()=>{if(document.hidden||!$('panel')?.classList.contains('open')&&getComputedStyle($('panel')).display==='none')return;try{draw()}catch(e){void e}},500)}}
+
+/* capture: photo, manual recording, auto-record the cinematic */
+{const C=window.__CAP;if(C){const sup=C.supported();
+ $('capPhoto').onclick=()=>{if(C.photo())capFor('사진을 저장합니다','잠시 후 다운로드됩니다')};
+ const recLabel=()=>{$('capRec').textContent=C.recording()?'녹화 중지 · 저장':'화면 녹화 시작'};
+ if(!sup){$('capRec').disabled=true;$('capArm').disabled=true;$('capRec').textContent='이 브라우저는 녹화를 지원하지 않습니다'}
+ $('capRec').onclick=()=>{if(C.recording())C.stop();else if(!C.start())capFor('녹화를 시작할 수 없습니다',C.err||'');recLabel()};
+ $('capArm').onclick=()=>{C.armed=!C.armed;$('capArm').textContent='시네마틱 자동 녹화: '+(C.armed?'켜짐':'꺼짐')};
+ CN.on(e=>{if(e.type!=='state'||!C.armed)return;if(e.state==='PLAYING'&&!C.recording())C.start();else if((e.state==='FINISHED'||e.state==='CANCELLED')&&C.recording())setTimeout(()=>{C.stop();recLabel()},e.state==='FINISHED'?1500:0)});
+ window.addEventListener('aether-capture',ev=>{recLabel();capFor(ev.detail.kind==='photo'?'사진 저장 완료':'녹화 저장 완료',(ev.detail.bytes/1048576).toFixed(1)+' MB')})}}
+
+/* WebGPU probe */
+{const b=$('gpRun'),o=$('gpOut');if(b&&o)b.onclick=async()=>{const G=window.__GPUPROBE;if(!G)return;b.disabled=true;o.textContent='측정 중…';
+ const r=await G.run();b.disabled=false;
+ if(!r.supported){o.textContent='WebGPU 사용 불가: '+(r.reason||'알 수 없음');return}
+ o.textContent=(r.adapter?(r.adapter.vendor||'')+' '+(r.adapter.architecture||'')+' '+(r.adapter.description||''):'어댑터 정보 없음')+(r.fallbackAdapter?' (소프트웨어 대체)':'')+'\n'+(r.reason?('오류: '+r.reason+'\n'):'')+r.tiers.map(t=>t.tier+' '+t.cells+'셀: '+t.msPerSweep+' ms/회 · '+t.Mcells_s+' Mcell/s').join('\n')}}
 })();

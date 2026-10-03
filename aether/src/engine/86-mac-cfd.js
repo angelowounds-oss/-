@@ -8,11 +8,11 @@
    - pressure: kinematic p (P/rho). Solvers: GMG (weighted Jacobi smoother), RBGS-MG, MGPCG. Chosen by measurement.
    - smoke: passive scalar on a grid 2x finer than velocity in every axis. ===== */
 const MAC={forceModel:'discrete-v2',ibm:'vf',les:true,Cs:.16,nuMol:1.5e-5,eps:0,solver:'RBGS',pcgSmoother:'RB',levels:4,pre:2,post:2,coarse:24,/* levels 6 + coarse 4/auto was tried for -10..19 % passes: fine on the tunnel, but diverged or missed the residual target on the validation sphere/cylinder (OPTIMIZATION_AUDIT.md §7). coarse:0 = auto is kept as an option */omega:.8,sor:1.15,corr:1,prol:0,pcgIters:4,cycles:2,jacobiIters:32,tol:1e-3,
- lastSolve:null,stats:{},domain:null};
+ lastSolve:null,stats:{},domain:null,inK:1,fanK:1};
 window.__MAC=MAC;
 const MAC_H=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
-uniform ivec3 uN,uN2;uniform int uTX,uTX2;uniform vec3 uH,uH2,uMin;uniform float uU;
+uniform ivec3 uN,uN2;uniform int uTX,uTX2;uniform vec3 uH,uH2,uMin;uniform float uU,uIn,uFk;
 layout(location=0) out vec4 o;
 ivec2 AT(ivec3 c,ivec3 n,int tx){return ivec2((c.z%tx)*n.x+c.x,(c.z/tx)*n.y+c.y);}
 ivec2 A(ivec3 c){return AT(c,uN,uTX);}
@@ -52,7 +52,7 @@ float bodyR(float y){return (y<0.||y>1.78)?0.:(y<.85?.17:(y<1.5?.25:.12));}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 st=F(uStatic,c);float ps=st.r;float id=ps>0.?floor(st.g*255./50.+.5):0.;vec3 us=vec3(0.);
  vec3 w=uMin+(vec3(c)+.5)*uH;
  if(uBody.w>.5){float yr=w.y-uBody.z,r=bodyR(yr);if(r>0.){r=max(r,.5*uH.x);float d=length(w.xz-uBody.xy),pb=clamp(.5-(d-r)/uH.x,0.,1.);if(pb>ps){ps=pb;id=3.;}}}
- if(id==2.)us=vec3(uU,0.,0.);else if(id==3.)us=uBodyV;
+ if(id==2.)us=vec3(uU*uFk,0.,0.);else if(id==3.)us=uBodyV;
  else if(id==1.){for(int k=0;k<4;k++){vec3 d=w-uWh[k].xyz;if(abs(d.z)<uWhW+uH.z&&length(d.xy)<uWh[k].w+uH.x)us=vec3(-uOm*d.y,uOm*d.x,0.);}}
  o=vec4(us,id*2.+min(ps,.999));}`,
 geom:`uniform sampler2D uSol;
@@ -101,12 +101,12 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;
   float nu=uNuMol+.5*(F(uNu,c).x+F(uNu,c-e).x);float lap=0.;
   for(int d=0;d<3;d++){ivec3 f=ivec3(0);f[d]=1;float up=c[d]==uN[d]-1?u[ax]:F(uVel,c+f)[ax];float dn;
-   if(c[d]==0){dn=(d==1)?ghostBelow(c,u[ax],ax):(d==0?(ax==0?uU:u[ax]):u[ax]);}else dn=F(uVel,c-f)[ax];
+   if(c[d]==0){dn=(d==1)?ghostBelow(c,u[ax],ax):(d==0?(ax==0?uU*uIn:u[ax]):u[ax]);}else dn=F(uVel,c-f)[ax];
    lap+=ih[d]*(up-2.*u[ax]+dn);}
   vec3 f2=.5*(vcf(c)+vcf(c-e));un[ax]=u[ax]+uDt*(nu*lap+f2[ax]);}
  /* boundary and solid faces */
  for(int ax=0;ax<3;ax++){if(g[ax]<=0.)un[ax]=us(c,ax)[ax];}
- if(c.x==0&&g.x>0.)un.x=uU;if(c.y==0)un.y=0.;if(c.z==0)un.z=0.;
+ if(c.x==0&&g.x>0.)un.x=uU*uIn;if(c.y==0)un.y=0.;if(c.z==0)un.z=0.;
  o=vec4(un,0.);}`,
 /* ---- optional volume-fraction forcing (Kajishima et al. 2001): on partially solid faces u <- (1-chi) u + chi us,
    chi = 1-theta = face solid fraction. Makes tangential velocity feel the true surface instead of the fully solid staircase. ---- */
@@ -165,7 +165,7 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
  /* outlet face flux of the last column: zero-gradient predictor + gradient to the p=0 ghost (the flux the Poisson operator assumes) */
  float fo=0.;if(c.x==uN.x-1){float th=g.x;fo=th*u.x+(1.-th)*us(c,0).x+uDt*(1.-g.w)*pc/uH.x;}
  for(int ax=0;ax<3;ax++){ivec3 e=ivec3(0);e[ax]=1;if(g[ax]>0.&&c[ax]>0)u[ax]-=uDt*(pc-F(uP,c-e).x)/uH[ax];else if(g[ax]<=0.)u[ax]=us(c,ax)[ax];}
- if(c.x==0&&g.x>0.)u.x=uU;if(c.y==0)u.y=0.;if(c.z==0)u.z=0.;o=vec4(u,fo);}`,
+ if(c.x==0&&g.x>0.)u.x=uU*uIn;if(c.y==0)u.y=0.;if(c.z==0)u.z=0.;o=vec4(u,fo);}`,
 /* ---- forces on car (id 1) or validation obstacle ----
    pressure: jump of p across the phi ramps (surface integral of p n).
    viscous: exactly the momentum the diffusion pass exchanges with solid faces of this body. For every open face
@@ -228,6 +228,9 @@ function macStaticSolids(N,min,h,cfg){const [nx,ny,nz]=N,tot=nx*ny*nz,phi=new Fl
   if(n){const q=i+nx*(j+ny*k);phi[q]=n/(S*S*S);id[q]=1}}}
  const fb=cfg.fan;if(fb)for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=min[0]+(i+.5)*h[0],y=min[1]+(j+.5)*h[1],z=min[2]+(k+.5)*h[2];
   if(x>=fb.min[0]&&x<=fb.max[0]&&y>=fb.min[1]&&y<=fb.max[1]&&z>=fb.min[2]&&z<=fb.max[2]){const q=i+nx*(j+ny*k);if(id[q]!==1){phi[q]=1;id[q]=2}}}
+ if(cfg.nozzle){const n=cfg.nozzle,ss=t=>t*t*(3-2*t);for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=min[0]+(i+.5)*h[0];if(x<n.xa||x>n.xb)continue;
+  const t=(x-n.xa)/(n.xb-n.xa),s2=ss(t),w=n.wa+(n.wb-n.wa)*s2,ht=n.ha+(n.hb-n.ha)*s2,y=min[1]+(j+.5)*h[1],z=min[2]+(k+.5)*h[2],q=i+nx*(j+ny*k);
+  if((Math.abs(z)>w||y>ht)&&id[q]===0){phi[q]=1;id[q]=4}}}
  let car=0,fan=0,front=0;for(let q=0;q<tot;q++){if(id[q]===1)car+=phi[q];if(id[q]===2)fan++}
  const col=new Float32Array(ny*nz);for(let k=0;k<nz;k++)for(let j=0;j<ny;j++){let m=0;for(let i=0;i<nx;i++){const q=i+nx*(j+ny*k);if(id[q]===1)m=Math.max(m,phi[q])}col[j+ny*k]=m}for(const m of col)front+=m;
  return {phi,id,carCells:car,fan,front:front*h[1]*h[2],ms:performance.now()-t0}}
@@ -251,10 +254,12 @@ function macWheels(){try{const W=wheelParts(),out=[];for(let i=0;i<W.length;i++)
 
 /* domain config: tunnel (default) or validation {N,min,max,obstacle,U,nu} */
 function macConfig(){const d=MAC.domain;if(d)return {...d,car:false,fan:null,belt:false,body:false};
- const b=CFD_DOMAIN_CONTRACT.bounds;return {min:Array.from(b.min),max:Array.from(b.max),N:LIVE.N,car:true,fan:AETHER.FAN_MODULE?.layout?.fanBounds||null,belt:true,body:true,nu:MAC.nuMol,U:null}}
+ const b=CFD_DOMAIN_CONTRACT.bounds;return {min:Array.from(b.min),max:Array.from(b.max),N:LIVE.N,car:true,fan:AETHER.FAN_MODULE?.layout?.fanBounds||null,nozzle:LIVE.nozzleSolid?liveNozzleSpec():null,belt:true,body:true,nu:MAC.nuMol,U:null}}
 function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.map((v,i)=>(v-min[i])/N[i]);
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 미지원');
  macRelease();MAC.cfg=cfg;MAC.N=N;MAC.min=min;MAC.max=max;MAC.h=h;
+ /* nozzle mass balance: the fan face emits U*fanK so that the nozzle exit (area Ae) carries U; the inlet supplies the same flux over the domain section */
+ MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.inK=MAC.fanK*Af/Ad}
  const G=MAC.G=macAtlas(N),Nd=N.map(v=>v*2),D=MAC.D=macAtlas(Nd);MAC.hd=h.map(v=>v/2);
  const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
  MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
@@ -285,9 +290,9 @@ function macPass(name,out,tex,uni,g,g2){const p=MAC.prog[name];g=g||MAC.G;g2=g2|
  if(!C||C.fb!==out.f){gl.bindFramebuffer(gl.FRAMEBUFFER,out.f);if(C)C.fb=out.f}
  const vw=out.w||g.W,vh=out.h||g.H;if(!C||C.vw!==vw||C.vh!==vh){gl.viewport(0,0,vw,vh);if(C){C.vw=vw;C.vh=vh}}
  const hh=g.h||MAC.h,h2=g2.h||MAC.h,G=p._mg||(p._mg={});
- if(G.gN!==g.N||G.gt!==g.tx||G.gh!==hh||G.g2N!==g2.N||G.g2t!==g2.tx||G.g2h!==h2||G.min!==MAC.min||G.U!==MAC.U){
+ if(G.gN!==g.N||G.gt!==g.tx||G.gh!==hh||G.g2N!==g2.N||G.g2t!==g2.tx||G.g2h!==h2||G.min!==MAC.min||G.U!==MAC.U||G.inK!==MAC.inK||G.fanK!==MAC.fanK){
   gl.uniform3i(liveU(p,'uN'),...g.N);gl.uniform1i(liveU(p,'uTX'),g.tx);gl.uniform3f(liveU(p,'uH'),...hh);gl.uniform3i(liveU(p,'uN2'),...g2.N);gl.uniform1i(liveU(p,'uTX2'),g2.tx);gl.uniform3f(liveU(p,'uH2'),...h2);
-  gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);G.gN=g.N;G.gt=g.tx;G.gh=hh;G.g2N=g2.N;G.g2t=g2.tx;G.g2h=h2;G.min=MAC.min;G.U=MAC.U}
+  gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);gl.uniform1f(liveU(p,'uIn'),MAC.inK);gl.uniform1f(liveU(p,'uFk'),MAC.fanK);G.gN=g.N;G.gt=g.tx;G.gh=hh;G.g2N=g2.N;G.g2t=g2.tx;G.g2h=h2;G.min=MAC.min;G.U=MAC.U;G.inK=MAC.inK;G.fanK=MAC.fanK}
  const uc=p._uc||(p._uc={}),ui=p._ui||(p._ui={}),us=p._us||(p._us={});let unit=8;
  for(const n in tex){const t=tex[n];if(!C||C.tb[unit]!==t){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);if(C)C.tb[unit]=t}
   if(us[n]!==unit){gl.uniform1i(liveU(p,n),unit);us[n]=unit}unit++}

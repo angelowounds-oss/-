@@ -97,6 +97,7 @@ function applyHud(){try{document.getElementById('viewName').textContent='AETHER'
 
 function start(opts){
  if(!rendererOk()||estopped(true))return false;
+ if(YAW.deg)LIVE.api.setYaw(0);
  const nowMs=performance.now();if(state===ST.PREPARING)return true;if(state===ST.PLAYING&&nowMs-lastStart<500)return true;lastStart=nowMs;
  try{buildSets()}catch(e){diagnostics.warnings.push({time:now(),source:'cinematic',message:String(e.message||e)});return false}
  token++;t=0;prepT=0;postT=0;cueIdx=-2;lastNow=null;lastProg=-1;cueList=null;takeCamera();

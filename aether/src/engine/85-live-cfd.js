@@ -7,7 +7,7 @@ LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).sli
 LIVE.wisp=+((location.hash.match(/wisp=([\d.]+)/)||[])[1]??.6);LIVE.tipX=-3.8;
 LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
 LIVE.rakeK=+((location.hash.match(/rakek=([\d.]+)/)||[])[1]||4.2);
-LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.5);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
+LIVE.nozzleSolid=!/nozzle=0/.test(location.hash);LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.5);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
 function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
@@ -226,7 +226,7 @@ function liveForcesKick(){if(LIVE.frcJob||!LIVE.ok||!LIVE.lastDt)return;const {s
  LIVE.frcJob={fence:gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0),n:sw*sh,dt:LIVE.lastDt,gen:LIVE.gen,tier:LIVE.q};gl.flush()}
 function liveForcesPoll(){const J=LIVE.frcJob;if(!J)return;const r=gl.clientWaitSync(J.fence,0,0);if(r===gl.TIMEOUT_EXPIRED)return;gl.deleteSync(J.fence);LIVE.frcJob=null;if(r===gl.WAIT_FAILED||J.tier!==LIVE.q)return;
  const buf=new Float32Array(J.n*4);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,LIVE.pbo);gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,0,buf);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
- const f=liveForceFinish(buf,J.n,J.dt);if(!Number.isFinite(f.Fx)||Math.abs(f.Cd)>200){LIVE.guardTrips=(LIVE.guardTrips||0)+1;LIVE.forces=null;if(LIVE.impl==='MAC'){if(MAC.solver!=='RBGS'){MAC.solver='RBGS';LIVE.api.reset()}else{LIVE.macErr='발산 감지: 기존 솔버로 전환';LIVE.impl='COLLOCATED';liveSetTier(LIVE.q,'fallback');LIVE.init=false}}else{LIVE.solver='JACOBI';LIVE.api.reset()}return}liveForceUpdate(f)}
+ const f=liveForceFinish(buf,J.n,J.dt);if(!Number.isFinite(f.Fx)||Math.abs(f.Cd)>200){LIVE.guardTrips=(LIVE.guardTrips||0)+1;LIVE.forces=null;if(LIVE.impl==='MAC'){if(MAC.solver!=='RBGS'){MAC.solver='RBGS';LIVE.api.reset()}else{LIVE.macErr='발산 감지: 기존 솔버로 전환';LIVE.impl='COLLOCATED';liveSetTier(LIVE.q,'fallback');LIVE.init=false}}else{LIVE.solver='JACOBI';LIVE.api.reset()}return}liveForceUpdate(f);const F=LIVE.forces;if(F&&Number.isFinite(F.Cd)){LIVE.aero.push([LIVE.t,F.Cd,F.Cl,F.Cs]);if(LIVE.aero.length>480)LIVE.aero.shift()}}
 function liveForceUpdate(f){if(!f||!Number.isFinite(f.Cd))return;const F=LIVE.forces;if(!F||F.U!==LIVE.U){LIVE.forces={U:LIVE.U,n:1,...f};return}
  const a=Math.max(.12,1/(F.n+1));for(const k of ['Fx','Fy','Fz','Cd','Cl','Cs'])F[k]+=(f[k]-F[k])*a;F.A=f.A;F.n++;
  /* time statistics over the last 8 s of simulated time (spec: mean and standard deviation) */
@@ -266,6 +266,7 @@ function liveStraightenerMesh(b){const {x0,x1,y0,y1,z0,z1,cell,t,fr}=b,L=[],nz=M
  return liveBoxesMesh(L)}
 /* contraction nozzle (visual only, not seen by the solver): straightener frame -> smooth cubic taper -> exit lip.
    Returns the thin-shell mesh plus tight per-segment boxes for the cinematic clearance check. */
+function liveNozzleSpec(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds;return fb?{xa:fb.max[0]+.24,xb:fb.max[0]+1.2,wa:fb.max[2],wb:2.1,y0:fb.min[1],ha:fb.max[1],hb:3.2}:null}
 function liveNozzleMesh(n){const P=[],Nn=[],I=[],boxes=[],q=(a,b,c,d)=>{const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],k=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...k)||1,m=k.map(x=>x/l);
   for(const sg of [1,-1]){const b0=P.length/3,vs=sg>0?[a,b,c,d]:[d,c,b,a],o=.015*sg;for(const p of vs){P.push(p[0]+m[0]*o,p[1]+m[1]*o,p[2]+m[2]*o);Nn.push(m[0]*sg,m[1]*sg,m[2]*sg)}I.push(b0,b0+1,b0+2,b0,b0+2,b0+3)}};
  const S=n.seg,ss=t=>t*t*(3-2*t),at=i=>{const t=i/S,s=ss(t);return {x:n.xa+(n.xb-n.xa)*t,w:n.wa+(n.wb-n.wa)*s,h:n.ha+(n.hb-n.ha)*s}};
@@ -282,7 +283,7 @@ function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,
  const fb=AETHER.FAN_MODULE?.layout?.fanBounds;
  if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2];
   attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.2,.21,.23],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.2,t:.01,fr:.07}));
-  const nz=liveNozzleMesh({xa:sx1,xb:fb.max[0]+1.2,wa:sz1,wb:2.1,y0:sy0,ha:sy1,hb:3.2,seg:10});
+  const nz=liveNozzleMesh({...liveNozzleSpec(),seg:10});
   attach('nozzle',[(sx1+fb.max[0]+1.2)/2,(sy0+sy1)/2,0],[fb.max[0]+1.2-sx1,sy1-sy0,sz1*2],[.62,.65,.68],materialLibrary.PaintedSteelGray,nz.mesh,nz.boxes)}
  const L=[],x=R.x,top=1.72;
  if(R.vert){for(const z of R.zs){L.push([x-.017,x+.017,0,top,z-.017,z+.017],[x-.13,x+.13,0,.024,z-.13,z+.13]);for(const y of R.v)L.push([x,x+.075,y-.01,y+.01,z-.01,z+.01])}
@@ -393,3 +394,7 @@ function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringi
  for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const t=vox.type[i+N[0]*(j+N[1]*k)];if(!t)continue;const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,o=(ay*LIVE.W+ax)*4;obs[o+(t===1?0:1)]=255;obs[o+3]=255}
  gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs)}catch(e){LIVE.err='reobstacle: '+e.message}}
 LIVE.setEnabled=v=>{LIVE.enabled=!!v};
+LIVE.aero=[];
+/* turntable yaw: rotates the car about the vertical axis (what a real tunnel does for side-wind tests), re-voxelises it and restarts the flow */
+LIVE.api.setYaw=deg=>{deg=Math.max(-12,Math.min(12,+deg||0));if(deg===YAW.deg)return deg;YAW.deg=deg;YAW.rad=deg*Math.PI/180;LIVE.forces=null;LIVE.aero.length=0;
+ if(LIVE.init&&LIVE.ok)try{liveReobstacle(AETHER.FAN_MODULE?.layout?.fanBounds||null);LIVE.api.reset()}catch(e){LIVE.err='yaw: '+e.message}return deg};
