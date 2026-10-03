@@ -102,7 +102,7 @@ export class Building {
     // everything above the roof level is the crown/air; nothing else
   }
   tick(dt) {
-    if (this.pending.length) { const k = this.pending.shift(); if (!this.floors.has(k)) { this.buildFloor(k); if (this.levels[k].tier !== 'podium') this.updateSolid(); } }
+    if (this.pending.length) { const k = this.pending.shift(); if (!this.floors.has(k)) { this.buildFloor(k); if (this.levels[k].tier !== 'podium' && !(this.elev && this.elev.state === 'moving')) this.updateSolid(); } }
     this.elev?.update(dt);
     for (const d of this.doors) d.update(dt);
   }
@@ -664,13 +664,17 @@ class Elevator {
     L(-hw, -0.16, -hd, hw, 0, hd, 0x2a2d3a, 'decor');
     L(-hw - 0.1, 0, -hd - 0.1, -hw, 2.7, hd, 0x8a909c); L(hw, 0, -hd - 0.1, hw + 0.1, 2.7, hd, 0x8a909c); L(-hw, 0, -hd - 0.1, hw, 2.7, -hd, 0x7a808c);
     L(-hw, 2.7, -hd - 0.1, hw, 2.85, hd, 0x15171f, 'decor');
+    // front: pillars beside the 1.5 m door opening and a header, so the cab is a closed box seen from inside
+    L(-hw, 0, hd - 0.06, -0.75, 2.7, hd, 0x7a808c); L(0.75, 0, hd - 0.06, hw, 2.7, hd, 0x7a808c); L(-0.75, 2.4, hd - 0.06, 0.75, 2.7, hd + 0.06, 0x15171f, 'decor');
     L(-0.8, 2.66, -0.8, 0.8, 2.7, 0.8, 0xfff2dd, 'emit', 2.4);
     L(hw - 0.04, 1.0, -0.4, hw, 1.9, 0.4, 0x1a2a40, 'emit', 1.0);
     L(-hw, 0.9, -0.4 - hd + hd, -hw + 0.06, 0.96, hd - 0.2, 0xb8bec8);
     B.finish(this.group);
     // doors on the cab front (so riders see closed doors while moving) and shaft doors per level
-    this.lamp = this.makeDisplay(); this.group.add(this.lamp.mesh); this.lamp.mesh.position.set(0, 2.45, hd + 0.0);
-    this.doorsL = []; this.doorsR = [];
+    this.lamp = this.makeDisplay(); this.group.add(this.lamp.mesh); this.lamp.mesh.position.set(0, 2.55, hd - 0.08); this.lampTxt = '';
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0xaab0bc, metalness: 0.7, roughness: 0.35 });
+    this.leafL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.4, 0.06), leafMat); this.leafR = this.leafL.clone();
+    for (const m of [this.leafL, this.leafR]) { m.frustumCulled = false; m.castShadow = false; this.group.add(m); }
     this.syncCab(true);
     this.panel = this.G.interact.add(this.callPanel(0));
     this.cabPanel = this.G.interact.add({ get x() { return E.cx; }, get z() { return E.cz; }, get cy() { return E.y + 1.2; }, r: 1.7, name: '엘리베이터 조작반', verbs: [{ key: 'F', label: () => '층 선택', enabled: () => E.riding(G.player), run: () => G.openElevatorUI(b) }] });
@@ -713,28 +717,31 @@ class Elevator {
       this.wait -= dt;
       if (this.queue.length && (this.wait <= 0 || this.queue[0] === this.level)) { if (this.queue[0] === this.level) { this.queue.shift(); this.G.audio.ding?.(); this.wait = 3.5; } else { this.state = 'closing'; } }
     }
-    if (this.state === 'closing' && this.doorOpen <= 0) { this.target = this.queue[0]; this.state = 'moving'; this.G.audio.elevator?.(clamp(Math.abs(this.levelY(this.target) - this.y) / 4, 1.5, 6)); b.ensureRange(this.target - 3, this.target + 3); }
+    if (this.state === 'closing' && this.doorOpen <= 0) { this.target = this.queue[0]; this.state = 'moving'; this.G.audio.elevator?.(clamp(Math.abs(this.levelY(this.target) - this.y) / 4, 1.5, 6)); this.target > this.level ? b.ensureRange(this.level - 1, this.level + 4) : b.ensureRange(this.level - 4, this.level + 1); }
     if (this.state === 'moving') {
       const ty = this.levelY(this.target), dist = ty - this.y, dir = Math.sign(dist);
       const v = Math.min(5.2, Math.max(0.6, Math.sqrt(2 * 1.6 * Math.abs(dist))));
       const ride = this.riding(pl);
       const dy = dir * Math.min(Math.abs(dist), v * dt);
       this.y += dy;
-      if (ride) pl.body3.shift(0, dy, 0);
+      if (ride) { pl.body3.shift(0, dy, 0); pl.y += dy; if (pl.group) pl.group.position.y += dy; }
       this.vy = dy / Math.max(dt, 1e-4);
-      this.level = b.levelAt(this.y + 0.3);
+      const lvNow = b.levelAt(this.y + 0.3);
+      if (lvNow !== this.level) { this.level = lvNow; b.ensureRange(lvNow - 1 + (dir > 0 ? 0 : -2), lvNow + 1 + (dir > 0 ? 2 : 0)); }
       if (Math.abs(dist) < 0.01) { this.y = ty; this.level = this.target; this.queue.shift(); this.state = 'opening'; this.G.audio.ding?.(); b.updateSolid(); if (ride) pl.body3.shift(0, 0.06, 0); }
     }
     this.syncCab();
     this.shaftDoorsUpdate();
     const lv = this.state === 'moving' ? b.levelAt(this.y + 0.3) : this.level;
-    this.lamp.draw(this.floorLabel(lv) + (this.state === 'moving' ? (this.levelY(this.target) > this.y ? '▲' : '▼') : ''));
+    const txt = this.floorLabel(lv) + (this.state === 'moving' ? (this.levelY(this.target) > this.y ? '▲' : '▼') : ''); if (txt !== this.lampTxt) { this.lampTxt = txt; this.lamp.draw(txt); }
     this.nearK = b.levelAt(pl.y);
   }
   syncCab(force) {
     const p = { x: this.cx, y: this.y, z: this.cz };
     this.body.setTranslation(p, true);
     this.group.position.set(this.cx, this.y, this.cz);
+    const o = this.doorOpen * 0.5;
+    this.leafL.position.set(-0.4 - o, 1.2, 1.22 + 0.03); this.leafR.position.set(0.4 + o, 1.2, 1.22 + 0.03);
   }
   // shaft doors: collider present unless that level's door is open (cab parked there with doors open)
   shaftDoorsUpdate() {
@@ -832,6 +839,7 @@ export class Buildings {
       b.tick(dt);
     }
   }
+  cabOf(pl) { for (const b of this.active) if (b.elev && b.elev.riding(pl)) return b.elev; return null; }
   ridingElevator(pl) { for (const b of this.active) if (b.elev && b.elev.state === 'moving' && b.elev.riding(pl)) return true; return false; }
   current(x, z, y) { const b = this.at(x, z); return b && b.open ? b : null; }
 }

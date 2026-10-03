@@ -1262,10 +1262,13 @@ export class Game {
       let tx = ax - L.x * cam.dist + rX * cam.shoulder, ty = ay - L.y * cam.dist + 0.25, tz = az - L.z * cam.dist + rZ * cam.shoulder;
       // collision
       const dx = tx - ax, dy = ty - ay, dz = tz - az, d = Math.hypot(dx, dy, dz);
-      const hit = this.world.colliders.raycast(ax, ay, az, dx / d, dy / d, dz / d, d);
+      const cab = this.buildings.cabOf(pl);
+      const hit = cab ? -1 : this.world.colliders.raycast(ax, ay, az, dx / d, dy / d, dz / d, d);
       let k = 1; if (hit >= 0) k = Math.max(0.12, (hit - 0.4) / d);
       if (ty - (ay - ay) < 0.3) { /* ground clamp below */ }
       tx = ax + dx * k; ty = ay + dy * k; tz = az + dz * k;
+      // inside the lift cab the camera stays inside the box (static tower boxes would pull it onto the head)
+      if (cab) { const m = 1.0; tx = clamp(tx, cab.cx - m, cab.cx + m); tz = clamp(tz, cab.cz - m, cab.cz + 0.95); ty = clamp(ty, cab.y + 0.5, cab.y + 2.45); }
       if (ty < 0.25) ty = 0.25;
       c.position.set(tx, ty, tz);
       const lx = ax + L.x * 18 + rX * cam.shoulder * 0.5, ly = ay + L.y * 18, lz = az + L.z * 18 + rZ * cam.shoulder * 0.5;
