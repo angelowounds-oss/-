@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>글자수 세기 - 공백 포함/제외 바이트 계산</title><meta name="description" content="자기소개서, 블로그, 문자 작성 시 글자수를 공백 포함/제외로 즉시 계산합니다. 바이트 수도 확인하세요.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/char-count.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html">간편계산기</a>
+<nav><a href="char-count.html">글자수 세기</a><a href="age.html">만 나이</a><a href="pyeong.html">평수 변환</a><a href="percent.html">퍼센트</a></nav></header>
+<main><h1>글자수 세기 - 공백 포함/제외 바이트 계산</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><textarea id="t" placeholder="여기에 글을 입력하거나 붙여넣으세요"></textarea>
+<div class="grid" style="margin-top:12px">
+<div class="stat"><b id="a">0</b>공백 포함</div><div class="stat"><b id="b">0</b>공백 제외</div>
+<div class="stat"><b id="c">0</b>단어</div><div class="stat"><b id="d">0</b>바이트</div></div></div>
+<h2>사용 방법</h2><p>입력창에 글을 붙여넣으면 공백 포함/제외 글자수, 단어 수, 바이트 수가 실시간으로 표시됩니다. 자기소개서(보통 500~1,000자), 블로그 제목, 문자메시지(90바이트 SMS 기준) 작성에 유용합니다.</p>
+<h2>바이트 계산 기준</h2><p>한글은 2바이트(EUC-KR 기준), 영문·숫자·공백은 1바이트로 계산합니다. UTF-8 기준(한글 3바이트)과 다를 수 있습니다.</p>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="privacy.html">개인정보처리방침</a> · 입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다.</footer>
+<script>const t=document.getElementById('t');t.addEventListener('input',()=>{const v=t.value;
+a.textContent=v.length;b.textContent=v.replace(/\s/g,'').length;c.textContent=v.trim()?v.trim().split(/\s+/).length:0;
+let n=0;for(const ch of v)n+=ch.charCodeAt(0)>127?2:1;d.textContent=n;});</script></body></html>
