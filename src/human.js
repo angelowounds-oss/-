@@ -4,11 +4,11 @@ import { N, R, SW, roadC } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 
 export const WEAPONS = [
-  { name: '9MM PISTOL', short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
-  { name: 'CARBINE', short: 'rifle', clip: 30, reserve: 180, damage: 21, head: 1.9, rate: 0.085, spread: 0.012, range: 200, reload: 1.7, recoil: 0.011, auto: true, tracer: [0.5, 0.95, 1], snd: 'rifle' },
-  { name: 'SMG', short: 'pistol', clip: 25, reserve: 0, damage: 13, head: 1.8, rate: 0.058, spread: 0.022, range: 110, reload: 1.4, recoil: 0.008, auto: true, tracer: [1, 0.7, 0.4], snd: 'rifle' },
-  { name: 'SHOTGUN', short: 'rifle', clip: 6, reserve: 0, damage: 12, head: 1.5, rate: 0.85, spread: 0.055, range: 45, reload: 2.4, recoil: 0.04, auto: false, tracer: [1, 0.6, 0.3], snd: 'rifle', pellets: 8 },
-  { name: 'SNIPER', short: 'rifle', clip: 5, reserve: 0, damage: 125, head: 3, rate: 1.1, spread: 0.0008, range: 420, reload: 2.4, recoil: 0.05, auto: false, tracer: [0.8, 1, 1], snd: 'rifle' },
+  { name: '9MM PISTOL', scope: 'iron', zoom: 1.3, short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
+  { name: 'CARBINE', scope: 'dot', zoom: 2.2, short: 'rifle', clip: 30, reserve: 180, damage: 21, head: 1.9, rate: 0.085, spread: 0.012, range: 200, reload: 1.7, recoil: 0.011, auto: true, tracer: [0.5, 0.95, 1], snd: 'rifle' },
+  { name: 'SMG', scope: 'iron', zoom: 1.4, short: 'pistol', clip: 25, reserve: 0, damage: 13, head: 1.8, rate: 0.058, spread: 0.022, range: 110, reload: 1.4, recoil: 0.008, auto: true, tracer: [1, 0.7, 0.4], snd: 'rifle' },
+  { name: 'SHOTGUN', scope: 'iron', zoom: 1.25, short: 'rifle', clip: 6, reserve: 0, damage: 12, head: 1.5, rate: 0.85, spread: 0.055, range: 45, reload: 2.4, recoil: 0.04, auto: false, tracer: [1, 0.6, 0.3], snd: 'rifle', pellets: 8 },
+  { name: 'SNIPER', scope: 'sniper', zoom: 6, short: 'rifle', clip: 5, reserve: 0, damage: 125, head: 3, rate: 1.1, spread: 0.0008, range: 420, reload: 2.4, recoil: 0.05, auto: false, tracer: [0.8, 1, 1], snd: 'rifle' },
 ];
 const SW_MID = R / 2 + SW / 2;
 let uid = 0;

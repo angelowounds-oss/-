@@ -14,6 +14,7 @@ canvas{display:block}
 .glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 36px rgba(0,0,0,.35)}
 #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .6s}
 #hud.on{opacity:1}
+#hud.scoped{opacity:.0}
 #dmg{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,20,50,.55) 100%);transition:opacity .25s}
 #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#fff;mix-blend-mode:overlay}
 .letter{position:fixed;left:0;right:0;height:0;background:#000;pointer-events:none;transition:height .5s;z-index:3}
@@ -68,6 +69,16 @@ canvas{display:block}
 #cross .a{left:-1px;top:-14px;width:2px;height:8px}#cross .b{left:-1px;top:6px;width:2px;height:8px}
 #cross .c{top:-1px;left:-14px;height:2px;width:8px}#cross .d{top:-1px;left:6px;height:2px;width:8px}
 #cross.hide{opacity:0}
+#scope{position:fixed;inset:0;pointer-events:none;z-index:9;display:none}
+#scope.iron,#scope.dot,#scope.sniper{display:block}
+#scope i{position:absolute;display:none}
+#scope.sniper{background:radial-gradient(circle at 50% 50%,transparent 0,transparent 36vmin,rgba(0,0,0,.96) 36.6vmin)}
+#scope.sniper .ret{display:block;background:#000;opacity:.85}
+#scope .ret.h{left:calc(50% - 36vmin);width:72vmin;top:calc(50% - .5px);height:1px}
+#scope .ret.v{top:calc(50% - 36vmin);height:72vmin;left:calc(50% - .5px);width:1px}
+#scope.sniper .rdot{display:block;left:calc(50% - 2px);top:calc(50% - 2px);width:4px;height:4px;border-radius:50%;background:#000}
+#scope.dot .rdot{display:block;left:calc(50% - 3px);top:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:#ff2a2a;box-shadow:0 0 10px 3px rgba(255,40,40,.7)}
+#scope.iron .post{display:block;left:calc(50% - 2px);top:calc(50% - 2px);width:4px;height:22vmin;background:#050505;border-radius:2px 2px 0 0;box-shadow:-18px 14vmin 0 7px #050505,18px 14vmin 0 7px #050505}
 #cross.hit i{background:var(--red)}
 #cross .dot{left:-1.5px;top:-1.5px;width:3px;height:3px;border-radius:50%}
 #dir{position:absolute;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);font-size:11px;letter-spacing:.3em;color:rgba(255,255,255,.55)}
@@ -189,6 +200,7 @@ body.touch #helpov{display:none!important}
   <div id="dir">N</div>
   <div id="weapon" class="glass"><div id="wName">PISTOL</div><div id="ammo">12<small> / 96</small></div></div>
   <div id="speedo"><div id="spd">0</div><div id="spdU">KM/H</div><div class="bar" id="carHp"><i id="carHpFill" style="background:linear-gradient(90deg,#ffc94d,#ff8a5c)"></i></div><div class="bar" style="margin-top:3px"><i id="fuelFill" style="background:linear-gradient(90deg,#4de3ff,#9af0ff)"></i></div></div>
+  <div id="scope"><i class="ret h"></i><i class="ret v"></i><i class="rdot"></i><i class="post"></i></div>
   <div id="cross"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><i class="dot"></i></div>
   <div id="hint" class="glass"></div>
   <div id="elevInd"></div>

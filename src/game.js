@@ -366,7 +366,8 @@ export class Game {
     if (this.frozen()) { for (const e of ['use', 'jump', 'reload', 'swap', 'cam']) this.input.edge(e); pl.animate(dt, 0); return; }
     if (this.input.edge('cam')) { cam.fp = !cam.fp; this.toast(cam.fp ? '1인칭 시점' : '3인칭 시점'); }
     // camera look
-    const k = 0.0022 * (pl.aiming ? 0.6 : 1);
+    const wz = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] ? WEAPONS[pl.cur].zoom || 1 : 1;
+    const k = 0.0022 * (pl.aiming ? 0.6 : 1) / Math.pow(wz, 0.85);
     cam.yaw -= inp.lookX * k; cam.pitch = clamp(cam.pitch - inp.lookY * k, -1.2, 1.05);
     if (inp.lookX || inp.lookY) cam.offsetT = 2.2;
     { const order = [...pl.owned.map((o, i) => (o ? i : -1)).filter((i) => i >= 0), 9]; const ci = Math.max(0, order.indexOf(pl.cur));
@@ -1260,6 +1261,11 @@ export class Game {
   // Camera
   shake(a) { this.shakeAmt = Math.min(1.6, this.shakeAmt + a); }
   // first person: camera at the eye, body hidden, current weapon drawn as a view model fixed to the camera
+  setScope(k) {
+    if (this._scope === k) return; this._scope = k;
+    const e = document.getElementById('scope'); if (e) e.className = k || ''; document.getElementById('hud')?.classList.toggle('scoped', k === 'sniper');
+    this.ui.cross.classList.toggle('hide', !!k);
+  }
   setFirstPerson(on) {
     const pl = this.player; if (this._fp === on) return; this._fp = on;
     for (const o of pl.m.skinMeshes) o.visible = !on;
@@ -1270,7 +1276,9 @@ export class Game {
     this.setFirstPerson(true);
     const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
     const eye = pl.y + (pl.prone ? 0.55 : pl.crouching ? 1.25 : 1.68) + (pl.speed > 0.5 ? Math.sin(performance.now() * 0.011) * 0.012 * Math.min(1, pl.speed / 5) : 0);
-    cam.fov = damp(cam.fov, aim ? 48 : (pl.speed > 6 ? 78 : 72), 8, dt);
+    const w = aim && pl.cur !== 9 ? WEAPONS[pl.cur] : null, zoom = w ? w.zoom || 1 : 1;
+    cam.fov = damp(cam.fov, aim ? 2 * Math.atan(Math.tan(36 * Math.PI / 180) / zoom) * 180 / Math.PI : (pl.speed > 6 ? 78 : 72), 10, dt);
+    if (w && w.scope === 'sniper') { const t = performance.now() * 0.001; cam.yaw += Math.sin(t * 1.3) * 0.00022; cam.pitch += Math.cos(t * 1.7) * 0.00018; }
     c.position.set(pl.x + L.x * 0.12, eye, pl.z + L.z * 0.12);
     c.lookAt(pl.x + L.x * 20, eye + L.y * 20, pl.z + L.z * 20);
     if (!this.vm) { this.vm = new THREE.Group(); c.add(this.vm); this.vmGun = {}; }
@@ -1280,14 +1288,16 @@ export class Game {
       this.vmGun[k].visible = kind === k;
     }
     const kick = Math.min(0.08, (pl.recoil || 0) * 0.02);
-    this.vm.visible = !!kind;
+    this.vm.visible = !!kind && !(aim && kind && WEAPONS[pl.cur]?.scope === 'sniper') && !(aim && WEAPONS[pl.cur]?.scope === 'iron' && false);
     this.vm.position.set(aim ? 0 : 0.17, aim ? -0.12 : -0.2, -0.45 + kick);
     this.vm.rotation.set(-kick * 2, 0, 0);
   }
   updateCamera(dt, inp) {
     const cam = this.cam, c = this.camera, pl = this.player, G = this;
     let ax, ay, az;
-    const fpOn = !!cam.fp && !pl.dead && this.playerOnFoot;
+    const adsW = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] && !pl.sitting && !pl.prone ? WEAPONS[pl.cur] : null;
+    const fpOn = (!!cam.fp || !!adsW) && !pl.dead && this.playerOnFoot;
+    this.setScope(fpOn && adsW ? adsW.scope : '');
     if (fpOn) this.firstPersonCam(dt, pl.aiming);
     else this.setFirstPerson(false);
     if (fpOn) { /* camera already placed */ }
@@ -1383,7 +1393,7 @@ export class Game {
     this.setHTML('am', ui.ammo, pl.cur === 9 ? '—' : pl.reloadT > 0 ? 'RELOAD' : `${am.clip}<small> / ${am.reserve}</small>` + (this.items.count('grenade') ? `<small> · 💣${this.items.count('grenade')}</small>` : ''));
     ui.ammo.classList.toggle('empty', am.clip === 0 && pl.cur !== 9);
     ui.weapon.style.display = this.playerOnFoot ? '' : 'none';
-    ui.cross.classList.toggle('hide', !this.playerOnFoot || pl.dead);
+    ui.cross.classList.toggle('hide', !this.playerOnFoot || pl.dead || !!this._scope);
     if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; }
     // hint
     let hint = '';
