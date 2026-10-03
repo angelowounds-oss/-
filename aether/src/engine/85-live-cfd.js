@@ -395,6 +395,8 @@ function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringi
  gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs)}catch(e){LIVE.err='reobstacle: '+e.message}}
 LIVE.setEnabled=v=>{LIVE.enabled=!!v};
 LIVE.aero=[];
+/* experimental: nozzle walls + flow-conditioner slab + closed-loop fan speed inside the solver (needs a full re-init) */
+LIVE.api.setNozzle=on=>{on=!!on;if(on===LIVE.nozzleSolid)return on;LIVE.nozzleSolid=on;LIVE.forces=null;LIVE.aero.length=0;if(LIVE.init){liveRelease();LIVE.forceQ=LIVE.q;LIVE.init=false;LIVE.ok=false;PERF.ctl.log.push('nozzle '+(on?'on':'off'))}return on};
 /* turntable yaw: rotates the car about the vertical axis (what a real tunnel does for side-wind tests), re-voxelises it and restarts the flow */
 LIVE.api.setYaw=deg=>{deg=Math.max(-12,Math.min(12,+deg||0));if(deg===YAW.deg)return deg;YAW.deg=deg;YAW.rad=deg*Math.PI/180;LIVE.forces=null;LIVE.aero.length=0;
  if(LIVE.init&&LIVE.ok)try{liveReobstacle(AETHER.FAN_MODULE?.layout?.fanBounds||null);LIVE.api.reset()}catch(e){LIVE.err='yaw: '+e.message}return deg};

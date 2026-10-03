@@ -23,7 +23,7 @@ for(const m of menus){const b=m.querySelector('.menu-btn');
 document.addEventListener('click',e=>{if(!e.target.closest('.menu'))closeMenus()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMenus();if(document.body.classList.contains('eng'))setPanel(false)}});
 for(const ev of ['pointerdown','wheel'])$('view').addEventListener(ev,()=>closeMenus(),{passive:true});
-for(const id of ['capPhoto','capRec','capArm','scCol','lvRake','stkMode','cpMode','lvWand','lvOn','cutaway','roadSection','swayMode','qualityMode','bdSnd'])$(id)?.setAttribute('data-keep','');
+for(const id of ['capPhoto','capRec','capArm','scCol','lvRake','stkMode','cpMode','nzMode','lvWand','lvOn','cutaway','roadSection','swayMode','qualityMode','bdSnd'])$(id)?.setAttribute('data-keep','');
 
 /* ---------- cinematic: one timeline; the director in the engine owns camera, captions and progress ---------- */
 const stop=()=>CN.cancel('ui'),cine=()=>CN.start({source:'ui'});
@@ -67,6 +67,8 @@ $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('�
  {const S=stk();if(S)$('stkMode').textContent='표현: '+SM.find(m=>m[0]===S.mode)[1]}
  $('cpMode').onclick=()=>{const C=window.__CPMAP;if(!C)return;C.on=!C.on;C.err=null;$('cpMode').textContent='차체 압력: '+(C.on?'켬':'끔');$('cpLeg').hidden=!C.on};
  if(window.__CPMAP?.on){$('cpMode').textContent='차체 압력: 켬';$('cpLeg').hidden=false}
+ $('nzMode').onclick=()=>{const l=L();if(!l)return;const on=l.api.setNozzle(!l.nozzleSolid);$('nzMode').textContent='노즐 계산 반영: '+(on?'켜짐':'꺼짐')+'(실험)';capFor(on?'노즐을 계산에 반영합니다':'노즐 계산 반영을 끕니다','흐름을 처음부터 다시 계산합니다')};
+ if(L()?.nozzleSolid)$('nzMode').textContent='노즐 계산 반영: 켜짐(실험)';
  $('lvRake').onclick=()=>{const l=L();l.mode=RK[(RK.findIndex(r=>r[0]===l.mode)+1)%RK.length][0];refresh()};
  $('scCol').onclick=()=>{const l=L();l.colorMode=!l.colorMode;refresh()};
  $('lvWand').onclick=()=>{const l=L();l.wand=!l.wand;refresh();if(l.wand)capFor('손에 연기봉을 들었습니다','풍동 안에서 차 주변을 비춰 보세요')};

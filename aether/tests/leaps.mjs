@@ -53,10 +53,16 @@ try {
   const gp = await page.evaluate(async () => { const r = await __GPUPROBE.run(); return { supported: r.supported, reason: r.reason }; });
   check('WebGPU 진단: 미지원 환경에서 정상 보고(예외 없음)', gp.supported === false && !!gp.reason, gp);
   // ui buttons
-  const ui = await page.evaluate(() => { const ids = ['stkMode', 'cpMode', 'capPhoto', 'capRec', 'capArm', 'ctlYaw', 'aeroChart', 'gpRun']; return ids.filter(i => !document.getElementById(i)); });
+  const ui = await page.evaluate(() => { const ids = ['stkMode', 'cpMode', 'capPhoto', 'capRec', 'capArm', 'ctlYaw', 'aeroChart', 'gpRun', 'nzMode']; return ids.filter(i => !document.getElementById(i)); });
   check('UI 요소 존재', ui.length === 0, ui);
   const sb = await page.evaluate(() => { document.getElementById('stkMode').click(); return document.getElementById('stkMode').textContent; });
   check('표현 버튼 순환', /입자선만/.test(sb), sb);
+  // 2 solver nozzle (experimental option): re-init completes, closed-loop controller runs
+  await page.evaluate(() => { __LIVE.freeze = false; __LIVE.api.setNozzle(true); });
+  await page.waitForFunction(() => __LIVE.init && __LIVE.ok && window.__MAC?.cond, null, { timeout: 300000 });
+  const nz = await page.evaluate(() => { __LIVE.freeze = true; __LIVE.api.run(150, 0.02); const m = window.__MAC; return { cond: !!m.cond, fanK: +m.fanK.toFixed(3), inK: +m.inK.toFixed(3), ref: m.refSpeed && +m.refSpeed.toFixed(2), err: __LIVE.err }; });
+  check('노즐 계산 반영: 재초기화·폐루프 제어 동작', nz.cond && nz.fanK > 0.25 && nz.fanK < 1.8 && nz.ref > 1 && !nz.err, nz);
+  await cam([-1.2, 1.3, 2.4], [-3.6, 1.2, 0]); await shot('2_nozzle_on');
 } catch (e) { console.log('ERR', String(e).slice(0, 500)); }
 console.log('pageErrors', JSON.stringify(log.pageErrors.slice(0, 5)), 'external', JSON.stringify(log.external.slice(0, 3)));
 console.log(res.filter(r => r.ok).length + ' PASS, ' + res.filter(r => !r.ok).length + ' FAIL');
