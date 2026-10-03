@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Human } from './human.js';
 import { clamp, rand, TAU } from './util.js';
 import { roadC, N } from './world.js';
+import { navPath } from './nav.js';
 
 export const ZONES = [
   { name: '중앙 광장', gang: null, c: '#4de3ff' },
@@ -58,12 +59,60 @@ export class Society {
     return { x: dx / d, z: dz / d, s: 1.7 };
   }
   enter(h, e) {
+    const G = this.G, b = G.buildings.byLot.get(e.lot);
+    e.lot.occupants = (e.lot.occupants || 0) + 1;
+    if (b && b.open && b.floors.has(0) && b.elev && Math.hypot(b.cx - G.player.x, b.cz - G.player.z) < 70) {
+      h.inside = { e, until: Infinity, trip: true }; h.trip = { b, e, phase: 0, t: 0, path: null, k: 0, wait: 0 }; h.state = 'trip';
+      h.x = e.x - e.nx * 2.4; h.z = e.z - e.nz * 2.4; h.y = 0; h.floorY = 0;
+      return;
+    }
     h.inside = { e, until: this.G.time + rand(25, 100) };
     h.hidden = true; h.group.visible = false; h.state = 'walk';
-    e.lot.occupants = (e.lot.occupants || 0) + 1;
+  }
+  endTrip(h) { const tr = h.trip; h.trip = null; h.floorY = 0; h.y = 0; if (h.inside) { h.inside.until = 0; h.inside.trip = false; } if (tr) h.hidden = true; }
+  // building-interior routine: lobby -> elevator -> upper floor room -> wander -> back down -> street
+  tripStep(h, dt) {
+    const G = this.G, tr = h.trip, b = tr.b, el = b.elev; tr.t += dt;
+    const stop = { x: 0, z: 0, s: 0 };
+    if (!b.open || !el || tr.t > 260) { this.endTrip(h); return stop; }
+    if (h.state === 'flee') { h.trip = null; h.inside = null; h.floorY = h.y; return stop; }
+    const sh = b.shaft, ex = (sh.x0 + sh.x1) / 2, front = { x: ex, z: b.core.zc + 1.3 };
+    const follow = (dest) => {
+      if (!tr.path) { tr.path = navPath(G, h.floorY, h.x, h.z, dest.x, dest.z) || [[dest.x, dest.z]]; }
+      const p = tr.path[0]; if (!p) { tr.path = null; return true; }
+      const dx = p[0] - h.x, dz = p[1] - h.z, d = Math.hypot(dx, dz);
+      if (d < 0.45) { tr.path.shift(); if (!tr.path.length) { tr.path = null; return true; } return false; }
+      stop.x = dx / d; stop.z = dz / d; stop.s = 1.5; return false;
+    };
+    const lvlY = (k) => b.levels[k].y;
+    if (stop.s === 0 && [0, 5, 6, 9].includes(tr.phase)) {
+      const mv = Math.hypot(h.x - (tr.lx ?? h.x), h.z - (tr.lz ?? h.z)); tr.lx = h.x; tr.lz = h.z;
+      if (mv < 0.01 * dt * 60 && tr.path !== null) tr.stuck = (tr.stuck || 0) + dt; else tr.stuck = 0;
+      if (tr.stuck > 4) { tr.stuck = 0; tr.path = null; if (tr.phase === 5) { tr.target = null; tr.stay = 0; tr.phase = 6; } else if (tr.phase === 9) { this.leave(h); return stop; } }
+    }
+    switch (tr.phase) {
+      case 0: if (follow(front)) { el.call(tr.k, true); tr.phase = 1; tr.wait = 0; } break;
+      case 1: tr.wait += dt; if (el.state === 'idle' && el.level === tr.k && el.doorOpen > 0.85 && !el.riding(G.player)) { tr.phase = 2; } else if (tr.wait > 20) { el.call(tr.k, true); tr.wait = 0; } break;
+      case 2: { const dx = ex - h.x, dz = el.cz - h.z, d = Math.hypot(dx, dz); if (d < 0.5) {
+        const cands = [...b.floors.keys()].filter((k) => k !== tr.k && b.levels[k].type !== 'roof' && b.levels[k].tier !== 'podium');
+        tr.dest = cands.length ? cands[Math.floor(Math.random() * cands.length)] : (tr.k === 0 ? 1 : 0);
+        if (el.queue.length === 0 && el.state === 'idle') { el.send(tr.dest); tr.phase = 3; } else tr.phase = 1;
+      } else { stop.x = dx / d; stop.z = dz / d; stop.s = 1.4; } break; }
+      case 3: h.x = ex; h.z = el.cz; h.y = el.y; h.floorY = el.y; if (el.state === 'idle' && el.level === tr.dest && el.doorOpen > 0.85) { tr.k = tr.dest; tr.phase = 4; tr.path = null; h.y = lvlY(tr.k); h.floorY = h.y; } break;
+      case 4: { const fl = b.floors.get(tr.k); const rm = fl && fl.rooms && fl.rooms[Math.floor(Math.random() * fl.rooms.length)];
+        tr.target = rm ? { x: (rm.x0 + rm.x1) / 2, z: (rm.z0 + rm.z1) / 2 } : { x: front.x + 4, z: front.z }; tr.phase = 5; tr.path = null; tr.idle = 0; break; }
+      case 5: if (tr.target) { if (follow(tr.target)) { tr.idle += 1; tr.target = null; tr.stay = 6 + Math.random() * 14; } } else { tr.stay -= dt; if (tr.stay <= 0) { tr.phase = 6; tr.path = null; } } break;
+      case 6: if (tr.k === 0) { tr.phase = 9; break; } if (follow(front)) { el.call(tr.k, true); tr.phase = 7; tr.wait = 0; } break;
+      case 7: tr.wait += dt; if (el.state === 'idle' && el.level === tr.k && el.doorOpen > 0.85 && !el.riding(G.player)) tr.phase = 8; else if (tr.wait > 25) { el.call(tr.k, true); tr.wait = 0; } break;
+      case 8: { const dx = ex - h.x, dz = el.cz - h.z, d = Math.hypot(dx, dz); if (d < 0.5) { if (el.queue.length === 0 && el.state === 'idle') { tr.dest = 0; el.send(0); tr.phase = 3; tr.leaving = true; } else tr.phase = 7; } else { stop.x = dx / d; stop.z = dz / d; stop.s = 1.4; } break; }
+      case 9: { const d = b.door, target = { x: d.px + d.nx * 1.2, z: d.pz + d.nz * 1.2 };
+        if (follow(target)) { this.leave(h); } break; }
+    }
+    if (tr.phase === 3 && tr.leaving && el.level === 0 && el.state === 'idle' && el.doorOpen > 0.85) { tr.k = 0; tr.phase = 9; tr.leaving = false; tr.path = null; h.y = 0; h.floorY = 0; }
+    return stop;
   }
   leave(h) {
-    const e = h.inside.e; h.inside = null; h.hidden = false;
+    const e = h.inside.e; h.inside = null; h.trip = null; h.hidden = false; h.floorY = 0;
     h.x = e.x + e.nx * 0.5; h.z = e.z + e.nz * 0.5; h.y = 0; h.state = 'walk'; h.snapToNode();
     e.lot.occupants = Math.max(0, (e.lot.occupants || 1) - 1);
   }
@@ -72,7 +121,7 @@ export class Society {
   witnessesOf(x, z) {
     const G = this.G, out = [];
     for (const h of G.humans) {
-      if (h.dead || h.hidden || h.inside || (h.team !== 'civ' && h.team !== 'cop') || h.guard) continue;
+      if (h.dead || h.hidden || (h.inside && !h.trip) || (h.team !== 'civ' && h.team !== 'cop') || h.guard) continue;
       const d = Math.hypot(h.x - x, h.z - z); if (d > (h.team === 'cop' ? 50 : 28) || Math.abs((h.y || 0) - (G.player.y || 0)) > 3.5) continue;
       if (G.hasLOS(h.x, (h.y || 0) + 1.5, h.z, x, (G.player.y || 0) + 1.4, z)) out.push(h);
     }
@@ -131,7 +180,7 @@ export class Society {
     let best = null, bd = 2.6;
     const fx = Math.sin(G.cam.yaw), fz = Math.cos(G.cam.yaw);
     for (const h of G.humans) {
-      if (h.team !== 'civ' || h.dead || h.hidden || h.inside || h.role === 'reception' || h.role === 'cashier' || h.state === 'flee') continue;
+      if (h.team !== 'civ' || h.dead || h.hidden || (h.inside && !h.trip) || h.role === 'reception' || h.role === 'cashier' || h.state === 'flee') continue;
       const dx = h.x - pl.x, dz = h.z - pl.z, d = Math.hypot(dx, dz);
       if (d > bd || Math.abs((h.y || 0) - (pl.y || 0)) > 2.2) continue;
       const facing = (dx * fx + dz * fz) / (d + 1e-3); if (facing < 0.2 && d > 1.2) continue;

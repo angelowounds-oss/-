@@ -108,6 +108,8 @@ export class Human {
       if (this.report && this.state !== 'flee') {
         this.report.t -= dt; face = Math.atan2(dxp, dzp);
         if (this.report.t <= 0) { G.addHeat(this.report.heat); G.toast('신고가 접수되었다', '경찰이 출동한다'); this.report = null; this.state = 'walk'; }
+      } else if (this.trip) {
+        const r = G.society.tripStep(this, dt); wantX = r.x; wantZ = r.z; spd = r.s;
       } else if (this.state === 'visit') {
         const r = G.society.visitStep(this, dt); wantX = r.x; wantZ = r.z; spd = r.s;
       } else if (this.state === 'flee') {
@@ -197,7 +199,7 @@ export class Human {
       this.alert = 1;
     } else {
       if (this.state !== 'attack') {
-        if (los && dp < (this.detect || 38) * (G.player.crouching ? 0.55 : 1)) { this.state = 'attack'; this.alert = 1; this.fireCd = rand(0.7, 1.4); G.alertGang?.(this); }
+        if (los && dp < (this.detect || 38) * (G.player.prone ? 0.3 : G.player.crouching ? 0.55 : 1)) { this.state = 'attack'; this.alert = 1; this.fireCd = rand(0.7, 1.4); G.alertGang?.(this); }
         else { this.cmdSpeed = 0; if (this.patrol) this.doPatrol(dt); return; }
       }
     }
@@ -247,9 +249,9 @@ export class Human {
     m.mixer.update(dt);
     m.applyPose(this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
-    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5 - (this.swimming ? 0.3 : 0);
+    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5 - (this.swimming ? 0.3 : 0) - (this.prone ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
-    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
+    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : this.prone ? 1.35 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if (this.aimT > 0) this.aimT -= dt * 0.5;

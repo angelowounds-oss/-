@@ -6,6 +6,7 @@ import { clamp, lerp, damp, TAU, rand } from './util.js';
 // Motorcycle, boat and helicopter: procedural models + physics drive models (Vehicle subclass-free hooks)
 export const CRAFT_SPECS = {
   moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.2, maxSpeed: 60, accel: 25, grip: 8.5, hp: 55, track: 0.3, cy: 0.5, fuelRate: 0.9, custom: 'moto' },
+  bus: { L: 11, W: 2.55, wb: 3.8, mass: 2.8, maxSpeed: 20, accel: 6, grip: 5, hp: 320, track: 0.95, custom: 'bus', fuelRate: 1 },
   boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 11, grip: 3, hp: 120, cy: 0.5, fuelRate: 1.2, custom: 'boat', craft: 'boat' },
   heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 48, accel: 16, grip: 3, hp: 130, cy: 0.9, fuelRate: 1.6, custom: 'heli', craft: 'heli' },
 };
@@ -26,7 +27,13 @@ export function buildCustom(type, color, opts = {}) {
   const neon = new THREE.MeshBasicMaterial({ color: new THREE.Color(...glow).multiplyScalar(2.6), toneMapped: false });
   const paint = std(color, 0.25, 0.6); m.paint = paint;
   const spr = (x, y, z, col, s) => { const t = new THREE.Sprite(glowSpriteMat(col, 1.2)); t.position.set(x, y, z); t.scale.setScalar(s); g.add(t); return t; };
-  if (type === 'moto') {
+  if (type === 'bus') {
+    const bodyM = std(0x1d6fa8, 0.4, 0.4); m.paint = bodyM; box(bodyM, 2.5, 2.5, 10.8, 0, 0.45, 0, g);
+    box(M.glass, 2.52, 0.9, 9.6, 0, 1.55, -0.2, g); box(neon, 2.54, 0.07, 10.84, 0, 0.62, 0, g); box(M.dark, 2.4, 0.08, 10.6, 0, 2.97, 0, g);
+    box(neon, 2.1, 0.3, 0.06, 0, 2.55, 5.43, g); box(M.rubber, 2.4, 0.3, 0.3, 0, 0.35, 5.5, g);
+    for (const z of [-3.7, 3.7]) for (const x of [-1.2, 1.2]) cyl(M.rubber, 0.5, 0.35, x, 0.5, z, g, [0, 0, Math.PI / 2]);
+    m.headSprites = [spr(-0.9, 0.95, 5.5, 0xfff0cc, 1.2), spr(0.9, 0.95, 5.5, 0xfff0cc, 1.2)]; m.tailSprites = [spr(-0.9, 1.0, -5.45, 0xff1a10, 0.7), spr(0.9, 1.0, -5.45, 0xff1a10, 0.7)]; m.wheelR = 0.5;
+  } else if (type === 'moto') {
     const frame = new THREE.Group(); g.add(frame); m.frame = frame;
     box(M.dark, 0.26, 0.22, 1.05, 0, 0.62, 0.0, frame);
     const tank = cyl(paint, 0.17, 0.5, 0, 0.84, 0.24, frame, [Math.PI / 2, 0, 0]); tank.scale.set(1, 1, 0.8);

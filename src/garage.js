@@ -87,10 +87,11 @@ export const garage = {
     v.dest = { x: this.player.x, z: this.player.z }; v.callTaxi = true; v.arrived = false; v.directDest = false;
     this.addVehicle(v); this.taxi = v; this.toast('택시 호출', '잠시 기다리세요');
   },
-  boardTaxi(v) {
-    const pl = this.player;
+  boardTaxi(v, bus) {
+    const pl = this.player; v.doorFx?.();
     this.passenger = v; this.vehicle = v; this.playerOnFoot = false; pl.group.visible = false; v.callTaxi = false; v.arrived = false; v.directDest = false;
     document.body.classList.remove('onfoot'); document.body.classList.add('incar');
+    if (bus) { v.fareStart = { x: pl.x, z: pl.z }; this.toast('버스 탑승', 'F로 정차 시 하차'); return; }
     const m = this.markerPos; v.dest = m ? { x: m.x, z: m.z } : { x: pl.x + rand(-250, 250), z: pl.z + rand(-250, 250) };
     v.fareStart = { x: pl.x, z: pl.z };
     this.toast('택시 출발', m ? '목적지: 표시된 장소' : '목적지: 임의 장소');

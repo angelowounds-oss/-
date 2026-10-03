@@ -49,6 +49,8 @@ export class Vehicle {
     this.model.tailSprites.forEach((s) => (s.visible = on || this.model.brake.visible));
     this.model.ug.visible = on && this.kind !== 'parked';
   }
+  doorFx() { if (this.spec.craft || this.type === 'moto' || this.type === 'bus') return; this.doorT = 1.3; this.model.group.updateMatrixWorld(); if (!this.doorMesh) { const pv = new THREE.Group(); pv.position.set(this.W / 2, 0.8, 0.55); const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 1.1), new THREE.MeshStandardMaterial({ color: 0x2c3448, roughness: 0.3, metalness: 0.7 })); m.position.set(0.02, 0, -0.55); pv.add(m); this.group.add(pv); this.doorMesh = pv; } this.G.audio.door?.(); }
+  animDoor(dt) { if (!this.doorMesh) return; if (this.doorT > 0) { this.doorT -= dt; const k = Math.sin(Math.min(1, (1.3 - this.doorT) / 0.35) * Math.PI / 2) * (this.doorT > 0.35 ? 1 : this.doorT / 0.35); this.doorMesh.rotation.y = k * 1.15; this.doorMesh.visible = true; } else this.doorMesh.visible = false; }
   place(x, z, h) { this.x = x; this.z = z; this.h = h; this.vx = this.vz = 0; this.yaw = 0; if (this.pv) { this.syncToBody(); this.readBody(0); } this.syncMesh(); }
   get speed() { return Math.hypot(this.vx, this.vz); }
   get fwdSpeed() { return this.vx * Math.sin(this.h) + this.vz * Math.cos(this.h); }
@@ -179,7 +181,7 @@ export class Vehicle {
     }
     this.lastSpeed = this.speed;
     if (this.driver === 'player' && !this.dead) this.fuel = Math.max(0, this.fuel - dt * (0.04 + Math.abs(this.throttle) * 0.09) * (this.spec.fuelRate || 1));
-    this.model.craftVisual?.(this, dt);
+    this.model.craftVisual?.(this, dt); this.animDoor(dt);
     if (this.kind === 'parked' && !this.driver && !this.dead && this.speed < 0.15) { this.idleT = (this.idleT || 0) + dt; if (this.idleT > 1) { this.pv.body.sleep(); this.idleT = 0; } } else this.idleT = 0;
     this.syncMesh();
   }

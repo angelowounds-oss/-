@@ -183,7 +183,7 @@ export class Game {
   spawnTraffic(initial = false, existing = null) {
     const lane = this.randomLane(initial ? 40 : 90, initial ? 260 : 210);
     if (!lane) return null;
-    const type = CAR_TYPES[Math.floor(Math.random() * CAR_TYPES.length)];
+    const type = Math.random() < 0.07 ? 'bus' : CAR_TYPES[Math.floor(Math.random() * CAR_TYPES.length)];
     const v = existing || new Vehicle(this, type, CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'traffic', { taxi: Math.random() < 0.12 && type === 'sedan' });
     v.kind = 'traffic'; v.driver = 'ai';
     v.setRoute(lane.i, lane.j, lane.di, lane.dj, lane.frac);
@@ -376,8 +376,8 @@ export class Game {
     const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
-    if (this.input.edge('crouch')) pl.crouching = !pl.crouching;
-    pl.crouch = damp(pl.crouch || 0, pl.crouching ? 0.65 : 0, 10, dt);
+    if (this.input.edge('crouch')) { pl.stance = ((pl.stance || 0) + 1) % 3; pl.crouching = pl.stance >= 1; pl.prone = pl.stance === 2; }
+    pl.crouch = damp(pl.crouch || 0, pl.stance === 1 ? 0.65 : pl.prone ? 0.2 : 0, 10, dt);
     const carry = this.items.carry;
     if (carry && inp.fire && !pl.fireHeld) { this.items.release(true); pl.fireHeld = true; inp = { ...inp, fire: false }; }
     else if (carry) inp = { ...inp, fire: false };
@@ -387,7 +387,7 @@ export class Game {
     let mx = inp.mx, my = inp.my; const mag = Math.min(1, Math.hypot(mx, my));
     let dx = fwdX * my + rX * mx, dz = fwdZ * my + rZ * mx;
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1);
+    const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.prone ? 0.25 : pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1);
     const spd = base * (mag < 0.15 ? 0 : clamp(mag * 1.1, 0.5, 1));
     pl.vx = damp(pl.vx, dx * spd, 10, dt); pl.vz = damp(pl.vz, dz * spd, 10, dt);
     const c3 = pl.body3;
@@ -467,9 +467,10 @@ export class Game {
     for (const v of this.vehicles) { if (!v.group.visible || v.dead) continue; const d = this.distToVehicle(pl.x, pl.z, v) - (v.spec.craft === 'heli' ? 1.5 : 0); if (d < bd && Math.abs((v.by || 0) - (pl.y || 0)) < 5) { bd = d; best = v; } }
     if (!best) return;
     const v = best, verbs = [];
-    if (v.callTaxi && v.arrived) verbs.push({ key: 'F', label: () => '택시 탑승', run: () => this.boardTaxi(v) });
+    if (v.type === 'bus') verbs.push({ key: 'F', label: () => '버스 탑승 $2', run: () => { if (this.cash < 2) return this.toast('돈이 부족합니다'); this.cash -= 2; this.boardTaxi(v, true); } });
+    else if (v.callTaxi && v.arrived) verbs.push({ key: 'F', label: () => '택시 탑승', run: () => this.boardTaxi(v) });
     else verbs.push({ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : v.spec.craft === 'heli' ? '헬기 탑승' : v.spec.craft === 'boat' ? '보트 탑승' : v.type === 'moto' ? '오토바이 탑승' : '차량 탑승'), run: () => this.enterVehicle(v) });
-    if (v.driver !== 'ai' && !v.spec.craft) verbs.push({ key: 'T', label: () => '트렁크', run: () => this.openTrunk(v) });
+    if (v.driver !== 'ai' && !v.spec.craft && v.type !== 'bus') verbs.push({ key: 'T', label: () => '트렁크', run: () => this.openTrunk(v) });
     out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: v.type === 'moto' ? '오토바이' : v.spec.craft === 'heli' ? '헬리콥터' : v.spec.craft === 'boat' ? '보트' : '차량', verbs });
   }
   // ledge climb / vault: probe forward at knee & chest height, find the top surface, glide over it
@@ -568,7 +569,7 @@ export class Game {
       if (d) { d.x = v.x + Math.cos(v.h) * (v.W / 2 + 1); d.z = v.z - Math.sin(v.h) * (v.W / 2 + 1); d.state = 'flee'; d.fleeT = 8; d.threat = pl; d.group.visible = true; }
       this.society.crime('carjack', 12); this.feed('차량 강탈', '#ff8a5c');
     }
-    this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
+    v.doorFx?.(); this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
     v.setLights(true);
     this.playerOnFoot = false; pl.group.visible = false;
     document.body.classList.remove('onfoot'); document.body.classList.add('incar');
@@ -590,7 +591,7 @@ export class Game {
     if (!placed) { pl.x = v.x + c * (v.W / 2 + 1); pl.z = v.z - s * (v.W / 2 + 1); }
     v.driver = null; v.throttle = 0; v.brake = 0.5; v.steer = 0; v.hand = false;
     if (v.kind === 'player') v.kind = 'parked';
-    this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true; pl.y = 0; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, 0, pl.z);
+    v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true; pl.y = 0; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, 0, pl.z);
     pl.hpv = Math.max(pl.hpv, 1);
     document.body.classList.add('onfoot'); document.body.classList.remove('incar');
     this.ui.speedo.classList.remove('on');
@@ -770,7 +771,7 @@ export class Game {
     const dist = Math.hypot(tx - h.x, tz - h.z);
     const moving = this.playerOnFoot ? pl.speed : (this.vehicle ? this.vehicle.speed : 0);
     const hitChance = clamp(0.62 - dist * 0.012 - moving * 0.025 - (this.playerOnFoot && pl.aiming ? 0.05 : 0), 0.08, 0.6) * (h.team === 'cop' ? 0.7 : 0.8);
-    const cover = !this.hasLOS(from.x, from.y, from.z, tx, (this.playerOnFoot ? pl.y + (pl.crouching ? 0.75 : 1.25) : 1.1), tz);
+    const cover = !this.hasLOS(from.x, from.y, from.z, tx, (this.playerOnFoot ? pl.y + (pl.prone ? 0.35 : pl.crouching ? 0.75 : 1.25) : 1.1), tz);
     const hit = !cover && Math.random() < hitChance;
     const end = new V3(tx + (hit ? 0 : rand(-1.6, 1.6)), ty + (hit ? 0 : rand(-0.6, 0.8)), tz + (hit ? 0 : rand(-1.6, 1.6)));
     this.tracers.add(from, end, h.team === 'cop' ? [0.4, 0.5, 1] : [1, 0.35, 0.3]);
@@ -1005,7 +1006,7 @@ export class Game {
   updateHumans(dt) {
     const cam = this.camera.position;
     for (const h of this.humans) {
-      if (h.inside) { if (this.time >= h.inside.until) this.society.leave(h); continue; }
+      if (h.inside && !h.trip) { if (this.time >= h.inside.until) this.society.leave(h); continue; }
       const d = Math.hypot(h.x - cam.x, h.z - cam.z);
       const vis = d < 130; h.group.visible = vis && !h.hidden;
       if (!vis && h.team === 'civ' && !h.dead) { // cheap
@@ -1230,7 +1231,7 @@ export class Game {
       const aim = pl.aiming && !pl.dead;
       cam.dist = damp(cam.dist, aim ? 1.9 : 3.9, 9, dt); cam.shoulder = damp(cam.shoulder, aim ? 0.62 : 0.4, 9, dt);
       cam.fov = damp(cam.fov, aim ? 52 : (pl.speed > 6 ? 72 : 66), 6, dt);
-      ax = pl.x; ay = pl.y + 1.55 - (pl.dead ? 0.8 : 0); az = pl.z;
+      ax = pl.x; ay = pl.y + 1.55 - (pl.dead ? 0.8 : 0) - (pl.prone ? 1.0 : pl.crouching ? 0.35 : 0); az = pl.z;
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
       const rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
       let tx = ax - L.x * cam.dist + rX * cam.shoulder, ty = ay - L.y * cam.dist + 0.25, tz = az - L.z * cam.dist + rZ * cam.shoulder;
