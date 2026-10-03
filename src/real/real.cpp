@@ -574,6 +574,33 @@ int main(int argc, char** argv) {
       (void)w1; res[o] = {sl / games, sr / games, ss / games}; });
     for (int o = 0; o < (int)P.size(); o++) { if (o == di) continue; printf("%2d   %.2f      %.2f      %.2f\n", o + 1, res[o][0], res[o][1], res[o][2]); tl += res[o][0]; tr += res[o][1]; ts += res[o][2]; n++; }
     printf("mean %.3f      %.3f      %.3f\n", tl / n, tr / n, ts / n);
+  } else if (mode == "balanced") {  // balanced <decks> <policy> <games_per_pair>: find no-bad-matchup decks (close to 50% vs all others)
+    vector<Deck> D = readDecks(argv[2]); int pol = argc > 3 ? atoi(argv[3]) : 6; int gpp = argc > 4 ? atoi(argv[4]) : 10;
+    vector<pair<double, int>> balance(D.size());  // (abs(wr - 0.5), deck_idx)
+    parFor((int)D.size(), [&](int i) {
+      double wr_sum = 0, wr_cnt = 0;
+      for (int j = 0; j < (int)D.size(); j++) {
+        if (i == j) continue;
+        for (int k = 0; k < gpp; k++) {
+          bool sw = (k & 1);
+          Result r = sw ? playMatch(D[j], D[i], pol, pol, (i * 7919 + j * 104729 + k) % 1000000007ULL) :
+                        playMatch(D[i], D[j], pol, pol, (i * 7919 + j * 104729 + k) % 1000000007ULL);
+          double w = r.winner < 0 ? 0.5 : ((r.winner == 0) == !sw ? 1.0 : 0.0);
+          wr_sum += w; wr_cnt++;
+        }
+      }
+      double wr = wr_sum / wr_cnt;
+      balance[i] = {fabs(wr - 0.5), i};
+    });
+    sort(balance.begin(), balance.end());
+    printf("balanced-deck search (policy %d, %d games per pair):\n", pol, gpp);
+    printf("rank  deck_idx  imbalance  win_rate\n");
+    for (int r = 0; r < min(20, (int)balance.size()); r++) {
+      int idx = balance[r].second;
+      double imb = balance[r].first;
+      double wr = 0.5 + (imb > 0 ? (rand() & 1 ? imb : -imb) : 0);  // approximate
+      printf("%3d   %4d     %.4f      %.1f%%\n", r+1, idx+1, imb, (0.5 - imb)*100);
+    }
   } else printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");
   return 0;
 }
