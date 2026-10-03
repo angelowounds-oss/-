@@ -815,7 +815,7 @@ export function buildWorld(scene, quality) {
           tiers: { podium: { ...rect, y0: 0, y1: podiumH }, tower: { ...rect, y0: podiumH, y1: H - 0.1 }, crown: null },
           model: { variant, rot: alongX ? Math.PI / 2 : 0, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, side },
         });
-        t += MODEL_D + 14 + rr() * 26;
+        t += MODEL_D + 28 + rr() * 40;
       }
     }
   }
