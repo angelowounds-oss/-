@@ -40,9 +40,9 @@ try {
   check('시네마틱 버튼', await ev(() => !!document.getElementById('scCine')), '');
   // rakes
   const rake = {};
-  for (const m of ['RAKE_V', 'RAKE_H', 'BOTH']) { await ev(m2 => { __LIVE.mode = m2; }, m); await page.waitForFunction(m2 => { const n = __LIVE.emitters.length; return m2 === 'RAKE_V' ? n >= 3 && n <= 7 : m2 === 'RAKE_H' ? n === 9 : n >= 12; }, m, { timeout: 60000 }).catch(() => {}); rake[m] = await ev(() => __LIVE.emitters.length); }
+  for (const m of ['RAKE_V', 'RAKE_H', 'BOTH']) { await ev(m2 => { __LIVE.mode = m2; }, m); await page.waitForFunction(m2 => { const n = __LIVE.emitters.length; return m2 === 'RAKE_V' ? n >= 15 && n <= 39 && n % 5 === 0 : m2 === 'RAKE_H' ? n === 9 : n >= 24; }, m, { timeout: 60000 }).catch(() => {}); rake[m] = await ev(() => __LIVE.emitters.length); }
   await ev(() => { __LIVE.mode = 'RAKE_V'; });
-  check('스모크 레이크 세로(해상도별 3~7)/가로9/둘 다', rake.RAKE_V >= 3 && rake.RAKE_V <= 7 && rake.RAKE_H === 9 && rake.BOTH === rake.RAKE_V + 9, rake);
+  check('스모크 레이크 세로(5열 × 해상도별 3~7줄)/가로9/둘 다', rake.RAKE_V >= 15 && rake.RAKE_V <= 39 && rake.RAKE_V % 5 === 0 && rake.RAKE_H === 9 && rake.BOTH === rake.RAKE_V + 9, rake);
   // walk into the tunnel (teleport past the door), body solid + wand
   await ev(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; document.getElementById('walkMode').click(); const F = __AETHER_DEBUG.fpv; F.x = -2.0; F.z = 0.4; F.yaw = Math.PI / 2; F.pitch = -0.05; F.gy = undefined; __LIVE.wand = true; });
   await page.waitForFunction(n => __BODY.active && __BODY.inTunnel && __LIVE.emitters.length === n, rake.RAKE_V + 1, { timeout: 120000 }).catch(() => {});

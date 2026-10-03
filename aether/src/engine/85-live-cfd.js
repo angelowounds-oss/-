@@ -7,6 +7,7 @@ LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).sli
 LIVE.wisp=+((location.hash.match(/wisp=([\d.]+)/)||[])[1]??.6);LIVE.tipX=-3.8;
 LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
 LIVE.rakeK=+((location.hash.match(/rakek=([\d.]+)/)||[])[1]||4.2);
+LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
 function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
@@ -67,11 +68,11 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}int t=ST(c);if(t>0){o=ve
  vec3 u=F(uVel,c).xyz-g;if(c.x==0)u=vec3(uU,0,0);if(c.y==0){u.x=uU;u.y=0.;}o=vec4(u,0);}`,
 advd:`uniform sampler2D uVel,uSrc;uniform float uDt;
 void main(){ivec3 c=C();if(c.z>=uN.z||ST(c)>0){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;o=vec4(S(uSrc,vec3(c)-uDt*u/uH).x,0,0,0);}`,
-corr:`uniform sampler2D uVel,uSrc,uHat,uBar;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[16];uniform int uEmN;
+corr:`uniform sampler2D uVel,uSrc,uHat,uBar;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[40];uniform int uEmN;
 void main(){ivec3 c=C();if(c.z>=uN.z||ST(c)>0||c.x==0){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec3 p=clamp(vec3(c)-uDt*u/uH,vec3(0.),vec3(uN-1));ivec3 i=ivec3(floor(p));
  float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float v=F(uSrc,i+ivec3(k&1,(k>>1)&1,(k>>2)&1)).x;lo=min(lo,v);hi=max(hi,v);}
  float r=clamp(F(uHat,c).x+.5*(F(uSrc,c).x-F(uBar,c).x),lo,hi)*uDecay;vec3 w=W(c);
- for(int e=0;e<16;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w;r=max(r,uEmS*exp(-dot(d,d)/(rr*rr)));}
+ for(int e=0;e<40;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w,q=dot(d,d)/(rr*rr);if(q<16.)r=max(r,uEmS*exp(-q));}
  o=vec4(max(r,0.),0,0,0);}`,
 cflag:`uniform sampler2D uFF;uniform ivec3 uNF;uniform int uTXF;
 ivec2 AF(ivec3 c){return ivec2((c.z%uTXF)*uNF.x+c.x,(c.z/uTXF)*uNF.y+c.y);}
@@ -248,34 +249,38 @@ function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
 /* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
    Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
 function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+.6:-3.9,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
- const r=Math.max(.035,.75*hd),n=LIVE.rakeN||Math.max(3,Math.min(11,Math.round(1.32/Math.max(.13,LIVE.rakeK*r))+1));
- return {x,tip:x+.075,z:0,yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
+ const r=Math.max(.035,.75*hd),C=LIVE.cols,n=LIVE.rakeN||Math.max(3,Math.min(11,Math.floor(39/C),Math.round(1.32/Math.max(.13,LIVE.rakeK*r))+1));
+ return {x,tip:x+.075,z:0,zs:Array.from({length:C},(_,i)=>(i-(C-1)/2)*LIVE.colGap),yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
 /* flow-straightener grille (egg-crate honeycomb) between the fan face and the rake, as in real tunnels: the jet leaves a straightener, not a bare fan.
    Visual only: it is not voxelised, so the solver sees an open inlet. One merged mesh of thin slats inside a frame. */
-function liveStraightenerMesh(b){const P=[],Nn=[],I=[],box=(x0,x1,y0,y1,z0,z1)=>{
+function liveBoxesMesh(list){const P=[],Nn=[],I=[],box=(x0,x1,y0,y1,z0,z1)=>{
   const f=[[[1,0,0],[[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]]],[[-1,0,0],[[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]]],[[0,1,0],[[x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0]]],[[0,-1,0],[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]]],[[0,0,1],[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]]],[[0,0,-1],[[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0]]]];
   for(const [n,q] of f){const k=P.length/3;for(const v of q){P.push(v[0],v[1],v[2]);Nn.push(n[0],n[1],n[2])}
    const ab=[q[1][0]-q[0][0],q[1][1]-q[0][1],q[1][2]-q[0][2]],ac=[q[2][0]-q[0][0],q[2][1]-q[0][1],q[2][2]-q[0][2]],c=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]],fl=c[0]*n[0]+c[1]*n[1]+c[2]*n[2]<0;
    I.push(k,fl?k+2:k+1,fl?k+1:k+2,k,fl?k+3:k+2,fl?k+2:k+3)}};
- const {x0,x1,y0,y1,z0,z1,cell,t,fr}=b,nz=Math.max(2,Math.round((z1-z0)/cell)),ny=Math.max(2,Math.round((y1-y0)/cell));
- box(x0,x1,y0,y0+fr,z0,z1);box(x0,x1,y1-fr,y1,z0,z1);box(x0,x1,y0+fr,y1-fr,z0,z0+fr);box(x0,x1,y0+fr,y1-fr,z1-fr,z1);
- for(let i=1;i<nz;i++){const z=z0+(z1-z0)*i/nz;box(x0,x1,y0+fr,y1-fr,z-t/2,z+t/2)}
- for(let j=1;j<ny;j++){const y=y0+(y1-y0)*j/ny;box(x0,x1,y-t/2,y+t/2,z0+fr,z1-fr)}
- return {positions:new Float32Array(P),normals:new Float32Array(Nn),indices:new Uint32Array(I)}}
-function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length].join();if(LIVE.rakeKey===key&&scene.objects.some(o=>o.name==='rake probe straightener'&&o.gpu)||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
+ for(const b of list)box(...b);return {positions:new Float32Array(P),normals:new Float32Array(Nn),indices:new Uint32Array(I)}}
+function liveStraightenerMesh(b){const {x0,x1,y0,y1,z0,z1,cell,t,fr}=b,L=[],nz=Math.max(2,Math.round((z1-z0)/cell)),ny=Math.max(2,Math.round((y1-y0)/cell));
+ L.push([x0,x1,y0,y0+fr,z0,z1],[x0,x1,y1-fr,y1,z0,z1],[x0,x1,y0+fr,y1-fr,z0,z0+fr],[x0,x1,y0+fr,y1-fr,z1-fr,z1]);
+ for(let i=1;i<nz;i++){const z=z0+(z1-z0)*i/nz;L.push([x0,x1,y0+fr,y1-fr,z-t/2,z+t/2])}
+ for(let j=1;j<ny;j++){const y=y0+(y1-y0)*j/ny;L.push([x0,x1,y-t/2,y+t/2,z0+fr,z1-fr])}
+ return liveBoxesMesh(L)}
+function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,R.zs.length,LIVE.colGap].join();if(LIVE.rakeKey===key&&scene.objects.some(o=>o.name==='rake probe hardware'&&o.gpu)||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
  for(const o of scene.objects)if(o.name.startsWith('rake probe')&&o.gpu)for(const b of [o.gpu.pb,o.gpu.nb,o.gpu.ub,o.gpu.ib])if(b)gl.deleteBuffer(b);
- scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));const add=(n,c,sz)=>{const o=addBox('rake probe '+n,c,sz,[.74,.76,.78],{bevel:.004,category:'instrumentation'});o.pbrMaterial=materialFor(o);bevelMesh(o);
-  const m=o._mesh,uv=m.uvs?.length===m.positions.length/3*2?m.uvs:new Float32Array(m.positions.length/3*2);o.gpu=bindMesh(m.positions,m.normals,uv,m.indices)};
+ scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));
+ const attach=(name,c,sz,color,mat,mesh)=>{const o=addBox('rake probe '+name,c,sz,color,{bevel:.004,category:'instrumentation'});o.pbrMaterial=mat;o._mesh=mesh;o.gpu=bindMesh(mesh.positions,mesh.normals,new Float32Array(mesh.positions.length/3*2),mesh.indices)};
  const fb=AETHER.FAN_MODULE?.layout?.fanBounds;
- if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2],o=addBox('rake probe straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.085,.09,.1],{bevel:.004,category:'instrumentation'});
-  o.pbrMaterial=materialLibrary.BlackPowderCoat;o._mesh=liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.28,t:.012,fr:.08});const m=o._mesh;o.gpu=bindMesh(m.positions,m.normals,new Float32Array(m.positions.length/3*2),m.indices)}
- if(R.vert){add('mast',[R.x,.86,R.z],[.034,1.72,.034]);add('base',[R.x,.012,R.z],[.26,.024,.26]);R.v.forEach((y,i)=>add('nozzle v'+i,[R.x+.037,y,R.z],[.075,.02,.02]))}
- if(R.horz){add('bar',[R.x,R.yh,0],[.034,.034,2.96]);for(const z of [-1.5,1.5]){add('leg '+z,[R.x,R.yh/2,z],[.03,R.yh,.03]);add('foot '+z,[R.x,.012,z],[.2,.024,.2])}R.h.forEach((z,i)=>add('nozzle h'+i,[R.x+.037,R.yh,z],[.075,.02,.02]))}}
+ if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2];
+  attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.085,.09,.1],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.28,t:.012,fr:.08}))}
+ const L=[],x=R.x,top=1.72;
+ if(R.vert){for(const z of R.zs){L.push([x-.017,x+.017,0,top,z-.017,z+.017],[x-.13,x+.13,0,.024,z-.13,z+.13]);for(const y of R.v)L.push([x,x+.075,y-.01,y+.01,z-.01,z+.01])}
+  if(R.zs.length>1)L.push([x-.015,x+.015,top-.03,top,R.zs[0],R.zs[R.zs.length-1]])}
+ if(R.horz){L.push([x-.017,x+.017,R.yh-.017,R.yh+.017,-1.48,1.48]);for(const z of [-1.5,1.5])L.push([x-.015,x+.015,0,R.yh,z-.015,z+.015],[x-.1,x+.1,0,.024,z-.1,z+.1]);for(const z of R.h)L.push([x,x+.075,R.yh-.01,R.yh+.01,z-.01,z+.01])}
+ if(L.length)attach('hardware',[x,.9,0],[.3,1.8,3.2],[.74,.76,.78],materialLibrary.StainlessSteel,liveBoxesMesh(L))}
 function liveEmitters(){const E=[],B=window.__BODY,R=liveRakeGeometry();LIVE.tipX=R.tip;try{liveRakeHardware(R)}catch(e){LIVE.rakeErr=String(e.message||e)}
- if(R.vert)for(const y of R.v)E.push([R.tip,y,R.z,R.r]);
+ if(R.vert)for(const z of R.zs)for(const y of R.v)E.push([R.tip,y,z,R.r]);
  if(R.horz)for(const z of R.h)E.push([R.tip,R.yh,z,R.r]);
  if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,Math.max(.045,R.r)])}
- LIVE.emitters=E.slice(0,16);const a=new Float32Array(64);LIVE.emitters.forEach((v,i)=>a.set(v,i*4));return a}
+ LIVE.emitters=E.slice(0,40);const a=new Float32Array(160);LIVE.emitters.forEach((v,i)=>a.set(v,i*4));return a}
 function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;macStep(dt);LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt;return}const T=LIVE.tex,B=window.__BODY,act=!!(B&&B.active);gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  LIVE.bodyV=act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0];
  livePass('flags',T.flags,{uObs:LIVE.obs},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0]});
