@@ -10,6 +10,7 @@ import { timeUniform, flashUniform, nightU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
+import { buildDressing } from './dressing.js';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
 import { Interact } from './interact.js';
@@ -63,6 +64,7 @@ export class Game {
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q);
+    this.dressing = buildDressing(this.scene, this.world);
     this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders);
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
@@ -335,7 +337,7 @@ export class Game {
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
     this.daynight.update(dt, focus);
-    if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); }
+    if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); }
     this.rain.material.uniforms.uCam.value.copy(camera.position);
     const g = eng.grade.uniforms;
     g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) : 0, 3, dt);

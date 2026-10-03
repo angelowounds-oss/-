@@ -30,3 +30,6 @@
 
 - 매달리기(2.5~3.7m 턱에 매달려 W로 올라가기), 차체 변형(충돌 지점 메시 찌그러짐), 방 조명 스위치(꺼면 해당 방 조명 제외).
 - 눕기(침대 G), 병원(사망 시 리스폰·응급실 접수·휴대폰 위치 표시), 위협 대화, 항복(Y), 항만(두 번째 수역·보트), 조수석 시점(택시·버스).
+
+## Third-party assets (street dressing)
+`assets/props/*.glb` are CC0 models from [Poly Haven](https://polyhaven.com) (fire_hydrant, metal_trash_can, utility_box_01, trashbag, potted_plant_01), decimated with `build/propify.mjs` and baked to 256px WebP textures. They are instanced per city cell by `src/dressing.js`.

@@ -1,0 +1,18 @@
+import { NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { prune, dedup, textureCompress, weld, simplify } from '@gltf-transform/functions';
+import { MeshoptSimplifier } from 'meshoptimizer';
+import sharp from 'sharp';
+const [,, id, size = '256', ratio = '1'] = process.argv;
+const src = `/tmp/claude-0/-home-user--/25dfb026-1961-5d75-9962-f3775122370e/scratchpad/ph/${id}/${id}_1k.gltf`;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+const doc = await io.read(src);
+await MeshoptSimplifier.ready;
+const T = () => { let n = 0; for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) n += (p.getIndices()?.getCount() ?? 0) / 3; return n | 0; };
+const before = T();
+const fns = [dedup(), prune(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [+size, +size], quality: 78 })];
+if (+ratio < 1) fns.splice(1, 0, weld(), simplify({ simplifier: MeshoptSimplifier, ratio: +ratio, error: +(process.argv[5] || 0.01) }));
+await doc.transform(...fns);
+await io.write(`../assets/props/${id}.glb`, doc);
+const mats = doc.getRoot().listMaterials().length, meshes = doc.getRoot().listMeshes().length;
+console.log(id, 'tris', before, '->', T(), 'meshes', meshes, 'mats', mats);

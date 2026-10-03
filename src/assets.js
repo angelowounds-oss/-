@@ -3,16 +3,28 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import soldierB64 from '../assets/Soldier.glb';
 import ferrariB64 from '../assets/ferrari.glb';
+import hydrantB64 from '../assets/props/fire_hydrant.glb';
+import trashB64 from '../assets/props/metal_trash_can.glb';
+import boxB64 from '../assets/props/utility_box_01.glb';
+import bagB64 from '../assets/props/trashbag.glb';
+import plantB64 from '../assets/props/potted_plant_01.glb';
 
 // Embedded CC assets: Soldier (three.js examples, Mixamo rig) and Ferrari 458 (CC-BY 4.0, vicent091036).
 const b64ToBuf = (s) => { const bin = atob(s), n = bin.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
-export const A = { soldier: null, ferrari: null, ok: false };
+export const A = { soldier: null, ferrari: null, props: null, ok: false };
 
 export async function loadAssets() {
   const loader = new GLTFLoader();
   try {
     const [s, f] = await Promise.all([loader.parseAsync(b64ToBuf(soldierB64), ''), loader.parseAsync(b64ToBuf(ferrariB64), '')]);
     A.soldier = s; A.ferrari = f;
+    // CC0 Poly Haven street props (decimated, 256px textures); a failure here must not take the characters down with it
+    try {
+      const src = { fire_hydrant: hydrantB64, metal_trash_can: trashB64, utility_box_01: boxB64, trashbag: bagB64, potted_plant_01: plantB64 };
+      const out = {};
+      await Promise.all(Object.entries(src).map(async ([k, b]) => { out[k] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
+      A.props = out;
+    } catch (e) { console.warn('prop load failed', e); }
     const box = new THREE.Box3().setFromObject(s.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     A.ok = true;
