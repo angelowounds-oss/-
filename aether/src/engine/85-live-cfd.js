@@ -267,7 +267,7 @@ function liveStraightenerMesh(b){const {x0,x1,y0,y1,z0,z1,cell,t,fr}=b,L=[],nz=M
 /* contraction nozzle (visual only, not seen by the solver): straightener frame -> smooth cubic taper -> exit lip.
    Returns the thin-shell mesh plus tight per-segment boxes for the cinematic clearance check. */
 function liveNozzleMesh(n){const P=[],Nn=[],I=[],boxes=[],q=(a,b,c,d)=>{const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],k=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...k)||1,m=k.map(x=>x/l);
-  for(const sg of [1,-1]){const b0=P.length/3,vs=sg>0?[a,b,c,d]:[d,c,b,a];for(const p of vs){P.push(...p);Nn.push(m[0]*sg,m[1]*sg,m[2]*sg)}I.push(b0,b0+1,b0+2,b0,b0+2,b0+3)}};
+  for(const sg of [1,-1]){const b0=P.length/3,vs=sg>0?[a,b,c,d]:[d,c,b,a],o=.015*sg;for(const p of vs){P.push(p[0]+m[0]*o,p[1]+m[1]*o,p[2]+m[2]*o);Nn.push(m[0]*sg,m[1]*sg,m[2]*sg)}I.push(b0,b0+1,b0+2,b0,b0+2,b0+3)}};
  const S=n.seg,ss=t=>t*t*(3-2*t),at=i=>{const t=i/S,s=ss(t);return {x:n.xa+(n.xb-n.xa)*t,w:n.wa+(n.wb-n.wa)*s,h:n.ha+(n.hb-n.ha)*s}};
  for(let i=0;i<S;i++){const a=at(i),b=at(i+1),y0=n.y0;
   q([a.x,y0,a.w],[b.x,y0,b.w],[b.x,b.h,b.w],[a.x,a.h,a.w]);q([a.x,y0,-a.w],[a.x,a.h,-a.w],[b.x,b.h,-b.w],[b.x,y0,-b.w]);q([a.x,a.h,-a.w],[a.x,a.h,a.w],[b.x,b.h,b.w],[b.x,b.h,-b.w]);
