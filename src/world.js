@@ -3,6 +3,7 @@ import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, patchStandard, timeUniform, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
+import { facadeUniforms } from './facade.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
 import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
@@ -337,7 +338,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uTime: timeUniform, uNight: nightU };
+  const uniforms = { uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.55 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
@@ -351,8 +352,8 @@ function createFacadeMaterial() {
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;`,
     fragDecl: `${GLSL_NOISE}
-      varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime,uNight;
-      float fRough,fMetal;vec3 fEmit;
+      varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
         if(k<.5)return vec3(1.,.18,.78);if(k<1.5)return vec3(.15,.85,1.);if(k<2.5)return vec3(1.,.55,.15);
@@ -375,7 +376,7 @@ function createFacadeMaterial() {
         float horiz=abs(N.x)>.5?vWP.z:vWP.x;float y=vWP.y;
         float sx=style>.5&&style<1.5?2.2:3.1;float sy=3.6;
         // shopfront / podium band
-        bool shop=y<4.6&&vSz.y>0.&&vInfo.w>.5;
+        bool shop=y<4.6&&vSz.y>0.&&mod(vInfo.w,2.)>.5;
         vec2 cell=vec2(floor(horiz/sx),floor(y/sy));vec2 f=vec2(fract(horiz/sx),fract(y/sy));
         float rnd=h21(cell+seed*37.1);float flr=h21(vec2(cell.y,seed*13.7));
         // wall weathering
@@ -416,7 +417,7 @@ function createFacadeMaterial() {
           wc*=.55+.6*smoothstep(0.,4.,y);
         }
         float fw=max(fwidth(horiz/sx),fwidth(y/sy));float farF=smoothstep(.1,.38,fw);
-        if(wm>.5){
+        if(uHasTex<.5&&wm>.5){
           if(lit>.5||tvf>.01){
             float k=lit>.5?1.:0.;vec3 em=wc*(.7+h21(cell+4.)*.8);
             em=mix(em,vec3(.35,.5,1.)*2.,tvf*(1.-k)*.0+tvf*.7);
@@ -440,12 +441,40 @@ function createFacadeMaterial() {
         // vertical corner light strip
         if(cornerD<.22&&style>.5&&h11(seed*3.1)>.4)fEmit+=acc*1.6;
         // crown glow
-        if(fromTop<.55&&style>.5&&vInfo.w<.5)fEmit+=acc*2.6;
+        if(fromTop<.55&&style>.5&&mod(vInfo.w,2.)<.5)fEmit+=acc*2.6;
+        if(uHasTex>.5){
+          // real facade texture sets: tile = (floors per tile + optional ground-floor shop slot) x 4 m so the window rows line up with the generated floors
+          float setf=floor(vInfo.w*.5);bool pod=mod(vInfo.w,2.)>.5;
+          float tw=setf<1.5?24.:(setf<2.5?8.:12.);
+          float yy=vLoc.y*vSz.y; // height above the instance base (the box geometry stands on y=0)
+          float fs=N.z>.5?1.:(N.z<-.5?-1.:(N.x>.5?-1.:1.)); // +1 when increasing horiz runs to the viewer's right
+          float mir=(h11(seed*3.3)>.5?-1.:1.)*fs;float u=mir*horiz/tw+h11(seed*9.1);
+          float vv;float vr=-yy*(setf<1.5?1./24.:1./tw); // continuous (branch-free) for the texture gradients
+          if(setf<1.5){
+            if(pod&&yy<4.){vv=1.-yy/4.*(1./6.);}
+            else{float t=(pod?yy-4.:yy)/20.;vv=(1.-fract(t))*(5./6.);}
+          }else{float t=yy/tw;vv=1.-fract(t);}
+          vec2 gx=vec2(dFdx(u),dFdx(vr)),gy=vec2(dFdy(u),dFdy(vr));
+          float eL=setf<1.5?setf:(setf<2.5?(h11(seed*7.7)>.5?4.:2.):(h11(seed*7.7)>.5?5.:3.));
+          vec3 tc=textureGrad(tFC,vec3(u,vv,setf),gx,gy).rgb;
+          vec3 te=textureGrad(tFE,vec3(u,vv,eL),gx,gy).rgb;
+          vec4 tn=textureGrad(tFN,vec3(u,vv,setf),gx,gy);
+          alb=tc*mix(vec3(1.),base*2.2,.2);fRough=mix(.85,tn.b,.85);fMetal=0.;
+          fEmit+=te*1.7*(.75+.5*h11(seed*5.5));
+          vec3 tw3=abs(N.x)>.5?vec3(0.,0.,1.):vec3(1.,0.,0.);
+          fBump=tw3*((tn.r*2.-1.)*mir)+vec3(0.,1.,0.)*(tn.g*2.-1.);
+        }
       }
       fEmit*=mix(.14,1.,uNight);
       diffuseColor.rgb=alb;
     `,
   });
+  const origCompile = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh) => {
+    origCompile(sh);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      if(uHasTex>.5)normal=normalize(normal+(viewMatrix*vec4(fBump*uBumpK,0.)).xyz);`);
+  };
   mat.userData.uniforms = uniforms;
   return mat;
 }
@@ -592,21 +621,22 @@ export function buildWorld(scene, quality) {
     const seed = rnd() * 50;
     const col = new THREE.Color(pickR(wallColors));
     col.multiplyScalar(R_(0.7, 1.15));
+    const tex = Math.floor(seed * 7.13) % 4;
     const podiumH = R_(6, 13);
     // podium (full lot, shopfront band)
-    tiers.push({ x: cx, z: cz, w, d, h: podiumH, style: style === 3 ? 2 : style, accent, seed, podium: 1, color: col });
+    tiers.push({ x: cx, z: cz, w, d, h: podiumH, style: style === 3 ? 2 : style, accent, seed, podium: 1, tex, color: col });
     // main tower
     const ins = Math.min(R_(1.5, 5), Math.min(w, d) * 0.18);
     const tw = w - ins * 2, td = d - ins * 2;
     const th = Math.max(H - podiumH, 6);
-    tiers.push({ x: cx, z: cz, w: tw, d: td, h: th, y: podiumH, style, accent, seed: seed + 1, podium: 0, color: col.clone().multiplyScalar(0.92) });
+    tiers.push({ x: cx, z: cz, w: tw, d: td, h: th, y: podiumH, style, accent, seed: seed + 1, podium: 0, tex, color: col.clone().multiplyScalar(0.92) });
     const lotTiers = { podium: { x0, z0, x1, z1, y0: 0, y1: podiumH }, tower: { x0: cx - tw / 2, z0: cz - td / 2, x1: cx + tw / 2, z1: cz + td / 2, y0: podiumH, y1: podiumH + th }, crown: null };
     let topY = podiumH + th, topW = tw, topD = td;
     if (H > 55 && rnd() < 0.8) {
       const i2 = Math.min(R_(3, 7), Math.min(tw, td) * 0.22);
       const ch = R_(10, 32);
       const sx = R_(-1, 1) * i2 * 0.5, sz = R_(-1, 1) * i2 * 0.5;
-      tiers.push({ x: cx + sx, z: cz + sz, w: tw - i2 * 2, d: td - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, color: col.clone().multiplyScalar(0.8) });
+      tiers.push({ x: cx + sx, z: cz + sz, w: tw - i2 * 2, d: td - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, tex, color: col.clone().multiplyScalar(0.8) });
       lotTiers.crown = { x0: cx + sx - (tw - i2 * 2) / 2, z0: cz + sz - (td - i2 * 2) / 2, x1: cx + sx + (tw - i2 * 2) / 2, z1: cz + sz + (td - i2 * 2) / 2, y0: topY, y1: topY + ch };
       topY += ch; topW = tw - i2 * 2; topD = td - i2 * 2;
       if (rnd() < 0.5 && ch > 14) { // spire
@@ -800,7 +830,7 @@ export function buildWorld(scene, quality) {
       const w = 30 + fr() * 60, d = 30 + fr() * 60, h = 80 + fr() * 250, x = Math.cos(a) * dist, z = Math.sin(a) * dist;
       if (Math.max(Math.abs(x) - w / 2, Math.abs(z) - d / 2) < clear) continue;
       if (far.some((f) => Math.abs(f.x - x) < (f.w + w) / 2 + 14 && Math.abs(f.z - z) < (f.d + d) / 2 + 14)) continue;
-      far.push({ x, z, w, d, h, style: Math.floor(fr() * 4), accent: Math.floor(fr() * 6), seed: fr() * 50, color: new THREE.Color(pickR(wallColors)).multiplyScalar(0.8) });
+      far.push({ x, z, w, d, h, style: Math.floor(fr() * 4), accent: Math.floor(fr() * 6), seed: fr() * 50, tex: Math.floor(fr() * 4), color: new THREE.Color(pickR(wallColors)).multiplyScalar(0.8) });
     }
     for (const f of far) {
       const x0 = f.x - f.w / 2, x1 = f.x + f.w / 2, z0 = f.z - f.d / 2, z1 = f.z + f.d / 2, podiumH = 6;
@@ -842,7 +872,7 @@ export function buildWorld(scene, quality) {
       mat4.compose(pos, q, s);
       m.setMatrixAt(k, mat4);
       m.setColorAt(k, t.color);
-      info[k * 4] = t.seed; info[k * 4 + 1] = t.style; info[k * 4 + 2] = t.accent; info[k * 4 + 3] = t.podium ? 1 : 0;
+      info[k * 4] = t.seed; info[k * 4 + 1] = t.style; info[k * 4 + 2] = t.accent; info[k * 4 + 3] = (t.podium ? 1 : 0) + 2 * (t.tex | 0);
     });
     m.geometry = boxGeo.clone();
     m.geometry.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4));
