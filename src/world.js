@@ -341,7 +341,7 @@ function createFacadeMaterial() {
   const uniforms = { uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.55 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
-    vertexDecl: 'attribute vec4 aInfo;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
+    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
     vertexMain: `
       vec4 mw=vec4(transformed,1.);vec3 nn=objectNormal;
       #ifdef USE_INSTANCING
@@ -350,9 +350,9 @@ function createFacadeMaterial() {
       #else
         vSz=vec3(1.);
       #endif
-      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;`,
+      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;`,
     fragDecl: `${GLSL_NOISE}
-      varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -374,6 +374,11 @@ function createFacadeMaterial() {
       } else if(N.y<-.5){alb*=.2;}
       else{
         float horiz=abs(N.x)>.5?vWP.z:vWP.x;float y=vWP.y;
+        // entrance face of a podium: open the glazed ground-floor bays (between the 0.7 m pillars) so the lobby behind the glass doors is visible
+        if(vDoor.w>.5&&y>.3&&y<3.1){
+          float code=N.x<-.5?0.:(N.x>.5?1.:(N.z<-.5?2.:3.));
+          if(abs(code-vDoor.z)<.5){float f=fract((horiz-vDoor.x)/vDoor.y);float pw=.35/vDoor.y;if(f>pw&&f<1.-pw)discard;}
+        }
         float sx=style>.5&&style<1.5?2.2:3.1;float sy=3.6;
         // shopfront / podium band
         bool shop=y<4.6&&vSz.y>0.&&mod(vInfo.w,2.)>.5;
@@ -623,6 +628,7 @@ export function buildWorld(scene, quality) {
     col.multiplyScalar(R_(0.7, 1.15));
     const tex = Math.floor(seed * 7.13) % 4;
     const podiumH = R_(6, 13);
+    const tierIdx = tiers.length; // this lot's podium instance in the facade mesh (door aperture is written there later)
     // podium (full lot, shopfront band)
     tiers.push({ x: cx, z: cz, w, d, h: podiumH, style: style === 3 ? 2 : style, accent, seed, podium: 1, tex, color: col });
     // main tower
@@ -665,7 +671,7 @@ export function buildWorld(scene, quality) {
       addFake(cx, 0, cz, accentColor(accent), 40, 0.6);
     }
     const solid = world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
-    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, solid, topY });
+    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, solid, topY, tierIdx });
 
     // signs on road-facing facades
     const ground = podiumH;
@@ -821,7 +827,7 @@ export function buildWorld(scene, quality) {
   }
 
   // Far skyline: huge towers beyond the promenade. They are real, enterable lots (door facing the city), reached over open ground.
-  const far = [];
+  const far = [], farInst = [];
   {
     const clear = world.promenade.outer + 18; // keep off the model ring and its back wall
     const fr = mulberry32(31337);
@@ -841,6 +847,12 @@ export function buildWorld(scene, quality) {
       world.lots.push(f.lot);
     }
     world.farCount = far.length;
+    // facade instances: a 6 m podium (shop band + door aperture) and the tower above it
+    for (const f of far) {
+      f.lot.tierIdx = farInst.length;
+      farInst.push({ ...f, h: 6, y: 0, podium: 1 });
+      farInst.push({ ...f, h: f.h - 6, y: 6, podium: 0 });
+    }
     const L = 1200, T = 12; // boundary of the playable world, behind every far tower
     world.colliders.addBox(-L - T, L, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 40, 'wall');
     world.colliders.addBox(L, -L - T, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 40, 'wall');
@@ -876,13 +888,14 @@ export function buildWorld(scene, quality) {
     });
     m.geometry = boxGeo.clone();
     m.geometry.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4));
+    m.geometry.setAttribute('aDoor', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
     m.castShadow = true; m.receiveShadow = true;
     m.frustumCulled = false;
     return m;
   }
   const facade = makeFacadeMesh(tiers);
   scene.add(facade);
-  const farMesh = makeFacadeMesh(far);
+  const farMesh = makeFacadeMesh(farInst);
   farMesh.castShadow = false; farMesh.receiveShadow = false;
   scene.add(farMesh);
 
@@ -1176,6 +1189,11 @@ export function buildWorld(scene, quality) {
   };
   world.facade = facade;
   buildEntrances(world, scene);
+  for (const l of world.lots) {
+    if (!l.door || l.tierIdx == null) continue;
+    const arr = (l.far ? farMesh : facade).geometry.attributes.aDoor, d = l.door, along = d.nx !== 0 ? l.z0 : l.x0;
+    arr.setXYZW(l.tierIdx, along, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 1); arr.needsUpdate = true;
+  }
   buildWaters(world, scene);
   world.objects = scene.children.slice(objStart);
   return world;
@@ -1228,7 +1246,6 @@ function buildEntrances(world, scene) {
     const em = new THREE.Color(...accent).multiplyScalar(2.8);
     const bx = (lx, y, lz, w, h, dd, col, key = 'emit') => { const [wx, wz] = W(lx, lz); B.box(key, wx, y, wz, w, h, dd, col, th); };
     bx(-1.3, 0, 0.1, 0.14, 3.1, 0.22, em); bx(1.3, 0, 0.1, 0.14, 3.1, 0.22, em); bx(0, 3.1, 0.1, 2.74, 0.14, 0.22, em);
-    bx(0, 0.0, 0.06, 2.6, 3.0, 0.02, new THREE.Color(1, 0.72, 0.45).multiplyScalar(0.5));
     bx(0, 0.02, 0.9, 3.4, 0.02, 1.8, new THREE.Color(1, 0.75, 0.5).multiplyScalar(0.55));
     bx(0, 3.55, 1.35, 6.2, 0.18, 2.8, new THREE.Color(0.04, 0.05, 0.08), 'decor'); bx(0, 3.44, 2.7, 5.8, 0.06, 0.06, em);
     const sc = new THREE.Color(...accent);
