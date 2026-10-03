@@ -81,7 +81,7 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 b=vec3(c);
  u=clamp(u,vec3(rx.x,ry.x,rz.x),vec3(rx.y,ry.y,rz.y));
  float lim=3.5*max(uU,.5);u=clamp(u,vec3(-lim),vec3(lim));
  /* flow conditioner (honeycomb + screen) slab: kills lateral velocity, adds a quadratic pressure-loss drag so the profile evens out */
- {vec3 wc=uMin+(vec3(c)+.5)*uH;if(wc.x>uCond.x&&wc.x<uCond.y){u.yz*=exp(-uCond.z*uDt);u.x-=uCond.w*abs(u.x)*u.x*uDt;}}
+ {vec3 wc=uMin+(vec3(c)+.5)*uH;if(wc.x>uCond.x&&wc.x<uCond.y){u.yz*=exp(-uCond.z*uDt);u.x/=1.+uCond.w*abs(u.x)*uDt;}}
  o=vec4(u,0.);}`,
 /* ---- eddy viscosity (Smagorinsky) at cell centres ---- */
 sgs:`uniform sampler2D uVel,uSol;uniform float uCs,uNuMax;
@@ -262,7 +262,7 @@ function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.m
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 미지원');
  macRelease();MAC.cfg=cfg;MAC.N=N;MAC.min=min;MAC.max=max;MAC.h=h;
  /* nozzle mass balance: the fan face emits U*fanK so that the nozzle exit (area Ae) carries U; the inlet supplies the same flux over the domain section */
- MAC.cond=null;MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.fan.max[0]+.06,cfg.fan.max[0]+.30,60,LIVE.screenK];const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.inK=MAC.fanK*Af/Ad}
+ MAC.cond=null;MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.nozzle.xb-.35,cfg.nozzle.xb,60,LIVE.screenK];const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.inK=MAC.fanK*Af/Ad}
  const G=MAC.G=macAtlas(N),Nd=N.map(v=>v*2),D=MAC.D=macAtlas(Nd);MAC.hd=h.map(v=>v/2);
  const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
  MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
