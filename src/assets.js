@@ -81,7 +81,10 @@ export function buildSoldier(look = {}, gunParts) {
   });
   const mixer = new THREE.AnimationMixer(root);
   const act = {};
-  for (const c of A.soldier.animations) if (c.name !== 'TPose') { act[c.name] = mixer.clipAction(c); act[c.name].play(); act[c.name].weight = 0; }
+  // base clips run permanently at weight 0; the retargeted UAL clips (U_*) are created on first use so idle actors do not pay for them
+  const clipBy = new Map(A.soldier.animations.map((c) => [c.name, c]));
+  for (const c of A.soldier.animations) if (c.name !== 'TPose' && !c.name.startsWith('U_')) { act[c.name] = mixer.clipAction(c); act[c.name].play(); act[c.name].weight = 0; }
+  const clip = (name) => { if (act[name]) return act[name]; const c = clipBy.get(name); if (!c) return null; const a = (act[name] = mixer.clipAction(c)); a.play(); a.weight = 0; return a; };
   act.Idle.weight = 1;
   mixer.update(Math.random() * 2);
   // weapon mount on right hand
@@ -98,7 +101,7 @@ export function buildSoldier(look = {}, gunParts) {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
     setTop(hex) { for (const mm of topMats) { mm.color.set(hex).multiplyScalar(3.2); mm.emissive.set(hex); } },
-    mixer, act, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
+    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
     // called after mixer update each frame
     applyPose(pose, pitch) {
       if (this.sit > 0.01) {
