@@ -3,11 +3,11 @@
 const LIVE={impl:(location.hash.match(/impl=(COLLOCATED|MAC)/)||[])[1]||'MAC',macErr:null,ok:false,err:null,enabled:true,init:false,gen:-1,q:null,N:null,step:0,t:0,U:5,mode:'RAKE_V',wand:false,colorMode:/color=1/.test(location.hash),
  vortEps:.35,jacobi:32,sub:2,bench:null,benchRes:null,rs:.5,rq:0,cs:.8,stepScale:.75,frame:0,solver:'MG',mgCycles:1,mgPre:2,mgPost:2,mgLevels:3,omega:.86,mgRN:1,mgRS:0,mgCorr:.75,coarseIters:40,diag:false,dens:3,speedAt:0,lastRead:0,lastT:0,emitters:[],stats:{}};
 /* smoke display transfer (visualisation only): extinction = gain * max(dye-floor,0)^gamma, so thin diffused dye turns transparent while filament cores stay opaque. tau: smoke lifetime in seconds (0 = legacy per-step decay). */
-LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).slice(0,4);if(!LIVE.tf||LIVE.tf.length<3||LIVE.tf.some(v=>!(v>=0)))LIVE.tf=[2,+(((location.hash.match(/cols=(\d+)/)||[])[1]||5)>1?1.1:2.6),.03,1.35];if(LIVE.tf.length<4)LIVE.tf[3]=1;LIVE.tau=+((location.hash.match(/tau=([\d.]+)/)||[])[1]??3);
+LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).slice(0,4);if(!LIVE.tf||LIVE.tf.length<3||LIVE.tf.some(v=>!(v>=0)))LIVE.tf=[2,+(((location.hash.match(/cols=(\d+)/)||[])[1]||5)>1?1.2:2.6),.03,1.35];if(LIVE.tf.length<4)LIVE.tf[3]=1;LIVE.tau=+((location.hash.match(/tau=([\d.]+)/)||[])[1]??3);
 LIVE.wisp=+((location.hash.match(/wisp=([\d.]+)/)||[])[1]??.6);LIVE.tipX=-3.8;
 LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
 LIVE.rakeK=+((location.hash.match(/rakek=([\d.]+)/)||[])[1]||4.2);
-LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.75);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
+LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.5);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
 function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
@@ -282,7 +282,7 @@ function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,
  const attach=(name,c,sz,color,mat,mesh,boxes)=>{const o=addBox('rake probe '+name,c,sz,color,{bevel:.004,category:'instrumentation'});o.pbrMaterial=mat;o._mesh=mesh;if(boxes)o.obstacleBoxes=boxes;o.gpu=bindMesh(mesh.positions,mesh.normals,new Float32Array(mesh.positions.length/3*2),mesh.indices)};
  const fb=AETHER.FAN_MODULE?.layout?.fanBounds;
  if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2];
-  attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.085,.09,.1],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.28,t:.012,fr:.08}));
+  attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.2,.21,.23],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.2,t:.01,fr:.07}));
   const nz=liveNozzleMesh({xa:sx1,xb:fb.max[0]+1.2,wa:sz1,wb:2.1,y0:sy0,ha:sy1,hb:3.2,seg:10});
   attach('nozzle',[(sx1+fb.max[0]+1.2)/2,(sy0+sy1)/2,0],[fb.max[0]+1.2-sx1,sy1-sy0,sz1*2],[.62,.65,.68],materialLibrary.PaintedSteelGray,nz.mesh,nz.boxes)}
  const L=[],x=R.x,top=1.72;
