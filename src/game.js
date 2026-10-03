@@ -11,6 +11,8 @@ import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
 import { buildDressing } from './dressing.js';
+import { buildSkyline } from './skyline.js';
+import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
 import { Interact } from './interact.js';
@@ -65,6 +67,7 @@ export class Game {
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q);
     this.dressing = buildDressing(this.scene, this.world);
+    this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders);
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };

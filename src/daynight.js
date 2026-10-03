@@ -54,6 +54,7 @@ export class DayNight {
     e.scene.environmentIntensity = lerp(0.45, 0.85, D);
     e.bloom.strength = e.q.bloom * lerp(1, 0.5, D);
     for (const m of G.world.dayMats || []) m.color.setScalar(0.25 + 0.75 * night);
+    for (const e of G.world.nightEmit || []) e.m.emissiveIntensity = e.k * night;
     G.world.sky.position.copy(G.camera.position);
     moon.intensity += (G.boltAdd || 0) * 2.6 * (G.indoor ? 0 : 1); hemi.intensity += (G.boltAdd || 0) * 0.8;
     G.dayK = D;

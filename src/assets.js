@@ -8,10 +8,20 @@ import trashB64 from '../assets/props/metal_trash_can.glb';
 import boxB64 from '../assets/props/utility_box_01.glb';
 import bagB64 from '../assets/props/trashbag.glb';
 import plantB64 from '../assets/props/potted_plant_01.glb';
+import res01B64 from '../assets/res/res_01.glb';
+import res02B64 from '../assets/res/res_02.glb';
+import res03B64 from '../assets/res/res_03.glb';
+import res04B64 from '../assets/res/res_04.glb';
+import res05B64 from '../assets/res/res_05.glb';
+import res06B64 from '../assets/res/res_06.glb';
+import res07B64 from '../assets/res/res_07.glb';
+import res08B64 from '../assets/res/res_08.glb';
+import res09B64 from '../assets/res/res_09.glb';
+import res10B64 from '../assets/res/res_10.glb';
 
 // Embedded CC assets: Soldier (three.js examples, Mixamo rig) and Ferrari 458 (CC-BY 4.0, vicent091036).
 const b64ToBuf = (s) => { const bin = atob(s), n = bin.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
-export const A = { soldier: null, ferrari: null, props: null, ok: false };
+export const A = { soldier: null, ferrari: null, props: null, res: null, ok: false };
 
 export async function loadAssets() {
   const loader = new GLTFLoader();
@@ -25,6 +35,11 @@ export async function loadAssets() {
       await Promise.all(Object.entries(src).map(async ([k, b]) => { out[k] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
       A.props = out;
     } catch (e) { console.warn('prop load failed', e); }
+    try {
+      const rs = [res01B64, res02B64, res03B64, res04B64, res05B64, res06B64, res07B64, res08B64, res09B64, res10B64], out = {};
+      await Promise.all(rs.map(async (b, k) => { out[k + 1] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
+      A.res = out;
+    } catch (e) { console.warn('skyline load failed', e); }
     const box = new THREE.Box3().setFromObject(s.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     A.ok = true;
