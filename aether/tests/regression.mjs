@@ -1,4 +1,4 @@
-/* global __CINE, AETHER */
+/* global __CINE, AETHER  __TUNNEL_V2 */
 // Regression suite for existing features + boot health. Usage: node tests/regression.mjs [file.html] [tag]
 // Writes tests/out/<tag>/regression.json, regression.md and five fixed-camera screenshots.
 import fs from 'node:fs';
@@ -28,11 +28,12 @@ try {
   await page.waitForFunction(() => window.__LIVE && (window.__LIVE.err || (window.__LIVE.ok && window.__LIVE.step > 8)), null, { timeout: 300000 });
   const live = await ev(() => ({ ok: __LIVE.ok, err: __LIVE.err, q: __LIVE.q, N: __LIVE.N, solver: __LIVE.solver }));
   check('실시간 CFD 부팅', live.ok && !live.err, live);
-  const sc = await ev(() => { const s = __AETHER_DEBUG.sceneStats(); return { objects: s.objects, vehicleParts: s.vehicleParts, fanParts: s.fanParts, roadParts: s.roadParts, consoleLike: s.names.filter(n => /console|desk|monitor|chair|control|office/i.test(n)).length, stage: __AETHER_DEBUG.bootStage }; });
-  check('PBR 풍동 씬', sc.objects > 20 && sc.vehicleParts > 0 && sc.fanParts > 0 && sc.roadParts > 0, sc);
+  const sc = await ev(() => { const s = __AETHER_DEBUG.sceneStats(); return { v2: !!(window.__TUNNEL_V2 && __TUNNEL_V2.active), objects: s.objects, vehicleParts: s.vehicleParts, fanParts: s.fanParts, roadParts: s.roadParts, consoleLike: s.names.filter(n => /console|desk|monitor|chair|control|office/i.test(n)).length, stage: __AETHER_DEBUG.bootStage }; });
+  check('PBR 풍동 씬', sc.objects > 20 && sc.vehicleParts > 0 && (sc.fanParts > 0 || sc.v2) && sc.roadParts > 0, sc);
   check('관제실 장비', sc.consoleLike > 0, { consoleLike: sc.consoleLike });
   const door = await ev(() => ({ built: __AETHER_DEBUG.door.built, steps: __AETHER_DEBUG.door.steps, landZ: __AETHER_DEBUG.door.landZ }));
-  check('자동문·계단', door.built === true && door.steps > 0, door);
+  if (sc.v2) { const t2 = await ev(() => ({ stats: __TUNNEL_V2.stats, rot: __TUNNEL_V2.rotating.length, names: __AETHER_DEBUG.sceneStats().names.filter(n => /^tv2\./.test(n)).length })); check('새 풍동 부품(노즐·수집부·턴테이블·창)', t2.stats.triangles > 10000 && t2.names >= 20 && t2.rot >= 2, t2); }
+  else check('자동문·계단', door.built === true && door.steps > 0, door);
   const hud = await ev(() => document.getElementById('lvStat')?.textContent || '');
   check('HUD·상시 고지', /실시간 GPU CFD/.test(hud) && /정성적 시각화이며 공학 해석 도구가 아닙니다/.test(hud), hud.slice(0, 160));
   const hangul = await ev(() => (document.body.innerText.match(/[가-힣]/g) || []).length);
