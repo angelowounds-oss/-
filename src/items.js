@@ -22,6 +22,7 @@ export const ITEMS = {
   bat: { name: '야구 방망이', shape: ['cyl', 0.035, 0.85], color: 0xb08850, mass: 1.1, price: 25, melee: { dmg: 24, rate: 0.5, name: '방망이' }, laid: true },
   knife: { name: '단검', shape: ['box', 0.22, 0.015, 0.03], color: 0xc8ccd8, mass: 0.2, price: 30, melee: { dmg: 22, rate: 0.35, name: '단검' } },
   flashlight: { name: '손전등', shape: ['cyl', 0.03, 0.18], color: 0x303040, mass: 0.3, price: 18, tool: 'flashlight' },
+  jerrycan: { name: '연료통', shape: ['cyl', 0.1, 0.3], color: 0xc02818, mass: 2.4, price: 12, fuelCan: true },
   grenade: { name: '수류탄', shape: ['ball', 0.045], color: 0x405030, mass: 0.4, price: 90, grenade: true },
   mag_pistol: { name: '권총 탄창', shape: ['box', 0.03, 0.1, 0.07], color: 0x303038, mass: 0.2, price: 12, ammo: [0, 12] },
   mag_rifle: { name: '카빈 탄창', shape: ['box', 0.035, 0.16, 0.08], color: 0x303038, mass: 0.3, price: 20, ammo: [1, 30] },
@@ -192,10 +193,11 @@ export class ItemWorld {
     if (!d || !this.take(id)) return false;
     if (d.heal) { pl.hpv = Math.min(100, pl.hpv + d.heal); G.toast('치료', `+${d.heal} HP`); }
     if (d.eat) G.needs?.apply(d.eat);
+    if (d.fuelCan) { const v = G.lastVehicle; if (v && Math.hypot(v.x - pl.x, v.z - pl.z) < 8) { v.fuel = Math.min(100, v.fuel + 55); G.toast('주유', '+55%'); } else { this.add(id); G.toast('차량 근처에서 사용'); return false; } }
     if (d.cash) { G.cash += d.cash; G.toast(`+$${d.cash}`); G.audio.cash(); }
     if (d.ammo) { pl.ammo[d.ammo[0]].reserve += d.ammo[1]; G.toast('탄약 +' + d.ammo[1]); }
     if (d.eat || d.heal) G.audio.tone?.(520, 0.1, 'triangle', 0.08, 380);
-    if (!d.heal && !d.eat && !d.cash && !d.ammo) { this.add(id); return false; }
+    if (!d.heal && !d.eat && !d.cash && !d.ammo && !d.fuelCan) { this.add(id); return false; }
     G.onItemChange?.();
     return true;
   }

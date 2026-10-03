@@ -91,7 +91,7 @@ export class Physics {
     let n = 0;
     while (this.acc >= PHYS.dt) {
       pre?.(PHYS.dt);
-      for (const v of list) v.ctrl.updateVehicle(PHYS.dt, undefined, grp(GR.VEH, GR.STATIC | GR.PROP | GR.OBJ));
+      for (const v of list) v.ctrl?.updateVehicle(PHYS.dt, undefined, grp(GR.VEH, GR.STATIC | GR.PROP | GR.OBJ));
       this.world.step(this.events);
       this.drainEvents();
       for (const v of list) stabilize(v);
@@ -153,7 +153,7 @@ export class Physics {
   removeVehicle(v) {
     const i = (this.vehicles || []).indexOf(v); if (i >= 0) this.vehicles.splice(i, 1);
     this.bodies.delete(v.body.handle);
-    this.world.removeVehicleController?.(v.ctrl);
+    if (v.ctrl) this.world.removeVehicleController?.(v.ctrl);
     this.world.removeRigidBody(v.body);
   }
 }
@@ -189,6 +189,7 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
 
 // Arcade stabiliser: bleed roll/pitch angular velocity so cars tip over only after violent hits
 function stabilize(v) {
+  if (v.spec.craft) return;
   const b = v.body, q = b.rotation(), w = b.angvel();
   const fx = 2 * (q.x * q.z + q.w * q.y), fy = 2 * (q.y * q.z - q.w * q.x), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
   const ux = 2 * (q.x * q.y - q.w * q.z), uy = 1 - 2 * (q.x * q.x + q.z * q.z), uz = 2 * (q.y * q.z + q.w * q.x);

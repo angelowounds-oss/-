@@ -3,6 +3,7 @@ import { buildCar, CAR_SPECS } from './models.js';
 import { N, P, R, LANE, HALF, roadC } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
+import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
 
 export const CAR_COLORS = [0x1a2433, 0x7a1020, 0xc9ced8, 0x0d3b66, 0x2b2f38, 0xe0b020, 0x14654b, 0x5a1f7a, 0xd8d8d0, 0x111418, 0x8a2a10, 0x1c6fa8];
 const GLOWS = [[0.2, 0.9, 1], [1, 0.2, 0.8], [0.6, 0.3, 1], [0.2, 1, 0.5], [1, 0.5, 0.15], [1, 0.15, 0.2]];
@@ -14,12 +15,14 @@ export class Vehicle {
     this.G = G; this.id = ++uid;
     this.type = type; this.kind = kind; // parked | traffic | police | player
     const police = kind === 'police', taxi = opts.taxi;
-    this.model = buildCar(type, police ? 0x0c1220 : taxi ? 0xe8b820 : color, { police, taxi, glow: opts.glow || GLOWS[Math.floor(Math.random() * GLOWS.length)] });
+    const base = CAR_SPECS[type] || CRAFT_SPECS[type];
+    const mo = { police, taxi, glow: opts.glow || GLOWS[Math.floor(Math.random() * GLOWS.length)] };
+    this.model = base.custom ? buildCustom(type, color, mo) : buildCar(type, police ? 0x0c1220 : taxi ? 0xe8b820 : color, mo);
     this.group = this.model.group;
     if (police) {
       // white doors stripe via a second paint mesh overlay is skipped; keep dark livery with light bar
     }
-    this.spec = CAR_SPECS[type];
+    this.spec = { ...base }; this.fuel = 100; this.mods = { engine: 0, tires: 0, armor: 0 };
     this.L = this.spec.L; this.W = this.spec.W;
     this.x = 0; this.z = 0; this.h = 0; this.vx = 0; this.vz = 0; this.yaw = 0;
     this.pitch = 0; this.roll = 0; this.steerA = 0; this.wheelSpin = 0;
@@ -57,7 +60,7 @@ export class Vehicle {
   syncMesh() {
     const g = this.group;
     if (this.pv && this.q) {
-      g.position.set(this.x, this.by - PHYS.bodyY, this.z);
+      g.position.set(this.x, this.by - (this.spec.cy ?? PHYS.bodyY), this.z);
       g.quaternion.set(this.q.x, this.q.y, this.q.z, this.q.w);
     } else { g.position.set(this.x, 0, this.z); g.rotation.set(0, this.h, 0); }
     if (this.model.syncWheels) this.model.syncWheels(this.wheelSpin, -this.steerA);
@@ -73,8 +76,8 @@ export class Vehicle {
     if (this.dead) return;
     this.dead = true; this.burn = 1; this.explodeT = 1.2 + Math.random() * 1.2;
     this.throttle = 0; this.brake = 0; this.steer = 0;
-    this.model.paint.material = this.model.paint.material.clone();
-    this.model.paint.material.color.setHex(0x1a1512); this.model.paint.material.metalness = 0.1; this.model.paint.material.roughness = 0.9;
+    let mt = this.model.paint; if (mt && mt.isMesh) { mt.material = mt.material.clone(); mt = mt.material; }
+    if (mt) { mt.color.setHex(0x1a1512); mt.metalness = 0.1; mt.roughness = 0.9; }
     this.setLights(false);
     this.G.onVehicleDestroyed?.(this, src);
   }
@@ -89,7 +92,7 @@ export class Vehicle {
   // ---------- Physics (Rapier rigid body + raycast suspension) ----------
   attachPhysics(phys) {
     this.phys = phys;
-    this.pv = phys.createVehicle(this.spec, this.x, this.z, this.h);
+    this.pv = this.spec.craft ? createCraftBody(phys, this.spec, this.x, this.startY ?? this.spec.cy + 0.25, this.z, this.h) : phys.createVehicle(this.spec, this.x, this.z, this.h);
     this.pv.owner = this;
     this.syncToBody(true);
     this.readBody(0);
@@ -98,7 +101,7 @@ export class Vehicle {
   // Teleport body to current x,z,h and velocity fields
   syncToBody(sleep = false) {
     const b = this.pv.body;
-    b.setTranslation({ x: this.x, y: PHYS.bodyY + 0.05, z: this.z }, true);
+    b.setTranslation({ x: this.x, y: this.spec.craft ? (this.startY ?? this.spec.cy + 0.25) : PHYS.bodyY + 0.05, z: this.z }, true);
     b.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true);
     b.setLinvel({ x: this.vx, y: 0, z: this.vz }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     if (sleep) b.sleep();
@@ -129,6 +132,7 @@ export class Vehicle {
       if (this.hp < this.maxHp * 0.12) { this.hp -= dt * 2; if (this.hp <= 0) this.destroy(null); if (Math.random() < dt * 14) G.fx.fire(this.x + rand(-.6, .6), 1, this.z + rand(-.6, .6)); }
     }
     if (this.driver === 'ai' && !this.dead) this.driveAI(dt);
+    if (this.fuel <= 0 && this.driver === 'player') this.throttle = 0;
     const aVf = Math.abs(this.fwdSpeed);
     const maxSteer = lerp(0.52, 0.075, clamp(aVf / 34, 0, 1)) * (this.hand ? 1.25 : 1);
     this.steerA = damp(this.steerA, this.steer * maxSteer, 9, dt);
@@ -136,12 +140,14 @@ export class Vehicle {
   }
   // Called before every physics sub-step
   applyDrive() {
+    if (this.spec.craft) return driveCraft(this, 1 / 60);
     const hasDriver = this.driver && !this.dead;
     driveVehicle(this.pv, {
       throttle: hasDriver ? this.throttle : 0, brake: hasDriver ? this.brake : (this.dead ? 0.4 : 0.15),
       steer: this.maxSteerNow ? this.steerA / this.maxSteerNow : 0, maxSteer: this.maxSteerNow || 0.3,
       hand: hasDriver && this.hand, speedFwd: this.fwdSpeed, dead: this.dead || !hasDriver, parked: !this.dead && this.kind === 'parked',
     });
+    if (this.type === 'moto') motoAssist(this.pv.body);
   }
   // After the physics step(s): sync fields, impact detection, visuals
   post(dt) {
@@ -172,6 +178,8 @@ export class Vehicle {
       this.model.siren.rs.visible = ph; this.model.siren.bs.visible = !ph;
     }
     this.lastSpeed = this.speed;
+    if (this.driver === 'player' && !this.dead) this.fuel = Math.max(0, this.fuel - dt * (0.04 + Math.abs(this.throttle) * 0.09) * (this.spec.fuelRate || 1));
+    this.model.craftVisual?.(this, dt);
     if (this.kind === 'parked' && !this.driver && !this.dead && this.speed < 0.15) { this.idleT = (this.idleT || 0) + dt; if (this.idleT > 1) { this.pv.body.sleep(); this.idleT = 0; } } else this.idleT = 0;
     this.syncMesh();
   }
@@ -217,8 +225,9 @@ export class Vehicle {
       }
       if (!opts.length) opts.push([-di, -dj, 1]);
       let pick = opts[0];
-      if (this.police && this.chaseTarget) {
-        const tx = this.chaseTarget.x, tz = this.chaseTarget.z; let best = 1e9;
+      const goal = this.police ? this.chaseTarget : this.dest;
+      if (goal) {
+        const tx = goal.x, tz = goal.z; let best = 1e9;
         for (const o of opts) { const d = Math.hypot(roadC(ni + o[0]) - tx, roadC(nj + o[1]) - tz) + (o[0] === -di && o[1] === -dj ? 200 : 0) - (o[0] === di && o[1] === dj ? 3 : 0); if (d < best) { best = d; pick = o; } }
       } else {
         let t = Math.random() * opts.reduce((s, o) => s + o[2], 0);
@@ -257,10 +266,15 @@ export class Vehicle {
     let target = ai.speed;
     // direct chase for police near target
     let tx, tz;
-    if (this.police && this.chaseTarget && this.direct) {
+    if (this.dest && !this.police) {
+      const dd = Math.hypot(this.dest.x - this.x, this.dest.z - this.z);
+      if (dd < 22 && G.hasLOS(this.x, 1.2, this.z, this.dest.x, 1.2, this.dest.z)) this.directDest = true;
+      if (this.directDest) { tx = this.dest.x; tz = this.dest.z; target = Math.min(ai.speed, Math.max(0, (dd - 6) * 1.1)); if (dd < 8) { this.arrived = true; target = 0; } }
+    }
+    if (tx === undefined && this.police && this.chaseTarget && this.direct) {
       tx = this.chaseTarget.x; tz = this.chaseTarget.z;
       target = 24;
-    } else {
+    } else if (tx === undefined) {
       if (!ai.wp.length) this.planAhead();
       let wp = ai.wp[0];
       while (wp && Math.hypot(wp.x - this.x, wp.z - this.z) < 5.5) { ai.wp.shift(); wp = ai.wp[0]; if (ai.wp.length < 3) this.planAhead(); }

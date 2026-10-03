@@ -18,6 +18,7 @@ import { Panels } from './panels.js';
 import { Life } from './life.js';
 import { Clock, Needs } from './needs.js';
 import { actions } from './actions.js';
+import { garage } from './garage.js';
 import { DayNight } from './daynight.js';
 import { Society, ZONES } from './society.js';
 import { Character } from './character.js';
@@ -61,7 +62,7 @@ export class Game {
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
-    this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this);
+    this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this); this.buildStations();
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -85,7 +86,7 @@ export class Game {
     this.bindUI();
     this.panels = new Panels(this);
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
-    this.populate();
+    this.populate(); this.spawnCrafts();
     this.spawnPickups();
     this.startMission(this.missionIndex);
     progress(1, '준비 완료');
@@ -449,10 +450,13 @@ export class Game {
   }
   vehicleProvider(pl, out) {
     let best = null, bd = 3.6;
-    for (const v of this.vehicles) { if (!v.group.visible || v.dead) continue; const d = this.distToVehicle(pl.x, pl.z, v); if (d < bd) { bd = d; best = v; } }
+    for (const v of this.vehicles) { if (!v.group.visible || v.dead) continue; const d = this.distToVehicle(pl.x, pl.z, v) - (v.spec.craft === 'heli' ? 1.5 : 0); if (d < bd && Math.abs((v.by || 0) - (pl.y || 0)) < 5) { bd = d; best = v; } }
     if (!best) return;
-    const v = best;
-    out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: '차량', verbs: [{ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : '차량 탑승'), run: () => this.enterVehicle(v) }] });
+    const v = best, verbs = [];
+    if (v.callTaxi && v.arrived) verbs.push({ key: 'F', label: () => '택시 탑승', run: () => this.boardTaxi(v) });
+    else verbs.push({ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : v.spec.craft === 'heli' ? '헬기 탑승' : v.spec.craft === 'boat' ? '보트 탑승' : v.type === 'moto' ? '오토바이 탑승' : '차량 탑승'), run: () => this.enterVehicle(v) });
+    if (v.driver !== 'ai' && !v.spec.craft) verbs.push({ key: 'T', label: () => '트렁크', run: () => this.openTrunk(v) });
+    out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: v.type === 'moto' ? '오토바이' : v.spec.craft === 'heli' ? '헬리콥터' : v.spec.craft === 'boat' ? '보트' : '차량', verbs });
   }
   waterAt(x, z) { for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w; return null; }
   focusPos() { return this.vehicle || this.player; }
@@ -503,7 +507,7 @@ export class Game {
   closeElevatorUI() { el('elev').classList.remove('on'); this.uiModal = false; removeEventListener('keydown', this._elevKey, true); this.input.lock(); }
   noteCrime(pl, kind, heat) { return this.society.crime(kind, heat); }
   enterVehicle(v) {
-    const pl = this.player;
+    const pl = this.player; this.lastVehicle = v;
     // carjack AI driver
     if (v.driver === 'ai') {
       const d = this.spawnCivilian(false);
@@ -540,13 +544,16 @@ export class Game {
   }
   driveControl(dt, inp) {
     const v = this.vehicle, pl = this.player;
-    v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand;
+    if (this.passenger) { this.taxiTick(); pl.x = v.x; pl.z = v.z; pl.body3.teleport(pl.x, 0, pl.z); if (this.input.edge('use') && v.speed < 3) this.endPassenger(false); if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3; return; }
+    v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
+    if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.keys.has('Space'); }
+    if (this.input.edge('verb3') && v.speed < 4 && this.nearStation(v.x, v.z)) this.refuel(v);
     // gamepad/keys give both throttle & brake semantic via my; if reversing handled by physics
     if (this.input.edge('use') && !this.player.dead) this.exitVehicle();
     if (this.input.edge('horn')) { this.audio.horn(); this.alertCivs(v.x, v.z, 25); }
     if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3;
     if (this.input.edge('lights')) v.setLights(!v.lightsOn);
-    pl.x = v.x; pl.z = v.z; pl.y = 0; pl.body3.teleport(pl.x, 0, pl.z);
+    pl.x = v.x; pl.z = v.z; pl.y = v.spec.craft === 'heli' ? v.by : 0; pl.body3.teleport(pl.x, pl.y, pl.z);
     if (v.dead && !this.vehicleDeathHandled) { /* handled by explosion */ }
   }
   playerVehicleExploded(v) {
@@ -828,7 +835,7 @@ export class Game {
       const d = Math.hypot(v.x - cam.x, v.z - cam.z);
       const vis = d < (v.kind === 'parked' ? 170 : 230);
       v.group.visible = vis;
-      if (v.kind === 'traffic' && !v.dead && v.driver === 'ai' && v !== this.vehicle) {
+      if (v.kind === 'traffic' && !v.dead && v.driver === 'ai' && v !== this.vehicle && !v.callTaxi && v !== this.passenger) {
         const dd = Math.hypot(v.x - focus.x, v.z - focus.z);
         if (dd > 260) { this.recycleTraffic(v); }
       }
@@ -1144,7 +1151,8 @@ export class Game {
       if (cam.offsetT > 0) cam.offsetT -= dt;
       else { const target = sp > 3 ? Math.atan2(v.vx, v.vz) * (v.fwdSpeed < -1 ? 0 : 1) + (v.fwdSpeed < -1 ? v.h : 0) : v.h; const targetH = v.fwdSpeed >= -1 ? (sp > 3 ? Math.atan2(v.vx, v.vz) : v.h) : v.h; cam.yaw = dampAngle(cam.yaw, v.fwdSpeed < -2 ? v.h + Math.PI : targetH, sp > 3 ? 2.6 : 1.2, dt); }
       cam.pitch = damp(cam.pitch, -0.14 - clamp(sp / 140, 0, 0.1), 3, dt);
-      const dist = (cam.mode === 0 ? 6.4 : cam.mode === 1 ? 9.5 : 0.1) + sp * 0.03;
+      const big = v.spec.craft ? (v.spec.craft === 'heli' ? 15 : 10) : 0;
+      const dist = (cam.mode === 0 ? 6.4 + big : cam.mode === 1 ? 9.5 + big : 0.1) + sp * 0.03;
       cam.fov = damp(cam.fov, 66 + clamp(sp * 0.55, 0, 22), 4, dt);
       ax = v.x; ay = 1.5 + (cam.mode === 2 ? 0.1 : 0); az = v.z;
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
@@ -1208,11 +1216,12 @@ export class Game {
     ui.ammo.classList.toggle('empty', am.clip === 0);
     ui.weapon.style.display = this.playerOnFoot ? '' : 'none';
     ui.cross.classList.toggle('hide', !this.playerOnFoot || pl.dead);
-    if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; }
+    if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; }
     // hint
     let hint = '';
     if (this.playerOnFoot && this.nearInteract && !pl.dead && !this.frozen()) hint = this.nearInteract.verbs.map((v) => `<kbd>${v.key}</kbd>${typeof v.label === 'function' ? v.label() : v.label}`).join('　') + '';
-    else if (v) hint = '';
+    else if (v && !this.passenger && this.nearStation(v.x, v.z) && v.speed < 4) hint = `<kbd>T</kbd>주유 · 연료 ${Math.round(v.fuel)}%`;
+    else if (v && v.fuel < 12 && this.time % 2 < 1) hint = '연료 부족!';
     this.setHTML('hint', ui.hint, hint); ui.hint.classList.toggle('on', !!hint);
     // direction
     const bearing = ((Math.PI - this.cam.yaw) * 180 / Math.PI % 360 + 360) % 360;
@@ -1282,3 +1291,4 @@ export class Game {
   }
 }
 Object.assign(Game.prototype, actions);
+Object.assign(Game.prototype, garage);
