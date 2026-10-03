@@ -171,7 +171,7 @@ function assembleEmbeddedConsole(){
  if(!json||!bin||json.asset?.version!=='2.0'||json.images?.length)throw Error('M6_CONSOLE_GLB_ASSET_CONTRACT');
  const rootIndex=json.nodes.findIndex(n=>n.name==='AETHER_MAIN_CONSOLE_ROOT'),roots=json.scenes[json.scene]?.nodes||[];
  if(rootIndex<0||!roots.includes(rootIndex))throw Error('M6_CONSOLE_ROOT_MISSING');
- const root=json.nodes[rootIndex],extra=root.extras||{},placement=[-2.8,.7475,5.65],cs=0,sn=1;
+ const root=json.nodes[rootIndex],extra=root.extras||{},placement=TUNNEL_V2_ON?[0,.7475,TUNNEL_SPEC.plenum.zh+1.7]:[-2.8,.7475,5.65],cs=0,sn=1;
  const rootTransform=new Float64Array([cs,0,-sn,0,0,1,0,0,sn,0,cs,0,placement[0],placement[1],placement[2],1]);
  const rootWorld=m4mul(rootTransform,consoleNodeMatrix(root)),groups=new Map();
  let sourceMeshes=0,triangles=0,sourceVertices=0;const materialIds=new Set();

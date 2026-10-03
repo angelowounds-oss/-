@@ -248,7 +248,7 @@ function liveSetTier(q,why){if(!LIVE_Q[q]||q===LIVE.q&&LIVE.init)return;liveRele
 function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
 /* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
    Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
-function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+1.4:-3.1,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
+function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=TUNNEL_V2.active?TUNNEL_SPEC.nozzle.x1+1.0:(fb?fb.max[0]+1.4:-3.1),M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
  const r=Math.max(.03,LIVE.rr*hd),C=LIVE.cols,n=LIVE.rakeN||Math.max(3,Math.min(11,Math.floor(39/C),Math.round(1.32/Math.max(.13,LIVE.rakeK*r))+1));
  return {x,tip:x+.075,z:0,zs:Array.from({length:C},(_,i)=>(i-(C-1)/2)*LIVE.colGap),yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r,vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
 /* flow-straightener grille (egg-crate honeycomb) between the fan face and the rake, as in real tunnels: the jet leaves a straightener, not a bare fan.
@@ -281,7 +281,7 @@ function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,
  scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));
  const attach=(name,c,sz,color,mat,mesh,boxes)=>{const o=addBox('rake probe '+name,c,sz,color,{bevel:.004,category:'instrumentation'});o.pbrMaterial=mat;o._mesh=mesh;if(boxes)o.obstacleBoxes=boxes;o.gpu=bindMesh(mesh.positions,mesh.normals,new Float32Array(mesh.positions.length/3*2),mesh.indices)};
  const fb=AETHER.FAN_MODULE?.layout?.fanBounds;
- if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2];
+ if(fb&&!TUNNEL_V2.active){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2];
   attach('straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.2,.21,.23],materialLibrary.BlackPowderCoat,liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.2,t:.01,fr:.07}));
   const nz=liveNozzleMesh({...liveNozzleSpec(),seg:10});
   attach('nozzle',[(sx1+fb.max[0]+1.2)/2,(sy0+sy1)/2,0],[fb.max[0]+1.2-sx1,sy1-sy0,sz1*2],[.62,.65,.68],materialLibrary.PaintedSteelGray,nz.mesh,nz.boxes)}
@@ -390,7 +390,7 @@ Object.assign(LIVE.api,{
  memBreakdown(){return macMemBreakdown()},
  set(o){Object.assign(LIVE,o)}});
 
-function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
+function liveReobstacle(fanB){if(LIVE.impl==='MAC'){try{LIVE.fanKey=JSON.stringify(fanB);const cfg=macConfig();cfg.fan=TUNNEL_V2.active?null:fanB;MAC.cfg=cfg;MAC.vox=macStaticSolids(MAC.N,MAC.min,MAC.h,cfg);macUploadStatic(MAC.G,MAC.vox);MAC.wheels=macWheels();macSolids()}catch(e){LIVE.err='reobstacle: '+e.message}return}try{const N=LIVE.N,vox=liveVoxelize(N,LIVE.min,LIVE.h,fanB);LIVE.fanKey=JSON.stringify(fanB);LIVE.vox={car:vox.car,fan:vox.fan,front:vox.front,ms:Math.round(vox.ms)};const obs=new Uint8Array(LIVE.W*LIVE.H*4);
  for(let k=0;k<N[2];k++)for(let j=0;j<N[1];j++)for(let i=0;i<N[0];i++){const t=vox.type[i+N[0]*(j+N[1]*k)];if(!t)continue;const ax=(k%LIVE.tx)*N[0]+i,ay=Math.floor(k/LIVE.tx)*N[1]+j,o=(ay*LIVE.W+ax)*4;obs[o+(t===1?0:1)]=255;obs[o+3]=255}
  gl.bindTexture(gl.TEXTURE_2D,LIVE.obs);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,LIVE.W,LIVE.H,0,gl.RGBA,gl.UNSIGNED_BYTE,obs)}catch(e){LIVE.err='reobstacle: '+e.message}}
 LIVE.setEnabled=v=>{LIVE.enabled=!!v};

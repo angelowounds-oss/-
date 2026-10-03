@@ -214,7 +214,7 @@ vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;layout(location=1) ou
 vec4 lay(int k){if(k>=uN.z)return vec4(0.);ivec3 c=ivec3(ivec2(gl_FragCoord.xy),k);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;float id,ph=PHIT(uSol,P-.5,uN2,uTX2,id);
  float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);return vec4(g>0.?0.:F(uDye,c).x,g,length(VEL(uVel,P,uN2,uTX2))/max(uU,.1),1.);}
 void main(){o=lay(uLayer);o1=lay(uLayer+1);o2=lay(uLayer+2);o3=lay(uLayer+3);}`,
-init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}o=vec4(uU,0.,0.,0.);}`,
+init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}o=vec4(uIn<.999?0.:uU,0.,0.,0.);}`,
 clear:`void main(){o=vec4(0.);}`};
 
 /* ---------------- CPU side ---------------- */
@@ -231,6 +231,9 @@ function macStaticSolids(N,min,h,cfg){const [nx,ny,nz]=N,tot=nx*ny*nz,phi=new Fl
   if(n){const q=i+nx*(j+ny*k);phi[q]=n/(S*S*S);id[q]=1}}}
  const fb=cfg.fan;if(fb)for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=min[0]+(i+.5)*h[0],y=min[1]+(j+.5)*h[1],z=min[2]+(k+.5)*h[2];
   if(x>=fb.min[0]&&x<=fb.max[0]&&y>=fb.min[1]&&y<=fb.max[1]&&z>=fb.min[2]&&z<=fb.max[2]){const q=i+nx*(j+ny*k);if(id[q]!==1){phi[q]=1;id[q]=2}}}
+ if(cfg.tunnel){const iS=TUNNEL_SPEC.derived.isSolid,th=Math.max(h[0],h[1],h[2]);for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const q=i+nx*(j+ny*k);if(id[q]!==0)continue;
+   /* 2x2x2 sub-samples -> partial volume on the wall surfaces */let c=0;for(let a=0;a<2;a++)for(let b=0;b<2;b++)for(let d=0;d<2;d++)if(iS(min[0]+(i+(a+.5)/2)*h[0],min[1]+(j+(b+.5)/2)*h[1],min[2]+(k+(d+.5)/2)*h[2],th))c++;
+   if(c){phi[q]=c/8;id[q]=4}}}
  if(cfg.nozzle){const n=cfg.nozzle,ss=t=>t*t*(3-2*t);for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=min[0]+(i+.5)*h[0];if(x<n.xa||x>n.xb)continue;
   const t=(x-n.xa)/(n.xb-n.xa),s2=ss(t),w=n.wa+(n.wb-n.wa)*s2,ht=n.ha+(n.hb-n.ha)*s2,y=min[1]+(j+.5)*h[1],z=min[2]+(k+.5)*h[2],q=i+nx*(j+ny*k);
   if((Math.abs(z)>w||y>ht)&&id[q]===0){phi[q]=1;id[q]=4}}}
@@ -257,12 +260,16 @@ function macWheels(){try{const W=wheelParts(),out=[];for(let i=0;i<W.length;i++)
 
 /* domain config: tunnel (default) or validation {N,min,max,obstacle,U,nu} */
 function macConfig(){const d=MAC.domain;if(d)return {...d,car:false,fan:null,belt:false,body:false};
- const b=CFD_DOMAIN_CONTRACT.bounds;return {min:Array.from(b.min),max:Array.from(b.max),N:LIVE.N,car:true,fan:AETHER.FAN_MODULE?.layout?.fanBounds||null,nozzle:LIVE.nozzleSolid?liveNozzleSpec():null,belt:true,body:true,nu:MAC.nuMol,U:null}}
+ const b=CFD_DOMAIN_CONTRACT.bounds;return {min:Array.from(b.min),max:Array.from(b.max),N:LIVE.N,car:true,fan:TUNNEL_V2.active?null:(AETHER.FAN_MODULE?.layout?.fanBounds||null),tunnel:TUNNEL_V2.active,nozzle:(!TUNNEL_V2.active&&LIVE.nozzleSolid)?liveNozzleSpec():null,belt:true,body:true,nu:MAC.nuMol,U:null}}
 function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.map((v,i)=>(v-min[i])/N[i]);
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 미지원');
  macRelease();MAC.cfg=cfg;MAC.N=N;MAC.min=min;MAC.max=max;MAC.h=h;
  /* nozzle mass balance: the fan face emits U*fanK so that the nozzle exit (area Ae) carries U; the inlet supplies the same flux over the domain section */
- MAC.cond=null;MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.nozzle.xb-.35,cfg.nozzle.xb,60,LIVE.screenK];MAC.afad=0;const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.afad=Af/Ad;MAC.inK=MAC.fanK*MAC.afad;MAC.refPts=[0,.6,-.6].map(z=>[n.xb+.3,1.0,z]).concat([[n.xb+.3,1.8,0]])}
+ MAC.cond=null;MAC.fanK=1;MAC.inK=1;MAC.v2=false;
+ if(cfg.tunnel){const sp=TUNNEL_SPEC,D2=sp.derived,hc=sp.settling.honeycomb;MAC.v2=true;MAC.fanK=1;MAC.inK=D2.inletScale;MAC.inK0=D2.inletScale;MAC.afad=1;
+  MAC.cond=[sp.settling.screens[0].x-.1,sp.settling.screens[1].x+.3,60,LIVE.screenK];void hc;
+  MAC.refPts=[[0,1.0],[.9,1.0],[-.9,1.0],[0,1.9]].map(([z,y])=>[sp.nozzle.x1+.9,y,z])}
+if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.nozzle.xb-.35,cfg.nozzle.xb,60,LIVE.screenK];MAC.afad=0;const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.afad=Af/Ad;MAC.inK=MAC.fanK*MAC.afad;MAC.refPts=[0,.6,-.6].map(z=>[n.xb+.3,1.0,z]).concat([[n.xb+.3,1.8,0]])}
  const G=MAC.G=macAtlas(N),Nd=N.map(v=>v*2),D=MAC.D=macAtlas(Nd);MAC.hd=h.map(v=>v/2);
  const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
  MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
@@ -400,6 +407,7 @@ function macProbePoll(){const J=MAC.probeJob;if(!J)return null;const r=gl.client
  const out=[];for(let n=0;n<J.np;n++){const o=n*16;out.push([(b[o]+b[o+4])/2,(b[o+1]+b[o+9])/2,(b[o+2]+b[o+14])/2])}out.kind=J.kind;return out}
 /* closed-loop fan speed: a real tunnel holds the reference dynamic pressure by trimming the fan; here the fan-face emission follows the mean x-velocity of 4 reference points behind the nozzle exit */
 function macWindCtl(vals){if(!MAC.cond||!MAC.afad||!vals||!vals.length)return;const m=vals.reduce((a,v)=>a+v[0],0)/vals.length;if(!(m>.3)||!(MAC.U>0))return;
+ if(MAC.v2){MAC.inK=Math.min(2.2*MAC.inK0,Math.max(.4*MAC.inK0,MAC.inK*Math.pow(MAC.U/m,.3)));MAC.refSpeed=m;return}
  MAC.fanK=Math.min(1.8,Math.max(.25,MAC.fanK*Math.pow(MAC.U/m,.3)));MAC.inK=MAC.fanK*MAC.afad;MAC.refSpeed=m}
 function macRead(x,y,z){const f=(v,d)=>Math.min(MAC.N[d]-1,Math.max(0,Math.floor((v-MAC.min[d])/MAC.h[d])));return macReadCell(f(x,0),f(y,1),f(z,2))}
 /* full-field reads (tests / validation) */
