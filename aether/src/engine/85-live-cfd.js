@@ -7,7 +7,7 @@ LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).sli
 LIVE.wisp=+((location.hash.match(/wisp=([\d.]+)/)||[])[1]??.6);LIVE.tipX=-3.8;
 LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
 LIVE.rakeK=+((location.hash.match(/rakek=([\d.]+)/)||[])[1]||4.2);
-LIVE.nozzleSolid=!/nozzle=0/.test(location.hash);LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.5);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
+LIVE.nozzleSolid=!/nozzle=0/.test(location.hash);LIVE.screenK=+((location.hash.match(/screen=([\d.]+)/)||[])[1]||6);LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.5);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
 function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};

@@ -72,14 +72,17 @@ vec3 back(vec3 P){vec3 v1=VEL(uVel,P,uN,uTX);vec3 Pm=P-.5*uDt*v1/uH;vec3 v2=VEL(
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 b=vec3(c);
  vec3 Px=back(b+vec3(0.,.5,.5)),Py=back(b+vec3(.5,0.,.5)),Pz=back(b+vec3(.5,.5,0.));
  o=vec4(TRI(uSrc,Px-vec3(0.,.5,.5),uN,uTX).x,TRI(uSrc,Py-vec3(.5,0.,.5),uN,uTX).y,TRI(uSrc,Pz-vec3(.5,.5,0.),uN,uTX).z,0.);}`,
-advc:`uniform sampler2D uVel,uHat,uBar,uSol,uG;uniform float uDt,uBelt;
+advc:`uniform sampler2D uVel,uHat,uBar,uSol,uG;uniform float uDt,uBelt;uniform vec4 uCond;
 vec3 back(vec3 P){vec3 v1=VEL(uVel,P,uN,uTX);vec3 Pm=P-.5*uDt*v1/uH;vec3 v2=VEL(uVel,Pm,uN,uTX);return clamp(P-uDt*v2/uH,vec3(0.),vec3(uN));}
 vec2 mm(vec3 q,int ch){q=clamp(q,vec3(0.),vec3(uN-1));ivec3 i=min(ivec3(floor(q)),uN-1);float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float v=F(uVel,i+ivec3(k&1,(k>>1)&1,(k>>2)&1))[ch];lo=min(lo,v);hi=max(hi,v);}return vec2(lo,hi);}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 b=vec3(c);
  vec3 u=F(uHat,c).xyz+.5*(F(uVel,c).xyz-F(uBar,c).xyz);
  vec2 rx=mm(back(b+vec3(0.,.5,.5))-vec3(0.,.5,.5),0),ry=mm(back(b+vec3(.5,0.,.5))-vec3(.5,0.,.5),1),rz=mm(back(b+vec3(.5,.5,0.))-vec3(.5,.5,0.),2);
  u=clamp(u,vec3(rx.x,ry.x,rz.x),vec3(rx.y,ry.y,rz.y));
- float lim=3.5*max(uU,.5);u=clamp(u,vec3(-lim),vec3(lim));o=vec4(u,0.);}`,
+ float lim=3.5*max(uU,.5);u=clamp(u,vec3(-lim),vec3(lim));
+ /* flow conditioner (honeycomb + screen) slab: kills lateral velocity, adds a quadratic pressure-loss drag so the profile evens out */
+ {vec3 wc=uMin+(vec3(c)+.5)*uH;if(wc.x>uCond.x&&wc.x<uCond.y){u.yz*=exp(-uCond.z*uDt);u.x-=uCond.w*abs(u.x)*u.x*uDt;}}
+ o=vec4(u,0.);}`,
 /* ---- eddy viscosity (Smagorinsky) at cell centres ---- */
 sgs:`uniform sampler2D uVel,uSol;uniform float uCs,uNuMax;
 vec3 CC(ivec3 c){c=clamp(c,ivec3(0),uN-1);vec3 a=F(uVel,c).xyz;vec3 b=vec3(c.x==uN.x-1?a.x:F(uVel,c+ivec3(1,0,0)).x,c.y==uN.y-1?0.:F(uVel,c+ivec3(0,1,0)).y,c.z==uN.z-1?0.:F(uVel,c+ivec3(0,0,1)).z);return .5*(a+b);}
@@ -259,7 +262,7 @@ function macInit(){const cfg=macConfig(),N=cfg.N,min=cfg.min,max=cfg.max,h=max.m
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float 미지원');
  macRelease();MAC.cfg=cfg;MAC.N=N;MAC.min=min;MAC.max=max;MAC.h=h;
  /* nozzle mass balance: the fan face emits U*fanK so that the nozzle exit (area Ae) carries U; the inlet supplies the same flux over the domain section */
- MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.inK=MAC.fanK*Af/Ad}
+ MAC.cond=null;MAC.fanK=1;MAC.inK=1;if(cfg.nozzle&&cfg.fan){MAC.cond=[cfg.fan.max[0]+.06,cfg.fan.max[0]+.30,60,LIVE.screenK];const n=cfg.nozzle,f=cfg.fan,Ae=(n.hb-min[1])*2*n.wb,Af=(f.max[1]-f.min[1])*(f.max[2]-f.min[2]),Ad=(max[1]-min[1])*(max[2]-min[2]);MAC.fanK=Ae/Af;MAC.inK=MAC.fanK*Af/Ad}
  const G=MAC.G=macAtlas(N),Nd=N.map(v=>v*2),D=MAC.D=macAtlas(Nd);MAC.hd=h.map(v=>v/2);
  const V=()=>macTarget(G,gl.RGBA32F,gl.RGBA,gl.FLOAT),R=()=>macTarget(G,gl.R32F,gl.RED,gl.FLOAT),R16=g=>macTarget(g,gl.R16F,gl.RED,gl.HALF_FLOAT),H4=g=>macTarget(g,gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT);
  MAC.t={velA:V(),velB:V(),hat:V(),bar:V(),sol:H4(G),geom:H4(G),nu:macTarget(G,gl.RG32F,gl.RG,gl.FLOAT),b:R(),res:R(),frc:V(),dyeA:R16(D),dyeB:R16(D),dhat:R16(D),dbar:R16(D)};
@@ -355,7 +358,7 @@ function macStepBody(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.
  /* MacCormack velocity advection */
  macPass('adv',T.hat,{uVel:T.velA.t,uSrc:T.velA.t},{uDt:dt});
  macPass('adv',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
- macPass('advc',T.velB,{uVel:T.velA.t,uHat:T.hat.t,uBar:T.bar.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt});
+ macPass('advc',T.velB,{uVel:T.velA.t,uHat:T.hat.t,uBar:T.bar.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt,uCond:MAC.cond||[1e9,1e9,0,0]});
  /* LES + molecular diffusion (+ optional vorticity confinement) */
  const hmin=Math.min(...MAC.h),nuMax=Math.max(0,.9*hmin*hmin/(6*dt)-(cfg.nu??MAC.nuMol));
  macPass('sgs',T.nu,{uVel:T.velB.t,uSol:T.sol.t},{uCs:MAC.les?MAC.Cs:0,uNuMax:nuMax});
