@@ -7,7 +7,7 @@ LIVE.tf=(location.hash.match(/tf=([\d.,]+)/)||[])[1]?.split(',').map(Number).sli
 LIVE.wisp=+((location.hash.match(/wisp=([\d.]+)/)||[])[1]??.6);LIVE.tipX=-3.8;
 LIVE.rakeN=+((location.hash.match(/rake=(\d+)/)||[])[1]||0);
 LIVE.rakeK=+((location.hash.match(/rakek=([\d.]+)/)||[])[1]||4.2);
-LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
+LIVE.rr=+((location.hash.match(/rr=([\d.]+)/)||[])[1]||.75);LIVE.cols=Math.max(1,Math.min(9,+((location.hash.match(/cols=(\d+)/)||[])[1]||5)));LIVE.colGap=+((location.hash.match(/colgap=([\d.]+)/)||[])[1]||.55);
 function liveDecay(dt){return LIVE.tau>0?Math.exp(-dt/LIVE.tau):.9985}
 window.__LIVE=LIVE;window.__AETHER_DEBUG={get fpv(){return fpv},get camera(){return camera},get body(){return window.__BODY},get door(){return DOOR},
  sceneStats(){return {objects:scene.objects.length,vehicleParts:scene.vehicleParts.length,fanParts:scene.fanParts.length,roadParts:scene.roadParts.length,names:scene.objects.map(o=>o.name).filter(Boolean)}},setPreset(n){setPreset(n)},get bootStage(){return diagnostics.bootStage},get errors(){return diagnostics.errors.slice()}};
@@ -249,8 +249,8 @@ function liveSwap(a,b){const T=LIVE.tex,t=T[a];T[a]=T[b];T[b]=t}
 /* smoke rake: a stainless mast with nozzle stubs 0.6 m downstream of the fan face; the smoke leaves the nozzle tips.
    Nozzle radius ~ half a dye cell so each nozzle gives its own streak instead of merging into one sheet. */
 function liveRakeGeometry(){const fb=AETHER.FAN_MODULE?.layout?.fanBounds,x=fb?fb.max[0]+1.4:-3.1,M=window.__MAC,hd=LIVE.impl==='MAC'&&M?.hd?Math.min(...M.hd):.075;
- const r=Math.max(.035,.75*hd),C=LIVE.cols,n=LIVE.rakeN||Math.max(3,Math.min(11,Math.floor(39/C),Math.round(1.32/Math.max(.13,LIVE.rakeK*r))+1));
- return {x,tip:x+.075,z:0,zs:Array.from({length:C},(_,i)=>(i-(C-1)/2)*LIVE.colGap),yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r:Math.max(.035,.75*hd),vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
+ const r=Math.max(.03,LIVE.rr*hd),C=LIVE.cols,n=LIVE.rakeN||Math.max(3,Math.min(11,Math.floor(39/C),Math.round(1.32/Math.max(.13,LIVE.rakeK*r))+1));
+ return {x,tip:x+.075,z:0,zs:Array.from({length:C},(_,i)=>(i-(C-1)/2)*LIVE.colGap),yh:.5,v:Array.from({length:n},(_,i)=>.15+1.32*i/(n-1)),h:[0,1,2,3,4,5,6,7,8].map(i=>-1.3+.325*i),r,vert:LIVE.mode==='RAKE_V'||LIVE.mode==='BOTH',horz:LIVE.mode==='RAKE_H'||LIVE.mode==='BOTH'}}
 /* flow-straightener grille (egg-crate honeycomb) between the fan face and the rake, as in real tunnels: the jet leaves a straightener, not a bare fan.
    Visual only: it is not voxelised, so the solver sees an open inlet. One merged mesh of thin slats inside a frame. */
 function liveBoxesMesh(list,base){const P=base?base.positions.slice():[],Nn=base?base.normals.slice():[],I=base?base.indices.slice():[],box=(x0,x1,y0,y1,z0,z1)=>{
