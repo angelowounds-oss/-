@@ -61,3 +61,16 @@ export function disposeGroup(g) {
   g.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
   g.parent?.remove(g);
 }
+
+// quantized (KHR_mesh_quantization) attributes are integers: expand position/normal/uv to float before any matrix is baked in
+export function toFloatGeo(src) {
+  const g = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = src.attributes[name]; if (!a) continue;
+    const f = new Float32Array(a.count * a.itemSize);
+    for (let i = 0; i < a.count; i++) { f[i * a.itemSize] = a.getX(i); f[i * a.itemSize + 1] = a.getY(i); if (a.itemSize > 2) f[i * a.itemSize + 2] = a.getZ(i); }
+    g.setAttribute(name, new THREE.BufferAttribute(f, a.itemSize));
+  }
+  if (src.index) g.setIndex(Array.from(src.index.array));
+  return g;
+}
