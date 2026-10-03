@@ -557,7 +557,7 @@ int main(int argc, char** argv) {
       { ofstream o(wf); o << thStr(th) << "\n"; }
       string leagueStr = nL > 0 ? (to_string((int)lround(100 * wL / nL)) + "%") : "-";
       printf("gen %3d  games %7lld  win vs policy6 %.1f%% (%d)  vs league %s  best cand %.3f\n", gen, total, 100 * wB / max(1.0, nB), (int)nB, leagueStr.c_str(), all.back().first);
-      if ((gen + 1) % 5 == 0) { auto v = validate(toW(th), 1, 900000); printf("  validation: current weights vs policy 6 = %.1f%% over %d games (fixed held-out seeds)\n  theta: %s\n", 100 * v.first, v.second, thStr(th).c_str()); }
+      if ((gen + 1) % 50 == 0) { auto v = validate(toW(th), 1, 900000); printf("  validation: current weights vs policy 6 = %.1f%% over %d games (fixed held-out seeds)\n  theta: %s\n", 100 * v.first, v.second, thStr(th).c_str()); }
       if ((gen + 1) % 10 == 0) { league.push_back(toW(th)); if (league.size() > 6) league.erase(league.begin()); ofstream(wf + ".league", ios::app) << thStr(th) << "\n"; }
       fflush(stdout);
     }
