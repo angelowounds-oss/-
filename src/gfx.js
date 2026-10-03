@@ -58,6 +58,6 @@ export class Builder {
   }
 }
 export function disposeGroup(g) {
-  g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+  g.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
   g.parent?.remove(g);
 }

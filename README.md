@@ -39,3 +39,4 @@
 ## User-supplied assets
 - `assets/res/*.glb`, `assets/res/res_wall.jpg`: "Residential Buildings Set" (Unity package supplied by the project owner), converted with `build/bake_buildings.py` + `build/res_pack.mjs`; ringed around the city by `src/skyline.js`.
 - `assets/props/sniper_mag.glb`: "Sniper_Ammo" glTF (supplied by the project owner), textures reduced to 512px by `build/ammo_pack.mjs`; used as the model of the `mag_sniper` item.
+- `assets/props/living_set.glb`: furniture pieces (TV, glass coffee table, piano, pot, rug) from the supplied `InteriorTest.blend` living room, re-textured with Poly Haven wood/marble and flat colours via `build/bake_livingroom.py` + `build/living_pack.mjs`; instanced into every apartment living room by `src/livingset.js`.

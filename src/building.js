@@ -3,6 +3,7 @@ import { Builder, mats, disposeGroup } from './gfx.js';
 import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
 import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
+import { livingSet, LIVING_COLLIDERS } from './livingset.js';
 
 // ====================================================================
 // Physically continuous buildings: every road-facing tower has a real entrance, real floors,
@@ -442,6 +443,7 @@ export class Building {
     }
     // furnish
     rooms.forEach((rm, i) => this.furnishRoom(fl, L, rm, i));
+    this.addLivingSets(fl, y);
     // open spaces: corridor decor
     this.plant(fl, ix0 + 0.6, corrZ1 - 0.6);
     this.M.populateFloor?.(this, fl, L, rooms);
@@ -464,6 +466,7 @@ export class Building {
       col(cx + 1.5, back - dirIn * 0.5, 0.5, 0.5, 0.55, 0x2a2d38);
       fl.fixtures.push([cx, y + 3.2, cz, [1, 0.78, 0.55]]);
     } else if (kind === 'living') {
+      (fl.livings = fl.livings || []).push({ x: cx, z: back, ry: south ? Math.PI : 0 });
       this.sofa(fl, cx, back - dirIn * 0.9, south ? 0 : Math.PI, 0x2f3b5a, 2.6);
       col(cx, back - dirIn * 3.4, 1.8, 0.5, 0.4, 0x1b1d26);
       B.ext('emit', cx - 0.9, y + 0.7, back - dirIn * 0.15 + 0, cx + 0.9, y + 1.5, back - dirIn * 0.1, new THREE.Color(0.3, 0.5, 1).multiplyScalar(1.5));
@@ -494,6 +497,23 @@ export class Building {
         for (let yy = 0; yy < 12; yy++) B.ext('emit', a - 0.3, y + 0.2 + yy * 0.16, back - dirIn * 1.17 - 0.0, a + 0.3, y + 0.25 + yy * 0.16, back - dirIn * 1.2, new THREE.Color(...(rm.i % 2 ? [0.2, 1, 0.5] : [0.2, 0.6, 1])).multiplyScalar(2.2));
       }
       fl.fixtures.push([cx, y + 3.2, cz, [0.4, 0.7, 1]]);
+    }
+  }
+  // glTF living-room furniture, one instanced mesh per material for all living rooms on the floor
+  addLivingSets(fl, y) {
+    const list = fl.livings, set = list?.length && livingSet(); if (!set) return;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), ax = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
+    for (const part of set) {
+      const im = new THREE.InstancedMesh(part.geo, part.mat, list.length);
+      list.forEach((p, i) => { q.setFromAxisAngle(ax, p.ry); pv.set(p.x, y, p.z); m4.compose(pv, q, one); im.setMatrixAt(i, m4); });
+      im.castShadow = false; im.receiveShadow = true; im.frustumCulled = false; fl.group.add(im);
+    }
+    for (const p of list) {
+      const f = Math.cos(p.ry) < 0 ? -1 : 1;
+      for (const [x0, z0, x1, z1, h] of LIVING_COLLIDERS) {
+        const ax0 = p.x + f * x0, ax1 = p.x + f * x1, az0 = p.z + f * z0, az1 = p.z + f * z1;
+        fl.cc(Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1), y, y + h, 'furniture');
+      }
     }
   }
   sofa(fl, x, z, ry, color, w = 2.6) {
