@@ -1381,9 +1381,9 @@ export class Game {
     if (a.ema > target * 1.08) { a.slow += dt; a.fast = 0; } else if (a.ema < target * 0.8) { a.fast += dt; a.slow = 0; } else a.slow = a.fast = 0;
     if (a.slow > 0.6) {
       a.slow = 0; a.cool = 1.2;
-      if (eng.scale > 0.5) eng.setScale(eng.scale - 0.1);
+      if (eng.scale > 0.7) eng.setScale(eng.scale - 0.1);
       else if (eng.qIndex > 0) { eng.setQuality(eng.qIndex - 1); a.cool = 6; el('qSel').value = String(eng.qIndex); }
-    } else if (a.fast > 4 && eng.scale < 1) { a.fast = 0; a.cool = 3; eng.setScale(eng.scale + 0.1); }
+    } else if (a.fast > 6 && eng.scale < 1) { a.fast = 0; a.cool = 3; eng.setScale(eng.scale + 0.1); }
   }
   audioUpdate(dt) {
     const v = this.vehicle;

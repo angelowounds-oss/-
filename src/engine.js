@@ -10,7 +10,7 @@ import { el, LIGHT_CAP } from './util.js';
 import hdriPlaza from '../assets/env/hansaplatz.rgbe';
 
 export const QUALITY = [
-  { name: 'LOW', shadowEvery: 2, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: false, traffic: 12, npc: 18, parked: 18, rain: 1800, far: 1 },
+  { name: 'LOW', shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 18, parked: 18, rain: 1800, far: 1 },
   { name: 'MEDIUM', shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 28, parked: 28, rain: 3000, far: 1 },
   { name: 'HIGH', shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 40, parked: 40, rain: 4500, far: 1 },
   { name: 'ULTRA', shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 52, parked: 52, rain: 6000, far: 1 },
@@ -21,9 +21,9 @@ const GradeShader = {
   uniforms: {
     tDiffuse: { value: null },
     uTime: { value: 0 },
-    uAber: { value: 0.0007 },
+    uAber: { value: 0.0002 },
     uVig: { value: 0.42 },
-    uGrain: { value: 0.035 },
+    uGrain: { value: 0.006 },
     uSpeed: { value: 0 },
     uDamage: { value: 0 },
     uTint: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
@@ -35,7 +35,7 @@ const GradeShader = {
     void main(){
       vec2 c=vUv-.5;float r2=dot(c,c);
       vec2 dir=normalize(c+1e-5);
-      float ab=uAber*(1.+r2*5.)+uDamage*.004;
+      float ab=uAber*(1.+r2*1.5)+uDamage*.004;
       vec3 col;
       if(uSpeed>.02){
         // radial speed blur
@@ -52,7 +52,7 @@ const GradeShader = {
       col=mix(col,col*vec3(1.08,.97,.95),smoothstep(.4,1.5,l)*.4);
       col*=uTint;
       col*=1.-uVig*smoothstep(.12,.62,r2);
-      col+=(h(vUv*vec2(1920.,1080.)+fract(uTime)*91.)-.5)*uGrain;
+      col+=(h(floor(vUv*vec2(960.,540.))+floor(fract(uTime*.5)*6.)*17.)-.5)*uGrain;
       col=mix(col,col*vec3(1.6,.35,.4),uDamage*smoothstep(.05,.45,r2)*.7);
       gl_FragColor=vec4(max(col,0.),1.);
     }`,
@@ -107,7 +107,7 @@ export function createEngine(parent, qIndex) {
     time: 0, scale: 1, frame: 0,
     // dynamic resolution: only the render-target size changes, pipelines stay intact
     setScale(sc) {
-      sc = Math.max(0.5, Math.min(1, sc));
+      sc = Math.max(0.7, Math.min(1, sc));
       if (Math.abs(sc - eng.scale) < 0.01) return;
       eng.scale = sc;
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, eng.q.dpr) * sc);

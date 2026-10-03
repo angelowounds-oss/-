@@ -37,7 +37,7 @@ export class DayNight {
     skyU.uSun.value.copy(this.sun); skyU.uMoon.value.copy(this.moon);
     const useSun = D > 0.35;
     const dir = useSun ? this.sun : this.moon;
-    const fx = focus.x, fz = focus.z, snap = 4, sx = Math.round(fx / snap) * snap, sz = Math.round(fz / snap) * snap;
+    const fx = focus.x, fz = focus.z, snap = (170 / (e.q?.shadow || 2048)) * 24, sx = Math.round(fx / snap) * snap, sz = Math.round(fz / snap) * snap;
     const moon = e.moon;
     moon.target.position.set(sx, 0, sz);
     moon.position.set(sx + dir.x * 120, Math.max(30, dir.y * 130), sz + dir.z * 120);

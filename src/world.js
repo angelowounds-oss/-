@@ -290,7 +290,7 @@ function createGround(fakeLights) {
         vec2 t=floor(p/3.);alb*=.85+.3*h21(t);fRough=.7;pud*=.25;
       }
       fPud=pud;
-      alb*=mix(1.,.5,pud);fRough=mix(fRough,.035,pud);
+      alb*=mix(1.,.5,pud);fRough=mix(fRough,.11,smoothstep(.0,1.,pud));
       diffuseColor.rgb=alb;
       // fake neon light pools (cheap local lights; real lights are reserved for gameplay)
       vec3 acc=vec3(0.);
@@ -319,8 +319,8 @@ function createGround(fakeLights) {
         vec2 q=vWP.xz*1.9;vec2 id=floor(q);vec2 f=fract(q)-.5;
         float rn=h21(id);float t=fract(uTime*.8+rn);
         vec2 cc=(h22(id+3.)-.5)*.5;float dd=length(f-cc);
-        float ring=sin((dd-t*.55)*38.)*smoothstep(.55,0.,dd)*(1.-t)*smoothstep(0.,.08,t);
-        vec2 gr=(f-cc)/max(dd,.01)*ring*.16*rr;
+        float ring=sin((dd-t*.55)*18.)*smoothstep(.55,0.,dd)*(1.-t)*smoothstep(0.,.08,t);
+        vec2 gr=(f-cc)/max(dd,.01)*ring*.06*rr*(1.-smoothstep(12.,40.,length(vViewPosition)));
         vec3 off=(viewMatrix*vec4(gr.x,0.,gr.y,0.)).xyz;
         normal=normalize(normal+off);
         // micro roughness bump on dry areas
@@ -338,7 +338,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uDoorCam: doorCamU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.55 }, ...facadeUniforms() };
+  const uniforms = { uDoorCam: doorCamU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',

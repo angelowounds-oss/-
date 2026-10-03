@@ -17,7 +17,7 @@ export function createRain(scene, count) {
   geo.setAttribute('aEnd', new THREE.BufferAttribute(ends, 1));
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
-    uniforms: { uTime: timeUniform, uCam: { value: new THREE.Vector3() }, uWind: { value: new THREE.Vector2(3, 1) }, uStreak: { value: 0.07 }, uAlpha: { value: 0.22 } },
+    uniforms: { uTime: timeUniform, uCam: { value: new THREE.Vector3() }, uWind: { value: new THREE.Vector2(3, 1) }, uStreak: { value: 0.07 }, uAlpha: { value: 0.15 } },
     vertexShader: `attribute float aEnd;uniform float uTime;uniform vec3 uCam;uniform vec2 uWind;uniform float uStreak;varying float vA;
       void main(){
         vec3 p=position;float spd=24.+fract(p.x*7.13)*8.;
