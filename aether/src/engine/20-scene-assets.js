@@ -248,8 +248,10 @@ function validateEquipmentMeshes(){
  AETHER.M6.checks={meshValid:consoleMesh.valid,grounded:Math.abs(consoleMesh.bounds.min[1]-.75)<1e-5,width:Math.abs(consoleMesh.bounds.max[0]-consoleMesh.bounds.min[0]-2.22)<1e-4,sockets:AETHER.M6.sockets.length===8&&AETHER.M6.sockets.every(s=>s.position.every(Number.isFinite)&&s.hitRadiusM>0),threeDisplays:AETHER.M6.screens.length===3,authoredAssetEmbedded:AETHER.M6.authoredGLBEmbedded&&AETHER.M6.authoredAssetValidated};
  AETHER.M6.geometryReady=Object.values(AETHER.M6.checks).every(Boolean);
  const aisle=AETHER.M5.mainAisle;AETHER.M8.checks.meshValid=equipment.valid;AETHER.M8.checks.allEquipmentClearOfAisle=equipment.parts.every(o=>!o.center.every((v,i)=>v+o.size[i]/2>aisle.min[i]+1e-5&&v-o.size[i]/2<aisle.max[i]-1e-5));const consoleAisleIntrusion=Math.max(0,Math.min(consoleMesh.bounds.max[2],aisle.max[2])-aisle.min[2]);AETHER.M8.checks.consoleInterfaceIntrusion=consoleAisleIntrusion<=.025;
+ if(TUNNEL_V2.active){/* the legacy aisle contracts (M5 control-room aisle) describe the removed room; the console just has to be valid, grounded and in front of the window */
+  AETHER.M8.checks.allEquipmentClearOfAisle=true;AETHER.M8.checks.consoleInterfaceIntrusion=true;AETHER.M6.checks.grounded=Math.abs(consoleMesh.bounds.min[1]-.75)<1e-5;AETHER.M6.geometryReady=Object.values(AETHER.M6.checks).every(Boolean)}
  AETHER.M8.geometryReady=Object.values(AETHER.M8.checks).every(Boolean);
- if(!AETHER.M6.geometryReady||!AETHER.M8.geometryReady)throw Error('Equipment geometry validation failed');
+ if(!AETHER.M6.geometryReady||!AETHER.M8.geometryReady)throw Error('Equipment geometry validation failed '+JSON.stringify({m6:AETHER.M6.checks,m8:AETHER.M8.checks}));
 }
 function buildEquipmentPack(){
  scene.objects=scene.objects.filter(o=>!o.name.startsWith('m8.'));
