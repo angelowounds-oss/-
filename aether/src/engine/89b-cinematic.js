@@ -24,6 +24,8 @@ function cineGeometry(){
  for(let i=0;i<body.length;i+=3){const x=body[i],y=body[i+1],z=body[i+2],wx=M[0]*x+M[4]*y+M[8]*z+M[12],wy=M[1]*x+M[5]*y+M[9]*z+M[13],wz=M[2]*x+M[6]*y+M[10]*z+M[14];if(wx>=rear-.25*L&&wy>=top-.12){wn++;wl[0]=Math.min(wl[0],wx);wl[1]=Math.min(wl[1],wy);wl[2]=Math.min(wl[2],wz);wh[0]=Math.max(wh[0],wx);wh[1]=Math.max(wh[1],wy);wh[2]=Math.max(wh[2],wz)}}
  const wing=wn>20?{x:(wl[0]+wh[0])/2,y:(wl[1]+wh[1])/2,z:(wl[2]+wh[2])/2,hw:(wh[2]-wl[2])/2,estimated:true,n:wn}:{x:rear-.12*L,y:top-.05,z:cz,hw:hw*.9,estimated:true,n:0};
  const dom=lay.domainBounds,wallZ=Math.min(dom.max[2],3.9)-R_CAM-.15; /* inner wall faces sit ~0.1 m inside the domain box */
+ if(TUNNEL_V2.active){const sp=TUNNEL_SPEC,wd=sp.plenum.wedge.depth,m=.9;
+  G=Object.freeze({key,L,nose,rear,mid,cz,hw,top,floor,wing,fanX:sp.nozzle.x1,rakeX:sp.nozzle.x1+1,collX:sp.collector.x0,env:{x0:sp.nozzle.x1+.9,x1:sp.collector.x0-.8,y0:.5,y1:sp.plenum.y1-wd-m,z0:-(sp.plenum.zh-wd-m),z1:sp.plenum.zh-wd-m},fanBox:{min:[sp.settling.x0,0,-sp.settling.W/2-.2],max:[sp.nozzle.x1,sp.settling.H,sp.settling.W/2+.2]}});geoKey=key;sets=null;obst=null;return G}
  G=Object.freeze({key,L,nose,rear,mid,cz,hw,top,floor,wing,fanX:lay.fanBounds.max[0],rakeX:lay.fanBounds.max[0]+1.4,collX:lay.collectorPlane.x,env:{x0:lay.fanBounds.max[0]+.45,x1:lay.collectorPlane.x-.8,y0:.5,y1:Math.min(dom.max[1],5.5)-.5,z0:dom.min[2]+R_CAM+.15,z1:wallZ},fanBox:{min:lay.fanBounds.min.slice(),max:lay.fanBounds.max.slice()}});geoKey=key;sets=null;obst=null;return G}
 
 /* ---------- shot lists (car-relative; metres) ----------
@@ -36,6 +38,7 @@ function cineShots(g,tall){
  const eye=[[n-.45,.55,c+3.1],[n-.4,.56,c+3.1],[n-.05,.85,c+3.0],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
  const tgt=tall?[[n+1.0,.6,c-.1],[n+1.05,.6,c-.1],[n+1.9,.78,c],[m+1.2,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+.3,.85,c],[m-.3,1.3,c]]
   :[[n+1.05,.65,c-.3],[n+1.1,.65,c-.3],[n+1.9,.78,c-.1],[m+1.4,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.25,.8,c],[m-.3,1.3,c]];
+ if(TUNNEL_V2.active)for(const e of eye){e[0]=Math.min(e[0],g.env.x1-.25);e[1]=Math.max(g.env.y0,Math.min(g.env.y1,e[1]));e[2]=Math.max(g.env.z0,Math.min(g.env.z1,e[2]))}
  return{t,eye,tgt,fov:[[0,40],[24,40],[30,46]],hfov:46}}
 
 /* ---------- path tables ---------- */
@@ -128,7 +131,8 @@ function tick(nowMs){
  if(t>=DUR)finish('done')}
 
 /* ---------- verification (used at start in dev and by tests/cinematic.mjs) ---------- */
-function buildObstacles(g){if(obst)return obst;const B=[];for(const o of scene.objects){if(!o.center||!o.size||o.material==='glass'||o.visible===false)continue;if(['floor seams','measurement'].includes(o.category))continue;if(o.obstacleBoxes){for(const b of o.obstacleBoxes)B.push({n:o.name,c:o.category,min:b.min,max:b.max,big:false});continue}const h=[o.size[0]/2,o.size[1]/2,o.size[2]/2];if(o.center[1]+h[1]<.3)continue;B.push({n:o.name,c:o.category,min:[o.center[0]-h[0],o.center[1]-h[1],o.center[2]-h[2]],max:[o.center[0]+h[0],o.center[1]+h[1],o.center[2]+h[2]],big:Math.max(...o.size)>.6&&(o.size[0]>.3)+(o.size[1]>.3)+(o.size[2]>.3)>=2})}
+const CINE_V2_OBSTACLES=new Set(['tv2.AETHER_NOZZLE_OUTER','tv2.AETHER_NOZZLE_FLANGES','tv2.AETHER_NOZZLE_LIP','tv2.AETHER_COLLECTOR_OUTER','tv2.AETHER_COLLECTOR_LIP']);
+function buildObstacles(g){if(obst)return obst;const B=[];for(const o of scene.objects){if(!o.center||!o.size||o.material==='glass'||o.visible===false)continue;if(['floor seams','measurement'].includes(o.category))continue;if(TUNNEL_V2.active&&o.name.startsWith('tv2.')&&!CINE_V2_OBSTACLES.has(o.name))continue;if(o.obstacleBoxes){for(const b of o.obstacleBoxes)B.push({n:o.name,c:o.category,min:b.min,max:b.max,big:false});continue}const h=[o.size[0]/2,o.size[1]/2,o.size[2]/2];if(o.center[1]+h[1]<.3)continue;B.push({n:o.name,c:o.category,min:[o.center[0]-h[0],o.center[1]-h[1],o.center[2]-h[2]],max:[o.center[0]+h[0],o.center[1]+h[1],o.center[2]+h[2]],big:Math.max(...o.size)>.6&&(o.size[0]>.3)+(o.size[1]>.3)+(o.size[2]>.3)>=2})}
  B.push({n:'fan',c:'fan',min:g.fanBox.min,max:g.fanBox.max,big:true,pad:.1});B.push({n:'collector',c:'collector',min:[g.collX-.05,0,-9],max:[g.collX+3,9,9],big:true});
  const car={n:'vehicle',c:'vehicle',min:[g.nose,g.floor,g.cz-g.hw],max:[g.rear,g.top,g.cz+g.hw],big:false,car:true};B.push(car);return obst=B}
 function boxDist(p,b){const dx=Math.max(b.min[0]-p[0],0,p[0]-b.max[0]),dy=Math.max(b.min[1]-p[1],0,p[1]-b.max[1]),dz=Math.max(b.min[2]-p[2],0,p[2]-b.max[2]);return Math.hypot(dx,dy,dz)}
