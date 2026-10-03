@@ -188,6 +188,7 @@ export class Vehicle {
     if (speed < 2.2 || this.impactCd > 0) return;
     this.impactCd = 0.25;
     const G = this.G;
+    if (speed > 7 && !this.spec.craft) { this.dents = Math.min(8, (this.dents || 0) + 1); this.model.group.scale.set(1 - this.dents * 0.004, 1 - this.dents * 0.01, 1 - this.dents * 0.014); }
     const dmg = Math.max(0, speed - 4) * (this.dead ? 0 : 3.2) / (this.mass * 0.8 + 0.2);
     if (dmg > 0) this.damage(dmg, other);
     G.fx.sparks(x, 0.6, z, Math.min(speed * 0.8, 24), [1, 0.7, 0.3]);

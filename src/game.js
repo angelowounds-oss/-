@@ -126,7 +126,7 @@ export class Game {
     pl.ammo = [{ clip: 12, reserve: 96 }, { clip: 30, reserve: 150 }, { clip: 25, reserve: 0 }, { clip: 6, reserve: 0 }, { clip: 5, reserve: 0 }]; pl.owned = [true, true, false, false, false];
     pl.cur = 0; pl.reloadT = 0; pl.fireCd = 0; pl.weaponDrawn = false; pl.spread = 0; pl.dead = false;
     pl.m.pistol.visible = true;
-    pl.body3 = new Character(this.phys, pl.x, 0, pl.z);
+    pl.body3 = new Character(this.phys, pl.x, 0, pl.z); if (this.state.outfit) pl.m.setTop?.(this.state.outfit);
     this.player = pl;
     this.playerOnFoot = true; this.vehicle = null; this.deadT = 0;
     this.cam.yaw = Math.PI;
@@ -539,7 +539,7 @@ export class Game {
       inside = L.tier !== 'roof' && pl.y < b.roofY - 0.3 && pl.x > r.x0 && pl.x < r.x1 && pl.z > r.z0 && pl.z < r.z1 && b.floors.has(k);
       info = { b, k, L };
     }
-    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); this.rain.visible = !inside; }
+    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); }
     this.where = inside ? info : null;
   }
   openElevatorUI(b) {
@@ -1210,7 +1210,7 @@ export class Game {
   // Ambient (lightning etc.)
   updateAmbient(dt) {
     this.nextLightning -= dt;
-    if (this.nextLightning <= 0) { this.nextLightning = rand(14, 32); this.bolt = 0.5; this.thunderT = rand(0.6, 3); }
+    if (this.nextLightning <= 0) { const wt = this.weatherType; this.nextLightning = wt === 'storm' ? rand(5, 12) : rand(16, 40); if (wt !== 'clear') { this.bolt = 0.5; this.thunderT = rand(0.6, 3); } }
     if (this.bolt > 0) {
       this.bolt -= dt; const f = Math.max(0, Math.sin(this.bolt * 38) * 0.5 + 0.5) * Math.min(1, this.bolt * 3);
       flashUniform.value = f * 2.2 * (1 - (this.dayK || 0) * 0.7); this.boltAdd = f;
@@ -1365,7 +1365,7 @@ export class Game {
   }
   drawMinimap() {
     const g = this.minictx, W = 340, S = this.mapScale, pl = this.player;
-    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `${ZONES[this.zone ?? 0].name} · ${this.clock.fmt()} · 비`);
+    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `${ZONES[this.zone ?? 0].name} · ${this.clock.fmt()} · ${{ clear: '맑음', rain: '비', storm: '폭풍우' }[this.weatherType || 'rain']}`);
     const p = this.vehicle || pl; const zoom = this.vehicle ? 1.1 : 1.5;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W); g.fillStyle = '#05080f'; g.fillRect(0, 0, W, W);
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);

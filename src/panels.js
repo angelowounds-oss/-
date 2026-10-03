@@ -56,7 +56,8 @@ export class Panels {
       for (const id of items) this.row(Rr, `${itemName(id)} ×${c.ref.items[id]}`, '', [['← 꺼내기', () => { if (c.ref.items[id] > 0) { c.ref.items[id]--; if (c.ref.items[id] <= 0) delete c.ref.items[id]; W.add(id); } }]]);
     } else if (m === 'shop') {
       el('invRT').textContent = '판매 중';
-      for (const [id, price] of c.stock) this.row(Rr, itemName(id), `$${price}`, [['구매', () => { if (G.cash >= price) { G.cash -= price; W.add(id); G.audio.cash(); } else G.toast('돈이 부족합니다'); }]]);
+      this.row(Rr, '흥정', c.haggled ? '이미 시도함' : '성공하면 15% 할인, 실패하면 10% 비쌈', [['시도', () => { if (c.haggled) return; c.haggled = true; if (Math.random() < 0.45) { c.mult = 0.85; G.toast('흥정 성공', '15% 할인'); } else { c.mult = 1.1; G.toast('흥정 실패', '10% 인상'); } }]]);
+      for (const [id, base] of c.stock) { const price = Math.round(base * (c.mult || 1)); this.row(Rr, itemName(id), `$${price}`, [['구매', () => { if (G.cash >= price) { G.cash -= price; W.add(id); G.audio.cash(); } else G.toast('돈이 부족합니다'); }]]); }
     } else if (m === 'atm') {
       el('invRT').textContent = `계좌 잔액 $${G.state.bank | 0}`;
       for (const amt of [100, 500, 1000]) {

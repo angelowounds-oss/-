@@ -10,6 +10,7 @@ export const ITEMS = {
   burger: { name: '버거', shape: ['box', 0.14, 0.09, 0.14], color: 0xc08a40, mass: 0.3, price: 6, eat: { food: 32 } },
   noodles: { name: '컵라면', shape: ['cyl', 0.07, 0.11], color: 0xd04030, mass: 0.35, price: 4, eat: { food: 38 } },
   sandwich: { name: '샌드위치', shape: ['box', 0.2, 0.06, 0.1], color: 0xd8c898, mass: 0.25, price: 5, eat: { food: 26 } },
+  meal: { name: '정식', shape: ['box', 0.26, 0.07, 0.2], color: 0xd8a860, mass: 0.5, price: 18, eat: { food: 75, water: 10 } },
   soda: { name: '탄산음료', shape: ['cyl', 0.033, 0.12], color: 0xe03040, mass: 0.35, price: 2, eat: { water: 24 }, throwDmg: 2 },
   water: { name: '생수', shape: ['cyl', 0.035, 0.2], color: 0x70b8e0, mass: 0.5, price: 2, eat: { water: 40 } },
   coffee: { name: '커피', shape: ['cyl', 0.04, 0.12], color: 0x6a4630, mass: 0.3, price: 3, eat: { water: 10, energy: 30 } },

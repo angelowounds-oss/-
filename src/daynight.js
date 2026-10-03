@@ -11,8 +11,22 @@ const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t
 // 24h cycle: sky dome, sun/moon light, fog, city lighting uniforms, exposure
 export class DayNight {
   constructor(G) { this.G = G; this.k = 0; this.tmp = new THREE.Color(); this.sun = new THREE.Vector3(); this.moon = new THREE.Vector3(); }
+  weather(dt) {
+    const G = this.G, st = G.state.weather || (G.state.weather = { type: 'rain', until: G.clock.t + 180 });
+    if (G.clock.t > st.until) {
+      const r = Math.random(); st.type = r < 0.45 ? 'rain' : r < 0.8 ? 'clear' : 'storm'; st.until = G.clock.t + 120 + Math.random() * 300;
+      G.toast({ rain: '비가 내린다', clear: '비가 그쳤다', storm: '폭풍우 경보' }[st.type]);
+    }
+    const target = { clear: 0, rain: 1, storm: 1.4 }[st.type];
+    this.wet = (this.wet ?? target) + (target - (this.wet ?? target)) * Math.min(1, dt * 0.15);
+    return st.type;
+  }
   update(dt, focus) {
     const G = this.G, e = G.eng, h = G.clock.hour;
+    const wtype = this.weather(dt), wet = this.wet;
+    G.weatherType = wtype;
+    if (G.rain) G.rain.visible = !G.indoor && wet > 0.25;
+    const gu = G.world.ground?.userData?.uniforms; if (gu) gu.uWet.value = 0.18 + 0.82 * clamp(wet, 0, 1);
     const th = (h - 6) / 12 * Math.PI;                    // sun arc: rises east(+x) at 06:00, sets west at 18:00
     const sinE = Math.sin((h - 6) / 24 * Math.PI * 2);
     const D = sm(-0.10, 0.28, sinE);                       // daylight
@@ -34,7 +48,7 @@ export class DayNight {
     hemi.intensity = G.indoor ? Math.max(0.5, hb) : hb;
     hemi.color.copy(NIGHT.hemiS).lerp(DAY.hemiS, D); hemi.groundColor.copy(NIGHT.hemiG).lerp(DAY.hemiG, D);
     const fogC = this.tmp.copy(NIGHT.fog).lerp(DAY.fog, D).lerp(DUSK, twi * 0.18);
-    e.scene.fog.color.copy(fogC); e.scene.fog.density = lerp(0.0105, 0.0072, D);
+    e.scene.fog.color.copy(fogC); e.scene.fog.density = lerp(0.0105, 0.0072, D) * (0.75 + 0.3 * clamp(wet, 0, 1.4));
     e.scene.background.copy(NIGHT.bg).lerp(DAY.bg, D); e.renderer.setClearColor(e.scene.background, 1);
     e.renderer.toneMappingExposure = lerp(1.05, 0.88, D);
     e.scene.environmentIntensity = lerp(0.45, 0.85, D);

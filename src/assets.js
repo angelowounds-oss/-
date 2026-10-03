@@ -31,6 +31,7 @@ export function buildSoldier(look = {}, gunParts) {
   body.add(root); wrap.add(body);
   const tint = new THREE.Color(look.top ?? 0x445566);
   const skinMats = [];
+  const topMats = [];
   const bones = {};
   root.traverse((o) => {
     if (o.isBone) bones[o.name.replace(/^mixamorig:?/, '')] = o;
@@ -42,7 +43,7 @@ export function buildSoldier(look = {}, gunParts) {
         m.color.set(0x050608); m.emissive = new THREE.Color(...(look.visor || [0.2, 0.9, 1])); m.emissiveIntensity = 2.2; m.roughness = 0.2; m.metalness = 0.8;
       } else {
         m.color.copy(tint).multiplyScalar(3.2); m.roughness = 0.62; m.metalness = 0.05;
-        m.emissive = new THREE.Color(look.top ?? 0x445566); m.emissiveIntensity = 0.42;
+        m.emissive = new THREE.Color(look.top ?? 0x445566); m.emissiveIntensity = 0.42; topMats.push(m);
       }
     }
   });
@@ -64,6 +65,7 @@ export function buildSoldier(look = {}, gunParts) {
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
+    setTop(hex) { for (const mm of topMats) { mm.color.set(hex).multiplyScalar(3.2); mm.emissive.set(hex); } },
     mixer, act, bones, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
     // called after mixer update each frame
     applyPose(pose, pitch) {

@@ -8,6 +8,8 @@ const SHOPS = {
   hardware: { name: '철물점', stock: [['lockpick', 35], ['crowbar', 30], ['flashlight', 18], ['bat', 25], ['brick', 2], ['knife', 30]] },
   pharmacy: { name: '약국', stock: [['medkit', 40], ['bandage', 8], ['pills', 15], ['water', 2], ['energy', 4]] },
   arms: { name: '무기상', stock: [['mag_pistol', 12], ['mag_rifle', 20], ['mag_smg', 16], ['shells', 14], ['mag_sniper', 25], ['w_smg', 520], ['w_shotgun', 640], ['w_sniper', 1500], ['knife', 30], ['grenade', 90], ['bat', 25]] },
+  restaurant: { name: '식당', stock: [['meal', 18], ['noodles', 9], ['burger', 11], ['sandwich', 8], ['coffee', 4], ['water', 3], ['energy', 6]] },
+  clothes: { name: '의류점', stock: [], clothes: true },
   pawn: { name: '전당포', stock: [['watch', 600], ['laptop', 700], ['lockpick', 40], ['gold', 1300]], buys: 0.5 },
 };
 const SHOP_KEYS = Object.keys(SHOPS);
@@ -101,7 +103,7 @@ export class Life {
     fl.shop = { kind, def, name: `${def.name} · ${b.name}`, rect: { x0: r.x0 + 0.5, z0: r.z0 + 0.5, x1: r.x1 - 0.5, z1: r.z1 - 0.5 } };
     // stock sits on the shelves built in furnishOpen
     let n = 0;
-    for (const sh of fl.shelves || []) {
+    for (const sh of def.stock.length ? fl.shelves || [] : []) {
       for (let row = 0; row < 3; row++) for (let i = 0; i < 4; i++) {
         const [id, price] = def.stock[Math.floor(rnd() * def.stock.length)];
         this.item(b, fl, n++, id, sh.x + (rnd() - 0.5) * 0.3, y + 0.55 + row * 0.55 + (ITEMS[id].shape[2] || 0.1) / 2 + 0.02, sh.z0 + 0.6 + i * ((sh.z1 - sh.z0 - 1.2) / 3), { sale: price });
@@ -116,10 +118,14 @@ export class Life {
       const sale = () => Object.entries(G.items.inv.unpaid);
       this.fix(fl, cx, y + 1, c.z1 + 0.2, 3.0, fl.shop.name, [
         { key: 'F', label: () => { const t = this.unpaidTotal(); return t > 0 ? `계산 $${t}` : '인사'; }, run: () => this.checkout(fl) },
-        { key: 'G', label: () => '상점 이용', run: () => { G.panels.show('shop', { name: fl.shop.name, stock: def.stock.map(([id, p]) => [id, Math.round(p * 1.25)]) }); } },
+        { key: 'G', label: () => (def.clothes ? '옷 갈아입기' : '상점 이용'), run: () => { if (def.clothes) this.outfitMenu(); else G.panels.show('shop', { name: fl.shop.name, stock: def.stock.map(([id, p]) => [id, Math.round(p * 1.25)]), mult: 1 }); } },
         { key: 'T', label: () => '물건 팔기', run: () => G.panels.show('sell', { name: fl.shop.name, rate: def.buys || 0.4 }) },
       ]);
     }
+  }
+  outfitMenu() {
+    const G = this, g = this.G, cols = [['블랙', 0x1a2230], ['네이비', 0x1c3a6a], ['버건디', 0x6a1c2c], ['포레스트', 0x1c5a3a], ['머스타드', 0x8a6a1c], ['퍼플', 0x4a2a7a], ['화이트', 0xb8bcc8]];
+    g.panels.show('talk', { name: '의류점', text: '상의 색상 ($40)', options: cols.map(([n, c]) => ({ text: n, fn: () => { if (g.cash < 40) return g.toast('돈이 부족합니다'); g.cash -= 40; g.state.outfit = c; g.player.m.setTop?.(c); g.audio.cash(); g.toast('옷 구매', n); } })) });
   }
   unpaidTotal() { return Math.round(this.G.items.inv.unpaidCost || 0); }
   checkout(fl) {
