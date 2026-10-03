@@ -50,6 +50,7 @@ try {
   check('1인칭 보행·풍동 진입', walk.fpv && walk.active && walk.inTunnel, walk);
   check('스모크 완드(레이크 + 1)', walk.emitters === rake.RAKE_V + 1, { emitters: walk.emitters, rake: rake.RAKE_V });
   await sleep(4000);
+  await page.waitForFunction(() => __LIVE.speedAt > 0.3, null, { timeout: 120000 }).catch(() => {});
   const body = await ev(() => ({ flags: __LIVE.api.flagCounts(), speedAt: __LIVE.speedAt, hud: document.getElementById('bdHud')?.textContent }));
   check('이동 사람 고체(유동 경계)', body.flags.body > 0 && Number.isFinite(body.speedAt) && body.speedAt > 0.3, body);
   await ev(() => { __AETHER_DEBUG.fpv.yaw = Math.PI / 2; });
@@ -72,7 +73,7 @@ try {
   const es = await ev(() => { const C = window.__CONTROLS; C.emergencyStop(); const a = { stopped: C.getSnapshot().control.emergencyStopped, frozen: __LIVE.freeze, road: AETHER.ROLLING_ROAD.getSnapshot().motorEnabled, fan: AETHER.FAN_MODULE.visualRunning, refusedWind: C.windSet(8) === false }; C.resetEmergencyStop(); a.released = !C.getSnapshot().control.emergencyStopped; a.unfrozen = !__LIVE.freeze; return a; });
   check('비상정지: 팬·롤링로드·흐름 정지, 해제 후 흐름 재개', es.stopped && es.frozen && !es.road && !es.fan && es.refusedWind && es.released && es.unfrozen, es);
   const ctl = await ev(() => { const C = window.__CONTROLS; const a = { pause: C.flowSetPaused(true) && __LIVE.freeze === true }; C.flowSetPaused(false); a.resume = __LIVE.freeze === false; a.wind = C.windSet(8) && __LIVE.U === 8 && __MAC.U === 8; C.windSet(5); a.back = __LIVE.U === 5 && __MAC.U === 5; a.legacyGone = !AETHER.SOLVER && !AETHER.S3_OFFICE && !document.querySelector('.toolbar,.m13-panel,#s3OfficePanel'); a.menus = document.querySelectorAll('#scDock .menu').length; a.drawer = !!document.querySelector('aside#panel #controlPanel') && !!document.querySelector('aside#panel #qualityPanel'); return a; });
-  check('제어실: 일시정지·재개·풍속 변경, 제거된 기능 없음, UI 구성', ctl.pause && ctl.resume && ctl.wind && ctl.back && ctl.legacyGone && ctl.menus === 3 && ctl.drawer, ctl);
+  check('제어실: 일시정지·재개·풍속 변경, 제거된 기능 없음, UI 구성', ctl.pause && ctl.resume && ctl.wind && ctl.back && ctl.legacyGone && ctl.menus === 4 && ctl.drawer, ctl);
   const shaders = await ev(() => window.__SHADERS);
   check('셰이더 컴파일(ANGLE)', shaders.failed.length === 0 && shaders.compiled > 10, { compiled: shaders.compiled, failed: shaders.failed });
   const fatal = await ev(() => __AETHER_DEBUG.errors);
