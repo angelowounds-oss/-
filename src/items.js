@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GR, grp } from './physics.js';
 import { clamp, damp, rand } from './util.js';
+import { A } from './assets.js';
 
 // ====================================================================
 // Items: catalogue, physical props (grab / carry / throw / kick), inventory, containers
@@ -29,7 +30,7 @@ export const ITEMS = {
   mag_pistol: { name: '권총 탄창', shape: ['box', 0.03, 0.1, 0.07], color: 0x303038, mass: 0.2, price: 12, ammo: [0, 12] },
   mag_smg: { name: 'SMG 탄창', shape: ['box', 0.03, 0.14, 0.07], color: 0x303038, mass: 0.2, price: 16, ammo: [2, 25] },
   shells: { name: '샷건 쉘', shape: ['box', 0.1, 0.04, 0.06], color: 0xb02020, mass: 0.3, price: 14, ammo: [3, 8] },
-  mag_sniper: { name: '저격 탄', shape: ['box', 0.08, 0.03, 0.03], color: 0x606068, mass: 0.2, price: 25, ammo: [4, 5] },
+  mag_sniper: { name: '저격 탄', shape: ['box', 0.16, 0.11, 0.025], model: 'sniper_mag', color: 0x606068, mass: 0.2, price: 25, ammo: [4, 5] },
   w_smg: { name: 'SMG', shape: ['box', 0.1, 0.1, 0.4], color: 0x20222a, mass: 1.5, price: 520, gun: 2 },
   w_shotgun: { name: '샷건', shape: ['box', 0.08, 0.08, 0.9], color: 0x3a2a20, mass: 2.4, price: 640, gun: 3 },
   w_sniper: { name: '저격 소총', shape: ['box', 0.08, 0.1, 1.1], color: 0x1a2020, mass: 2.4, price: 1500, gun: 4 },
@@ -57,9 +58,25 @@ export const ITEMS = {
 export const ITEM_IDS = Object.keys(ITEMS);
 const SMALL = 2.5;
 
-const geoCache = new Map(), matCache = new Map();
+const geoCache = new Map(), matCache = new Map(), modelCache = new Map();
+// glTF-backed items: one baked geometry per material, scaled so the longest axis matches the physics box
+function modelFor(id) {
+  let g = modelCache.get(id); if (g !== undefined) return g;
+  const d = ITEMS[id], src = A.props?.[d.model]; g = null;
+  if (src) {
+    const root = src.clone(true); root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const k = Math.max(...d.shape.slice(1)) / Math.max(size.x, size.y, size.z);
+    const parts = [];
+    root.traverse((o) => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(o.matrixWorld)); parts.push([geo, o.material]); } });
+    g = parts;
+  }
+  modelCache.set(id, g); return g;
+}
 function meshFor(id) {
   const d = ITEMS[id];
+  const model = d.model && modelFor(id);
+  if (model) { const grp = new THREE.Group(); for (const [geo, mat] of model) { const m = new THREE.Mesh(geo, mat); m.frustumCulled = true; grp.add(m); } return grp; }
   let g = geoCache.get(id);
   if (!g) {
     const [k, a, b, c] = d.shape;
