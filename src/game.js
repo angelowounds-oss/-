@@ -340,7 +340,7 @@ export class Game {
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
     this.daynight.update(dt, focus);
-    if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); if (this.skyline) this.skyline.group.visible = this.eng.q.sky !== false; }
+    if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); }
     this.rain.material.uniforms.uCam.value.copy(camera.position);
     const g = eng.grade.uniforms;
     g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) : 0, 3, dt);

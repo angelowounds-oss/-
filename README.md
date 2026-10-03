@@ -37,6 +37,6 @@
 `assets/env/hansaplatz.rgbe` is the CC0 Poly Haven `hansaplatz` night HDRI (512x256, flat RGBE via `build/hdrpack.mjs`) used for PBR reflections; `?env=0` switches back to the procedural neon environment.
 
 ## User-supplied assets
-- `assets/res/*.glb`, `assets/res/res_wall.jpg`: "Residential Buildings Set" (Unity package supplied by the project owner), converted with `build/bake_buildings.py` + `build/res_pack.mjs`; ringed around the city by `src/skyline.js`.
+- `assets/res/*.glb`, `assets/res/res_wall.jpg`: "Residential Buildings Set" (Unity package supplied by the project owner), converted with `build/bake_buildings.py` + `build/res_pack.mjs`. They are the exterior skin of the 66 outer-ring towers: `world.js` creates a real lot for each (door facing the city, tiers matching the model height) so `building.js` generates the interior, stairs, elevator and roof as for any other tower, and `src/skyline.js` draws the one-sided model shell per side of the ring. The towers line a paved promenade (`world.promenade`) with boundary walls behind them.
 - `assets/props/sniper_mag.glb`: "Sniper_Ammo" glTF (supplied by the project owner), textures reduced to 512px by `build/ammo_pack.mjs`; used as the model of the `mag_sniper` item.
 - `assets/props/living_set.glb`: furniture pieces (TV, glass coffee table, piano, pot, rug) from the supplied `InteriorTest.blend` living room, re-textured with Poly Haven wood/marble and flat colours via `build/bake_livingroom.py` + `build/living_pack.mjs`; instanced into every apartment living room by `src/livingset.js`.

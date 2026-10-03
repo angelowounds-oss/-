@@ -3,6 +3,7 @@ import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, patchStandard, timeUniform, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
+import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
 import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
 import paveA from '../assets/tex/concrete_pavers_a.jpg';
@@ -200,7 +201,7 @@ function createGround(fakeLights) {
       varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
       uniform sampler2D tAsph,tAsphN,tPave,tPaveN;
       float fRough,fMetal;vec3 fEmit;float fPud;vec2 fN=vec2(0.);
-      const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.;`,
+      const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.,PRO=${(HALF + R / 2 + 2 + MODEL_PROM + MODEL_W + 30).toFixed(1)};`,
     fragMain: `
       vec2 p=vWP.xz;
       vec2 g=(p+HH)/PP;vec2 cl=floor(g);vec2 l=(g-cl)*PP;vec2 dr=min(l,PP-l);
@@ -213,7 +214,13 @@ function createGround(fakeLights) {
       vec3 alb;fRough=.5;fMetal=0.;fEmit=vec3(0.);
       float n1=fbm(p*.6),n2=fbm(p*3.1+9.);
       float pud=smoothstep(.52,.64,fbm(p*.05+3.7)+(fbm(p*.4)-.5)*.18)*uWet;
-      if(!inC){alb=vec3(.03,.032,.04)*(.7+n1);fRough=.8;pud*=.0;}
+      if(!inC&&abs(p.x)<=PRO&&abs(p.y)<=PRO){
+        // promenade around the city: paver tiles in front of the outer-ring towers
+        vec2 t=floor(p/1.6);float tv=h21(t);vec2 f=fract(p/1.6);float seam=smoothstep(.0,.03,min(min(f.x,1.-f.x),min(f.y,1.-f.y)));
+        alb=vec3(.12+tv*.05,.12+tv*.05,.13+tv*.05)*(.75+.5*n2)*mix(.35,1.,seam);fRough=mix(.55,.8,tv)-.1;
+        vec2 u1=p*.55;vec3 tc=texture2D(tPave,u1).rgb;vec4 tn=texture2D(tPaveN,u1);alb*=clamp(dot(tc,vec3(.333))/.32,.5,1.6);fN=(tn.xy*2.-1.)*.55;pud*=.45;
+      }
+      else if(!inC){alb=vec3(.03,.032,.04)*(.7+n1);fRough=.8;pud*=.0;}
       else if(road){
         float g0=.03+n1*.03;alb=vec3(g0*.95,g0,g0*1.1);
         // worn lane tracks
@@ -757,11 +764,36 @@ export function buildWorld(scene, quality) {
   }
 
   world._ring = false;
-  // Boundary walls close the street gaps between outer-ring towers
+  // Outer ring: enterable towers whose exterior is the supplied residential model (skin drawn by skyline.js, interior by building.js).
+  // They line a walkable promenade around the city; the boundary walls sit behind them.
   {
-    const e = HALF + R / 2 + 2, t = 12, L = e + t;
-    world.colliders.addBox(-L, e, L, e + t, 40, 'wall'); world.colliders.addBox(-L, -e - t, L, -e, 40, 'wall');
-    world.colliders.addBox(e, -L, e + t, L, 40, 'wall'); world.colliders.addBox(-e - t, -L, -e, L, 40, 'wall');
+    const E0 = HALF + R / 2 + 2, FRONT = E0 + MODEL_PROM, rr = mulberry32(90210);
+    world.promenade = { inner: E0, outer: FRONT + MODEL_W + 30 };
+    for (const side of ['n', 's', 'w', 'e']) {
+      const alongX = side === 'n' || side === 's', span = HALF + R;
+      let t = -span;
+      while (t < span) {
+        const variant = MODEL_VARIANTS[Math.floor(rr() * MODEL_VARIANTS.length)], H = MODEL_H[variant - 1];
+        const a = t + MODEL_D / 2;
+        let x0, z0, x1, z1;
+        if (side === 'n') { x0 = a - MODEL_D / 2; x1 = a + MODEL_D / 2; z1 = -FRONT; z0 = z1 - MODEL_W; }
+        else if (side === 's') { x0 = a - MODEL_D / 2; x1 = a + MODEL_D / 2; z0 = FRONT; z1 = z0 + MODEL_W; }
+        else if (side === 'w') { z0 = a - MODEL_D / 2; z1 = a + MODEL_D / 2; x1 = -FRONT; x0 = x1 - MODEL_W; }
+        else { z0 = a - MODEL_D / 2; z1 = a + MODEL_D / 2; x0 = FRONT; x1 = x0 + MODEL_W; }
+        const inward = { n: 's', s: 'n', w: 'e', e: 'w' }[side], podiumH = 4.0, seed = rr() * 50;
+        const rect = { x0, z0, x1, z1 };
+        const solid = world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
+        world.lots.push({
+          x0, z0, x1, z1, h: H, accent: Math.floor(rr() * 6), edges: { [inward]: true }, podium: podiumH, style: 0, ring: false, seed, solid, topY: H - 0.1,
+          tiers: { podium: { ...rect, y0: 0, y1: podiumH }, tower: { ...rect, y0: podiumH, y1: H - 0.1 }, crown: null },
+          model: { variant, rot: alongX ? Math.PI / 2 : 0, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, side },
+        });
+        t += MODEL_D + 14 + rr() * 26;
+      }
+    }
+    const L = world.promenade.outer, T = 12;
+    world.colliders.addBox(-L - T, L, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 40, 'wall');
+    world.colliders.addBox(L, -L - T, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 40, 'wall');
   }
 
   // Far skyline: huge towers beyond the playable area
@@ -1141,7 +1173,7 @@ function nameTexture(name, color) {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function buildEntrances(world, scene) {
-  const lots = world.lots.filter((l) => !l.ring && Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 17 && l.h >= 20);
+  const lots = world.lots.filter((l) => l.model || (!l.ring && Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 17 && l.h >= 20));
   world.enterables = [];
   const B = new Builder();
   const signs = new Map();
