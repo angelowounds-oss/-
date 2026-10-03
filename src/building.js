@@ -4,6 +4,7 @@ import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
 import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
 import { livingSet, LIVING_COLLIDERS } from './livingset.js';
+import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
 
 // ====================================================================
 // Physically continuous buildings: every road-facing tower has a real entrance, real floors,
@@ -144,10 +145,12 @@ export class Building {
     // ---- ceiling lights / fixtures ----
     if (!isRoof) this.lighting(fl, B, L, r, y, top, acc);
     // ---- contents ----
+    fl.deco = furnitureReady() ? new FloorDecor(fl, y) : null;
     if (L.type === 'lobby') this.furnishLobby(fl, L);
     else if (L.type === 'retail') this.furnishOpen(fl, L, 'retail');
     else if (L.type === 'roof') this.furnishRoof(fl, L);
     else this.furnishRooms(fl, L);
+    fl.deco?.finish(fl.group);
     // ---- finish meshes ----
     B.finish(fl.group);
     this.buildGlassMesh(fl);
@@ -345,9 +348,20 @@ export class Building {
       fl.reception = { x: rx + d.nx * 1.2, z: rz + d.nz * 1.2 };
       this.M.spawnNPC?.(this, fl, 'reception', rx - d.nx * 0.9, rz - d.nz * 0.9);
     }
+    const D = fl.deco;
+    if (D) {
+      if (ok) D.put('CashRegister_01', rx, rz, Math.atan2(d.nx, d.nz), { lift: 1.1, solid: false });
+      for (let i = 0; i < 3; i++) D.put(i === 1 ? 'painted_wooden_sofa' : 'sofa_02', r.x1 - 2.4, r.z1 - 3 - i * 3.4, -Math.PI / 2);
+      D.put('coffee_table_round_01', r.x1 - 4.4, r.z1 - 4.7, 0);
+      D.put('Chandelier_03', (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, 0, { lift: L.h - 1.2, solid: false });
+      for (const [px, pz] of [[r.x0 + 1.4, r.z1 - 1.4], [r.x1 - 1.4, r.z0 + 1.4], [r.x1 - 1.4, r.z1 - 1.4], [r.x0 + 1.4, r.z0 + 1.4]]) D.put('potted_plant_02', px, pz, Math.random() * 6);
+      D.put('wall_clock', r.x0 + 0.12, (r.z0 + r.z1) / 2 + 3, Math.PI / 2, { lift: 2.6, solid: false });
+      D.put('security_camera_01', r.x0 + 0.5, r.z0 + 0.5, Math.PI / 4, { lift: L.h - 0.7, solid: false, s: 0.8 });
+      D.put('WetFloorSign_01', this.cx + d.nx * 2.5 + d.nz * 3, this.cz + d.nz * 2.5 - d.nx * 3, Math.random() * 6);
+    }
     // seating + plants on the opposite side of the core
-    for (let i = 0; i < 3; i++) this.sofa(fl, r.x1 - 3.2 - i * 0, r.z1 - 3 - i * 3.4, Math.PI / 2, [0x3a2f55, 0x22304a, 0x4a2a5a][i]);
-    this.plant(fl, r.x0 + 1.4, r.z1 - 1.4); this.plant(fl, r.x1 - 1.4, r.z0 + 1.4); this.plant(fl, r.x1 - 1.4, r.z1 - 1.4);
+    if (!D) for (let i = 0; i < 3; i++) this.sofa(fl, r.x1 - 3.2 - i * 0, r.z1 - 3 - i * 3.4, Math.PI / 2, [0x3a2f55, 0x22304a, 0x4a2a5a][i]);
+    if (!D) { this.plant(fl, r.x0 + 1.4, r.z1 - 1.4); this.plant(fl, r.x1 - 1.4, r.z0 + 1.4); this.plant(fl, r.x1 - 1.4, r.z1 - 1.4); }
     // logo wall
     B.ext('emit', c.x0 + CORE_W + 0.3, 1.6, c.zc - 0.4, c.x0 + CORE_W + 2.4, 2.0, c.zc - 0.34, acc.clone().multiplyScalar(1.4));
     this.M.populateFloor?.(this, fl, L);
@@ -369,6 +383,17 @@ export class Building {
       solid('decor', cx, L.y, cz, cx + 5, L.y + 1.05, cz + 1.2, 0x1b1d28);
       B.ext('emit', cx, L.y + 1.05, cz, cx + 5, L.y + 1.1, cz + 1.2, fl.acc.clone().multiplyScalar(2.2));
       fl.counter = { x0: cx, z0: cz, x1: cx + 5, z1: cz + 1.2 }; break;
+    }
+    const D = fl.deco;
+    if (D && fl.counter) {
+      const k = fl.counter; D.put('CashRegister_01', k.x0 + 1, (k.z0 + k.z1) / 2, 0, { lift: 1.05, solid: false });
+      D.put('CashRegister_01', k.x1 - 1, (k.z0 + k.z1) / 2, 0, { lift: 1.05, solid: false });
+    }
+    if (D) {
+      for (let x = r.x0 + 3; x < r.x1 - 3; x += 6.5) D.put('mounted_fluorescent_lights', x, (r.z0 + r.z1) / 2, 0, { lift: L.h - 0.42, solid: false });
+      for (const sh of fl.shelves) { D.put('cardboard_box_01', sh.x - 0.9, sh.z0 + 0.6, Math.random() * 6); D.put('plastic_monobloc_chair_01', sh.x + 0.9, sh.z1 - 0.5, Math.random() * 6); }
+      D.put('potted_plant_02', r.x0 + 1.2, r.z0 + 1.2, 0); D.put('potted_plant_02', r.x1 - 1.2, r.z0 + 1.2, 1.5);
+      D.put('security_camera_01', r.x1 - 0.5, r.z1 - 0.5, -Math.PI * 0.75, { lift: L.h - 0.7, solid: false, s: 0.8 });
     }
     this.M.populateFloor?.(this, fl, L);
   }
@@ -446,6 +471,15 @@ export class Building {
     this.addLivingSets(fl, y);
     // open spaces: corridor decor
     this.plant(fl, ix0 + 0.6, corrZ1 - 0.6);
+    const D = fl.deco;
+    if (D) {
+      const mid = (zc + corrZ1) / 2;
+      for (let x = ix0 + 4; x < ix1 - 2; x += 7.5) D.put('mounted_fluorescent_lights', x, mid, 0, { lift: L.h - 0.42, solid: false });
+      D.put('wall_clock', ix0 + 0.12, mid, Math.PI / 2, { lift: 2.3, solid: false });
+      D.put('fire_alarm', ix1 - 0.12, corrZ1 - 0.2, -Math.PI / 2, { lift: 1.5, solid: false });
+      D.put('security_camera_01', ix1 - 0.4, mid, 0, { lift: L.h - 0.65, solid: false, s: 0.8 });
+      D.put('painted_wooden_cabinet', ix1 - 0.5, zc + 0.9, -Math.PI / 2, { tag: 'furniture' });
+    }
     this.M.populateFloor?.(this, fl, L, rooms);
     fl.rooms = rooms;
   }
@@ -458,6 +492,11 @@ export class Building {
     const back = south ? z1 : z0, dirIn = south ? 1 : -1; // direction from door wall into the room
     const col = (cx_, cz_, w, d, hgt, color, em) => solid('decor', cx_ - w / 2, y, cz_ - d / 2, cx_ + w / 2, y + hgt, cz_ + d / 2, color, em);
     const acc = fl.acc;
+    if (fl.deco && kind !== 'living') {
+      decorateRoom(new Frame(rm, y), fl.deco, kind, L);
+      fl.fixtures.push([cx, y + 3.2, cz, { bedroom: [1, 0.78, 0.55], kitchen: [1, 0.95, 0.85], office: [0.9, 0.95, 1], meeting: [1, 1, 1], server: [0.4, 0.7, 1] }[kind] || [1, 1, 1]]);
+      return;
+    }
     if (kind === 'bedroom') {
       col(cx, back - dirIn * 1.2, 2.0, 2.1, 0.5, 0xd8d0d8);
       B.ext('decor', cx - 1.0, y + 0.5, back - dirIn * 2.0, cx + 1.0, y + 0.7, back - dirIn * 1.7, 0xc8c0c8);
