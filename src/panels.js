@@ -40,7 +40,7 @@ export class Panels {
       const d = ITEMS[id], n = inv.items[id], unpaid = inv.unpaid[id] || 0;
       const bt = [];
       if (m === 'inv' || m === 'container') {
-        if (d.eat || d.heal || d.ammo || d.cash || d.fuelCan) bt.push(['사용', () => W.use(id)]);
+        if (d.eat || d.heal || d.ammo || d.cash || d.fuelCan || d.gun !== undefined) bt.push(['사용', () => W.use(id)]);
         if (d.melee) bt.push(['장비', () => G.equipMelee?.(id)]);
         if (d.tool === 'flashlight') bt.push([G.flashlightOn ? '끄기' : '켜기', () => G.toggleFlashlight?.()]);
         bt.push(['버리기', () => W.dropFromInv(id)]);

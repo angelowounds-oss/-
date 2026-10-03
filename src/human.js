@@ -6,6 +6,9 @@ import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 export const WEAPONS = [
   { name: '9MM PISTOL', short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
   { name: 'CARBINE', short: 'rifle', clip: 30, reserve: 180, damage: 21, head: 1.9, rate: 0.085, spread: 0.012, range: 200, reload: 1.7, recoil: 0.011, auto: true, tracer: [0.5, 0.95, 1], snd: 'rifle' },
+  { name: 'SMG', short: 'pistol', clip: 25, reserve: 0, damage: 13, head: 1.8, rate: 0.058, spread: 0.022, range: 110, reload: 1.4, recoil: 0.008, auto: true, tracer: [1, 0.7, 0.4], snd: 'rifle' },
+  { name: 'SHOTGUN', short: 'rifle', clip: 6, reserve: 0, damage: 12, head: 1.5, rate: 0.85, spread: 0.055, range: 45, reload: 2.4, recoil: 0.04, auto: false, tracer: [1, 0.6, 0.3], snd: 'rifle', pellets: 8 },
+  { name: 'SNIPER', short: 'rifle', clip: 5, reserve: 0, damage: 125, head: 3, rate: 1.1, spread: 0.0008, range: 420, reload: 2.4, recoil: 0.05, auto: false, tracer: [0.8, 1, 1], snd: 'rifle' },
 ];
 const SW_MID = R / 2 + SW / 2;
 let uid = 0;
@@ -39,8 +42,9 @@ export class Human {
   }
   get alive() { return !this.dead; }
   setWeapon(i) {
+    if (i >= 100 || !WEAPONS[i]) { this.m.pistol.visible = this.m.rifle.visible = false; this.armed = false; return; }
     this.weapon = WEAPONS[i]; this.armed = true;
-    this.m.pistol.visible = i === 0; this.m.rifle.visible = i === 1;
+    this.m.pistol.visible = this.weapon.short === 'pistol'; this.m.rifle.visible = this.weapon.short === 'rifle';
   }
   // ---- sidewalk graph for civilians ----
   placeOnSidewalk(i, j, sx, sz) { this.node = { i, j, sx, sz }; this.x = roadC(i) + sx * SW_MID + this.offset; this.z = roadC(j) + sz * SW_MID; this.chooseNext(); }
@@ -193,7 +197,7 @@ export class Human {
       this.alert = 1;
     } else {
       if (this.state !== 'attack') {
-        if (los && dp < (this.detect || 38)) { this.state = 'attack'; this.alert = 1; this.fireCd = rand(0.7, 1.4); G.alertGang?.(this); }
+        if (los && dp < (this.detect || 38) * (G.player.crouching ? 0.55 : 1)) { this.state = 'attack'; this.alert = 1; this.fireCd = rand(0.7, 1.4); G.alertGang?.(this); }
         else { this.cmdSpeed = 0; if (this.patrol) this.doPatrol(dt); return; }
       }
     }
@@ -244,7 +248,8 @@ export class Human {
     m.applyPose(this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
     m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5 - (this.swimming ? 0.3 : 0);
-    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : 0, 8, dt);
+    if (this.punchT > 0) this.punchT -= dt;
+    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if (this.aimT > 0) this.aimT -= dt * 0.5;

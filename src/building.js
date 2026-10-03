@@ -139,6 +139,7 @@ export class Building {
     if (L.tier === 'tower' && L.k === this.levels.findIndex((l) => l.tier === 'tower')) this.parapet(fl, B, cc, this.pod, y, wallC, 1.0);
     // ---- core ----
     this.buildCore(fl, B, cc, L, y, wallC, isRoof);
+    if (k === 0) this.addLadder(fl, B, 'base'); else if (L.tier === 'tower' && L.slab === this.pod && L.k === this.levels.findIndex((l) => l.tier === 'tower')) this.addLadder(fl, B, 'top');
     // ---- ceiling lights / fixtures ----
     if (!isRoof) this.lighting(fl, B, L, r, y, top, acc);
     // ---- contents ----
@@ -152,6 +153,24 @@ export class Building {
     this.floors.set(k, fl);
     this.built.add(k);
     this.M.onFloorBuilt?.(this, fl, L);
+  }
+  // fire-escape ladder on the side opposite the entrance: base at the street level, top on the podium roof
+  addLadder(fl, B, which) {
+    const G = this.G, d = this.door, pod = this.pod, H = pod.y1;
+    const nx = -d.nx, nz = -d.nz; // outward normal of the back side
+    const along = nx !== 0 ? (pod.z0 + pod.z1) / 2 + 3 : (pod.x0 + pod.x1) / 2 + 3;
+    const ex = nx !== 0 ? (nx > 0 ? pod.x1 : pod.x0) : along, ez = nz !== 0 ? (nz > 0 ? pod.z1 : pod.z0) : along;
+    const ox = ex + nx * 0.22, oz = ez + nz * 0.22;
+    if (which === 'base') {
+      const px = -nz, pz = nx; // along-wall direction
+      for (const s of [-0.28, 0.28]) B.ext('steel', ox + px * s - 0.03 + (nx !== 0 ? 0 : 0), 0, oz + pz * s - 0.03, ox + px * s + 0.03, H + 1.0, oz + pz * s + 0.03, 0x9aa0ac);
+      for (let yy = 0.4; yy < H + 0.9; yy += 0.4) B.ext('steel', Math.min(ox - 0.03, ox + px * 0.28 - 0.03), yy, Math.min(oz - 0.03, oz + pz * 0.28 - 0.03), Math.max(ox + 0.03, ox + px * 0.28 + 0.03), yy + 0.05, Math.max(oz + 0.03, oz + pz * 0.28 + 0.03), 0x9aa0ac);
+      const o = { x: ox + nx * 0.7, z: oz + nz * 0.7, cy: 1, r: 1.9, name: '비상 사다리', verbs: [{ key: 'F', label: () => '사다리 오르기', run: () => G.climbTo(ox + nx * 0.7, 0, oz + nz * 0.7, ex - nx * 1.4, H, ez - nz * 1.4, 2.4) }] };
+      G.interact.add(o); (fl.interact || (fl.interact = [])).push(o);
+    } else {
+      const o = { x: ex - nx * 1.2, z: ez - nz * 1.2, cy: H + 1, r: 1.9, name: '비상 사다리', verbs: [{ key: 'F', label: () => '사다리 내려가기', run: () => G.climbTo(ex - nx * 1.2, H, ez - nz * 1.2, ox + nx * 0.8, 0, oz + nz * 0.8, 2.6) }] };
+      G.interact.add(o); (fl.interact || (fl.interact = [])).push(o);
+    }
   }
   buildGlassMesh(fl) {
     if (!fl.glass.length) return;

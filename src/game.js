@@ -19,6 +19,8 @@ import { Life } from './life.js';
 import { Clock, Needs } from './needs.js';
 import { actions } from './actions.js';
 import { garage } from './garage.js';
+import { Jobs } from './jobs.js';
+import { Phone, gpsRoute } from './phone.js';
 import { DayNight } from './daynight.js';
 import { Society, ZONES } from './society.js';
 import { Character } from './character.js';
@@ -47,8 +49,11 @@ export class Game {
     this.clock = new Clock(this); this.needs = new Needs(this); this.daynight = new DayNight(this);
   }
 
-  load() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
-  save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ cash: this.cash, mission: this.missionIndex, kills: this.stats.kills, world: this.state })); } catch { /* ignore */ } }
+  slotKey() { return SAVE_KEY + '_' + (localStorage.getItem('neon_slot') || 1); }
+  load() { try { return JSON.parse(localStorage.getItem(this.slotKey())) || JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
+  saveSlot(n) { try { localStorage.setItem(`${SAVE_KEY}_${n}`, JSON.stringify(this.snapshot())); localStorage.setItem('neon_slot', n); } catch { /* ignore */ } }
+  snapshot() { return { cash: this.cash, mission: this.missionIndex, kills: this.stats.kills, world: this.state }; }
+  save() { try { localStorage.setItem(this.slotKey(), JSON.stringify(this.snapshot())); } catch { /* ignore */ } }
 
   // ====================================================================
   async init(progress) {
@@ -84,7 +89,7 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
-    this.panels = new Panels(this);
+    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this);
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate(); this.spawnCrafts();
     this.spawnPickups();
@@ -118,7 +123,7 @@ export class Game {
     this.scene.add(pl.group);
     const pz0 = this.world.plaza; pl.x = pz0.cx + 22; pl.z = pz0.cz + 22; pl.ry = Math.PI;
     pl.hpv = 100; pl.armor = 0;
-    pl.ammo = [{ clip: 12, reserve: 96 }, { clip: 30, reserve: 150 }];
+    pl.ammo = [{ clip: 12, reserve: 96 }, { clip: 30, reserve: 150 }, { clip: 25, reserve: 0 }, { clip: 6, reserve: 0 }, { clip: 5, reserve: 0 }]; pl.owned = [true, true, false, false, false];
     pl.cur = 0; pl.reloadT = 0; pl.fireCd = 0; pl.weaponDrawn = false; pl.spread = 0; pl.dead = false;
     pl.m.pistol.visible = true;
     pl.body3 = new Character(this.phys, pl.x, 0, pl.z);
@@ -239,7 +244,7 @@ export class Game {
     const u = el;
     u('pause').addEventListener('pointerdown', (e) => e.stopPropagation());
     u('resume').onclick = () => this.setPaused(false);
-    u('reset').onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } location.reload(); };
+    u('reset').onclick = () => { try { localStorage.removeItem(this.slotKey()); } catch { /* ignore */ } location.reload(); };
     u('qSel').value = String(this.eng.qIndex);
     u('qSel').onchange = (e) => { this.eng.setQuality(+e.target.value); this.eng.onQuality?.(); };
     u('vol').oninput = (e) => this.audio.setVolume(+e.target.value);
@@ -301,6 +306,8 @@ export class Game {
     this.theftT = (this.theftT || 0) - sdt; if (this.theftT <= 0) { this.theftT = 0.5; this.life.checkTheft(this.player); }
     this.clock.update(sdt); this.needs.update(sdt); this.society.update(sdt); this.items.update(sdt); this.updateFlashlight();
     if (this.input.edge('inv')) this.openInventory();
+    if (this.input.edge('phone') && !this.uiModal && !this.player.dead) this.phone.show();
+    this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
     this.updatePickups(sdt);
@@ -349,10 +356,10 @@ export class Game {
     const k = 0.0022 * (pl.aiming ? 0.6 : 1);
     cam.yaw -= inp.lookX * k; cam.pitch = clamp(cam.pitch - inp.lookY * k, -1.2, 1.05);
     if (inp.lookX || inp.lookY) cam.offsetT = 2.2;
-    if (this.input.edge('swap')) this.switchWeapon(pl.cur ^ 1);
-    if (this.input.edge('w1')) this.switchWeapon(0);
-    if (this.input.edge('w2')) this.switchWeapon(1);
-    if (inp.wheel) this.switchWeapon(clamp(pl.cur + inp.wheel, 0, 1));
+    { const order = [...pl.owned.map((o, i) => (o ? i : -1)).filter((i) => i >= 0), 9]; const ci = Math.max(0, order.indexOf(pl.cur));
+      if (this.input.edge('swap')) this.switchWeapon(order[(ci + 1) % order.length]);
+      if (inp.wheel) this.switchWeapon(order[(ci + (inp.wheel > 0 ? 1 : order.length - 1)) % order.length]);
+      for (const [k, i] of [['w1', 0], ['w2', 1], ['w3', 2], ['w4', 3], ['w5', 4], ['w6', 9]]) if (this.input.edge(k) && (i === 9 || pl.owned[i])) this.switchWeapon(i); }
     this.input.edge('lights');
     if (this.playerOnFoot) this.footControl(dt, inp);
     else this.driveControl(dt, inp);
@@ -361,12 +368,12 @@ export class Game {
 
   switchWeapon(i) {
     const pl = this.player; if (i === pl.cur || !this.playerOnFoot) return;
-    pl.cur = i; pl.setWeapon(i); pl.reloadT = 0; pl.fireCd = 0.25;
+    pl.cur = i; pl.setWeapon(i === 9 ? 100 : i); pl.reloadT = 0; pl.fireCd = 0.25;
     this.audio.tone?.(500, 0.05, 'square', 0.06);
   }
 
   footControl(dt, inp) {
-    const pl = this.player, cam = this.cam, w = WEAPONS[pl.cur], ammo = pl.ammo[pl.cur];
+    const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
     if (this.input.edge('crouch')) pl.crouching = !pl.crouching;
@@ -385,6 +392,8 @@ export class Game {
     pl.vx = damp(pl.vx, dx * spd, 10, dt); pl.vz = damp(pl.vz, dz * spd, 10, dt);
     const c3 = pl.body3;
     const riding = this.buildings.ridingElevator(pl);
+    if (pl.mantle) { this.stepMantle(dt); return; }
+    if (this.input.edges.jump > 0 && !pl.crouching && !pl.swimming && this.tryMantle(inp)) { this.input.edge('jump'); return; }
     const wat = this.waterAt(pl.x, pl.z);
     const swim = wat && wat.y - pl.y > 0.95;
     pl.swimming = !!swim;
@@ -406,6 +415,8 @@ export class Game {
     pl.weaponDrawn = shooting || pl.aimT > 0;
     // reload / fire
     pl.fireCd -= dt; pl.spread = Math.max(0, pl.spread - dt * 0.05);
+    if (melee) { if (inp.fire && pl.fireCd <= 0) this.meleeAttack(); }
+    else {
     if (pl.reloadT > 0) { pl.reloadT -= dt; if (pl.reloadT <= 0) { const need = w.clip - ammo.clip, take = Math.min(need, ammo.reserve); ammo.clip += take; ammo.reserve -= take; } }
     if ((this.input.edge('reload') || (ammo.clip === 0 && inp.fire && ammo.reserve > 0)) && pl.reloadT <= 0 && ammo.clip < w.clip && ammo.reserve > 0) { pl.reloadT = w.reload; this.audio.reload(); }
     if (inp.fire && pl.reloadT <= 0 && pl.fireCd <= 0) {
@@ -413,6 +424,9 @@ export class Game {
         if (w.auto || !pl.fireHeld) this.playerShoot(w, ammo);
       } else if (!pl.fireHeld) { this.audio.empty(); pl.fireCd = 0.3; }
     }
+    }
+    if (this.input.edge('nade') && this.items.take('grenade')) this.throwGrenade();
+    if (pl.bleed) { pl.bleedT = (pl.bleedT || 0) + dt; if (pl.bleedT > 1) { pl.bleedT = 0; this.hurtPlayer(1.2, null, 'bleed'); } }
     pl.fireHeld = inp.fire;
     // interactions: vehicles, building doors, interior objects
     this.nearInteract = this.findInteract(pl);
@@ -457,6 +471,46 @@ export class Game {
     else verbs.push({ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : v.spec.craft === 'heli' ? '헬기 탑승' : v.spec.craft === 'boat' ? '보트 탑승' : v.type === 'moto' ? '오토바이 탑승' : '차량 탑승'), run: () => this.enterVehicle(v) });
     if (v.driver !== 'ai' && !v.spec.craft) verbs.push({ key: 'T', label: () => '트렁크', run: () => this.openTrunk(v) });
     out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: v.type === 'moto' ? '오토바이' : v.spec.craft === 'heli' ? '헬리콥터' : v.spec.craft === 'boat' ? '보트' : '차량', verbs });
+  }
+  // ledge climb / vault: probe forward at knee & chest height, find the top surface, glide over it
+  tryMantle(inp) {
+    const pl = this.player, ph = this.phys, yaw = (inp.mx || inp.my) ? Math.atan2(pl.vx || Math.sin(this.cam.yaw), pl.vz || Math.cos(this.cam.yaw)) : pl.ry;
+    const dx = Math.sin(yaw), dz = Math.cos(yaw), M = 1 | 16 | 8 | 32;
+    const probe = (h) => ph.ray(pl.x, pl.y + h, pl.z, dx, 0, dz, 1.1, 1 | 16 | 32);
+    const lo = probe(0.55), hi = probe(1.15);
+    if (!lo && !hi) return false;
+    const hit = hi || lo, t = hit.t;
+    // find the top surface just beyond the wall face
+    const px = pl.x + dx * (t + 0.45), pz = pl.z + dz * (t + 0.45);
+    const top = ph.ray(px, pl.y + 2.9, pz, 0, -1, 0, 3.4, 1 | 16 | 32);
+    if (!top) return false;
+    const ty = pl.y + 2.9 - top.t, h = ty - pl.y;
+    if (h < 0.45 || h > 2.45) return false;
+    if (ph.ray(px, ty + 0.1, pz, 0, 1, 0, 1.75, 1 | 16 | 32)) return false; // no headroom
+    pl.mantle = { t: 0, dur: 0.35 + h * 0.2, from: [pl.x, pl.y, pl.z], to: [px, ty + 0.05, pz], h };
+    pl.vx = pl.vz = 0; pl.mantleFx = true; this.audio.tone?.(180, 0.1, 'sine', 0.06, 90);
+    return true;
+  }
+  climbTo(x0, y0, z0, x1, y1, z1, speed) {
+    const pl = this.player; if (pl.mantle || this.frozen()) return;
+    pl.mantle = { t: 0, dur: Math.abs(y1 - y0) / speed + 0.5, from: [x0, y0, z0], to: [x1, y1, z1], h: Math.abs(y1 - y0), ladder: true };
+    pl.body3.teleport(x0, y0, z0); pl.x = x0; pl.z = z0; pl.y = y0 + 0.06; this.audio.tone?.(300, 0.05, 'square', 0.04);
+  }
+  stepMantle(dt) {
+    const pl = this.player, m = pl.mantle; m.t += dt; const k = Math.min(1, m.t / m.dur);
+    const L = m.ladder, up = L ? k : Math.min(1, k * 1.7), fw = L ? Math.max(0, (k - 0.85) / 0.15) : Math.max(0, (k - 0.35) / 0.65);
+    const x = m.from[0] + (m.to[0] - m.from[0]) * fw, z = m.from[2] + (m.to[2] - m.from[2]) * fw, y = m.from[1] + (m.to[1] - m.from[1]) * (up * up * (3 - 2 * up));
+    pl.body3.teleport(x, y - 0.06, z); pl.x = x; pl.y = y; pl.z = z; pl.ry = Math.atan2(m.to[0] - m.from[0], m.to[2] - m.from[2]); pl.speed = 2;
+    pl.animate(dt, 2);
+    if (k >= 1) { pl.mantle = null; }
+  }
+  setWaypoint(x, z) { this.setBeacon(x, z, 0xffc94d); this.gpsT = 0; this.gpsPath = gpsRoute(this.player.x, this.player.z, x, z); this.toast('목적지 설정', `${Math.hypot(x - this.player.x, z - this.player.z) | 0}m`); }
+  updateGPS(dt) {
+    this.gpsT = (this.gpsT || 0) - dt; if (this.gpsT > 0) return; this.gpsT = 1;
+    const j = this.jobs.cur; const el2 = this.ui.job || (this.ui.job = el('job'));
+    if (j) { el2.classList.add('on'); el2.innerHTML = `<b>${j.title}</b> · ${j.hud || j.text}`; } else el2.classList.remove('on');
+    if (!this.markerPos) { this.gpsPath = null; return; }
+    const pl = this.vehicle || this.player; this.gpsPath = gpsRoute(pl.x, pl.z, this.markerPos.x, this.markerPos.z);
   }
   waterAt(x, z) { for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w; return null; }
   focusPos() { return this.vehicle || this.player; }
@@ -572,7 +626,10 @@ export class Game {
   playerShoot(w, ammo) {
     const pl = this.player, cam = this.camera;
     ammo.clip--; pl.fireCd = w.rate; pl.recoil = 1; this.lastShotT = this.time;
-    const dir = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const dir0 = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion).clone();
+    const pel = w.pellets || 1;
+    for (let pi = 1; pi < pel; pi++) { const d2 = dir0.clone(); d2.x += rand(-w.spread, w.spread); d2.y += rand(-w.spread, w.spread); d2.z += rand(-w.spread, w.spread); d2.normalize(); this.hitscan(cam.position.x, cam.position.y, cam.position.z, d2.x, d2.y, d2.z, w.range, pl, w.damage, w.head); }
+    const dir = this.tmpV.copy(dir0);
     const sp = w.spread + pl.spread + (pl.speed > 1 ? 0.01 : 0) + (pl.aiming ? -w.spread * 0.6 : 0);
     dir.x += rand(-sp, sp); dir.y += rand(-sp, sp); dir.z += rand(-sp, sp); dir.normalize();
     pl.spread = Math.min(0.03, pl.spread + w.spread * 0.4);
@@ -591,6 +648,46 @@ export class Game {
     if (r.kind === 'human') this.markHit(r.head);
     if (ammo.clip === 0 && ammo.reserve > 0) pl.reloadT = w.reload, this.audio.reload();
   }
+  meleeAttack() {
+    const pl = this.player, m = pl.melee || { dmg: 9, rate: 0.45, name: '맨손' };
+    pl.fireCd = m.rate; pl.punchT = 0.22; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
+    const fx = Math.sin(pl.ry), fz = Math.cos(pl.ry);
+    let best = null, bd = 2.2;
+    for (const h of this.humans) {
+      if (h.dead || h.hidden || h.inside) continue;
+      const dx = h.x - pl.x, dz = h.z - pl.z, d = Math.hypot(dx, dz); if (d > bd || Math.abs((h.y || 0) - pl.y) > 1.6) continue;
+      if ((dx * fx + dz * fz) / (d + 1e-3) < 0.35) continue; bd = d; best = h;
+    }
+    if (best) {
+      const unaware = best.state !== 'attack' && best.state !== 'flee', behind = Math.cos(best.ry - pl.ry) > 0.2;
+      const silent = unaware && behind && pl.crouching, dmg = m.dmg * (silent ? 5 : 1);
+      best.hurt(dmg, pl, false, pl); const dx = best.x - pl.x, dz = best.z - pl.z, l = Math.hypot(dx, dz) || 1;
+      if (!best.dead) best.ragdoll(dx / l * 3.5, dz / l * 3.5, 1.5);
+      this.markHit(false); this.audio.impact(0.7, 0); this.fx.sparks(best.x, 1.2, best.z, 3, [1, 0.3, 0.3], 4);
+      if (best.team === 'civ') this.society.crime('assault', silent ? 8 : 10, best.x, best.z);
+      this.noise(pl.x, pl.z, silent ? 6 : 14);
+      if (silent && best.dead) this.toast('암살', '소리 없이 제압');
+      return;
+    }
+    const cam = this.camera, d = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const h = this.phys.ray(pl.x, pl.y + 1.3, pl.z, fx, 0, fz, 1.8, 1 | 8 | 16 | 32);
+    if (h && h.ref) {
+      if (h.ref.tag === 'glass' && h.ref.pane) { h.ref.pane.b.breakPane(h.ref, pl); }
+      else if (h.ref.isProp) h.ref.hit(fx, 0.2, fz, m.dmg * 2);
+      else if (h.ref.isDoor && h.ref.locked && m.name !== '맨손') h.ref.kick(pl);
+    }
+  }
+  throwGrenade() {
+    const pl = this.player, cam = this.camera, dir = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const p = this.items.drop('grenade', pl.x + dir.x * 0.6, pl.y + 1.5, pl.z + dir.z * 0.6, { x: dir.x * 16, y: dir.y * 16 + 4, z: dir.z * 16 });
+    if (p) { p.fuse = 2.3; p.body.setAngularDamping(1); this.audio.tone?.(300, 0.1, 'sine', 0.06, 160); }
+    this.lastShotT = this.time; this.noise(pl.x, pl.z, 20);
+  }
+  blastWorld(x, y, z, r) {
+    for (const b of this.buildings.active) for (const [, fl] of b.floors) for (const gb of [...fl.glass]) { const e = gb.pane.ex; if (Math.hypot((e[0] + e[3]) / 2 - x, (e[2] + e[5]) / 2 - z, (e[1] + e[4]) / 2 - y) < r * 1.4) b.breakPane(gb, this.player); }
+    for (const p of this.items.props.values()) { const t = p.body.translation(), dx = t.x - x, dz = t.z - z, dy = t.y - y, d = Math.hypot(dx, dy, dz); if (d < r * 1.6) { const k = (1 - d / (r * 1.6)) * p.def.mass * 9; p.body.applyImpulse({ x: dx / (d || 1) * k, y: k * 0.8, z: dz / (d || 1) * k }, true); p.body.wakeUp(); } }
+    for (const d of this.buildings.active) for (const dr of d.doors) { if (Math.hypot(dr.x - x, dr.z - z) < r * 0.9 && !dr.broken) { dr.locked = false; dr.swing = 1; dr.target = 1.5; dr.vel = 8; } }
+  }
   muzzleWorld(h) { const v = this.tmpV2; h.m.muzzle.getWorldPosition(v); return new V3().copy(v); }
   markHit(head) { this.hitMarker = 0.18; this.ui.cross.classList.add('hit'); setTimeout(() => this.ui.cross.classList.remove('hit'), 120); this.audio.hitMarker(); }
 
@@ -606,7 +703,7 @@ export class Game {
       if (ref && ref.tag === 'glass' && ref.pane) { ref.pane.b.breakPane(ref, owner === this.player ? this.player : null); acc += t + 0.04; continue; }
       tw = acc + t; hitRef = ref; break;
     }
-    if (tw >= 0) { best = tw; kind = 'world'; if (hitRef && hitRef.isProp) { hitRef.hit?.(dx, dy, dz, damage); } }
+    if (tw >= 0) { best = tw; kind = 'world'; if (hitRef && hitRef.isProp) { hitRef.hit?.(dx, dy, dz, damage); } else if (hitRef && hitRef.onShot) hitRef.onShot(); }
     if (dy < -1e-4) { const tg = -oy / dy; if (tg > 0 && tg < best) { best = tg; kind = 'ground'; } }
     // humans
     for (const h of this.humans) {
@@ -673,7 +770,8 @@ export class Game {
     const dist = Math.hypot(tx - h.x, tz - h.z);
     const moving = this.playerOnFoot ? pl.speed : (this.vehicle ? this.vehicle.speed : 0);
     const hitChance = clamp(0.62 - dist * 0.012 - moving * 0.025 - (this.playerOnFoot && pl.aiming ? 0.05 : 0), 0.08, 0.6) * (h.team === 'cop' ? 0.7 : 0.8);
-    const hit = Math.random() < hitChance;
+    const cover = !this.hasLOS(from.x, from.y, from.z, tx, (this.playerOnFoot ? pl.y + (pl.crouching ? 0.75 : 1.25) : 1.1), tz);
+    const hit = !cover && Math.random() < hitChance;
     const end = new V3(tx + (hit ? 0 : rand(-1.6, 1.6)), ty + (hit ? 0 : rand(-0.6, 0.8)), tz + (hit ? 0 : rand(-1.6, 1.6)));
     this.tracers.add(from, end, h.team === 'cop' ? [0.4, 0.5, 1] : [1, 0.35, 0.3]);
     this.fx.muzzle(from, new V3().subVectors(end, from).normalize());
@@ -691,6 +789,7 @@ export class Game {
     pl.hpv -= dmg;
     this.dmgPulse = clamp(dmg / 25, 0.15, 1); this.ui.dmg.style.opacity = clamp(dmg / 14, 0.25, 1);
     clearTimeout(this._dm); this._dm = setTimeout(() => (this.ui.dmg.style.opacity = 0), 160);
+    if (kind === 'bullet' && dmg >= 6 && Math.random() < 0.35 && !pl.bleed) { pl.bleed = 1; this.toast('출혈!', '붕대나 구급상자가 필요합니다'); }
     if (dmg > 3) { this.audio.hurt(); this.shake(0.25); this.input.vibrate?.(); try { navigator.vibrate?.(30); } catch { /* ignore */ } }
     if (pl.hpv <= 0) this.playerDie(kind);
   }
@@ -746,7 +845,7 @@ export class Game {
     for (let i = 0; i < 40; i++) { const a = Math.random() * TAU, s = rand(2, 14); this.fireP.emit(x, y + rand(0, 1), z, Math.cos(a) * s, rand(1, 9), Math.sin(a) * s, rand(0.5, 1.3), rand(1.2, 3), 3.5, rand(0.8, 1.6), 0.25, 1, -3, 1.2); }
     for (let i = 0; i < 18; i++) this.smokeP.emit(x + rand(-1, 1), y + rand(0, 2), z + rand(-1, 1), rand(-3, 3), rand(2, 6), rand(-3, 3), rand(2, 4), rand(2, 4), 0.05, 0.05, 0.06, 0.9, 0.2, 0.4);
     this.fx.sparks(x, y, z, 18, [1, 0.6, 0.2], 24);
-    this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9);
+    this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9); this.blastWorld(x, y, z, radius);
     const d = Math.hypot(x - this.camera.position.x, z - this.camera.position.z);
     this.shake(clamp(1.4 - d / 50, 0, 1.5));
     this.flashT = 0.15;
@@ -1210,10 +1309,10 @@ export class Game {
     this.ui.hp.classList.toggle('low', pl.hpv < 30);
     this.setText('cash', ui.cash, '$' + (this.cash | 0).toLocaleString());
     this.setHTML('stars', ui.stars, Array.from({ length: 5 }, (_, i) => (i < this.wanted ? '<b>★</b>' : '★')).join(''));
-    const w = WEAPONS[pl.cur], am = pl.ammo[pl.cur];
+    const w = WEAPONS[pl.cur] || { name: pl.melee ? pl.melee.name.toUpperCase() : 'FISTS' }, am = pl.ammo[pl.cur] || { clip: 1, reserve: 0 };
     this.setText('wn', ui.wName, w.name);
-    this.setHTML('am', ui.ammo, pl.reloadT > 0 ? 'RELOAD' : `${am.clip}<small> / ${am.reserve}</small>`);
-    ui.ammo.classList.toggle('empty', am.clip === 0);
+    this.setHTML('am', ui.ammo, pl.cur === 9 ? '—' : pl.reloadT > 0 ? 'RELOAD' : `${am.clip}<small> / ${am.reserve}</small>` + (this.items.count('grenade') ? `<small> · 💣${this.items.count('grenade')}</small>` : ''));
+    ui.ammo.classList.toggle('empty', am.clip === 0 && pl.cur !== 9);
     ui.weapon.style.display = this.playerOnFoot ? '' : 'none';
     ui.cross.classList.toggle('hide', !this.playerOnFoot || pl.dead);
     if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; }
@@ -1275,6 +1374,7 @@ export class Game {
     const dot = (x, z, r, col, ring) => { g.fillStyle = col; g.beginPath(); g.arc(x, z, r / zoom, 0, TAU); g.fill(); if (ring) { g.strokeStyle = '#fff'; g.lineWidth = 1 / zoom; g.stroke(); } };
     for (const h of this.humans) { if (h.dead) continue; if (h.team === 'gang') dot(h.x, h.z, 3.2, '#ff3050'); else if (h.team === 'cop') dot(h.x, h.z, 3.2, Math.floor(this.time * 4) % 2 ? '#ff2040' : '#3060ff'); }
     for (const v of this.vehicles) if (v.police && !v.dead) dot(v.x, v.z, 4, Math.floor(this.time * 4) % 2 ? '#ff2040' : '#3060ff', true);
+    if (this.gpsPath) { g.strokeStyle = '#4de3ff'; g.lineWidth = 3 / zoom; g.beginPath(); this.gpsPath.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.stroke(); }
     for (const pk of this.pickups) if (pk.active && pk.type !== 'cash') dot(pk.x, pk.z, 2.2, pk.type === 'health' ? '#47ffa8' : pk.type === 'armor' ? '#4de3ff' : '#ffc94d');
     if (this.markerPos) {
       let mx = this.markerPos.x, mz = this.markerPos.z; const dx = mx - p.x, dz = mz - p.z, d = Math.hypot(dx, dz), lim = (W / 2 - 14) / zoom;

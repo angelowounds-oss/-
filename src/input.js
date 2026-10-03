@@ -6,7 +6,7 @@ export class Input {
     this.mx = 0; this.my = 0;           // accumulated look delta
     this.move = { x: 0, y: 0 };         // touch / pad analog
     this.fire = false; this.aim = false; this.sprint = false; this.hand = false;
-    this.edges = { jump: 0, use: 0, reload: 0, swap: 0, cam: 0, lights: 0, pause: 0, w1: 0, w2: 0, horn: 0, verb3: 0, inv: 0, drop: 0, crouch: 0, grab: 0, phone: 0, sit: 0 };
+    this.edges = { jump: 0, use: 0, reload: 0, swap: 0, cam: 0, lights: 0, pause: 0, w1: 0, w2: 0, horn: 0, verb3: 0, inv: 0, drop: 0, crouch: 0, grab: 0, phone: 0, sit: 0, nade: 0, w3: 0, w4: 0, w5: 0, w6: 0 };
     this.wheel = 0;
     this.touch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
     this.sens = 1;
@@ -17,7 +17,7 @@ export class Input {
   }
   edge(n) { const v = this.edges[n]; this.edges[n] = 0; return v > 0; }
   bind() {
-    const keyMap = { Space: 'jump', KeyF: 'use', KeyE: 'use', KeyR: 'reload', KeyQ: 'swap', KeyC: 'cam', KeyL: 'lights', Digit1: 'w1', Digit2: 'w2', KeyH: 'horn', KeyG: 'horn', KeyT: 'verb3', KeyI: 'inv', Tab: 'inv', KeyX: 'drop', KeyZ: 'crouch', KeyV: 'grab', KeyM: 'phone', KeyN: 'sit' };
+    const keyMap = { Space: 'jump', KeyF: 'use', KeyE: 'use', KeyR: 'reload', KeyQ: 'swap', KeyC: 'cam', KeyL: 'lights', Digit1: 'w1', Digit2: 'w2', Digit3: 'w3', Digit4: 'w4', Digit5: 'w5', Digit6: 'w6', KeyH: 'horn', KeyG: 'horn', KeyT: 'verb3', KeyI: 'inv', Tab: 'inv', KeyX: 'drop', KeyZ: 'crouch', KeyV: 'grab', KeyM: 'phone', KeyN: 'sit', KeyB: 'nade' };
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
@@ -80,6 +80,7 @@ export class Input {
     hold('bBrake', () => (this.touchBtn.brake = true), () => (this.touchBtn.brake = false));
     hold('bHand', () => (this.hand = true), () => (this.hand = false));
     hold('bCam', () => this.edges.cam++);
+    hold('bG', () => this.edges.horn++); hold('bT', () => this.edges.verb3++); hold('bInv', () => this.edges.inv++); hold('bCrouch', () => this.edges.crouch++); hold('bPhone', () => this.edges.phone++); hold('bNade', () => this.edges.nade++);
     hold('bPause', () => this.edges.pause++);
     if (this.touch) document.body.classList.add('touch');
   }

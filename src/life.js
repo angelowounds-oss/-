@@ -7,7 +7,7 @@ const SHOPS = {
   convenience: { name: '편의점', stock: [['burger', 6], ['noodles', 4], ['sandwich', 5], ['soda', 2], ['water', 2], ['coffee', 3], ['energy', 4], ['cigarette', 8], ['newspaper', 2], ['bandage', 8]] },
   hardware: { name: '철물점', stock: [['lockpick', 35], ['crowbar', 30], ['flashlight', 18], ['bat', 25], ['brick', 2], ['knife', 30]] },
   pharmacy: { name: '약국', stock: [['medkit', 40], ['bandage', 8], ['pills', 15], ['water', 2], ['energy', 4]] },
-  arms: { name: '무기상', stock: [['mag_pistol', 12], ['mag_rifle', 20], ['knife', 30], ['grenade', 90], ['bat', 25]] },
+  arms: { name: '무기상', stock: [['mag_pistol', 12], ['mag_rifle', 20], ['mag_smg', 16], ['shells', 14], ['mag_sniper', 25], ['w_smg', 520], ['w_shotgun', 640], ['w_sniper', 1500], ['knife', 30], ['grenade', 90], ['bat', 25]] },
   pawn: { name: '전당포', stock: [['watch', 600], ['laptop', 700], ['lockpick', 40], ['gold', 1300]], buys: 0.5 },
 };
 const SHOP_KEYS = Object.keys(SHOPS);
@@ -81,6 +81,9 @@ export class Life {
         { key: 'F', label: () => '음료 $2', run: () => { if (G.cash >= 2) { G.cash -= 2; G.items.add(rnd() < 0.5 ? 'soda' : 'water'); G.audio.cash(); G.toast('음료 구매'); } else G.toast('돈이 부족합니다'); } },
         { key: 'G', label: () => '에너지 $4', run: () => { if (G.cash >= 4) { G.cash -= 4; G.items.add('energy'); G.audio.cash(); } else G.toast('돈이 부족합니다'); } },
       ]);
+      // CCTV
+      { const cx = b.pod.x1 - 0.8, cz = b.pod.z1 - 0.8, cy = y + L.h - 0.7; fl.B.ext('steel', cx - 0.15, cy, cz - 0.15, cx + 0.15, cy + 0.25, cz + 0.15, 0x303640); fl.B.ext('emit', cx - 0.05, cy + 0.1, cz - 0.17, cx + 0.05, cy + 0.15, cz - 0.15, new THREE.Color(1, 0.1, 0.1), 3);
+        const cam = { x: cx, y: cy, z: cz, alive: true, t: 0 }; const bx = fl.cc(cx - 0.2, cz - 0.2, cx + 0.2, cz + 0.2, cy - 0.05, cy + 0.3, 'cctv'); bx.onShot = () => { if (!cam.alive) return; cam.alive = false; G.fx.sparks(cx, cy, cz, 6, [1, 0.8, 0.4], 10); G.audio.impact?.(0.6, 0); G.toast('CCTV 파괴'); }; (fl.cctv = fl.cctv || []).push(cam); }
       // lobby chairs and a plant as physical props
       for (let i = 0; i < 3; i++) this.item(b, fl, n++, 'chair', b.pod.x1 - 2.5 - i * 1.2, y + 0.5, b.pod.z0 + 2.5, {});
       if (rnd() < 0.7) { const gh = this.npc(b, fl, b.cx + R(-4, 4), y, b.cz + R(-4, 4), { guard: true, weapon: 1, look: { top: 0x1a1d29, pants: 0x0d0f16, cap: 0x0d0f16, trim: [1, 0.8, 0.2] }, ry: 0 }); void gh; }
@@ -184,7 +187,7 @@ export class Life {
       it('chair', cx - 1.1, y + 0.5, cz - 1.2); it('chair', cx + 1.1, y + 0.5, cz + 1.2); it('water', cx, y + 0.8, cz);
     } else if (kind === 'server') {
       this.fix(fl, cx, y + 1, back - dirIn * 1.6, 2.4, '서버 랙', [
-        { key: 'F', label: () => '서버 해킹', enabled: () => !rm.looted, run: () => G.beginTimed('서버 접속 중…', 7, () => { rm.looted = true; G.items.add('docs', 2); G.cash += 400; G.toast('데이터 탈취', '+$400 · 경보 작동'); G.alarmBuilding?.(b, fl); }, 2.6) },
+        { key: 'F', label: () => '서버 해킹', enabled: () => !rm.looted, run: () => G.beginTimed('서버 접속 중…', 7, () => { rm.looted = true; G.items.add('docs', 2); G.cash += 400; G.toast('데이터 탈취', '+$400 · 경보 작동'); G.alarmBuilding?.(b, fl); G.jobs?.event('server', b); }, 2.6) },
       ]);
       if (rnd() < 0.6) this.npc(b, fl, cx, y, cz, { guard: true, weapon: 1, look: { top: 0x1a1d29, pants: 0x0d0f16, cap: 0x0d0f16 }, ry: Math.PI });
     }

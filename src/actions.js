@@ -55,7 +55,7 @@ export const actions = {
   equipMelee(id) {
     const d = ITEMS[id]; if (!d?.melee) return;
     this.items.inv.equipped = this.items.inv.equipped === id ? null : id;
-    this.player.melee = this.items.inv.equipped ? d.melee : null;
+    this.player.melee = this.items.inv.equipped ? d.melee : null; this.switchWeapon(9);
     this.toast(this.items.inv.equipped ? `${d.name} 장비` : '맨손', this.items.inv.equipped ? '근접: 좌클릭' : '');
   },
   toggleFlashlight() {

@@ -174,11 +174,20 @@ export class Society {
       { text: '구걸하기 (+$2~15)', fn: () => { if (Math.random() < 0.5) { const v = 2 + Math.floor(Math.random() * 14); G.cash += v; G.toast(`+$${v}`); G.audio.cash(); } else G.toast('시민', '미안해요, 지금은…'); } },
     ] });
   }
+  cctvCheck() {
+    const G = this.G, pl = G.player;
+    if (!(pl.weaponDrawn || G.alarm) || G.time - (this.cctvT || -99) < 30) return;
+    for (const b of G.buildings.active) for (const [, fl] of b.floors) for (const c of fl.cctv || []) {
+      if (!c.alive || Math.hypot(c.x - pl.x, c.z - pl.z) > 26 || Math.abs(c.y - pl.y - 1.5) > 6) continue;
+      if (G.hasLOS(c.x, c.y, c.z, pl.x, pl.y + 1.3, pl.z)) { this.cctvT = G.time; G.addHeat(16); G.toast('CCTV에 포착됨', '카메라를 쏴서 파괴할 수 있다'); return; }
+    }
+  }
   // ---------- gang presence ----------
   update(dt) {
     const G = this.G, pl = G.player; this.t -= dt;
     this.updateLaw(dt);
     if (this.t > 0) return; this.t = 2;
+    this.cctvCheck();
     const z = this.zoneAt(pl.x, pl.z); G.zone = z;
     // ambient gang patrols in gang zones
     this.gangs = this.gangs.filter((h) => !h.dead && !h.remove);
