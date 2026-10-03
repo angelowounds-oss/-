@@ -6,7 +6,7 @@ const fpv={enabled:true,x:0,z:7.5,yaw:0,pitch:-.08,vx:0,vz:0,last:null,phase:0,s
 function clearWalk(){joyId=null;fpv.keys.clear();fpv.stick=[0,0];fpv.vx=fpv.vz=0;fpv.last=null;fpv.look=null;document.getElementById('stick').style.transform='translate(0px,0px)'}
 function startWalk(){window.__CINE&&window.__CINE.cancel('walk');clearWalk();fpv.enabled=true;fpv.x=0;fpv.z=7.5;fpv.gy=undefined;fpv.yaw=0;fpv.pitch=-.08;camera.preset='FPV';camera.cutaway=false;camera.fov=72;camera.up=[0,1,0];document.getElementById('viewName').textContent='FPV · 관제실';document.getElementById('viewHint').textContent='눈높이 1.65m · 보행 속도 1.6m/s';document.getElementById('cutaway').textContent='Cutaway: Off'}
 const DOOR={x0:2.3,x1:3.5,y0:.75,y1:2.95,zPanel:4.13,N:12,t:0,built:false,landZ:3.72,steps:4,rise:.15,tread:.30};
-function doorBuild(){if(DOOR.built||scene.objects.some(o=>o.name.startsWith('door.')))return;const {x0,x1}=DOOR,shift=3.5-x0,add=[],drop=new Set();
+function doorBuild(){if(TUNNEL_V2.active||DOOR.built||scene.objects.some(o=>o.name.startsWith('door.')))return;const {x0,x1}=DOOR,shift=3.5-x0,add=[],drop=new Set();
  DOOR.report=[];for(const o of scene.objects){const lo=o.center.map((v,i)=>v-o.size[i]/2),hi=o.center.map((v,i)=>v+o.size[i]/2);
   if(hi[2]<=3.70||lo[2]>=4.12)continue;const cuttable=o.name.startsWith('m7.')||o.name.startsWith('m5.window')||o.category==='observation opening'||o.category==='observation glass';if(!cuttable){if(hi[1]>DOOR.y0+.12&&lo[1]<DOOR.y1&&hi[0]>x0&&lo[0]<x1)DOOR.report.push(o.name);continue}
   if(o.name.startsWith('m7.')&&o.center[0]>3.4&&o.size[0]<.2){o.center=[o.center[0]-shift,o.center[1],o.center[2]];o._mesh=null;continue}
