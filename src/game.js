@@ -13,7 +13,7 @@ import { loadAssets } from './assets.js';
 import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
-import { buildTerrain, addTerrainPhysics, heightAt } from './terrain.js';
+import { buildTerrain, addTerrainPhysics, heightAt, roadsData } from './terrain.js';
 import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
@@ -1470,6 +1470,10 @@ export class Game {
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);
     // map drawImage: map pixel (tx(x), tz(z)) -> world via S
     g.drawImage(this.mapCanvas, -this.mapSize / S / 2, -this.mapSize / S / 2, this.mapSize / S, this.mapSize / S);
+    if (Math.hypot(p.x, p.z) > 800) { // mountain roads outside the city grid
+      g.strokeStyle = '#3c4b73'; g.lineWidth = 11; g.lineJoin = 'round';
+      for (const rd of roadsData()) { g.beginPath(); rd.pts.forEach((q, i) => (i ? g.lineTo(q.x, q.z) : g.moveTo(q.x, q.z))); if (rd.closed) g.closePath(); g.stroke(); }
+    }
     const dot = (x, z, r, col, ring) => { g.fillStyle = col; g.beginPath(); g.arc(x, z, r / zoom, 0, TAU); g.fill(); if (ring) { g.strokeStyle = '#fff'; g.lineWidth = 1 / zoom; g.stroke(); } };
     for (const h of this.humans) { if (h.dead) continue; if (h.team === 'gang') dot(h.x, h.z, 3.2, '#ff3050'); else if (h.team === 'cop') dot(h.x, h.z, 3.2, Math.floor(this.time * 4) % 2 ? '#ff2040' : '#3060ff'); }
     for (const v of this.vehicles) if (v.police && !v.dead) dot(v.x, v.z, 4, Math.floor(this.time * 4) % 2 ? '#ff2040' : '#3060ff', true);
