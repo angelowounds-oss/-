@@ -1248,6 +1248,10 @@ function buildEntrances(world, scene) {
     bx(-1.3, 0, 0.1, 0.14, 3.1, 0.22, em); bx(1.3, 0, 0.1, 0.14, 3.1, 0.22, em); bx(0, 3.1, 0.1, 2.74, 0.14, 0.22, em);
     bx(0, 0.02, 0.9, 3.4, 0.02, 1.8, new THREE.Color(1, 0.75, 0.5).multiplyScalar(0.55));
     bx(0, 3.55, 1.35, 6.2, 0.18, 2.8, new THREE.Color(0.04, 0.05, 0.08), 'decor'); bx(0, 3.44, 2.7, 5.8, 0.06, 0.06, em);
+    // lit approach path from the pavement, bollards and a warm canopy light so the entrance reads from across the street
+    bx(0, 0.025, 5.4, 2.0, 0.02, 7.2, new THREE.Color(...accent).multiplyScalar(0.7));
+    for (const sx of [-1.4, 1.4]) for (const lz of [3.0, 6.5]) { bx(sx, 0, lz, 0.14, 0.9, 0.14, new THREE.Color(0.05, 0.06, 0.09), 'decor'); bx(sx, 0.9, lz, 0.18, 0.1, 0.18, em); }
+    bx(0, 3.35, 1.5, 3.2, 0.04, 2.0, new THREE.Color(1, 0.86, 0.62).multiplyScalar(2.2));
     const sc = new THREE.Color(...accent);
     let sg = signs.get(name); if (!sg) { sg = { tex: nameTexture(name, accent), list: [] }; signs.set(name, sg); }
     const [sx, sz] = W(0, 0.14); sg.list.push({ x: sx, y: 5.0, z: sz, th });
