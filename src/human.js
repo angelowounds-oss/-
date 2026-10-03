@@ -259,11 +259,13 @@ export class Human {
     const k = 1 - Math.exp(-10 * dt);
     // stance sets: retargeted UAL crouch / swim clips replace the stand set (idle+walk+run) while active
     const swimC = this.swimming, crouchC = !swimC && !this.prone && !this.lying && this.crouching !== false && this.crouch > 0.3 && !m.sit;
-    const set = swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
+    const sitC = (m.sit || 0) > 0.5, airC = !sitC && !swimC && !!this.body3 && !this.body3.grounded && !this.hang && !this.mantle && !this.ladder;
+    const set = sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : airC ? ['U_Jump_Loop', 'U_Jump_Loop'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
+    m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0 };
-    if (set) { wt[set[0]] = 1 - moving; wt[set[1]] = moving; }
+    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump_Loop: 0 };
+    if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
     if (set && a[set[1]]) a[set[1]].timeScale = clamp(sp / 1.6, 0.6, 1.8);
     a.Walk.timeScale = clamp(sp / 1.55, 0.6, 2.2); a.Run.timeScale = clamp(sp / 5.2, 0.8, 1.7);
@@ -296,7 +298,7 @@ export class Human {
     m.mixer.update(dt);
     m.applyPose(pistolish ? 0 : this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
-    m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sit || 0) * 0.5 - (this.swimming ? 0 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
+    m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
     m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone ? 1.35 : this.lying ? -1.5 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
     this.group.position.set(this.x, this.y, this.z);
