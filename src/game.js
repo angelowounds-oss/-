@@ -364,6 +364,7 @@ export class Game {
       return;
     }
     if (this.frozen()) { for (const e of ['use', 'jump', 'reload', 'swap', 'cam']) this.input.edge(e); pl.animate(dt, 0); return; }
+    if (this.input.edge('cam')) { cam.fp = !cam.fp; this.toast(cam.fp ? '1인칭 시점' : '3인칭 시점'); }
     // camera look
     const k = 0.0022 * (pl.aiming ? 0.6 : 1);
     cam.yaw -= inp.lookX * k; cam.pitch = clamp(cam.pitch - inp.lookY * k, -1.2, 1.05);
@@ -1248,10 +1249,39 @@ export class Game {
   // ====================================================================
   // Camera
   shake(a) { this.shakeAmt = Math.min(1.6, this.shakeAmt + a); }
+  // first person: camera at the eye, body hidden, current weapon drawn as a view model fixed to the camera
+  setFirstPerson(on) {
+    const pl = this.player; if (this._fp === on) return; this._fp = on;
+    for (const o of pl.m.skinMeshes) o.visible = !on;
+    if (!on && this.vm) this.vm.visible = false;
+  }
+  firstPersonCam(dt, aim) {
+    const cam = this.cam, c = this.camera, pl = this.player;
+    this.setFirstPerson(true);
+    const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
+    const eye = pl.y + (pl.prone ? 0.55 : pl.crouching ? 1.25 : 1.68) + (pl.speed > 0.5 ? Math.sin(performance.now() * 0.011) * 0.012 * Math.min(1, pl.speed / 5) : 0);
+    cam.fov = damp(cam.fov, aim ? 48 : (pl.speed > 6 ? 78 : 72), 8, dt);
+    c.position.set(pl.x + L.x * 0.12, eye, pl.z + L.z * 0.12);
+    c.lookAt(pl.x + L.x * 20, eye + L.y * 20, pl.z + L.z * 20);
+    if (!this.vm) { this.vm = new THREE.Group(); c.add(this.vm); this.vmGun = {}; }
+    const kind = pl.armed ? pl.weapon.short : null;
+    for (const k of ['pistol', 'rifle']) {
+      if (!this.vmGun[k]) { const m = pl.m[k].clone(true); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.setScalar(0.8); m.traverse((o) => { o.frustumCulled = false; o.castShadow = false; }); m.rotation.y = Math.PI; this.vmGun[k] = m; this.vm.add(m); }
+      this.vmGun[k].visible = kind === k;
+    }
+    const kick = Math.min(0.08, (pl.recoil || 0) * 0.02);
+    this.vm.visible = !!kind;
+    this.vm.position.set(aim ? 0 : 0.17, aim ? -0.12 : -0.2, -0.45 + kick);
+    this.vm.rotation.set(-kick * 2, 0, 0);
+  }
   updateCamera(dt, inp) {
     const cam = this.cam, c = this.camera, pl = this.player, G = this;
     let ax, ay, az;
-    if (this.playerOnFoot || pl.dead) {
+    const fpOn = !!cam.fp && !pl.dead && this.playerOnFoot;
+    if (fpOn) this.firstPersonCam(dt, pl.aiming);
+    else this.setFirstPerson(false);
+    if (fpOn) { /* camera already placed */ }
+    else if (this.playerOnFoot || pl.dead) {
       if (pl.dead) cam.yaw += dt * 0.15;
       const aim = pl.aiming && !pl.dead;
       cam.dist = damp(cam.dist, aim ? 1.9 : 3.9, 9, dt); cam.shoulder = damp(cam.shoulder, aim ? 0.62 : 0.4, 9, dt);
