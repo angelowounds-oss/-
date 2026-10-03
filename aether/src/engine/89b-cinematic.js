@@ -33,7 +33,7 @@ function cineShots(g,tall){
  const m=g.mid,n=g.nose,r=g.rear,w=g.wing,c=g.cz,T=g.top;
  /* t: 0 low front quarter | 4 start of side tracking | 10 passing the cabin | 15 rear quarter on the spoiler | 17 hold | 24 wake | 30 reveal */
  const t=[0,.8,4,10,15,17,24,30];
- const eye=[[n-1.65,.55,c+2.2],[n-1.6,.56,c+2.25],[n-.95,.85,c+2.9],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
+ const eye=[[n-1.35,.55,c+2.2],[n-1.3,.56,c+2.25],[n-.95,.85,c+2.9],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
  const tgt=tall?[[n+1.0,.6,c-.1],[n+1.05,.6,c-.1],[n+1.9,.78,c],[m+1.2,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+.3,.85,c],[m-.3,1.3,c]]
   :[[n+1.05,.65,c-.3],[n+1.1,.65,c-.3],[n+1.9,.78,c-.1],[m+1.4,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.25,.8,c],[m-.3,1.3,c]];
  return{t,eye,tgt,fov:[[0,40],[24,40],[30,46]],hfov:46}}
