@@ -10,10 +10,10 @@ import { el, LIGHT_CAP } from './util.js';
 import hdriPlaza from '../assets/env/hansaplatz.rgbe';
 
 export const QUALITY = [
-  { name: 'LOW', shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 18, parked: 18, rain: 1800, far: 1 },
-  { name: 'MEDIUM', shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 28, parked: 28, rain: 3000, far: 1 },
-  { name: 'HIGH', shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 40, parked: 40, rain: 4500, far: 1 },
-  { name: 'ULTRA', shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 52, parked: 52, rain: 6000, far: 1 },
+  { name: 'LOW', shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 34, parked: 18, rain: 1800, far: 1 },
+  { name: 'MEDIUM', shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 52, parked: 28, rain: 3000, far: 1 },
+  { name: 'HIGH', shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 76, parked: 40, rain: 4500, far: 1 },
+  { name: 'ULTRA', shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 100, parked: 52, rain: 6000, far: 1 },
 ];
 
 // Final color grade: chromatic aberration, vignette, film grain, speed/radial blur, damage tint

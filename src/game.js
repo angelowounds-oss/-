@@ -989,13 +989,13 @@ export class Game {
     // keep traffic population
     this.popT = (this.popT || 0) - dt;
     if (this.popT <= 0) {
-      this.popT = 0.8;
+      this.popT = 0.3;
       const tc = list.filter((v) => v.kind === 'traffic' && v.driver === 'ai').length;
       const pf = this.society.popFactor();
       if (tc < Math.round(this.eng.q.traffic * (0.4 + 0.6 * pf))) this.spawnTraffic(false);
       const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside);
       const want = Math.round(this.eng.q.npc * pf);
-      if (civs.length < want) this.spawnCivilian(false);
+      if (civs.length < want) { const n = want - civs.length > 8 ? 3 : 1; for (let i = 0; i < n; i++) this.spawnCivilian(false); }
       else if (civs.length > want + 2) { const far = civs.find((h) => Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
         const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
