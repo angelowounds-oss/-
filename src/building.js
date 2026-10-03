@@ -118,8 +118,8 @@ export class Building {
     const cc = (x0, z0, x1, z1, y0, y1, tag = 'int') => { const b = col.addBox(x0, z0, x1, z1, y1, tag, y0); fl.boxes.push(b); return b; };
     const solid = (key, x0, y0, z0, x1, y1, z1, color, em = 1, tag) => { B.ext(key, x0, y0, z0, x1, y1, z1, color, em); return cc(x0, z0, x1, z1, y0, y1, tag); };
     const acc = new THREE.Color(...this.accent);
-    const wallC = { lobby: 0x6a7080, retail: 0x5f6475, apartment: 0x6a5f6e, office: 0x777e92, hotel: 0x5a5470, roof: 0x4a4e5a }[L.type] || 0x6a7080;
-    const slabC = { lobby: 0x1a1d27, retail: 0x20232e, apartment: 0x2c2430, office: 0x252a3c, hotel: 0x2a2236, roof: 0x30343e }[L.type] || 0x20232e;
+    const wallC = { lobby: 0x6a7080, retail: 0x5f6475, apartment: 0x8a7f90, office: 0x777e92, hotel: 0x5a5470, roof: 0x4a4e5a }[L.type] || 0x6a7080;
+    const slabC = { lobby: 0x1a1d27, retail: 0x20232e, apartment: 0x3c3440, office: 0x252a3c, hotel: 0x2a2236, roof: 0x30343e }[L.type] || 0x20232e;
     fl.B = B; fl.solid = solid; fl.cc = cc; fl.rnd = rnd; fl.R = R; fl.wallC = wallC; fl.acc = acc;
     const y = L.y, top = y + L.h;
     const isRoof = L.tier === 'roof';
@@ -776,7 +776,7 @@ export class Buildings {
     this.lights.forEach((l, i) => {
       const f = cand[i];
       if (!f) { l.intensity = 0; return; }
-      l.position.set(f[0], f[1], f[2]); l.color.setRGB(f[3][0], f[3][1], f[3][2]); l.intensity = 22; 
+      l.position.set(f[0], f[1], f[2]); l.color.setRGB(f[3][0], f[3][1], f[3][2]); l.intensity = 28; 
     });
   }
   at(x, z) { for (const b of this.list) { const l = b.lot; if (x >= l.x0 && x <= l.x1 && z >= l.z0 && z <= l.z1) return b; } return null; }

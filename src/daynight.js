@@ -45,7 +45,7 @@ export class DayNight {
     moon.intensity = this.flashBase = Math.max(sunI, moonI) * (G.indoor ? 0.0 : 1);
     moon.color.copy(NIGHT.key).lerp(DAY.key, D).lerp(DUSK, twi * D * 0.7);
     const hemi = e.hemi, hb = lerp(0.22, 1.0, D);
-    hemi.intensity = G.indoor ? Math.max(0.5, hb) : hb;
+    hemi.intensity = G.indoor ? Math.max(0.65, hb) : hb;
     hemi.color.copy(NIGHT.hemiS).lerp(DAY.hemiS, D); hemi.groundColor.copy(NIGHT.hemiG).lerp(DAY.hemiG, D);
     const fogC = this.tmp.copy(NIGHT.fog).lerp(DAY.fog, D).lerp(DUSK, twi * 0.18);
     e.scene.fog.color.copy(fogC); e.scene.fog.density = lerp(0.0105, 0.0072, D) * (0.75 + 0.3 * clamp(wet, 0, 1.4));
