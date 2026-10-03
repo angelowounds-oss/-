@@ -27,7 +27,7 @@ try {
   // 3 surface pressure
   await page.evaluate(() => { __CPMAP.on = true; });
   await cam([-0.5, 1.6, 4.2], [-0.5, 0.7, 0]); await shot('3_cp_side');
-  await cam([-4.5, 1.6, 2.2], [0, 0.7, 0], 60); await shot('3_cp_front34');
+  await cam([-2.2, 1.4, 3.2], [-0.6, 0.7, 0], 60); await shot('3_cp_front34');
   check('차체 압력: 오류 없음', await page.evaluate(() => !__CPMAP.err), await page.evaluate(() => __CPMAP.err));
   await page.evaluate(() => { __CPMAP.on = false; });
   // 4 yaw + aero
@@ -43,11 +43,11 @@ try {
   check('공력 계수 시계열 기록', await page.evaluate(() => __LIVE.aero.length), await page.evaluate(() => __LIVE.aero.slice(-1)[0]));
   // 5 capture
   const nb = downloads.length;
-  await page.evaluate(() => __CAP.photo()); await sleep(4000);
+  await page.evaluate(() => __CAP.photo()); for (let i = 0; i < 40 && downloads.length === nb; i++) await sleep(1000);
   check('사진 저장(다운로드 발생)', downloads.length > nb && /\.png$/.test(downloads[downloads.length - 1] || ''), downloads.slice(-1));
   const sup = await page.evaluate(() => __CAP.supported());
-  if (sup) { const nv = downloads.length; await page.evaluate(() => __CAP.start()); await sleep(2500); await page.evaluate(() => __CAP.stop()); await sleep(2500);
-    check('녹화 저장(다운로드 발생)', downloads.length > nv && /\.(webm|mp4)$/.test(downloads[downloads.length - 1] || ''), { files: downloads.slice(-1), bytes: await page.evaluate(() => __CAP.last?.size) }); }
+  if (sup) { const nv = downloads.length; await page.evaluate(() => __CAP.start()); await sleep(12000); await page.evaluate(() => __CAP.stop()); for (let i = 0; i < 20 && downloads.length === nv; i++) await sleep(1000);
+    check('녹화 저장(다운로드 발생, 내용 있음)', downloads.length > nv && (await page.evaluate(() => __CAP.last?.size || 0)) > 0 && /\.(webm|mp4)$/.test(downloads[downloads.length - 1] || ''), { files: downloads.slice(-1), bytes: await page.evaluate(() => __CAP.last?.size) }); }
   else console.log('SKIP 녹화: MediaRecorder/captureStream 미지원');
   // 6 webgpu probe
   const gp = await page.evaluate(async () => { const r = await __GPUPROBE.run(); return { supported: r.supported, reason: r.reason }; });

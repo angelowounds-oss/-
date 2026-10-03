@@ -1,7 +1,7 @@
 /* ===== SURFACE PRESSURE: the solver's pressure field sampled just outside the car surface (1.5 cells along the normal) and drawn as a
    translucent diverging colour map over the composite. Cp = p / (U^2 / 2), p is the kinematic pressure of the projection step relative
    to the outlet. Qualitative (cells are 7.5-16 cm, the boundary layer is not resolved); same field the drag integral uses. */
-const CPMAP={on:/cp=1/.test(location.hash),prog:null,gen:-1,alpha:.78,range:1.4,err:null};
+const CPMAP={on:/cp=1/.test(location.hash),prog:null,gen:-1,alpha:.85,range:1.0,err:null};
 window.__CPMAP=CPMAP;
 const CP_VS=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
@@ -17,7 +17,7 @@ void main(){vec4 w=uM*vec4(aP,1.);vec3 n=normalize(mat3(uM)*aN);vec3 q=w.xyz+n*u
 const CP_FS=`#version 300 es
 precision highp float;in float vCp;uniform float uA,uRange;out vec4 o;
 vec3 ramp(float t){/* -1 suction (blue) .. 0 white .. +1 stagnation (red) */vec3 lo=vec3(.1,.28,.95),mid=vec3(1.),hi=vec3(.95,.12,.08);return t<0.?mix(mid,lo,-t):mix(mid,hi,t);}
-void main(){float t=clamp(vCp/uRange,-1.,1.);float a=uA*smoothstep(.04,.25,abs(t))*.9+uA*.1;o=vec4(ramp(t)*1.1,a);}`;
+void main(){float t=clamp(vCp/uRange,-1.,1.);float a=uA*smoothstep(.08,.45,abs(t));o=vec4(ramp(t)*1.1,a);}`;
 function cpDraw(vp){if(!CPMAP.on||!MAC.lv||!MAC.t||LIVE.impl!=='MAC'||!LIVE.ok||CPMAP.err)return;
  try{if(CPMAP.gen!==runtimeGeneration||!CPMAP.prog){CPMAP.prog=liveCompile(CP_FS,CP_VS);CPMAP.gen=runtimeGeneration}
   const p=CPMAP.prog,G=MAC.G,N=MAC.N,pa=MAC.lv[0].T.pA.t,wp=wheelParts();gl.useProgram(p);
