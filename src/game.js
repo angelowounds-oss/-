@@ -392,6 +392,7 @@ export class Game {
     pl.vx = damp(pl.vx, dx * spd, 10, dt); pl.vz = damp(pl.vz, dz * spd, 10, dt);
     const c3 = pl.body3;
     const riding = this.buildings.ridingElevator(pl);
+    if (pl.hang) { this.stepHang(dt, inp); return; }
     if (pl.mantle) { this.stepMantle(dt); return; }
     if (this.input.edges.jump > 0 && !pl.crouching && !pl.swimming && this.tryMantle(inp)) { this.input.edge('jump'); return; }
     const wat = this.waterAt(pl.x, pl.z);
@@ -486,8 +487,13 @@ export class Game {
     const top = ph.ray(px, pl.y + 2.9, pz, 0, -1, 0, 3.4, 1 | 16 | 32);
     if (!top) return false;
     const ty = pl.y + 2.9 - top.t, h = ty - pl.y;
-    if (h < 0.45 || h > 2.45) return false;
+    if (h < 0.45 || h > 3.7) return false;
     if (ph.ray(px, ty + 0.1, pz, 0, 1, 0, 1.75, 1 | 16 | 32)) return false; // no headroom
+    if (h > 2.45) { // too high to vault: jump up and hang from the ledge
+      const hx = pl.x + dx * (t - 0.32), hz = pl.z + dz * (t - 0.32), hy = ty - 1.85;
+      pl.hang = { x: hx, y: Math.max(hy, pl.y), z: hz, ty, px, pz, ry: yaw, t: 0 }; pl.vx = pl.vz = 0; this.audio.tone?.(220, 0.08, 'sine', 0.06, 120); this.toast('매달렸다', 'W/Space: 올라가기 · S/C: 놓기');
+      return true;
+    }
     pl.mantle = { t: 0, dur: 0.35 + h * 0.2, from: [pl.x, pl.y, pl.z], to: [px, ty + 0.05, pz], h };
     pl.vx = pl.vz = 0; pl.mantleFx = true; this.audio.tone?.(180, 0.1, 'sine', 0.06, 90);
     return true;
@@ -496,6 +502,13 @@ export class Game {
     const pl = this.player; if (pl.mantle || this.frozen()) return;
     pl.mantle = { t: 0, dur: Math.abs(y1 - y0) / speed + 0.5, from: [x0, y0, z0], to: [x1, y1, z1], h: Math.abs(y1 - y0), ladder: true };
     pl.body3.teleport(x0, y0, z0); pl.x = x0; pl.z = z0; pl.y = y0 + 0.06; this.audio.tone?.(300, 0.05, 'square', 0.04);
+  }
+  stepHang(dt, inp) {
+    const pl = this.player, hg = pl.hang; hg.t += dt;
+    const k = Math.min(1, hg.t / 0.3), y = pl.y + (hg.y - pl.y) * Math.min(1, dt * 12);
+    pl.body3.teleport(hg.x, y - 0.06, hg.z); pl.x = hg.x; pl.z = hg.z; pl.y = y; pl.ry = hg.ry; pl.speed = 0; pl.animate(dt, 0);
+    if (this.input.edge('jump') || inp.my > 0.4) { pl.hang = null; pl.mantle = { t: 0, dur: 1.0, from: [hg.x, y, hg.z], to: [hg.px, hg.ty + 0.05, hg.pz], h: 3 }; }
+    else if (this.input.edge('crouch') || inp.my < -0.4) { pl.hang = null; pl.body3.vy = 0; }
   }
   stepMantle(dt) {
     const pl = this.player, m = pl.mantle; m.t += dt; const k = Math.min(1, m.t / m.dur);

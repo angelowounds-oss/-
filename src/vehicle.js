@@ -49,6 +49,27 @@ export class Vehicle {
     this.model.tailSprites.forEach((s) => (s.visible = on || this.model.brake.visible));
     this.model.ug.visible = on && this.kind !== 'parked';
   }
+  // crumple the body mesh around a world-space impact point (geometry is cloned lazily so shared models stay intact)
+  dent(wx, wz, amt) {
+    if ((this.dentTotal = (this.dentTotal || 0) + amt) > 14) return;
+    const g = this.model.group; g.updateMatrixWorld(true);
+    const lp = g.worldToLocal(new THREE.Vector3(wx, 0.7, wz)), v = new THREE.Vector3(), r = 1.5;
+    g.traverse((m) => {
+      if (!m.isMesh || m === this.doorMesh || m.userData.noDent) return;
+      if (!m.userData.dentGeo) { m.geometry = m.geometry.clone(); m.userData.dentGeo = true; }
+      const pos = m.geometry.attributes.position; if (!pos) return;
+      m.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(g.matrixWorld).invert().multiply(m.matrixWorld);
+      const back = new THREE.Matrix4().copy(inv).invert(); let ch = false;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(inv);
+        const dx = v.x - lp.x, dz = v.z - lp.z, d = Math.hypot(dx, dz); if (d > r || v.y < 0.25) continue;
+        const f = (1 - d / r) * amt * (0.6 + 0.4 * Math.sin(i * 12.9898));
+        const l = Math.hypot(v.x, v.z) || 1; v.x -= v.x / l * f; v.z -= v.z / l * f; v.y -= f * 0.15;
+        v.applyMatrix4(back); pos.setXYZ(i, v.x, v.y, v.z); ch = true;
+      }
+      if (ch) { pos.needsUpdate = true; m.geometry.computeVertexNormals(); }
+    });
+  }
   doorFx() { if (this.spec.craft || this.type === 'moto' || this.type === 'bus') return; this.doorT = 1.3; this.model.group.updateMatrixWorld(); if (!this.doorMesh) { const pv = new THREE.Group(); pv.position.set(this.W / 2, 0.8, 0.55); const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 1.1), new THREE.MeshStandardMaterial({ color: 0x2c3448, roughness: 0.3, metalness: 0.7 })); m.position.set(0.02, 0, -0.55); pv.add(m); this.group.add(pv); this.doorMesh = pv; } this.G.audio.door?.(); }
   animDoor(dt) { if (!this.doorMesh) return; if (this.doorT > 0) { this.doorT -= dt; const k = Math.sin(Math.min(1, (1.3 - this.doorT) / 0.35) * Math.PI / 2) * (this.doorT > 0.35 ? 1 : this.doorT / 0.35); this.doorMesh.rotation.y = k * 1.15; this.doorMesh.visible = true; } else this.doorMesh.visible = false; }
   place(x, z, h) { this.x = x; this.z = z; this.h = h; this.vx = this.vz = 0; this.yaw = 0; if (this.pv) { this.syncToBody(); this.readBody(0); } this.syncMesh(); }
@@ -190,7 +211,7 @@ export class Vehicle {
     if (speed < 2.2 || this.impactCd > 0) return;
     this.impactCd = 0.25;
     const G = this.G;
-    if (speed > 7 && !this.spec.craft) { this.dents = Math.min(8, (this.dents || 0) + 1); this.model.group.scale.set(1 - this.dents * 0.004, 1 - this.dents * 0.01, 1 - this.dents * 0.014); }
+    if (speed > 6 && !this.spec.craft) this.dent(x, z, Math.min(0.55, speed * 0.03));
     const dmg = Math.max(0, speed - 4) * (this.dead ? 0 : 3.2) / (this.mass * 0.8 + 0.2);
     if (dmg > 0) this.damage(dmg, other);
     G.fx.sparks(x, 0.6, z, Math.min(speed * 0.8, 24), [1, 0.7, 0.3]);
