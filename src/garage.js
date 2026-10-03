@@ -58,8 +58,7 @@ export const garage = {
   spawnCrafts() {
     const G = this;
     // boats on the lake
-    const w = G.world.waters[0];
-    if (w) for (const [fx, fz, h] of [[0.25, 0.3, 0.6], [0.7, 0.65, 2.4]]) {
+    for (const w of G.world.waters) for (const [fx, fz, h] of [[0.25, 0.3, 0.6], [0.7, 0.65, 2.4]]) {
       const v = new Vehicle(G, 'boat', 0xdde4ee, 'parked'); v.x = w.x0 + (w.x1 - w.x0) * fx; v.z = w.z0 + (w.z1 - w.z0) * fz; v.h = h; v.startY = w.y + 0.12; v.awake = false; G.addVehicle(v);
       v.pv.body.wakeUp();
     }
@@ -89,7 +88,7 @@ export const garage = {
   },
   boardTaxi(v, bus) {
     const pl = this.player; v.doorFx?.();
-    this.passenger = v; this.vehicle = v; this.playerOnFoot = false; pl.group.visible = false; v.callTaxi = false; v.arrived = false; v.directDest = false;
+    this.cam.mode = 2; this.passenger = v; this.vehicle = v; this.playerOnFoot = false; pl.group.visible = false; v.callTaxi = false; v.arrived = false; v.directDest = false;
     document.body.classList.remove('onfoot'); document.body.classList.add('incar');
     if (bus) { v.fareStart = { x: pl.x, z: pl.z }; this.toast('버스 탑승', 'F로 정차 시 하차'); return; }
     const m = this.markerPos; v.dest = m ? { x: m.x, z: m.z } : { x: pl.x + rand(-250, 250), z: pl.z + rand(-250, 250) };
@@ -98,7 +97,6 @@ export const garage = {
   },
   taxiTick() {
     const v = this.passenger; if (!v) return;
-    this.cam.mode = 0;
     if (v.dead) { this.endPassenger(true); return; }
     if (v.arrived && v.speed < 2.5) {
       const d = Math.hypot(v.x - v.fareStart.x, v.z - v.fareStart.z), fare = Math.min(Math.floor(5 + d * 0.06), this.cash + 5);

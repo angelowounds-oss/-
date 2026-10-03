@@ -67,6 +67,7 @@ export class Game {
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
+    { const sp = this.world.spawn; this.hospital = (this.world.enterables || []).slice().sort((a, b) => Math.hypot(a.x - sp.x, a.z - sp.z) - Math.hypot(b.x - sp.x, b.z - sp.z))[4]; if (this.hospital) this.hospital.lot.hospital = true; }
     this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this); this.buildStations();
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
@@ -306,6 +307,7 @@ export class Game {
     this.theftT = (this.theftT || 0) - sdt; if (this.theftT <= 0) { this.theftT = 0.5; this.life.checkTheft(this.player); }
     this.clock.update(sdt); this.needs.update(sdt); this.society.update(sdt); this.items.update(sdt); this.updateFlashlight();
     if (this.input.edge('inv')) this.openInventory();
+    if (this.input.edge('sur') && this.playerOnFoot) this.surrender();
     if (this.input.edge('phone') && !this.uiModal && !this.player.dead) this.phone.show();
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
@@ -820,11 +822,11 @@ export class Game {
     const pl = this.player;
     pl.dead = false; pl.state = 'walk'; pl.hpv = 100; pl.armor = 0; pl.m.body.rotation.set(0, 0, 0); pl.m.body.position.y = 0; pl.group.scale.setScalar(1);
     const cost = Math.floor(this.cash * 0.1); this.cash -= cost;
-    pl.x = this.world.spawn.x; pl.z = this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0; pl.body3.teleport(pl.x, 0, pl.z);
-    pl.setWeapon(pl.cur);
+    const hp = this.hospital; pl.x = hp ? hp.x : this.world.spawn.x; pl.z = hp ? hp.z : this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0; pl.bleed = 0; pl.body3.teleport(pl.x, 0, pl.z);
+    pl.setWeapon(pl.cur === 9 ? 100 : pl.cur);
     this.clearWanted();
     this.ui.lt.classList.remove('on'); this.ui.lb.classList.remove('on');
-    this.toast('RESPAWNED', `치료비 $${cost}`);
+    this.toast('병원에서 깨어났다', `치료비 $${cost}`);
     this.cam.yaw = Math.PI; this.save();
   }
 
@@ -1271,7 +1273,7 @@ export class Game {
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
       let tx, ty, tz;
       if (cam.mode === 2) { // hood cam
-        const s = Math.sin(v.h), cc = Math.cos(v.h); tx = v.x + s * 0.9; ty = 1.35; tz = v.z + cc * 0.9;
+        const s = Math.sin(v.h), cc = Math.cos(v.h), lat = this.passenger ? 0.5 : 0; tx = v.x + s * 0.7 + cc * lat; ty = 1.35; tz = v.z + cc * 0.7 - s * lat;
         c.position.set(tx, ty, tz); c.lookAt(tx + Math.sin(cam.yaw) * 10, 1.1 + Math.sin(cam.pitch) * 10, tz + Math.cos(cam.yaw) * 10);
       } else {
         tx = ax - L.x * dist; ty = ay - L.y * dist + 1.0; tz = az - L.z * dist;

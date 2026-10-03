@@ -205,7 +205,7 @@ export class Human {
     }
     // attack
     const toP = Math.atan2(dxp, dzp);
-    if (this.team === 'cop' && !pl.weaponDrawn && !pl.dead && G.wanted <= 3 && G.time - (G.lastShotT || -9) > 2.5 && !G.vehicle) {
+    if (this.team === 'cop' && !pl.weaponDrawn && !pl.dead && (G.wanted <= 3 || pl.surrenderT > 0) && G.time - (G.lastShotT || -9) > 2.5 && !G.vehicle) {
       // player is not resisting: move in to cuff
       this.faceAngle = toP; this.aimT = 0.5;
       if (dp > 1.6) { this.cmdX = dxp / dp; this.cmdZ = dzp / dp; this.cmdSpeed = dp > 12 ? 6.2 : 4.4; } else this.cmdSpeed = 0;
@@ -249,9 +249,9 @@ export class Human {
     m.mixer.update(dt);
     m.applyPose(this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
-    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5 - (this.swimming ? 0.3 : 0) - (this.prone ? 0.62 : 0);
+    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5 - (this.swimming ? 0.3 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
-    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : this.prone ? 1.35 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
+    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : this.prone ? 1.35 : this.lying ? -1.5 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if (this.aimT > 0) this.aimT -= dt * 0.5;

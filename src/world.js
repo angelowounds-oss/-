@@ -656,7 +656,7 @@ export function buildWorld(scene, quality) {
   }
 
   const c0 = Math.floor(N / 2);
-  const parkBlocks = new Set(['2,5', '5,6', '1,1']);
+  const parkBlocks = new Set(['5,6', '1,1']);
   const trees = [];
   const benches = [];
   // Inner blocks
@@ -672,6 +672,12 @@ export function buildWorld(scene, quality) {
         world.parks.push({ x0: xa, z0: za, x1: xb, z1: zb, lake: true });
         world.waters.push({ x0: xa + m, z0: za + m, x1: xb - m, z1: zb - m, y: 0.06, floor: -2.0, slope: 4.5 });
         for (let t = 0; t < 10; t++) { const a = (t / 10) * TAU; benches.push({ x: (xa + xb) / 2 + Math.cos(a) * ((xb - xa) / 2 - 1.5), z: (za + zb) / 2 + Math.sin(a) * ((zb - za) / 2 - 1.5), ry: -a }); }
+        continue;
+      }
+      if (i === 2 && j === 5) {
+        world.parks.push({ x0: xa, z0: za, x1: xb, z1: zb, lake: true });
+        world.waters.push({ x0: xa + 3, z0: za + 3, x1: xb - 3, z1: zb - 3, y: 0.06, floor: -2.4, slope: 4.5, harbor: true });
+        for (let t = 0; t < 5; t++) benches.push({ x: xa + 6 + t * 12, z: za + 1.6, ry: 0 });
         continue;
       }
       if (parkBlocks.has(`${i},${j}`)) {

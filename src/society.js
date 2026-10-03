@@ -151,8 +151,10 @@ export class Society {
     let cop = null;
     for (const h of G.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 2.4) { cop = h; break; }
     if (!cop && G.vehicle && G.vehicle.speed < 2.5) for (const v of G.vehicles) if (v.police && !v.dead && Math.hypot(v.x - pl.x, v.z - pl.z) < 7) { cop = v; break; }
+    if (pl.surrenderT > 0) { pl.surrenderT -= dt; pl.weaponDrawn = false; }
     const quiet = G.time - (G.lastShotT || -9) > 1.8 && !pl.weaponDrawn;
-    if (cop && quiet) { this.arrestT += dt; if (this.arrestT > 1.6 && !this.hint) { this.hint = true; G.toast('체포 중…', '총을 쏘면 저항'); } if (this.arrestT > 3.2) this.arrest(); }
+    if (!cop && pl.surrenderT > 0) for (const h of G.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 4.5) { cop = h; break; }
+    if (cop && quiet) { this.arrestT += dt * (pl.surrenderT > 0 ? 2 : 1); if (this.arrestT > 1.6 && !this.hint) { this.hint = true; G.toast('체포 중…', '총을 쏘면 저항'); } if (this.arrestT > 3.2) this.arrest(); }
     else { this.arrestT = Math.max(0, this.arrestT - dt); this.hint = false; }
   }
   async arrest() {
@@ -220,6 +222,7 @@ export class Society {
     G.panels.show('talk', { name: '시민', text: '무슨 일이죠?', options: [
       { text: '이 근처 건물 위치 묻기', fn: find().fn },
       { text: '소문 듣기', fn: () => { G.toast('시민', rumor); } },
+      { text: '위협하기 (총 필요)', fn: () => { const pl = G.player; if (pl.cur === 9) { G.toast('시민', '웃기지 마세요…'); } else { pl.weaponDrawn = true; pl.aimT = 2; G.panels.close(); this.mug(h); } } },
       { text: '구걸하기 (+$2~15)', fn: () => { if (Math.random() < 0.5) { const v = 2 + Math.floor(Math.random() * 14); G.cash += v; G.toast(`+$${v}`); G.audio.cash(); } else G.toast('시민', '미안해요, 지금은…'); } },
     ] });
   }

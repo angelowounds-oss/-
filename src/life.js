@@ -66,6 +66,10 @@ export class Life {
           { key: 'G', label: () => '문의: 이 건물', run: () => G.toast(b.name, `${b.levels.length - 1}층 · ${b.kind === 'office' ? '오피스' : b.kind === 'hotel' ? '호텔' : '레지던스'}`) },
         ]);
       }
+      if (G.hospital && G.hospital.lot === b.lot) {
+        const n = this.npc(b, fl, b.cx + 3, y, b.cz + 3, { role: 'nurse', look: { top: 0xdfe8f0, pants: 0x9ab0c0, hair: 0x2a1a10 } });
+        this.fix(fl, n.x, y + 1, n.z + 1, 2.6, '응급실 접수', [{ key: 'F', label: () => '응급 치료 $120', run: () => G.hospitalVisit() }]);
+      }
       // ATM near the entrance
       const d = b.door, ax = b.pod.x0 + 2.2, az = b.pod.z1 - 2.2;
       this.item(b, fl, n++, 'newspaper', b.cx + R(-3, 3), y + 0.5, b.cz + R(-3, 3));
@@ -160,7 +164,8 @@ export class Life {
       const bx = cx, bz = back - dirIn * 1.2;
       this.fix(fl, bx, y + 0.6, bz - dirIn * 1.5, 2.4, '침대', [
         { key: 'F', label: () => '잠자기', run: () => G.sleep(bx, y, bz) },
-        { key: 'G', label: () => '앉기', run: () => G.sitOn?.({ x: bx, y: y + 0.5, z: bz - dirIn * 1.3 }, null) },
+        { key: 'G', label: () => '눕기', run: () => G.sitOn?.({ x: bx, y: y + 0.55, z: bz - dirIn * 1.3 }, null, true) },
+        { key: 'T', label: () => '앉기', run: () => G.sitOn?.({ x: bx, y: y + 0.5, z: bz - dirIn * 1.0 }, null) },
       ]);
       if (rnd() < 0.5) it(rnd() < 0.5 ? 'watch' : 'cashroll', cx + 1.5, y + 0.6, back - dirIn * 0.5);
       this.stash(b, fl, y, rm.x0 + 0.7, back - dirIn * 0.5, '옷장', rnd);

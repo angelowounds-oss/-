@@ -53,6 +53,7 @@ export class Phone {
     else if (this.tab === 'contacts') {
       this.row('택시 호출', '현재 위치로 택시가 옵니다 · 탑승 후 지도 목적지로 이동', [['호출', () => { G.callTaxi(); this.close(); }]]);
       this.row('정비사 호출', '가까운 내 차량 수리 $180', [['요청', () => { const v = G.lastVehicle; if (v && !v.dead && Math.hypot(v.x - G.player.x, v.z - G.player.z) < 40 && G.cash >= 180) { G.cash -= 180; v.hp = v.maxHp; v.burn = 0; G.toast('정비사', '수리 완료'); } else G.toast('수리 불가', '차량이 40m 안에 있어야 합니다'); }]]);
+      this.row('병원 위치', G.hospital ? G.hospital.name : '', [['표시', () => { if (G.hospital) G.setWaypoint(G.hospital.x, G.hospital.z); }]]);
       this.row('병원 응급 처치', 'HP 전부 회복 $120', [['요청', () => { if (G.cash >= 120) { G.cash -= 120; G.player.hpv = 100; G.player.bleed = 0; G.toast('치료 완료'); } else G.toast('돈이 부족합니다'); }]]);
       this.row('경찰 자수', '수배 해제 · 벌금 $200×★', [['자수', () => { if (G.wanted > 0) { const f = Math.min(G.cash, 200 * G.wanted); G.cash -= f; G.clearWanted(); G.toast('자수', `벌금 $${f | 0}`); } else G.toast('수배 중이 아닙니다'); }]]);
     } else if (this.tab === 'jobs') {

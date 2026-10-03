@@ -24,19 +24,24 @@ export const actions = {
     this.save();
     await this.fadeTo(0);
   },
+  hospitalVisit() { const cost = 120; if (this.cash < cost) return this.toast('돈이 부족합니다', `$${cost} 필요`); this.cash -= cost; this.player.hpv = 100; this.player.bleed = 0; this.needs.apply({ food: 15, water: 25, energy: 20 }); this.audio.cash(); this.toast('응급 치료', '모든 상처가 치료되었다'); },
+  surrender() {
+    const pl = this.player; if (this.wanted <= 0 || pl.dead) return;
+    pl.surrenderT = 4; pl.weaponDrawn = false; pl.aimT = 0; this.lastShotT = -99; this.toast('항복!', '경찰이 다가와 체포합니다');
+  },
   forcedSleep() { const p = this.player; this.sleep(p.x, p.y, p.z, true); },
 
-  sitOn(pos, prop) {
+  sitOn(pos, prop, lie) {
     const pl = this.player; if (pl.sitting || this.frozen()) return;
     const seatY = prop ? pos.y + (prop.def.h || 0.45) : pos.y;
     pl.sitting = { x: pos.x, y: seatY, z: pos.z, ry: pl.ry };
     pl.body3.teleport(pos.x, seatY, pos.z); pl.x = pos.x; pl.y = seatY; pl.z = pos.z; pl.vx = pl.vz = 0;
-    pl.m.applySit?.(1);
-    this.toast('앉았다', 'Space/F로 일어서기');
+    pl.lying = !!lie; if (lie) pl.sitting.ry = pl.ry; pl.m.applySit?.(lie ? 0 : 1);
+    this.toast(lie ? '누웠다' : '앉았다', 'Space/F로 일어서기');
   },
   standUp() {
     const pl = this.player; if (!pl.sitting) return;
-    const s = pl.sitting; pl.sitting = null; pl.m.applySit?.(0);
+    const s = pl.sitting; pl.sitting = null; pl.lying = false; pl.m.applySit?.(0);
     const fx = Math.sin(this.cam.yaw) * 0.7, fz = Math.cos(this.cam.yaw) * 0.7;
     pl.body3.teleport(s.x + fx, s.y + 0.15, s.z + fz); pl.x = s.x + fx; pl.y = s.y + 0.15; pl.z = s.z + fz;
   },
