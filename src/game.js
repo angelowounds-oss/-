@@ -389,7 +389,9 @@ export class Game {
     const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
-    if (this.input.edge('crouch')) { pl.stance = ((pl.stance || 0) + 1) % 3; pl.crouching = pl.stance >= 1; pl.prone = pl.stance === 2; }
+    if (this.input.edge('crouch')) pl.stance = pl.stance === 1 ? 0 : 1;
+    if (this.input.edge('prone')) pl.stance = pl.stance === 2 ? 0 : 2;
+    pl.crouching = pl.stance >= 1; pl.prone = pl.stance === 2;
     pl.crouch = damp(pl.crouch || 0, pl.stance === 1 ? 0.65 : pl.prone ? 0.2 : 0, 10, dt);
     const carry = this.items.carry;
     if (carry && inp.fire && !pl.fireHeld) { this.items.release(true); pl.fireHeld = true; inp = { ...inp, fire: false }; }

@@ -97,22 +97,30 @@ body.touch.onfoot .car,body.touch.incar .foot{display:none}
 #bG{right:196px;bottom:268px;width:44px;height:44px;background:rgba(40,100,140,.7)}#bT{right:246px;bottom:240px;width:44px;height:44px;background:rgba(120,90,40,.7)}#bInv{right:16px;top:280px;width:42px;height:42px}#bCrouch{left:24px;bottom:calc(30% + 80px);width:50px;height:50px}#bPhone{right:16px;top:326px;width:42px;height:42px}#bNade{right:196px;bottom:200px;width:42px;height:42px}
 #bPause{right:16px;top:230px;width:38px;height:38px;font-size:15px}
 /* screens */
-#title{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(40,20,80,.55),rgba(3,5,10,.97) 70%);transition:opacity .8s}
+#title{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#000;transition:opacity 1.2s}
 #title.off{opacity:0;pointer-events:none}
-#tc{width:min(560px,92vw);text-align:center;padding:30px 28px;border-radius:22px}
-#tc h1{margin:0;font-size:clamp(46px,9vw,84px);line-height:.9;letter-spacing:.1em;font-weight:900;text-shadow:0 0 30px rgba(77,227,255,.5)}
-#tc h1 b{display:block;background:linear-gradient(90deg,var(--cyan),var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;filter:drop-shadow(0 0 18px rgba(255,61,240,.5))}
-#tc .sub{margin:14px 0 18px;font-size:11px;letter-spacing:.35em;color:var(--muted)}
-#loadBar{height:4px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin:18px 0 8px}
-#loadBar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--mag));transition:width .2s}
-#loadTxt{font-size:11px;color:var(--muted);height:16px}
-#go{width:100%;margin-top:14px;padding:15px;border:0;border-radius:13px;font:900 16px inherit;letter-spacing:.2em;color:#00121a;background:linear-gradient(90deg,var(--cyan),#9af0ff);cursor:pointer;opacity:.35;pointer-events:none;transition:.2s}
-#go.rdy{opacity:1;pointer-events:auto;box-shadow:0 0 36px rgba(77,227,255,.45)}
-#go:hover{transform:translateY(-1px)}
-#keys{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:20px;text-align:left;font-size:11.5px;color:#b6c2d4}
-#keys span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:3px}
+#tc{width:min(640px,92vw);text-align:center;padding:30px 28px;font-family:"Courier New",monospace}
+.tl{opacity:0;font-size:clamp(12px,2.4vw,16px);letter-spacing:.28em;color:#b8b8b8;margin:0 0 14px;animation:tin 2.4s ease forwards}
+#t1{animation-delay:.6s}#t2{animation-delay:3s;color:#c8302a}
+@keyframes tin{to{opacity:1}}
+@keyframes tflick{0%,100%{opacity:1}46%{opacity:1}48%{opacity:.55}50%{opacity:1}93%{opacity:.8}95%{opacity:1}}
+#tc h1{margin:34px 0 26px;font-size:clamp(40px,10vw,92px);line-height:1;letter-spacing:.32em;font-weight:400;color:#d8d8d8;opacity:0;animation:tin 3s ease 5.5s forwards,tflick 7s linear 9s infinite}
+#tc h1 b{font-weight:400;color:#b0231d;letter-spacing:.32em}
+#loadBar{height:1px;background:rgba(255,255,255,.12);overflow:hidden;margin:26px auto 10px;width:min(320px,70%)}
+#loadBar i{display:block;height:100%;width:0%;background:#8a1d18;transition:width .2s}
+#loadTxt{font-size:10px;letter-spacing:.2em;color:#6a6a6a;height:16px}
+#go{margin-top:22px;padding:10px 18px;border:0;background:none;font:400 13px "Courier New",monospace;letter-spacing:.3em;color:#9a9a9a;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .6s}
+#go.rdy{opacity:1;pointer-events:auto;animation:tblink 2.2s ease-in-out infinite}
+@keyframes tblink{50%{opacity:.35}}
+#credit{margin-top:40px;font-size:9px;color:#3c3c3c;letter-spacing:.08em}
+#helpov{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82)}
+#helpov.on{display:flex}
+#helpbox{width:min(720px,94vw);padding:24px 28px;border:1px solid #333;background:#050505;font-family:"Courier New",monospace}
+#helpbox h2{margin:0 0 14px;font-weight:400;letter-spacing:.2em;color:#ddd;font-size:15px}#helpbox small{color:#777;font-size:11px;margin-left:12px}
+#keys{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;text-align:left;font-size:12px;color:#aaa}
+#keys span{display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:3px}
 #keys b{color:#fff;font-weight:700}
-body.touch #keys{display:none}
+body.touch #helpov{display:none!important}
 #pause{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;background:rgba(2,4,8,.6);backdrop-filter:blur(6px)}
 #pause.on{display:flex}
 #pc{width:min(380px,92vw);padding:24px;border-radius:18px}
@@ -222,22 +230,28 @@ body.touch #keys{display:none}
   <button id="resume" class="pbtn p" type="button">계속하기</button>
   <button id="reset" class="pbtn" type="button">진행 초기화</button>
 </div></div>
-<div id="title"><div id="tc" class="glass">
-  <h1>NEON<b>CITY</b></h1>
-  <div class="sub">V9 · NIGHTFALL</div>
-  <div style="font-size:13px;line-height:1.6;color:#b9c6d8">비 내리는 네온 도시. 훔치고, 달리고, 살아남아라.</div>
+<div id="title"><div id="tc">
+  <div id="t1" class="tl">이것은 훈련이 아닙니다.</div>
+  <div id="t2" class="tl">오늘 밤 12시간, 모든 범죄가 합법입니다.</div>
+  <h1>PURGE <b>DAY</b></h1>
   <div id="loadBar"><i></i></div><div id="loadTxt">초기화 중…</div>
-  <button id="go" type="button">도시 입장</button>
-  <div style="margin-top:14px;font-size:10px;color:#6f7f95;line-height:1.5">Models: Soldier (three.js examples) · Ferrari 458 by vicent091036, CC-BY 4.0 · Three.js (MIT)</div>
-  <div id="keys">
-    <span>이동 <b>WASD</b></span><span>달리기 <b>Shift</b></span>
-    <span>사격 <b>좌클릭</b></span><span>조준 <b>우클릭</b></span>
-    <span>재장전 <b>R</b></span><span>점프 <b>Space</b></span>
-    <span>탑승/하차 <b>F</b></span><span>무기 교체 <b>1 / 2 / 휠</b></span>
-    <span>차량 핸드브레이크 <b>Space</b></span><span>카메라 <b>C</b></span>
-    <span>헤드라이트 <b>L</b></span><span>일시정지 <b>Esc</b></span>
-  </div>
+  <button id="go" type="button">아무 키나 눌러 시작</button>
+  <div id="credit">Models: Soldier (three.js examples) · Ferrari 458 by vicent091036, CC-BY 4.0 · Three.js (MIT)</div>
 </div></div>
+<div id="helpov"><div id="helpbox"><h2>조작법 <small>K 키로 닫기</small></h2><div id="keys">
+  <span>이동 <b>W A S D</b></span><span>달리기 <b>Shift</b></span>
+  <span>점프 / 핸드브레이크 <b>Space</b></span><span>웅크리기 <b>Z</b></span>
+  <span>엎드리기 <b>P</b></span><span>시점 전환 (1인칭/3인칭) <b>C</b></span>
+  <span>사격 <b>좌클릭</b></span><span>조준 <b>우클릭</b></span>
+  <span>재장전 <b>R</b></span><span>무기 교체 <b>1~6 / Q</b></span>
+  <span>상호작용 (문·탑승·엘리베이터) <b>F / E</b></span><span>문 따기·걷어차기 <b>G / T</b></span>
+  <span>물건 들기 <b>V</b></span><span>버리기 <b>X</b></span>
+  <span>인벤토리 <b>I / Tab</b></span><span>휴대폰 <b>M</b></span>
+  <span>앉기 <b>N</b></span><span>수류탄 <b>B</b></span>
+  <span>항복 / 손 들기 <b>Y</b></span><span>경적 <b>H</b></span>
+  <span>헤드라이트 <b>L</b></span><span>일시정지 <b>Esc</b></span>
+  <span>조작법 보기 <b>K</b></span>
+</div></div></div>
 <div id="fps"></div>
 <pre id="err"></pre>
 <script>

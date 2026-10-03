@@ -35,13 +35,16 @@ function fatal(e) {
     game.start();
   };
   go.addEventListener('click', begin);
-  addEventListener('keydown', (e) => { if ((e.code === 'Enter') && !game.running && go.classList.contains('rdy')) begin(); });
+  addEventListener('keydown', (e) => {
+    if (!game.running && go.classList.contains('rdy') && !e.metaKey && !e.ctrlKey && e.code !== 'F12') begin();
+    else if (e.code === 'KeyK' && game.running) el('helpov').classList.toggle('on');
+  });
   eng.onQuality = () => { try { sessionStorage.setItem('neon_q', String(eng.qIndex)); } catch (e) { /* ignore */ } };
   let last = performance.now();
   const loop = (now) => {
     const dt = Math.min((now - last) / 1000, 0.1); last = now;
     try {
-      if (!game.running) game.attract(dt); else game.update(dt);
+      if (!game.running) { /* black title: nothing is rendered */ } else game.update(dt);
     } catch (e) { fatal(e); return; }
     requestAnimationFrame(loop);
   };
