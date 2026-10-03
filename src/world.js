@@ -201,7 +201,7 @@ function createGround(fakeLights) {
       varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
       uniform sampler2D tAsph,tAsphN,tPave,tPaveN;
       float fRough,fMetal;vec3 fEmit;float fPud;vec2 fN=vec2(0.);
-      const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.,PRO=${(HALF + R / 2 + 2 + MODEL_PROM + MODEL_W + 30).toFixed(1)};`,
+      const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.,PRO=${(HALF + P - R / 2 + 2 + MODEL_PROM + MODEL_W + 30).toFixed(1)};`,
     fragMain: `
       vec2 p=vWP.xz;
       vec2 g=(p+HH)/PP;vec2 cl=floor(g);vec2 l=(g-cl)*PP;vec2 dr=min(l,PP-l);
@@ -744,11 +744,8 @@ export function buildWorld(scene, quality) {
       if (i >= 0 && i < N && j >= 0 && j < N) continue;
       const xa = roadC(i) + R / 2 + (i === -1 ? 0 : SW + 0.5), xb = roadC(i + 1) - R / 2 - (i === N ? 0 : SW + 0.5);
       const za = roadC(j) + R / 2 + (j === -1 ? 0 : SW + 0.5), zb = roadC(j + 1) - R / 2 - (j === N ? 0 : SW + 0.5);
-      const edges = { w: false, e: false, n: false, s: false };
-      if (i === -1 && j >= 0 && j < N) edges.e = true;
-      if (i === N && j >= 0 && j < N) edges.w = true;
-      if (j === -1 && i >= 0 && i < N) edges.s = true;
-      if (j === N && i >= 0 && i < N) edges.n = true;
+      // every ring block opens toward the road grid (corner blocks face two roads)
+      const edges = { w: i === N, e: i === -1, n: j === N, s: j === -1 };
       // outer ring blocks: build as 1-2 tall towers
       const w = xb - xa, d = zb - za;
       if (i === -1 || i === N || j === -1 || j === N) {
@@ -767,10 +764,10 @@ export function buildWorld(scene, quality) {
   // Outer ring: enterable towers whose exterior is the supplied residential model (skin drawn by skyline.js, interior by building.js).
   // They line a walkable promenade around the city; the boundary walls sit behind them.
   {
-    const E0 = HALF + R / 2 + 2, FRONT = E0 + MODEL_PROM, rr = mulberry32(90210);
+    const E0 = HALF + P - R / 2 + 2, FRONT = E0 + MODEL_PROM, rr = mulberry32(90210);
     world.promenade = { inner: E0, outer: FRONT + MODEL_W + 30 };
     for (const side of ['n', 's', 'w', 'e']) {
-      const alongX = side === 'n' || side === 's', span = HALF + R;
+      const alongX = side === 'n' || side === 's', span = HALF + P;
       let t = -span;
       while (t < span) {
         const variant = MODEL_VARIANTS[Math.floor(rr() * MODEL_VARIANTS.length)], H = MODEL_H[variant - 1];
@@ -791,17 +788,32 @@ export function buildWorld(scene, quality) {
         t += MODEL_D + 14 + rr() * 26;
       }
     }
-    const L = world.promenade.outer, T = 12;
-    world.colliders.addBox(-L - T, L, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 40, 'wall');
-    world.colliders.addBox(L, -L - T, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 40, 'wall');
   }
 
-  // Far skyline: huge towers beyond the playable area
+  // Far skyline: huge towers beyond the promenade. They are real, enterable lots (door facing the city), reached over open ground.
   const far = [];
-  for (let k = 0; k < 120; k++) {
-    const a = R_(0, TAU), dist = HALF + P * 2 + R_(30, 420);
-    const w = R_(30, 90), d = R_(30, 90), h = R_(80, 330);
-    far.push({ x: Math.cos(a) * dist, z: Math.sin(a) * dist, w, d, h, style: Math.floor(R_(0, 4)), accent: Math.floor(R_(0, 6)), seed: R_(0, 50), color: new THREE.Color(pickR(wallColors)).multiplyScalar(0.8) });
+  {
+    const clear = world.promenade.outer + 18; // keep off the model ring and its back wall
+    const fr = mulberry32(31337);
+    for (let tries = 0; far.length < 120 && tries < 1500; tries++) {
+      const a = fr() * TAU, dist = HALF + P * 2 + 30 + fr() * 420;
+      const w = 30 + fr() * 60, d = 30 + fr() * 60, h = 80 + fr() * 250, x = Math.cos(a) * dist, z = Math.sin(a) * dist;
+      if (Math.max(Math.abs(x) - w / 2, Math.abs(z) - d / 2) < clear) continue;
+      if (far.some((f) => Math.abs(f.x - x) < (f.w + w) / 2 + 14 && Math.abs(f.z - z) < (f.d + d) / 2 + 14)) continue;
+      far.push({ x, z, w, d, h, style: Math.floor(fr() * 4), accent: Math.floor(fr() * 6), seed: fr() * 50, color: new THREE.Color(pickR(wallColors)).multiplyScalar(0.8) });
+    }
+    for (const f of far) {
+      const x0 = f.x - f.w / 2, x1 = f.x + f.w / 2, z0 = f.z - f.d / 2, z1 = f.z + f.d / 2, podiumH = 6;
+      const inward = Math.abs(f.x) > Math.abs(f.z) ? (f.x > 0 ? 'w' : 'e') : (f.z > 0 ? 'n' : 's');
+      const rect = { x0, z0, x1, z1 };
+      f.lot = { x0, z0, x1, z1, h: f.h, accent: f.accent, edges: { [inward]: true }, podium: podiumH, style: f.style, ring: false, far: true, seed: f.seed, solid: world.colliders.addBox(x0, z0, x1, z1, f.h + 5, 'building'), topY: f.h - 0.1,
+        tiers: { podium: { ...rect, y0: 0, y1: podiumH }, tower: { ...rect, y0: podiumH, y1: f.h - 0.1 }, crown: null } };
+      world.lots.push(f.lot);
+    }
+    world.farCount = far.length;
+    const L = 1200, T = 12; // boundary of the playable world, behind every far tower
+    world.colliders.addBox(-L - T, L, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 40, 'wall');
+    world.colliders.addBox(L, -L - T, L + T, L + T, 40, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 40, 'wall');
   }
 
   // Plaza centerpiece
@@ -1173,7 +1185,7 @@ function nameTexture(name, color) {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function buildEntrances(world, scene) {
-  const lots = world.lots.filter((l) => l.model || (!l.ring && Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 17 && l.h >= 20));
+  const lots = world.lots.filter((l) => l.model || l.far || l.ring || (Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 17 && l.h >= 20));
   world.enterables = [];
   const B = new Builder();
   const signs = new Map();
