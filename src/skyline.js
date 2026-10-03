@@ -8,7 +8,7 @@ import { nightU } from './shaders.js';
 // Outer skyline: the 10 residential towers (12.6 x 23.1 m footprint, 18-105 m) ringed around the city.
 // Each side of the ring is baked into one merged mesh per material (2 draw calls) so frustum culling drops whole sides.
 const EDGE = HALF + R / 2 + SW + 10, W = 12.6, D = 23.1;
-const VARIANTS = [1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10]; // weighted toward the shorter blocks (triangle budget)
+const VARIANTS = [1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6, 7, 8, 10]; // weighted toward the shorter blocks (triangle budget)
 
 // quantized (KHR_mesh_quantization) attributes are integers: expand to float before any matrix is baked in
 function toFloat(src) {
@@ -61,11 +61,11 @@ export function buildSkyline(scene, world, wallUrl) {
     const list = [], span = HALF + R, lat = (nx === 0) ? 'x' : 'z';
     let t = -span;
     while (t < span) {
-      const v = VARIANTS[Math.floor(rnd() * VARIANTS.length)], row = rnd() < 0.25 ? 1 : 0;
+      const v = VARIANTS[Math.floor(rnd() * VARIANTS.length)], row = rnd() < 0.15 ? 1 : 0;
       const long = D, depth = W + (row ? 40 : 0);
       const c = t + long / 2, off = EDGE + depth / 2 + rnd() * 6 + (row ? 30 : 0);
       list.push({ v, a: c, off, rot: lat === 'x' ? 0 : Math.PI / 2 });
-      t += long + 10 + rnd() * 30;
+      t += long + 24 + rnd() * 46;
     }
     sides.push({ nx, nz, list, lat });
   }
