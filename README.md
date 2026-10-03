@@ -11,3 +11,9 @@
 - Soldier.glb — three.js examples (Mixamo rig)
 - Ferrari 458 — vicent091036, CC-BY 4.0 (https://sketchfab.com/3d-models/ferrari-458-italia-model-5a0f0d6bf8ef43e08d4e6ea1d6f5a8e0 via three.js examples); decompressed and slimmed with gltf-transform (`build/undraco.mjs`, `quant.mjs`, `slim.mjs`)
 - Three.js (MIT)
+
+## 건물 내부 / 엘리베이터
+- 14개 타워에 정문이 있고 `F`로 입장 (로비 → 엘리베이터 → 오피스/레지던스/스카이 라운지 층).
+- 엘리베이터: 문이 열리고 안에서 `F` → 층 선택 UI(숫자키 1~9) → 이동 연출 후 해당 층 도착.
+- 상호작용: 접수원 대화, 서버 해킹, 금고 따기, TV, 건물 출입. 경비는 무기를 꺼내면 공격.
+- 미션 "데이터 침투": 잠입 → 서버 해킹 → 경보(3성) → 탈출. 건물 안에 숨으면 수배가 풀립니다.

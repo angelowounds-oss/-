@@ -23,9 +23,7 @@ export class Audio {
     const b = this.brownBuf.getChannelData(0); let last = 0;
     for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; b[i] = last * 3.5; }
     // rain bed
-    this.loopNoise(this.noiseBuf, 'highpass', 1800, 0.07, 0.6);
-    this.loopNoise(this.noiseBuf, 'bandpass', 700, 0.035, 0.4);
-    this.loopNoise(this.brownBuf, 'lowpass', 220, 0.22, 0.5);
+    this.rainG = [this.loopNoise(this.noiseBuf, 'highpass', 1800, 0.07, 0.6), this.loopNoise(this.noiseBuf, 'bandpass', 700, 0.035, 0.4), this.loopNoise(this.brownBuf, 'lowpass', 220, 0.22, 0.5)];
     // engine
     this.eng = {};
     const g = ctx.createGain(); g.gain.value = 0;
@@ -51,8 +49,11 @@ export class Audio {
   loopNoise(buf, type, f, gain, q = 0.7) {
     const ctx = this.ctx; const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true;
     const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
-    const g = ctx.createGain(); g.gain.value = gain; s.connect(fl).connect(g).connect(this.sfx); s.start();
+    const g = ctx.createGain(); g.gain.value = gain; s.connect(fl).connect(g).connect(this.sfx); s.start(); return g;
   }
+  setIndoor(on) { if (!this.ctx) return; const t = this.ctx.currentTime; (this.rainG || []).forEach((g, i) => g.gain.setTargetAtTime(on ? [0.07, 0.035, 0.22][i] * 0.12 : [0.07, 0.035, 0.22][i], t, 0.15)); }
+  ding() { this.tone(1320, 0.7, 'sine', 0.16); this.tone(1760, 0.9, 'sine', 0.12, 0, null, 0.18); }
+  elevator(dur) { if (!this.ctx) return; this.noiseShot(dur, 'lowpass', 140, 0.35, 0.5); this.tone(70, dur, 'sine', 0.2, 62); this.tone(990, 0.25, 'sine', 0.08, 0, null, 0.1); }
   setVolume(v) { this.vol = v; if (this.master) this.master.gain.value = v; }
   setMusic(on) { this.musicOn = on; if (this.music) this.music.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.2); }
   noiseShot(dur, type, f, gain, q = 1, dest, delay = 0, fEnd = 0) {

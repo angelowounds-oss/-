@@ -11,6 +11,7 @@ import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
 import { Physics } from './physics.js';
+import { Interiors } from './interior.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -42,6 +43,7 @@ export class Game {
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q);
+    this.interiors = new Interiors(this);
     this.phys = new Physics(this.RAPIER); this.phys.addStatic(this.world.colliders);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
@@ -129,7 +131,7 @@ export class Game {
   removeVehicle(v) { const i = this.vehicles.indexOf(v); if (i >= 0) this.vehicles.splice(i, 1); v.detachPhysics(); this.scene.remove(v.group); }
 
   randomLane(minD, maxD) {
-    const pl = this.player;
+    const pl = this.focusPos();
     for (let tr = 0; tr < 14; tr++) {
       const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N + 1));
       const horiz = Math.random() < 0.5;
@@ -164,7 +166,7 @@ export class Game {
     return v;
   }
   spawnCivilian(initial = false, existing = null) {
-    const pl = this.player;
+    const pl = this.focusPos();
     for (let tr = 0; tr < 12; tr++) {
       const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N + 1)), sx = Math.random() < 0.5 ? 1 : -1, sz = Math.random() < 0.5 ? 1 : -1;
       const x = roadC(i) + sx * (R / 2 + SW / 2), z = roadC(j) + sz * (R / 2 + SW / 2);
@@ -224,7 +226,7 @@ export class Game {
     u('sens').oninput = (e) => (this.input.sens = +e.target.value);
     u('fpsOn').onchange = (e) => (this.ui.fps.style.display = e.target.checked ? 'block' : 'none');
     this.ui.fps.style.display = 'none';
-    this.input.onLockChange = (locked) => { if (!locked && this.running && !this.paused && !this.input.touch) this.setPaused(true); };
+    this.input.onLockChange = (locked) => { if (!locked && this.running && !this.paused && !this.input.touch && !this.uiModal && !this.interiors.busy) this.setPaused(true); };
   }
   setPaused(p) {
     this.paused = p; el('pause').classList.toggle('on', p);
@@ -274,6 +276,7 @@ export class Game {
     this.updateHumans(sdt);
     this.updatePolice(sdt);
     this.updateMission(sdt);
+    this.interiors.update(sdt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -319,6 +322,7 @@ export class Game {
       pl.update(dt);
       return;
     }
+    if (this.frozen()) { for (const e of ['use', 'jump', 'reload', 'swap', 'cam']) this.input.edge(e); pl.animate(dt, 0); return; }
     // camera look
     const k = 0.0022 * (pl.aiming ? 0.6 : 1);
     cam.yaw -= inp.lookX * k; cam.pitch = clamp(cam.pitch - inp.lookY * k, -1.2, 1.05);
@@ -376,15 +380,9 @@ export class Game {
       } else if (!pl.fireHeld) { this.audio.empty(); pl.fireCd = 0.3; }
     }
     pl.fireHeld = inp.fire;
-    // enter vehicle
-    let near = null, nd = 3.6;
-    for (const v of this.vehicles) {
-      if (!v.group.visible || v.dead) continue;
-      const d = this.distToVehicle(pl.x, pl.z, v);
-      if (d < nd) { nd = d; near = v; }
-    }
-    this.nearVehicle = near;
-    if (this.input.edge('use') && near) this.enterVehicle(near);
+    // interactions: vehicles, building doors, interior objects
+    this.nearInteract = this.findInteract(pl);
+    if (this.input.edge('use') && this.nearInteract && !this.frozen()) this.nearInteract.use();
     pl.animate(dt, spd);
     pl.m.body.rotation.x += 0; // keep
     // hp regen outside of combat
@@ -410,6 +408,62 @@ export class Game {
     }
   }
 
+  frozen() { return this.uiModal || this.interiors.busy || !!this.interiors.riding; }
+  findInteract(pl) {
+    let best = null, bs = 1e9;
+    const consider = (x, z, r, label, use, id) => { const d = Math.hypot(pl.x - x, pl.z - z); if (d < r && d / r < bs) { bs = d / r; best = { label, use, id }; } };
+    if (this.interiors.inside) {
+      for (const it of this.interiors.interactables()) { if (it.enabled && !it.enabled()) continue; consider(it.x, it.z, it.r, it.label, it.use, it.id); }
+    } else {
+      for (const v of this.vehicles) { if (!v.group.visible || v.dead) continue; const d = this.distToVehicle(pl.x, pl.z, v); if (d < 3.6 && d / 3.6 < bs) { bs = d / 3.6; best = { label: v.driver === 'ai' ? '차량 강탈' : '차량 탑승', use: () => this.enterVehicle(v), id: 'veh' }; } }
+      for (const b of this.world.enterables || []) consider(b.x, b.z, 2.8, '입장 · ' + b.name, () => { this.doorPos = { x: b.x, z: b.z }; this.interiors.enter(b); }, 'door' + b.id);
+    }
+    return best;
+  }
+  fadeTo(v) { const f = el('fade'); f.style.opacity = v; return new Promise((r) => setTimeout(r, 380)); }
+  focusPos() { return this.indoor && this.doorPos ? this.doorPos : (this.vehicle || this.player); }
+  setProgress(p, label) { const b = el('prog'); if (p == null) { b.classList.remove('on'); return; } b.classList.add('on'); el('progLbl').textContent = label || ''; el('progFill').style.width = Math.min(100, p * 100) + '%'; }
+  setElevDisplay(f, arrow) { const e = el('elevInd'); if (f == null) { e.classList.remove('on'); return; } e.classList.add('on'); e.textContent = (arrow ? arrow + ' ' : '') + f + 'F'; if (!arrow) setTimeout(() => e.classList.remove('on'), 1800); }
+  openElevatorUI() {
+    const b = this.interiors.b, list = this.interiors.floorList(b), cur = this.interiors.cell.idx;
+    const box = el('elevBtns'); box.innerHTML = '';
+    const names = { lobby: '로비', office: '오피스', apartment: '레지던스', penthouse: '스카이 라운지' };
+    list.forEach((f, i) => {
+      const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'eb' + (i === cur ? ' cur' : '');
+      bt.innerHTML = `<b>${f.f}</b><small>${names[f.type]}</small>`;
+      bt.onclick = () => { this.closeElevatorUI(); this.interiors.ride(i); };
+      box.appendChild(bt);
+    });
+    el('elevTitle').textContent = b.name;
+    el('elev').classList.add('on'); this.uiModal = true; this.input.unlock();
+    this._elevKey = (e) => { if (e.code === 'Escape') { e.stopImmediatePropagation(); this.closeElevatorUI(); } else if (/^Digit[0-9]$/.test(e.code)) { const n = (+e.code.slice(5) + 9) % 10; if (list[n]) { this.closeElevatorUI(); this.interiors.ride(n); } } };
+    addEventListener('keydown', this._elevKey, true);
+  }
+  closeElevatorUI() { el('elev').classList.remove('on'); this.uiModal = false; removeEventListener('keydown', this._elevKey, true); this.input.lock(); }
+  spawnInteriorHuman(n, cell) {
+    const look = n.look || (n.team === 'guard' ? { top: 0x1a1d29, pants: 0x0d0f16, cap: 0x0d0f16, trim: [1, 0.8, 0.2], hair: 0x111111 } : {});
+    const h = new Human(this, n.team === 'guard' ? 'gang' : 'civ', { hp: n.team === 'guard' ? 90 : 40, weapon: n.weapon, look });
+    h.interior = true; h.cell = cell; h.x = n.x; h.z = n.z; h.ry = n.ry ?? 0; h.state = 'idle'; h.node = null; h.home = { x: n.x, z: n.z };
+    if (n.team === 'guard') { h.guard = true; h.detect = 24; h.cash = Math.floor(rand(60, 160)); }
+    h.group.visible = false; this.humans.push(h); this.scene.add(h.group); n.human = h; return h;
+  }
+  alertCell(cell) { this.alarm = true; for (const n of cell.npcs) if (n.human && n.human.guard && !n.human.dead) n.human.state = 'attack'; }
+  talkReceptionist(b) {
+    const lines = ['어서 오세요. 방문증을 확인해 드릴까요?', `${b.name}에 오신 걸 환영합니다. 엘리베이터는 정면입니다.`, '꼭대기 층 라운지는 밤새 영업합니다.', '오피스 층 서버실은 출입 제한 구역입니다…'];
+    this.toast('접수원', lines[Math.floor(Math.random() * lines.length)]);
+  }
+  onSafeOpened(cell, safe, amt) {
+    const v = amt || Math.floor(rand(250, 900)); this.cash += v; this.audio.cash(); this.feed('금고 +$' + v, '#47ffa8'); this.toast('금고 해제', `+$${v}`);
+    this.addHeat(6);
+  }
+  onServerHacked(b, idx, cell) {
+    this.audio.complete(); this.alertCell(cell);
+    const m = this.mission; if (m && m.onServer) { m.onServer(b, idx, cell); return; }
+    const v = Math.floor(rand(500, 1100)); this.cash += v; this.toast('서버 해킹 완료', `+$${v} · 경보 작동!`); this.addHeat(35);
+  }
+  onEnterBuilding(b) { this.mission?.onEnter?.(b); }
+  onExitBuilding(b) { this.mission?.onExit?.(b); this.alarm = false; }
+  onFloor(b, idx, cell) { this.mission?.onFloor?.(b, idx, cell); }
   enterVehicle(v) {
     const pl = this.player;
     // carjack AI driver
@@ -599,6 +653,7 @@ export class Game {
   }
   respawn() {
     const pl = this.player;
+    if (this.interiors.inside) { this.interiors.forceOut(); }
     pl.dead = false; pl.state = 'walk'; pl.hpv = 100; pl.armor = 0; pl.m.body.rotation.set(0, 0, 0); pl.m.body.position.y = 0; pl.group.scale.setScalar(1);
     const cost = Math.floor(this.cash * 0.1); this.cash -= cost;
     pl.x = this.world.spawn.x; pl.z = this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0;
@@ -662,12 +717,13 @@ export class Game {
   updatePolice(dt) {
     const pl = this.player;
     this.copTimer -= dt;
-    const target = this.vehicle || pl;
+    const real = this.vehicle || pl;
+    const target = this.indoor && this.doorPos ? this.doorPos : real;
     const cars = this.vehicles.filter((v) => v.police && !v.dead);
     // heat decay when not being seen
     if (this.wanted > 0) {
       let seen = false;
-      for (const c of cars) { const d = Math.hypot(c.x - target.x, c.z - target.z); if (d < 55 && this.hasLOS(c.x, 1.5, c.z, target.x, 1.5, target.z)) { seen = true; break; } }
+      for (const c of cars) { const d = Math.hypot(c.x - real.x, c.z - real.z); if (d < 55 && this.hasLOS(c.x, 1.5, c.z, real.x, 1.5, real.z)) { seen = true; break; } }
       for (const h of this.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 45) { seen = true; break; }
       if (seen) this.evade = 0; else this.evade += dt;
       if (this.evade > 8) { this.heat = Math.max(0, this.heat - dt * (1.5 + (this.evade - 8) * 0.25)); const prev = this.wanted; this.recalcStars(); if (prev > 0 && this.wanted === 0) { this.toast('<span style="color:#47ffa8">WANTED LEVEL LOST</span>', '추적에서 벗어났습니다'); this.clearWanted(); } }
@@ -696,7 +752,7 @@ export class Game {
     let nearest = 999; for (const c of cars) nearest = Math.min(nearest, Math.hypot(c.x - this.camera.position.x, c.z - this.camera.position.z));
     this.sirenLevel = this.wanted > 0 ? clamp(1 - nearest / 120, 0, 1) : 0;
     // flashing police lights
-    if (cars.length) {
+    if (cars.length && !this.indoor) {
       const ph = Math.floor(this.time * 6) % 2;
       const c = cars.reduce((a, b) => (Math.hypot(a.x - this.camera.position.x, a.z - this.camera.position.z) < Math.hypot(b.x - this.camera.position.x, b.z - this.camera.position.z) ? a : b));
       this.lights.flash(c.x, 3, c.z, ph ? 0xff2020 : 0x2050ff, 14, 28, 0.2);
@@ -720,8 +776,8 @@ export class Game {
 
   // ====================================================================
   updateVehicles(dt) {
-    const list = this.vehicles, cam = this.camera.position, pl = this.player;
-    const focus = this.vehicle || pl;
+    const list = this.vehicles, cam = this.camera.position, pl = this.focusPos();
+    const focus = pl;
     const active = [];
     for (let i = list.length - 1; i >= 0; i--) {
       const v = list[i];
@@ -795,7 +851,9 @@ export class Game {
   // ====================================================================
   updateHumans(dt) {
     const cam = this.camera.position;
+    const curCell = this.interiors.cell;
     for (const h of this.humans) {
+      if (h.cell) { const on = h.cell === curCell; h.group.visible = on && !h.hidden; if (!on) continue; h.update(dt); continue; }
       const d = Math.hypot(h.x - cam.x, h.z - cam.z);
       const vis = d < 130; h.group.visible = vis && !h.hidden;
       if (!vis && h.team === 'civ' && !h.dead) { // cheap
@@ -950,6 +1008,22 @@ export class Game {
           },
         };
       },
+      // 5. infiltration: enter tower, ride the elevator, hack the server, escape
+      (i) => {
+        const cands = (G.world.enterables || []).filter((e) => Math.hypot(e.x - G.player.x, e.z - G.player.z) > 90);
+        const b = cands.sort((p, q) => Math.hypot(p.x - G.player.x, p.z - G.player.z) - Math.hypot(q.x - G.player.x, q.z - G.player.z))[Math.min(1, cands.length - 1)] || G.world.enterables[0];
+        const list = G.interiors.floorList(b); let ti = list.findIndex((f) => f.type === 'office'); if (ti < 1) { ti = 1; list[1].type = 'office'; }
+        const tf = list[ti].f; let phase = 0;
+        return {
+          title: '데이터 침투', text: `${b.name}에 잠입하라. 정문에서 입장.`, reward: 2600,
+          start() { G.setBeacon(b.x, b.z); },
+          onEnter(bb) { if (phase === 0 && bb === b) { phase = 1; G.hideBeacon(); G.setMissionText('데이터 침투', `엘리베이터로 ${tf}층 오피스로 올라가라. (엘리베이터 안에서 F)`); } },
+          onFloor(bb, idx) { if (phase === 1 && bb === b && idx === ti) { phase = 2; G.setMissionText('데이터 침투', '서버실 터미널을 해킹하라. 경비를 조심!'); } },
+          onServer(bb, idx) { if (phase === 2 && bb === b) { phase = 3; G.addHeat(75); G.setMissionText('데이터 침투', '경보 작동! 로비로 내려가 건물을 빠져나가라.'); G.toast('해킹 성공', '경보 작동!'); } },
+          onExit(bb) { if (phase === 3 && bb === b) G.completeMission(); else if (phase > 0 && bb === b && phase < 3) { phase = 0; G.setBeacon(b.x, b.z); G.setMissionText('데이터 침투', '정문으로 다시 입장하라.'); } },
+          update() { this.hud = phase === 3 ? `수배 ${'★'.repeat(G.wanted) || '—'}` : (phase === 0 ? null : `목표 ${tf}F`); },
+        };
+      },
       // procedural contracts
       (i) => { const spot = G.pickSpot(120, 300); const reward = 400 + (i % 5) * 150; return { title: '배달 계약', text: '물건을 목적지까지 배달하라.', reward, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; },
       (i) => {
@@ -978,12 +1052,13 @@ export class Game {
       b.ring.rotation.z = t; b.ring2.rotation.z = -t * 1.4; b.ring.scale.setScalar(1 + Math.sin(t * 3) * 0.06);
     }
     const d = this.markerPos ? Math.hypot(this.player.x - this.markerPos.x, this.player.z - this.markerPos.z) : 0;
-    this.setText('mD', this.ui.mDist, m.hud != null ? m.hud : (this.markerPos ? `거리 ${d | 0} m` : ''));
+    this.setText('mD', this.ui.mDist, m.hud != null ? m.hud : (this.markerPos && !this.indoor ? `거리 ${d | 0} m` : ''));
   }
 
   // ====================================================================
   // Ambient (lightning etc.)
   updateAmbient(dt) {
+    if (this.indoor) { flashUniform.value = 0; this.bolt = 0; return; }
     this.nextLightning -= dt;
     if (this.nextLightning <= 0) { this.nextLightning = rand(14, 32); this.bolt = 0.5; this.thunderT = rand(0.6, 3); }
     if (this.bolt > 0) {
@@ -1016,6 +1091,7 @@ export class Game {
       if (ty - (ay - ay) < 0.3) { /* ground clamp below */ }
       tx = ax + dx * k; ty = ay + dy * k; tz = az + dz * k;
       if (ty < 0.25) ty = 0.25;
+      if (this.indoor && ty > 3.3) ty = 3.3;
       c.position.set(tx, ty, tz);
       const lx = ax + L.x * 18 + rX * cam.shoulder * 0.5, ly = ay + L.y * 18, lz = az + L.z * 18 + rZ * cam.shoulder * 0.5;
       c.lookAt(lx, ly, lz);
@@ -1092,7 +1168,7 @@ export class Game {
     if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; }
     // hint
     let hint = '';
-    if (this.playerOnFoot && this.nearVehicle && !pl.dead) hint = `<kbd>F</kbd>${this.nearVehicle.driver === 'ai' ? '차량 강탈' : '차량 탑승'}`;
+    if (this.playerOnFoot && this.nearInteract && !pl.dead && !this.frozen()) hint = `<kbd>F</kbd>${this.nearInteract.label}`;
     else if (v) hint = '';
     this.setHTML('hint', ui.hint, hint); ui.hint.classList.toggle('on', !!hint);
     // direction
@@ -1138,6 +1214,19 @@ export class Game {
   }
   drawMinimap() {
     const g = this.minictx, W = 340, S = this.mapScale, pl = this.player;
+    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.indoor && this.interiors.cell ? this.interiors.cell.label : 'NEON CITY · 02:47 AM · 비');
+    if (this.indoor && this.interiors.cell) {
+      const c = this.interiors.cell, sc = 6;
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W); g.fillStyle = '#080c16'; g.fillRect(0, 0, W, W);
+      g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(sc, sc); g.translate(-pl.x, -pl.z);
+      g.fillStyle = '#121a2c'; g.fillRect(c.ox - 22, c.oz - 15, 44, 30);
+      g.fillStyle = '#4a5a86'; for (const b of c.boxes) if (b.h > 0.5) g.fillRect(b.x0, b.z0, b.x1 - b.x0, b.z1 - b.z0);
+      for (const it of c.interact) { if (it.enabled && !it.enabled()) continue; g.fillStyle = '#ffc94d'; g.beginPath(); g.arc(it.x, it.z, 0.5, 0, TAU); g.fill(); }
+      for (const n of c.npcs) { const h = n.human; if (!h || h.dead) continue; g.fillStyle = h.guard ? '#ff3050' : '#6c7a99'; g.beginPath(); g.arc(h.x, h.z, 0.35, 0, TAU); g.fill(); }
+      g.restore();
+      g.save(); g.translate(W / 2, W / 2); g.fillStyle = '#4de3ff'; g.strokeStyle = '#001'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -11); g.lineTo(8, 9); g.lineTo(0, 5); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke(); g.restore();
+      return;
+    }
     const p = this.vehicle || pl; const zoom = this.vehicle ? 1.1 : 1.5;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W); g.fillStyle = '#05080f'; g.fillRect(0, 0, W, W);
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);

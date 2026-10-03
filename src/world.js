@@ -504,6 +504,7 @@ export function buildWorld(scene, quality) {
   const R_ = (a = 0, b = 1) => a + (b - a) * rnd();
   const pickR = (arr) => arr[Math.floor(rnd() * arr.length)];
 
+  const objStart = scene.children.length;
   const sky = createSky();
   scene.add(sky);
   world.sky = sky;
@@ -580,7 +581,7 @@ export function buildWorld(scene, quality) {
       addFake(cx, 0, cz, accentColor(accent), 40, 0.6);
     }
     world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
-    world.lots.push({ x0, z0, x1, z1, h: H, accent });
+    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed });
 
     // signs on road-facing facades
     const ground = podiumH;
@@ -667,6 +668,7 @@ export function buildWorld(scene, quality) {
       splitLots(xa, za, xb, zb, i, j, dcen, { w: true, e: true, n: true, s: true });
     }
   }
+  world._ring = true;
   // Outer ring: solid mega-blocks forming the city boundary
   const ringN = N + 2;
   for (let i = -1; i <= N; i++) {
@@ -693,6 +695,7 @@ export function buildWorld(scene, quality) {
     }
   }
 
+  world._ring = false;
   // Boundary walls close the street gaps between outer-ring towers
   {
     const e = HALF + R / 2 + 2, t = 12, L = e + t;
@@ -1037,6 +1040,8 @@ export function buildWorld(scene, quality) {
     return Math.min(lx, P - lx) < R / 2 || Math.min(lz, P - lz) < R / 2;
   };
   world.facade = facade;
+  buildEnterables(world, scene, rnd);
+  world.objects = scene.children.slice(objStart);
   return world;
 }
 
@@ -1048,4 +1053,56 @@ function patchTreeSway(mat) {
         {vec4 wp=instanceMatrix*vec4(transformed,1.);float sw=sin(uTime*1.3+instanceMatrix[3].x*.7+instanceMatrix[3].z*.5)*.08*max(transformed.y-3.,0.)*.4;transformed.x+=sw;transformed.z+=sw*.6;}`);
   };
   mat.customProgramCacheKey = () => 'tree-sway';
+}
+
+// ---------- Enterable buildings: street doors ----------
+const BUILDING_NAMES = ['NEXUS TOWER', 'ORCHID HOTEL', 'HELIX CORP', 'KAIROS PLAZA', 'AURORA SUITES', 'VERTEX DYNAMICS', 'NOVA RESIDENCE', 'SYNAPSE LABS', 'ONYX FINANCIAL', 'LOTUS TOWER', 'ARCADIA HOTEL', 'ZENITH TECH', 'CRIMSON PLAZA', 'ECHO SUITES'];
+function nameTexture(name, color) {
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 220;
+  const g = cv.getContext('2d');
+  g.fillStyle = 'rgba(3,4,10,.92)'; g.fillRect(0, 0, 1024, 220);
+  const c = `rgb(${color.map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`;
+  g.strokeStyle = c; g.lineWidth = 8; g.shadowColor = c; g.shadowBlur = 24; g.strokeRect(14, 14, 996, 192);
+  g.font = '900 96px "Pretendard","Noto Sans KR",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#fff'; g.shadowBlur = 30; g.fillText(name, 512, 116);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function buildEnterables(world, scene, rnd) {
+  const cand = world.lots.filter((l) => !l.ring && l.h >= 38 && (l.edges.w || l.edges.e || l.edges.n || l.edges.s) && Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 18);
+  const sp = world.spawn;
+  cand.sort((a, b) => Math.hypot((a.x0 + a.x1) / 2 - sp.x, (a.z0 + a.z1) / 2 - sp.z) - Math.hypot((b.x0 + b.x1) / 2 - sp.x, (b.z0 + b.z1) / 2 - sp.z));
+  const chosen = [];
+  // nearest ones first, then spread out with minimum separation
+  for (const l of cand) {
+    const cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2;
+    if (chosen.some((c) => Math.hypot(c.cx - cx, c.cz - cz) < 110)) continue;
+    chosen.push({ l, cx, cz });
+    if (chosen.length >= BUILDING_NAMES.length) break;
+  }
+  world.enterables = [];
+  const frameGeo = new THREE.BoxGeometry(1, 1, 1);
+  chosen.forEach(({ l, cx, cz }, id) => {
+    const order = [['w', l.x0, cz, -1, 0], ['e', l.x1, cz, 1, 0], ['n', cx, l.z0, 0, -1], ['s', cx, l.z1, 0, 1]].filter((e) => l.edges[e[0]]);
+    const [, dx, dz, nx, nz] = order[0];
+    const accent = accentColor(l.accent);
+    const name = BUILDING_NAMES[id];
+    const g = new THREE.Group();
+    g.position.set(dx + nx * 0.05, 0, dz + nz * 0.05); g.rotation.y = Math.atan2(nx, nz);
+    const emi = new THREE.MeshBasicMaterial({ color: new THREE.Color(...accent).multiplyScalar(2.8), toneMapped: false });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x0b0d14, roughness: 0.25, metalness: 0.85 });
+    const box = (m, w, h, d, x, y, z) => { const o = new THREE.Mesh(frameGeo, m); o.scale.set(w, h, d); o.position.set(x, y, z); g.add(o); return o; };
+    box(emi, 0.14, 3.5, 0.22, -1.9, 1.75, 0.1); box(emi, 0.14, 3.5, 0.22, 1.9, 1.75, 0.1); box(emi, 3.95, 0.14, 0.22, 0, 3.5, 0.1);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.7, 3.4), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.8, 0.55).multiplyScalar(0.9) }));
+    glow.position.set(0, 1.7, 0.03); g.add(glow);
+    box(dark, 1.8, 3.3, 0.06, -0.92, 1.65, 0.12).material = new THREE.MeshPhysicalMaterial({ color: 0x0a1018, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55, clearcoat: 1 });
+    box(g.children[g.children.length - 1].material, 1.8, 3.3, 0.06, 0.92, 1.65, 0.12);
+    box(dark, 6.2, 0.18, 2.8, 0, 3.95, 1.35); box(emi, 5.8, 0.06, 0.06, 0, 3.84, 2.7);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 1.32), new THREE.MeshBasicMaterial({ map: nameTexture(name, accent), toneMapped: false, transparent: true }));
+    sign.position.set(0, 5.1, 0.12); g.add(sign);
+    scene.add(g);
+    const lightPos = [dx + nx * 2.5, dz + nz * 2.5];
+    world.fakeLights.push({ x: lightPos[0], y: 0, z: lightPos[1], c: accent.map((v) => v * 1.2), rad: 12 });
+    const floors = Math.max(6, Math.min(48, Math.floor(l.h / 3.6)));
+    world.enterables.push({ id, name, x: dx + nx * 2.2, z: dz + nz * 2.2, nx, nz, lot: l, accent, floors, kind: l.style === 3 || l.style === 1 ? 'office' : 'hotel', doorX: dx, doorZ: dz });
+  });
 }

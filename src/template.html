@@ -122,12 +122,30 @@ body.touch #keys{display:none}
 .pbtn.p{background:linear-gradient(90deg,#1596bd,#36cde8);color:#00131b;border:0}
 #fps{position:fixed;left:6px;bottom:4px;font:10px ui-monospace,monospace;color:rgba(255,255,255,.35);z-index:4;pointer-events:none}
 #err{position:fixed;inset:0;z-index:99;display:none;padding:30px;background:#05080d;color:#ffb48a;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow:auto}
+
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:12;transition:opacity .35s}
+#elev{position:fixed;inset:0;z-index:14;display:none;align-items:center;justify-content:center;background:rgba(2,4,8,.55);backdrop-filter:blur(5px);pointer-events:auto}
+#elev.on{display:flex}
+#elevCard{width:min(420px,92vw);padding:20px;border-radius:18px}
+#elevCard h2{margin:0 0 4px;font-size:13px;letter-spacing:.24em;color:var(--cyan)}
+#elevCard p{margin:0 0 14px;font-size:11px;color:var(--muted)}
+#elevBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.eb{padding:12px 6px;border-radius:12px;border:1px solid var(--line);background:#0e1626;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit}
+.eb b{font-size:22px;font-variant-numeric:tabular-nums}.eb small{font-size:10px;color:var(--muted)}
+.eb:hover{border-color:var(--cyan);background:#12223a;box-shadow:0 0 18px rgba(77,227,255,.25)}
+.eb.cur{border-color:var(--gold);color:var(--gold)}
+#elevInd{position:absolute;left:50%;top:22%;transform:translateX(-50%);padding:8px 22px;border-radius:12px;font:800 30px ui-monospace,monospace;letter-spacing:.1em;color:#47ffa8;background:rgba(0,0,0,.65);border:1px solid rgba(71,255,168,.4);text-shadow:0 0 14px rgba(71,255,168,.7);display:none}
+#elevInd.on{display:block}
+#prog{position:absolute;left:50%;bottom:30%;transform:translateX(-50%);width:min(280px,70vw);display:none;text-align:center}
+#prog.on{display:block}
+#progLbl{font-size:11px;letter-spacing:.2em;color:var(--green);margin-bottom:6px}
+#prog .bar{height:8px}#progFill{background:linear-gradient(90deg,#47ffa8,#4de3ff);width:0}
 @media(max-width:700px){#miniBox{width:120px;height:120px}#clock{display:none}#feed{top:calc(max(16px,env(safe-area-inset-top)) + 140px)}#weapon{bottom:auto;top:calc(max(16px,env(safe-area-inset-top)) + 300px);right:14px;min-width:0;padding:7px 11px}#ammo{font-size:22px}#mission{width:min(240px,calc(100vw - 150px))}#status{width:min(250px,calc(100vw - 150px))}}
 </style>
 </head>
 <body>
 <div id="game"></div>
-<div id="dmg"></div><div id="flash"></div>
+<div id="dmg"></div><div id="flash"></div><div id="fade"></div>
 <div id="letterT" class="letter t"></div><div id="letterB" class="letter b"></div>
 <div id="hud">
   <div id="status" class="glass">
@@ -144,6 +162,8 @@ body.touch #keys{display:none}
   <div id="speedo"><div id="spd">0</div><div id="spdU">KM/H</div><div class="bar" id="carHp"><i id="carHpFill" style="background:linear-gradient(90deg,#ffc94d,#ff8a5c)"></i></div></div>
   <div id="cross"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><i class="dot"></i></div>
   <div id="hint" class="glass"></div>
+  <div id="elevInd"></div>
+  <div id="prog"><div id="progLbl"></div><div class="bar"><i id="progFill"></i></div></div>
   <div id="toast"></div>
 </div>
 <div id="mobile">
@@ -163,6 +183,7 @@ body.touch #keys{display:none}
   <button id="bExit" class="mb car" type="button">EXIT</button>
   <button id="bPause" class="mb" type="button">II</button>
 </div>
+<div id="elev"><div id="elevCard" class="glass"><h2 id="elevTitle">ELEVATOR</h2><p>층을 선택하세요 (숫자키 1~9 · Esc 닫기)</p><div id="elevBtns"></div></div></div>
 <div id="pause"><div id="pc" class="glass">
   <h2>PAUSED</h2>
   <div class="set"><span>그래픽 품질</span><select id="qSel"><option value="0">낮음</option><option value="1">보통</option><option value="2">높음</option><option value="3">울트라</option></select></div>

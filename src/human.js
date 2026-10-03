@@ -178,6 +178,9 @@ export class Human {
     const pl = G.player;
     this.cmdSpeed = 0; this.faceAngle = null;
     const los = dp < 80 && G.hasLOS(this.x, 1.5, this.z, pl.x, 1.4, pl.z);
+    if (this.cell) {
+      if (this.guard && this.state !== 'attack') { if (los && dp < this.detect && (pl.weaponDrawn || G.alarm)) { this.state = 'attack'; this.fireCd = rand(0.8, 1.5); } else { this.cmdSpeed = 0; this.faceAngle = null; return; } }
+    } else if (G.indoor) { this.cmdSpeed = 0; this.faceAngle = null; return; }
     if (this.team === 'cop') {
       const hunt = G.wanted > 0;
       if (!hunt) { this.cmdSpeed = 0; this.faceAngle = null; return; }
