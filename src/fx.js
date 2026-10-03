@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { timeUniform } from './shaders.js';
-import { rand, TAU } from './util.js';
+import { rand, TAU, LIGHT_CAP } from './util.js';
 
 // ---------- Rain ----------
 export function createRain(scene, count) {
@@ -153,7 +153,7 @@ export class LightPool {
   }
   update(dt) {
     this.items.forEach((it, i) => {
-      const l = this.lights[i];
+      const l = this.lights[i]; l.visible = i < LIGHT_CAP.fx;
       if (!it) { l.intensity = 0; return; }
       it.life -= dt;
       if (it.life <= 0) { this.items[i] = null; l.intensity = 0; return; }

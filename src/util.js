@@ -35,3 +35,6 @@ export function hash2(x, y) {
 }
 
 export function el(id) { return document.getElementById(id); }
+
+// active dynamic-light budget per quality tier (set by engine.setQuality); lights past the cap are hidden so they leave the shader loop
+export const LIGHT_CAP = { fx: 6, bld: 6 };

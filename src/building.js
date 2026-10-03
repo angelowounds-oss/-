@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder, mats, disposeGroup } from './gfx.js';
 import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
-import { mulberry32, clamp, lerp, damp, TAU } from './util.js';
+import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
 
 // ====================================================================
 // Physically continuous buildings: every road-facing tower has a real entrance, real floors,
@@ -774,6 +774,7 @@ export class Buildings {
     }
     cand.sort((a, c) => ((a[0] - pl.x) ** 2 + (a[1] - pl.y - 1.5) ** 2 + (a[2] - pl.z) ** 2) - ((c[0] - pl.x) ** 2 + (c[1] - pl.y - 1.5) ** 2 + (c[2] - pl.z) ** 2));
     this.lights.forEach((l, i) => {
+      l.visible = i < LIGHT_CAP.bld;
       const f = cand[i];
       if (!f) { l.intensity = 0; return; }
       l.position.set(f[0], f[1], f[2]); l.color.setRGB(f[3][0], f[3][1], f[3][2]); l.intensity = 28; 
