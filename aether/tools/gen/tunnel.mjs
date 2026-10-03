@@ -9,7 +9,7 @@ const D = SPEC.derived;
 // materials: engine surface names (src/engine/20-scene-assets.js materialLibrary, plus the v2 additions registered by the loader)
 export const MATERIALS = [
   { name: 'PlenumPaint', base: [.62, .64, .66, 1], metallic: 0, roughness: .62 },
-  { name: 'ConcreteFloor', base: [.30, .31, .32, 1], metallic: 0, roughness: .78 },
+  { name: 'ConcreteFloor', base: [.17, .18, .19, 1], metallic: 0, roughness: .8 },
   { name: 'AbsorberFoam', base: [.055, .058, .062, 1], metallic: 0, roughness: .97 },
   { name: 'GalvanizedSteel', base: [.50, .53, .56, 1], metallic: .85, roughness: .42 },
   { name: 'NozzleOuter', base: [.74, .76, .78, 1], metallic: 0, roughness: .45 },

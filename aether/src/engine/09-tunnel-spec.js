@@ -46,4 +46,4 @@ const TUNNEL_SPEC=(()=>{
  return Object.freeze({...S,derived:Object.freeze(d)});
 })();
 /* profile switch: the v2 tunnel is the default; #tunnel=legacy brings back the old 18 x 8 x 5.5 m room (kept for A/B comparison and the validation suites) */
-const TUNNEL_V2_ON=!/tunnel=legacy/.test(location.hash);
+const TUNNEL_V2_ON=typeof location==="undefined"||!/tunnel=legacy/.test(location.hash);

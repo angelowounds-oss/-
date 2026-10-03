@@ -16,6 +16,7 @@
 | (없음) | 시작 약 2.5 s 동안 GPU를 실제로 측정해 등급 선택, 이후 프레임 시간으로 자동 조절 |
 | `q=LITE` `LOW` `MID` `HIGH` `ULTRA` | 전체 등급 고정 (LITE = 초저사양·모바일) |
 | `sim=` `vol=` `render=` | CFD·연기 볼륨·렌더를 축별로 고정 (값은 등급 이름) |
+| `tunnel=legacy` | 새 풍동 대신 이전 18×8×5.5 m 방 | 
 | `perf=1` | 구간별 GPU ms, p95, 메모리, 조정 기록 표시 |
 | `bench=perf` | 5개 고정 시점을 돌며 성능 JSON 생성(복사·저장 버튼) |
 | `impl=COLLOCATED` | 이전 솔버(대체 경로)로 실행 |
