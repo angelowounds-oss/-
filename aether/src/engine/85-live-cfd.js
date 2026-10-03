@@ -268,7 +268,7 @@ function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length]
   const m=o._mesh,uv=m.uvs?.length===m.positions.length/3*2?m.uvs:new Float32Array(m.positions.length/3*2);o.gpu=bindMesh(m.positions,m.normals,uv,m.indices)};
  const fb=AETHER.FAN_MODULE?.layout?.fanBounds;
  if(fb){const sx0=fb.max[0]+.08,sx1=sx0+.16,sy0=fb.min[1],sy1=fb.max[1],sz0=fb.min[2],sz1=fb.max[2],o=addBox('rake probe straightener',[(sx0+sx1)/2,(sy0+sy1)/2,(sz0+sz1)/2],[sx1-sx0,sy1-sy0,sz1-sz0],[.085,.09,.1],{bevel:.004,category:'instrumentation'});
-  o.pbrMaterial=materialLibrary.BlackPowderCoat;o._mesh=liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.24,t:.016,fr:.09});const m=o._mesh;o.gpu=bindMesh(m.positions,m.normals,new Float32Array(m.positions.length/3*2),m.indices)}
+  o.pbrMaterial=materialLibrary.BlackPowderCoat;o._mesh=liveStraightenerMesh({x0:sx0,x1:sx1,y0:sy0,y1:sy1,z0:sz0,z1:sz1,cell:.28,t:.012,fr:.08});const m=o._mesh;o.gpu=bindMesh(m.positions,m.normals,new Float32Array(m.positions.length/3*2),m.indices)}
  if(R.vert){add('mast',[R.x,.86,R.z],[.034,1.72,.034]);add('base',[R.x,.012,R.z],[.26,.024,.26]);R.v.forEach((y,i)=>add('nozzle v'+i,[R.x+.037,y,R.z],[.075,.02,.02]))}
  if(R.horz){add('bar',[R.x,R.yh,0],[.034,.034,2.96]);for(const z of [-1.5,1.5]){add('leg '+z,[R.x,R.yh/2,z],[.03,R.yh,.03]);add('foot '+z,[R.x,.012,z],[.2,.024,.2])}R.h.forEach((z,i)=>add('nozzle h'+i,[R.x+.037,R.yh,z],[.075,.02,.02]))}}
 function liveEmitters(){const E=[],B=window.__BODY,R=liveRakeGeometry();LIVE.tipX=R.tip;try{liveRakeHardware(R)}catch(e){LIVE.rakeErr=String(e.message||e)}

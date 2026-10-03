@@ -1,0 +1,44 @@
+{
+ "version": "0.15.0-dev",
+ "vehicle": "user",
+ "time": "2026-10-03T00:57:04.951Z",
+ "engineFiles": [
+  "00-core.js",
+  "10-config-state.js",
+  "20-scene-assets.js",
+  "30-renderer-lighting.js",
+  "40-gl-walk-door.js",
+  "50-cfd-bridge.js",
+  "60-fan-collector-layout.js",
+  "70-flow-state.js",
+  "80-body.js",
+  "84-perf-quality.js",
+  "85-live-cfd.js",
+  "86-mac-cfd.js",
+  "88-post-fx.js",
+  "89-lighting-hq.js",
+  "89b-cinematic.js",
+  "89c-controls.js",
+  "90-render-loop.js"
+ ],
+ "assets": {
+  "assets/console-asset.js": {
+   "bytes": 7057455,
+   "sha256": "420534ea5226ecad"
+  },
+  "assets/vehicle-asset.js": {
+   "bytes": 6654156,
+   "sha256": "335efbbea0a3bf63"
+  },
+  "assets/fan-asset.js": {
+   "bytes": 1970332,
+   "sha256": "8c67489aadef239b"
+  },
+  "assets/bluenoise.js": {
+   "bytes": 5603,
+   "sha256": "4cd0e0ed1d0a8ebc"
+  }
+ },
+ "outBytes": 16103497,
+ "outGzipBytes": 4772697
+}
