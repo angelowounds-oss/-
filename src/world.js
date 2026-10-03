@@ -516,7 +516,7 @@ function createHoloMaterial() {
 // ---------- World builder ----------
 export function buildWorld(scene, quality) {
   const world = {
-    colliders: new Colliders(), lots: [], signs: [], lamps: [], intersections: [], parks: [],
+    colliders: new Colliders(), lots: [], signs: [], lamps: [], intersections: [], parks: [], waters: [],
     fakeLights: [], update: null, spawnPoints: [], districtName: () => '',
   };
   const rnd = mulberry32(90210);
@@ -656,7 +656,7 @@ export function buildWorld(scene, quality) {
   }
 
   const c0 = Math.floor(N / 2);
-  const parkBlocks = new Set(['2,5', '6,2', '5,6', '1,1']);
+  const parkBlocks = new Set(['2,5', '5,6', '1,1']);
   const trees = [];
   const benches = [];
   // Inner blocks
@@ -666,6 +666,14 @@ export function buildWorld(scene, quality) {
       const za = roadC(j) + R / 2 + SW + 0.5, zb = roadC(j + 1) - R / 2 - SW - 0.5;
       const dcen = Math.max(Math.abs(i - c0), Math.abs(j - c0));
       if (i === c0 && j === c0) { world.plaza = { x0: xa, z0: za, x1: xb, z1: zb, cx: (xa + xb) / 2, cz: (za + zb) / 2 }; continue; }
+      if (i === 6 && j === 2) {
+        // lake block: swimming + boats
+        const m = 3;
+        world.parks.push({ x0: xa, z0: za, x1: xb, z1: zb, lake: true });
+        world.waters.push({ x0: xa + m, z0: za + m, x1: xb - m, z1: zb - m, y: 0.06, floor: -2.0, slope: 4.5 });
+        for (let t = 0; t < 10; t++) { const a = (t / 10) * TAU; benches.push({ x: (xa + xb) / 2 + Math.cos(a) * ((xb - xa) / 2 - 1.5), z: (za + zb) / 2 + Math.sin(a) * ((zb - za) / 2 - 1.5), ry: -a }); }
+        continue;
+      }
       if (parkBlocks.has(`${i},${j}`)) {
         world.parks.push({ x0: xa, z0: za, x1: xb, z1: zb });
         const cx = (xa + xb) / 2, cz = (za + zb) / 2;
@@ -1062,6 +1070,7 @@ export function buildWorld(scene, quality) {
   };
   world.facade = facade;
   buildEntrances(world, scene);
+  buildWaters(world, scene);
   world.objects = scene.children.slice(objStart);
   return world;
 }
@@ -1127,5 +1136,30 @@ function buildEntrances(world, scene) {
     const geos = sg.list.map((p) => { const g = new THREE.PlaneGeometry(6.2, 1.35); g.rotateY(p.th); g.translate(p.x, p.y, p.z); return g; });
     const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ map: sg.tex, toneMapped: false, transparent: true }));
     m.frustumCulled = false; scene.add(m);
+  }
+}
+
+function buildWaters(world, scene) {
+  for (const w of world.waters) {
+    const W = w.x1 - w.x0, D = w.z1 - w.z0;
+    const mat = new THREE.ShaderMaterial({
+      fog: true,
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU }]),
+      vertexShader: 'varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vP=(modelMatrix*vec4(position,1.)).xyz;vec4 mvPosition=viewMatrix*vec4(vP,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
+      fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;varying vec3 vP;
+        #include <fog_pars_fragment>
+        void main(){
+          vec2 q=vP.xz*.35;float n=fbm(q+vec2(uTime*.07,uTime*.04))*.6+fbm(q*2.3-vec2(uTime*.1,0.))*.4;
+          float rip=sin(vP.x*1.7+uTime*1.6+n*6.)*sin(vP.z*1.3-uTime*1.3+n*5.);
+          vec3 nightC=mix(vec3(.01,.04,.09),vec3(.06,.16,.30),n);
+          vec3 dayC=mix(vec3(.18,.27,.33),vec3(.34,.46,.55),n);
+          vec3 c=mix(dayC,nightC,uNight);
+          c+=vec3(.9,.2,.8)*smoothstep(.75,1.,rip*n*2.)*.35*uNight+vec3(.2,.7,1.)*smoothstep(.85,1.,-rip*n*2.)*.3*uNight+smoothstep(.8,1.,rip)*.08;
+          gl_FragColor=vec4(c,1.);
+          #include <fog_fragment>
+        }`,
+    });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), mat);
+    m.position.set((w.x0 + w.x1) / 2, w.y, (w.z0 + w.z1) / 2); m.renderOrder = 1; scene.add(m); w.mesh = m;
   }
 }

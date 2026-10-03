@@ -20,8 +20,24 @@ export class Physics {
     this.colRef = new Map();
     this.events = new R.EventQueue(true);
     this.onGlassHit = null;
-    // tiled: very large single cuboids break the character shape-cast
-    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) this.world.createCollider(R.ColliderDesc.cuboid(300, 2, 300).setTranslation(i * 600, -2, j * 600).setFriction(1.0).setRestitution(0).setCollisionGroups(grp(GR.STATIC, ALL)));
+  }
+  // ground: tiles (very large single cuboids break the character shape-cast) with lake basins carved out
+  initGround(waters = []) {
+    const R = this.R, w = this.world, g = grp(GR.STATIC, ALL);
+    const slab = (x0, z0, x1, z1) => { if (x1 - x0 < 0.01 || z1 - z0 < 0.01) return; w.createCollider(R.ColliderDesc.cuboid((x1 - x0) / 2, 2, (z1 - z0) / 2).setTranslation((x0 + x1) / 2, -2, (z0 + z1) / 2).setFriction(1.0).setRestitution(0).setCollisionGroups(g)); };
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+      const tx0 = i * 600 - 300, tx1 = tx0 + 600, tz0 = j * 600 - 300, tz1 = tz0 + 600;
+      const lk = waters.find((L) => L.x0 >= tx0 && L.x1 <= tx1 && L.z0 >= tz0 && L.z1 <= tz1);
+      if (!lk) { slab(tx0, tz0, tx1, tz1); continue; }
+      slab(tx0, tz0, lk.x0, tz1); slab(lk.x1, tz0, tx1, tz1); slab(lk.x0, tz0, lk.x1, lk.z0); slab(lk.x0, lk.z1, lk.x1, tz1);
+      const fy = lk.floor, sl = lk.slope, cx = (lk.x0 + lk.x1) / 2, cz = (lk.z0 + lk.z1) / 2;
+      w.createCollider(R.ColliderDesc.cuboid((lk.x1 - lk.x0) / 2, 1, (lk.z1 - lk.z0) / 2).setTranslation(cx, fy - 1, cz).setFriction(1).setCollisionGroups(g));
+      // four shore slopes (surface runs from ground level at the rim down to the basin floor)
+      this.addRamp(cx, 0 + fy / 2 + 0.0, lk.z0 + sl / 2, (lk.x1 - lk.x0) / 2, 0.08, Math.hypot(sl, fy) / 2, fy, sl);
+      this.addRamp(cx, fy / 2, lk.z1 - sl / 2, (lk.x1 - lk.x0) / 2, 0.08, Math.hypot(sl, fy) / 2, fy, -sl);
+      this.addRamp(lk.x0 + sl / 2, fy / 2, cz, (lk.z1 - lk.z0) / 2, 0.08, Math.hypot(sl, fy) / 2, fy, sl, true);
+      this.addRamp(lk.x1 - sl / 2, fy / 2, cz, (lk.z1 - lk.z0) / 2, 0.08, Math.hypot(sl, fy) / 2, fy, -sl, true);
+    }
   }
   addBox(b) {
     const R = this.R, w = this.world;
@@ -31,8 +47,13 @@ export class Physics {
     this.colRef.set(b.col.handle, b);
   }
   // static inclined slab (stairs). dz,dy: run/rise vector of the surface
-  addRamp(cx, cy, cz, hx, hy, hz, dy, dz) {
-    const al = Math.atan2(-dy, dz), q = { x: Math.sin(al / 2), y: 0, z: 0, w: Math.cos(al / 2) };
+  addRamp(cx, cy, cz, hx, hy, hz, dy, dz, alongX) {
+    const al = Math.atan2(-dy, dz);
+    let q = { x: Math.sin(al / 2), y: 0, z: 0, w: Math.cos(al / 2) };
+    if (alongX) { // slope descending along +x: rotate the whole thing 90deg about Y
+      const c = Math.SQRT1_2, qy = { x: 0, y: c, z: 0, w: c };
+      q = { x: qy.w * q.x + qy.x * q.w + qy.y * q.z - qy.z * q.y, y: qy.w * q.y - qy.x * q.z + qy.y * q.w + qy.z * q.x, z: qy.w * q.z + qy.x * q.y - qy.y * q.x + qy.z * q.w, w: qy.w * q.w - qy.x * q.x - qy.y * q.y - qy.z * q.z };
+    }
     const R = this.R;
     return this.world.createCollider(R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy - hy, cz).setRotation(q).setFriction(0.8).setCollisionGroups(grp(GR.STATIC, ALL)));
   }

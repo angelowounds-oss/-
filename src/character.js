@@ -48,6 +48,14 @@ export class Character {
     this.body.setTranslation({ x: this.x, y: this.y + this.h / 2, z: this.z }, true);
     return impact;
   }
+  // floating at the water surface: targetY is the desired feet height
+  swim(dt, vx, vz, targetY) {
+    const dy = Math.max(-3, Math.min(3, (targetY - this.y) * 5)) * dt;
+    this.ctrl.computeColliderMovement(this.col, { x: vx * dt, y: dy, z: vz * dt }, undefined, this.query, this.pred);
+    const m = this.ctrl.computedMovement();
+    this.x += m.x; this.y += m.y; this.z += m.z; this.grounded = false; this.vy = 0;
+    this.body.setTranslation({ x: this.x, y: this.y + this.h / 2, z: this.z }, true);
+  }
   // externally displace (platform riding, pushes) without collision
   shift(dx, dy, dz) {
     this.x += dx; this.y += dy; this.z += dz;

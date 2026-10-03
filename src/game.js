@@ -19,6 +19,7 @@ import { Life } from './life.js';
 import { Clock, Needs } from './needs.js';
 import { actions } from './actions.js';
 import { DayNight } from './daynight.js';
+import { Society, ZONES } from './society.js';
 import { Character } from './character.js';
 
 const V3 = THREE.Vector3;
@@ -56,11 +57,11 @@ export class Game {
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q);
-    this.phys = new Physics(this.RAPIER); this.phys.addStatic(this.world.colliders);
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders);
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
-    this.items = new ItemWorld(this); this.life = new Life(this);
+    this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -297,7 +298,7 @@ export class Game {
     this.updateMission(sdt);
     this.updateTimed(sdt);
     this.theftT = (this.theftT || 0) - sdt; if (this.theftT <= 0) { this.theftT = 0.5; this.life.checkTheft(this.player); }
-    this.clock.update(sdt); this.needs.update(sdt); this.items.update(sdt); this.updateFlashlight();
+    this.clock.update(sdt); this.needs.update(sdt); this.society.update(sdt); this.items.update(sdt); this.updateFlashlight();
     if (this.input.edge('inv')) this.openInventory();
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
@@ -383,7 +384,12 @@ export class Game {
     pl.vx = damp(pl.vx, dx * spd, 10, dt); pl.vz = damp(pl.vz, dz * spd, 10, dt);
     const c3 = pl.body3;
     const riding = this.buildings.ridingElevator(pl);
-    const impact = riding ? 0 : c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching ? 7.2 : 0);
+    const wat = this.waterAt(pl.x, pl.z);
+    const swim = wat && wat.y - pl.y > 0.95;
+    pl.swimming = !!swim;
+    let impact = 0;
+    if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
+    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching ? 7.2 : 0);
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;
     if (impact > 12) { this.hurtPlayer((impact - 12) * 5, null, 'fall'); this.shake(0.4); this.audio.impact(0.8, 0); }
     if (c3.y < -30) c3.teleport(this.world.spawn.x, 0, this.world.spawn.z);
@@ -448,6 +454,7 @@ export class Game {
     const v = best;
     out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: '차량', verbs: [{ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : '차량 탑승'), run: () => this.enterVehicle(v) }] });
   }
+  waterAt(x, z) { for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w; return null; }
   focusPos() { return this.vehicle || this.player; }
   // timed action with progress bar (lockpick, hacking, eating...)
   beginTimed(label, secs, done, cancelDist = 3) {
@@ -494,14 +501,14 @@ export class Game {
     addEventListener('keydown', this._elevKey, true);
   }
   closeElevatorUI() { el('elev').classList.remove('on'); this.uiModal = false; removeEventListener('keydown', this._elevKey, true); this.input.lock(); }
-  noteCrime(pl, kind, heat) { if (this.wanted > 0 || Math.random() < 0.6) this.addHeat(heat); }
+  noteCrime(pl, kind, heat) { return this.society.crime(kind, heat); }
   enterVehicle(v) {
     const pl = this.player;
     // carjack AI driver
     if (v.driver === 'ai') {
       const d = this.spawnCivilian(false);
       if (d) { d.x = v.x + Math.cos(v.h) * (v.W / 2 + 1); d.z = v.z - Math.sin(v.h) * (v.W / 2 + 1); d.state = 'flee'; d.fleeT = 8; d.threat = pl; d.group.visible = true; }
-      this.addHeat(12); this.feed('차량 강탈', '#ff8a5c');
+      this.society.crime('carjack', 12); this.feed('차량 강탈', '#ff8a5c');
     }
     this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
     v.setLights(true);
@@ -557,7 +564,7 @@ export class Game {
   // ---- weapons ----
   playerShoot(w, ammo) {
     const pl = this.player, cam = this.camera;
-    ammo.clip--; pl.fireCd = w.rate; pl.recoil = 1;
+    ammo.clip--; pl.fireCd = w.rate; pl.recoil = 1; this.lastShotT = this.time;
     const dir = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
     const sp = w.spread + pl.spread + (pl.speed > 1 ? 0.01 : 0) + (pl.aiming ? -w.spread * 0.6 : 0);
     dir.x += rand(-sp, sp); dir.y += rand(-sp, sp); dir.z += rand(-sp, sp); dir.normalize();
@@ -717,9 +724,9 @@ export class Game {
   clearWanted() { this.heat = 0; this.wanted = 0; this.evade = 0; for (const v of this.vehicles) if (v.police) { v.chaseTarget = null; v.direct = false; } }
   onHumanKilled(h, src) {
     this.stats.kills += src === this.player ? 1 : 0;
-    if (h.team === 'civ') { if (src === this.player) { this.addHeat(14); this.feed('시민 사망', '#ff8a5c'); } }
+    if (h.team === 'civ') { if (src === this.player) { this.society.crime('murder', 14, h.x, h.z); this.feed('시민 사망', '#ff8a5c'); } }
     else if (h.team === 'cop') { if (src === this.player) { this.addHeat(40); this.feed('경찰 사살', '#ff4560'); } this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, 100); }
-    else if (h.team === 'gang') { if (src === this.player) this.feed('갱단 처치 +$' + h.cash, '#47ffa8'); this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, h.cash); this.missionKill?.(h); }
+    else if (h.team === 'gang') { if (src === this.player) { this.society.addRep(h.zone ?? this.society.zoneAt(h.x, h.z), -6); } if (src === this.player) this.feed('갱단 처치 +$' + h.cash, '#47ffa8'); this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, h.cash); this.missionKill?.(h); }
     if (h.team === 'civ' && src === this.player && Math.random() < 0.7) this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, h.cash);
     if (h.team === 'civ') this.audio.scream(0);
   }
@@ -840,9 +847,12 @@ export class Game {
     if (this.popT <= 0) {
       this.popT = 0.8;
       const tc = list.filter((v) => v.kind === 'traffic' && v.driver === 'ai').length;
-      if (tc < this.eng.q.traffic) this.spawnTraffic(false);
-      const nc = this.humans.filter((h) => h.team === 'civ' && !h.dead).length;
-      if (nc < this.eng.q.npc) this.spawnCivilian(false);
+      const pf = this.society.popFactor();
+      if (tc < Math.round(this.eng.q.traffic * (0.4 + 0.6 * pf))) this.spawnTraffic(false);
+      const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside);
+      const want = Math.round(this.eng.q.npc * pf);
+      if (civs.length < want) this.spawnCivilian(false);
+      else if (civs.length > want + 2) { const far = civs.find((h) => Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
         const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
         if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.scene.remove(h.group); this.humans.splice(i, 1); }
@@ -889,6 +899,7 @@ export class Game {
   updateHumans(dt) {
     const cam = this.camera.position;
     for (const h of this.humans) {
+      if (h.inside) { if (this.time >= h.inside.until) this.society.leave(h); continue; }
       const d = Math.hypot(h.x - cam.x, h.z - cam.z);
       const vis = d < 130; h.group.visible = vis && !h.hidden;
       if (!vis && h.team === 'civ' && !h.dead) { // cheap
@@ -1235,7 +1246,7 @@ export class Game {
     // lots
     g.fillStyle = '#18213a';
     for (const l of this.world.lots) g.fillRect(tx(l.x0), tz(l.z0), (l.x1 - l.x0) * S, (l.z1 - l.z0) * S);
-    g.fillStyle = '#123324'; for (const p of this.world.parks) g.fillRect(tx(p.x0), tz(p.z0), (p.x1 - p.x0) * S, (p.z1 - p.z0) * S);
+    for (const p of this.world.parks) { g.fillStyle = p.lake ? '#0c3a5a' : '#123324'; g.fillRect(tx(p.x0), tz(p.z0), (p.x1 - p.x0) * S, (p.z1 - p.z0) * S); }
     if (this.world.plaza) { const pz = this.world.plaza; g.fillStyle = '#2b1640'; g.fillRect(tx(pz.x0), tz(pz.z0), (pz.x1 - pz.x0) * S, (pz.z1 - pz.z0) * S); }
     // roads
     g.strokeStyle = '#3c4b73'; g.lineWidth = R * S; g.lineCap = 'butt';
@@ -1246,7 +1257,7 @@ export class Game {
   }
   drawMinimap() {
     const g = this.minictx, W = 340, S = this.mapScale, pl = this.player;
-    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `NEON CITY · ${this.clock.fmt()} · 비`);
+    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `${ZONES[this.zone ?? 0].name} · ${this.clock.fmt()} · 비`);
     const p = this.vehicle || pl; const zoom = this.vehicle ? 1.1 : 1.5;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W); g.fillStyle = '#05080f'; g.fillRect(0, 0, W, W);
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);

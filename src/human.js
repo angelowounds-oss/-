@@ -101,7 +101,12 @@ export class Human {
     if (this.team === 'civ' && this.static && this.state !== 'flee') {
       face = this.lookAtPlayer && dp < 9 ? Math.atan2(dxp, dzp) : null;
     } else if (this.team === 'civ') {
-      if (this.state === 'flee') {
+      if (this.report && this.state !== 'flee') {
+        this.report.t -= dt; face = Math.atan2(dxp, dzp);
+        if (this.report.t <= 0) { G.addHeat(this.report.heat); G.toast('신고가 접수되었다', '경찰이 출동한다'); this.report = null; this.state = 'walk'; }
+      } else if (this.state === 'visit') {
+        const r = G.society.visitStep(this, dt); wantX = r.x; wantZ = r.z; spd = r.s;
+      } else if (this.state === 'flee') {
         this.fleeT -= dt;
         const t = this.threat || G.player;
         let ax = this.x - t.x, az = this.z - t.z; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
@@ -115,6 +120,7 @@ export class Human {
           const d = Math.hypot(dx, dz);
           if (d < 1.4) this.chooseNext(); else { wantX = dx / d; wantZ = dz / d; spd = this.stateT > 0 ? 0 : 1.5; }
         }
+        if (!this.static) G.society.maybeVisit(this, dt);
         // stop & stare
         if (this.stateT > 0) this.stateT -= dt;
         else if (Math.random() < dt * 0.04) this.stateT = rand(1.5, 4);
@@ -192,8 +198,14 @@ export class Human {
       }
     }
     // attack
-    const ideal = this.team === 'cop' ? 11 : 13;
     const toP = Math.atan2(dxp, dzp);
+    if (this.team === 'cop' && !pl.weaponDrawn && !pl.dead && G.wanted <= 3 && G.time - (G.lastShotT || -9) > 2.5 && !G.vehicle) {
+      // player is not resisting: move in to cuff
+      this.faceAngle = toP; this.aimT = 0.5;
+      if (dp > 1.6) { this.cmdX = dxp / dp; this.cmdZ = dzp / dp; this.cmdSpeed = dp > 12 ? 6.2 : 4.4; } else this.cmdSpeed = 0;
+      return;
+    }
+    const ideal = this.team === 'cop' ? 11 : 13;
     this.faceAngle = toP; this.aimT = 1;
     let mx = 0, mz = 0;
     if (dp > ideal + 4 || !los) { mx = dxp / dp; mz = dzp / dp; this.cmdSpeed = dp > 30 ? 6.3 : 4.2; }
@@ -231,7 +243,8 @@ export class Human {
     m.mixer.update(dt);
     m.applyPose(this.pose, this.aimPitch || 0);
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
-    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5;
+    m.body.position.y = -this.crouch * 0.3 - (m.sit || 0) * 0.5 - (this.swimming ? 0.3 : 0);
+    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 1.2 : 0, 8, dt);
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if (this.aimT > 0) this.aimT -= dt * 0.5;

@@ -24,15 +24,15 @@ export class Panels {
   row(ul, name, sub, buttons) {
     const li = document.createElement('li');
     li.innerHTML = `<span class="n">${name}${sub ? `<small>${sub}</small>` : ''}</span>`;
-    for (const b of buttons) { const bt = document.createElement('button'); bt.type = 'button'; bt.textContent = b[0]; bt.onclick = () => { b[1](); this.render(); this.G.onItemChange?.(); }; li.appendChild(bt); }
+    for (const b of buttons) { const bt = document.createElement('button'); bt.type = 'button'; bt.textContent = b[0]; bt.onclick = () => { b[1](); if (this.mode) this.render(); this.G.onItemChange?.(); }; li.appendChild(bt); }
     ul.appendChild(li);
   }
   render() {
     const G = this.G, W = G.items, inv = W.inv, m = this.mode, c = this.ctx;
     const L = el('invL'), Rr = el('invR'); L.innerHTML = ''; Rr.innerHTML = '';
-    el('invT').textContent = { inv: '가방', container: c?.name || '보관함', shop: c?.name || '상점', atm: 'ATM', sell: c?.name || '매입' }[m] || '가방';
+    el('invT').textContent = { inv: '가방', container: c?.name || '보관함', shop: c?.name || '상점', atm: 'ATM', sell: c?.name || '매입', talk: c?.name || '대화' }[m] || '가방';
     el('invW').textContent = `무게 ${W.weight().toFixed(1)} / 25 kg · $${G.cash | 0}`;
-    el('invRS').style.display = m === 'inv' ? 'none' : '';
+    el('invRS').style.display = m === 'inv' ? 'none' : ''; el('invLS').style.display = m === 'talk' ? 'none' : '';
     // left: backpack
     const ids = Object.keys(inv.items);
     if (!ids.length) L.innerHTML = '<li style="color:var(--muted)">비어 있음</li>';
@@ -64,6 +64,9 @@ export class Panels {
       }
       for (const amt of [100, 500, 1000]) this.row(Rr, `입금 $${amt}`, '', [['입금', () => { if (G.cash >= amt) { G.cash -= amt; G.state.bank = (G.state.bank | 0) + amt; G.audio.cash(); } else G.toast('현금 부족'); }]]);
       this.row(Rr, '전액 입금', '', [['입금', () => { G.state.bank = (G.state.bank | 0) + Math.floor(G.cash); G.cash -= Math.floor(G.cash); }]]);
+    } else if (m === 'talk') {
+      el('invRT').textContent = c.text || '';
+      for (const o of c.options) this.row(Rr, o.text, '', [['선택', () => o.fn()]]);
     } else if (m === 'sell') {
       el('invRT').textContent = '매입 시세 ' + Math.round((c.rate || 0.4) * 100) + '%';
       Rr.innerHTML = '<li style="color:var(--muted)">왼쪽 물건의 [판매]를 누르세요</li>';
