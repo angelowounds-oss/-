@@ -10,6 +10,7 @@ import { timeUniform, flashUniform } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
+import { Physics } from './physics.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -41,6 +42,8 @@ export class Game {
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q);
+    this.phys = new Physics(this.RAPIER); this.phys.addStatic(this.world.colliders);
+    if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
     const q = eng.q;
@@ -122,8 +125,8 @@ export class Game {
     // pedestrians
     for (let k = 0; k < q.npc; k++) this.spawnCivilian(true);
   }
-  addVehicle(v) { this.vehicles.push(v); this.scene.add(v.group); v.group.visible = true; return v; }
-  removeVehicle(v) { const i = this.vehicles.indexOf(v); if (i >= 0) this.vehicles.splice(i, 1); this.scene.remove(v.group); }
+  addVehicle(v) { this.vehicles.push(v); this.scene.add(v.group); v.group.visible = true; v.attachPhysics(this.phys); if (v.kind === 'parked') v.pv.body.sleep(); v.syncMesh(); return v; }
+  removeVehicle(v) { const i = this.vehicles.indexOf(v); if (i >= 0) this.vehicles.splice(i, 1); v.detachPhysics(); this.scene.remove(v.group); }
 
   randomLane(minD, maxD) {
     const pl = this.player;
@@ -415,7 +418,7 @@ export class Game {
       if (d) { d.x = v.x + Math.cos(v.h) * (v.W / 2 + 1); d.z = v.z - Math.sin(v.h) * (v.W / 2 + 1); d.state = 'flee'; d.fleeT = 8; d.threat = pl; d.group.visible = true; }
       this.addHeat(12); this.feed('차량 강탈', '#ff8a5c');
     }
-    this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true;
+    this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
     v.setLights(true);
     this.playerOnFoot = false; pl.group.visible = false;
     document.body.classList.remove('onfoot'); document.body.classList.add('incar');
@@ -540,7 +543,7 @@ export class Game {
       this.fx.sparks(px, py, pz, 3, [1, 0.2, 0.3], 5);
       if (owner === this.player) { this.noise(px, pz, 25); this.alertCivs(px, pz, 22); }
     } else if (kind === 'vehicle') {
-      obj.damage(damage * 0.28, owner); obj.awake = true;
+      obj.damage(damage * 0.28, owner); obj.awake = true; obj.pv.body.wakeUp();
       this.fx.sparks(px, py, pz, 6, [1, 0.8, 0.4], 6);
       this.audio.impact(0.7, 0);
       if (obj.kind === 'traffic' && owner === this.player) { obj.ai.speed = 24; this.addHeat(2); }
@@ -650,8 +653,8 @@ export class Game {
     if (dp < radius * 1.3 && !pl.dead) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6, null, 'explosion'); }
     for (const v of this.vehicles) {
       if (v === src) continue; const dd = Math.hypot(v.x - x, v.z - z); if (dd > radius * 1.5) continue;
-      const k = 1 - dd / (radius * 1.5); v.damage(dmg * k * 1.2, src); v.awake = true;
-      const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.vx += nx * 14 * k; v.vz += nz * 14 * k;
+      const k = 1 - dd / (radius * 1.5); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
+      const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.addImpulse(nx * 14 * k, 5 * k, nz * 14 * k);
     }
     this.addHeat(6);
   }
@@ -719,25 +722,25 @@ export class Game {
   updateVehicles(dt) {
     const list = this.vehicles, cam = this.camera.position, pl = this.player;
     const focus = this.vehicle || pl;
+    const active = [];
     for (let i = list.length - 1; i >= 0; i--) {
       const v = list[i];
       const d = Math.hypot(v.x - cam.x, v.z - cam.z);
       const vis = d < (v.kind === 'parked' ? 170 : 230);
       v.group.visible = vis;
-      if (v.kind === 'parked' && !v.awake) { if (!v.synced) { v.syncMesh(); v.synced = true; } continue; }
-      if (v.kind === 'parked' && v.awake && v.speed < 0.08 && !v.dead) { v.awake = false; continue; }
-      if (v.kind === 'traffic' && !v.dead && v.driver === 'ai') {
+      if (v.kind === 'traffic' && !v.dead && v.driver === 'ai' && v !== this.vehicle) {
         const dd = Math.hypot(v.x - focus.x, v.z - focus.z);
-        if (dd > 260 || (v.age > 5 && v.stuckT > 18)) { if (!this.vehicle || v !== this.vehicle) this.recycleTraffic(v); }
+        if (dd > 260) { this.recycleTraffic(v); }
       }
       if (v.dead && v.age > 45 && d > 60 && v !== this.vehicle) { this.removeVehicle(v); continue; }
-      if (!vis && v.kind !== 'player' && v.kind !== 'police') { // cheap far update
-        if (v.driver === 'ai') { v.update(dt); }
-        continue;
-      }
-      v.update(dt);
+      const asleep = v.pv.body.isSleeping();
+      if (asleep && !v.driver && !v.dead && !(v.burn > 0)) continue;
+      active.push(v);
     }
-    this.vehicleCollisions();
+    for (const v of active) v.control(dt);
+    this.phys.step(dt, () => { for (const v of active) v.applyDrive(); }, active.map((v) => v.pv));
+    for (const v of active) v.post(dt);
+    this.phys.syncProps(THREE);
     this.vehicleVsHumans();
     // keep traffic population
     this.popT = (this.popT || 0) - dt;
@@ -747,7 +750,6 @@ export class Game {
       if (tc < this.eng.q.traffic) this.spawnTraffic(false);
       const nc = this.humans.filter((h) => h.team === 'civ' && !h.dead).length;
       if (nc < this.eng.q.npc) this.spawnCivilian(false);
-      // cleanup dead / removed humans
       for (let i = this.humans.length - 1; i >= 0; i--) {
         const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
         if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.scene.remove(h.group); this.humans.splice(i, 1); }
@@ -758,43 +760,7 @@ export class Game {
     const lane = this.randomLane(90, 210);
     if (!lane) return;
     v.hp = v.maxHp; v.dead = false; v.age = 0; v.stuck = 0; v.stuckT = 0; v.ai.wp = [];
-    v.setRoute(lane.i, lane.j, lane.di, lane.dj, lane.frac); v.vx = v.vz = 0;
-  }
-  vehicleCollisions() {
-    const L = this.vehicles; const ca = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], cb = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
-    for (let i = 0; i < L.length; i++) {
-      const a = L[i]; if (!a.group.visible) continue;
-      const aMoving = a.kind !== 'parked' || a.awake;
-      for (let j = i + 1; j < L.length; j++) {
-        const b = L[j]; if (!b.group.visible) continue;
-        if (!aMoving && !(b.kind !== 'parked' || b.awake)) continue;
-        const dx = b.x - a.x, dz = b.z - a.z; const rr = (a.L + b.L) * 0.5 + 0.5;
-        if (Math.abs(dx) > rr || Math.abs(dz) > rr) continue;
-        a.circles(ca); b.circles(cb);
-        let bestPen = 0, nx = 0, nz = 0, px = 0, pz = 0;
-        for (const p of ca) for (const q of cb) {
-          const ddx = q[0] - p[0], ddz = q[1] - p[1], d = Math.hypot(ddx, ddz), pen = p[2] + q[2] - d;
-          if (pen > bestPen) { bestPen = pen; nx = ddx / (d || 1); nz = ddz / (d || 1); px = (p[0] + q[0]) / 2; pz = (p[1] + q[1]) / 2; }
-        }
-        if (bestPen <= 0) continue;
-        const ma = a.mass * (a.kind === 'parked' && !a.awake ? 3 : 1), mb = b.mass * (b.kind === 'parked' && !b.awake ? 3 : 1);
-        const tot = ma + mb;
-        a.x -= nx * bestPen * (mb / tot); a.z -= nz * bestPen * (mb / tot);
-        b.x += nx * bestPen * (ma / tot); b.z += nz * bestPen * (ma / tot);
-        const rvn = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
-        if (rvn < 0) {
-          const e = 0.3, jn = -(1 + e) * rvn / (1 / ma + 1 / mb);
-          a.vx -= jn / ma * nx; a.vz -= jn / ma * nz; b.vx += jn / mb * nx; b.vz += jn / mb * nz;
-          const sp = -rvn;
-          a.onImpact(sp, px, pz, b); b.onImpact(sp, px, pz, a);
-          a.awake = b.awake = true;
-          if (sp > 4) {
-            if (a.driver === 'player' || b.driver === 'player') { const o = a.driver === 'player' ? b : a; if (!o.police && o.kind !== 'parked') this.addHeat(2); }
-            if (a.driver === 'ai' && sp > 6) a.ai.speed = Math.min(a.ai.speed + 3, 20);
-          }
-        }
-      }
-    }
+    v.setRoute(lane.i, lane.j, lane.di, lane.dj, lane.frac);
   }
   vehicleVsHumans() {
     const all = [...this.humans];
@@ -811,7 +777,7 @@ export class Game {
           h.hurt(dmg, v.driver === 'player' ? this.player : v, false, v.driver === 'player' ? this.player : null);
           h.ragdoll(v.vx * 0.8 + rand(-1, 1), v.vz * 0.8 + rand(-1, 1), 4 + spd * 0.15);
           this.audio.impact(1, 0); this.audio.crash(0.3, 0);
-          v.vx *= 0.97; v.vz *= 0.97;
+          v.setVel(v.vx * 0.97, v.vz * 0.97);
           if (v.driver === 'player') { this.addHeat(h.team === 'civ' ? 6 : 12); this.shake(0.3); }
           if (v.driver === 'player' && h.team === 'gang') this.feed('갱단 치임!', '#ffc94d');
         }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildCar, CAR_SPECS } from './models.js';
 import { N, P, R, LANE, HALF, roadC } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
+import { driveVehicle, PHYS } from './physics.js';
 
 export const CAR_COLORS = [0x1a2433, 0x7a1020, 0xc9ced8, 0x0d3b66, 0x2b2f38, 0xe0b020, 0x14654b, 0x5a1f7a, 0xd8d8d0, 0x111418, 0x8a2a10, 0x1c6fa8];
 const GLOWS = [[0.2, 0.9, 1], [1, 0.2, 0.8], [0.6, 0.3, 1], [0.2, 1, 0.5], [1, 0.5, 0.15], [1, 0.15, 0.2]];
@@ -45,7 +46,7 @@ export class Vehicle {
     this.model.tailSprites.forEach((s) => (s.visible = on || this.model.brake.visible));
     this.model.ug.visible = on && this.kind !== 'parked';
   }
-  place(x, z, h) { this.x = x; this.z = z; this.h = h; this.vx = this.vz = 0; this.yaw = 0; this.syncMesh(); }
+  place(x, z, h) { this.x = x; this.z = z; this.h = h; this.vx = this.vz = 0; this.yaw = 0; if (this.pv) { this.syncToBody(); this.readBody(0); } this.syncMesh(); }
   get speed() { return Math.hypot(this.vx, this.vz); }
   get fwdSpeed() { return this.vx * Math.sin(this.h) + this.vz * Math.cos(this.h); }
   circles(out) {
@@ -55,11 +56,10 @@ export class Vehicle {
   }
   syncMesh() {
     const g = this.group;
-    g.position.set(this.x, 0, this.z);
-    g.rotation.set(0, 0, 0);
-    g.rotation.y = this.h;
-    // body lean applied via inner rotation of children order: use quaternion composition
-    if (this.pitch || this.roll) { g.rotateX(this.pitch); g.rotateZ(this.roll); }
+    if (this.pv && this.q) {
+      g.position.set(this.x, this.by - PHYS.bodyY, this.z);
+      g.quaternion.set(this.q.x, this.q.y, this.q.z, this.q.w);
+    } else { g.position.set(this.x, 0, this.z); g.rotation.set(0, this.h, 0); }
     if (this.model.syncWheels) this.model.syncWheels(this.wheelSpin, -this.steerA);
     else { this.model.front.rotation.y = -this.steerA; this.model.fa.rotation.x = this.wheelSpin; this.model.ra.rotation.x = this.wheelSpin; }
   }
@@ -82,15 +82,44 @@ export class Vehicle {
     this.G.explosion(this.x, 1.0, this.z, 9, 90, this);
     this.explodeT = 0; this.burn = 2;
     if (this.driver === 'player') this.G.playerVehicleExploded(this);
-    this.vx += rand(-3, 3); this.vz += rand(-3, 3);
+    if (this.pv) this.addImpulse(rand(-3, 3), 6 + rand(0, 3), rand(-3, 3));
     this.exploded = true;
   }
 
-  // ---------- Physics ----------
-  update(dt) {
-    const G = this.G;
+  // ---------- Physics (Rapier rigid body + raycast suspension) ----------
+  attachPhysics(phys) {
+    this.phys = phys;
+    this.pv = phys.createVehicle(this.spec, this.x, this.z, this.h);
+    this.pv.owner = this;
+    this.syncToBody(true);
+    this.readBody(0);
+  }
+  detachPhysics() { if (this.pv) { this.phys.removeVehicle(this.pv); this.pv = null; } }
+  // Teleport body to current x,z,h and velocity fields
+  syncToBody(sleep = false) {
+    const b = this.pv.body;
+    b.setTranslation({ x: this.x, y: PHYS.bodyY + 0.05, z: this.z }, true);
+    b.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true);
+    b.setLinvel({ x: this.vx, y: 0, z: this.vz }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    if (sleep) b.sleep();
+    this.flipT = 0;
+  }
+  setVel(vx, vz) { const lv = this.pv.body.linvel(); this.pv.body.setLinvel({ x: vx, y: lv.y, z: vz }, true); this.vx = vx; this.vz = vz; }
+  addImpulse(ix, iy, iz) { this.pv.body.applyImpulse({ x: ix * this.pv.mass, y: iy * this.pv.mass, z: iz * this.pv.mass }, true); }
+  readBody(dt) {
+    const b = this.pv.body, t = b.translation(), q = b.rotation(), lv = b.linvel();
+    this.x = t.x; this.z = t.z; this.by = t.y;
+    const fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
+    this.h = Math.atan2(fx, fz);
+    this.vx = lv.x; this.vz = lv.z; this.vy = lv.y;
+    this.yaw = b.angvel().y;
+    this.q = q;
+  }
+  // Pre-step: AI + driver intent + visual-only state
+  control(dt) {
     this.age += dt;
     if (this.impactCd > 0) this.impactCd -= dt;
+    const G = this.G;
     if (this.dead) {
       this.throttle = 0; this.brake = 0.3; this.steer = 0;
       if (this.explodeT > 0 && (this.explodeT -= dt) <= 0) this.explode();
@@ -100,93 +129,53 @@ export class Vehicle {
       if (this.hp < this.maxHp * 0.12) { this.hp -= dt * 2; if (this.hp <= 0) this.destroy(null); if (Math.random() < dt * 14) G.fx.fire(this.x + rand(-.6, .6), 1, this.z + rand(-.6, .6)); }
     }
     if (this.driver === 'ai' && !this.dead) this.driveAI(dt);
-
-    const sp = this.spec;
-    const sH = Math.sin(this.h), cH = Math.cos(this.h);
-    let vf = this.vx * sH + this.vz * cH;
-    let vl = this.vx * -cH + this.vz * sH;
-    const aVf = Math.abs(vf);
+    const aVf = Math.abs(this.fwdSpeed);
+    const maxSteer = lerp(0.52, 0.075, clamp(aVf / 34, 0, 1)) * (this.hand ? 1.25 : 1);
+    this.steerA = damp(this.steerA, this.steer * maxSteer, 9, dt);
+    this.maxSteerNow = maxSteer;
+  }
+  // Called before every physics sub-step
+  applyDrive() {
     const hasDriver = this.driver && !this.dead;
-    // steering
-    const maxSteer = lerp(0.6, 0.1, clamp(aVf / 38, 0, 1)) * (this.hand ? 1.3 : 1);
-    const targetSteer = this.steer * maxSteer;
-    this.steerA = damp(this.steerA, targetSteer, 10, dt);
-    // longitudinal
-    let acc = 0;
-    if (hasDriver) {
-      if (this.throttle > 0) acc += sp.accel * this.throttle * clamp(1 - Math.max(vf, 0) / sp.maxSpeed, 0, 1) * (vf < -1 ? 2.5 : 1);
-      if (this.brake > 0) {
-        if (vf > 0.6) acc -= 36 * this.brake;
-        else acc -= sp.accel * 0.6 * this.brake * clamp(1 + vf / (sp.maxSpeed * 0.28), 0, 1);
-      }
-    } else {
-      acc -= Math.sign(vf) * Math.min(aVf * 4, 20) * (this.dead ? 1.2 : 0.8) * (this.brake || 0.1);
+    driveVehicle(this.pv, {
+      throttle: hasDriver ? this.throttle : 0, brake: hasDriver ? this.brake : (this.dead ? 0.4 : 0.15),
+      steer: this.maxSteerNow ? this.steerA / this.maxSteerNow : 0, maxSteer: this.maxSteerNow || 0.3,
+      hand: hasDriver && this.hand, speedFwd: this.fwdSpeed, dead: this.dead || !hasDriver, parked: !this.dead && this.kind === 'parked',
+    });
+  }
+  // After the physics step(s): sync fields, impact detection, visuals
+  post(dt) {
+    const G = this.G;
+    const pvx = this.vx, pvz = this.vz;
+    this.readBody(dt);
+    const sH = Math.sin(this.h), cH = Math.cos(this.h);
+    const vf = this.vx * sH + this.vz * cH, vl = this.vx * -cH + this.vz * sH;
+    // impact = sudden planar velocity loss that engines/brakes cannot explain
+    const dv = Math.hypot(this.vx - pvx, this.vz - pvz);
+    if (dt > 0 && dv > 2.6 + this.spec.accel * dt * 0.6) {
+      const ix = this.x + sH * this.L * 0.5 * Math.sign(vf || 1), iz = this.z + cH * this.L * 0.5 * Math.sign(vf || 1);
+      this.onImpact(dv, ix, iz, null);
     }
-    acc -= vf * aVf * (sp.accel / (sp.maxSpeed * sp.maxSpeed)) * 0.9;
-    acc -= Math.sign(vf) * Math.min(aVf * 3, 1.4);
-    if (this.hand && hasDriver) acc -= Math.sign(vf) * Math.min(aVf * 3, 8);
-    vf += acc * dt;
-    // yaw (bicycle model)
-    const wb = sp.wb * 2;
-    let yawT = -vf / wb * Math.tan(this.steerA);
-    if (this.hand && aVf > 4) yawT *= 1.5;
-    this.yaw = damp(this.yaw, yawT, this.hand ? 6 : 11, dt);
-    this.h += this.yaw * dt;
-    // lateral grip
-    const grip = sp.grip * (this.hand ? 0.14 : 1) * (this.dead ? 0.5 : 1);
-    vl *= Math.exp(-grip * dt);
-    // after heading change recompute velocity in world
-    const s2 = Math.sin(this.h), c2 = Math.cos(this.h);
-    this.vx = vf * s2 - vl * c2; this.vz = vf * c2 + vl * s2;
-    this.slip = clamp((Math.abs(vl) - 2.2) / 6, 0, 1) * clamp(aVf / 8, 0, 1);
-    // integrate
-    this.x += this.vx * dt; this.z += this.vz * dt;
-    this.collide(dt);
-    // visuals
-    const lat = this.yaw * vf;
-    this.pitch = damp(this.pitch, clamp(-acc * 0.004, -0.06, 0.06), 8, dt);
-    this.roll = damp(this.roll, clamp(-lat * 0.0045, -0.09, 0.09), 8, dt);
+    this.slip = clamp((Math.abs(vl) - 2.2) / 6, 0, 1) * clamp(Math.abs(vf) / 8, 0, 1);
+    // flipped & stuck -> right the car
+    if (this.q) {
+      const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);
+      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); this.pv.body.setTranslation({ x: this.x, y: 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; } } else this.flipT = 0;
+    }
     this.wheelSpin += (vf * dt) / this.model.wheelR;
-    const braking = hasDriver && this.brake > 0.1 && vf > 0.5 || (hasDriver && this.throttle > 0 && vf < -0.5);
+    const hasDriver = this.driver && !this.dead;
+    const braking = hasDriver && (this.brake > 0.1 && vf > 0.5 || this.throttle > 0 && vf < -0.5);
     if (this.model.brake.visible !== braking) { this.model.brake.visible = braking; if (!this.lightsOn) this.model.tailSprites.forEach((s) => (s.visible = braking)); }
     if (this.slip > 0.4 && Math.random() < dt * 30) G.fx.tireSmoke(this.x - sH * this.L * 0.3, this.z - cH * this.L * 0.3);
     if (this.model.siren) {
       const ph = Math.floor(G.time * 6) % 2 === 0;
       this.model.siren.rs.visible = ph; this.model.siren.bs.visible = !ph;
     }
-    this.lastSpeed = Math.hypot(this.vx, this.vz);
+    this.lastSpeed = this.speed;
+    if (this.kind === 'parked' && !this.driver && !this.dead && this.speed < 0.15) { this.idleT = (this.idleT || 0) + dt; if (this.idleT > 1) { this.pv.body.sleep(); this.idleT = 0; } } else this.idleT = 0;
     this.syncMesh();
   }
 
-  collide(dt) {
-    const G = this.G, col = G.world.colliders;
-    const cs = this._cs || (this._cs = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
-    this.circles(cs);
-    let hit = false, nx = 0, nz = 0, depth = 0, cx = 0, cz = 0;
-    let ax = 0, az = 0;
-    for (const c of cs) {
-      const r = col.resolve(c[0], c[1], c[2], 0.5);
-      if (r.hit) {
-        ax += r.x - c[0]; az += r.z - c[1];
-        nx += r.nx; nz += r.nz; hit = true; depth = Math.max(depth, r.depth); cx = c[0]; cz = c[1];
-      }
-    }
-    // world bounds
-    const lim = HALF + R / 2 + 4;
-    if (hit) {
-      this.x += ax * 0.9 / 1; this.z += az * 0.9 / 1;
-      const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
-      const vn = this.vx * nx + this.vz * nz;
-      if (vn < 0) {
-        const e = 0.28;
-        this.vx -= (1 + e) * vn * nx; this.vz -= (1 + e) * vn * nz;
-        this.vx *= 0.97; this.vz *= 0.97;
-        this.yaw += (nx * Math.cos(this.h) - nz * Math.sin(this.h)) * vn * 0.02;
-        this.onImpact(-vn, cx, cz, null);
-      }
-    }
-    this.x = clamp(this.x, -lim, lim); this.z = clamp(this.z, -lim, lim);
-  }
   onImpact(speed, x, z, other) {
     if (speed < 2.2 || this.impactCd > 0) return;
     this.impactCd = 0.25;
@@ -210,6 +199,7 @@ export class Vehicle {
     this.h = Math.atan2(di, dj);
     ai.node = [i + di, j + dj]; ai.dir = [di, dj]; ai.wp = [];
     this.vx = Math.sin(this.h) * 8; this.vz = Math.cos(this.h) * 8;
+    if (this.pv) { this.syncToBody(); this.readBody(0); this.syncMesh(); }
     this.planAhead();
   }
   planAhead() {

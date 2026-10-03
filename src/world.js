@@ -693,6 +693,13 @@ export function buildWorld(scene, quality) {
     }
   }
 
+  // Boundary walls close the street gaps between outer-ring towers
+  {
+    const e = HALF + R / 2 + 2, t = 12, L = e + t;
+    world.colliders.addBox(-L, e, L, e + t, 40, 'wall'); world.colliders.addBox(-L, -e - t, L, -e, 40, 'wall');
+    world.colliders.addBox(e, -L, e + t, L, 40, 'wall'); world.colliders.addBox(-e - t, -L, -e, L, 40, 'wall');
+  }
+
   // Far skyline: huge towers beyond the playable area
   const far = [];
   for (let k = 0; k < 120; k++) {
@@ -942,7 +949,8 @@ export function buildWorld(scene, quality) {
     vmesh.castShadow = true; vmesh.frustumCulled = false; scene.add(vmesh);
     const bg = new THREE.CylinderGeometry(0.32, 0.28, 0.9, 10); bg.translate(0, 0.45, 0);
     const bmesh = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ color: 0x2c3340, roughness: 0.5, metalness: 0.6 }), bins.length);
-    bins.forEach((b, k) => { p.set(b.x, 0, b.z); m4.compose(p, new THREE.Quaternion(), one); bmesh.setMatrixAt(k, m4); world.colliders.addCircle(b.x, b.z, 0.32, 1, 'bin'); });
+    bins.forEach((b, k) => { p.set(b.x, 0, b.z); m4.compose(p, new THREE.Quaternion(), one); bmesh.setMatrixAt(k, m4); });
+    world.bins = { mesh: bmesh, list: bins };
     bmesh.castShadow = true; bmesh.frustumCulled = false; scene.add(bmesh);
   }
 

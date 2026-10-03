@@ -2,6 +2,7 @@ import { createEngine, QUALITY } from './engine.js';
 import { Game } from './game.js';
 import { el } from './util.js';
 import * as V from './vehicle.js';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { AIM } from './assets.js';
 
 const params = new URLSearchParams(location.search);
@@ -18,7 +19,8 @@ function fatal(e) {
   let eng, game;
   try {
     eng = createEngine(el('game'), q);
-    game = new Game(eng);
+    await RAPIER.init();
+    game = new Game(eng); game.RAPIER = RAPIER;
     window.__game = game; window.__V = V; window.__AIM = AIM;
     const bar = el('loadBar').firstElementChild, txt = el('loadTxt');
     await game.init((p, t) => { bar.style.width = p * 100 + '%'; txt.textContent = t; });
