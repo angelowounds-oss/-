@@ -35,3 +35,4 @@ gen  10  games   10560  win vs policy6 42.9% (480)  vs league 52%  best cand 0.5
 gen  11  games   11520  win vs policy6 40.0% (480)  vs league 55%  best cand 0.598
 gen  12  games   12480  win vs policy6 43.2% (480)  vs league 51%  best cand 0.539
 gen  13  games   13440  win vs policy6 49.0% (480)  vs league 57%  best cand 0.619
+rl: 2551 decks, 10 pairs x 2 x 48 games per generation, sigma 0.120 lr 0.050, league 1
