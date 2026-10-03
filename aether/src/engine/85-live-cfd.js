@@ -68,11 +68,11 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}int t=ST(c);if(t>0){o=ve
  vec3 u=F(uVel,c).xyz-g;if(c.x==0)u=vec3(uU,0,0);if(c.y==0){u.x=uU;u.y=0.;}o=vec4(u,0);}`,
 advd:`uniform sampler2D uVel,uSrc;uniform float uDt;
 void main(){ivec3 c=C();if(c.z>=uN.z||ST(c)>0){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;o=vec4(S(uSrc,vec3(c)-uDt*u/uH).x,0,0,0);}`,
-corr:`uniform sampler2D uVel,uSrc,uHat,uBar;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[40];uniform int uEmN;
+corr:`uniform sampler2D uVel,uSrc,uHat,uBar;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[40];uniform vec3 uBA,uBB;uniform int uEmN;
 void main(){ivec3 c=C();if(c.z>=uN.z||ST(c)>0||c.x==0){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec3 p=clamp(vec3(c)-uDt*u/uH,vec3(0.),vec3(uN-1));ivec3 i=ivec3(floor(p));
  float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float v=F(uSrc,i+ivec3(k&1,(k>>1)&1,(k>>2)&1)).x;lo=min(lo,v);hi=max(hi,v);}
  float r=clamp(F(uHat,c).x+.5*(F(uSrc,c).x-F(uBar,c).x),lo,hi)*uDecay;vec3 w=W(c);
- for(int e=0;e<40;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w,q=dot(d,d)/(rr*rr);if(q<16.)r=max(r,uEmS*exp(-q));}
+ if(all(greaterThanEqual(w,uBA))&&all(lessThanEqual(w,uBB)))for(int e=0;e<40;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w,q=dot(d,d)/(rr*rr);if(q<16.)r=max(r,uEmS*exp(-q));}
  o=vec4(max(r,0.),0,0,0);}`,
 cflag:`uniform sampler2D uFF;uniform ivec3 uNF;uniform int uTXF;
 ivec2 AF(ivec3 c){return ivec2((c.z%uTXF)*uNF.x+c.x,(c.z/uTXF)*uNF.y+c.y);}
@@ -273,9 +273,8 @@ function liveNozzleMesh(n){const P=[],Nn=[],I=[],boxes=[],q=(a,b,c,d)=>{const u=
   q([a.x,y0,a.w],[b.x,y0,b.w],[b.x,b.h,b.w],[a.x,a.h,a.w]);q([a.x,y0,-a.w],[a.x,a.h,-a.w],[b.x,b.h,-b.w],[b.x,y0,-b.w]);q([a.x,a.h,-a.w],[a.x,a.h,a.w],[b.x,b.h,b.w],[b.x,b.h,-b.w]);
   const w0=Math.min(a.w,b.w),w1=Math.max(a.w,b.w),hh=Math.max(a.h,b.h),t=.05;
   boxes.push({min:[a.x,y0,w0],max:[b.x,hh,w1+t]},{min:[a.x,y0,-w1-t],max:[b.x,hh,-w0]},{min:[a.x,Math.min(a.h,b.h)-t,-w1],max:[b.x,hh+t,w1]})}
- const e=at(S),f=.06,lip=[[e.x,e.x+.07,y0lip(n),n.hb,e.w,e.w+f],[e.x,e.x+.07,y0lip(n),n.hb,-e.w-f,-e.w],[e.x,e.x+.07,n.hb,n.hb+f,-e.w-f,e.w+f]];
+ const e=at(S),f=.06,lip=[[e.x,e.x+.07,n.y0,n.hb,e.w,e.w+f],[e.x,e.x+.07,n.y0,n.hb,-e.w-f,-e.w],[e.x,e.x+.07,n.hb,n.hb+f,-e.w-f,e.w+f]];
  return {mesh:liveBoxesMesh(lip,{positions:P,normals:Nn,indices:I}),boxes:boxes.concat(lip.map(l=>({min:[l[0],l[2],l[4]],max:[l[1],l[3],l[5]]})))}}
-function y0lip(n){return n.y0}
 function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,R.zs.length,LIVE.colGap].join();if(LIVE.rakeKey===key&&scene.objects.some(o=>o.name==='rake probe hardware'&&o.gpu)||typeof bindMesh!=='function'||!gl)return;LIVE.rakeKey=key;
  for(const o of scene.objects)if(o.name.startsWith('rake probe')&&o.gpu)for(const b of [o.gpu.pb,o.gpu.nb,o.gpu.ub,o.gpu.ib])if(b)gl.deleteBuffer(b);
  scene.objects=scene.objects.filter(o=>!o.name.startsWith('rake probe'));
@@ -290,11 +289,13 @@ function liveRakeHardware(R){const key=[R.x.toFixed(3),R.vert,R.horz,R.v.length,
   if(R.zs.length>1)L.push([x-.015,x+.015,top-.03,top,R.zs[0],R.zs[R.zs.length-1]])}
  if(R.horz){L.push([x-.017,x+.017,R.yh-.017,R.yh+.017,-1.48,1.48]);for(const z of [-1.5,1.5])L.push([x-.015,x+.015,0,R.yh,z-.015,z+.015],[x-.1,x+.1,0,.024,z-.1,z+.1]);for(const z of R.h)L.push([x,x+.075,R.yh-.01,R.yh+.01,z-.01,z+.01])}
  if(L.length)attach('hardware',[x,.9,0],[.3,1.8,3.2],[.74,.76,.78],materialLibrary.StainlessSteel,liveBoxesMesh(L))}
-function liveEmitters(){const E=[],B=window.__BODY,R=liveRakeGeometry();LIVE.tipX=R.tip;try{liveRakeHardware(R)}catch(e){LIVE.rakeErr=String(e.message||e)}
- if(R.vert)for(const z of R.zs)for(const y of R.v)E.push([R.tip,y,z,R.r]);
- if(R.horz)for(const z of R.h)E.push([R.tip,R.yh,z,R.r]);
+function liveEmitters(){const B=window.__BODY,M=window.__MAC,fbx=AETHER.FAN_MODULE?.layout?.fanBounds?.max[0],key=LIVE.mode+'|'+LIVE.cols+'|'+LIVE.colGap+'|'+LIVE.rakeN+'|'+LIVE.rakeK+'|'+LIVE.rr+'|'+LIVE.impl+'|'+fbx+'|'+(M?.hd?M.hd[0]:0);
+ let C=LIVE._ec;if(!C||C.key!==key||!(C.hw&&scene.objects.some(o=>o.name==='rake probe hardware'&&o.gpu))){const R=liveRakeGeometry(),E=[];try{liveRakeHardware(R)}catch(e){LIVE.rakeErr=String(e.message||e)}
+  if(R.vert)for(const z of R.zs)for(const y of R.v)E.push([R.tip,y,z,R.r]);
+  if(R.horz)for(const z of R.h)E.push([R.tip,R.yh,z,R.r]);C=LIVE._ec={key,R,E,hw:true}}
+ const R=C.R,E=C.E.slice();LIVE.tipX=R.tip;
  if(LIVE.wand&&fpv.enabled&&B?.inTunnel){const cp=Math.cos(fpv.pitch),f=[Math.sin(fpv.yaw)*cp,Math.sin(fpv.pitch),-Math.cos(fpv.yaw)*cp],e=camera.eye;E.push([e[0]+f[0]*.75,e[1]+f[1]*.75-.3,e[2]+f[2]*.75,Math.max(.045,R.r)])}
- LIVE.emitters=E.slice(0,40);const a=new Float32Array(160);LIVE.emitters.forEach((v,i)=>a.set(v,i*4));return a}
+ LIVE.emitters=E.slice(0,40);const a=new Float32Array(160),lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];LIVE.emitters.forEach((v,i)=>{a.set(v,i*4);for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],v[k]-4*v[3]);hi[k]=Math.max(hi[k],v[k]+4*v[3])}});LIVE.emBA=lo;LIVE.emBB=hi;LIVE.emArr=a;return a}
 function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;macStep(dt);LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt;return}const T=LIVE.tex,B=window.__BODY,act=!!(B&&B.active);gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
  LIVE.bodyV=act&&fpv.enabled?[fpv.vx||0,0,fpv.vz||0]:[0,0,0];
  livePass('flags',T.flags,{uObs:LIVE.obs},{uBody:act?[B.x,B.z,B.g,1]:[0,0,0,0]});
@@ -304,7 +305,7 @@ function livePasses(dt,initOnly=false){if(LIVE.impl==='MAC'){if(initOnly)return;
  livePass('div',T.div,{uVel:T.velA.t},{});liveSolve();if(LIVE.diag)livePass('res',T.res,{uP:T.pA.t,uB:T.div.t},{});
  livePass('proj',T.velB,{uVel:T.velA.t,uP:T.pA.t},{});liveSwap('velA','velB');
  livePass('advd',T.hat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt});livePass('advd',T.bar,{uVel:T.velA.t,uSrc:T.hat.t},{uDt:-dt});
- livePass('corr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.hat.t,uBar:T.bar.t},{uDt:dt,uDecay:liveDecay(dt),uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}});liveSwap('dyeA','dyeB');
+ livePass('corr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.hat.t,uBar:T.bar.t},{uDt:dt,uDecay:liveDecay(dt),uEmS:1,uEm:em,uBA:LIVE.emBA,uBB:LIVE.emBB,uEmN:{int:LIVE.emitters.length}});liveSwap('dyeA','dyeB');
  LIVE.step++;LIVE.t+=dt;LIVE.lastDt=dt}
 function liveCopyVolume(){if(LIVE.impl==='MAC')return macCopyVolume();const p=LIVE.prog.copy,N=LIVE.N,T=LIVE.tex;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,LIVE.volFbo);gl.viewport(0,0,N[0],N[1]);
  gl.uniform3i(liveU(p,'uN'),N[0],N[1],N[2]);gl.uniform1i(liveU(p,'uTX'),LIVE.tx);gl.uniform3f(liveU(p,'uMin'),...LIVE.min);gl.uniform3f(liveU(p,'uH'),...LIVE.h);gl.uniform1f(liveU(p,'uU'),LIVE.U);
@@ -318,8 +319,10 @@ function liveStep(now){if(!LIVE.enabled)return;if(!LIVE.init||LIVE.gen!==runtime
  if(!PERF.cal.done){try{perfCalibrateStep(now)}catch(e){PERF.cal={done:true,result:{error:String(e?.message||e)}};for(const ax of ['sim','vol','ren'])perfApplyTier(ax,'LOW')}if(!LIVE.init)return}if(now-(LIVE.lastFanCheck||0)>1000){LIVE.lastFanCheck=now;const fb=AETHER.FAN_MODULE?.layout?.fanBounds||null;if(JSON.stringify(fb)!==LIVE.fanKey)liveReobstacle(fb)}
  try{const fdt=LIVE.lastT?Math.min(.05,(now-LIVE.lastT)/1000):1/60;LIVE.lastT=now;
   const hmin=Math.min(...LIVE.h),cfl=.9*hmin/(1.6*Math.max(LIVE.U,.5)),n=LIVE.step<40?6:LIVE.sub,dt=Math.min(cfl,Math.max(fdt,1/60)/LIVE.sub);
-  for(let s=0;s<n;s++){livePasses(dt);if(LIVE.benchRec)liveBenchSample()}liveCopyVolume();
-  liveForcesPoll();if(now-LIVE.lastRead>250){LIVE.lastRead=now;liveForcesKick();const B=window.__BODY;if(B&&B.active){const R=.55,P=[[R,0],[-R,0],[0,R],[0,-R]].map(([dx,dz])=>liveRead(B.x+dx,B.g+1.2,B.z+dz)),v=[0,1,2].map(i=>P.reduce((q,w)=>q+w[i],0)/4);LIVE.speedAt=P.reduce((q,w)=>q+Math.hypot(...w),0)/4;LIVE.vAt=v}}
+  for(let s=0;s<n;s++){livePasses(dt);if(LIVE.benchRec)liveBenchSample()}if(typeof STREAK!=='undefined'&&STREAK.mode!=='vol')streakStep(n*dt);if(STREAK.mode!=='streak')liveCopyVolume();
+  liveForcesPoll();const done=(P)=>{if(!P)return;const v=[0,1,2].map(i=>P.reduce((q,w)=>q+w[i],0)/4);LIVE.speedAt=P.reduce((q,w)=>q+Math.hypot(...w),0)/4;LIVE.vAt=v};
+  if(LIVE.impl==='MAC')done(macProbePoll());
+  if(now-LIVE.lastRead>250){LIVE.lastRead=now;liveForcesKick();const B=window.__BODY;if(B&&B.active){const R=.55,pts=[[R,0],[-R,0],[0,R],[0,-R]].map(([dx,dz])=>[B.x+dx,B.g+1.2,B.z+dz]);if(LIVE.impl==='MAC')macProbeKick(pts);else done(pts.map(q=>liveRead(...q)))}}
  }catch(e){LIVE.ok=false;LIVE.err=String(e?.message||e)}
  finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}}
 function liveInv(m){const a=Array.from(m),inv=new Float32Array(16);
@@ -359,7 +362,7 @@ LIVE.api={read:(x,y,z)=>{const v=liveRead(x,y,z);return v},
 Object.assign(LIVE.api,{
  reset(){LIVE.forces=null;if(LIVE.impl==='MAC'){macReset();LIVE.step=0;LIVE.t=0;return}const T=LIVE.tex;gl.bindVertexArray(LIVE.vao);for(const k of ['velA','velB','curl','pA','pB','div','dyeA','dyeB','hat','bar','res'])liveClear(T[k]);for(const V of LIVE.lv.slice(1))for(const k of ['pA','pB','b','r'])liveClear(V.t[k]);livePasses(0,true);LIVE.step=0;LIVE.t=0;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null)},
  /* deterministic stepping for tests: n steps of fixed dt, no rendering. opts.diag reads Poisson residual after the last solve */
- run(n,dt,opts={}){if(!LIVE.init)liveInit();const t0=performance.now();try{for(let i=0;i<n;i++){LIVE.diag=!!opts.diag&&i===n-1;livePasses(dt)}gl.bindFramebuffer(gl.FRAMEBUFFER,(LIVE.impl==='MAC'?MAC.t:LIVE.tex).velA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,new Float32Array(4))}finally{LIVE.diag=false;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}
+ run(n,dt,opts={}){if(!LIVE.init)liveInit();const t0=performance.now();try{for(let i=0;i<n;i++){LIVE.diag=!!opts.diag&&i===n-1;livePasses(dt);if(STREAK.mode!=='vol')streakStep(dt)}gl.bindFramebuffer(gl.FRAMEBUFFER,(LIVE.impl==='MAC'?MAC.t:LIVE.tex).velA.f);gl.readPixels(0,0,1,1,gl.RGBA,gl.FLOAT,new Float32Array(4))}finally{LIVE.diag=false;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.enable(gl.DEPTH_TEST)}
   const out={ms:performance.now()-t0,step:LIVE.step,t:LIVE.t,solver:LIVE.solver};if(opts.diag)out.poisson=LIVE.api.poisson();return out},
  poisson(){if(LIVE.impl==='MAC')return macResidual();const T=LIVE.tex,W=LIVE.W,H=LIVE.H,r=new Float32Array(W*H*4),d=new Float32Array(W*H*4),fb=new Uint8Array(W*H*4);
   gl.bindFramebuffer(gl.FRAMEBUFFER,T.res.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,r);gl.bindFramebuffer(gl.FRAMEBUFFER,T.div.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.FLOAT,d);gl.bindFramebuffer(gl.FRAMEBUFFER,T.flags.f);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,fb);gl.bindFramebuffer(gl.FRAMEBUFFER,null);

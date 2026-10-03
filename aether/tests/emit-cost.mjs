@@ -1,3 +1,4 @@
+/* global __CINE */
 // A/B: cost of the smoke emitter loop (SwiftShader = CPU proxy, relative numbers only). node tests/emit-cost.mjs
 import path from 'node:path';
 import { open } from './lib.mjs';

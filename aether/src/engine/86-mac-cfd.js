@@ -198,13 +198,13 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 sc=F(uSol,c);vec3 F
 dadv:`uniform sampler2D uVel,uSrc;uniform float uDt;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;vec3 v=VEL(uVel,P,uN2,uTX2);
  vec3 Pm=P-.5*uDt*v/uH2;v=VEL(uVel,Pm,uN2,uTX2);vec3 q=(w-uDt*v-uMin)/uH-.5;o=vec4(TRI(uSrc,q,uN,uTX).x,0,0,0);}`,
-dcorr:`uniform sampler2D uVel,uSrc,uHat,uBar,uSol;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[40];uniform int uEmN;
+dcorr:`uniform sampler2D uVel,uSrc,uHat,uBar,uSol;uniform float uDt,uDecay,uEmS;uniform vec4 uEm[40];uniform vec3 uBA,uBB;uniform int uEmN;
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;
  float sid;if(PHIT(uSol,P-.5,uN2,uTX2,sid)>.5||c.x==0){o=vec4(0);return;}
  vec3 v=VEL(uVel,P,uN2,uTX2);vec3 Pm=P-.5*uDt*v/uH2;v=VEL(uVel,Pm,uN2,uTX2);vec3 q=clamp((w-uDt*v-uMin)/uH-.5,vec3(0.),vec3(uN-1));ivec3 i=min(ivec3(floor(q)),uN-1);
  float lo=1e9,hi=-1e9;for(int k=0;k<8;k++){float s=F(uSrc,i+ivec3(k&1,(k>>1)&1,(k>>2)&1)).x;lo=min(lo,s);hi=max(hi,s);}
  float r=clamp(F(uHat,c).x+.5*(F(uSrc,c).x-F(uBar,c).x),lo,hi)*uDecay;
- for(int e=0;e<40;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w,q=dot(d,d)/(rr*rr);if(q<16.)r=max(r,uEmS*exp(-q));}
+ if(all(greaterThanEqual(w,uBA))&&all(lessThanEqual(w,uBB)))for(int e=0;e<40;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w,q=dot(d,d)/(rr*rr);if(q<16.)r=max(r,uEmS*exp(-q));}
  o=vec4(max(r,0.),0,0,0);}`,
 /* volume texture for rendering (dye resolution): r dye, g solid (1 car/.6 fan), b speed/U */
 vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;
@@ -365,7 +365,7 @@ function macStepBody(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.
  /* smoke on the 2x grid */
  if(emit!==false){const em=liveEmitters(),D=MAC.D,Dg={...D,h:MAC.hd};
   macPass('dadv',T.dhat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt},Dg,MAC.G);macPass('dadv',T.dbar,{uVel:T.velA.t,uSrc:T.dhat.t},{uDt:-dt},Dg,MAC.G);
-  macPass('dcorr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.dhat.t,uBar:T.dbar.t,uSol:T.sol.t},{uDt:dt,uDecay:liveDecay(dt),uEmS:1,uEm:em,uEmN:{int:LIVE.emitters.length}},Dg,MAC.G);macSwap(T,'dyeA','dyeB')}
+  macPass('dcorr',T.dyeB,{uVel:T.velA.t,uSrc:T.dyeA.t,uHat:T.dhat.t,uBar:T.dbar.t,uSol:T.sol.t},{uDt:dt,uDecay:liveDecay(dt),uEmS:1,uEm:em,uBA:LIVE.emBA,uBB:LIVE.emBB,uEmN:{int:LIVE.emitters.length}},Dg,MAC.G);macSwap(T,'dyeA','dyeB')}
  MAC.step++;MAC.time+=dt;MAC.lastDt=dt}
 MAC.copyVolume=()=>macCopyVolume();/* test hook: the volume is normally filled by the render loop */
 function macCopyVolume(){const p=MAC.prog.vcopy,D=MAC.D,Nd=D.N,T=MAC.t;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.volFbo);gl.viewport(0,0,Nd[0],Nd[1]);
@@ -381,6 +381,15 @@ function macCopyVolume(){const p=MAC.prog.vcopy,D=MAC.D,Nd=D.N,T=MAC.t;gl.usePro
 function macReadCell(i,j,k){const G=MAC.G,N=MAC.N,px=(ii,jj,kk)=>{ii=Math.min(N[0]-1,Math.max(0,ii));jj=Math.min(N[1]-1,Math.max(0,jj));kk=Math.min(N[2]-1,Math.max(0,kk));const b=new Float32Array(4);gl.readPixels((kk%G.tx)*N[0]+ii,Math.floor(kk/G.tx)*N[1]+jj,1,1,gl.RGBA,gl.FLOAT,b);return b};
  gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.t.velA.f);const a=px(i,j,k),bx=i<N[0]-1?px(i+1,j,k)[0]:a[0],by=j<N[1]-1?px(i,j+1,k)[1]:0,bz=k<N[2]-1?px(i,j,k+1)[2]:0;gl.bindFramebuffer(gl.FRAMEBUFFER,null);
  return [(a[0]+bx)/2,(a[1]+by)/2,(a[2]+bz)/2]}
+/* asynchronous probe: all pixels of all probe points go into one PBO, a fence is polled on later frames, the CPU never stalls */
+function macProbeKick(P){if(MAC.probeJob||!MAC.t)return;const G=MAC.G,N=MAC.N,cl=(v,d)=>Math.min(N[d]-1,Math.max(0,v)),f=(v,d)=>cl(Math.floor((v-MAC.min[d])/MAC.h[d]),d),pix=[];
+ for(const [x,y,z] of P){const i=f(x,0),j=f(y,1),k=f(z,2);pix.push([i,j,k],[i<N[0]-1?i+1:i,j,k],[i,j<N[1]-1?j+1:j,k],[i,j,k<N[2]-1?k+1:k])}
+ const bytes=pix.length*16;if(!MAC.pbo)MAC.pbo=gl.createBuffer();gl.bindBuffer(gl.PIXEL_PACK_BUFFER,MAC.pbo);if(MAC.pboBytes!==bytes){gl.bufferData(gl.PIXEL_PACK_BUFFER,bytes,gl.STREAM_READ);MAC.pboBytes=bytes}
+ gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.t.velA.f);pix.forEach(([i,j,k],n)=>gl.readPixels((k%G.tx)*N[0]+i,Math.floor(k/G.tx)*N[1]+j,1,1,gl.RGBA,gl.FLOAT,n*16));
+ gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);gl.bindFramebuffer(gl.FRAMEBUFFER,null);MAC.probeJob={fence:gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0),np:P.length,gen:LIVE.gen};gl.flush()}
+function macProbePoll(){const J=MAC.probeJob;if(!J)return null;const r=gl.clientWaitSync(J.fence,0,0);if(r===gl.TIMEOUT_EXPIRED)return null;gl.deleteSync(J.fence);MAC.probeJob=null;if(r===gl.WAIT_FAILED||J.gen!==LIVE.gen)return null;
+ const b=new Float32Array(J.np*16);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,MAC.pbo);gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,0,b);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
+ const out=[];for(let n=0;n<J.np;n++){const o=n*16;out.push([(b[o]+b[o+4])/2,(b[o+1]+b[o+9])/2,(b[o+2]+b[o+14])/2])}return out}
 function macRead(x,y,z){const f=(v,d)=>Math.min(MAC.N[d]-1,Math.max(0,Math.floor((v-MAC.min[d])/MAC.h[d])));return macReadCell(f(x,0),f(y,1),f(z,2))}
 /* full-field reads (tests / validation) */
 function macReadAll(t,ch){const G=MAC.G,buf=new Float32Array(G.W*G.H*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.f);gl.readPixels(0,0,G.W,G.H,gl.RGBA,gl.FLOAT,buf);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return buf}
