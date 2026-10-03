@@ -126,7 +126,11 @@ export function buildTerrain(scene) {
   for (let i = 0; i < 700; i++) { g2.fillStyle = `rgba(${40 + Math.random() * 30},${40 + Math.random() * 30},${44 + Math.random() * 30},${Math.random() * 0.25})`; g2.fillRect(Math.random() * 64, Math.random() * 128, 2, 2); }
   g2.fillStyle = '#d8b32a'; g2.fillRect(31, 0, 2, 64); g2.fillStyle = '#c9c9c9'; g2.fillRect(3, 0, 2, 128); g2.fillRect(59, 0, 2, 128);
   const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-  const rmat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  // road paint also glows a little so the winding road reads at night
+  const cv2 = document.createElement('canvas'); cv2.width = 64; cv2.height = 128; const e2 = cv2.getContext('2d');
+  e2.fillStyle = '#000'; e2.fillRect(0, 0, 64, 128); e2.fillStyle = '#6a5510'; e2.fillRect(31, 0, 2, 64); e2.fillStyle = '#8a8a8a'; e2.fillRect(3, 0, 2, 128); e2.fillRect(59, 0, 2, 128);
+  const etex = new THREE.CanvasTexture(cv2); etex.wrapS = etex.wrapT = THREE.RepeatWrapping; etex.colorSpace = THREE.SRGBColorSpace;
+  const rmat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: etex, emissiveIntensity: 0.9, roughness: 0.55, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const geos = [];
   for (const rd of roadsData()) {
     const P = rd.pts, n = P.length, pos = [], uv = [], ind = []; let dist = 0;
@@ -144,6 +148,15 @@ export function buildTerrain(scene) {
     geos.push(g);
   }
   const road = new THREE.Mesh(mergeGeometries(geos), rmat); road.frustumCulled = false; road.receiveShadow = true; group.add(road);
+  // street lamps along the roads: instanced posts + glowing heads (no real lights)
+  {
+    const lamps = [];
+    for (const rd of roadsData()) { const P = rd.pts, n = P.length, step = rd.closed ? 6 : 4; for (let i = 0; i < n; i += step) { const A = P[i], B = P[(i + 1) % n], dx = B.x - A.x, dz = B.z - A.z, l = Math.hypot(dx, dz) || 1; lamps.push([A.x - (dz / l) * (ROAD_W / 2 + 1.2) * (i / step % 2 ? 1 : -1), A.y, A.z + (dx / l) * (ROAD_W / 2 + 1.2) * (i / step % 2 ? 1 : -1)]); } }
+    const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.1, 0.14, 7, 5).translate(0, 3.5, 0), new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 0.7 }), lamps.length);
+    const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.14, 0.7).translate(0, 7.1, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.78, 0.45).multiplyScalar(2.2), toneMapped: false }), lamps.length);
+    const m = new THREE.Matrix4(); lamps.forEach((l, i) => { m.makeTranslation(l[0], l[1], l[2]); post.setMatrixAt(i, m); head.setMatrixAt(i, m); });
+    post.frustumCulled = false; head.frustumCulled = false; group.add(post, head);
+  }
   // trees on the slopes (one instanced mesh)
   const tg = mergeGeometries([new THREE.CylinderGeometry(0.25, 0.35, 2.2, 5).translate(0, 1.1, 0), new THREE.ConeGeometry(2.2, 6, 6).translate(0, 5, 0), new THREE.ConeGeometry(1.6, 4.5, 6).translate(0, 8, 0)].map((g) => g.toNonIndexed()));
   const tm = new THREE.MeshStandardMaterial({ color: 0x1c4a30, roughness: 0.9, emissive: 0x06150c, emissiveIntensity: 0.5 });
