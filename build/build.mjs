@@ -2,7 +2,7 @@ import { build } from 'esbuild';
 import fs from 'node:fs';
 const r = await build({
   entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife',
-  write: false, loader: { '.glb': 'base64' }, target: 'es2020', legalComments: 'none',
+  write: false, loader: { '.glb': 'base64', '.jpg': 'dataurl' }, target: 'es2020', legalComments: 'none',
   nodePaths: ['build/node_modules'], logLevel: 'warning',
 });
 const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');

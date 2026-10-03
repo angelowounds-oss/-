@@ -3,6 +3,10 @@ import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, patchStandard, timeUniform, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
+import asphA from '../assets/tex/asphalt_04_a.jpg';
+import asphN from '../assets/tex/asphalt_04_n.jpg';
+import paveA from '../assets/tex/concrete_pavers_a.jpg';
+import paveN from '../assets/tex/concrete_pavers_n.jpg';
 
 // ---------- City layout constants ----------
 export const N = 9;          // blocks per side (inside the outer ring)
@@ -169,6 +173,11 @@ export class Colliders {
   }
 }
 
+// CC0 Poly Haven asphalt_04 / concrete_pavers (512px): real grain, roughness and normal detail layered over the procedural ground
+const groundTex = (url, srgb) => {
+  const t = new THREE.TextureLoader().load(url); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; return t;
+};
 // ---------- Procedural wet-asphalt city ground ----------
 function createGround(fakeLights) {
   const geo = new THREE.PlaneGeometry(2600, 2600, 1, 1);
@@ -180,6 +189,8 @@ function createGround(fakeLights) {
     uFL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uFC: { value: Array.from({ length: MAXL }, () => new THREE.Vector3()) },
     uWet: { value: 1.0 },
+    tAsph: { value: groundTex(asphA, true) }, tAsphN: { value: groundTex(asphN, false) },
+    tPave: { value: groundTex(paveA, true) }, tPaveN: { value: groundTex(paveN, false) },
   };
   patchStandard(mat, 'ground-v9', {
     uniforms,
@@ -187,7 +198,8 @@ function createGround(fakeLights) {
     vertexMain: 'vWP=(modelMatrix*vec4(transformed,1.)).xyz;',
     fragDecl: `${GLSL_NOISE}
       varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
-      float fRough,fMetal;vec3 fEmit;float fPud;
+      uniform sampler2D tAsph,tAsphN,tPave,tPaveN;
+      float fRough,fMetal;vec3 fEmit;float fPud;vec2 fN=vec2(0.);
       const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.;`,
     fragMain: `
       vec2 p=vWP.xz;
@@ -209,6 +221,14 @@ function createGround(fakeLights) {
         float tr=exp(-pow((lx-RR*.25)*.5,2.))*.5;
         alb*=1.-tr*.35*(.5+n2);
         fRough=mix(.42,.6,n2);
+        {
+          vec2 u1=p*.21,u2=p*.047+.37;
+          vec3 ta=mix(texture2D(tAsph,u1).rgb,texture2D(tAsph,u2).rgb,.45);
+          vec4 tn=mix(texture2D(tAsphN,u1),texture2D(tAsphN,u2),.45);
+          alb*=clamp(dot(ta,vec3(.333))/.26,.45,1.7);
+          fRough=mix(fRough,clamp(tn.z*.9+.1,.3,.95),.55);
+          fN=(tn.xy*2.-1.)*.7;
+        }
         float crack=smoothstep(.012,0.,abs(fbm(p*1.3)-.5));
         alb*=1.-crack*.5;
         // patches
@@ -245,6 +265,11 @@ function createGround(fakeLights) {
         vec2 t=floor(p/1.6);float tv=h21(t);
         vec2 f=fract(p/1.6);float seam=smoothstep(.0,.03,min(min(f.x,1.-f.x),min(f.y,1.-f.y)));
         alb=vec3(.12+tv*.05,.12+tv*.05,.13+tv*.05)*(.75+.5*n2)*mix(.35,1.,seam);
+        {
+          vec2 u1=p*.55;vec3 tc=texture2D(tPave,u1).rgb;vec4 tn=texture2D(tPaveN,u1);
+          alb*=clamp(dot(tc,vec3(.333))/.32,.5,1.6);
+          fN=(tn.xy*2.-1.)*.55;
+        }
         fRough=mix(.55,.8,tv)-.1;
         float curb=smoothstep(.45,.2,sdist);
         alb=mix(alb,vec3(.3,.3,.33),curb*.9);
@@ -291,6 +316,7 @@ function createGround(fakeLights) {
         vec3 off=(viewMatrix*vec4(gr.x,0.,gr.y,0.)).xyz;
         normal=normalize(normal+off);
         // micro roughness bump on dry areas
+        normal=normalize(normal+(viewMatrix*vec4(fN.x,0.,fN.y,0.)).xyz*(1.-rr*.85)*.55);
         float bn=(vnoise(vWP.xz*8.)-.5)*.05*(1.-rr);
         normal=normalize(normal+(viewMatrix*vec4(bn,0.,bn*.7,0.)).xyz);
       }`);

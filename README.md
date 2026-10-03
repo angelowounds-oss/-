@@ -33,3 +33,4 @@
 
 ## Third-party assets (street dressing)
 `assets/props/*.glb` are CC0 models from [Poly Haven](https://polyhaven.com) (fire_hydrant, metal_trash_can, utility_box_01, trashbag, potted_plant_01), decimated with `build/propify.mjs` and baked to 256px WebP textures. They are instanced per city cell by `src/dressing.js`.
+`assets/tex/*.jpg` are CC0 Poly Haven `asphalt_04` and `concrete_pavers`, packed by `build/packtex.mjs` (albedo + normal.xy/roughness) and layered into the ground shader.
