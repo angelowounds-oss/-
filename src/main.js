@@ -7,7 +7,7 @@ import { AIM } from './assets.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
-let q = params.has('q') ? +params.get('q') : mobile ? 1 : 2;
+let q = params.has('q') ? +params.get('q') : 1;
 try { const s = +sessionStorage.getItem('neon_q'); if (s >= 0 && s <= 3 && sessionStorage.getItem('neon_q') !== null && !params.has('q')) q = s; } catch (e) { /* ignore */ }
 
 function fatal(e) {

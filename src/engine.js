@@ -9,10 +9,10 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { el } from './util.js';
 
 export const QUALITY = [
-  { name: 'LOW', dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: false, traffic: 12, npc: 18, parked: 18, rain: 1800, far: 1 },
-  { name: 'MEDIUM', dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 28, parked: 28, rain: 3000, far: 1 },
-  { name: 'HIGH', dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 40, parked: 40, rain: 4500, far: 1 },
-  { name: 'ULTRA', dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 52, parked: 52, rain: 6000, far: 1 },
+  { name: 'LOW', shadowEvery: 2, dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: false, traffic: 12, npc: 18, parked: 18, rain: 1800, far: 1 },
+  { name: 'MEDIUM', shadowEvery: 1, dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 28, parked: 28, rain: 3000, far: 1 },
+  { name: 'HIGH', shadowEvery: 1, dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 40, parked: 40, rain: 4500, far: 1 },
+  { name: 'ULTRA', shadowEvery: 1, dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 52, parked: 52, rain: 6000, far: 1 },
 ];
 
 // Final color grade: chromatic aberration, vignette, film grain, speed/radial blur, damage tint
@@ -102,11 +102,23 @@ export function createEngine(parent, qIndex) {
 
   const eng = {
     renderer, scene, camera, composer, moon, hemi, bloom, grade, env, q: QUALITY[qIndex], qIndex,
-    time: 0,
+    time: 0, scale: 1, frame: 0,
+    // dynamic resolution: only the render-target size changes, pipelines stay intact
+    setScale(sc) {
+      sc = Math.max(0.5, Math.min(1, sc));
+      if (Math.abs(sc - eng.scale) < 0.01) return;
+      eng.scale = sc;
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, eng.q.dpr) * sc);
+      renderer.setSize(innerWidth, innerHeight);
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(innerWidth, innerHeight);
+      if (smaa) smaa.setSize(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+    },
     setQuality(i) {
       i = Math.max(0, Math.min(QUALITY.length - 1, i));
       eng.qIndex = i;
       const q = (eng.q = QUALITY[i]);
+      eng.scale = 1;
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.dpr));
       renderer.setSize(innerWidth, innerHeight);
       composer.setPixelRatio(renderer.getPixelRatio());
@@ -141,6 +153,9 @@ export function createEngine(parent, qIndex) {
     render(dt) {
       eng.time += dt;
       grade.uniforms.uTime.value = eng.time;
+      // shadow map is the biggest fixed cost on integrated GPUs: refresh it less often on low tiers
+      renderer.shadowMap.autoUpdate = false;
+      if (eng.frame++ % eng.q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
       composer.render(dt);
     },
   };

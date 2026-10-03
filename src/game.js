@@ -1342,17 +1342,23 @@ export class Game {
     const bearing = ((Math.PI - this.cam.yaw) * 180 / Math.PI % 360 + 360) % 360;
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; this.setText('dir', ui.dir, dirs[Math.round(bearing / 45) % 8] + ' · ' + (bearing | 0) + '°');
     this.drawMinimap(); this.updateNeedsHUD();
-    if (this.ui.fps.style.display !== 'none') { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc > 0.5) { ui.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.eng.q.name}`; this.fpsAcc = this.fpsN = 0; } }
+    if (this.ui.fps.style.display !== 'none') { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc > 0.5) { ui.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.eng.q.name} ×${this.eng.scale.toFixed(1)}`; this.fpsAcc = this.fpsN = 0; } }
     this.autoQuality(dt);
     if (this.input.touch) this.input.audioUnlock = true;
   }
   autoQuality(dt) {
-    this.aq = this.aq || { t: 0, n: 0, cool: 6 };
-    const a = this.aq; a.t += dt; a.n++; a.cool -= dt;
-    if (a.t > 3) {
-      const fps = a.n / a.t; a.t = 0; a.n = 0;
-      if (a.cool <= 0 && fps < 26 && this.eng.qIndex > 0) { this.eng.setQuality(this.eng.qIndex - 1); a.cool = 8; el('qSel').value = String(this.eng.qIndex); }
-    }
+    // frame-time driven dynamic resolution; tier drop only when already at minimum scale
+    const a = this.aq = this.aq || { ema: 1 / 60, cool: 4, slow: 0, fast: 0, last: performance.now() };
+    const now = performance.now(); dt = Math.min((now - a.last) / 1000, 1); a.last = now;
+    a.cool -= dt; a.ema += (dt - a.ema) * 0.08;
+    if (a.cool > 0) return;
+    const eng = this.eng, target = 1 / 58;
+    if (a.ema > target * 1.08) { a.slow += dt; a.fast = 0; } else if (a.ema < target * 0.8) { a.fast += dt; a.slow = 0; } else a.slow = a.fast = 0;
+    if (a.slow > 0.6) {
+      a.slow = 0; a.cool = 1.2;
+      if (eng.scale > 0.5) eng.setScale(eng.scale - 0.1);
+      else if (eng.qIndex > 0) { eng.setQuality(eng.qIndex - 1); a.cool = 6; el('qSel').value = String(eng.qIndex); }
+    } else if (a.fast > 4 && eng.scale < 1) { a.fast = 0; a.cool = 3; eng.setScale(eng.scale + 0.1); }
   }
   audioUpdate(dt) {
     const v = this.vehicle;
