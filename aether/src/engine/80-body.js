@@ -4,7 +4,7 @@ if(!window.__BODY)window.__BODY={active:false,x:0,z:0,g:0,H:1.78,yaw:0,anchor:nu
 
 
 function bodyTick(){const B=window.__BODY;B.t=0;
- if(fpv.enabled){B.anchor=null;const inT=fpv.z<DOOR.landZ;B.inTunnel=inT;B.active=inT;if(inT){B.x=fpv.x;B.z=fpv.z;B.g=fpv.gy??doorGround(fpv.x,fpv.z);B.yaw=fpv.yaw}}
+ if(fpv.enabled){B.anchor=null;const inT=TUNNEL_V2.active?true:fpv.z<DOOR.landZ;B.inTunnel=inT;B.active=inT;if(inT){B.x=fpv.x;B.z=fpv.z;B.g=fpv.gy??doorGround(fpv.x,fpv.z);B.yaw=fpv.yaw}}
  else if(B.anchor){B.active=true;B.inTunnel=true;B.x=B.anchor.x;B.z=B.anchor.z;B.g=B.anchor.g;B.yaw=B.anchor.yaw}else{B.active=false;B.inTunnel=false}
  B.speed=(window.__LIVE&&window.__LIVE.ok&&window.__LIVE.enabled&&B.active)?window.__LIVE.speedAt:0}
 function bodyDraw(vp){const B=window.__BODY;if(!B.active||fpv.enabled)return;try{

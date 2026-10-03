@@ -38,6 +38,7 @@ function cineShots(g,tall){
  const eye=[[n-.45,.55,c+3.1],[n-.4,.56,c+3.1],[n-.05,.85,c+3.0],[m+1.75,1.35,c+3.3],[r+2.0,1.6,c+2.7],[r+2.3,1.62,c+2.65],[r+4.45,1.95,c+3.3],[r+4.5,3.3,c+3.3]];
  const tgt=tall?[[n+1.0,.6,c-.1],[n+1.05,.6,c-.1],[n+1.9,.78,c],[m+1.2,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+.3,.85,c],[m-.3,1.3,c]]
   :[[n+1.05,.65,c-.3],[n+1.1,.65,c-.3],[n+1.9,.78,c-.1],[m+1.4,.9,c],[w.x-.1,w.y,c],[w.x+.1,w.y-.05,c],[r+1.25,.8,c],[m-.3,1.3,c]];
+ if(TUNNEL_V2.active)tgt[7]=[(m+g.fanX)/2,1.5,c]; /* closing reveal looks upstream: the car and the nozzle exit share the frame */
  if(TUNNEL_V2.active)for(const e of eye){e[0]=Math.min(e[0],g.env.x1-.25);e[1]=Math.max(g.env.y0,Math.min(g.env.y1,e[1]));e[2]=Math.max(g.env.z0,Math.min(g.env.z1,e[2]))}
  return{t,eye,tgt,fov:[[0,40],[24,40],[30,46]],hfov:46}}
 

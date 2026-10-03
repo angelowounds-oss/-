@@ -1,4 +1,4 @@
-/* global __CINE, WheelEvent */
+/* global __CINE, WheelEvent, __TUNNEL_V2 */
 // Cinematic director verification (headless Chromium + SwiftShader: functional/geometry checks only, never performance).
 // node tests/cinematic.mjs [hash=#q=LITE] [realSteps=160]
 // Logic scenarios run on a virtual clock (the rAF loop is paused and CINE.tick is driven by hand), the first scenario uses the real splash/rAF path.
@@ -116,7 +116,7 @@ try {
       10: [['cabin', [G.mid, 1.1, G.cz]]],
       17: [['wing', [G.wing.x, G.wing.y, G.cz]], ['wing-tip L', [G.wing.x, G.wing.y, G.cz - G.wing.hw]], ['wing-tip R', [G.wing.x, G.wing.y, G.cz + G.wing.hw]]],
       24: [['rear', [G.rear, .8, G.cz]], ['wake', [G.rear + 2, .9, G.cz]]],
-      30: [['car', [G.mid, .7, G.cz]], ['fan', [G.fanBox ? (G.fanBox.max[0] - 1) : -5, 2.7, G.cz]]]
+      30: [['car', [G.mid, .7, G.cz]], window.__TUNNEL_V2 && __TUNNEL_V2.active ? ['nozzle exit', [G.fanX + .2, 1.9, G.cz]] : ['fan', [G.fanBox ? (G.fanBox.max[0] - 1) : -5, 2.7, G.cz]]]
     };
     const look = (e, t) => { const z = e.map((v, i) => v - t[i]), zl = Math.hypot(...z), zn = z.map(v => v / zl), x = [zn[2], 0, -zn[0]]; const xl = Math.hypot(...x), xn = x.map(v => v / xl), y = [zn[1] * xn[2] - zn[2] * xn[1], zn[2] * xn[0] - zn[0] * xn[2], zn[0] * xn[1] - zn[1] * xn[0]]; return { xn, y, zn }; };
     for (const [name, W, H] of [['16:9', 1600, 900], ['21:9', 2100, 900], ['9:16', 540, 960]]) {

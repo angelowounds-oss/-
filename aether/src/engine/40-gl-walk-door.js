@@ -31,11 +31,16 @@ function doorBuild(){if(TUNNEL_V2.active||DOOR.built||scene.objects.some(o=>o.na
   for(const y of [DOOR.y0+.03,DOOR.y1-.03])f.push(B('rail.'+k+'.'+y,[cx,y,DOOR.zPanel],[w-.06,.05,.05],[.30,.33,.35],{visible:vis}));
   f.push(B('handle.'+k,[cx+(w-.06)/2-.12,1.75,DOOR.zPanel+.05],[.03,.45,.03],[.72,.75,.77],{visible:vis}));DOOR.frames.push(f)}
  DOOR.built=true}
-window.__doorPlace=()=>{fpv.x=(DOOR.x0+DOOR.x1)/2;fpv.z=5.6;fpv.yaw=0;fpv.pitch=-.12;fpv.gy=undefined};
+window.__doorPlace=()=>{if(TUNNEL_V2.active){fpv.x=TUNNEL_SPEC.nozzle.x1+1.6;fpv.z=3.2;fpv.yaw=Math.PI/2;fpv.pitch=-.05;fpv.gy=undefined;return}fpv.x=(DOOR.x0+DOOR.x1)/2;fpv.z=5.6;fpv.yaw=0;fpv.pitch=-.12;fpv.gy=undefined};
 function doorGround(x,z){const {x0,x1,landZ,tread,steps,rise,y0}=DOOR,inX=x>=x0&&x<=x1;if(z>=3.96)return y0;if(inX&&z>=landZ)return y0;if(inX&&z>=landZ-tread*steps){const i=Math.min(steps-1,Math.floor((landZ-z)/tread));return y0-rise*(i+1)}return 0}
 function doorUpdate(dt){if(!DOOR.built)return;const near=fpv.enabled&&Math.hypot(fpv.x-(DOOR.x0+DOOR.x1)/2,fpv.z-DOOR.zPanel)<1.9;DOOR.t=clamp(DOOR.t+(near?1:-1)*dt*1.4,0,1);const e=DOOR.t*DOOR.t*(3-2*DOOR.t),k=Math.round(e*(DOOR.N-1));
  if(k!==DOOR.shown){DOOR.shown=k;DOOR.frames.forEach((f,i)=>f.forEach(o=>o.visible=i===k))}if(DOOR.light)DOOR.light.color=DOOR.t>.9?[.15,.95,.35]:DOOR.t>0?[.95,.7,.15]:[.9,.2,.15]}
+/* v2: free walking inside the plenum (wedge tips keep a 0.9 m margin), the car, the turntable-pit edge and the jet's nozzle/collector are obstacles; the observation window and control room are not walkable */
+function canWalkV2(x,z,fromX,fromZ,r){const sp=TUNNEL_SPEC,p=sp.plenum,m=sp.plenum.wedge.depth+.2;
+ if(x<sp.nozzle.x1+.6||x>sp.collector.x0-.6||Math.abs(z)>p.zh-m)return false;
+ const vb=AETHER.VEHICLE_TRANSFORM?.worldAABB;if(vb&&x+r>vb.min[0]-.1&&x-r<vb.max[0]+.1&&z+r>vb.min[2]-.1&&z-r<vb.max[2]+.1)return false;void fromX;void fromZ;return true}
 function canWalk(x,z,fromX=fpv.x,fromZ=fpv.z){const r=.22,{x0,x1}=DOOR;
+ if(TUNNEL_V2.active)return canWalkV2(x,z,fromX,fromZ,r);
  const room=x>=-3.86&&x<=3.86&&z>=4.34&&z<=9.08,corridor=DOOR.built&&x>=x0+r&&x<=x1-r&&z>=DOOR.landZ-DOOR.tread*DOOR.steps-.01&&z<4.34;
  const L=AETHER.FAN_MODULE?.layout,xMax=(L?.diagnostics?.collectorFaceX??8.6)-.45,tunnel=DOOR.built&&x>=-8.3&&x<=xMax&&z>=-3.66&&z<=3.60;
  if(!room&&!corridor&&!tunnel)return false;
