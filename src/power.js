@@ -31,10 +31,11 @@ export class Power {
     }
   }
   damage(s, d) {
-    if (this.isOff(s.zone) && this.st.off[s.zone].cause === 'wreck') return;
+    if (s.hp <= 0 || (this.isOff(s.zone) && this.st.off[s.zone].cause === 'wreck')) return;
     s.hp -= d; this.st.hp[s.zone] = s.hp;
     this.G.fx.sparks(s.x, 1.4, s.z, 4, [1, 0.8, 0.3], 6);
-    if (s.hp <= 0) { this.G.explosion(s.x, 1.2, s.z, 6, 30, this.G.player); this.cut(s, 'wreck'); }
+    // wrecked: cut the power first, then the blast (which would otherwise hit this same yard again)
+    if (s.hp <= 0) { this.cut(s, 'wreck'); this.G.explosion(s.x, 1.2, s.z, 6, 30, this.G.player); }
   }
   blast(x, z, r) { for (const s of this.subs) if (Math.hypot(s.x - x, s.z - z) < r + 3) this.damage(s, SUB_HP); }
   cut(s, cause) {
