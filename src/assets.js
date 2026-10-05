@@ -108,6 +108,41 @@ export function buildSoldier(look = {}, gunParts) {
       a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = hold; a.weight = 1; a.enabled = true; a.play(); this.onceName = name; return true;
     },
     stopOnce() { const a = act[this.onceName]; if (a) { a.weight = 0; a.setLoop(THREE.LoopRepeat, Infinity); a.clampWhenFinished = false; } this.onceName = null; },
+    // long guns live in the body frame (shouldered or low-ready) and both arms reach for them with IK
+    rifleOn: false,
+    setRifleMode(on) {
+      if (on === this.rifleOn) return; this.rifleOn = on;
+      if (on) { body.add(rifle); rifle.add(mz); mz.position.set(0, 0.02, 0.82); }
+      else { mount.add(rifle); rifle.position.set(0, 0, 0); rifle.quaternion.identity(); mount.add(mz); mz.position.set(0, 0.03, 0.3); }
+    },
+    // k: aim weight (0 low ready, 1 shouldered); pitch: aim pitch (+ up); o: { recoil, pump 0..1, bolt 0..1, reload 0..1 }
+    rifleIK(k, pitch, o = {}) {
+      if (!this.rifleOn) return;
+      wrap.updateMatrixWorld(true);
+      const rs = body.worldToLocal(bones.RightArm.getWorldPosition(new THREE.Vector3())), ls = body.worldToLocal(bones.LeftArm.getWorldPosition(new THREE.Vector3()));
+      const rs1 = Math.sign(rs.x - ls.x) || -1, right = new THREE.Vector3(rs1, 0, 0);
+      const P = Math.max(-0.9, Math.min(0.9, pitch)) * k - 0.55 * (1 - k) + (o.recoil || 0) * 0.06;
+      const f = new THREE.Vector3(0, Math.sin(P), Math.cos(P)), up = new THREE.Vector3(0, Math.cos(P), -Math.sin(P));
+      const S = rs.clone().addScaledVector(right, -(0.04 + 0.06 * (1 - k))).add(new THREE.Vector3(0, -0.03 - 0.12 * (1 - k), 0.06 + 0.08 * (1 - k)));
+      const p0 = S.clone().addScaledVector(f, 0.1 - (o.recoil || 0) * 0.05);
+      rifle.position.copy(p0);
+      rifle.quaternion.setFromRotationMatrix(RIFLE_M4.lookAt(f, ORIGIN, up));
+      if (o.reload > 0) rifle.rotateZ(-Math.sin(Math.min(1, o.reload * 1.3) * Math.PI) * 0.45);
+      rifle.updateMatrixWorld(true);
+      const grip = p0.clone().addScaledVector(f, 0.06).addScaledVector(up, -0.07);
+      if (o.bolt > 0) { const b = Math.sin(o.bolt * Math.PI); grip.addScaledVector(up, 0.07 * b).addScaledVector(f, -0.1 * b).addScaledVector(right, 0.05 * b); }
+      let fore = p0.clone().addScaledVector(f, 0.42 - (o.pump || 0) * 0.13).addScaledVector(up, -0.035);
+      if (o.reload > 0) { // left hand: magazine out, to the pouch, new magazine in, back to the handguard
+        const u = o.reload, mag = p0.clone().addScaledVector(f, 0.22).addScaledVector(up, -0.13), pouch = new THREE.Vector3(-rs1 * 0.17, 0.98, 0.12);
+        const L = (a, b, t) => a.clone().lerp(b, Math.min(1, Math.max(0, t)));
+        fore = u < 0.25 ? L(fore, mag, u / 0.25) : u < 0.45 ? L(mag, pouch, (u - 0.25) / 0.2) : u < 0.65 ? L(pouch, mag, (u - 0.45) / 0.2) : u < 0.8 ? mag : L(mag, fore, (u - 0.8) / 0.2);
+      }
+      const W = (v) => body.localToWorld(v.clone());
+      const poleR = W(rs.clone().addScaledVector(right, 0.45).add(new THREE.Vector3(0, -0.8, -0.15)));
+      const poleL = W(ls.clone().addScaledVector(right, -0.25).add(new THREE.Vector3(0, -0.9, 0.1)));
+      twoBoneIK(bones.RightArm, bones.RightForeArm, bones.RightHand, W(grip), poleR);
+      twoBoneIK(bones.LeftArm, bones.LeftForeArm, bones.LeftHand, W(fore), poleL);
+    },
     mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
     // called after mixer update each frame
     applyPose(pose, pitch) {
@@ -139,6 +174,29 @@ export function buildSoldier(look = {}, gunParts) {
   };
 }
 const wq = new THREE.Quaternion(), pq = new THREE.Quaternion(), la = new THREE.Vector3();
+// ---- two-bone IK (world space) ----
+const ikA = new THREE.Vector3(), ikB = new THREE.Vector3(), ikD = new THREE.Vector3(), ikE = new THREE.Vector3(), ikN = new THREE.Vector3(), ikQ = new THREE.Quaternion(), ikQ2 = new THREE.Quaternion(), ikPW = new THREE.Quaternion();
+// rotate `bone` so that the direction to `child` points at `target`
+function aimBone(bone, child, target) {
+  bone.getWorldPosition(ikA); child.getWorldPosition(ikB);
+  ikD.subVectors(ikB, ikA).normalize(); ikE.subVectors(target, ikA).normalize();
+  ikQ.setFromUnitVectors(ikD, ikE);
+  bone.getWorldQuaternion(ikQ2); ikQ2.premultiply(ikQ);
+  bone.parent.getWorldQuaternion(ikPW); bone.quaternion.copy(ikPW.invert().multiply(ikQ2));
+  bone.updateMatrixWorld(true);
+}
+// upper/lower/end bones reach `target`, elbow bent towards `pole`
+function twoBoneIK(up, lo, end, target, pole) {
+  const a = up.getWorldPosition(new THREE.Vector3()), b = lo.getWorldPosition(new THREE.Vector3()), c = end.getWorldPosition(new THREE.Vector3());
+  const L1 = a.distanceTo(b), L2 = b.distanceTo(c), dist = Math.min(L1 + L2 - 1e-3, Math.max(Math.abs(L1 - L2) + 1e-3, a.distanceTo(target)));
+  const d = target.clone().sub(a).normalize();
+  const cosA = Math.min(1, Math.max(-1, (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist))), sinA = Math.sqrt(1 - cosA * cosA);
+  ikN.subVectors(pole, a); ikN.addScaledVector(d, -ikN.dot(d)); if (ikN.lengthSq() < 1e-8) ikN.set(0, -1, 0); ikN.normalize();
+  const elbow = a.clone().addScaledVector(d, L1 * cosA).addScaledVector(ikN, L1 * sinA);
+  aimBone(up, lo, elbow);
+  aimBone(lo, end, a.clone().addScaledVector(d, dist));
+}
+const RIFLE_M4 = new THREE.Matrix4(), ORIGIN = new THREE.Vector3();
 const clamp01 = (v) => Math.max(-0.7, Math.min(0.7, v));
 export const AIM = { sitThigh: -1.45, sitKnee: 1.5, rx: -1.35, ry: 0.35, rfx: -0.2, lx: -1.25, ly: -0.55, lfx: -0.5, spine: 0 };
 // ---- Ferrari ----

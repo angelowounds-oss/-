@@ -278,13 +278,21 @@ export class Human {
     if (cd > 75) return;
     if (cd > 35) { this.lodT = (this.lodT || 0) + dt; if ((this.lodF = !this.lodF)) return; dt = this.lodT; this.lodT = 0; }
     // pistol-class weapons use the retargeted UAL upper-body clips (idle / aim up-neutral-down / shoot / reload); the limbs below keep walking
-    const pistolish = this.armed && this.weapon && this.weapon.short === 'pistol' && !m.sit && !this.swimming && !this.prone && !this.lying;
-    if (this.recoil > (this._rc || 0) + 0.4) this.shootT = 0.38;
+    const freeStance = !m.sit && !this.swimming && !this.prone && !this.lying && !m.rideOn;
+    const pistolish = this.armed && this.weapon && this.weapon.short === 'pistol' && freeStance;
+    const riflish = this.armed && this.weapon && this.weapon.short === 'rifle' && freeStance && !!m.setRifleMode;
+    if (m.setRifleMode) m.setRifleMode(riflish);
+    if (this.recoil > (this._rc || 0) + 0.4) {
+      this.shootT = 0.38;
+      if (riflish && this.weapon.pellets) this.pumpT = 0.55;           // shotgun: rack the pump
+      if (riflish && this.weapon.name === 'SNIPER') this.boltT = 0.8;  // sniper: work the bolt
+    }
+    if (this.pumpT > 0) this.pumpT -= dt; if (this.boltT > 0) this.boltT -= dt;
     this._rc = this.recoil;
     if (this.shootT > 0) this.shootT -= dt;
     {
       const pitch = this.aimPitch || 0, up = clamp(pitch / 0.5, 0, 1), dn = clamp(-pitch / 0.5, 0, 1), neu = 1 - Math.max(up, dn);
-      const act = pistolish ? 1 : 0, shoot = this.shootT > 0 ? 1 : 0, rel = this.reloadT > 0 ? 1 : 0;
+      const act = pistolish || riflish ? 1 : 0, shoot = this.shootT > 0 ? 1 : 0, rel = this.reloadT > 0 ? 1 : 0;
       const base = act * (rel ? 0 : 1) * (shoot ? 0 : 1), aimK = aiming ? 1 : 0;
       const tw = { UB_Pistol_Idle: base * (1 - aimK), UB_Pistol_Aim_Up: base * aimK * up, UB_Pistol_Aim_Neutral: base * aimK * neu, UB_Pistol_Aim_Down: base * aimK * dn, UB_Pistol_Shoot: act * shoot, UB_Pistol_Reload: act * rel * (1 - shoot) };
       for (const key in tw) {
@@ -296,7 +304,11 @@ export class Human {
       this._rl = rel;
     }
     m.mixer.update(dt);
-    m.applyPose(pistolish ? 0 : this.pose, this.aimPitch || 0);
+    m.applyPose(pistolish || riflish ? 0 : this.pose, this.aimPitch || 0);
+    if (riflish) {
+      const ph = (t, len, delay) => (t > 0 ? Math.max(0, Math.min(1, (len - t - delay) / (len - delay))) : 0);
+      m.rifleIK(this.pose, this.aimPitch || 0, { recoil: this.recoil || 0, pump: this.pumpT > 0 ? Math.sin(ph(this.pumpT, 0.55, 0.12) * Math.PI) : 0, bolt: ph(this.boltT, 0.8, 0.15), reload: this.reloadT > 0 && this.weapon.reload ? 1 - this.reloadT / this.weapon.reload : 0 });
+    }
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
     m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
