@@ -170,6 +170,19 @@ function decorateRoomCore(F, deco, kind, L) {
     pend('modern_ceiling_lamp_01', 0, F.D / 2 + 0.3);
   } else if (kind === 'server') {
     put(F, deco, 'worn_metal_rack', wallSide(F, 'l') + 0.35, F.D / 2, 'r');
+    // two rows of server racks facing a central aisle, status LEDs on the faces, cable trays along the ceiling
+    if (F.W >= 5.4) {
+      for (const sd of [-1, 1]) {
+        const lx = sd * 1.15, n = Math.max(1, Math.floor((F.D - 3.0) / 0.75));
+        for (let i = 0; i < n; i++) {
+          const ld = 1.3 + i * 0.75, a0 = lx - 0.32, a1 = lx + 0.32;
+          pbox(F, deco, a0, ld - 0.34, a1, ld + 0.34, 0, 2.05, 0x181b22);
+          const fx = lx - sd * 0.33, hue = [[0.2, 1, 0.5], [0.3, 0.8, 1], [1, 0.7, 0.2]][(i + (sd > 0 ? 1 : 0)) % 3];
+          pbox(F, deco, fx - sd * 0.015, ld - 0.28, fx + sd * 0.015, ld + 0.28, 0.35 + (i % 3) * 0.3, 1.85, new THREE.Color(...hue).multiplyScalar(0.9), { key: 'emit', em: 1.4, solid: false, claim: false });
+        }
+        pbox(F, deco, lx - 0.25, 0.9, lx + 0.25, 1.3 + n * 0.75, ceil - 0.32, ceil - 0.27, 0x3b414d, { solid: false, claim: false });
+      }
+    }
     put(F, deco, 'metal_stool_01', 0, F.D - 1.2, 'in');
     put(F, deco, 'security_camera_01', F.W / 2 - 0.3, F.D - 0.3, 'in', { ghost: true, lift: ceil - 0.3, s: 0.7 });
     put(F, deco, 'mounted_fluorescent_lights', 0, F.D / 2, 'in', { ghost: true, lift: ceil - 0.05 });
