@@ -3,7 +3,7 @@
 <title>학점 계산기 - 평균평점 4.5 / 4.3</title><meta name="description" content="과목별 학점과 성적을 입력하면 평균평점(GPA)을 4.5 또는 4.3 만점으로 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/gpa.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>학점 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="scale">만점 기준</label><select id="scale"><option value="45">4.5 만점</option><option value="43">4.3 만점</option></select><label for="rows">한 줄에 하나: '학점 성적' (예: 3 A+)</label><textarea id="rows" style="min-height:130px">3 A+
@@ -33,5 +33,7 @@ return '<b>평균평점 '+N2(pt/cr,2)+' / '+(v.scale==='45'?'4.5':'4.3')+'</b><b
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "P/NP 과목은요?", "acceptedAnswer": {"@type": "Answer", "text": "평균평점에 포함하지 않으므로 입력하지 마세요."}}, {"@type": "Question", "name": "재수강은 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "학교 규정에 따라 다릅니다. 최종 성적만 입력하세요."}}]}</script></body></html>

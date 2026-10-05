@@ -3,7 +3,7 @@
 <title>연비·주유비 계산기 - 주행거리별 주유비</title><meta name="description" content="주행거리, 연비, 기름값으로 필요한 연료량과 주유비, km당 비용을 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/fuel.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>연비·주유비 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="d">주행거리 (km)</label><input type="number" id="d" value="500" step="any"><label for="e">연비 (km/L)</label><input type="number" id="e" value="12" step="any"><label for="p">리터당 가격 (원)</label><input type="number" id="p" value="1700" step="any"><div class="result" id="r"></div></div><h2>연비 확인 방법</h2><p>계기판 평균 연비 또는 가득 주유 후 주행한 거리를 주유량으로 나누면 실제 연비를 알 수 있습니다. 고속도로와 시내 연비는 다르니 상황에 맞게 입력하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>전기차에도 쓸 수 있나요?</h3><p>km/kWh 연비와 kWh당 전기요금을 입력하면 같은 방식으로 쓸 수 있습니다.</p><h3>통행료는 포함되나요?</h3><p>아니요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="splitbill.html">더치페이 계산기</a><a href="discount.html">중복 할인 계산기</a></div>
@@ -25,5 +25,7 @@ return '필요 연료 '+N2(l,1)+'L<br><b>주유비 '+W(c)+'</b><br>km당 '+W(c/v
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "전기차에도 쓸 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "km/kWh 연비와 kWh당 전기요금을 입력하면 같은 방식으로 쓸 수 있습니다."}}, {"@type": "Question", "name": "통행료는 포함되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요."}}]}</script></body></html>

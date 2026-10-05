@@ -3,7 +3,7 @@
 <title>운동 칼로리 소모 계산기 - 운동 종류별 소모량</title><meta name="description" content="운동 종류, 체중, 시간으로 소모 칼로리를 MET 기준으로 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/calories.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>운동 칼로리 소모 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="met">운동 종류</label><select id="met"><option value="3.5">걷기 (보통 속도)</option><option value="5">빠르게 걷기</option><option value="7">조깅</option><option value="9.8">달리기 (시속 10km)</option><option value="6.8">자전거 (보통)</option><option value="6">수영 (가볍게)</option><option value="6.5">등산</option><option value="5.5">에어로빅·댄스</option></select><label for="w">체중 (kg)</label><input type="number" id="w" value="68" step="any"><label for="m">운동 시간 (분)</label><input type="number" id="m" value="40" step="any"><div class="result" id="r"></div></div><h2>MET이란?</h2><p>운동 강도를 안정 시 에너지 소모량의 배수로 나타낸 값입니다. 소모 칼로리 = MET × 체중(kg) × 시간 × 1.05로 근사합니다. 실제 소모량은 개인과 운동 강도에 따라 달라집니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정확한가요?</h3><p>대략적인 추정치입니다. 심박수 기반 기기와 차이가 날 수 있습니다.</p><h3>운동 후 추가 소모는요?</h3><p>포함하지 않았습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="sleep.html">수면 사이클 계산기</a></div>
@@ -24,5 +24,7 @@ function compute(v){const k=(+v.met)*v.w*(v.m/60)*1.05;return '<b>소모 칼로�
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "정확한가요?", "acceptedAnswer": {"@type": "Answer", "text": "대략적인 추정치입니다. 심박수 기반 기기와 차이가 날 수 있습니다."}}, {"@type": "Question", "name": "운동 후 추가 소모는요?", "acceptedAnswer": {"@type": "Answer", "text": "포함하지 않았습니다."}}]}</script></body></html>

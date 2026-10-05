@@ -3,7 +3,7 @@
 <title>로또 번호 생성기 - 무작위 6개 번호</title><meta name="description" content="1~45 사이의 무작위 번호 6개를 5세트 뽑아줍니다. 재미로만 이용하세요.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/lotto.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>로또 번호 생성기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><button onclick="run()">번호 뽑기</button><div class="result" id="r"></div></div><h2>안내</h2><p>이 도구는 순수한 난수로 번호를 만듭니다. 어떤 조합이든 당첨 확률은 같으며, 로또는 과도하게 구매하지 않도록 주의하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>번호가 저장되나요?</h3><p>아니요. 다시 뽑으면 이전 번호는 사라집니다.</p><h3>보너스 번호는요?</h3><p>당첨 후 별도로 추첨되므로 생성하지 않습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
@@ -24,5 +24,7 @@ function compute(v){let h='';for(let s=0;s<5;s++){const set=new Set();while(set.
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "번호가 저장되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요. 다시 뽑으면 이전 번호는 사라집니다."}}, {"@type": "Question", "name": "보너스 번호는요?", "acceptedAnswer": {"@type": "Answer", "text": "당첨 후 별도로 추첨되므로 생성하지 않습니다."}}]}</script></body></html>

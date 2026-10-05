@@ -3,7 +3,7 @@
 <title>전월세 전환 계산기 - 전세↔월세 환산</title><meta name="description" content="전세금을 월세로, 월세를 전세금으로 전환합니다. 전월세 전환율은 직접 입력합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/jeonse.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>전월세 전환 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="mode">방향</label><select id="mode"><option value="fwd">전세 → 월세</option><option value="rev">월세 → 전세</option></select><label for="j">전세금 (원, 전세→월세일 때)</label><input type="number" id="j" value="300000000" step="any"><label for="dep">보증금 (원)</label><input type="number" id="dep" value="50000000" step="any"><label for="mo">월세 (원, 월세→전세일 때)</label><input type="number" id="mo" value="800000" step="any"><label for="rate">전월세 전환율 (%)</label><input type="number" id="rate" value="5" step="0.01"><div class="result" id="r"></div></div><h2>전환율이란?</h2><p>전세금 일부를 월세로 바꿀 때 적용하는 연 이율입니다. 주택임대차보호법상 상한이 정해져 있고 시기와 지역에 따라 달라질 수 있으니 계약 시점의 법정 상한을 확인해 입력하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>전환율은 어디서 확인하나요?</h3><p>한국은행 기준금리와 법무부 고시 등을 참고합니다. 계약 시점의 값을 확인하세요.</p><h3>월세 vs 전세 무엇이 유리한가요?</h3><p>전환율이 대출 이자율보다 높으면 전세가 유리한 경우가 많습니다. 대출 이자 계산기와 같이 비교해 보세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a><a href="discount.html">중복 할인 계산기</a></div>
@@ -26,5 +26,7 @@ return '보증금 '+W(v.dep)+' + 월세 '+W(v.mo)+' = <b>전세금 '+W(v.dep+v.m
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "전환율은 어디서 확인하나요?", "acceptedAnswer": {"@type": "Answer", "text": "한국은행 기준금리와 법무부 고시 등을 참고합니다. 계약 시점의 값을 확인하세요."}}, {"@type": "Question", "name": "월세 vs 전세 무엇이 유리한가요?", "acceptedAnswer": {"@type": "Answer", "text": "전환율이 대출 이자율보다 높으면 전세가 유리한 경우가 많습니다. 대출 이자 계산기와 같이 비교해 보세요."}}]}</script></body></html>

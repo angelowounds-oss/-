@@ -3,7 +3,7 @@
 <title>기초대사량 계산기 - BMR·하루 권장 칼로리</title><meta name="description" content="성별, 나이, 키, 몸무게로 기초대사량과 활동량별 하루 소비 칼로리를 계산합니다(Mifflin-St Jeor 공식).">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/bmr.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>기초대사량 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="sex">성별</label><select id="sex"><option value="m">남성</option><option value="f">여성</option></select><label for="age">나이</label><input type="number" id="age" value="30" step="1"><label for="h">키 (cm)</label><input type="number" id="h" value="172" step="any"><label for="w">몸무게 (kg)</label><input type="number" id="w" value="68" step="any"><label for="act">활동량</label><select id="act"><option value="1.2">거의 앉아서 생활</option><option value="1.375">가벼운 운동 주 1~3회</option><option value="1.55">보통 운동 주 3~5회</option><option value="1.725">강한 운동 주 6~7회</option><option value="1.9">매우 활동적</option></select><div class="result" id="r"></div></div><h2>기초대사량이란?</h2><p>가만히 있어도 생명 유지에 쓰이는 하루 최소 에너지입니다. 여기에 활동 계수를 곱하면 하루 총 소비 칼로리의 추정치가 됩니다. 개인차가 크고 의학적 처방이 아닙니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>하루 500kcal를 줄이면 얼마나 빠지나요?</h3><p>대략 일주일에 0.5kg 정도라고 알려져 있지만 개인차가 큽니다.</p><h3>계수는 어떻게 고르나요?</h3><p>한 주 평균 운동 빈도로 고르되 헷갈리면 낮은 쪽을 선택하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a><a href="sleep.html">수면 사이클 계산기</a></div>
@@ -25,5 +25,7 @@ return '<b>기초대사량 '+W0(b)+' kcal</b><br>하루 소비 '+W0(t)+' kcal<br
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "하루 500kcal를 줄이면 얼마나 빠지나요?", "acceptedAnswer": {"@type": "Answer", "text": "대략 일주일에 0.5kg 정도라고 알려져 있지만 개인차가 큽니다."}}, {"@type": "Question", "name": "계수는 어떻게 고르나요?", "acceptedAnswer": {"@type": "Answer", "text": "한 주 평균 운동 빈도로 고르되 헷갈리면 낮은 쪽을 선택하세요."}}]}</script></body></html>

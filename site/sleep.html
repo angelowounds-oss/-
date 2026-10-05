@@ -3,7 +3,7 @@
 <title>수면 사이클 계산기 - 기상시간 기준 취침시간</title><meta name="description" content="기상 시각에서 90분 수면 주기를 거꾸로 계산해 권장 취침 시각을 알려줍니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/sleep.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>수면 사이클 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="w">일어날 시각</label><input type="time" id="w" value="07:00"><label for="f">잠드는 데 걸리는 시간 (분)</label><input type="number" id="f" value="15" step="any"><div class="result" id="r"></div></div><h2>수면 주기</h2><p>사람의 수면은 약 90분 주기로 얕은 잠과 깊은 잠을 반복한다고 알려져 있습니다. 주기가 끝나는 시점에 일어나면 덜 피곤하다는 가설에 따른 참고용 계산입니다. 성인에게는 보통 7~9시간 수면이 권장됩니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>몇 주기를 자야 하나요?</h3><p>성인은 5주기(7.5시간) 전후가 많이 권장되지만 개인차가 큽니다.</p><h3>낮잠은요?</h3><p>20~30분 이내가 알려진 가이드입니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a></div>
@@ -26,5 +26,7 @@ return [6,5,4].map(c=>'<b>'+fmt(wake-c*90-v.f)+'</b> 취침 → '+c+'주기 ('+(
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "몇 주기를 자야 하나요?", "acceptedAnswer": {"@type": "Answer", "text": "성인은 5주기(7.5시간) 전후가 많이 권장되지만 개인차가 큽니다."}}, {"@type": "Question", "name": "낮잠은요?", "acceptedAnswer": {"@type": "Answer", "text": "20~30분 이내가 알려진 가이드입니다."}}]}</script></body></html>

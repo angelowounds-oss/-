@@ -3,7 +3,7 @@
 <title>연차 계산기 - 입사일 기준 연차 일수</title><meta name="description" content="입사일과 기준일로 발생한 연차 일수를 계산합니다. 1년 미만은 월 1일, 1년 이상은 15일에서 2년마다 1일씩 늘어납니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/annualleave.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>연차 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="j">입사일</label><input type="date" id="j" value="2023-04-10"><label for="b">기준일</label><input type="date" id="b" value="" data-off="0"><div class="result" id="r"></div></div><h2>연차 발생 기준</h2><p>근로기준법상 5인 이상 사업장에서 1년간 80% 이상 출근하면 15일이 발생하고, 3년차부터 2년마다 1일이 추가되어 최대 25일입니다. 1년 미만 근로자는 개근한 매월 1일씩 발생합니다. 회계연도 기준으로 운영하는 회사는 값이 달라질 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>5인 미만 사업장은요?</h3><p>연차 규정이 적용되지 않습니다.</p><h3>쓰지 못한 연차는 어떻게 되나요?</h3><p>사용 기한이 지난 미사용 연차는 연차수당으로 보상받을 수 있는 경우가 많습니다. 회사 규정을 확인하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
@@ -27,5 +27,7 @@ return '근속 '+yrs+'년 '+(months%12)+'개월<br><b>발생 연차 '+leave+'일
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "5인 미만 사업장은요?", "acceptedAnswer": {"@type": "Answer", "text": "연차 규정이 적용되지 않습니다."}}, {"@type": "Question", "name": "쓰지 못한 연차는 어떻게 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "사용 기한이 지난 미사용 연차는 연차수당으로 보상받을 수 있는 경우가 많습니다. 회사 규정을 확인하세요."}}]}</script></body></html>

@@ -11,6 +11,7 @@ CATS = [
     ("fin", "금융·투자"), ("pay", "세금·급여"), ("biz", "부업·사업"), ("life", "부동산·생활"),
     ("date", "날짜·시간"), ("health", "건강·운동"), ("tool", "도구·변환"),
 ]
+CATS.insert(0, ("fun", "소비 환산"))
 
 # slug, title, category, one-line description  (existing hand-written pages first)
 REG = [
@@ -28,18 +29,19 @@ REG = [
     ("percent", "퍼센트 계산기", "tool", "비율·증감률·할인율 계산"),
     ("unit", "단위 변환기", "tool", "길이·무게·넓이·온도"),
 ]
-POPULAR = ["age", "char-count", "loan", "wage", "pyeong", "bmi", "freelance", "percent"]
+POPULAR = ["housing-clock", "age", "char-count", "loan", "wage", "pyeong", "bmi", "freelance", "percent"]
 
 # ---------- input helpers ----------
 def N(i, label, default, step="any"): return dict(id=i, label=label, t="number", d=default, step=step)
 def S(i, label, opts): return dict(id=i, label=label, t="select", opts=opts)
 def DT(i, label, default="today"): return dict(id=i, label=label, t="date", d=default)
 def TM(i, label, default): return dict(id=i, label=label, t="time", d=default)
+def TX(i, label, default): return dict(id=i, label=label, t="text", d=default)
 def TA(i, label, default): return dict(id=i, label=label, t="textarea", d=default)
 
 TOOLS = []
-def tool(slug, title, cat, line, desc, inputs, js, body, faq, button=None):
-    TOOLS.append(dict(slug=slug, title=title, cat=cat, line=line, desc=desc, inputs=inputs, js=js, body=body, faq=faq, button=button))
+def tool(slug, title, cat, line, desc, inputs, js, body, faq, button=None, extra=""):
+    TOOLS.append(dict(slug=slug, title=title, cat=cat, line=line, desc=desc, inputs=inputs, js=js, body=body, faq=faq, button=button, extra=extra))
     REG.append((slug, title, cat, line))
 
 # ================= 금융·투자 =================
@@ -302,6 +304,33 @@ tool("lotto", "로또 번호 생성기", "tool", "무작위 6개 번호", "1~45 
  [("번호가 저장되나요?", "아니요. 다시 뽑으면 이전 번호는 사라집니다."), ("보너스 번호는요?", "당첨 후 별도로 추첨되므로 생성하지 않습니다.")],
  button="번호 뽑기")
 
+# ================= 소비 환산 =================
+tool("housing-clock", "내 집 마련 시계", "fun", "소비를 집 면적으로 환산", "치킨 한 마리, 커피 한 잔이 내 집 몇 cm²인지, 내 집 마련을 얼마나 늦추는지 계산합니다. 평당 가격과 저축액을 직접 넣어 보세요.",
+ [TX("name", "소비 항목", "커피"), N("amt", "한 번 쓰는 금액 (원)", 5000),
+  S("freq", "얼마나 자주", [("365", "매일"), ("156", "주 3회"), ("52", "주 1회"), ("12", "매달"), ("0", "한 번만")]),
+  S("region", "집 지역 (평당 가격 예시값)", [("4500", "서울 평균 (예시 4,500만원/평)"), ("2500", "경기·인천 (예시 2,500만원/평)"), ("1500", "광역시 (예시 1,500만원/평)"), ("900", "그 외 지방 (예시 900만원/평)")]),
+  N("pp", "평당 가격 (만원, 직접 수정 가능)", 4500), N("size", "목표 평형 (평)", 25), N("have", "지금까지 모은 돈 (원)", 30000000), N("save", "매달 모을 수 있는 돈 (원)", 1000000)],
+ r"""const ppm2=v.pp*10000/3.305785;if(!(v.amt>0&&ppm2>0))return '';
+const nm=v.name||'이 소비';
+const area=(sqm)=>{const cm=sqm*1e4;if(cm<623.7)return N2(cm,1)+'cm² (A4 용지의 '+N2(cm/623.7*100,1)+'%)';if(cm<1e4)return N2(cm,0)+'cm² (A4 용지 '+N2(cm/623.7,1)+'장)';return N2(sqm,2)+'㎡ ('+N2(sqm/3.305785,2)+'평)'};
+const dur=(d)=>{if(d<1)return '약 '+N2(d*24,1)+'시간';if(d<60)return '약 '+N2(d,1)+'일';const m=d/30;if(m<24)return '약 '+N2(m,1)+'개월';return '약 '+N2(m/12,1)+'년'};
+const a1=area(v.amt/ppm2);let delay='';if(v.save>0)delay=dur(v.amt/(v.save/30));
+let h='<b>'+nm+' 한 번 = 내 집 '+a1+'</b>';if(delay)h+='<br>내 집 마련이 <b>'+delay+'</b> 늦어집니다';
+let share=nm+' '+W(v.amt)+' = 내 집 '+a1+(delay?', 집 마련 '+delay+' 지연':'');
+const f=+v.freq;if(f>0){const yr=v.amt*f,ya=area(yr/ppm2);h+='<br><br>이 소비가 1년 쌓이면 '+W(yr)+' = 내 집 <b>'+ya+'</b>';
+ share+=' / 1년이면 '+ya;
+ const goal=v.pp*10000*v.size,rem=Math.max(0,goal-v.have);if(v.save>0&&rem>0){const cut=yr/12,m0=rem/v.save,m1=rem/(v.save+cut),d=m0-m1;
+  const ds=(d>=12?Math.floor(d/12)+'년 ':'')+Math.round(d%12)+'개월';
+  h+='<br>끊고 저축하면 '+v.size+'평 집 마련이 <b>'+ds+'</b> 앞당겨집니다';share+=', 끊으면 집 마련 '+ds+' 단축'}}
+h+='<br><button onclick="copyShare(this)" data-t="'+encodeURIComponent(share+' (내 집 마련 시계)')+'">결과 복사해서 공유</button>';return h;""",
+ "<h2>이 계산기는 어떻게 쓰나요?</h2><p>쓴 돈을 집값으로 나눠 그 돈이 내 집의 몇 cm²인지 보여줍니다. 매달 모을 수 있는 돈을 넣으면 한 번의 소비가 내 집 마련을 며칠 늦추는지, 매일 반복되는 소비를 끊었을 때 목표 평형까지 얼마나 앞당겨지는지도 계산합니다.</p>"
+ "<h2>알아두세요</h2><p>평당 가격은 지역과 단지마다 크게 다르므로 기본값은 예시일 뿐입니다. 실제로 사려는 집의 평당 가격으로 바꿔 입력하세요. 이자, 집값 변동, 대출은 반영하지 않은 단순 계산이고, 재미와 소비 습관을 돌아보는 용도입니다.</p>",
+ [("평당 가격은 어디서 확인하나요?", "국토교통부 실거래가 공개시스템이나 부동산 앱에서 관심 지역의 최근 실거래가를 평당으로 환산해 보세요."), ("커피를 끊으면 정말 집을 살 수 있나요?", "작은 소비만으로 집을 살 수는 없습니다. 이 도구는 소비의 상대적 크기를 느끼게 해주는 용도이며, 소득과 큰 고정지출이 훨씬 중요합니다."), ("결과를 어떻게 공유하나요?", "결과 복사 버튼을 누르면 문장이 복사되니 메신저나 SNS에 붙여넣으세요.")],
+ extra=r"""window.copyShare=function(b){const t=decodeURIComponent(b.dataset.t);const done=()=>{b.textContent='복사됨'};
+const fb=()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){b.textContent='직접 복사해 주세요: '+t}a.remove()};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()};
+document.getElementById('region').addEventListener('change',e=>{const p=document.getElementById('pp');p.value=e.target.value;p.dispatchEvent(new Event('input'))});""")
+
 # ---------- rendering ----------
 HELPERS = r'''const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
@@ -339,6 +368,8 @@ def render_input(i):
         return f'<label for="{i["id"]}">{i["label"]}</label><input type="date" id="{i["id"]}" value="{val}"{a}>'
     if i["t"] == "time":
         return f'<label for="{i["id"]}">{i["label"]}</label><input type="time" id="{i["id"]}" value="{i["d"]}">'
+    if i["t"] == "text":
+        return f'<label for="{i["id"]}">{i["label"]}</label><input type="text" id="{i["id"]}" value="{i["d"]}">'
     if i["t"] == "textarea":
         return f'<label for="{i["id"]}">{i["label"]}</label><textarea id="{i["id"]}" style="min-height:130px">{i["d"]}</textarea>'
 
@@ -379,7 +410,9 @@ function compute(v){{{t["js"]}}}
 function run(){{const v={{}};IDS.forEach(i=>{{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value}});
 let h='';try{{h=compute(v)||''}}catch(x){{h=''}}document.getElementById('r').innerHTML=h}}
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});
-IDS.forEach(i=>{{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)}});run();</script>
+IDS.forEach(i=>{{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)}});
+{t["extra"]}
+run();</script>
 <script type="application/ld+json">{faq_ld(t["faq"])}</script>'''
     write(t["slug"] + ".html", shell(t["slug"] + ".html", t["title"] + " - " + t["line"], t["desc"], t["title"], main, script))
 

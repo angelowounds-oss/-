@@ -3,7 +3,7 @@
 <title>근무시간 계산기 - 출퇴근 시간 차이</title><meta name="description" content="출근 시각과 퇴근 시각, 휴게시간으로 실근무시간을 계산합니다. 자정을 넘기는 야간 근무도 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/timediff.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>근무시간 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="a">출근</label><input type="time" id="a" value="09:00"><label for="b">퇴근</label><input type="time" id="b" value="18:00"><label for="br">휴게시간 (분)</label><input type="number" id="br" value="60" step="any"><div class="result" id="r"></div></div><h2>활용 팁</h2><p>소수 표기 시간에 시급을 곱하면 일당을 구할 수 있습니다. 근로기준법상 4시간 근무에 30분 이상, 8시간 근무에 1시간 이상 휴게시간이 필요합니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>야간 근무는 어떻게 계산하나요?</h3><p>퇴근 시각이 출근 시각보다 이르면 다음 날 퇴근으로 보고 계산합니다.</p><h3>연장·야간 수당은 반영되나요?</h3><p>아니요, 순수 근무시간만 계산합니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
@@ -25,5 +25,7 @@ return '<b>실근무 '+Math.floor(mins/60)+'시간 '+(mins%60)+'분</b><br>소�
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "야간 근무는 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "퇴근 시각이 출근 시각보다 이르면 다음 날 퇴근으로 보고 계산합니다."}}, {"@type": "Question", "name": "연장·야간 수당은 반영되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요, 순수 근무시간만 계산합니다."}}]}</script></body></html>

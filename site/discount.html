@@ -3,7 +3,7 @@
 <title>중복 할인 계산기 - 할인율·쿠폰 중복 적용</title><meta name="description" content="두 번의 퍼센트 할인과 정액 쿠폰이 겹칠 때 최종 가격과 실제 총 할인율을 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/discount.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
 <main><h1>중복 할인 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="p">정가 (원)</label><input type="number" id="p" value="50000" step="any"><label for="d1">1차 할인율 (%)</label><input type="number" id="d1" value="20" step="0.1"><label for="d2">2차 할인율 (%)</label><input type="number" id="d2" value="10" step="0.1"><label for="c">정액 쿠폰 (원)</label><input type="number" id="c" value="3000" step="any"><div class="result" id="r"></div></div><h2>중복 할인 계산 순서</h2><p>할인율은 합산이 아니라 곱해집니다. 20%와 10%가 연속 적용되면 0.8 × 0.9 = 0.72로 28% 할인입니다. 정액 쿠폰이 할인 후 가격에 적용되는지 정가에 적용되는지는 쇼핑몰마다 다르니 약관을 확인하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>쿠폰을 먼저 적용하면 어떻게 되나요?</h3><p>정액 쿠폰을 먼저 빼고 퍼센트 할인을 하면 최종 금액이 달라질 수 있습니다. 이 계산기는 퍼센트 할인 후 쿠폰을 적용합니다.</p><h3>적립금은 할인인가요?</h3><p>별도 사용 조건이 있으니 쇼핑몰 안내를 확인하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a></div>
@@ -25,5 +25,7 @@ return '<b>최종 가격 '+W(f)+'</b><br>총 할인 '+W(v.p-f)+' (실제 할인�
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
-IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "쿠폰을 먼저 적용하면 어떻게 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "정액 쿠폰을 먼저 빼고 퍼센트 할인을 하면 최종 금액이 달라질 수 있습니다. 이 계산기는 퍼센트 할인 후 쿠폰을 적용합니다."}}, {"@type": "Question", "name": "적립금은 할인인가요?", "acceptedAnswer": {"@type": "Answer", "text": "별도 사용 조건이 있으니 쇼핑몰 안내를 확인하세요."}}]}</script></body></html>
