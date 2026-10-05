@@ -1,9 +1,10 @@
 import fs from 'fs';
 import * as THREE from 'three';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 const [,, src, dst, W = '512'] = process.argv;
 const buf = fs.readFileSync(src);
-const loader = new RGBELoader().setDataType(THREE.FloatType);
+const loader = (src.toLowerCase().endsWith('.exr') ? new EXRLoader() : new RGBELoader()).setDataType(THREE.FloatType);
 const img = loader.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
 const w = +W, h = w / 2, sx = img.width / w, sy = img.height / h, out = Buffer.alloc(w * h * 4);
 for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

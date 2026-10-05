@@ -578,7 +578,8 @@ export class Game {
       inside = L.tier !== 'roof' && pl.y < b.roofY - 0.3 && pl.x > r.x0 && pl.x < r.x1 && pl.z > r.z0 && pl.z < r.z1 && b.floors.has(k);
       info = { b, k, L };
     }
-    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); }
+    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); this.eng.scene.environment = inside ? this.eng.envIndoor : this.eng.env; }
+    { const sc = this.eng.scene, tgt = inside ? 0.8 : 0.45; sc.environmentIntensity += (tgt - sc.environmentIntensity) * 0.08; }
     this.where = inside ? info : null;
   }
   openElevatorUI(b) {
