@@ -495,8 +495,9 @@ function createFacadeMaterial() {
         }
       }
       fEmit*=mix(.14,1.,uNight);
-      fEmit*=1.-uBlack[zoneOf(vWP.xz)]*.96;
-      diffuseColor.rgb=alb;
+      float bk=uBlack[zoneOf(vWP.xz)];
+      fEmit*=1.-bk*.96;
+      diffuseColor.rgb=alb*(1.-bk*.72*uNight);
     `,
   });
   const origCompile = mat.onBeforeCompile;
