@@ -365,6 +365,18 @@ export class Building {
       if (ok) D.put('CashRegister_01', rx, rz, Math.atan2(d.nx, d.nz), { lift: 1.1, solid: false });
       if (ok) { D.put('carved_wooden_elephant', rx - d.nz * 0.7, rz + d.nx * 0.7, Math.atan2(d.nx, d.nz), { lift: 1.1, s: 2, solid: false }); D.put('croissant', rx + d.nz * 0.7, rz - d.nx * 0.7, 1, { lift: 1.1, s: 1.2, solid: false }); }
       D.put('lion_head', (r.x0 + r.x1) / 2, r.z0 + 0.14, 0, { lift: 2.3, s: 2, solid: false });
+      {   // wall directory: building name and what is on each level
+        const np = this.levels.filter((l) => l.tier === 'podium').length, nt = this.levels.filter((l) => l.tier === 'tower').length;
+        const cv = document.createElement('canvas'); cv.width = 512; cv.height = 320; const g = cv.getContext('2d');
+        g.fillStyle = '#0b0e14'; g.fillRect(0, 0, 512, 320); g.strokeStyle = 'rgb(255,200,120)'; g.lineWidth = 6; g.strokeRect(8, 8, 496, 304);
+        g.fillStyle = 'rgb(255,200,120)'; g.font = 'bold 40px sans-serif'; g.textBaseline = 'top'; g.fillText(String(this.name || 'BUILDING').slice(0, 18), 28, 24);
+        g.font = '28px sans-serif'; g.fillStyle = '#d8dce6';
+        const rows = [['1F', 'LOBBY'], np > 1 ? [`2-${np}F`, 'RETAIL'] : null, [`${np + 1}-${np + nt}F`, this.kind === 'hotel' ? 'ROOMS' : this.kind === 'office' ? 'OFFICES' : 'RESIDENCES'], ['ROOF', 'ACCESS']].filter(Boolean);
+        rows.forEach((rw, i) => { g.fillText(rw[0], 40, 92 + i * 52); g.fillText(rw[1], 190, 92 + i * 52); });
+        const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+        const pm = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.69), new THREE.MeshBasicMaterial({ map: tx, toneMapped: false }));
+        pm.position.set((r.x0 + r.x1) / 2 + 2.2, 1.7, r.z0 + 0.16); fl.group.add(pm);
+      }
       for (let i = 0; i < 3; i++) D.put(i === 1 ? 'painted_wooden_sofa' : 'sofa_02', r.x1 - 2.4, r.z1 - 3 - i * 3.4, -Math.PI / 2);
       D.put('coffee_table_round_01', r.x1 - 4.4, r.z1 - 4.7, 0);
       // lounge groups: two lounge chairs around a low table, plus plants and sconces along the walls
