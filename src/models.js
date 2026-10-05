@@ -28,7 +28,7 @@ const mergeSafe = (arr) => {
 // ---- Shared car materials ----
 const darkMat = new THREE.MeshPhysicalMaterial({ color: 0x07090e, roughness: 0.12, metalness: 0.85, clearcoat: 1, clearcoatRoughness: 0.05 });
 // tinted cabin glass: dark and glossy from outside, but the driver and seats show through
-const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x0a121c, roughness: 0.05, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03, transparent: true, opacity: 0.52, depthWrite: false, envMapIntensity: 1.4 });
+const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x1a2a3a, roughness: 0.05, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.03, transparent: true, opacity: 0.32, depthWrite: false, envMapIntensity: 1.4 });
 const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1a1b22, roughness: 0.8, metalness: 0.1 });
 const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.8).multiplyScalar(3.2), toneMapped: false });
 const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.06, 0.04).multiplyScalar(1.1) });

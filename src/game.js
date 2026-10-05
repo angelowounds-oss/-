@@ -14,6 +14,7 @@ import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
 import { buildTerrain, addTerrainPhysics, heightAt, roadsData } from './terrain.js';
+import { Citizens } from './citizens.js';
 import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
@@ -77,6 +78,7 @@ export class Game {
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
     { const sp = this.world.spawn; this.hospital = (this.world.enterables || []).slice().sort((a, b) => Math.hypot(a.x - sp.x, a.z - sp.z) - Math.hypot(b.x - sp.x, b.z - sp.z))[4]; if (this.hospital) this.hospital.lot.hospital = true; }
     this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this); this.buildStations();
+    this.citizens = new Citizens(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -321,6 +323,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
+    this.citizens.update(sdt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -877,6 +880,7 @@ export class Game {
   }
   clearWanted() { this.heat = 0; this.wanted = 0; this.evade = 0; for (const v of this.vehicles) if (v.police) { v.chaseTarget = null; v.direct = false; } }
   onHumanKilled(h, src) {
+    if (h.citizen) this.citizens.killed(h);
     this.stats.kills += src === this.player ? 1 : 0;
     if (h.team === 'civ') { if (src === this.player) { this.society.crime('murder', 14, h.x, h.z); this.feed('시민 사망', '#ff8a5c'); } }
     else if (h.team === 'cop') { if (src === this.player) { this.addHeat(40); this.feed('경찰 사살', '#ff4560'); } this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, 100); }

@@ -95,13 +95,15 @@ export class Society {
       case 1: tr.wait += dt; if (el.state === 'idle' && el.level === tr.k && el.doorOpen > 0.85 && !el.riding(G.player)) { tr.phase = 2; } else if (tr.wait > 20) { el.call(tr.k, true); tr.wait = 0; } break;
       case 2: { const dx = ex - h.x, dz = el.cz - h.z, d = Math.hypot(dx, dz); if (d < 0.5) {
         const cands = [...b.floors.keys()].filter((k) => k !== tr.k && b.levels[k].type !== 'roof' && b.levels[k].tier !== 'podium');
-        tr.dest = cands.length ? cands[Math.floor(Math.random() * cands.length)] : (tr.k === 0 ? 1 : 0);
+        tr.dest = tr.fixedDest ?? (cands.length ? cands[Math.floor(Math.random() * cands.length)] : (tr.k === 0 ? 1 : 0));
         if (el.queue.length === 0 && el.state === 'idle') { el.send(tr.dest); tr.phase = 3; } else tr.phase = 1;
       } else { stop.x = dx / d; stop.z = dz / d; stop.s = 1.4; } break; }
       case 3: h.x = ex; h.z = el.cz; h.y = el.y; h.floorY = el.y; if (el.state === 'idle' && el.level === tr.dest && el.doorOpen > 0.85) { tr.k = tr.dest; tr.phase = 4; tr.path = null; h.y = lvlY(tr.k); h.floorY = h.y; } break;
-      case 4: { const fl = b.floors.get(tr.k); const rm = fl && fl.rooms && fl.rooms[Math.floor(Math.random() * fl.rooms.length)];
+      case 4: { const fl = b.floors.get(tr.k);
+        if (h.citizen && tr.fixedDest != null && !fl) { this.endTrip(h); h.remove = true; return stop; } // floor not built: the resident is simply home
+        const rm = fl && fl.rooms && (tr.room != null ? fl.rooms[tr.room % fl.rooms.length] : fl.rooms[Math.floor(Math.random() * fl.rooms.length)]);
         tr.target = rm ? { x: (rm.x0 + rm.x1) / 2, z: (rm.z0 + rm.z1) / 2 } : { x: front.x + 4, z: front.z }; tr.phase = 5; tr.path = null; tr.idle = 0; break; }
-      case 5: if (tr.target) { if (follow(tr.target)) { tr.idle += 1; tr.target = null; tr.stay = 6 + Math.random() * 14; } } else { tr.stay -= dt; if (tr.stay <= 0) { tr.phase = 6; tr.path = null; } } break;
+      case 5: if (tr.target) { if (follow(tr.target)) { tr.idle += 1; tr.target = null; tr.stay = 6 + Math.random() * 14; if (h.citizen && tr.fixedDest != null) { h.trip = null; h.inside = null; h.static = true; h.state = 'stand'; h.lookAtPlayer = true; return stop; } } } else { tr.stay -= dt; if (tr.stay <= 0) { tr.phase = 6; tr.path = null; } } break;
       case 6: if (tr.k === 0) { tr.phase = 9; break; } if (follow(front)) { el.call(tr.k, true); tr.phase = 7; tr.wait = 0; } break;
       case 7: tr.wait += dt; if (el.state === 'idle' && el.level === tr.k && el.doorOpen > 0.85 && !el.riding(G.player)) tr.phase = 8; else if (tr.wait > 25) { el.call(tr.k, true); tr.wait = 0; } break;
       case 8: { const dx = ex - h.x, dz = el.cz - h.z, d = Math.hypot(dx, dz); if (d < 0.5) { if (el.queue.length === 0 && el.state === 'idle') { tr.dest = 0; el.send(0); tr.phase = 3; tr.leaving = true; } else tr.phase = 7; } else { stop.x = dx / d; stop.z = dz / d; stop.s = 1.4; } break; }

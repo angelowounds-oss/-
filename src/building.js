@@ -829,8 +829,8 @@ export class Buildings {
     this.lights = Array.from({ length: 6 }, () => { const l = new THREE.PointLight(0xffe2b0, 0, 17, 1.6); G.scene.add(l); return l; });
     this.lt = 0;
   }
-  populateFloor(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); }
-  onFloorDropped(b, fl) { this.G.life.dropFloor(b, fl); }
+  populateFloor(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); this.G.citizens?.populateFloor(b, fl, L, rooms); }
+  onFloorDropped(b, fl) { this.G.citizens?.floorDropped(fl); this.G.life.dropFloor(b, fl); }
   // nearest ceiling fixtures around the player become real lights
   updateLights(dt, pl) {
     this.lt -= dt; if (this.lt > 0) return; this.lt = 0.15;

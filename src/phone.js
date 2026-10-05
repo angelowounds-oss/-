@@ -32,7 +32,7 @@ export class Phone {
     const shot = document.createElement('div'); shot.id = 'phShot'; shot.innerHTML = '<button id="phSnap" type="button">📷 촬영</button><button id="phExit" type="button">종료</button>'; document.body.appendChild(shot);
     el('hud').insertAdjacentHTML('beforeend', '<div id="job" class="glass"></div>');
     this.root = root; this.body = el('phBody');
-    const tabs = [['map', '지도'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
+    const tabs = [['map', '지도'], ['people', '주민'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
     const tb = el('phTabs'); tabs.forEach(([k, n]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.dataset.k = k; b.onclick = () => { this.tab = k; this.render(); }; tb.appendChild(b); });
     el('phSnap').onclick = () => this.snap(); el('phExit').onclick = () => this.photo(false);
     addEventListener('keydown', (e) => { if (this.open && (e.code === 'Escape' || e.code === 'KeyM')) { e.stopImmediatePropagation(); e.preventDefault(); this.close(); } }, true);
@@ -50,6 +50,7 @@ export class Phone {
     el('phClock').textContent = G.clock.fmt();
     for (const b of el('phTabs').children) b.classList.toggle('on', b.dataset.k === this.tab);
     if (this.tab === 'map') this.renderMap();
+    else if (this.tab === 'people') this.renderPeople();
     else if (this.tab === 'contacts') {
       this.row('택시 호출', '현재 위치로 택시가 옵니다 · 탑승 후 지도 목적지로 이동', [['호출', () => { G.callTaxi(); this.close(); }]]);
       this.row('정비사 호출', '가까운 내 차량 수리 $180', [['요청', () => { const v = G.lastVehicle; if (v && !v.dead && Math.hypot(v.x - G.player.x, v.z - G.player.z) < 40 && G.cash >= 180) { G.cash -= 180; v.hp = v.maxHp; v.burn = 0; G.toast('정비사', '수리 완료'); } else G.toast('수리 불가', '차량이 40m 안에 있어야 합니다'); }]]);
@@ -72,6 +73,23 @@ export class Phone {
         this.row(`슬롯 ${s}${s === slot ? ' (현재)' : ''}`, info, [['저장', () => { G.saveSlot(s); G.toast('저장됨', `슬롯 ${s}`); }], ['불러오기', () => { if (raw) { localStorage.setItem('neon_slot', s); location.reload(); } }]]);
       }
       this.row('현실성 모드 (허기·갈증·피로)', G.needs.s.on ? '켜짐' : '꺼짐', [['전환', () => { G.needs.s.on = !G.needs.s.on; }]]);
+    }
+  }
+  // ---- residents register: search by name, see where they live and work, track them ----
+  renderPeople() {
+    const G = this.G, C = G.citizens; if (!C) return;
+    const inp = document.createElement('input'); inp.placeholder = '이름 검색 (예: 김민준)'; inp.value = this.q || '';
+    inp.style.cssText = 'width:100%;box-sizing:border-box;padding:9px 12px;margin-bottom:8px;border-radius:12px;border:1px solid var(--line);background:#0e1626;color:#fff;font:inherit';
+    inp.onkeydown = (e) => e.stopPropagation(); inp.oninput = () => { this.q = inp.value.trim(); clearTimeout(this.qT); this.qT = setTimeout(() => { this.render(); const n = el('phBody').querySelector('input'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); };
+    this.body.appendChild(inp);
+    const pl = G.player, alive = C.list.filter((c) => !C.st.dead[c.id]);
+    const list = this.q ? alive.filter((c) => c.name.includes(this.q)).slice(0, 25)
+      : alive.map((c) => { const L = C.locate(c); return [c, Math.hypot(L.x - pl.x, L.z - pl.z)]; }).sort((a, b) => a[1] - b[1]).slice(0, 15).map((a) => a[0]);
+    this.row(`등록 주민 ${C.list.length}명`, `사망 ${Object.keys(C.st.dead).length}명`, []);
+    for (const c of list) {
+      this.row(`${c.name} <small>${c.age}세 · ${c.job} · ${C.status(c)}</small>`, `집: ${C.addr(c)}${c.work ? ` · 직장: ${c.work.b.name} ${c.work.k + 1}층` : ''}`, [['추적', () => {
+        const L = C.locate(c); G.setWaypoint(L.x, L.z); G.toast(c.name, C.status(c));
+      }]]);
     }
   }
   // ---- map ----

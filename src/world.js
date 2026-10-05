@@ -28,6 +28,7 @@ export const nodePos = (i, j) => [roadC(i), roadC(j)];
 // Road segments closed to traffic and turned into pedestrian streets. Each turns its two end nodes into T-junctions
 // (no node loses more than one edge, so every junction keeps at least three ways and traffic never dead-ends).
 // v: the road x = roadC(i) between nodes j and j+1; h: the road z = roadC(j) between nodes i and i+1.
+export const STATION_NAMES = ['남포역', '중앙역', '자갈치역', '서면역', '해운대역', '광안역'];
 export const CUTS = [{ v: true, i: 2, j: 4 }, { v: true, i: 6, j: 2 }, { v: true, i: 4, j: 7 }, { v: false, i: 3, j: 3 }, { v: false, i: 6, j: 5 }, { v: false, i: 1, j: 6 }];
 const cutKey = (i, j, v) => i + ',' + j + ',' + (v ? 'v' : 'h'), CUT_SET = new Set(CUTS.map((c) => cutKey(c.i, c.j, c.v)));
 // is the edge from node (i,j) one step in direction (di,dj) open to traffic?
@@ -908,8 +909,29 @@ export function buildWorld(scene, quality) {
         for (const side of [-1, 1]) { const q = at(a, mid + side * 5.6); trees.push({ x: q.x, z: q.z, s: 0.8 + pr() * 0.4, hue: pr() }); world.colliders.addCircle(q.x, q.z, 0.5, 12, 'tree'); }
         if (a + 4.5 < a1 - 4) { const b = at(a + 4.5, mid + 2.2), b2 = at(a + 4.5, mid - 2.2); benches.push({ x: b.x, z: b.z, ry: c.v ? -Math.PI / 2 : Math.PI }, { x: b2.x, z: b2.z, ry: c.v ? Math.PI / 2 : 0 }); }
       }
-      for (let a = a0 + 12; a < a1 - 8; a += 22) { const q = at(a, mid); world.lamps.push({ x: q.x, z: q.z, c: [1.0, 0.72, 0.45] }); }
+      for (let a = a0 + 12; a < a1 - 8; a += 22) { const q = at(a, mid + 3.4); world.lamps.push({ x: q.x, z: q.z, c: [1.0, 0.72, 0.45] }); }
+      // subway entrance in the middle of the street (between two tree pairs, clear of the benches)
+      { const sa = a0 + 7 + 9 * Math.max(0, Math.round(((a0 + a1) / 2 - a0 - 7) / 9)), q = at(sa, mid);
+        (world.metro = world.metro || []).push({ x: q.x, z: q.z, v: c.v, name: STATION_NAMES[world.metro.length % STATION_NAMES.length] });
+        const hw = 1.5, hl = 2.6, r0 = c.v ? [q.x - hw, q.z - hl, q.x + hw, q.z + hl] : [q.x - hl, q.z - hw, q.x + hl, q.z + hw];
+        world.colliders.addBox(r0[0], r0[1], r0[2], r0[3], 3.2, 'station'); }
       (world.plazaStreets = world.plazaStreets || []).push({ rect: r, v: c.v });
+    }
+    // station canopies: glass roof on posts, a dark stair well and a glowing line sign
+    if (world.metro?.length) {
+      const B = new Builder();
+      for (const st of world.metro) {
+        const ry = st.v ? 0 : Math.PI / 2, cs = Math.cos(ry), sn = Math.sin(ry), W = (lx, lz) => [st.x + lx * cs + lz * sn, st.z - lx * sn + lz * cs];
+        const bx = (lx, y, lz, w, h, d, col, key = 'decor') => { const [x, z] = W(lx, lz); B.box(key, x, y, z, w, h, d, col, ry); };
+        bx(0, 0.0, 0, 3.0, 0.05, 5.2, 0x050608);                       // stair well
+        for (const sx of [-1.45, 1.45]) bx(sx, 0, 0, 0.12, 1.05, 5.2, 0x2c313c, 'steel');  // side walls
+        for (const [px, pz] of [[-1.4, -2.5], [1.4, -2.5], [-1.4, 2.5], [1.4, 2.5]]) bx(px, 0, pz, 0.1, 3.0, 0.1, 0x2c313c, 'steel');
+        bx(0, 3.0, 0, 3.3, 0.08, 5.5, 0x6f8fa8, 'decor');               // roof
+        bx(0, 2.55, -2.62, 2.6, 0.4, 0.06, new THREE.Color(0.25, 0.85, 0.45).multiplyScalar(2.4), 'emit'); // line sign
+        bx(0, 2.55, 2.62, 2.6, 0.4, 0.06, new THREE.Color(0.25, 0.85, 0.45).multiplyScalar(2.4), 'emit');
+        world.fakeLights.push({ x: st.x, y: 0, z: st.z, c: [0.3, 1.0, 0.55], rad: 9 });
+      }
+      B.finish(scene);
     }
     if (bol.length) {
       const g = mergeGeometries([new THREE.CylinderGeometry(0.13, 0.15, 0.95, 8).translate(0, 0.475, 0), new THREE.CylinderGeometry(0.15, 0.15, 0.06, 8).translate(0, 0.98, 0)].map((x) => x.toNonIndexed()));

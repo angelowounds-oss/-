@@ -120,6 +120,10 @@ export class Human {
         if (this.report.t <= 0) { G.addHeat(this.report.heat); G.toast('신고가 접수되었다', '경찰이 출동한다'); this.report = null; this.state = 'walk'; }
       } else if (this.trip) {
         const r = G.society.tripStep(this, dt); wantX = r.x; wantZ = r.z; spd = r.s;
+      } else if (this.state === 'route' && this.citizen && G.citizens) {
+        const r = G.citizens.steer(this); wantX = r.x; wantZ = r.z; spd = r.s;
+      } else if (this.state === 'gone') {
+        spd = 0;
       } else if (this.state === 'visit') {
         const r = G.society.visitStep(this, dt); wantX = r.x; wantZ = r.z; spd = r.s;
       } else if (this.state === 'flee') {
@@ -128,7 +132,7 @@ export class Human {
         let ax = this.x - t.x, az = this.z - t.z; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
         // follow sidewalk-ish: prefer fleeing along dominant axis
         wantX = ax; wantZ = az; spd = 5.2;
-        if (this.fleeT <= 0) { this.state = 'walk'; this.snapToNode(); }
+        if (this.fleeT <= 0) { if (this.citizen && !this.static) this.state = 'route'; else { this.state = 'walk'; this.snapToNode(); } }
       } else {
         if (this.node) {
           const [tx, tz] = this.nodePos(this.node);
