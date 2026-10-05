@@ -6,13 +6,18 @@ import { FloorDecor, furnitureReady } from './furnish.js';
 const PI = Math.PI;
 
 class Frame {
-  constructor(rm, y) {
-    const x0 = rm.x0 + 0.2, x1 = rm.x1 - 0.2, z0 = rm.z0 + 0.2, z1 = rm.z1 - 0.2, south = rm.wall === 'n';
-    this.rm = rm; this.y = y; this.x0 = x0; this.x1 = x1; this.cx = (x0 + x1) / 2;
+  // sub = [a, b]: only the slice of the room between a and b metres from the back wall (big rooms are furnished zone by zone)
+  constructor(rm, y, sub) {
+    const x0 = rm.x0 + 0.2, x1 = rm.x1 - 0.2, south = rm.wall === 'n';
+    let z0 = rm.z0 + 0.2, z1 = rm.z1 - 0.2; const full = z1 - z0;
+    if (sub) { if (south) z0 = z1 - sub[1]; else z1 = z0 + sub[1]; if (south) z1 -= sub[0]; else z0 += sub[0]; }
+    this.rm = rm; this.y = y; this.x0 = x0; this.x1 = x1; this.cx = (x0 + x1) / 2; this.fullD = full;
     this.back = south ? z1 : z0; this.dirIn = south ? 1 : -1; this.W = x1 - x0; this.D = z1 - z0;
     this.taken = [];
-    // keep the door clear: a 2 m wide strip in front of the door wall
-    this.taken.push({ lx0: rm.dx - this.cx - 1.0, lx1: rm.dx - this.cx + 1.0, ld0: this.D - 1.7, ld1: this.D + 0.5 });
+    // keep the door clear: a 2 m wide strip in front of the door wall (only the zone that touches it)
+    if (!sub || sub[1] >= full - 0.1) this.taken.push({ lx0: rm.dx - this.cx - 1.0, lx1: rm.dx - this.cx + 1.0, ld0: this.D - 1.7, ld1: this.D + 0.5 });
+    // and a 1.6 m aisle along the middle so zones stay walkable end to end
+    this.taken.push({ lx0: rm.dx - this.cx - 0.8, lx1: rm.dx - this.cx + 0.8, ld0: 0, ld1: this.D });
   }
   wx(lx) { return this.cx + lx; }
   wz(ld) { return this.back - this.dirIn * ld; }

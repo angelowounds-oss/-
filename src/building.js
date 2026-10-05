@@ -522,10 +522,18 @@ export class Building {
     const back = south ? z1 : z0, dirIn = south ? 1 : -1; // direction from door wall into the room
     const col = (cx_, cz_, w, d, hgt, color, em) => solid('decor', cx_ - w / 2, y, cz_ - d / 2, cx_ + w / 2, y + hgt, cz_ + d / 2, color, em);
     const acc = fl.acc;
-    if (fl.deco && kind !== 'living') {
-      decorateRoom(new Frame(rm, y), fl.deco, kind, L);
-      fl.fixtures.push([cx, y + 3.2, cz, { bedroom: [1, 0.78, 0.55], kitchen: [1, 0.95, 0.85], office: [0.9, 0.95, 1], meeting: [1, 1, 1], server: [0.4, 0.7, 1] }[kind] || [1, 1, 1]]);
-      return;
+    if (fl.deco) {
+      // rooms are ~8 x 20 m: split into zones of ~6.5 m from the back wall and furnish each as its own room-like area
+      const D = rm.z1 - rm.z0 - 0.4, nseg = Math.max(1, Math.round(D / 6.5)), seg = D / nseg;
+      const cycle = { office: ['office', 'office', 'office'], meeting: ['meeting', 'meeting', 'office'], server: ['server', 'server', 'server'], bedroom: L.type === 'hotel' ? ['bedroom', 'living', 'bedroom'] : ['bedroom', 'living', 'kitchen'], kitchen: ['kitchen', 'living', 'bedroom'], living: ['living', 'bedroom', 'kitchen'] }[kind] || ['living'];
+      const tint = { bedroom: [1, 0.78, 0.55], kitchen: [1, 0.95, 0.85], office: [0.9, 0.95, 1], meeting: [1, 1, 1], server: [0.4, 0.7, 1], living: [1, 0.8, 0.6] };
+      for (let sI = 0; sI < nseg; sI++) {
+        const k2 = cycle[sI % cycle.length];
+        if (kind === 'living' && sI === 0) continue;       // the first living zone keeps the hand-placed sofa / TV anchors of life.js
+        decorateRoom(new Frame(rm, y, [sI * seg, (sI + 1) * seg]), fl.deco, k2, L);
+        if (sI > 0) { const south2 = rm.wall === 'n', zz = south2 ? rm.z1 - 0.2 - (sI + 0.5) * seg : rm.z0 + 0.2 + (sI + 0.5) * seg; fl.fixtures.push([cx, y + 3.2, zz, tint[k2] || [1, 1, 1]]); }
+      }
+      if (kind !== 'living') { fl.fixtures.push([cx, y + 3.2, rm.wall === 'n' ? rm.z1 - 0.2 - 0.5 * seg : rm.z0 + 0.2 + 0.5 * seg, tint[kind] || [1, 1, 1]]); return; }
     }
     if (kind === 'bedroom') {
       col(cx, back - dirIn * 1.2, 2.0, 2.1, 0.5, 0xd8d0d8);
