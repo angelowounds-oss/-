@@ -204,8 +204,8 @@ export class Citizens {
   provide(pl, out) {
     for (const h of this.G.humans) {
       const c = h.citizen; if (!c || h.dead || h.hidden || !h.group.visible) continue;
-      if (Math.abs((h.y || 0) - (pl.y || 0)) > 2 || Math.hypot(h.x - pl.x, h.z - pl.z) > 2.6) continue;
-      out.push({ x: h.x, z: h.z, r: 2.6, cy: (h.y || 0) + 1.0, name: `${c.name} · ${c.age}세 · ${c.job}`, verbs: [
+      if (Math.abs((h.y || 0) - (pl.y || 0)) > 2 || Math.hypot(h.x - pl.x, h.z - pl.z) > 3.4) continue;
+      out.push({ x: h.x, z: h.z, r: 3.4, cy: (h.y || 0) + 1.0, name: `${c.name} · ${c.age}세 · ${c.job}`, verbs: [
         { key: 'F', label: () => (h.sleeping ? '깨우기' : '대화'), run: () => this.talk(h) },
       ] });
     }
