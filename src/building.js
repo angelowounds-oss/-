@@ -364,7 +364,12 @@ export class Building {
     if (D) {
       if (ok) D.put('CashRegister_01', rx, rz, Math.atan2(d.nx, d.nz), { lift: 1.1, solid: false });
       if (ok) { D.put('carved_wooden_elephant', rx - d.nz * 0.7, rz + d.nx * 0.7, Math.atan2(d.nx, d.nz), { lift: 1.1, s: 2, solid: false }); D.put('croissant', rx + d.nz * 0.7, rz - d.nx * 0.7, 1, { lift: 1.1, s: 1.2, solid: false }); }
-      D.put('lion_head', (r.x0 + r.x1) / 2, r.z0 + 0.14, 0, { lift: 2.3, s: 2, solid: false });
+      const coreHit = (x, z) => x > c.x0 - 1 && x < c.x0 + CORE_W + 2 && z > c.z0 - 1 && z < c.zc + 3;
+      // the lobby walls are mostly glass, so the directory stands on a free post beside the entrance route
+      const kx = clamp(cx - d.nx * 5 + (inX ? 0 : -3.6), r.x0 + 2, r.x1 - 2), kz = clamp(cz - d.nz * 5 + (inX ? -3.6 : 0), r.z0 + 2, r.z1 - 2), fry = Math.atan2(d.nx, d.nz);
+      const kok = !coreHit(kx, kz);
+      if (kok) { solid('decor', kx - 0.5, 0, kz - 0.06, kx + 0.5, 0.08, kz + 0.06, 0x1b1d28); solid('decor', kx - 0.04, 0.08, kz - 0.04, kx + 0.04, 1.35, kz + 0.04, 0x1b1d28); }
+      if (ok) D.put('lion_head', rx - d.nz * 1.9, rz + d.nx * 1.9, fry, { lift: 1.1, s: 0.9, solid: false });
       {   // wall directory: building name and what is on each level
         const np = this.levels.filter((l) => l.tier === 'podium').length, nt = this.levels.filter((l) => l.tier === 'tower').length;
         const cv = document.createElement('canvas'); cv.width = 512; cv.height = 320; const g = cv.getContext('2d');
@@ -375,7 +380,7 @@ export class Building {
         rows.forEach((rw, i) => { g.fillText(rw[0], 40, 92 + i * 52); g.fillText(rw[1], 190, 92 + i * 52); });
         const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
         const pm = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.69), new THREE.MeshBasicMaterial({ map: tx, toneMapped: false }));
-        pm.position.set((r.x0 + r.x1) / 2 + 2.2, 1.7, r.z0 + 0.16); fl.group.add(pm);
+        pm.rotation.y = fry; pm.position.set(kx + d.nx * 0.06, 1.62, kz + d.nz * 0.06); if (kok) fl.group.add(pm);
       }
       for (let i = 0; i < 3; i++) D.put(i === 1 ? 'painted_wooden_sofa' : 'sofa_02', r.x1 - 2.4, r.z1 - 3 - i * 3.4, -Math.PI / 2);
       D.put('coffee_table_round_01', r.x1 - 4.4, r.z1 - 4.7, 0);
