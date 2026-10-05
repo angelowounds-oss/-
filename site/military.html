@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>전역일 계산기 - 입대일 기준 전역일</title><meta name="description" content="입대일과 군별로 전역 예정일, 복무 진행률, 남은 일수를 계산합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/military.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<main><h1>전역일 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="s">입대일</label><input type="date" id="s" value="2025-03-04"><label for="t">복무 구분</label><select id="t"><option value="18">육군·해병대 (18개월)</option><option value="20">해군 (20개월)</option><option value="21">공군·사회복무요원 (21개월)</option></select><div class="result" id="r"></div></div><h2>복무기간 기준</h2><p>현재 복무기간은 육군·해병대 18개월, 해군 20개월, 공군 21개월입니다. 사회복무요원 등 대체복무 기간은 제도 변경이 있을 수 있으니 병무청 안내를 확인하세요. 계산은 입대일부터 복무기간 후 하루 전까지로 했으며 휴가·영외 일정은 반영하지 않습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정확한 전역일은 어떻게 확인하나요?</h3><p>병무청 또는 소속 부대의 공식 전역 예정일을 따르세요. 이 계산기는 참고용입니다.</p><h3>전역 전 휴가는 반영되나요?</h3><p>아니요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["s", "t"];
+function compute(v){const s=P(v.s),m=+v.t;let e=new Date(s.getFullYear(),s.getMonth()+m,s.getDate());
+if(e.getDate()!==s.getDate())e=new Date(s.getFullYear(),s.getMonth()+m+1,0);else e=new Date(e.getFullYear(),e.getMonth(),e.getDate()-1);
+const today=P(TODAY),tot=DAYS(s,e)+1,done=Math.min(tot,Math.max(0,DAYS(s,today)+1)),left=Math.max(0,DAYS(today,e));
+return '<b>전역일 '+FD(e)+' ('+DOW(e)+'요일)</b><br>복무 '+tot+'일 중 '+done+'일 경과 · 남은 일수 '+left+'일<br>진행률 '+N2(done/tot*100,1)+'%';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "정확한 전역일은 어떻게 확인하나요?", "acceptedAnswer": {"@type": "Answer", "text": "병무청 또는 소속 부대의 공식 전역 예정일을 따르세요. 이 계산기는 참고용입니다."}}, {"@type": "Question", "name": "전역 전 휴가는 반영되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요."}}]}</script></body></html>

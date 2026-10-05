@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>별자리·띠 계산기 - 생일로 별자리와 띠</title><meta name="description" content="생일로 서양 별자리와 띠를 알려줍니다. 띠는 양력 연도 기준이며 음력 설 이전 출생은 전년 띠일 수 있습니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/zodiac.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<main><h1>별자리·띠 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="d">생일</label><input type="date" id="d" value="1995-05-20"><div class="result" id="r"></div></div><h2>안내</h2><p>별자리는 양력 생일의 날짜 구간으로 구분합니다. 오락용 정보이며 과학적 근거는 없습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>띠가 연도와 다르게 나오는 경우는?</h3><p>띠는 음력 설을 기준으로 바뀌기 때문에 1~2월 출생이면 양력 연도의 띠와 다를 수 있습니다.</p><h3>별자리 경계일 출생은?</h3><p>해에 따라 하루 정도 차이가 날 수 있습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["d"];
+function compute(v){const d=P(v.d),m=d.getMonth()+1,day=d.getDate();const z=[['염소자리',1,19],['물병자리',2,18],['물고기자리',3,20],['양자리',4,19],['황소자리',5,20],['쌍둥이자리',6,21],['게자리',7,22],['사자자리',8,22],['처녀자리',9,22],['천칭자리',10,22],['전갈자리',11,21],['사수자리',12,21],['염소자리',12,31]];
+let s='염소자리';for(const [n,mm,dd] of z){if(m<mm||(m===mm&&day<=dd)){s=n;break}}
+const animals=['원숭이','닭','개','돼지','쥐','소','호랑이','토끼','용','뱀','말','양'];
+return '<b>'+s+' · '+animals[d.getFullYear()%12]+'띠</b><br><small>음력 설 이전 출생은 앞선 해의 띠일 수 있습니다.</small>';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "띠가 연도와 다르게 나오는 경우는?", "acceptedAnswer": {"@type": "Answer", "text": "띠는 음력 설을 기준으로 바뀌기 때문에 1~2월 출생이면 양력 연도의 띠와 다를 수 있습니다."}}, {"@type": "Question", "name": "별자리 경계일 출생은?", "acceptedAnswer": {"@type": "Answer", "text": "해에 따라 하루 정도 차이가 날 수 있습니다."}}]}</script></body></html>

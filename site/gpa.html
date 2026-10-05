@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>학점 계산기 - 평균평점 4.5 / 4.3</title><meta name="description" content="과목별 학점과 성적을 입력하면 평균평점(GPA)을 4.5 또는 4.3 만점으로 계산합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/gpa.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<main><h1>학점 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="scale">만점 기준</label><select id="scale"><option value="45">4.5 만점</option><option value="43">4.3 만점</option></select><label for="rows">한 줄에 하나: '학점 성적' (예: 3 A+)</label><textarea id="rows" style="min-height:130px">3 A+
+3 B0
+2 A0
+3 C+
+1 B+</textarea><div class="result" id="r"></div></div><h2>환산 기준</h2><p>4.5 만점은 A+ 4.5, A0 4.0, B+ 3.5처럼 올라가고, 4.3 만점은 A+ 4.3, A0 4.0, A- 3.7처럼 세분됩니다. 학교마다 기준이 다를 수 있어 학칙을 확인하세요. F는 평균평점에 포함되고 취득 학점에서는 제외됩니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>P/NP 과목은요?</h3><p>평균평점에 포함하지 않으므로 입력하지 마세요.</p><h3>재수강은 어떻게 계산하나요?</h3><p>학교 규정에 따라 다릅니다. 최종 성적만 입력하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["scale", "rows"];
+function compute(v){const t45={'A+':4.5,'A':4,'A0':4,'B+':3.5,'B':3,'B0':3,'C+':2.5,'C':2,'C0':2,'D+':1.5,'D':1,'D0':1,'F':0};
+const t43={'A+':4.3,'A':4,'A0':4,'A-':3.7,'B+':3.3,'B':3,'B0':3,'B-':2.7,'C+':2.3,'C':2,'C0':2,'C-':1.7,'D+':1.3,'D':1,'D0':1,'D-':0.7,'F':0};
+const T=v.scale==='45'?t45:t43;let cr=0,pt=0,earned=0,bad=0;
+v.rows.split('\n').forEach(l=>{const p=l.trim().split(/\s+/);if(p.length<2)return;const c=parseFloat(p[0]),g=T[p[1].toUpperCase()];if(isNaN(c)||g===undefined){bad++;return}cr+=c;pt+=c*g;if(g>0)earned+=c});
+if(!cr)return '입력 형식을 확인해 주세요. 예: 3 A+';
+return '<b>평균평점 '+N2(pt/cr,2)+' / '+(v.scale==='45'?'4.5':'4.3')+'</b><br>이수 학점 '+cr+' · 취득 학점 '+earned+(bad?'<br><small>인식하지 못한 줄 '+bad+'개</small>':'');}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "P/NP 과목은요?", "acceptedAnswer": {"@type": "Answer", "text": "평균평점에 포함하지 않으므로 입력하지 마세요."}}, {"@type": "Question", "name": "재수강은 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "학교 규정에 따라 다릅니다. 최종 성적만 입력하세요."}}]}</script></body></html>

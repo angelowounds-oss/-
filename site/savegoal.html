@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>목표금액 저축기간 계산기 - 목표 달성까지 걸리는 기간</title><meta name="description" content="목표 금액을 모으기까지 매월 얼마를 저축해야 하고 몇 개월이 걸리는지 계산합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/savegoal.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<main><h1>목표금액 저축기간 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="t">목표 금액 (원)</label><input type="number" id="t" value="100000000" step="any"><label for="c">현재 모은 금액 (원)</label><input type="number" id="c" value="10000000" step="any"><label for="m">매월 저축액 (원)</label><input type="number" id="m" value="1000000" step="any"><label for="rate">연 수익률 (%)</label><input type="number" id="rate" value="3" step="0.01"><div class="result" id="r"></div></div><h2>사용 팁</h2><p>수익률을 0%로 두면 이자 없이 순수 저축만으로 걸리는 기간을 볼 수 있습니다. 월 저축액을 바꿔 가며 기간이 얼마나 줄어드는지 비교해 보세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>수익률을 몇 %로 넣어야 하나요?</h3><p>예적금이면 상품 금리를 쓰세요. 투자 상품은 장기 평균을 보수적으로 넣는 편이 안전합니다.</p><h3>세금은 반영되나요?</h3><p>아니요. 세전 기준입니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["t", "c", "m", "rate"];
+function compute(v){const i=v.rate/1200;let n;if(!(v.m>0))return '';
+if(i===0)n=(v.t-v.c)/v.m;else n=Math.log((v.t*i+v.m)/(v.c*i+v.m))/Math.log(1+i);
+if(!isFinite(n)||n<0)return '이미 목표를 달성했거나 입력값을 확인해 주세요.';n=Math.ceil(n);
+return '<b>약 '+n+'개월 ('+Math.floor(n/12)+'년 '+(n%12)+'개월)</b><br>총 납입 '+W(v.m*n+v.c);}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "수익률을 몇 %로 넣어야 하나요?", "acceptedAnswer": {"@type": "Answer", "text": "예적금이면 상품 금리를 쓰세요. 투자 상품은 장기 평균을 보수적으로 넣는 편이 안전합니다."}}, {"@type": "Question", "name": "세금은 반영되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요. 세전 기준입니다."}}]}</script></body></html>

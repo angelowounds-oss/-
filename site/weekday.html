@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>요일 계산기 - 날짜의 요일·연중 일수</title><meta name="description" content="날짜를 입력하면 요일, 연중 몇 번째 날인지, 윤년 여부를 알려줍니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/weekday.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<main><h1>요일 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="d">날짜</label><input type="date" id="d" value="" data-off="0"><div class="result" id="r"></div></div><h2>활용</h2><p>생일이 무슨 요일인지, 약속 날짜가 평일인지 확인할 때 쓸 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>윤년은 어떻게 정하나요?</h3><p>4로 나누어떨어지고 100으로 나누어떨어지지 않거나, 400으로 나누어떨어지는 해입니다.</p><h3>음력도 되나요?</h3><p>아니요, 양력만 지원합니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["d"];
+function compute(v){const d=P(v.d),y=d.getFullYear(),start=new Date(y,0,1);const doy=DAYS(start,d)+1;const leap=(y%4===0&&y%100!==0)||y%400===0;
+return '<b>'+FD(d)+' '+DOW(d)+'요일</b><br>'+y+'년 '+doy+'번째 날 (남은 날 '+((leap?366:365)-doy)+'일)<br>'+y+'년은 '+(leap?'윤년':'평년')+'입니다.';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "윤년은 어떻게 정하나요?", "acceptedAnswer": {"@type": "Answer", "text": "4로 나누어떨어지고 100으로 나누어떨어지지 않거나, 400으로 나누어떨어지는 해입니다."}}, {"@type": "Question", "name": "음력도 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요, 양력만 지원합니다."}}]}</script></body></html>

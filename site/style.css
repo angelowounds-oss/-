@@ -22,3 +22,14 @@ footer a{color:var(--muted)}
 h1{font-size:26px}h2{font-size:19px;margin-top:28px}
 .faq-block h3{font-size:16px;margin:16px 0 4px}.faq-block p{margin:0;color:var(--muted)}
 select{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+/*b2*/
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+.brand{font-size:18px}
+nav{display:flex;flex-wrap:wrap;gap:4px 12px}nav a{margin:0}
+.lead{color:var(--muted);margin-top:0}
+input[type=search]{margin:8px 0 4px}
+.tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.tools a{margin:0}.tools a[hidden]{display:none}
+h2 small{font-weight:400;color:var(--muted);font-size:14px}
+select,input[type=date],input[type=time]{width:100%}
+@media(max-width:480px){.tools{grid-template-columns:1fr}}
