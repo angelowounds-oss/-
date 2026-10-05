@@ -32,7 +32,7 @@ export class Phone {
     const shot = document.createElement('div'); shot.id = 'phShot'; shot.innerHTML = '<button id="phSnap" type="button">📷 촬영</button><button id="phExit" type="button">종료</button>'; document.body.appendChild(shot);
     el('hud').insertAdjacentHTML('beforeend', '<div id="job" class="glass"></div>');
     this.root = root; this.body = el('phBody');
-    const tabs = [['map', '지도'], ['people', '주민'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
+    const tabs = [['map', '지도'], ['people', '주민'], ['news', '뉴스'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
     const tb = el('phTabs'); tabs.forEach(([k, n]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.dataset.k = k; b.onclick = () => { this.tab = k; this.render(); }; tb.appendChild(b); });
     el('phSnap').onclick = () => this.snap(); el('phExit').onclick = () => this.photo(false);
     addEventListener('keydown', (e) => { if (this.open && (e.code === 'Escape' || e.code === 'KeyM')) { e.stopImmediatePropagation(); e.preventDefault(); this.close(); } }, true);
@@ -51,6 +51,12 @@ export class Phone {
     for (const b of el('phTabs').children) b.classList.toggle('on', b.dataset.k === this.tab);
     if (this.tab === 'map') this.renderMap();
     else if (this.tab === 'people') this.renderPeople();
+    else if (this.tab === 'news') {
+      const M = G.memory; if (!M) return;
+      const n = M.knownCount(); this.row('당신을 아는 사람', n ? `${n}명이 당신의 얼굴을 알고 있다` : '아직 아무도 모른다', []);
+      const L = M.latest(12); if (!L.length) this.row('조용한 도시', '아직 보도된 사건이 없습니다', []);
+      for (const it of L) this.row(it.text, `${it.time} · ${it.e.zone}`, []);
+    }
     else if (this.tab === 'contacts') {
       this.row('택시 호출', '현재 위치로 택시가 옵니다 · 탑승 후 지도 목적지로 이동', [['호출', () => { G.callTaxi(); this.close(); }]]);
       this.row('정비사 호출', '가까운 내 차량 수리 $180', [['요청', () => { const v = G.lastVehicle; if (v && !v.dead && Math.hypot(v.x - G.player.x, v.z - G.player.z) < 40 && G.cash >= 180) { G.cash -= 180; v.hp = v.maxHp; v.burn = 0; G.toast('정비사', '수리 완료'); } else G.toast('수리 불가', '차량이 40m 안에 있어야 합니다'); }]]);

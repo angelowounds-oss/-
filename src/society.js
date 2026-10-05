@@ -142,6 +142,7 @@ export class Society {
       h.report = { t: 2.2 + Math.random() * 2, heat, kind }; any = true;
       if (h.state !== 'flee') h.state = 'call';
     }
+    if (any) { G.memory?.witnessed(w, kind); if (kind === 'assault' || kind === 'theft' || kind === 'robbery') G.memory?.log(kind === 'robbery' ? 'theft' : kind, x, z); }
     if (any && !this._warn) { this._warn = true; G.toast('목격자가 있다!', '신고하기 전에 처리하세요'); setTimeout(() => (this._warn = false), 6000); }
     return any;
   }

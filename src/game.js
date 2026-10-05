@@ -15,6 +15,7 @@ import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
 import { buildTerrain, addTerrainPhysics, heightAt, roadsData } from './terrain.js';
 import { Citizens } from './citizens.js';
+import { Memory } from './memory.js';
 import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
@@ -79,6 +80,7 @@ export class Game {
     { const sp = this.world.spawn; this.hospital = (this.world.enterables || []).slice().sort((a, b) => Math.hypot(a.x - sp.x, a.z - sp.z) - Math.hypot(b.x - sp.x, b.z - sp.z))[4]; if (this.hospital) this.hospital.lot.hospital = true; }
     this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this); this.buildStations();
     this.citizens = new Citizens(this);
+    this.memory = new Memory(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -323,7 +325,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt);
+    this.citizens.update(sdt); this.memory.update(sdt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -601,7 +603,7 @@ export class Game {
     if (v.driver === 'ai') {
       const d = this.spawnCivilian(false);
       if (d) { d.x = v.x + Math.cos(v.h) * (v.W / 2 + 1); d.z = v.z - Math.sin(v.h) * (v.W / 2 + 1); d.state = 'flee'; d.fleeT = 8; d.threat = pl; d.group.visible = true; }
-      this.society.crime('carjack', 12); this.feed('차량 강탈', '#ff8a5c');
+      this.society.crime('carjack', 12); this.feed('차량 강탈', '#ff8a5c'); this.memory?.log('carjack', v.x, v.z);
     }
     v.doorFx?.(); this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
     v.setLights(true);
@@ -752,7 +754,7 @@ export class Game {
       if (t < 0) break;
       const ref = this.world.colliders.lastRef;
       if (ref && ref.tag === 'glass' && ref.pane) { ref.pane.b.breakPane(ref, owner === this.player ? this.player : null); acc += t + 0.04; continue; }
-      tw = acc + t; hitRef = ref; break;
+      tw = acc + t; hitRef = ref; const lh = this.world.colliders.lastHit; this._hitN = lh ? { nx: lh.nx, ny: lh.ny, nz: lh.nz } : null; break;
     }
     if (tw >= 0) { best = tw; kind = 'world'; if (hitRef && hitRef.isProp) { hitRef.hit?.(dx, dy, dz, damage); } else if (hitRef && hitRef.onShot) hitRef.onShot(); }
     if (dy < -1e-4) { const tg = -oy / dy; if (tg > 0 && tg < best) { best = tg; kind = 'ground'; } }
@@ -792,6 +794,7 @@ export class Game {
       if (ok && t0 < best) { best = t0; kind = 'vehicle'; obj = v; }
     }
     const px = ox + dx * best, py = oy + dy * best, pz = oz + dz * best;
+    if ((kind === 'world' || kind === 'ground') && this.memory) this.memory.markHit(px, py, pz, kind === 'world' ? this._hitN : null);
     if (kind === 'human') {
       obj.hurt(damage * (head ? headMul : 1), owner, head, owner);
       this.fx.sparks(px, py, pz, 3, [1, 0.2, 0.3], 5);
@@ -875,12 +878,14 @@ export class Game {
   recalcStars() {
     const th = [8, 30, 65, 110, 160];
     let s = 0; for (const t of th) if (this.heat >= t) s++;
+    if (s > this.wanted && s >= 3 && this.wanted < 3) this.memory?.log('wanted', this.player.x, this.player.z);
     if (s > this.wanted) { this.audio.star(); this.toast('<span style="color:#ffc94d">WANTED ' + '★'.repeat(s) + '</span>', '경찰이 추적 중'); this.ui.stars.classList.add('flash'); setTimeout(() => this.ui.stars.classList.remove('flash'), 2500); }
     this.wanted = s;
   }
   clearWanted() { this.heat = 0; this.wanted = 0; this.evade = 0; for (const v of this.vehicles) if (v.police) { v.chaseTarget = null; v.direct = false; } }
   onHumanKilled(h, src) {
     if (h.citizen) this.citizens.killed(h);
+    if (src === this.player && h.team === 'civ') this.memory?.log('murder', h.x, h.z, h.citizen ? { name: h.citizen.name, age: h.citizen.age } : {});
     this.stats.kills += src === this.player ? 1 : 0;
     if (h.team === 'civ') { if (src === this.player) { this.society.crime('murder', 14, h.x, h.z); this.feed('시민 사망', '#ff8a5c'); } }
     else if (h.team === 'cop') { if (src === this.player) { this.addHeat(40); this.feed('경찰 사살', '#ff4560'); } this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, 100); }
@@ -898,6 +903,7 @@ export class Game {
     for (let i = 0; i < 18; i++) this.smokeP.emit(x + rand(-1, 1), y + rand(0, 2), z + rand(-1, 1), rand(-3, 3), rand(2, 6), rand(-3, 3), rand(2, 4), rand(2, 4), 0.05, 0.05, 0.06, 0.9, 0.2, 0.4);
     this.fx.sparks(x, y, z, 18, [1, 0.6, 0.2], 24);
     this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9); this.blastWorld(x, y, z, radius);
+    if (this.memory && y < 3) { this.memory.addScorch(x, z, Math.min(5, radius * 0.45)); if (src === this.player || src?.driver === 'player' || Math.hypot(x - this.player.x, z - this.player.z) < 60) this.memory.log('explosion', x, z); }
     const d = Math.hypot(x - this.camera.position.x, z - this.camera.position.z);
     this.shake(clamp(1.4 - d / 50, 0, 1.5));
     this.flashT = 0.15;
@@ -990,7 +996,7 @@ export class Game {
         const dd = Math.hypot(v.x - focus.x, v.z - focus.z);
         if (dd > 260) { this.recycleTraffic(v); }
       }
-      if (v.dead && v.age > 45 && d > 60 && v !== this.vehicle) { this.removeVehicle(v); continue; }
+      if (v.dead && v.age > 45 && d > 60 && v !== this.vehicle) { if (v.exploded && this.memory && !v.spec.craft) { this.memory.addWreck(v); this.memory.rebuildWrecks(); } this.removeVehicle(v); continue; }
       const asleep = v.pv.body.isSleeping();
       if (asleep && !v.driver && !v.dead && !(v.burn > 0)) continue;
       active.push(v);
