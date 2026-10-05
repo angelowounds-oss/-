@@ -40,7 +40,26 @@ function put(F, deco, id, lx, ld, face, o = {}) {
 }
 const wallSide = (F, side) => (side === 'l' ? -F.W / 2 : F.W / 2);
 
+// fill the long walls of a zone: tall storage on partition walls, only low pieces under the windows of exterior walls
+function fillWalls(F, deco, L) {
+  const ext = { l: F.x0 - L.rect.x0 < 1.2, r: L.rect.x1 - F.x1 < 1.2 };
+  const TALL = ['wooden_bookshelf_worn', 'drawer_cabinet', 'painted_wooden_cabinet', 'vintage_cabinet_01', 'painted_wooden_shelves', 'steel_frame_shelves_02', 'wooden_display_shelves_01'];
+  const LOW = ['side_table_01', 'planter_box_01', 'potted_plant_02', 'ClassicNightstand_01', 'planter_box_02', 'CoffeeTable_01', 'potted_plant_04'];
+  let n = 0;
+  for (const side of ['l', 'r']) for (let ld = 1.1; ld < F.D - 0.9; ld += 2.0, n++) {
+    const r = ((F.rm.x0 * 7.13 + ld * 3.77 + (side === 'l' ? 1 : 5) + F.rm.z0) % 1 + 1) % 1; if (r < 0.28) continue;
+    const pool = ext[side] ? LOW : TALL, id = pool[Math.floor(r * 97) % pool.length], sz = deco.size(id); if (!sz) continue;
+    const off = sz.d / 2 + 0.06, lx = side === 'l' ? -F.W / 2 + off : F.W / 2 - off;
+    put(F, deco, id, lx, ld, side === 'l' ? 'r' : 'l');
+  }
+}
+
 export function decorateRoom(F, deco, kind, L) {
+  decorateRoomCore(F, deco, kind, L);
+  fillWalls(F, deco, L);
+}
+
+function decorateRoomCore(F, deco, kind, L) {
   const ceil = L.h - 0.35;
   const pend = (id, lx, ld) => put(F, deco, id, lx, ld, 'in', { ghost: true, lift: ceil - (deco.size(id)?.h || 0.9) - 0.02 });
   const art = (id, side, ld, lift = 1.35) => put(F, deco, id, wallSide(F, side) + (side === 'l' ? 0.04 : -0.04), ld, side === 'l' ? 'r' : 'l', { ghost: true, lift });
