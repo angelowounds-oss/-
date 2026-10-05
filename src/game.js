@@ -1320,7 +1320,7 @@ export class Game {
     const kick = Math.min(0.08, (pl.recoil || 0) * 0.02);
     { const sl = pl.m.pistol.userData.slide, vs = this.vmGun.pistol && this.vmGun.pistol.getObjectByName('slide'); if (sl && vs) vs.position.x = sl.x0 - Math.min(1, pl.recoil || 0) * 0.028; }
     this.vm.visible = !!kind && !(aim && kind && WEAPONS[pl.cur]?.scope === 'sniper') && !(aim && WEAPONS[pl.cur]?.scope === 'iron' && false);
-    this.vm.position.set(aim ? 0 : 0.17, aim ? (kind === 'pistol' ? -0.075 : -0.12) : -0.2, -0.45 + kick);
+    this.vm.position.set(aim ? 0 : 0.17, aim ? (kind === 'pistol' ? -0.045 : -0.12) : -0.2, -0.45 + kick);
     this.vm.rotation.set(-kick * 2, 0, 0);
   }
   updateCamera(dt, inp) {
