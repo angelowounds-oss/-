@@ -158,19 +158,32 @@ export function buildTerrain(scene) {
     post.frustumCulled = false; head.frustumCulled = false; group.add(post, head);
   }
   // trees on the slopes (one instanced mesh)
-  const tg = mergeGeometries([new THREE.CylinderGeometry(0.25, 0.35, 2.2, 5).translate(0, 1.1, 0), new THREE.ConeGeometry(2.2, 6, 6).translate(0, 5, 0), new THREE.ConeGeometry(1.6, 4.5, 6).translate(0, 8, 0)].map((g) => g.toNonIndexed()));
-  const tm = new THREE.MeshStandardMaterial({ color: 0x1c4a30, roughness: 0.9, emissive: 0x06150c, emissiveIntensity: 0.5 });
-  const rr = mulberry32(777), spots = [];
-  for (let tries = 0; spots.length < 2400 && tries < 20000; tries++) {
-    const a = rr() * TAU, r = R0 + 20 + rr() * 400, x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (Math.abs(x) > EXTENT - 20 || Math.abs(z) > EXTENT - 20) continue;
-    const rd = nearestRoad(x, z); if (rd && rd.d < 16) continue;
-    const h = heightAt(x, z); if (h < 2) continue;
-    spots.push([x, h, z, 0.8 + rr() * 1.1]);
+  // pine: trunk + 8 drooping, slightly twisted skirts of needles (~70 triangles, vertex-coloured), thousands of them in sectors so the frustum culls them
+  const pineParts = [new THREE.CylinderGeometry(0.2, 0.34, 2.6, 5, 1, true).translate(0, 1.3, 0)];
+  const pcol = [], ccol = (g, c) => { const n = g.attributes.position.count; for (let k = 0; k < n; k++) pcol.push(c[0], c[1], c[2]); };
+  ccol(pineParts[0], [0.2, 0.12, 0.07]);
+  for (let k = 0; k < 8; k++) {
+    const f = k / 7, cg = new THREE.ConeGeometry(2.7 * (1 - f * 0.82) + 0.25, 2.6 - f * 0.5, 7, 1, true).translate(0, 2.7 + k * 1.05, 0);
+    cg.rotateY(k * 0.7); pineParts.push(cg); const sh = 0.8 + 0.2 * f; ccol(cg, [0.05 * sh + 0.03 * f, 0.2 * sh, 0.1 * sh]);
   }
-  const im = new THREE.InstancedMesh(tg, tm, spots.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
-  spots.forEach((s, i) => { sc.set(s[3], s[3] * (0.9 + rr() * 0.4), s[3]); m4.compose(new THREE.Vector3(s[0], s[1] - 0.2, s[2]), q, sc); im.setMatrixAt(i, m4); });
-  im.castShadow = false; im.frustumCulled = false; group.add(im);
+  const tg = mergeGeometries(pineParts.map((g) => g.toNonIndexed()));
+  tg.setAttribute('color', new THREE.Float32BufferAttribute(pcol, 3));
+  const tm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, emissive: 0x0a2414, emissiveIntensity: 0.45, side: THREE.DoubleSide, flatShading: true });
+  const rr = mulberry32(777), spots = [], TREES = 7000;
+  for (let tries = 0; spots.length < TREES && tries < 90000; tries++) {
+    const a = rr() * TAU, r = R0 + 14 + rr() * 520, x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (Math.abs(x) > EXTENT - 20 || Math.abs(z) > EXTENT - 20) continue;
+    const rd = nearestRoad(x, z); if (rd && rd.d < 14) continue;
+    const h = heightAt(x, z); if (h < 2) continue;
+    spots.push([x, h, z, 0.65 + rr() * 0.9, a]);
+  }
+  const SECT = 12, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+  for (let sct = 0; sct < SECT; sct++) {
+    const list = spots.filter((s) => Math.floor(((s[4] % TAU) / TAU) * SECT) === sct); if (!list.length) continue;
+    const im = new THREE.InstancedMesh(tg, tm, list.length);
+    list.forEach((s, i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rr() * TAU); sc.set(s[3], s[3] * (0.9 + rr() * 0.45), s[3]); m4.compose(pos.set(s[0], s[1] - 0.2, s[2]), q, sc); im.setMatrixAt(i, m4); });
+    im.castShadow = false; im.computeBoundingSphere(); group.add(im);
+  }
   scene.add(group);
   return { group, trees: spots.length };
 }
