@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Builder, mats, disposeGroup } from './gfx.js';
+import { Builder, mats, disposeGroup, SURF } from './gfx.js';
 import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
 import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
@@ -333,7 +333,12 @@ export class Building {
   // ====================================================================
   // contents (static decor; physical items spawned via M.items when present)
   // ====================================================================
+  // thin floor finish over a rect (wood / tile / carpet / concrete pattern from the interior surface shader, tinted by `col`)
+  floorFinish(fl, x0, z0, x1, z1, y, surf, col) {
+    const B = fl.B; B.surf = surf; B.ext('decor', x0, y + 0.004, z0, x1, y + 0.014, z1, col); B.surf = 0;
+  }
   furnishLobby(fl, L) {
+    this.floorFinish(fl, L.rect.x0 + WALL, L.rect.z0 + WALL, L.rect.x1 - WALL, L.rect.z1 - WALL, L.y, SURF.tile, 0xc8ccd6);
     const { B, solid, R } = fl, r = L.rect, acc = fl.acc, c = this.core;
     const em = acc.clone().multiplyScalar(2.4);
     // reception desk facing the entrance
@@ -367,6 +372,7 @@ export class Building {
     this.M.populateFloor?.(this, fl, L);
   }
   furnishOpen(fl, L, kind) {
+    this.floorFinish(fl, L.rect.x0 + WALL, L.rect.z0 + WALL, L.rect.x1 - WALL, L.rect.z1 - WALL, L.y, SURF.tile, 0xb4b8c4);
     const { B, solid, R } = fl, r = L.rect, c = this.core;
     const free = (x0, z0, x1, z1) => !(x1 > c.x0 - 1.2 && x0 < c.x0 + CORE_W + 1.2 && z1 > c.z0 - 1.2 && z0 < c.zc + 3.2);
     const cols = [0x4a3a2a, 0x2c3a4a, 0x3a2c4a, 0x2c4a3a];
@@ -460,7 +466,7 @@ export class Building {
       wallX(zc, r2x0, ix1, gaps);
     }
     // corridor carpet lighting accent
-    B.ext('decor', ix0, y + 0.002, zc, ix1, y + 0.02, corrZ1, 0x3a1f2f);
+    this.floorFinish(fl, ix0, zc, ix1, corrZ1, y, SURF.carpet, L.type === 'hotel' ? 0x7a3a4e : L.type === 'office' ? 0x3d4468 : 0x5a3f52);
     B.ext('emit', ix0 + 1, y + 0.025, (zc + corrZ1) / 2 - 0.03, ix1 - 1, y + 0.035, (zc + corrZ1) / 2 + 0.03, fl.acc.clone().multiplyScalar(1.2), 1);
     for (const d of doors) {
       const dr = new Door(this, fl, { axis: 'x', wallC: d.c, from: d.u - 0.5, to: d.u + 0.5, y, h: 2.12, thick: 0.05, kind: 'wood', hingeAt: 'from', swing: 1, name: '방 문', lock: true });
@@ -487,6 +493,10 @@ export class Building {
     const { B, solid, R } = fl, y = L.y;
     const kind = L.type === 'office' ? ['office', 'office', 'meeting', 'server', 'office'][i % 5] : L.type === 'hotel' ? 'bedroom' : ['living', 'bedroom', 'kitchen', 'bedroom'][i % 4];
     rm.kind = kind;
+    {
+      const fx = { living: [SURF.wood, 0xc89a68], bedroom: [L.type === 'hotel' ? SURF.carpet : SURF.wood, L.type === 'hotel' ? 0x6c4a5c : 0xb98a5e], kitchen: [SURF.tile, 0xd6dae2], office: [SURF.carpet, 0x4a5078], meeting: [SURF.carpet, 0x3d4a5e], server: [SURF.concrete, 0x9096a0] }[kind];
+      if (fx) this.floorFinish(fl, rm.x0 + 0.1, rm.z0 + 0.1, rm.x1 - 0.1, rm.z1 - 0.1, y, fx[0], fx[1]);
+    }
     const x0 = rm.x0 + 0.2, x1 = rm.x1 - 0.2, z0 = rm.z0 + 0.2, z1 = rm.z1 - 0.2, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
     const south = rm.wall === 'n';  // room lies south of its door wall: door side is north (z0)
     const back = south ? z1 : z0, dirIn = south ? 1 : -1; // direction from door wall into the room

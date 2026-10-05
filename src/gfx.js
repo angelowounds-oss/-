@@ -8,6 +8,41 @@ const tex = (a, b, seam, size = 256) => {
   g.strokeStyle = seam; g.lineWidth = 3; g.strokeRect(0, 0, size, size);
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 };
+// Interior surfaces: the decor material keeps its per-box vertex colour as a tint and multiplies a procedural pattern chosen by
+// a per-vertex surface id (0 plaster, 1 wood planks, 2 tile, 3 carpet, 4 concrete); ceilings (faces looking down) get a panel grid.
+// Pattern coordinates are world metres, so nothing needs UVs or texture memory.
+export const SURF = { plaster: 0, wood: 1, tile: 2, carpet: 3, concrete: 4 };
+function surfaceMaterial() {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.12, envMapIntensity: 1.1 });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSurf;attribute vec2 aSUv;varying float vSurf;varying vec2 vSUv;varying float vSNy;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf=aSurf;vSUv=aSUv;vSNy=objectNormal.y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying float vSurf;varying vec2 vSUv;varying float vSNy;
+      float sh1(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float sn2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(sh1(i),sh1(i+vec2(1,0)),f.x),mix(sh1(i+vec2(0,1)),sh1(i+vec2(1,1)),f.x),f.y);}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec2 u=vSUv;float k=1.;
+        if(vSNy<-.5){ // ceiling panels
+          vec2 f=abs(fract(u/.6)-.5);float seam=smoothstep(.46,.5,max(f.x,f.y));k=.92-seam*.4+sh1(floor(u/.6))*.05;
+        }else if(vSNy>.5){
+          if(vSurf<.5){k=.9+sn2(u*9.)*.1;}
+          else if(vSurf<1.5){ // wood planks .14 m wide, 1.2 m long, staggered
+            float row=floor(u.y/.14);float off=sh1(vec2(row,3.))*1.2;float x=(u.x+off)/1.2;float cx=floor(x);
+            float fy=fract(u.y/.14);float fx=fract(x);float gap=smoothstep(.0,.05,min(fy,1.-fy))*smoothstep(.0,.012,min(fx,1.-fx));
+            float grain=sn2(vec2(u.x*3.5+row*7.,u.y*55.));k=(.78+sh1(vec2(row,cx))*.3)*(.85+grain*.22)*mix(.55,1.,gap);
+          }else if(vSurf<2.5){ // tile .4 m with grout
+            vec2 g=fract(u/.4);float gr=smoothstep(.0,.014,min(min(g.x,1.-g.x),min(g.y,1.-g.y)));float v=sh1(floor(u/.4));k=mix(.5,1.,gr)*(.9+v*.14);
+          }else if(vSurf<3.5){k=.82+sh1(floor(u*70.))*.14+sn2(u*6.)*.08;}  // carpet
+          else{k=.78+sn2(u*2.2)*.2+sn2(u*14.)*.06;}                        // concrete
+        }else{k=.93+sn2(u*8.)*.07;}                                        // wall plaster
+        diffuseColor.rgb*=k;
+      }`);
+  };
+  m.customProgramCacheKey = () => 'interior-surfaces';
+  return m;
+}
 let M = null;
 export function mats() {
   if (M) return M;
@@ -18,7 +53,7 @@ export function mats() {
   const mk = (t, r, m) => new THREE.MeshStandardMaterial({ map: t, roughness: r, metalness: m, envMapIntensity: 0.9 });
   M = {
     tile: mk(tile, 0.14, 0.1), carpet: mk(carpet, 0.95, 0), wood: mk(wood, 0.4, 0.05), conc: mk(conc, 0.9, 0.02),
-    decor: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.12, envMapIntensity: 1.1 }),
+    decor: surfaceMaterial(),
     emit: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
     glass: new THREE.MeshPhysicalMaterial({ color: 0x9fb8d0, roughness: 0.04, transparent: true, opacity: 0.16, depthWrite: false, envMapIntensity: 2, side: THREE.DoubleSide }),
     steel: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.9, envMapIntensity: 1.6 }),
@@ -28,12 +63,22 @@ export function mats() {
 }
 
 export class Builder {
-  constructor() { this.parts = { decor: [], emit: [], glass: [], steel: [] }; }
+  constructor() { this.parts = { decor: [], emit: [], glass: [], steel: [] }; this.surf = 0; }
   _push(key, g, col, em = 1) {
     const n = g.attributes.position.count, a = new Float32Array(n * 3), c = new THREE.Color(col);
     for (let i = 0; i < n; i++) { a[i * 3] = c.r * em; a[i * 3 + 1] = c.g * em; a[i * 3 + 2] = c.b * em; }
     g.setAttribute('color', new THREE.BufferAttribute(a, 3));
     for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k);
+    if (key === 'decor') { // world-metre pattern coordinates, projected along the dominant normal axis
+      const p = g.attributes.position, nr = g.attributes.normal, uv = new Float32Array(n * 2), sf = new Float32Array(n).fill(this.surf);
+      for (let i = 0; i < n; i++) {
+        const nx = Math.abs(nr.getX(i)), ny = Math.abs(nr.getY(i)), nz = Math.abs(nr.getZ(i));
+        if (ny >= nx && ny >= nz) { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = p.getZ(i); }
+        else if (nx >= nz) { uv[i * 2] = p.getZ(i); uv[i * 2 + 1] = p.getY(i); }
+        else { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = p.getY(i); }
+      }
+      g.setAttribute('aSUv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('aSurf', new THREE.BufferAttribute(sf, 1));
+    }
     this.parts[key].push(g.index ? g.toNonIndexed() : g);
   }
   // center-based box in world coords (x,z center; y base)
