@@ -169,7 +169,9 @@ export class Audio {
     while (this.nextNote < t + 0.25) {
       const n = this.nextNote, st = this.step;
       const bar = Math.floor(st / 16) % 8, s16 = st % 16;
-      const roots = [45, 45, 41, 41, 43, 43, 40, 40]; // A, F, G, E in low register (midi)
+      // progressions rotate every 8 bars (midi roots, low register): A-F-G-E, then a darker and a brighter variation
+      const sets = [[45, 45, 41, 41, 43, 43, 40, 40], [45, 48, 43, 40, 45, 48, 41, 43], [41, 41, 45, 45, 40, 40, 43, 43]];
+      const roots = this.intensity > 0.6 ? sets[1] : sets[Math.floor(st / 128) % sets.length];
       const root = roots[bar];
       const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
       // bass: off-beat 8ths
