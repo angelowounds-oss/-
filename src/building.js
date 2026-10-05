@@ -466,7 +466,13 @@ export class Building {
       for (let i = 0; i < n; i++) {
         const a = ix0 + i * rw, b = a + rw, dx = a + rw * R(0.3, 0.7);
         gaps.push([dx, 1.05]);
-        rooms.push({ x0: a, z0: corrZ1, x1: b, z1: iz1, wall: 'n', dx, dz: corrZ1 });
+        // a 20 m deep strip becomes a flat: front room on the corridor, then inner rooms behind partitions with open doorways
+        const Dn = iz1 - corrZ1, ns = Math.max(1, Math.round(Dn / 6.8)), sg = Dn / ns;
+        for (let q = 0; q < ns; q++) {
+          const z0s = corrZ1 + q * sg, door = q === 0 ? dx : a + rw * 0.5 + (q % 2 ? 0.9 : -0.9);
+          rooms.push({ x0: a, z0: z0s, x1: b, z1: z0s + sg, wall: 'n', dx: door, dz: z0s, sub: q, ns });
+          if (q > 0) wallX(z0s, a, b, [[door, 1.05]]);
+        }
         if (i > 0) wallZ(a, corrZ1, iz1, []);
         doors.push({ axis: 'x', c: corrZ1, u: dx });
       }
@@ -479,7 +485,12 @@ export class Building {
       for (let i = 0; i < n; i++) {
         const a = r2x0 + i * rw, b = a + rw, dx = a + rw * R(0.3, 0.7);
         gaps.push([dx, 1.05]);
-        rooms.push({ x0: a, z0: iz0, x1: b, z1: zc, wall: 's', dx, dz: zc });
+        const Dn = zc - iz0, ns = Math.max(1, Math.round(Dn / 6.8)), sg = Dn / ns;
+        for (let q = 0; q < ns; q++) {
+          const z1s = zc - q * sg, door = q === 0 ? dx : a + rw * 0.5 + (q % 2 ? 0.9 : -0.9);
+          rooms.push({ x0: a, z0: z1s - sg, x1: b, z1: z1s, wall: 's', dx: door, dz: z1s, sub: q, ns });
+          if (q > 0) wallX(z1s, a, b, [[door, 1.05]]);
+        }
         if (i > 0) wallZ(a, iz0, zc, []);
         doors.push({ axis: 'x', c: zc, u: dx });
       }
@@ -511,7 +522,10 @@ export class Building {
   }
   furnishRoom(fl, L, rm, i) {
     const { B, solid, R } = fl, y = L.y;
-    const kind = L.type === 'office' ? ['office', 'office', 'meeting', 'server', 'office'][i % 5] : L.type === 'hotel' ? 'bedroom' : ['living', 'bedroom', 'kitchen', 'bedroom'][i % 4];
+    const unit = (rm.sub != null ? Math.floor(i / Math.max(1, rm.ns)) : i);
+    const kind = rm.sub != null
+      ? (L.type === 'office' ? [['office', 'office', 'meeting'], ['meeting', 'office', 'office'], ['office', 'server', 'office'], ['office', 'office', 'office']][unit % 4][rm.sub % 3] : L.type === 'hotel' ? ['bedroom', 'living', 'bedroom'][rm.sub % 3] : ['living', 'kitchen', 'bedroom'][rm.sub % 3])
+      : L.type === 'office' ? ['office', 'office', 'meeting', 'server', 'office'][i % 5] : L.type === 'hotel' ? 'bedroom' : ['living', 'bedroom', 'kitchen', 'bedroom'][i % 4];
     rm.kind = kind;
     {
       const fx = { living: [SURF.wood, 0xc89a68], bedroom: [L.type === 'hotel' ? SURF.carpet : SURF.wood, L.type === 'hotel' ? 0x9a6a80 : 0xc99a66], kitchen: [SURF.tile, 0xd6dae2], office: [SURF.carpet, 0x7480ae], meeting: [SURF.carpet, 0x5a6c88], server: [SURF.concrete, 0x9096a0] }[kind];
