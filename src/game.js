@@ -263,11 +263,18 @@ export class Game {
     u('reset').onclick = () => { try { localStorage.removeItem(this.slotKey()); } catch { /* ignore */ } location.reload(); };
     u('qSel').value = String(this.eng.qIndex);
     u('qSel').onchange = (e) => { this.eng.setQuality(+e.target.value); this.eng.onQuality?.(); };
-    u('vol').oninput = (e) => this.audio.setVolume(+e.target.value);
-    u('musicOn').onchange = (e) => this.audio.setMusic(e.target.checked);
-    u('sens').oninput = (e) => (this.input.sens = +e.target.value);
-    u('fpsOn').onchange = (e) => (this.ui.fps.style.display = e.target.checked ? 'block' : 'none');
-    this.ui.fps.style.display = 'none';
+    // settings persist between sessions
+    let cfg = {}; try { cfg = JSON.parse(localStorage.getItem('neon_settings') || '{}'); } catch { /* ignore */ }
+    const keep = (k, v) => { cfg[k] = v; try { localStorage.setItem('neon_settings', JSON.stringify(cfg)); } catch { /* ignore */ } };
+    if (cfg.vol != null) { u('vol').value = cfg.vol; this.audio.vol = +cfg.vol; }
+    if (cfg.music != null) { u('musicOn').checked = !!cfg.music; this.audio.musicOn = !!cfg.music; }
+    if (cfg.sens != null) { u('sens').value = cfg.sens; this.input.sens = +cfg.sens; }
+    if (cfg.fps != null) u('fpsOn').checked = !!cfg.fps;
+    u('vol').oninput = (e) => { this.audio.setVolume(+e.target.value); keep('vol', +e.target.value); };
+    u('musicOn').onchange = (e) => { this.audio.setMusic(e.target.checked); keep('music', e.target.checked); };
+    u('sens').oninput = (e) => { this.input.sens = +e.target.value; keep('sens', +e.target.value); };
+    u('fpsOn').onchange = (e) => { this.ui.fps.style.display = e.target.checked ? 'block' : 'none'; keep('fps', e.target.checked); };
+    this.ui.fps.style.display = u('fpsOn').checked ? 'block' : 'none';
     this.input.onLockChange = (locked) => { if (!locked && this.running && !this.paused && !this.input.touch && !this.uiModal) this.setPaused(true); };
   }
   setPaused(p) {
