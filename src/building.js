@@ -364,6 +364,13 @@ export class Building {
       if (ok) D.put('CashRegister_01', rx, rz, Math.atan2(d.nx, d.nz), { lift: 1.1, solid: false });
       for (let i = 0; i < 3; i++) D.put(i === 1 ? 'painted_wooden_sofa' : 'sofa_02', r.x1 - 2.4, r.z1 - 3 - i * 3.4, -Math.PI / 2);
       D.put('coffee_table_round_01', r.x1 - 4.4, r.z1 - 4.7, 0);
+      // lounge groups: two lounge chairs around a low table, plus plants and sconces along the walls
+      for (const [gx, gz] of [[r.x0 + 6, r.z0 + 6], [r.x0 + 6, r.z1 - 7], [(r.x0 + r.x1) / 2 + 5, r.z0 + 5]]) {
+        D.put('modern_coffee_table_01', gx, gz, 0); D.put('mid_century_lounge_chair', gx - 1.5, gz, Math.PI / 2); D.put('mid_century_lounge_chair', gx + 1.5, gz, -Math.PI / 2); D.put('potted_plant_02', gx + 2.4, gz - 1.6, Math.random() * 6);
+      }
+      for (let k = 0; k < 6; k++) { D.put('industrial_wall_sconce', r.x0 + 0.16, r.z0 + 4 + k * ((r.z1 - r.z0 - 8) / 5), Math.PI / 2, { lift: 2.3, solid: false }); }
+      for (const [tx, tz] of [[r.x0 + 1.2, (r.z0 + r.z1) / 2], [r.x1 - 1.2, (r.z0 + r.z1) / 2 + 4]]) D.put('metal_trash_can', tx, tz, 0, { s: 0.38 });
+      D.put('fancy_picture_frame_02', r.x0 + 0.1, (r.z0 + r.z1) / 2 - 3, Math.PI / 2, { lift: 1.7, solid: false, s: 1.6 });
       D.put('Chandelier_03', (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, 0, { lift: L.h - 1.2, solid: false });
       for (const [px, pz] of [[r.x0 + 1.4, r.z1 - 1.4], [r.x1 - 1.4, r.z0 + 1.4], [r.x1 - 1.4, r.z1 - 1.4], [r.x0 + 1.4, r.z0 + 1.4]]) D.put('potted_plant_02', px, pz, Math.random() * 6);
       D.put('wall_clock', r.x0 + 0.12, (r.z0 + r.z1) / 2 + 3, Math.PI / 2, { lift: 2.6, solid: false });
@@ -403,7 +410,11 @@ export class Building {
     }
     if (D) {
       for (let x = r.x0 + 3; x < r.x1 - 3; x += 6.5) D.put('mounted_fluorescent_lights', x, (r.z0 + r.z1) / 2, 0, { lift: L.h - 0.42, solid: false });
-      for (const sh of fl.shelves) { D.put('cardboard_box_01', sh.x - 0.9, sh.z0 + 0.6, Math.random() * 6); D.put('plastic_monobloc_chair_01', sh.x + 0.9, sh.z1 - 0.5, Math.random() * 6); }
+      for (const sh of fl.shelves) {
+        D.put('cardboard_box_01', sh.x - 0.9, sh.z0 + 0.6, Math.random() * 6); D.put('plastic_monobloc_chair_01', sh.x + 0.9, sh.z1 - 0.5, Math.random() * 6);
+        // stock on top and along the shelf: crates, baskets, boxes
+        for (let q = 0; q < 5; q++) { const z = sh.z0 + 0.5 + q * ((sh.z1 - sh.z0 - 1) / 4), id = ['plastic_crate_02', 'wicker_basket_01', 'cardboard_box_01', 'plastic_crate_02', 'trashbag'][q]; D.put(id, sh.x, z, Math.random() * 6, { lift: 1.9, solid: false }); }
+      }
       D.put('potted_plant_02', r.x0 + 1.2, r.z0 + 1.2, 0); D.put('potted_plant_02', r.x1 - 1.2, r.z0 + 1.2, 1.5);
       D.put('security_camera_01', r.x1 - 0.5, r.z1 - 0.5, -Math.PI * 0.75, { lift: L.h - 0.7, solid: false, s: 0.8 });
     }
@@ -516,6 +527,17 @@ export class Building {
       D.put('fire_alarm', ix1 - 0.12, corrZ1 - 0.2, -Math.PI / 2, { lift: 1.5, solid: false });
       D.put('security_camera_01', ix1 - 0.4, mid, 0, { lift: L.h - 0.65, solid: false, s: 0.8 });
       D.put('painted_wooden_cabinet', ix1 - 0.5, zc + 0.9, -Math.PI / 2, { tag: 'furniture' });
+      // fire safety and wayfinding: extinguishers with signs, glowing exit sign at the far end, bins, wall lights, duct + pipe runs
+      for (const xx of [r2x0 + 3, ix0 + 9]) { D.put('korean_fire_extinguisher_01', xx, zc + 0.3, 0, { lift: 0.95, solid: false }); B.ext('emit', xx - 0.14, y + 1.75, zc + 0.065, xx + 0.14, y + 2.0, zc + 0.08, new THREE.Color(1, 0.2, 0.15).multiplyScalar(1.3)); }
+      B.ext('emit', ix1 - 0.06, y + 2.3, mid - 0.45, ix1 - 0.03, y + 2.62, mid + 0.45, new THREE.Color(0.2, 1, 0.45).multiplyScalar(1.7));
+      B.ext('emit', ix0 + 0.03, y + 2.3, mid - 0.45, ix0 + 0.06, y + 2.62, mid + 0.45, new THREE.Color(0.2, 1, 0.45).multiplyScalar(1.7));
+      D.put('metal_trash_can', ix0 + 6, corrZ1 - 0.35, 0, { s: 0.38, solid: false });
+      for (let x = ix0 + 5; x < ix1 - 2; x += 6) { D.put('industrial_wall_sconce', x, corrZ1 - 0.12, Math.PI, { lift: 2.1, solid: false }); }
+      B.ext('steel', ix0, y + L.h - 0.62, zc + 0.14, ix1, y + L.h - 0.5, zc + 0.3, 0x6c727c);
+      B.ext('steel', ix0, y + L.h - 0.78, zc + 0.14, ix1, y + L.h - 0.7, zc + 0.2, 0x8a6a3a);
+      B.ext('decor', ix0, y + L.h - 0.5, zc + 0.05, ix1, y + L.h - 0.46, zc + 0.45, 0x3c4048);          // cable tray
+      // vending machine at the end of the corridor
+      { const vx = ix1 - 1.1, vz = corrZ1 - 0.5; fl.solid('decor', vx - 0.45, y, vz - 0.4, vx + 0.45, y + 1.85, vz + 0.4, 0x2a3a5a); B.ext('emit', vx - 0.38, y + 0.9, vz - 0.405, vx + 0.38, y + 1.7, vz - 0.395, new THREE.Color(0.35, 0.75, 1).multiplyScalar(1.5)); B.ext('emit', vx - 0.38, y + 0.3, vz - 0.405, vx + 0.38, y + 0.38, vz - 0.395, new THREE.Color(1, 0.5, 0.2).multiplyScalar(1.3)); }
     }
     this.M.populateFloor?.(this, fl, L, rooms);
     fl.rooms = rooms;

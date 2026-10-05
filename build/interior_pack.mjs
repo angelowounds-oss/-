@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 
 const dir = process.argv[2].replace(/\/?$/, '/'), MAXTRIS = +(process.env.MAXTRIS || 3200);
-const ATLAS = 2048, TILE = 256, COLS = 8, ROWS = 7, SW = 8, PALY = TILE * ROWS; // palette strip starts at y=1792
+const ATLAS = 3072, TILE = 192, COLS = 16, ROWS = 14, SW = 8, PALY = TILE * ROWS; // 224 tiles; the palette strip starts at y=2688
 const ids = fs.readdirSync(dir).filter((f) => fs.existsSync(dir + f + '/' + f + '.gltf')).sort();
 await MeshoptSimplifier.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);

@@ -138,9 +138,13 @@ function decorateRoomCore(F, deco, kind, L) {
       const desk = put(F, deco, 'metal_office_desk', a, d, 'back', { s: 0.75, margin: 0.02 });
       if (!desk) continue;
       put(F, deco, 'television_02', a, d - 0.05, 'in', { ghost: true, lift: 0.6, s: 0.78 });
+      put(F, deco, 'stationery_supplies', a + 0.5, d + 0.05, 'back', { ghost: true, lift: 0.6 }); put(F, deco, 'binder_notebook', a - 0.5, d + 0.15, 'back', { ghost: true, lift: 0.6, s: 0.7 }); put(F, deco, 'clipboard', a + 0.2, d + 0.25, 'back', { ghost: true, lift: 0.6 });
+      // cubicle panel beside each desk
+      pbox(F, deco, a + 0.78, d - 0.5, a + 0.82, d + 0.55, 0, 1.2, 0x6a7088, { claim: false });
       put(F, deco, n % 2 ? 'modern_arm_chair_01' : 'painted_wooden_chair_01', a, d + 0.95, 'back', { turn: (Math.random() - 0.5) * 0.9, s: n % 2 ? 0.8 : 1 });
     }
     put(F, deco, 'steel_frame_shelves_01', wallSide(F, 'r') - 0.3, F.D / 2, 'l');
+    put(F, deco, 'metal_trash_can', -F.W / 2 + 0.4, F.D - 0.5, 'in', { s: 0.38 }); put(F, deco, 'office_notepads', 0, 0.6, 'in', { ghost: true, lift: 0.01 });
     put(F, deco, 'worn_metal_rack', wallSide(F, 'l') + 0.35, F.D - 1.6, 'r');
     plant(F.W / 2 - 0.5, 0.6);
     put(F, deco, 'fire_alarm', wallSide(F, 'r') - 0.03, F.D - 1.0, 'l', { ghost: true, lift: 1.5 });
