@@ -1,5 +1,5 @@
 import { el, clamp } from './util.js';
-import { N, P, R, HALF, roadC, roadIdx } from './world.js';
+import { N, P, R, HALF, roadC, roadIdx, hasEdge } from './world.js';
 import { ZONES } from './society.js';
 
 const CSS = `
@@ -101,7 +101,17 @@ export class Phone {
 export function gpsRoute(x0, z0, x1, z1) {
   const ni = (x) => roadIdx(x);
   const i0 = ni(x0), j0 = ni(z0), i1 = ni(x1), j1 = ni(z1);
-  const pts = [[x0, z0], [roadC(i0), roadC(j0)]];
-  pts.push([roadC(i1), roadC(j0)], [roadC(i1), roadC(j1)], [x1, z1]);
+  // breadth-first search over the open road graph (closed pedestrian streets are skipped); fewest turns win ties
+  const key = (i, j) => i * 100 + j, prev = new Map([[key(i0, j0), null]]), q = [[i0, j0]];
+  while (q.length) {
+    const [i, j] = q.shift(); if (i === i1 && j === j1) break;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = key(i + di, j + dj); if (!prev.has(k) && hasEdge(i, j, di, dj)) { prev.set(k, [i, j]); q.push([i + di, j + dj]); } }
+  }
+  const nodes = []; for (let n = [i1, j1]; n; n = prev.get(key(n[0], n[1]))) nodes.unshift(n);
+  if (!prev.has(key(i1, j1))) nodes.splice(0, nodes.length, [i0, j0], [i1, j0], [i1, j1]);
+  // keep only the corners
+  const pts = [[x0, z0]];
+  nodes.forEach((n, k) => { const a = nodes[k - 1], b = nodes[k + 1]; if (!a || !b || (a[0] - n[0]) * (b[1] - n[1]) - (a[1] - n[1]) * (b[0] - n[0]) !== 0) pts.push([roadC(n[0]), roadC(n[1])]); });
+  pts.push([x1, z1]);
   return pts;
 }

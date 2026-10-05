@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildCar, CAR_SPECS } from './models.js';
-import { N, P, R, LANE, HALF, roadC, roadIdx } from './world.js';
+import { N, P, R, LANE, HALF, roadC, roadIdx, hasEdge } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
@@ -244,7 +244,7 @@ export class Vehicle {
       const cand = [[di, dj, 0.62], [-dj, di, 0.19], [dj, -di, 0.19]]; // straight, right?, left?
       for (const [cdi, cdj, w] of cand) {
         const ti = ni + cdi, tj = nj + cdj;
-        if (ti < 0 || ti > N || tj < 0 || tj > N) continue;
+        if (ti < 0 || ti > N || tj < 0 || tj > N || !hasEdge(ni, nj, cdi, cdj)) continue;
         opts.push([cdi, cdj, w]);
       }
       if (!opts.length) opts.push([-di, -dj, 1]);

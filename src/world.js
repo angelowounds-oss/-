@@ -25,6 +25,19 @@ export const roadC = (i) => (i < 0 ? -HALF + i * P : i > N ? HALF + (i - N) * P 
 export const blockLen = (i) => roadC(i + 1) - roadC(i);
 export const roadIdx = (v) => { let b = 0, bd = 1e9; for (let i = 0; i <= N; i++) { const d = Math.abs(v - roadC(i)); if (d < bd) { bd = d; b = i; } } return b; };
 export const nodePos = (i, j) => [roadC(i), roadC(j)];
+// Road segments closed to traffic and turned into pedestrian streets. Each turns its two end nodes into T-junctions
+// (no node loses more than one edge, so every junction keeps at least three ways and traffic never dead-ends).
+// v: the road x = roadC(i) between nodes j and j+1; h: the road z = roadC(j) between nodes i and i+1.
+export const CUTS = [{ v: true, i: 2, j: 4 }, { v: true, i: 6, j: 2 }, { v: true, i: 4, j: 7 }, { v: false, i: 3, j: 3 }, { v: false, i: 6, j: 5 }, { v: false, i: 1, j: 6 }];
+const cutKey = (i, j, v) => i + ',' + j + ',' + (v ? 'v' : 'h'), CUT_SET = new Set(CUTS.map((c) => cutKey(c.i, c.j, c.v)));
+// is the edge from node (i,j) one step in direction (di,dj) open to traffic?
+export const hasEdge = (i, j, di, dj) => {
+  const ti = i + di, tj = j + dj; if (ti < 0 || ti > N || tj < 0 || tj > N) return false;
+  return di !== 0 ? !CUT_SET.has(cutKey(Math.min(i, ti), j, false)) : !CUT_SET.has(cutKey(i, Math.min(j, tj), true));
+};
+// rectangle of road surface covered by a cut (intersection squares stay road)
+export const cutRect = (c) => (c.v ? [roadC(c.i) - R / 2, roadC(c.j) + R / 2, roadC(c.i) + R / 2, roadC(c.j + 1) - R / 2] : [roadC(c.i) + R / 2, roadC(c.j) - R / 2, roadC(c.i + 1) - R / 2, roadC(c.j) + R / 2]);
+export const inCut = (x, z) => CUTS.some((c) => { const r = cutRect(c); return x > r[0] && x < r[2] && z > r[1] && z < r[3]; });
 
 const ACCENTS = [
   [1.0, 0.18, 0.78], // magenta
@@ -198,6 +211,7 @@ function createGround(fakeLights) {
     uFC: { value: Array.from({ length: MAXL }, () => new THREE.Vector3()) },
     uWet: { value: 1.0 },
     uRC: { value: Array.from({ length: N + 1 }, (_, i) => roadC(i)) },
+    uCut: { value: CUTS.map((c) => new THREE.Vector4(...cutRect(c))) },
     tAsph: { value: groundTex(asphA, true) }, tAsphN: { value: groundTex(asphN, false) },
     tPave: { value: groundTex(paveA, true) }, tPaveN: { value: groundTex(paveN, false) },
   };
@@ -209,17 +223,18 @@ function createGround(fakeLights) {
       varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
       uniform sampler2D tAsph,tAsphN,tPave,tPaveN;
       float fRough,fMetal;vec3 fEmit;float fPud;vec2 fN=vec2(0.);
-      const int NRC=${N};uniform float uRC[${N + 1}];
+      const int NRC=${N};uniform float uRC[${N + 1}];uniform vec4 uCut[${CUTS.length}];
       const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.,PRO=${(HALF + P - R / 2 + 2 + MODEL_PROM + MODEL_W + 30).toFixed(1)};`,
     fragMain: `
       vec2 p=vWP.xz;
       float rdx=1e9,rdz=1e9,ix=0.,iz=0.;for(int k=0;k<=NRC;k++){float dx=abs(p.x-uRC[k]);if(dx<rdx){rdx=dx;ix=float(k);}float dz=abs(p.y-uRC[k]);if(dz<rdz){rdz=dz;iz=float(k);}}vec2 dr=vec2(rdx,rdz);
       bool inC=abs(p.x)<=HH+RR*.5&&abs(p.y)<=HH+RR*.5;
       bool rx=dr.x<RR*.5,rz=dr.y<RR*.5;
-      bool road=inC&&(rx||rz);
+      bool plz=false;for(int k=0;k<${CUTS.length};k++){vec4 c=uCut[k];if(p.x>c.x&&p.x<c.z&&p.y>c.y&&p.y<c.w)plz=true;}
+      bool road=inC&&(rx||rz)&&!plz;
       bool inter=inC&&rx&&rz;
-      float sdist=min(dr.x-RR*.5,dr.y-RR*.5);
-      bool walk=!road&&sdist<SWW&&inC;
+      float sdist=plz?3.:min(dr.x-RR*.5,dr.y-RR*.5);
+      bool walk=(!road&&sdist<SWW&&inC)||plz;
       vec3 alb;fRough=.5;fMetal=0.;fEmit=vec3(0.);
       float n1=fbm(p*.6),n2=fbm(p*3.1+9.);
       float pud=smoothstep(.52,.64,fbm(p*.05+3.7)+(fbm(p*.4)-.5)*.18)*uWet;
@@ -881,6 +896,29 @@ export function buildWorld(scene, quality) {
     }
   }
 
+  // Pedestrian streets on the closed road segments: bollard rows at both ends, a double tree line, benches and lamps
+  // (own random stream so the rest of the city generation is unchanged)
+  {
+    const pr = mulberry32(4242), bol = [];
+    for (const c of CUTS) {
+      const r = cutRect(c), a0 = c.v ? r[1] : r[0], a1 = c.v ? r[3] : r[2], w0 = c.v ? r[0] : r[1], w1 = c.v ? r[2] : r[3], mid = (w0 + w1) / 2;
+      const at = (a, w) => (c.v ? { x: w, z: a } : { x: a, z: w });
+      for (const a of [a0 + 0.8, a1 - 0.8]) for (let w = w0 + 1.0; w <= w1 - 0.9; w += 1.6) { const q = at(a, w); bol.push(q); world.colliders.addCircle(q.x, q.z, 0.17, 1.0, 'bollard'); }
+      for (let a = a0 + 7; a < a1 - 6; a += 9) {
+        for (const side of [-1, 1]) { const q = at(a, mid + side * 5.6); trees.push({ x: q.x, z: q.z, s: 0.8 + pr() * 0.4, hue: pr() }); world.colliders.addCircle(q.x, q.z, 0.5, 12, 'tree'); }
+        if (a + 4.5 < a1 - 4) { const b = at(a + 4.5, mid + 2.2), b2 = at(a + 4.5, mid - 2.2); benches.push({ x: b.x, z: b.z, ry: c.v ? -Math.PI / 2 : Math.PI }, { x: b2.x, z: b2.z, ry: c.v ? Math.PI / 2 : 0 }); }
+      }
+      for (let a = a0 + 12; a < a1 - 8; a += 22) { const q = at(a, mid); world.lamps.push({ x: q.x, z: q.z, c: [1.0, 0.72, 0.45] }); }
+      (world.plazaStreets = world.plazaStreets || []).push({ rect: r, v: c.v });
+    }
+    if (bol.length) {
+      const g = mergeGeometries([new THREE.CylinderGeometry(0.13, 0.15, 0.95, 8).translate(0, 0.475, 0), new THREE.CylinderGeometry(0.15, 0.15, 0.06, 8).translate(0, 0.98, 0)].map((x) => x.toNonIndexed()));
+      const bm = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0x2a2d36, roughness: 0.5, metalness: 0.6, emissive: 0xffb060, emissiveIntensity: 0.25 }), bol.length);
+      const m4 = new THREE.Matrix4(); bol.forEach((q, k) => { m4.makeTranslation(q.x, 0, q.z); bm.setMatrixAt(k, m4); });
+      bm.castShadow = false; bm.receiveShadow = true; scene.add(bm);
+    }
+  }
+
   // ---- Build instanced facade mesh ----
   function makeFacadeMesh(list, fog = true) {
     const m = new THREE.InstancedMesh(boxGeo, facadeMat, list.length);
@@ -1192,6 +1230,7 @@ export function buildWorld(scene, quality) {
   // road helpers
   world.isRoad = (x, z) => {
     if (Math.abs(x) > HALF + R / 2 || Math.abs(z) > HALF + R / 2) return false;
+    if (inCut(x, z)) return false;
     return Math.abs(x - roadC(roadIdx(x))) < R / 2 || Math.abs(z - roadC(roadIdx(z))) < R / 2;
   };
   world.facade = facade;

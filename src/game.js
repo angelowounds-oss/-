@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx } from './world.js';
+import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
@@ -153,7 +153,7 @@ export class Game {
       const v = new Vehicle(this, type, CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'parked');
       let x, z, h;
       if (ns) { x = roadC(i) + off; z = along; h = side > 0 ? Math.PI : 0; } else { x = along; z = roadC(i) + off; h = side > 0 ? -Math.PI / 2 : Math.PI / 2; }
-      if (this.vehicles.some((o) => Math.hypot(o.x - x, o.z - z) < 7)) continue;
+      if (this.vehicles.some((o) => Math.hypot(o.x - x, o.z - z) < 7) || (ns ? !hasEdge(i, j, 0, 1) : !hasEdge(j, i, 1, 0))) continue;
       v.x = x; v.z = z; v.h = h; v.awake = false;
       this.addVehicle(v);
     }
@@ -173,6 +173,7 @@ export class Game {
       const di = horiz ? (Math.random() < 0.5 ? 1 : -1) : 0, dj = horiz ? 0 : (Math.random() < 0.5 ? 1 : -1);
       if (i - di < 0 || i - di > N || j - dj < 0 || j - dj > N) continue;
       if (i + di < 0 || i + di > N || j + dj < 0 || j + dj > N) continue;
+      if (!hasEdge(i, j, di, dj)) continue;
       // car on edge from (i-di..) to (i,j)->(i+di,...)
       const frac = rand(0.25, 0.7);
       const x = lerp(roadC(i), roadC(i + di), frac) + -dj * LANE, z = lerp(roadC(j), roadC(j + dj), frac) + di * LANE;
@@ -1460,6 +1461,8 @@ export class Game {
     for (let i = 0; i <= N; i++) { const p = roadC(i); g.beginPath(); g.moveTo(tx(p), tz(-HALF - R / 2)); g.lineTo(tx(p), tz(HALF + R / 2)); g.stroke(); g.beginPath(); g.moveTo(tx(-HALF - R / 2), tz(p)); g.lineTo(tx(HALF + R / 2), tz(p)); g.stroke(); }
     g.strokeStyle = '#59a6ff22'; g.lineWidth = 1;
     for (let i = 0; i <= N; i++) { const p = roadC(i); g.beginPath(); g.moveTo(tx(p), tz(-HALF)); g.lineTo(tx(p), tz(HALF)); g.stroke(); g.beginPath(); g.moveTo(tx(-HALF), tz(p)); g.lineTo(tx(HALF), tz(p)); g.stroke(); }
+    g.fillStyle = '#2a2236';
+    for (const ct of CUTS) { const r = cutRect(ct); g.fillRect(tx(r[0]), tz(r[1]), (r[2] - r[0]) * S, (r[3] - r[1]) * S); }
     this.mapCanvas = c; this.mapTx = tx; this.mapTz = tz;
   }
   drawMinimap() {
