@@ -603,7 +603,7 @@ export class Building {
     const { B, solid, R } = fl, y = L.y;
     const unit = (rm.sub != null ? Math.floor(i / Math.max(1, rm.ns)) : i);
     const kind = rm.sub != null
-      ? (L.type === 'office' ? [['office', 'office', 'meeting'], ['meeting', 'office', 'office'], ['office', 'server', 'office'], ['office', 'office', 'office']][unit % 4][rm.sub % 3] : L.type === 'hotel' ? ['bedroom', 'living', 'bedroom'][rm.sub % 3] : ['living', 'kitchen', 'bedroom'][rm.sub % 3])
+      ? (L.type === 'office' ? [['office', 'server', 'meeting'], ['meeting', 'office', 'office'], ['office', 'server', 'office'], ['office', 'office', 'office']][unit % 4][rm.sub % 3] : L.type === 'hotel' ? ['bedroom', 'living', 'bedroom'][rm.sub % 3] : ['living', 'kitchen', 'bedroom'][rm.sub % 3])
       : L.type === 'office' ? ['office', 'office', 'meeting', 'server', 'office'][i % 5] : L.type === 'hotel' ? 'bedroom' : ['living', 'bedroom', 'kitchen', 'bedroom'][i % 4];
     rm.kind = kind;
     {
