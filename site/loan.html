@@ -3,7 +3,7 @@
 <title>대출 이자 계산기 - 원리금균등·원금균등·만기일시</title><meta name="description" content="대출금, 금리, 기간을 입력하면 원리금균등, 원금균등, 만기일시상환 방식별 월 납입액과 총 이자를 비교 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/loan.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>대출 이자 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="P">대출금 (원)</label><input type="number" id="P" value="100000000">
@@ -15,7 +15,7 @@
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <h2>관련 계산기</h2><div class="tools"><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 </main>
-<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const w=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 function go(){const p=+P.value,r=+R.value/1200,n=+N.value;if(!(p>0&&n>0)){out.innerHTML='';return}
 let m1,t1;if(r===0){m1=p/n;t1=p}else{m1=p*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);t1=m1*n}

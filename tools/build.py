@@ -343,11 +343,11 @@ const pad=n=>String(n).padStart(2,'0');
 const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());'''
 
 def nav():
-    items = "".join(f'<a href="index.html#c-{k}">{n}</a>' for k, n in CATS)
-    return f'<header><a href="index.html" class="brand">간편계산기</a><nav>{items}</nav></header>'
+    return ('<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a>'
+            '<a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>')
 
-FOOT = ('<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a>'
-        '<br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>')
+FOOT = ('<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span>'
+        '<span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>')
 
 def related(slug, cat):
     r = [(s, t) for s, t, c, _ in REG if c == cat and s != slug][:4]
@@ -381,12 +381,13 @@ def faq_ld(faq):
         {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]}, ensure_ascii=False)
 
 def shell(fn, title, desc, h1, main, script="", hero=False):
+    bcls = ' class="home"' if hero else ''
     h1tag = ('<h1 class="sr">' + h1 + '</h1>') if hero else ('<h1>' + h1 + '</h1>')
     return f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><meta name="description" content="{desc}">
 <link rel="canonical" href="{SITE}/{fn}">
-<link rel="stylesheet" href="style.css"></head><body>
+<link rel="stylesheet" href="style.css"></head><body{bcls}>
 {nav()}
 <main>{h1tag}
 {AD}
@@ -417,40 +418,49 @@ run();</script>
 <script type="application/ld+json">{faq_ld(t["faq"])}</script>'''
     write(t["slug"] + ".html", shell(t["slug"] + ".html", t["title"] + " - " + t["line"], t["desc"], t["title"], main, script))
 
+STUDENT = [
+    ("gpa", "A+", "학점 계산기", "평균평점 4.5 · 4.3 만점", "#ffe14d", "-1.5deg"),
+    ("char-count", "Aa", "글자수 세기", "자소서·레포트 공백 포함/제외", "#7ee0ff", "1deg"),
+    ("wage", "₩", "알바 시급", "주휴수당 포함 월급 환산", "#ff9ec7", "-.8deg"),
+    ("splitbill", "÷", "더치페이", "N분의 1 정산, 100원 올림", "#b9f27a", "1.4deg"),
+    ("dday", "D-", "D-day", "시험일·기념일까지 며칠", "#cdb8ff", "-1deg"),
+]
+
 def render_index():
     by = {k: [] for k, _ in CATS}
     for s, ti, c, d in REG: by[c].append((s, ti, d))
-    meta = {s: (ti, d) for s, ti, c, d in REG}
     n = len(REG)
-    pills = "".join(f'<a href="{s}.html">{meta[s][0]}</a>' for s in POPULAR[1:] if s in meta)
-    chips = '<button class="chip on" data-cat="all">전체 <small>' + str(n) + '</small></button>' + "".join(
-        f'<button class="chip" data-cat="{k}">{nm} <small>{len(by[k])}</small></button>' for k, nm in CATS if by[k])
-    rows = ""
+    stu = "".join(f'<a href="{s}.html" class="press" style="--bg:{bg};--t:{tl}"><span class="gl">{g}</span><b>{nm}</b><span>{d}</span></a>'
+                  for s, g, nm, d, bg, tl in STUDENT)
+    groups = ""
     for k, nm in CATS:
         if not by[k]: continue
-        rows += f'<section class="grp" data-cat="{k}"><h2>{nm}</h2><div class="rows">' + "".join(
-            f'<a class="row" href="{s}.html" data-cat="{k}" data-q="{ti} {d}"><i class="tile" style="--c:var(--c-{k})">{ti[0]}</i>'
-            f'<span class="rt"><b>{ti}</b><em>{d}</em></span></a>' for s, ti, d in by[k]) + "</div></section>"
-    main = (f'<section class="hero"><p class="eyebrow">가입 없는 생활 계산기 {n}종</p>'
-            '<h2 class="headline">필요한 계산, 입력하는 순간 끝납니다</h2>'
-            '<input type="search" id="q" placeholder="무엇을 계산할까요? 퇴직금, 평수, 적금…" aria-label="계산기 검색" autocomplete="off">'
-            f'<div class="pills"><span>많이 찾는</span>{pills}</div></section>'
-            '<a class="feature" href="housing-clock.html"><span class="tag">새로 나온 계산기</span>'
-            '<b>내 집 마련 시계</b>'
-            '<span class="ex">커피 한 잔 5,000원은 <u>내 집 3.7cm²</u>.<br>매일 마시면 1년에 A4 용지 2.1장 크기만큼 집이 멀어집니다.</span>'
-            '<span class="go">내 소비 넣어보기 →</span></a>'
-            f'<div class="chips" role="tablist">{chips}</div>'
+        groups += (f'<section class="grp" style="--bg:var(--f-{k})"><header><h3>{nm}</h3><span>{len(by[k])}종</span></header><div class="pills">'
+                   + "".join(f'<a class="pill" href="{s}.html" data-q="{ti} {d}">{ti}</a>' for s, ti, d in by[k]) + "</div></section>")
+    main = (f'<section class="hero"><div class="hero-l"><div class="note-hand tilt">가입 없이, 바로, {n}종 ✎</div>'
+            '<h2>계산은 <mark>빠르게</mark>,<br>시간은 내 것으로</h2>'
+            '<p>시간표 짜듯 쉽게 누르세요. 입력한 값은 이 브라우저 밖으로 나가지 않아요.</p>'
+            '<form class="sform" onsubmit="return false"><input type="search" id="q" placeholder="학점, 글자수, 알바 시급…" aria-label="계산기 검색" autocomplete="off">'
+            '<button type="submit">찾기</button></form></div>'
+            '<a class="feat press" href="housing-clock.html" aria-label="내 집 마련 시계 열기"><span class="new">NEW</span>'
+            '<div class="note-hand">소비를 집 면적으로 환산</div><div class="ft">내 집 마련 시계</div>'
+            '<div class="box"><div><span>커피 한 잔 5,000원</span><b>내 집 3.7cm²</b></div>'
+            '<div><span>매일 마시면 1년</span><b>A4 2.1장</b></div>'
+            '<div><span>끊으면 집 마련</span><mark>12년 1개월 단축</mark></div></div>'
+            '<div class="go">내 소비 넣어보기 →</div></a></section>'
+            '<section id="student"><div class="sec-h"><h2>대학생 필수 계산기</h2><span class="note-hand">시험기간에 제일 많이 눌러요</span></div>'
+            f'<div class="stu">{stu}</div></section>'
+            '<section id="all"><div class="sec-h"><h2>전체 계산기</h2><span class="note-hand">분야별로 쭉 훑어보기</span></div>'
             '<div id="empty" hidden>검색 결과가 없습니다. 다른 단어로 찾아보세요.</div>'
-            f'<div id="all">{rows}</div>')
-    script = '''<script>(function(){const q=document.getElementById('q'),chips=[...document.querySelectorAll('.chip')];let cat='all';
+            f'<div class="groups">{groups}</div></section>')
+    script = '''<script>(function(){const q=document.getElementById('q');
 function apply(){const s=q.value.trim().toLowerCase();let any=false;
-document.querySelectorAll('.row').forEach(a=>{const ok=(cat==='all'||a.dataset.cat===cat)&&(!s||a.dataset.q.toLowerCase().includes(s));a.hidden=!ok;if(ok)any=true});
-document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.row')].every(r=>r.hidden)});
-document.getElementById('empty').hidden=any;document.querySelector('.feature').hidden=!!s||cat!=='all'}
+document.querySelectorAll('.pill').forEach(a=>{const ok=!s||a.dataset.q.toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
+document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.pill')].every(r=>r.hidden)});
+document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.querySelector('.feat').hidden=!!s}
 q.addEventListener('input',apply);
-chips.forEach(c=>c.addEventListener('click',()=>{cat=c.dataset.cat;chips.forEach(x=>x.classList.toggle('on',x===c));apply()}));
 document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q){e.preventDefault();q.focus()}})})();</script>'''
-    write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"글자수 세기, 만 나이, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
+    write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"학점, 글자수, 알바 시급, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
 
 def static_pages():
     write("about.html", shell("about.html", "소개 - 간편계산기", "간편계산기 서비스 소개", "소개",
@@ -480,22 +490,8 @@ def sitemap():
     write("sitemap.xml", f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>')
 
 def css():
-    p = os.path.join(OUT, "style.css")
-    s = open(p, encoding="utf-8").read()
-    if "/*b2*/" in s: return
-    s += '''/*b2*/
-header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
-.brand{font-size:18px}
-nav{display:flex;flex-wrap:wrap;gap:4px 12px}nav a{margin:0}
-.lead{color:var(--muted);margin-top:0}
-input[type=search]{margin:8px 0 4px}
-.tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
-.tools a{margin:0}.tools a[hidden]{display:none}
-h2 small{font-weight:400;color:var(--muted);font-size:14px}
-select,input[type=date],input[type=time]{width:100%}
-@media(max-width:480px){.tools{grid-template-columns:1fr}}
-'''
-    open(p, "w", encoding="utf-8").write(s)
+    import shutil
+    shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "style.css"), os.path.join(OUT, "style.css"))
 
 if __name__ == "__main__":
     for t in TOOLS: render_tool(t)

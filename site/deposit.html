@@ -3,13 +3,13 @@
 <title>예적금 이자 계산기 - 예금·적금 세후 이자</title><meta name="description" content="정기예금과 정기적금의 단리 이자를 세전·세후로 계산합니다. 이자소득세 15.4%를 반영합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/deposit.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>예적금 이자 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="kind">종류</label><select id="kind"><option value="dep">정기예금 (목돈 예치)</option><option value="sav">정기적금 (매월 납입)</option></select><label for="p">금액 (예금: 예치금 / 적금: 월 납입액, 원)</label><input type="number" id="p" value="10000000" step="any"><label for="rate">연 이율 (%)</label><input type="number" id="rate" value="3.5" step="0.01"><label for="n">기간 (개월)</label><input type="number" id="n" value="12" step="any"><label for="tax">세금</label><select id="tax"><option value="15.4">일반과세 15.4%</option><option value="9.5">세금우대 9.5%</option><option value="0">비과세</option></select><div class="result" id="r"></div></div><h2>계산 방식</h2><p>예금은 예치금 × 연 이율 × 기간(월) ÷ 12로, 적금은 매월 납입액이 남은 개월 수만큼 이자를 받는 단리로 계산합니다. 은행 상품마다 이자 계산 일수와 우대금리가 달라 실제 지급액과 차이가 날 수 있는 참고용 값입니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>적금 이자가 예금보다 적은 이유는?</h3><p>적금은 매월 돈을 나눠 넣어 평균 예치 기간이 짧기 때문입니다. 같은 금리라도 이자는 예금의 절반 수준입니다.</p><h3>세금우대는 누구나 받나요?</h3><p>조건이 있는 상품만 해당합니다. 가입한 상품의 약관을 확인하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
-<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');

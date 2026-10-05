@@ -3,13 +3,13 @@
 <title>복리 계산기 - 월 적립 복리 수익</title><meta name="description" content="초기 투자금과 매월 적립액을 복리로 굴렸을 때 만기 금액을 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/compound.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="brand">간편계산기</a><nav><a href="index.html#c-fun">소비 환산</a><a href="index.html#c-fin">금융·투자</a><a href="index.html#c-pay">세금·급여</a><a href="index.html#c-biz">부업·사업</a><a href="index.html#c-life">부동산·생활</a><a href="index.html#c-date">날짜·시간</a><a href="index.html#c-health">건강·운동</a><a href="index.html#c-tool">도구·변환</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>복리 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="p">초기 투자금 (원)</label><input type="number" id="p" value="10000000" step="any"><label for="m">매월 적립액 (원)</label><input type="number" id="m" value="500000" step="any"><label for="rate">연 수익률 (%)</label><input type="number" id="rate" value="6" step="0.01"><label for="y">투자 기간 (년)</label><input type="number" id="y" value="10" step="any"><div class="result" id="r"></div></div><h2>복리란?</h2><p>이자에 다시 이자가 붙는 방식입니다. 이 계산기는 연 수익률을 12로 나눠 매월 복리로 적용하고, 적립은 매월 말에 한다고 가정합니다. 실제 투자 수익은 매년 달라지며 원금 손실이 날 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>72의 법칙은 무엇인가요?</h3><p>72를 연 수익률로 나누면 원금이 두 배가 되는 대략의 햇수입니다. 연 6%면 약 12년입니다.</p><h3>세금은 반영되나요?</h3><p>아니요. 세전 기준입니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
-<footer><a href="about.html">소개</a> · <a href="terms.html">이용약관</a> · <a href="privacy.html">개인정보처리방침</a><br>입력한 내용은 서버로 전송되지 않고 브라우저에서만 처리됩니다. 계산 결과는 참고용이며 법적·재무적 효력이 없습니다.</footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
