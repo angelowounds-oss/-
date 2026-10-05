@@ -451,7 +451,7 @@ export class Building {
     this.M.populateFloor?.(this, fl, L);
   }
   furnishRoof(fl, L) {
-    const { B, solid, R } = fl, tow = this.tow;
+    const { B, solid, cc, R } = fl, tow = this.tow;
     // heliport + AC units + water tank for parkour
     const cx = (tow.x0 + tow.x1) / 2 + 2, cz = (tow.z0 + tow.z1) / 2 + 2;
     for (let i = 0; i < 24; i++) { const a = i / 24 * TAU; B.box('emit', cx + Math.cos(a) * 4, this.roofY + 0.02, cz + Math.sin(a) * 4, 0.5, 0.02, 0.18, new THREE.Color(1, 0.85, 0.3), -a, 1.4); }
@@ -463,6 +463,23 @@ export class Building {
       const ax = tow.x1 - 3.2, az = tow.z0 + 2.5 + i * 3.4;
       if (az > tow.z1 - 2) break;
       solid('steel', ax - 1.0, this.roofY, az - 1.0, ax + 1.0, this.roofY + 1.3, az + 1.0, 0x3b414d);
+    }
+    // AC unit fan grilles, a water tank on a steel stand, and an antenna mast with a red aviation light
+    for (let i = 0; i < 3; i++) {
+      const ax = tow.x1 - 3.2, az = tow.z0 + 2.5 + i * 3.4; if (az > tow.z1 - 2) break;
+      B.ext('decor', ax - 0.7, this.roofY + 1.3, az - 0.7, ax + 0.7, this.roofY + 1.36, az + 0.7, 0x15181f);
+      B.ext('decor', ax - 0.06, this.roofY + 1.36, az - 0.7, ax + 0.06, this.roofY + 1.4, az + 0.7, 0x2a2e38); B.ext('decor', ax - 0.7, this.roofY + 1.36, az - 0.06, ax + 0.7, this.roofY + 1.4, az + 0.06, 0x2a2e38);
+    }
+    {
+      const wx = tow.x0 + 3.4, wz = tow.z1 - 3.4, ry = this.roofY;
+      for (const [dx, dz] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) solid('steel', wx + dx - 0.07, ry, wz + dz - 0.07, wx + dx + 0.07, ry + 1.4, wz + dz + 0.07, 0x3b414d);
+      cc(wx - 1.1, wz - 1.1, wx + 1.1, wz + 1.1, ry + 1.4, ry + 3.5, 'furniture');
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 2.1, 12), new THREE.MeshStandardMaterial({ color: 0x6d7480, roughness: 0.6, metalness: 0.4 }));
+      tank.position.set(wx, ry + 2.45, wz); fl.group.add(tank);
+      const mx = tow.x1 - 1.6, mz = tow.z1 - 1.6;
+      solid('steel', mx - 0.08, ry, mz - 0.08, mx + 0.08, ry + 9, mz + 0.08, 0x2a2e38);
+      B.box('emit', mx, ry + 9.15, mz, 0.3, 0.3, 0.3, new THREE.Color(1, 0.1, 0.1), 0, 3);
+      for (let k = 1; k <= 3; k++) B.ext('decor', mx - 0.7, ry + 2 + k * 2, mz - 0.03, mx + 0.7, ry + 2.06 + k * 2, mz + 0.03, 0x2a2e38);
     }
     fl.fixtures.push([cx, this.roofY + 4, cz, [0.8, 0.9, 1]]);
     this.M.populateFloor?.(this, fl, L);
