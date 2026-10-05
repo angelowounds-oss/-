@@ -27,6 +27,9 @@ const mergeSafe = (arr) => {
 
 // ---- Shared car materials ----
 const darkMat = new THREE.MeshPhysicalMaterial({ color: 0x07090e, roughness: 0.12, metalness: 0.85, clearcoat: 1, clearcoatRoughness: 0.05 });
+// tinted cabin glass: dark and glossy from outside, but the driver and seats show through
+const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x0a121c, roughness: 0.05, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03, transparent: true, opacity: 0.52, depthWrite: false, envMapIntensity: 1.4 });
+const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1a1b22, roughness: 0.8, metalness: 0.1 });
 const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.8).multiplyScalar(3.2), toneMapped: false });
 const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.06, 0.04).multiplyScalar(1.1) });
 const brakeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.08, 0.06).multiplyScalar(3.4) });
@@ -112,7 +115,7 @@ export function buildCar(type, color, opts = {}) {
   const { L, W, belt, roof, hood } = sp;
   const hl = L / 2;
   const group = new THREE.Group();
-  const paintGeo = [], darkGeo = [], lightGeo = [], brakeGeo = [];
+  const paintGeo = [], darkGeo = [], lightGeo = [], brakeGeo = [], glassGeo = [], cabinGeo = [];
   // lower body silhouette
   let lower, cabin;
   if (sp.boxy) {
@@ -135,7 +138,13 @@ export function buildCar(type, color, opts = {}) {
     cabin = type === 'suv'
       ? [[-hl + 0.12, belt + 0.02], [-hl + 0.3, roof], [c2 + 0.1, roof], [c3, belt + 0.02]]
       : [[c0, belt + 0.02], [c1, roof], [c2, roof], [c3, belt + 0.02]];
-    darkGeo.push(shapeGeo(cabin, W * 0.9, 0.012));
+    glassGeo.push(shapeGeo(cabin, W * 0.9, 0.012));
+    // a visible cabin behind the tinted glass: two front seats, rear bench, dashboard and steering wheel (left-hand drive)
+    const zs = (c1 + c2) / 2 + 0.05, fy = 0.34;
+    for (const sx of [1, -1]) { cabinGeo.push(box(0.5, 0.12, 0.5, sx * W * 0.22, belt - 0.42, zs), box(0.5, 0.6, 0.12, sx * W * 0.22, belt - 0.12, zs - 0.28)); }
+    if (c0 < zs - 1.0) cabinGeo.push(box(W * 0.78, 0.12, 0.45, 0, belt - 0.42, zs - 0.95), box(W * 0.78, 0.5, 0.12, 0, belt - 0.17, zs - 1.2));
+    cabinGeo.push(box(W * 0.84, 0.22, 0.32, 0, belt - 0.05, c2 + 0.05), box(W * 0.84, 0.05, Math.max(0.3, c2 - zs), 0, fy, (zs + c2) / 2));
+    { const sw = new THREE.TorusGeometry(0.17, 0.025, 6, 16); sw.rotateX(-0.35); sw.translate(W * 0.22, belt + 0.02, c2 - 0.18); cabinGeo.push(sw); }
     // roof slab and pillars (paint)
     const rx0 = type === 'suv' ? -hl + 0.3 : c1, rx1 = type === 'suv' ? c2 + 0.1 : c2;
     paintGeo.push(box(W * 0.9, 0.07, rx1 - rx0 + 0.08, 0, roof + 0.02, (rx0 + rx1) / 2));
@@ -166,6 +175,11 @@ export function buildCar(type, color, opts = {}) {
   const brake = new THREE.Mesh(mergeSafe(brakeGeo), brakeMat); brake.visible = false;
   for (const m of [paint, dark]) { m.castShadow = true; m.receiveShadow = false; }
   group.add(paint, dark, head, tail, brake);
+  let glass = null;
+  if (glassGeo.length) {
+    glass = new THREE.Mesh(mergeSafe(glassGeo), glassMat); glass.renderOrder = 2; glass.castShadow = true; group.add(glass);
+    const cab = new THREE.Mesh(mergeSafe(cabinGeo), cabinMat); group.add(cab);
+  }
 
   // wheels
   const wr = WHEEL_R;
@@ -206,7 +220,7 @@ export function buildCar(type, color, opts = {}) {
     t.position.set(0, roof + 0.16, 0.1); group.add(t);
   }
   return {
-    group, spec: sp, paint, dark, head, tail, brake, front, rear, fa, ra, ug, beams, headSprites: hs, tailSprites: ts, siren,
+    group, spec: sp, paint, dark, glass, head, tail, brake, front, rear, fa, ra, ug, beams, headSprites: hs, tailSprites: ts, siren,
     wheelR: wr, steerPivot: front,
   };
 }
