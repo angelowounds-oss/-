@@ -34,7 +34,7 @@ try {
   check('대칭성 점검: ±4° 한 쌍', R.json.symmetry.length === 1 && R.json.symmetry[0].yaw === 4, R.json.symmetry);
   check('SVG 그래프에 3개 계열', R.svg.startsWith('<svg') && (R.svg.match(/<polyline/g) || []).length === 3, R.svg.length);
   fs.writeFileSync(path.join(outDir, 'report.html'), R.html); fs.writeFileSync(path.join(outDir, 'sweep.csv'), R.csv); fs.writeFileSync(path.join(outDir, 'sweep.json'), JSON.stringify(R.json, null, 1));
-  const rp = await browser.newPage({ viewport: { width: 900, height: 900 } }); await rp.setContent(R.html); await rp.screenshot({ path: path.join(outDir, 'report.png'), fullPage: true }); await rp.close();
+  const rp = await browser.newPage({ viewport: { width: 900, height: 900 } }); await rp.setContent(R.html); await rp.screenshot({ path: path.join(outDir, 'report.png'), fullPage: true, timeout: 300000 }); await rp.close();
   // abort paths
   await page.evaluate(() => { __SEQ.start({ yaws: [3, 6], window: 5, spinUp: 5 }); });
   await sleep(4000);
