@@ -89,6 +89,33 @@
 
   <section class="card" aria-labelledby="aeroTitle"><h2 id="aeroTitle">공력 계수 (압력 항력만)</h2><canvas id="aeroChart" width="320" height="150" aria-label="항력·양력·측력 계수 시계열"></canvas><div class="status" id="aeroNow">측정 중…</div><p class="help">Cd 항력 · Cl 양력 · Cs 측력(측풍). 점성 마찰이 없는 정성 참고값이며 실측 풍동 결과와 직접 비교할 수 없습니다.</p></section>
 
+  <section class="card" aria-labelledby="instTitle"><h2 id="instTitle">계측 장비</h2>
+    <div class="btn-grid"><select id="instPreset" aria-label="프로브 위치 프리셋"></select><button id="instAdd" class="btn" type="button">프로브 추가</button><button id="instView" class="btn" type="button">시선 앞 3 m에 추가</button><button id="instClear" class="btn" type="button">모두 제거</button></div>
+    <div id="instList" class="status" aria-live="polite">프로브가 없습니다. 위치를 고르고 추가하세요.</div>
+    <h3>후류 조사</h3>
+    <label class="row">후류 위치 x <input id="instX" type="range" min="2.6" max="5.6" step="0.1" value="3.3"><span id="instXv">3.3 m</span></label>
+    <div class="btn-grid"><button id="instRake" class="btn" type="button" aria-pressed="false">후류 레이크: 꺼짐</button><button id="instPlane" class="btn" type="button" aria-pressed="false">후류 평면: 꺼짐</button><select id="instMode" aria-label="후류 평면 표시"><option value="0">전압 손실(Cp0)</option><option value="1">흐름 방향 와도</option><option value="2">속도비</option></select></div>
+    <canvas id="instRakeChart" width="320" height="120" aria-label="후류 레이크 전압 손실 프로파일"></canvas>
+    <div class="status" id="instWake">후류 계측을 켜면 표시됩니다.</div>
+    <div class="btn-grid"><button id="instCsv" class="btn" type="button">기록 CSV 저장</button></div>
+    <p class="help">Cp·Cp0는 코 앞 자유류 기준점에 대한 값이고, 전압 손실 = −Cp0입니다. 후류 평면 적분(전압 결손 Σ(−Cp0)·dA / 기준 면적)은 정압이 회복되기 전의 근후류에서는 실제 항력보다 크게 나오므로 항력 추정이 아니라 후류 크기 지표로 보세요. 격자 7.5~24 cm, 경계층 미해상이라 정성 계측입니다(L4·L26·L35).</p></section>
+
+  <section class="card" aria-labelledby="aeroSetTitle"><h2 id="aeroSetTitle">공력 세팅 (차고·피치)</h2>
+    <label class="row">차고 <input id="aeroRide" type="range" min="-30" max="30" step="5" value="0"><span id="aeroRideV">0 mm</span></label>
+    <label class="row">피치 <input id="aeroPitch" type="range" min="-1" max="1" step="0.25" value="0"><span id="aeroPitchV">0°</span></label>
+    <div class="btn-grid"><button id="aeroApply" class="btn" type="button">적용(흐름 재계산)</button><button id="aeroReset" class="btn" type="button">기준 상태로</button></div>
+    <div class="status" id="aeroSetNote">기준 상태</div>
+    <p class="help">몸체만 위·아래로 움직이고 바퀴는 벨트에 그대로 있습니다. 피치는 앞차축 기준(+는 앞이 들림). 변화량이 격자 2칸 미만이면 결과 차이는 노이즈 수준일 가능성이 크며, 그때는 그렇게 표시합니다(L35). 자동 시험의 "차고/피치 스윕"으로 변화량과 잡음을 함께 볼 수 있습니다.</p></section>
+
+  <section class="card" aria-labelledby="seqTitle"><h2 id="seqTitle">자동 시험 (요각 스윕)</h2>
+    <div class="btn-grid"><select id="seqPlan" aria-label="스윕 종류"><option value="quick">빠른 스윕 (−6…+6°, 5점)</option><option value="precise">정밀 스윕 (−12…+12°, 9점)</option><option value="ride">차고 스윕 (−20…+20 mm, 3점)</option><option value="pitch">피치 스윕 (−1…+1°, 3점)</option></select><select id="seqWind" aria-label="풍속"><option value="3">3 m/s</option><option value="5" selected>5 m/s</option><option value="8">8 m/s</option><option value="12">12 m/s</option></select></div>
+    <div class="btn-grid"><button id="seqStart" class="btn" type="button">시험 시작</button><button id="seqStop" class="btn" type="button" disabled>중단</button></div>
+    <div class="status" id="seqStat" aria-live="polite">대기 중</div>
+    <div id="seqChart"></div>
+    <pre class="status" id="seqTable"></pre>
+    <div class="btn-grid"><button id="seqCsv" class="btn" type="button" disabled>CSV</button><button id="seqJson" class="btn" type="button" disabled>JSON</button><button id="seqHtml" class="btn" type="button" disabled>보고서(HTML)</button></div>
+    <p class="help">점마다 흐름을 처음부터 다시 계산합니다(예열 후 측정 창 평균). 소요 시간은 기기 속도에 따라 크게 다릅니다(이 환경에서는 측정하지 못했습니다). Cd는 참고값, Cl은 신뢰 불가(L4), Cs는 정성입니다. 비상정지를 누르면 중단되고 원래 요각·풍속으로 돌아갑니다.</p></section>
+
   <section class="card" id="screenMode"><h2>화면</h2><div id="screenModeBtns" class="btn-grid"></div></section>
 
   <section class="card" aria-labelledby="gpTitle"><h2 id="gpTitle">WebGPU 진단</h2><button id="gpRun" class="btn" type="button">WebGPU 계산 속도 측정</button><pre id="gpOut" class="status" aria-live="polite">아직 측정하지 않았습니다.</pre><p class="help">이 기기에서 WebGPU 계산이 가능한지, 솔버와 같은 셀 수에서 스텐실 1회가 몇 ms인지 측정합니다. 결과는 솔버를 WebGPU로 옮길 가치가 있는지 판단하는 근거입니다. 이 브라우저가 WebGPU를 지원하지 않으면 그렇게 표시됩니다.</p></section>

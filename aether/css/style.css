@@ -173,3 +173,11 @@ body.mobile .form{grid-template-columns:1fr}
 .cp-leg{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--panel,rgba(12,18,26,.82));color:var(--text,#dbe6f2);font-size:12px;pointer-events:none}
 .cp-leg[hidden]{display:none}
 .cp-leg i{width:140px;height:8px;border-radius:4px;background:linear-gradient(90deg,#1a47f2,#fff,#f21f14)}
+
+/* instruments card */
+#instList .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;margin:4px 0;word-break:break-word}
+#instList .row .btn{min-width:34px;min-height:30px;padding:0 8px}
+.card label.row{display:flex;align-items:center;gap:8px;font-size:12px}
+.card label.row input[type=range]{flex:1}
+#instRakeChart{width:100%;max-width:320px;background:rgba(0,0,0,.18);border-radius:8px;margin:6px 0}
+#instPreset,#instMode{min-height:38px;border-radius:10px;font-size:12px;background:var(--panel2,rgba(255,255,255,.06));color:inherit;border:1px solid rgba(160,180,200,.3);padding:0 8px}

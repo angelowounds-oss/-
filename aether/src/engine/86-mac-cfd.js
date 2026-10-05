@@ -222,12 +222,17 @@ function macAtlas(n){const maxTex=gl.getParameter(gl.MAX_TEXTURE_SIZE);let tx=Ma
  if(n[1]*ty>maxTex)throw Error('MAC atlas exceeds MAX_TEXTURE_SIZE '+maxTex);return {N:n.slice(),tx,W:n[0]*tx,H:n[1]*ty}}
 function macTarget(g,ifmt,fmt,type){return liveTarget(g.W,g.H,ifmt,fmt,type)}
 /* static solids, partial volume: car supersampled 2x2x2 (shell + flood fill at 2N), fan box phi=1, validation shapes analytic 4x4x4 */
+/* Ahmed body (Ahmed, Ramm & Faltin 1984) in body coordinates around its centre c: rectangular box L x W x H, front edges rounded with radius R, rear-top slant of length ls at angle deg.
+   Used only by the validation obstacle (type 'ahmed'); stilts are not modelled. */
+function macAhmedIn(O,x,y,z){const u=x-O.c[0],v=y-O.c[1],w=z-O.c[2],hl=O.L/2,hh=O.H/2,hw=O.W/2;if(Math.abs(u)>hl||Math.abs(v)>hh||Math.abs(w)>hw)return false;
+ const th=O.deg*Math.PI/180,us=hl-O.ls*Math.cos(th);if(u>us&&v>hh-(u-us)*Math.tan(th))return false;
+ const du=u-(-hl+O.R);if(du<0){const a=Math.max(Math.abs(v)-(hh-O.R),0),b=Math.max(Math.abs(w)-(hw-O.R),0);if(du*du+a*a+b*b>O.R*O.R)return false}return true}
 function macStaticSolids(N,min,h,cfg){const [nx,ny,nz]=N,tot=nx*ny*nz,phi=new Float32Array(tot),id=new Uint8Array(tot),t0=performance.now();
  if(cfg.car){const S=2,M=[nx*S,ny*S,nz*S],hs=h.map(v=>v/S),v=liveVoxelizeShell(M,min,hs);
   for(let k=0;k<M[2];k++)for(let j=0;j<M[1];j++)for(let i=0;i<M[0];i++)if(v[i+M[0]*(j+M[1]*k)]){const q=(i>>1)+nx*((j>>1)+ny*(k>>1));phi[q]+=1/8;id[q]=1}}
  if(cfg.obstacle){const O=cfg.obstacle,S=4;for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){let n=0;
   for(let a=0;a<S;a++)for(let b=0;b<S;b++)for(let c=0;c<S;c++){const x=min[0]+(i+(a+.5)/S)*h[0]-O.c[0],y=min[1]+(j+(b+.5)/S)*h[1]-O.c[1],z=min[2]+(k+(c+.5)/S)*h[2]-O.c[2];
-   const r2=O.type==='sphere'?x*x+y*y+z*z:x*x+y*y;if(r2<=O.D*O.D/4)n++}
+   const r2=O.type==='sphere'?x*x+y*y+z*z:x*x+y*y;if(O.type==='ahmed'?macAhmedIn(O,x+O.c[0],y+O.c[1],z+O.c[2]):r2<=O.D*O.D/4)n++}
   if(n){const q=i+nx*(j+ny*k);phi[q]=n/(S*S*S);id[q]=1}}}
  const fb=cfg.fan;if(fb)for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=min[0]+(i+.5)*h[0],y=min[1]+(j+.5)*h[1],z=min[2]+(k+.5)*h[2];
   if(x>=fb.min[0]&&x<=fb.max[0]&&y>=fb.min[1]&&y<=fb.max[1]&&z>=fb.min[2]&&z<=fb.max[2]){const q=i+nx*(j+ny*k);if(id[q]!==1){phi[q]=1;id[q]=2}}}
@@ -465,7 +470,7 @@ function macCvForce(lo,hi){const N=MAC.N,h=MAC.h,nu=MAC.cfg.nu??MAC.nuMol,rho=MA
 /* ---- validation domain API ---- */
 function macValidate(cfg){MAC.lesSaved=MAC.les;MAC.domain={N:cfg.N,min:cfg.min,max:cfg.max,obstacle:cfg.obstacle||null,U:cfg.U??1,nu:cfg.nu??0,rho:1,Aref:cfg.Aref};MAC.les=cfg.les??false;MAC.ibmSaved=MAC.ibmSaved??MAC.ibm;MAC.ibm=cfg.ibm||MAC.ibmSaved;
  LIVE.enabled=false;LIVE.freeze=true;macInit();if(cfg.obstacle){MAC.wheels=[[...cfg.obstacle.c,cfg.obstacle.D/2]];MAC.spin=cfg.spin||0;MAC.spinUntil=cfg.spinUntil||0}
- gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
+ gl.bindVertexArray(LIVE.vao);macSolids();gl.bindVertexArray(null);return {N:MAC.N,h:MAC.h,phiSum:MAC.vox.carCells,expectedVol:cfg.obstacle?(cfg.obstacle.type==='ahmed'?cfg.obstacle.vol:cfg.obstacle.type==='sphere'?Math.PI*cfg.obstacle.D**3/6:Math.PI*cfg.obstacle.D**2/4*(cfg.max[2]-cfg.min[2])):0,cellVol:MAC.h[0]*MAC.h[1]*MAC.h[2]}}
 /* run n steps; every `every` steps record forces (and probe velocity) */
 function macVrun(n,dt,every=1,probe=null,cv=null){const rec=[];const t0=performance.now();
  for(let i=0;i<n;i++){macStep(dt,false);if((i+1)%every===0){const f=macForces(),fb=macForces('budget');const r={t:MAC.time,Fx:f.Fx,Fy:f.Fy,Fz:f.Fz,Cd:f.Cd,Cdp:f.Cdp,Cl:f.Cl,CdB:fb.Cd,ClB:fb.Cl};if(probe){const v=macRead(...probe);r.pv=v[1];r.pu=v[0]}

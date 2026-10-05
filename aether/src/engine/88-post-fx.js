@@ -172,7 +172,7 @@ function fxAfterOpaque(){const T=FX.t,M=FX.m=fxMatrices(),rw=FX.rw,rh=FX.rh;gl.b
  fxPass('comp',T.compF,rw,rh,{uScene:T.color,uAmb:T.amb,uDepth:T.depth,uAO:T.ao[0],uSmoke:T.sh[FX.shist],uSAux:T.sa},{uLo:[FX.vw,FX.vh],uAOOn:aoOn?1:0,uAOK:FX.aoStrength,uSmokeOn:smokeOn?1:0,uSSR:PERF.set.ssr|0,uProj:projP,uP:fxProj()});
  /* leave composite+depth bound for glass */
  gl.bindFramebuffer(gl.FRAMEBUFFER,T.compDF);gl.viewport(0,0,rw,rh);gl.enable(gl.DEPTH_TEST);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);
- if(LIVE.enabled&&LIVE.ok){const vpJ=matMul(fxJitter(M.proj),M.view);streakDraw(vpJ,rw,rh);cpDraw(vpJ)}}
+ if(LIVE.enabled&&LIVE.ok){const vpJ=matMul(fxJitter(M.proj),M.view);streakDraw(vpJ,rw,rh);cpDraw(vpJ);instrDraw(vpJ,rw)}}
 function fxPost(){const T=FX.t,M=FX.m,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);gl.disable(gl.CULL_FACE);
  let src=T.comp;if(FX.taa){const cur=FX.hist,nxt=1-cur;fxPass('taa',T.histF[nxt],rw,rh,{uCur:T.comp,uHist:T.hist[cur],uDepth:T.depth},{uInvVP:M.inv,uPrevVP:FX.prevVP||M.vp,uReset:FX.reset?1:0});FX.hist=nxt;src=T.hist[nxt]}
  let bloom=T.bl[0]?.a;if(PERF.set.bloom&&T.bl.length){const B=T.bl;fxPass('bpre',B[0].af,B[0].w,B[0].h,{uSrc:src},{uThr:1.2});

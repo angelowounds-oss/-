@@ -31,6 +31,9 @@ tools/build.mjs                                 → dist/aether.html (단일 파
 | 85-live-cfd | 실시간 CFD 관리자(LIVE): 등급·방출기·볼륨·힘·API. collocated 솔버(대체 경로) 포함 |
 | 86-mac-cfd | **기본 솔버**: 엇갈린 MAC 격자, 부분체적 경계, MacCormack, Smagorinsky LES, RBGS-MG/GMG/MGPCG, 2배 연기 격자, 검증 API |
 | src/optional/87-lbm (배포 빌드 제외) | D3Q19 TRT 격자 볼츠만(비교용, 검증 하네스 전용) |
+| 87f-instruments | 가상 계측: GPU `pprobe`/`pplane` 패스(속도·압력·와도·고체율 표본) → 비동기 읽기, 점 프로브·후류 레이크·후류 평면(투명 컬러맵), CSV |
+| 87g-sequencer | 자동 시험 상태기계(요각/차고/피치 스윕): 예열 → 측정 창 평균 → 수렴 판정, 기준 대비 변화 판정(해상도 미만/노이즈/유의), CSV·JSON·HTML 보고서·SVG |
+| 87h-aero-parts | 차고·피치 조절(몸체만 이동, 바퀴는 벨트 위), 재복셀화+재시작, 해상도 게이트 `AERO.resolution()` (상태 `AERO`는 40에 있음) |
 | 88-post-fx | HDR 포스트: GTAO, 볼류메트릭, 합성+SSR, TAA, 블룸, AgX/ACES, FXAA, 업스케일 |
 | 89-lighting-hq | GGX 사전필터 큐브맵, SH9 조도, CSM+PCF/PCSS, 클리어코트, 유리 프레넬 |
 | 90-render-loop | 프레임 루프 `draw()`, 부팅, 카메라 프리셋, UI 연결 |

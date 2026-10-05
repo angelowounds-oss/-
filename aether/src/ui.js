@@ -141,6 +141,51 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
    const z=A[A.length-1];now.textContent='Cd '+z[1].toFixed(3)+' · Cl '+z[2].toFixed(3)+' · Cs '+z[3].toFixed(3)+' (요각 '+(window.__YAW?.deg||0)+'°)';void css};
   setInterval(()=>{if(document.hidden||!$('panel')?.classList.contains('open')&&getComputedStyle($('panel')).display==='none')return;try{draw()}catch(e){void e}},500)}}
 
+/* virtual instruments: probes, wake rake, wake plane */
+{const I=window.__INSTR,sel=$('instPreset');if(I&&sel){
+ const fill=()=>{const keep=sel.value;sel.innerHTML='';I.presets().forEach(([n],i)=>{const o=document.createElement('option');o.value=i;o.textContent=n;sel.appendChild(o)});if(keep)sel.value=keep};fill();sel.addEventListener('focus',fill);
+ const f=(v,d=2)=>v===undefined||v===null||!Number.isFinite(v)?'–':v.toFixed(d);
+ $('instAdd').onclick=()=>{const p=I.presets()[+sel.value];if(!p)return;const r=I.add(p[1],p[0]);if(!r)capFor('프로브를 더 추가할 수 없습니다','최대 '+I.max+'개')};
+ $('instView').onclick=()=>{if(!I.addAtView())capFor('프로브를 더 추가할 수 없습니다','최대 '+I.max+'개')};
+ $('instClear').onclick=()=>I.clear();
+ const x=$('instX');x.oninput=()=>{I.setX(+x.value);$('instXv').textContent=(+x.value).toFixed(1)+' m'};
+ const tog=(id,label,get,set)=>{const b=$(id);b.onclick=()=>{set(!get());b.textContent=label+': '+(get()?'켜짐':'꺼짐');b.setAttribute('aria-pressed',String(get()))}};
+ tog('instRake','후류 레이크',()=>I.rake.on,v=>I.setRake(v));tog('instPlane','후류 평면',()=>I.plane.on,v=>I.setPlane(v));
+ $('instMode').onchange=e=>I.setPlane(I.plane.on,+e.target.value);
+ $('instCsv').onclick=()=>{const b=new Blob([I.csv()],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='aether-probes.csv';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},1000)};
+ const spark=(h)=>{if(!h.length)return '';const v=h.map(q=>q[1]),lo=Math.min(...v),hi=Math.max(...v)||1,bars='▁▂▃▄▅▆▇█';return v.slice(-24).map(q=>bars[Math.min(7,Math.max(0,Math.floor((q-lo)/((hi-lo)||1)*7.99)))]).join('')};
+ const list=$('instList'),cv=$('instRakeChart'),wk=$('instWake');
+ const draw=()=>{if(!I.probes.length)list.textContent=I.err?('계측 오류: '+I.err):'프로브가 없습니다. 위치를 고르고 추가하세요.';else{list.textContent='';I.probes.forEach(p=>{const d=document.createElement('div');d.className='row';const v=p.val;
+   d.textContent=p.name+' ['+p.pos.map(q=>q.toFixed(1)).join(', ')+']  '+(v?(v.solid?'차체 내부':('|U| '+f(v.speed)+' m/s · Cp '+f(v.Cp)+' · Cp0 '+f(v.Cp0)+' · ω '+f(v.vort,1)+'/s  '+spark(p.h))):'측정 중…');
+   const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='✕';b.setAttribute('aria-label',p.name+' 제거');b.onclick=()=>I.remove(p.id);d.appendChild(b);list.appendChild(d)})}
+  const g=cv.getContext('2d'),W=cv.width,H=cv.height;g.clearRect(0,0,W,H);const w=I.wake;
+  if(I.rake.on&&w){const L=w.prof.map(q=>q.Cp0===null?0:Math.max(0,-q.Cp0)),mx=Math.max(.5,...L);g.strokeStyle='rgba(160,180,200,.35)';g.beginPath();g.moveTo(40,6);g.lineTo(40,H-6);g.stroke();
+   g.fillStyle='#f2b84b';w.prof.forEach((q,i)=>{const y=H-8-(q.y-I.rake.y0)/(I.rake.y1-I.rake.y0)*(H-16);g.fillRect(40,y-2,L[i]/mx*(W-50),4)});g.fillStyle='rgba(200,210,220,.8)';g.font='10px sans-serif';g.fillText('y '+I.rake.y0.toFixed(1),2,H-8);g.fillText(I.rake.y1.toFixed(1)+' m',2,12);g.fillText('전압 손실 −Cp0 (최대 '+mx.toFixed(2)+')',48,12)}
+  const e=I.est;wk.textContent=I.plane.on?(e&&e.CdWake!==null?('후류 평면 x='+e.x.toFixed(1)+' m: 전압 결손 적분 '+f(e.CdWake,3)+' (Cd 환산, 근후류에서는 과대) · 힘 적분 Cd '+f(e.CdBalance,3)+' · 유체 표본 '+e.fluid):'후류 평면 적분 계산 중… (흐름이 발달해야 합니다)'):(I.rake.on?'후류 레이크 x='+I.wakeX.toFixed(1)+' m, 높이 '+I.rake.y0+'~'+I.rake.y1+' m':'후류 계측을 켜면 표시됩니다.')};
+ setInterval(()=>{if(document.hidden)return;try{draw()}catch(e){void e}},400)}}
+
+/* aero set-up: ride height and pitch */
+{const A=window.__AERO;if(A&&$('aeroRide')){const r=$('aeroRide'),pt=$('aeroPitch'),note=$('aeroSetNote'),show=()=>{$('aeroRideV').textContent=(+r.value)+' mm';$('aeroPitchV').textContent=(+pt.value)+'°'};
+ r.oninput=pt.oninput=show;show();
+ const upd=()=>{const q=A.resolution();note.textContent=(A.active?'적용됨: 차고 '+A.rideMm+' mm · 피치 '+A.pitchDeg+'° — ':'')+'격자 셀 '+(q.cell*100).toFixed(1)+' cm · 변화량 '+q.maxCells.toFixed(2)+' 칸 · '+q.note};
+ $('aeroApply').onclick=()=>{A.set({rideMm:+r.value,pitchDeg:+pt.value});upd();capFor('공력 세팅 적용','차체를 옮기고 흐름을 다시 계산합니다')};
+ $('aeroReset').onclick=()=>{r.value=0;pt.value=0;show();A.reset();upd()};
+ upd();setInterval(()=>{if(!document.hidden)try{upd()}catch(e){void e}},1500)}}
+
+/* automatic test sequencer */
+{const Q=window.__SEQ;if(Q){const dl=(text,type,name)=>{const b=new Blob([text],{type}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},1000)};
+ const stamp=()=>new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+ const est=()=>{const p=Q.presets[$('seqPlan').value],U=+$('seqWind').value,e=Q.estimate({yaws:p.yaws,window:p.window,U});return p.yaws.length+'점 × (예열 '+Q.spinUpFor(U).toFixed(1)+' s + 측정 '+p.window+' s) = 최소 '+Math.round(e.simTotal)+' s 시뮬레이션 시간 (실제 소요는 기기 속도에 따름)'};
+ const stat=$('seqStat');stat.textContent='대기 중 — '+est();
+ for(const id of ['seqPlan','seqWind'])$(id).onchange=()=>{if(Q.state==='IDLE'||Q.state==='DONE'||Q.state==='ABORTED')stat.textContent='대기 중 — '+est()};
+ $('seqStart').onclick=()=>{const l=L();if(!l||!l.ok){capFor('CFD가 꺼져 있어 시험할 수 없습니다','');return}if(l.freeze)l.freeze=false;const ok=Q.start({plan:$('seqPlan').value,U:+$('seqWind').value});if(!ok)capFor('시험을 시작할 수 없습니다',Q.err||'비상정지 해제 후 다시 시도하세요')};
+ $('seqStop').onclick=()=>Q.abort('사용자가 중단');
+ $('seqCsv').onclick=()=>dl(Q.csv(),'text/csv','aether-sweep-'+stamp()+'.csv');$('seqJson').onclick=()=>dl(Q.json(),'application/json','aether-sweep-'+stamp()+'.json');$('seqHtml').onclick=()=>dl(Q.html(),'text/html','aether-report-'+stamp()+'.html');
+ const f=(v,d=3)=>v===null||v===undefined?'–':(+v).toFixed(d);let lastN=-1,lastState='';
+ setInterval(()=>{if(document.hidden)return;const run=Q.state==='RUN'||Q.state==='SETUP';$('seqStart').disabled=run;$('seqStop').disabled=!run;const has=Q.results.length>0;for(const id of ['seqCsv','seqJson','seqHtml'])$(id).disabled=!has;
+  if(run)stat.textContent=Q.msg+' · '+Q.phase+' · 진행 '+Math.round(Q.progress()*100)+' %';else if(Q.state==='DONE')stat.textContent='완료 — 점 '+Q.results.length+'개, 미수렴 '+Q.results.filter(r=>!r.converged).length+'개';else if(Q.state==='ABORTED')stat.textContent='중단: '+(Q.err||Q.msg);
+  if(Q.results.length!==lastN||Q.state!==lastState){lastN=Q.results.length;lastState=Q.state;$('seqChart').innerHTML=Q.svg();$('seqTable').textContent=Q.results.map(r=>('요각 '+r.yaw+'°').padEnd(9)+' Cd '+f(r.Cd)+'±'+f(r.CdStd)+'  Cs '+f(r.Cs)+'±'+f(r.CsStd)+'  Cl '+f(r.Cl)+'  '+(r.converged?'수렴':'미수렴')).join('\n')}},500)}}
+
 /* capture: photo, manual recording, auto-record the cinematic */
 {const C=window.__CAP;if(C){const sup=C.supported();
  $('capPhoto').onclick=()=>{if(C.photo())capFor('사진을 저장합니다','잠시 후 다운로드됩니다')};
