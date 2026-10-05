@@ -16,8 +16,6 @@ class Frame {
     this.taken = [];
     // keep the door clear: a 2 m wide strip in front of the door wall (only the zone that touches it)
     if (!sub || sub[1] >= full - 0.1) this.taken.push({ lx0: rm.dx - this.cx - 1.0, lx1: rm.dx - this.cx + 1.0, ld0: this.D - 1.7, ld1: this.D + 0.5 });
-    // and a 1.6 m aisle along the middle so zones stay walkable end to end
-    this.taken.push({ lx0: rm.dx - this.cx - 0.8, lx1: rm.dx - this.cx + 0.8, ld0: 0, ld1: this.D });
   }
   wx(lx) { return this.cx + lx; }
   wz(ld) { return this.back - this.dirIn * ld; }
