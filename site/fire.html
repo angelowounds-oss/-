@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>은퇴자금(FIRE) 계산기 - 필요 자산과 도달 시기</title><meta name="description" content="연 지출과 인출률로 필요한 은퇴 자산을 구하고, 월 저축과 수익률로 도달 시기를 계산합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/fire.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>은퇴자금(FIRE) 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="s">은퇴 후 연 지출 (원)</label><input type="number" id="s" value="36000000" step="any"><label for="w">연 인출률 (%)</label><input type="number" id="w" value="4" step="0.1"><label for="c">현재 자산 (원)</label><input type="number" id="c" value="50000000" step="any"><label for="m">매월 저축액 (원)</label><input type="number" id="m" value="1500000" step="any"><label for="r">연 수익률 (%)</label><input type="number" id="r" value="5" step="0.1"><div class="result" id="r"></div></div><h2>4% 룰이란?</h2><p>은퇴 자산의 4%를 매년 쓰면 오래 유지될 수 있다는 경험칙입니다. 한국의 물가, 세금, 수익률에 그대로 맞는다는 보장은 없으니 참고만 하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>물가상승은 반영되나요?</h3><p>아니요. 지출을 현재 가치로 보고 단순화했습니다.</p><h3>국민연금은요?</h3><p>연금 수령액을 연 지출에서 빼고 입력하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["s", "w", "c", "m", "r"];
+function compute(v){if(!(v.w>0))return '';const t=v.s/(v.w/100),i=v.r/1200;let n;
+if(v.c>=t)return '필요 자산 '+W(t)+' — 이미 달성했습니다.';
+if(!(v.m>0))return '필요 자산 '+W(t);n=i===0?(t-v.c)/v.m:Math.log((t*i+v.m)/(v.c*i+v.m))/Math.log(1+i);if(!isFinite(n))return '';n=Math.ceil(n);
+return '필요 자산 <b>'+W(t)+'</b><br>도달까지 <b>약 '+Math.floor(n/12)+'년 '+(n%12)+'개월</b>';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "물가상승은 반영되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요. 지출을 현재 가치로 보고 단순화했습니다."}}, {"@type": "Question", "name": "국민연금은요?", "acceptedAnswer": {"@type": "Answer", "text": "연금 수령액을 연 지출에서 빼고 입력하세요."}}]}</script></body></html>

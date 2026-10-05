@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>비례식 계산기 - A:B = C:X</title><meta name="description" content="A:B = C:X 형태의 비례식에서 모르는 값 X를 구합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/proportion.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>비례식 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="a">A</label><input type="number" id="a" value="3" step="any"><label for="b">B</label><input type="number" id="b" value="5" step="any"><label for="c">C</label><input type="number" id="c" value="12" step="any"><div class="result" id="r"></div></div><h2>활용 예</h2><p>레시피 인분 조절(2인분 재료로 5인분), 지도 축척, 환산 비율 계산에 쓸 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>내항과 외항의 곱은요?</h3><p>비례식에서 내항의 곱과 외항의 곱은 같습니다.</p><h3>A가 0이면?</h3><p>계산할 수 없습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["a", "b", "c"];
+function compute(v){if(!(v.a!==0))return '';const x=v.b*v.c/v.a;return '<b>'+v.a+' : '+v.b+' = '+v.c+' : '+N2(x,4)+'</b><br><small>X = B × C ÷ A</small>';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "내항과 외항의 곱은요?", "acceptedAnswer": {"@type": "Answer", "text": "비례식에서 내항의 곱과 외항의 곱은 같습니다."}}, {"@type": "Question", "name": "A가 0이면?", "acceptedAnswer": {"@type": "Answer", "text": "계산할 수 없습니다."}}]}</script></body></html>

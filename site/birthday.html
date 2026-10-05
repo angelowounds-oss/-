@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>생일 D-day 계산기 - 다음 생일까지 남은 날</title><meta name="description" content="생일을 입력하면 다음 생일까지 남은 일수와 그날의 요일, 만 나이를 알려줍니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/birthday.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>생일 D-day 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="b">생일</label><input type="date" id="b" value="2000-05-20"><div class="result" id="r"></div></div><h2>안내</h2><p>양력 생일 기준입니다. 음력 생일은 지원하지 않습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>2월 29일 생일은요?</h3><p>평년에는 3월 1일로 계산될 수 있습니다.</p><h3>음력 생일은요?</h3><p>지원하지 않습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["b"];
+function compute(v){const b=P(v.b),t=P(TODAY);let n=new Date(t.getFullYear(),b.getMonth(),b.getDate());if(n<t)n=new Date(t.getFullYear()+1,b.getMonth(),b.getDate());
+const left=DAYS(t,n),age=n.getFullYear()-b.getFullYear();return '<b>'+(left===0?'오늘이 생일입니다!':'D-'+left)+'</b><br>'+FD(n)+' ('+DOW(n)+'요일) · 만 '+age+'세가 됩니다';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "2월 29일 생일은요?", "acceptedAnswer": {"@type": "Answer", "text": "평년에는 3월 1일로 계산될 수 있습니다."}}, {"@type": "Question", "name": "음력 생일은요?", "acceptedAnswer": {"@type": "Answer", "text": "지원하지 않습니다."}}]}</script></body></html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시차 변환 계산기 - 세계 시간 환산</title><meta name="description" content="한 도시의 시각을 다른 도시 시각으로 변환합니다. 서머타임도 반영됩니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/timezone.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>시차 변환 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="d">날짜</label><input type="date" id="d" value="" data-off="0"><label for="t">시각</label><input type="time" id="t" value="09:00"><label for="from">기준 지역</label><select id="from"><option value="Asia/Seoul">서울</option><option value="America/New_York">뉴욕</option><option value="America/Los_Angeles">로스앤젤레스</option><option value="Europe/London">런던</option><option value="Europe/Paris">파리</option><option value="Asia/Tokyo">도쿄</option><option value="Asia/Shanghai">베이징</option><option value="Australia/Sydney">시드니</option><option value="UTC">UTC</option></select><label for="to">변환할 지역</label><select id="to"><option value="America/New_York">뉴욕</option><option value="Asia/Seoul">서울</option><option value="America/Los_Angeles">로스앤젤레스</option><option value="Europe/London">런던</option><option value="Europe/Paris">파리</option><option value="Asia/Tokyo">도쿄</option><option value="Asia/Shanghai">베이징</option><option value="Australia/Sydney">시드니</option><option value="UTC">UTC</option></select><div class="result" id="r"></div></div><h2>안내</h2><p>브라우저의 시간대 데이터를 사용하므로 서머타임을 자동으로 반영합니다. 화상회의 일정을 잡을 때 두 지역의 날짜가 달라질 수 있으니 날짜도 확인하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>서머타임이란?</h3><p>여름철에 시계를 1시간 앞당기는 제도로, 나라마다 시행 여부와 기간이 다릅니다.</p><h3>한국은 서머타임이 있나요?</h3><p>현재 시행하지 않습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["d", "t", "from", "to"];
+function compute(v){if(!v.d||!v.t)return '';const off=(tz,ms)=>{const f=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const p={};f.formatToParts(new Date(ms)).forEach(x=>{if(x.type!=='literal')p[x.type]=+x.value});return Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-ms};
+const a=v.d.split('-').map(Number),t=v.t.split(':').map(Number),g=Date.UTC(a[0],a[1]-1,a[2],t[0],t[1]);let inst=g-off(v.from,g);inst=g-off(v.from,inst);
+return '<b>'+new Intl.DateTimeFormat('ko-KR',{timeZone:v.to,dateStyle:'full',timeStyle:'short'}).format(new Date(inst))+'</b>';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "서머타임이란?", "acceptedAnswer": {"@type": "Answer", "text": "여름철에 시계를 1시간 앞당기는 제도로, 나라마다 시행 여부와 기간이 다릅니다."}}, {"@type": "Question", "name": "한국은 서머타임이 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "현재 시행하지 않습니다."}}]}</script></body></html>

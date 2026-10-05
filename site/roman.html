@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>로마 숫자 변환기 - 아라비아 숫자 ↔ 로마 숫자</title><meta name="description" content="숫자를 로마 숫자로, 로마 숫자를 숫자로 바꿉니다(1~3999).">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/roman.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>로마 숫자 변환기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="n">숫자 또는 로마 숫자</label><input type="text" id="n" value="2026"><div class="result" id="r"></div></div><h2>기호</h2><p>I=1, V=5, X=10, L=50, C=100, D=500, M=1000입니다. 4는 IV, 9는 IX처럼 작은 수를 앞에 놓아 뺍니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>0이나 4000 이상은요?</h3><p>표준 로마 숫자에는 0이 없고 4000 이상은 표기법이 다릅니다.</p><h3>소문자도 되나요?</h3><p>네. 자동으로 대문자로 처리합니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["n"];
+function compute(v){const s=v.n.trim().toUpperCase();if(!s)return '';const map=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+if(/^\d+$/.test(s)){let n=+s;if(n<1||n>3999)return '1~3999 사이로 입력하세요.';let r='';map.forEach(([a,b])=>{while(n>=a){r+=b;n-=a}});return '<b>'+r+'</b>'}
+if(/^[IVXLCDM]+$/.test(s)){let i=0,t=0;map.forEach(([a,b])=>{while(s.startsWith(b,i)){t+=a;i+=b.length}});return i===s.length?'<b>'+t+'</b>':'올바른 로마 숫자가 아닙니다.'}return '숫자 또는 I, V, X, L, C, D, M으로 입력하세요.';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "0이나 4000 이상은요?", "acceptedAnswer": {"@type": "Answer", "text": "표준 로마 숫자에는 0이 없고 4000 이상은 표기법이 다릅니다."}}, {"@type": "Question", "name": "소문자도 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "네. 자동으로 대문자로 처리합니다."}}]}</script></body></html>

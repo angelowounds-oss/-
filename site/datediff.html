@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>날짜 간격(년·월·일) 계산기 - 두 날짜 사이 기간</title><meta name="description" content="두 날짜 사이를 몇 년 몇 개월 며칠로, 총 일수로 계산합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/datediff.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>날짜 간격(년·월·일) 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="a">시작일</label><input type="date" id="a" value="2020-03-01"><label for="b">종료일</label><input type="date" id="b" value="" data-off="0"><div class="result" id="r"></div></div><h2>계산 방식</h2><p>시작일부터 종료일까지 달력 기준으로 년, 월, 일을 순서대로 뺍니다. 종료일을 포함하려면 하루를 더해서 보세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>근속기간 계산에 쓸 수 있나요?</h3><p>네. 입사일과 오늘 날짜를 넣으면 됩니다.</p><h3>종료일을 포함하나요?</h3><p>기본은 포함하지 않습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["a", "b"];
+function compute(v){const a=P(v.a),b=P(v.b);if(b<a)return '종료일이 시작일보다 빠릅니다.';let y=b.getFullYear()-a.getFullYear(),m=b.getMonth()-a.getMonth(),d=b.getDate()-a.getDate();
+if(d<0){m--;d+=new Date(b.getFullYear(),b.getMonth(),0).getDate()}if(m<0){y--;m+=12}
+return '<b>'+y+'년 '+m+'개월 '+d+'일</b><br>총 '+DAYS(a,b).toLocaleString('ko-KR')+'일 · '+N2(DAYS(a,b)/7,1)+'주';}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "근속기간 계산에 쓸 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "네. 입사일과 오늘 날짜를 넣으면 됩니다."}}, {"@type": "Question", "name": "종료일을 포함하나요?", "acceptedAnswer": {"@type": "Answer", "text": "기본은 포함하지 않습니다."}}]}</script></body></html>

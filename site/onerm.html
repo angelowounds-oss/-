@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1RM 계산기 - 최대 중량 추정</title><meta name="description" content="들어 올린 무게와 반복 횟수로 1회 최대 중량(1RM)을 추정하고 비율별 중량표를 보여줍니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/onerm.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>1RM 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="w">들어 올린 무게 (kg)</label><input type="number" id="w" value="60" step="any"><label for="r">반복 횟수</label><input type="number" id="r" value="8" step="1"><div class="result" id="r"></div></div><h2>Epley 공식</h2><p>1RM = 무게 × (1 + 반복 횟수 ÷ 30)입니다. 10회 이내 세트에서 비교적 잘 맞고 횟수가 많을수록 오차가 커집니다. 실제 1RM 도전은 보조자와 함께 안전하게 하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>1RM을 직접 재야 하나요?</h3><p>부상 위험이 있어 추정치를 쓰는 경우가 많습니다.</p><h3>근력 운동은 몇 %로 하나요?</h3><p>근비대는 보통 65~80%, 근력은 80% 이상을 많이 씁니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["w", "r"];
+function compute(v){if(!(v.r>=1))return '';const rm=v.w*(1+v.r/30);return '<b>추정 1RM 약 '+N2(rm,1)+'kg</b><br>'+[90,80,70,60].map(p=>p+'% '+N2(rm*p/100,1)+'kg').join(' · ');}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "1RM을 직접 재야 하나요?", "acceptedAnswer": {"@type": "Answer", "text": "부상 위험이 있어 추정치를 쓰는 경우가 많습니다."}}, {"@type": "Question", "name": "근력 운동은 몇 %로 하나요?", "acceptedAnswer": {"@type": "Answer", "text": "근비대는 보통 65~80%, 근력은 80% 이상을 많이 씁니다."}}]}</script></body></html>

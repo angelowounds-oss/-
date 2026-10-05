@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>문자 길이(SMS·LMS) 계산기 - 90바이트 기준</title><meta name="description" content="문자 내용의 바이트 수를 계산해 단문(SMS), 장문(LMS) 여부를 알려줍니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/sms.html">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<main><h1>문자 길이(SMS·LMS) 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="t">문자 내용</label><textarea id="t" style="min-height:130px">[간편계산기] 안녕하세요, 신청하신 내용이 접수되었습니다.</textarea><div class="result" id="r"></div></div><h2>기준</h2><p>일반적인 문자 서비스는 90바이트 이하를 단문, 그 이상을 장문으로 처리하며 한글은 2바이트, 영문·숫자·공백은 1바이트로 계산합니다. 발송 서비스마다 기준이 다를 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>이모지는요?</h3><p>이모지는 2바이트 이상으로 처리되거나 발송이 안 될 수 있어 서비스 안내를 확인하세요.</p><h3>MMS는요?</h3><p>사진이 포함되면 멀티미디어 문자(MMS)입니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+const W0=n=>Math.round(n).toLocaleString('ko-KR');
+const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["t"];
+function compute(v){let b=0;for(const ch of v.t)b+=ch.charCodeAt(0)>127?2:1;if(!v.t)return '';return '<b>'+b+'바이트</b> · '+v.t.length+'자<br>'+(b<=90?'단문(SMS)으로 발송됩니다':b<=2000?'장문(LMS)으로 발송됩니다':'2000바이트를 넘었습니다');}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "이모지는요?", "acceptedAnswer": {"@type": "Answer", "text": "이모지는 2바이트 이상으로 처리되거나 발송이 안 될 수 있어 서비스 안내를 확인하세요."}}, {"@type": "Question", "name": "MMS는요?", "acceptedAnswer": {"@type": "Answer", "text": "사진이 포함되면 멀티미디어 문자(MMS)입니다."}}]}</script></body></html>
