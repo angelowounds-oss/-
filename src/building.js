@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, mats, disposeGroup, SURF } from './gfx.js';
 import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
@@ -512,10 +513,20 @@ export class Building {
     // corridor carpet lighting accent
     this.floorFinish(fl, ix0, zc, ix1, corrZ1, y, SURF.carpet, L.type === 'hotel' ? 0xa65a72 : L.type === 'office' ? 0x6a74a0 : 0x8a6078);
     B.ext('emit', ix0 + 1, y + 0.025, (zc + corrZ1) / 2 - 0.03, ix1 - 1, y + 0.035, (zc + corrZ1) / 2 + 0.03, fl.acc.clone().multiplyScalar(1.2), 1);
+    let doorNo = 0; const numGeos = [];
     for (const d of doors) {
+      // room number above the door, on the corridor side: three digit quads from a shared digit sheet
+      const face = d.c > zc + 0.5 ? -1 : 1, txt = String(fl.k * 100 + ++doorNo).padStart(3, '0');
+      for (let q = 0; q < txt.length; q++) {
+        const dg = +txt[q], g = new THREE.PlaneGeometry(0.1, 0.15), uv = g.attributes.uv;
+        for (let j = 0; j < uv.count; j++) uv.setX(j, (dg + uv.getX(j)) / 10);
+        if (face < 0) g.rotateY(Math.PI);
+        g.translate(d.u + (q - 1) * 0.105 * (face < 0 ? -1 : 1), y + 2.3, d.c + face * (t / 2 + 0.034)); numGeos.push(g);
+      }
       const dr = new Door(this, fl, { axis: 'x', wallC: d.c, from: d.u - 0.5, to: d.u + 0.5, y, h: 2.12, thick: 0.05, kind: 'wood', hingeAt: 'from', swing: 1, name: '방 문', lock: true });
       void dr;
     }
+    if (numGeos.length) { const m = new THREE.Mesh(mergeGeometries(numGeos), digitMaterial()); m.frustumCulled = false; fl.group.add(m); }
     // furnish
     rooms.forEach((rm, i) => this.furnishRoom(fl, L, rm, i));
     this.addLivingSets(fl, y);
@@ -923,6 +934,16 @@ class Elevator {
 // ====================================================================
 // Manager: streams buildings around the player
 // ====================================================================
+let digitMat = null;
+function digitMaterial() {
+  if (digitMat) return digitMat;
+  const cv = document.createElement('canvas'); cv.width = 640; cv.height = 64; const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.font = 'bold 54px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (let i = 0; i < 10; i++) g.fillText(String(i), i * 64 + 32, 35);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  digitMat = new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(1, 0.82, 0.5).multiplyScalar(1.1), transparent: true, alphaTest: 0.4, toneMapped: false });
+  return digitMat;
+}
 export class Buildings {
   constructor(G) {
     this.G = G; this.list = []; this.active = new Set(); this.t = 0;
