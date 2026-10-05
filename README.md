@@ -54,3 +54,6 @@
 - **The city remembers** (`src/memory.js`): bullet holes, blast scorches and wrecks persist in the save; witnessed crimes become Korean news headlines (car radio with speech synthesis where available, apartment TV, phone **뉴스** tab); witnesses spread rumours to neighbours and colleagues, and residents who know your face flee and report you.
 - **Power grid** (`src/power.js`): one substation per zone. Hack it (F, 4 game hours) or wreck it with gunfire/explosives (8 hours): the zone's windows, signs, street lamps, signals and interior lights go dark, elevators stop, witnesses see less; a repair crew restores power and the news reports it.
 - **Long guns** use two-bone IK for both arms (shouldered / low-ready, shotgun pump, sniper bolt, magazine reload); pistols use retargeted UAL upper-body clips; drivers are visible behind tinted car glass.
+
+## Water
+`buildWaters` in `src/world.js` is a port of the node setup in the supplied *Water Shader Addon Free 2.1.2* by chuck cg (GPL-2.0-or-later): noise-bump normals, Fresnel (IOR 1.3) sky reflection, teal absorption/emission body, shoreline foam driven by edge proximity, and the add-on's caustic texture (`assets/tex/water_caustic.jpg`, 512 px greyscale of `caustic anim_001.bmp`). The add-on is GPL, so this part of the code and the texture carry the same licence.

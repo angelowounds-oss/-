@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, nightU, createGlareMaterial, createSky } from './shaders.js';
+import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
@@ -9,6 +9,7 @@ import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
 import paveA from '../assets/tex/concrete_pavers_a.jpg';
 import paveN from '../assets/tex/concrete_pavers_n.jpg';
+import causticUrl from '../assets/tex/water_caustic.jpg';
 
 // ---------- City layout constants ----------
 export const N = 9;          // blocks per side (inside the outer ring)
@@ -1388,23 +1389,47 @@ function buildEntrances(world, scene) {
   }
 }
 
+// Water: layered noise-bump surface, Fresnel sky reflection (glass IOR 1.3), teal absorption/emission body, shoreline foam and
+// scrolling caustics. Ported from the node setup of the supplied "Water Shader Addon Free" (chuck cg, GPL-2.0-or-later).
+let causticTex = null;
 function buildWaters(world, scene) {
+  if (!causticTex) causticTex = groundTex(causticUrl, false);
   for (const w of world.waters) {
     const W = w.x1 - w.x0, D = w.z1 - w.z0;
     const mat = new THREE.ShaderMaterial({
-      fog: true,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU }]),
+      fog: true, transparent: true, depthWrite: false,
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, tCaus: { value: causticTex }, uSun: skyU.uSun, uMoon: skyU.uMoon }]),
       vertexShader: 'varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vP=(modelMatrix*vec4(position,1.)).xyz;vec4 mvPosition=viewMatrix*vec4(vP,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
-      fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;varying vec3 vP;
+      fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;uniform vec4 uRect;uniform sampler2D tCaus;uniform vec3 uSun,uMoon;varying vec3 vP;
         #include <fog_pars_fragment>
+        // wave height: two drifting noise layers (the add-on animates a 4D noise; the W axis becomes this slow drift)
+        float hgt(vec2 p){float t=uTime*.05;return fbm(p*.42+vec2(t*5.,t*2.))*.6+fbm(p*.95-vec2(t*3.,-t*4.))*.4;}
         void main(){
-          vec2 q=vP.xz*.35;float n=fbm(q+vec2(uTime*.07,uTime*.04))*.6+fbm(q*2.3-vec2(uTime*.1,0.))*.4;
-          float rip=sin(vP.x*1.7+uTime*1.6+n*6.)*sin(vP.z*1.3-uTime*1.3+n*5.);
-          vec3 nightC=mix(vec3(.01,.04,.09),vec3(.06,.16,.30),n);
-          vec3 dayC=mix(vec3(.18,.27,.33),vec3(.34,.46,.55),n);
-          vec3 c=mix(dayC,nightC,uNight);
-          c+=vec3(.9,.2,.8)*smoothstep(.75,1.,rip*n*2.)*.35*uNight+vec3(.2,.7,1.)*smoothstep(.85,1.,-rip*n*2.)*.3*uNight+smoothstep(.8,1.,rip)*.08;
-          gl_FragColor=vec4(c,1.);
+          vec2 p=vP.xz;float t=uTime*.05;
+          float e=.1,h=hgt(p),hx=hgt(p+vec2(e,0.)),hz=hgt(p+vec2(0.,e));
+          vec3 N=normalize(vec3(-(hx-h)/e*1.1,1.,-(hz-h)/e*1.1));
+          vec3 V=normalize(cameraPosition-vP);float ndv=max(dot(N,V),0.);
+          float F=.017+.983*pow(1.-ndv,5.);                       // Fresnel for IOR 1.3
+          vec3 R=reflect(-V,N);float ry=clamp(R.y,0.,1.);
+          vec3 sky=mix(mix(vec3(.60,.72,.84),vec3(.18,.36,.66),ry),
+                       mix(vec3(.14,.07,.24),vec3(.02,.03,.09),ry)+vec3(.9,.25,.8)*smoothstep(0.,.2,R.y)*(1.-smoothstep(.2,.45,R.y))*.22+vec3(.2,.7,1.)*smoothstep(.1,.35,R.y)*(1.-smoothstep(.35,.6,R.y))*.16,uNight);
+          float glint=pow(max(dot(R,normalize(uSun)),0.),160.)*(1.-uNight)*3.5+pow(max(dot(R,normalize(uMoon)),0.),120.)*uNight*1.6;
+          // body: absorption colour (.28,.74,.74) and a faint teal emission (.21,.36,.32 x .12), darker at night
+          float depthN=.5+.5*h;
+          vec3 body=mix(vec3(.05,.13,.15),vec3(.12,.30,.30),depthN)*mix(1.,.28,uNight)+vec3(.21,.36,.32)*.12;
+          // caustics: two scrolled copies of the texture, ramp 0.018 -> 1, tinted like the add-on's caustics colour
+          float c1=texture2D(tCaus,p*.06+vec2(t*1.9,t*.7)).r,c2=texture2D(tCaus,p*.045-vec2(t*1.2,-t*1.6)+1.3).r;
+          float caus=smoothstep(.018,1.,min(c1,c2)*1.7);
+          body+=caus*vec3(1.09,1.78,2.0)*.07*mix(1.,.55,uNight);
+          vec3 c=mix(body,sky,F)+glint;
+          // foam along the shore: proximity to the rectangle's edge drives a noise ramp (0.214 -> 0.718), gamma-shaped
+          float dEdge=min(min(p.x-uRect.x,uRect.z-p.x),min(p.y-uRect.y,uRect.w-p.y));
+          float prox=1.-smoothstep(.2,3.4,dEdge);
+          float nz=fbm(p*1.15+vec2(t*4.,t*2.))*.7+fbm(p*3.1-vec2(t*6.,0.))*.3;
+          float foam=pow(smoothstep(.214,.718,nz+prox*.45-.15),1.6)*prox;
+          c=mix(c,vec3(.92,.96,1.)*mix(1.,.5,uNight),clamp(foam,0.,1.)*.9);
+          float a=clamp(.58+.37*F+foam*.5+glint*.3,0.,1.);
+          gl_FragColor=vec4(c,a);
           #include <fog_fragment>
         }`,
     });
