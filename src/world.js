@@ -1428,11 +1428,33 @@ function buildWaters(world, scene) {
           float nz=fbm(p*1.15+vec2(t*4.,t*2.))*.7+fbm(p*3.1-vec2(t*6.,0.))*.3;
           float foam=pow(smoothstep(.214,.718,nz+prox*.45-.15),1.6)*prox;
           c=mix(c,vec3(.92,.96,1.)*mix(1.,.5,uNight),clamp(foam,0.,1.)*.9);
-          float a=clamp(.58+.37*F+foam*.5+glint*.3,0.,1.);
+          float a=clamp(.62+.33*F+foam*.5+glint*.3,0.,1.);
           gl_FragColor=vec4(c,a);
           #include <fog_fragment>
         }`,
     });
+    // basin floor under the transparent surface: shallow teal at the shore, deep dark in the middle, lit by caustics
+    const floorMat = new THREE.ShaderMaterial({
+      fog: true,
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, tCaus: { value: causticTex } }]),
+      vertexShader: 'varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vP=(modelMatrix*vec4(position,1.)).xyz;vec4 mvPosition=viewMatrix*vec4(vP,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
+      fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;uniform vec4 uRect;uniform sampler2D tCaus;varying vec3 vP;
+        #include <fog_pars_fragment>
+        void main(){
+          vec2 p=vP.xz;float t=uTime*.05;
+          float dE=min(min(p.x-uRect.x,uRect.z-p.x),min(p.y-uRect.y,uRect.w-p.y));
+          float depth=smoothstep(0.,14.,dE);
+          vec3 shallow=vec3(.12,.30,.30),deep=vec3(.01,.05,.08);
+          vec3 c=mix(shallow,deep,depth)*(.8+.4*fbm(p*.5));
+          float c1=texture2D(tCaus,p*.06+vec2(t*1.9,t*.7)).r,c2=texture2D(tCaus,p*.045-vec2(t*1.2,-t*1.6)+1.3).r;
+          c+=smoothstep(.018,1.,min(c1,c2)*1.7)*vec3(1.09,1.78,2.0)*.22*(1.-.6*depth);
+          c*=mix(1.,.3,uNight);
+          gl_FragColor=vec4(c,1.);
+          #include <fog_fragment>
+        }`,
+    });
+    const fm = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), floorMat);
+    fm.position.set((w.x0 + w.x1) / 2, w.y - 0.02, (w.z0 + w.z1) / 2); fm.renderOrder = 0; scene.add(fm);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), mat);
     m.position.set((w.x0 + w.x1) / 2, w.y, (w.z0 + w.z1) / 2); m.renderOrder = 1; scene.add(m); w.mesh = m;
   }
