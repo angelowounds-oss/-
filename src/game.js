@@ -6,7 +6,7 @@ import { Human, WEAPONS } from './human.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
 import { glowSpriteMat } from './models.js';
-import { timeUniform, flashUniform, nightU, doorCamU } from './shaders.js';
+import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
@@ -578,8 +578,15 @@ export class Game {
       inside = L.tier !== 'roof' && pl.y < b.roofY - 0.3 && pl.x > r.x0 && pl.x < r.x1 && pl.z > r.z0 && pl.z < r.z1 && b.floors.has(k);
       info = { b, k, L };
     }
-    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); this.eng.scene.environment = inside ? this.eng.envIndoor : this.eng.env; }
-    { const sc = this.eng.scene, tgt = inside ? 0.8 : 0.45; sc.environmentIntensity += (tgt - sc.environmentIntensity) * 0.08; }
+    if (inside !== this.indoor) { this.indoor = inside; this.audio.setIndoor?.(inside); }
+    {
+      // environment map: indoors the hotel-suite HDRI, outdoors the day street or the night plaza; a swap happens only while the
+      // intensity has been faded to ~0 so the change is not visible as a pop
+      const sc = this.eng.scene, E = this.eng, day = skyU.uDay.value > 0.5;
+      const want = inside ? E.envIndoor : day ? E.envDay : E.env, tgt = inside ? 0.8 : day ? 0.7 : 0.45;
+      if (sc.environment !== want) { sc.environmentIntensity += (0 - sc.environmentIntensity) * 0.2; if (sc.environmentIntensity < 0.05) sc.environment = want; }
+      else sc.environmentIntensity += (tgt - sc.environmentIntensity) * 0.08;
+    }
     this.where = inside ? info : null;
   }
   openElevatorUI(b) {

@@ -9,6 +9,7 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { el, LIGHT_CAP } from './util.js';
 import hdriPlaza from '../assets/env/hansaplatz.rgbe';
 import hdriSuite from '../assets/env/interior_suite.rgbe';
+import hdriDay from '../assets/env/day_street.rgbe';
 
 export const QUALITY = [
   { name: 'LOW', shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 34, parked: 18, rain: 1800, far: 1 },
@@ -92,6 +93,8 @@ export function createEngine(parent, qIndex) {
   scene.environmentIntensity = 0.45;
   // indoors the reflections and ambient fill come from a real hotel-suite HDRI instead of the night plaza
   const envIndoor = hdriEnv(renderer, hdriSuite);
+  // daylight: a real daytime street HDRI (swapped in while the intensity is faded down, see Game.updateIndoor)
+  const envDay = hdriEnv(renderer, hdriDay);
 
   // Post
   const composer = new EffectComposer(renderer);
@@ -106,7 +109,7 @@ export function createEngine(parent, qIndex) {
   let smaa = null;
 
   const eng = {
-    renderer, scene, camera, composer, moon, hemi, bloom, grade, env, envIndoor, q: QUALITY[qIndex], qIndex,
+    renderer, scene, camera, composer, moon, hemi, bloom, grade, env, envIndoor, envDay, q: QUALITY[qIndex], qIndex,
     time: 0, scale: 1, frame: 0,
     // dynamic resolution: only the render-target size changes, pipelines stay intact
     setScale(sc) {
