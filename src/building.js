@@ -246,6 +246,12 @@ export class Building {
         if (i === dBay) { box(ca, cb, y + 2.7, y + h, 'decor', wallC); this.makeEntrance(fl, sd, ca, cb, y, mn, mx); continue; }
         box(ca, cb, y, y + sill, 'decor', wallC);
         box(ca, cb, y + head, y + h, 'decor', wallC);
+        if (!ground) { // interior dressing: sill board, curtains (every other bay) in a few fabrics
+          const inner = sd.d > 0 ? mx : mn - 0.09, o = sd.d > 0 ? mx + 0.09 : mn;
+          const place = (ua2, ub2, ya, yb, col, off) => { const e = sd.ax === 'x' ? [ua2, ya, inner - (sd.d < 0 ? off : 0), ub2, yb, inner + 0.09 + (sd.d > 0 ? off : 0)] : [inner - (sd.d < 0 ? off : 0), ya, ua2, inner + 0.09 + (sd.d > 0 ? off : 0), yb, ub2]; B.ext('decor', e[0], e[1], e[2], e[3], e[4], e[5], col); };
+          place(ca, cb, y + sill, y + sill + 0.04, 0xd9d4c8, 0.16);
+          if ((i + L.k) % 2 === 0) { const col = [0x7a3a48, 0x35546a, 0xb9a98a, 0x4e4e5e][(i * 3 + L.k) % 4], cw = Math.min(0.55, (cb - ca) * 0.2); place(ca, ca + cw, y + 0.25, y + head + 0.25, col, 0.06); place(cb - cw, cb, y + 0.25, y + head + 0.25, col, 0.06); }
+        }
         // glass pane (breakable, persisted)
         const gkey = `g${this.id}:${L.k}:${sd.s}:${i}`;
         if (!this.G.state.glass[gkey]) {
@@ -425,11 +431,25 @@ export class Building {
     const ix0 = r.x0 + WALL, ix1 = r.x1 - WALL, iz0 = r.z0 + WALL, iz1 = r.z1 - WALL, y = L.y, h = L.h - SLAB;
     const wallC = fl.wallC, rooms = [];
     const t = 0.18;
-    const wallSeg = (x0, z0, x1, z1) => { B.ext('decor', x0, y, z0, x1, y + h, z1, wallC); cc(x0, z0, x1, z1, y, y + h, 'part'); };
+    const wallSeg = (x0, z0, x1, z1) => {
+      B.ext('decor', x0, y, z0, x1, y + h, z1, wallC); cc(x0, z0, x1, z1, y, y + h, 'part');
+      // baseboard and crown moulding on both faces
+      B.ext('decor', x0 - 0.025, y, z0 - 0.025, x1 + 0.025, y + 0.13, z1 + 0.025, 0xded8cc);
+      B.ext('decor', x0 - 0.02, y + h - 0.09, z0 - 0.02, x1 + 0.02, y + h, z1 + 0.02, 0xeae6dc);
+    };
+    // door frame (jambs + head) around a doorway, plus a small number plate on the corridor side
+    const frame = (axis, c, u, w, side) => {
+      const f = 0x4a3626, th = t + 0.1, jw = 0.07;
+      if (axis === 'x') {
+        B.ext('decor', u - w / 2 - jw, y, c - th / 2, u - w / 2, y + 2.15, c + th / 2, f); B.ext('decor', u + w / 2, y, c - th / 2, u + w / 2 + jw, y + 2.15, c + th / 2, f);
+        B.ext('decor', u - w / 2 - jw, y + 2.12, c - th / 2, u + w / 2 + jw, y + 2.2, c + th / 2, f);
+        B.ext('emit', u + w / 2 + 0.22, y + 1.55, c + side * (t / 2 + 0.012) - 0.0, u + w / 2 + 0.42, y + 1.67, c + side * (t / 2 + 0.03), new THREE.Color(1, 0.82, 0.55).multiplyScalar(0.9));
+      }
+    };
     // wall along x at z with doorways [(u,w)] ; along z at x
     const wallX = (z, xa, xb, gaps) => {
       let cur = xa; const g = [...gaps].sort((p, q) => p[0] - q[0]);
-      for (const [u, w] of g) { if (u - w / 2 > cur) wallSeg(cur, z - t / 2, u - w / 2, z + t / 2); B.ext('decor', u - w / 2, y + 2.15, z - t / 2, u + w / 2, y + h, z + t / 2, wallC); cc(u - w / 2, z - t / 2, u + w / 2, z + t / 2, y + 2.15, y + h, 'part'); cur = u + w / 2; }
+      for (const [u, w] of g) { frame('x', z, u, w, z > zc ? -1 : 1); if (u - w / 2 > cur) wallSeg(cur, z - t / 2, u - w / 2, z + t / 2); B.ext('decor', u - w / 2, y + 2.15, z - t / 2, u + w / 2, y + h, z + t / 2, wallC); cc(u - w / 2, z - t / 2, u + w / 2, z + t / 2, y + 2.15, y + h, 'part'); cur = u + w / 2; }
       if (xb > cur) wallSeg(cur, z - t / 2, xb, z + t / 2);
     };
     const wallZ = (x, za, zb, gaps) => {
@@ -466,7 +486,7 @@ export class Building {
       wallX(zc, r2x0, ix1, gaps);
     }
     // corridor carpet lighting accent
-    this.floorFinish(fl, ix0, zc, ix1, corrZ1, y, SURF.carpet, L.type === 'hotel' ? 0x7a3a4e : L.type === 'office' ? 0x3d4468 : 0x5a3f52);
+    this.floorFinish(fl, ix0, zc, ix1, corrZ1, y, SURF.carpet, L.type === 'hotel' ? 0xa65a72 : L.type === 'office' ? 0x6a74a0 : 0x8a6078);
     B.ext('emit', ix0 + 1, y + 0.025, (zc + corrZ1) / 2 - 0.03, ix1 - 1, y + 0.035, (zc + corrZ1) / 2 + 0.03, fl.acc.clone().multiplyScalar(1.2), 1);
     for (const d of doors) {
       const dr = new Door(this, fl, { axis: 'x', wallC: d.c, from: d.u - 0.5, to: d.u + 0.5, y, h: 2.12, thick: 0.05, kind: 'wood', hingeAt: 'from', swing: 1, name: '방 문', lock: true });
@@ -494,7 +514,7 @@ export class Building {
     const kind = L.type === 'office' ? ['office', 'office', 'meeting', 'server', 'office'][i % 5] : L.type === 'hotel' ? 'bedroom' : ['living', 'bedroom', 'kitchen', 'bedroom'][i % 4];
     rm.kind = kind;
     {
-      const fx = { living: [SURF.wood, 0xc89a68], bedroom: [L.type === 'hotel' ? SURF.carpet : SURF.wood, L.type === 'hotel' ? 0x6c4a5c : 0xb98a5e], kitchen: [SURF.tile, 0xd6dae2], office: [SURF.carpet, 0x4a5078], meeting: [SURF.carpet, 0x3d4a5e], server: [SURF.concrete, 0x9096a0] }[kind];
+      const fx = { living: [SURF.wood, 0xc89a68], bedroom: [L.type === 'hotel' ? SURF.carpet : SURF.wood, L.type === 'hotel' ? 0x9a6a80 : 0xc99a66], kitchen: [SURF.tile, 0xd6dae2], office: [SURF.carpet, 0x7480ae], meeting: [SURF.carpet, 0x5a6c88], server: [SURF.concrete, 0x9096a0] }[kind];
       if (fx) this.floorFinish(fl, rm.x0 + 0.1, rm.z0 + 0.1, rm.x1 - 0.1, rm.z1 - 0.1, y, fx[0], fx[1]);
     }
     const x0 = rm.x0 + 0.2, x1 = rm.x1 - 0.2, z0 = rm.z0 + 0.2, z1 = rm.z1 - 0.2, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
