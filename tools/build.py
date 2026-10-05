@@ -380,14 +380,15 @@ def faq_ld(faq):
     return json.dumps({"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
         {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]}, ensure_ascii=False)
 
-def shell(fn, title, desc, h1, main, script=""):
+def shell(fn, title, desc, h1, main, script="", hero=False):
+    h1tag = ('<h1 class="sr">' + h1 + '</h1>') if hero else ('<h1>' + h1 + '</h1>')
     return f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><meta name="description" content="{desc}">
 <link rel="canonical" href="{SITE}/{fn}">
 <link rel="stylesheet" href="style.css"></head><body>
 {nav()}
-<main><h1>{h1}</h1>
+<main>{h1tag}
 {AD}
 {main}
 {AD}
@@ -418,23 +419,38 @@ run();</script>
 
 def render_index():
     by = {k: [] for k, _ in CATS}
-    for s, t, c, d in REG: by[c].append((s, t, d))
-    meta = {s: (t, d) for s, t, c, d in REG}
-    pop = "".join(f'<a href="{s}.html">{meta[s][0]}<span>{meta[s][1]}</span></a>' for s in POPULAR if s in meta)
-    secs = ""
-    for k, name in CATS:
-        if not by[k]: continue
-        secs += f'<h2 id="c-{k}">{name} <small>{len(by[k])}</small></h2><div class="tools">' + "".join(
-            f'<a href="{s}.html" data-q="{t} {d}">{t}<span>{d}</span></a>' for s, t, d in by[k]) + "</div>"
+    for s, ti, c, d in REG: by[c].append((s, ti, d))
+    meta = {s: (ti, d) for s, ti, c, d in REG}
     n = len(REG)
-    main = (f'<p class="lead">가입 없이 바로 쓰는 생활 계산기 {n}종. 입력한 값은 내 브라우저 안에서만 계산됩니다.</p>'
-            f'<input type="search" id="q" placeholder="계산기 검색 (예: 퇴직금, 평수, 적금)" aria-label="계산기 검색">'
-            f'<div id="empty" hidden>검색 결과가 없습니다.</div>'
-            f'<div id="pop"><h2>지금 인기</h2><div class="tools">{pop}</div></div><div id="all">{secs}</div>')
-    script = '''<script>const q=document.getElementById('q');q.addEventListener('input',()=>{const s=q.value.trim().toLowerCase();let any=false;
-document.getElementById('pop').hidden=!!s;document.querySelectorAll('#all .tools a').forEach(a=>{const ok=!s||a.dataset.q.toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
-document.querySelectorAll('#all h2').forEach(h=>{const l=h.nextElementSibling;h.hidden=[...l.children].every(c=>c.hidden)});document.getElementById('empty').hidden=any||!s});</script>'''
-    write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"글자수 세기, 만 나이, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script))
+    pills = "".join(f'<a href="{s}.html">{meta[s][0]}</a>' for s in POPULAR[1:] if s in meta)
+    chips = '<button class="chip on" data-cat="all">전체 <small>' + str(n) + '</small></button>' + "".join(
+        f'<button class="chip" data-cat="{k}">{nm} <small>{len(by[k])}</small></button>' for k, nm in CATS if by[k])
+    rows = ""
+    for k, nm in CATS:
+        if not by[k]: continue
+        rows += f'<section class="grp" data-cat="{k}"><h2>{nm}</h2><div class="rows">' + "".join(
+            f'<a class="row" href="{s}.html" data-cat="{k}" data-q="{ti} {d}"><i class="tile" style="--c:var(--c-{k})">{ti[0]}</i>'
+            f'<span class="rt"><b>{ti}</b><em>{d}</em></span></a>' for s, ti, d in by[k]) + "</div></section>"
+    main = (f'<section class="hero"><p class="eyebrow">가입 없는 생활 계산기 {n}종</p>'
+            '<h2 class="headline">필요한 계산, 입력하는 순간 끝납니다</h2>'
+            '<input type="search" id="q" placeholder="무엇을 계산할까요? 퇴직금, 평수, 적금…" aria-label="계산기 검색" autocomplete="off">'
+            f'<div class="pills"><span>많이 찾는</span>{pills}</div></section>'
+            '<a class="feature" href="housing-clock.html"><span class="tag">새로 나온 계산기</span>'
+            '<b>내 집 마련 시계</b>'
+            '<span class="ex">커피 한 잔 5,000원은 <u>내 집 3.7cm²</u>.<br>매일 마시면 1년에 A4 용지 2.1장 크기만큼 집이 멀어집니다.</span>'
+            '<span class="go">내 소비 넣어보기 →</span></a>'
+            f'<div class="chips" role="tablist">{chips}</div>'
+            '<div id="empty" hidden>검색 결과가 없습니다. 다른 단어로 찾아보세요.</div>'
+            f'<div id="all">{rows}</div>')
+    script = '''<script>(function(){const q=document.getElementById('q'),chips=[...document.querySelectorAll('.chip')];let cat='all';
+function apply(){const s=q.value.trim().toLowerCase();let any=false;
+document.querySelectorAll('.row').forEach(a=>{const ok=(cat==='all'||a.dataset.cat===cat)&&(!s||a.dataset.q.toLowerCase().includes(s));a.hidden=!ok;if(ok)any=true});
+document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.row')].every(r=>r.hidden)});
+document.getElementById('empty').hidden=any;document.querySelector('.feature').hidden=!!s||cat!=='all'}
+q.addEventListener('input',apply);
+chips.forEach(c=>c.addEventListener('click',()=>{cat=c.dataset.cat;chips.forEach(x=>x.classList.toggle('on',x===c));apply()}));
+document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q){e.preventDefault();q.focus()}})})();</script>'''
+    write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"글자수 세기, 만 나이, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
 
 def static_pages():
     write("about.html", shell("about.html", "소개 - 간편계산기", "간편계산기 서비스 소개", "소개",
