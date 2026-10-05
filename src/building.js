@@ -739,12 +739,13 @@ class Elevator {
   // y of the cab floor for level k
   levelY(k) { return this.b.levels[k].y; }
   call(k, silent) {
+    if (this.G.power?.offAt(this.b.cx, this.b.cz)) { if (!silent) this.G.toast('정전', '엘리베이터가 멈췄다 · 계단을 이용하세요'); return; }
     if (this.state === 'idle' && this.level === k && this.doorOpen > 0.9) { this.G.audio.ding?.(); return; }
     if (this.target !== k && !this.queue.includes(k)) this.queue.push(k);
     if (!silent) this.G.toast('엘리베이터 호출', this.floorLabel(k));
     this.G.audio.tone?.(900, 0.1, 'sine', 0.1);
   }
-  send(k) { this.queue = [k]; if (this.state === 'idle') this.state = 'closing'; this.G.audio.tone?.(900, 0.1, 'sine', 0.1); }
+  send(k) { if (this.G.power?.offAt(this.b.cx, this.b.cz)) { this.G.toast('정전', '엘리베이터가 움직이지 않는다'); return; } this.queue = [k]; if (this.state === 'idle') this.state = 'closing'; this.G.audio.tone?.(900, 0.1, 'sine', 0.1); }
   riding(pl) { return Math.abs(pl.x - this.cx) < 1.15 && Math.abs(pl.z - this.cz) < 1.15 && pl.y > this.y - 0.2 && pl.y < this.y + 0.5; }
   update(dt) {
     const b = this.b, G = this.G, pl = G.player;
@@ -835,7 +836,7 @@ export class Buildings {
   updateLights(dt, pl) {
     this.lt -= dt; if (this.lt > 0) return; this.lt = 0.15;
     const b = this.at(pl.x, pl.z); const cand = [];
-    if (b && b.open) {
+    if (b && b.open && !this.G.power?.offAt(b.cx, b.cz)) {
       const k = b.levelAt(pl.y + 0.3);
       for (const kk of [k - 1, k, k + 1]) { const fl = b.floors.get(kk); if (fl) for (const f of fl.fixtures) if (!f.room || f.room.on) cand.push(f); }
     }

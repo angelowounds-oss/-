@@ -94,6 +94,8 @@ export class Memory {
       case 'assault': return `${Z} 길거리 폭행 신고 접수… 목격자 "순식간이었다"`;
       case 'theft': return `${Z} 상점가 절도 기승… 상인회 대책 호소`;
       case 'shots': return `${Z}에서 총성 수십 발… 주민들 대피`;
+      case 'blackout': return e.cause === 'wreck' ? `[속보] ${Z} 변전소 폭파… 일대 대규모 정전, 신호등·엘리베이터 마비` : `${Z} 원인 불명 정전… 한전 "외부 침입 흔적 조사 중"`;
+      case 'restored': return `${Z} 전력 복구 완료… 주민들 "밤새 불안했다"`;
       case 'wanted': return `경찰, ${Z} 일대 검문 강화… 수배자 인상착의 공개`;
       default: return `${Z} 소식`;
     }

@@ -124,7 +124,7 @@ export class Society {
     const G = this.G, out = [];
     for (const h of G.humans) {
       if (h.dead || h.hidden || (h.inside && !h.trip) || (h.team !== 'civ' && h.team !== 'cop') || h.guard) continue;
-      const d = Math.hypot(h.x - x, h.z - z); if (d > (h.team === 'cop' ? 50 : 28) || Math.abs((h.y || 0) - (G.player.y || 0)) > 3.5) continue;
+      const d = Math.hypot(h.x - x, h.z - z); if (d > (h.team === 'cop' ? 50 : 28) * (G.power?.offAt(x, z) ? 0.45 : 1) || Math.abs((h.y || 0) - (G.player.y || 0)) > 3.5) continue;
       if (G.hasLOS(h.x, (h.y || 0) + 1.5, h.z, x, (G.player.y || 0) + 1.4, z)) out.push(h);
     }
     return out;

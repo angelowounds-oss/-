@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, nightU, createGlareMaterial, createSky } from './shaders.js';
+import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
@@ -362,7 +362,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uDoorCam: doorCamU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
+  const uniforms = { uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
@@ -375,8 +375,8 @@ function createFacadeMaterial() {
         vSz=vec3(1.);
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;`,
-    fragDecl: `${GLSL_NOISE}
-      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform vec3 uDoorCam;uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+    fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
+      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -495,6 +495,7 @@ function createFacadeMaterial() {
         }
       }
       fEmit*=mix(.14,1.,uNight);
+      fEmit*=1.-uBlack[zoneOf(vWP.xz)]*.96;
       diffuseColor.rgb=alb;
     `,
   });
@@ -956,6 +957,40 @@ export function buildWorld(scene, quality) {
     }
   }
 
+  // ---- power grid: one fenced substation per zone (park corner, else the end of a pedestrian street) ----
+  world.zoneOf = (x, z) => (Math.hypot(x, z) < 90 ? 0 : Math.abs(x) > Math.abs(z) ? (x > 0 ? 2 : 3) : (z > 0 ? 1 : 4));
+  world.zoneOff = [false, false, false, false, false];
+  world.substations = [];
+  {
+    const spots = [];
+    for (const pk of world.parks) if (!pk.lake) spots.push({ x: pk.x0 + 7, z: pk.z0 + 5, ry: 0 });
+    for (const c of CUTS) { const r = cutRect(c); spots.push(c.v ? { x: (r[0] + r[2]) / 2 - 5, z: r[1] + 3.6, ry: 0 } : { x: r[0] + 3.6, z: (r[1] + r[3]) / 2 - 5, ry: Math.PI / 2 }); }
+    if (world.plaza) spots.push({ x: world.plaza.x0 + 8, z: world.plaza.z0 + 6, ry: 0 });
+    const B = new Builder();
+    for (let zn = 0; zn < 5; zn++) {
+      const sp = spots.filter((q) => world.zoneOf(q.x, q.z) === zn).sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
+      if (!sp) continue;
+      const cs = Math.cos(sp.ry), sn = Math.sin(sp.ry), W = (lx, lz) => [sp.x + lx * cs + lz * sn, sp.z - lx * sn + lz * cs];
+      const bx = (lx, y, lz, w, h, d, col, key = 'decor') => { const [x, z] = W(lx, lz); B.box(key, x, y, z, w, h, d, col, sp.ry); };
+      bx(0, 0, 0, 7.2, 0.15, 4.2, 0x2a2c32);
+      for (const [lx, lz, w, d] of [[0, -2.05, 7.2, 0.06], [0, 2.05, 7.2, 0.06], [-3.55, 0, 0.06, 4.2], [3.55, 0, 0.06, 4.2]]) bx(lx, 0.15, lz, w, 2.1, d, 0x6a7280, 'steel'); // fence
+      for (const lx of [-1.6, 1.6]) { bx(lx, 0.15, 0, 2.0, 2.2, 1.8, 0x3a4048, 'steel'); for (let k = 0; k < 4; k++) bx(lx, 0.6 + k * 0.4, 0.92, 1.6, 0.05, 0.04, new THREE.Color(1, 0.6, 0.15).multiplyScalar(1.6), 'emit'); }
+      bx(0, 1.2, -2.12, 1.2, 0.5, 0.04, new THREE.Color(1, 0.85, 0.1).multiplyScalar(2.0), 'emit');            // high-voltage sign
+      const [x0, z0] = W(-3.6, -2.1), [x1, z1] = W(3.6, 2.1);
+      const col = world.colliders.addBox(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), 2.3, 'substation');
+      world.substations.push({ zone: zn, x: sp.x, z: sp.z, ry: sp.ry, col });
+    }
+    B.finish(scene);
+  }
+  // switch a zone's street lighting on/off (lamp heads, lamp glare sprites, fake ground lights; signals handled per frame)
+  world.setZonePower = (zn, on) => {
+    world.zoneOff[zn] = !on;
+    const H = world.lampHeads, c = new THREE.Color();
+    if (H) world.lamps.forEach((l, k) => { if (world.zoneOf(l.x, l.z) === zn) H.setColorAt(k, on ? c.setRGB(l.c[0] * 3, l.c[1] * 3, l.c[2] * 3) : c.setRGB(0.05, 0.05, 0.06)); });
+    if (H && H.instanceColor) H.instanceColor.needsUpdate = true;
+    const G2 = world.glare; if (G2) { const a = G2.colAttr; for (let i = 0; i < world.tlGlareStart; i++) { const d = G2.data[i]; if (world.zoneOf(d.x, d.z) === zn) a.setW(i, on ? d.size : 0); } a.needsUpdate = true; }
+  };
+
   // ---- Build instanced facade mesh ----
   function makeFacadeMesh(list, fog = true) {
     const m = new THREE.InstancedMesh(boxGeo, facadeMat, list.length);
@@ -1052,6 +1087,7 @@ export function buildWorld(scene, quality) {
     const poles = new THREE.InstancedMesh(poleGeo, mat, world.lamps.length);
     const headGeo = new THREE.BoxGeometry(1.5, 0.12, 0.45); headGeo.translate(0.7, 8.55, 0);
     const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), world.lamps.length);
+    world.lampHeads = heads;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), c = new THREE.Color();
     world.lamps.forEach((l, k) => {
       // face arm toward road
@@ -1223,6 +1259,7 @@ export function buildWorld(scene, quality) {
     sorted.length = 0;
     for (let i = 0; i < arr.length; i++) {
       const a = arr[i];
+      if (world.zoneOff[world.zoneOf(a.x, a.z)]) continue;
       const dx = a.x - fx, dz = a.z - fz;
       sorted.push([dx * dx + dz * dz, a]);
     }
@@ -1243,12 +1280,13 @@ export function buildWorld(scene, quality) {
     const col = world.glare.colAttr;
     let idx = tlStart;
     for (const it of world.intersections) {
+      const dark = world.zoneOff[world.zoneOf(it.x, it.z)];
       for (let k = 0; k < 4; k++) {
         // 2 glares per corner: first shows x-axis state, second z-axis (offset in z/x)
         for (let a = 0; a < 2; a++) {
           const st = world.lightState(a === 0 ? 'x' : 'z', t);
           const c = st === 'G' ? [0.2, 1.0, 0.35] : st === 'Y' ? [1.0, 0.75, 0.1] : [1.0, 0.1, 0.1];
-          col.setXYZW(idx, c[0] * 1.2, c[1] * 1.2, c[2] * 1.2, 12);
+          if (dark) col.setXYZW(idx, 0, 0, 0, 0); else col.setXYZW(idx, c[0] * 1.2, c[1] * 1.2, c[2] * 1.2, 12);
           idx++;
         }
       }

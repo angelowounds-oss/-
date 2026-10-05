@@ -313,7 +313,9 @@ export class Vehicle {
       if (wp.stopFor && !this.police) {
         const st = G.world.lightState(wp.axis, G.time);
         const dist = d1;
-        if (st !== 'G' && dist < 30 && !(st === 'Y' && dist < vf * 1.4)) target = Math.min(target, Math.max(0, (dist - 3) * 1.2));
+        // blacked-out signals: treat the junction as all-way, roll through slowly
+        if (G.power && G.power.offAt(roadC(wp.stopFor[0]), roadC(wp.stopFor[1]))) { if (dist < 26) target = Math.min(target, 5.5); }
+        else if (st !== 'G' && dist < 30 && !(st === 'Y' && dist < vf * 1.4)) target = Math.min(target, Math.max(0, (dist - 3) * 1.2));
       }
       if (this.police) target = Math.max(target, 18 * wp.speed);
     }

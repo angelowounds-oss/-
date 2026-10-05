@@ -16,6 +16,7 @@ import { buildSigns } from './signs.js';
 import { buildTerrain, addTerrainPhysics, heightAt, roadsData } from './terrain.js';
 import { Citizens } from './citizens.js';
 import { Memory } from './memory.js';
+import { Power } from './power.js';
 import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
@@ -81,6 +82,7 @@ export class Game {
     this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this); this.buildStations();
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
+    this.power = new Power(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -325,7 +327,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -902,7 +904,7 @@ export class Game {
     for (let i = 0; i < 40; i++) { const a = Math.random() * TAU, s = rand(2, 14); this.fireP.emit(x, y + rand(0, 1), z, Math.cos(a) * s, rand(1, 9), Math.sin(a) * s, rand(0.5, 1.3), rand(1.2, 3), 3.5, rand(0.8, 1.6), 0.25, 1, -3, 1.2); }
     for (let i = 0; i < 18; i++) this.smokeP.emit(x + rand(-1, 1), y + rand(0, 2), z + rand(-1, 1), rand(-3, 3), rand(2, 6), rand(-3, 3), rand(2, 4), rand(2, 4), 0.05, 0.05, 0.06, 0.9, 0.2, 0.4);
     this.fx.sparks(x, y, z, 18, [1, 0.6, 0.2], 24);
-    this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9); this.blastWorld(x, y, z, radius);
+    this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9); this.blastWorld(x, y, z, radius); this.power?.blast(x, z, radius);
     if (this.memory && y < 3) { this.memory.addScorch(x, z, Math.min(5, radius * 0.45)); if (src === this.player || src?.driver === 'player' || Math.hypot(x - this.player.x, z - this.player.z) < 60) this.memory.log('explosion', x, z); }
     const d = Math.hypot(x - this.camera.position.x, z - this.camera.position.z);
     this.shake(clamp(1.4 - d / 50, 0, 1.5));

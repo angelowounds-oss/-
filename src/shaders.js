@@ -12,6 +12,9 @@ float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*vnoise(p);p=p*2.03+1
 export const timeUniform = { value: 0 };
 // player position: entrance apertures only open where building.js has a lobby to look into
 export const doorCamU = { value: new THREE.Vector3() };
+// per-zone blackout (0 powered .. 1 dark), zones as in society.zoneAt: 0 centre, 1 north(+z), 2 east(+x), 3 west, 4 south
+export const blackU = { value: [0, 0, 0, 0, 0] };
+export const ZONE_GLSL = 'int zoneOf(vec2 p){if(length(p)<90.)return 0;if(abs(p.x)>abs(p.y))return p.x>0.?2:3;return p.y>0.?1:4;}';
 export const flashUniform = { value: 0 };
 export const nightU = { value: 1 };
 export const skyU = { uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0.5, -0.5, -0.3) }, uMoon: { value: new THREE.Vector3(-0.45, 0.62, -0.65) }, uTwi: { value: 0 } };
