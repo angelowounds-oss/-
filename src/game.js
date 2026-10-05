@@ -861,8 +861,21 @@ export class Game {
     this.dmgPulse = clamp(dmg / 25, 0.15, 1); this.ui.dmg.style.opacity = clamp(dmg / 14, 0.25, 1);
     clearTimeout(this._dm); this._dm = setTimeout(() => (this.ui.dmg.style.opacity = 0), 160);
     if (kind === 'bullet' && dmg >= 6 && Math.random() < 0.35 && !pl.bleed) { pl.bleed = 1; this.toast('출혈!', '붕대나 구급상자가 필요합니다'); }
+    if (src && src.x != null && dmg > 0.5) this.hitIndicator(src.x - pl.x, src.z - pl.z);
     if (dmg > 3) { this.audio.hurt(); this.shake(0.25); this.input.vibrate?.(); try { navigator.vibrate?.(30); } catch { /* ignore */ } }
     if (pl.hpv <= 0) this.playerDie(kind);
+  }
+  // red arc at the screen edge pointing toward whatever hit the player (relative to the camera heading), plus a small roll flinch
+  hitIndicator(dx, dz) {
+    const y = this.cam.yaw, th = Math.atan2(-dx * Math.cos(y) + dz * Math.sin(y), dx * Math.sin(y) + dz * Math.cos(y));
+    if (!this._hi) {
+      const r = document.createElement('div'); r.style.cssText = 'position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:20';
+      const a = document.createElement('div'); a.style.cssText = 'position:absolute;left:-60px;top:-27vh;width:120px;height:46px;border-radius:50% 50% 0 0/100% 100% 0 0;background:radial-gradient(ellipse at 50% 100%,rgba(255,40,50,0.0),rgba(255,40,50,0.75));filter:blur(2px);opacity:0;transition:opacity .9s ease-out';
+      r.appendChild(a); document.body.appendChild(r); this._hi = { r, a };
+    }
+    const { r, a } = this._hi; r.style.transform = `rotate(${th}rad)`; a.style.transition = 'none'; a.style.opacity = '1';
+    void a.offsetWidth; a.style.transition = 'opacity .9s ease-out'; a.style.opacity = '0';
+    this.rollK = (this.rollK || 0) + Math.sign(Math.sin(th) || 1) * -0.035;
   }
   playerDie(kind) {
     const pl = this.player;
@@ -1394,6 +1407,9 @@ export class Game {
       c.rotation.z += rand(-s, s) * 0.12;
       this.shakeAmt *= Math.exp(-6 * dt);
     }
+    // roll: a flinch toward the side the hit came from, and a slow tilt as the player collapses
+    this.rollK = damp(this.rollK || 0, pl.dead ? (pl.fallDir || 0.6) * 0.45 : 0, pl.dead ? 1.5 : 7, dt);
+    if (Math.abs(this.rollK) > 0.002) c.rotateZ(this.rollK);
     if (c.fov !== cam.fov) { c.fov = cam.fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
     // glare scale
