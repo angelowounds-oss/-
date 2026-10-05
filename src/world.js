@@ -545,7 +545,15 @@ function createSignAtlas() {
   return tex;
 }
 
-function createSignMaterial(atlas) {
+// UniformsUtils.merge copies {value} objects, which would freeze uTime/uNight at their initial values: re-link the shared ones
+function liveUniforms(mat) {
+  const u = mat.uniforms;
+  if (u.uTime) u.uTime = timeUniform; if (u.uNight) u.uNight = nightU; if (u.uSun) u.uSun = skyU.uSun; if (u.uMoon) u.uMoon = skyU.uMoon;
+  return mat;
+}
+
+function createSignMaterial(atlas) { return liveUniforms(createSignMaterial0(atlas)); }
+function createSignMaterial0(atlas) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uMap: { value: atlas }, uTime: timeUniform, uNight: nightU }]),
@@ -568,7 +576,8 @@ function createSignMaterial(atlas) {
 }
 
 // ---------- Holographic billboard ----------
-function createHoloMaterial() {
+function createHoloMaterial() { return liveUniforms(createHoloMaterial0()); }
+function createHoloMaterial0() {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU }]),
@@ -1453,6 +1462,7 @@ function buildWaters(world, scene) {
           #include <fog_fragment>
         }`,
     });
+    liveUniforms(mat); liveUniforms(floorMat);
     const fm = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), floorMat);
     fm.position.set((w.x0 + w.x1) / 2, w.y - 0.02, (w.z0 + w.z1) / 2); fm.renderOrder = 0; scene.add(fm);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), mat);
