@@ -46,6 +46,7 @@ function along(p, d) {
 export class Citizens {
   constructor(G, count = 2000) {
     this.G = G; this.list = []; this.byId = new Map(); this.active = new Map(); this.t = 0;
+    this.stats = { dead: 0, arrived: 0, removed: 0, lost: 0, far: 0, spawned: 0 };
     this.st = G.state.citizens || (G.state.citizens = { dead: {}, memorials: [] });
     const blds = G.buildings.list; blds.forEach((b) => b.plan());
     const doorOf = (b) => ({ x: b.door.px + b.door.nx * 2.2, z: b.door.pz + b.door.nz * 2.2 });
@@ -86,7 +87,12 @@ export class Citizens {
     const H = doorOf(c.home.b), segs = [];
     const trip = (from, to, t) => { // walk (+ subway when far) from -> to starting at t; returns arrival time
       const far = Math.hypot(to.x - from.x, to.z - from.z) > 110 && near;
-      const leg = (a, b, t0) => { const p = [[a.x, a.z], ...sidewalk(gpsRoute(a.x, a.z, b.x, b.z).slice(1, -1)), [b.x, b.z]], d = polyLen(p); segs.push({ type: 'walk', t0, t1: t0 + d / WALK, path: p, len: d }); return t0 + d / WALK; };
+      // short legs: step out to the pavement, then an L along the street (crossing where needed); long legs follow the road graph
+      const leg = (a, b, t0) => {
+        const direct = Math.hypot(b.x - a.x, b.z - a.z) < 140;
+        const p = direct ? [[a.x, a.z], [a.x, b.z], [b.x, b.z]] : [[a.x, a.z], ...sidewalk(gpsRoute(a.x, a.z, b.x, b.z).slice(1, -1)), [b.x, b.z]];
+        const d = polyLen(p); segs.push({ type: 'walk', t0, t1: t0 + d / WALK, path: p, len: d }); return t0 + d / WALK;
+      };
       if (!far) return leg(from, to, t);
       const s1 = near(from), s2 = near(to);
       if (s1 === s2) return leg(from, to, t);
@@ -139,12 +145,12 @@ export class Citizens {
       if (this.active.size >= 28) break;
       const h = new Human(G, 'civ', { hp: 45, look: c.look });
       h.citizen = c; h.x = x; h.z = z; h.y = 0; h.state = 'route'; h.node = null; h.cash = 10 + Math.floor(c.seed * 120);
-      G.humans.push(h); G.scene.add(h.group); this.active.set(c.id, h);
+      G.humans.push(h); G.scene.add(h.group); this.active.set(c.id, h); this.stats.spawned++;
     }
     for (const [id, h] of this.active) {
       const gone = h.dead || h.remove || !G.humans.includes(h);
       const far = Math.hypot(h.x - pl.x, h.z - pl.z) > 170;
-      if (gone || (far && h.state === 'route')) { if (!gone) { h.remove = true; } this.active.delete(id); }
+      if (gone || (far && h.state === 'route')) { if (!gone) { h.remove = true; } this.stats[gone ? (h.dead ? 'dead' : h.remove ? (h.state === 'gone' ? 'arrived' : 'removed') : 'lost') : 'far']++; this.active.delete(id); }
     }
   }
   // per-frame steering of a materialised citizen (called from Human.update while state === 'route')
