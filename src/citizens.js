@@ -50,7 +50,7 @@ export class Citizens {
     this.st = G.state.citizens || (G.state.citizens = { dead: {}, memorials: [] });
     const blds = G.buildings.list; blds.forEach((b) => b.plan());
     const doorOf = (b) => ({ x: b.door.px + b.door.nx * 2.2, z: b.door.pz + b.door.nz * 2.2 });
-    const homes = blds.filter((b) => b.kind !== 'office' && !b.lot.far), offices = blds.filter((b) => b.kind === 'office'), hotels = blds.filter((b) => b.kind === 'hotel');
+    const homes = blds.filter((b) => b.kind !== 'office' && !b.lot.far), offices = blds.filter((b) => b.kind === 'office' && !b.lot.far), hotels = blds.filter((b) => b.kind === 'hotel' && !b.lot.far);
     // transit stops: subway entrances and bus stops; people walk to the nearest one and ride the rest
     const stations = [...(G.world.metro || []).map((s) => ({ ...s, kind: 'metro' })), ...(G.world.busStops || []).map((s) => ({ ...s, kind: 'bus' }))];
     const near = (p) => stations.reduce((a, s) => (Math.hypot(s.x - p.x, s.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? s : a), stations[0]);
@@ -60,7 +60,7 @@ export class Citizens {
       const hb = pick(homes), hk = 1 + Math.floor(rnd() * (hb.levels.length - 2)), hl = hb.levels[Math.min(hk, hb.levels.length - 2)];
       const kHome = hl.tier === 'tower' ? hk : hb.levels.findIndex((l) => l.tier === 'tower');
       const r = rnd(), kind = r < 0.5 ? 'office' : r < 0.62 ? 'hotel' : r < 0.8 ? 'retail' : 'none';
-      const wb = kind === 'office' && offices.length ? pick(offices) : kind === 'hotel' && hotels.length ? pick(hotels) : kind === 'retail' ? pick(blds) : null;
+      const wb = kind === 'office' && offices.length ? pick(offices) : kind === 'hotel' && hotels.length ? pick(hotels) : kind === 'retail' ? pick(blds.filter((b) => !b.lot.far)) : null;
       let wk = 0;
       if (wb) { const ks = wb.levels.map((l, k) => [l, k]).filter(([l]) => (kind === 'retail' ? l.type === 'retail' || l.type === 'lobby' : l.tier === 'tower')); wk = ks.length ? pick(ks)[1] : 0; }
       const female = rnd() < 0.5, age = kind === 'none' ? (rnd() < 0.5 ? 16 + Math.floor(rnd() * 8) : 62 + Math.floor(rnd() * 20)) : 24 + Math.floor(rnd() * 34);
