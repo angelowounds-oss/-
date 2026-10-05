@@ -432,6 +432,12 @@ export class Game {
     // vehicles block player
     { const ox = pl.x, oz = pl.z; this.pushOutOfVehicles(pl, 0.38); if (pl.x !== ox || pl.z !== oz) c3.shift(pl.x - ox, 0, pl.z - oz); }
     pl.speed = Math.hypot(pl.vx, pl.vz);
+    // footsteps: one per stride, quieter crouched / prone, harder indoors and on the road
+    if (pl.speed > 0.6 && !pl.swimming) {
+      this.stepD = (this.stepD || 0) + pl.speed * dt;
+      const stride = pl.speed > 5.5 ? 1.9 : 1.25;
+      if (this.stepD > stride) { this.stepD = 0; this.audio.footstep(this.indoor || heightAt(pl.x, pl.z) < 2 ? 'hard' : 'soft', pl.prone ? 0.15 : pl.crouching ? 0.35 : pl.speed > 5.5 ? 0.85 : 0.55); }
+    } else this.stepD = 0;
     // facing
     const shooting = inp.fire || aim;
     if (shooting || pl.aimT > 0) pl.ry = dampAngle(pl.ry, cam.yaw, 16, dt);
@@ -444,7 +450,7 @@ export class Game {
     if (melee) { if (inp.fire && pl.fireCd <= 0) this.meleeAttack(); }
     else {
     if (pl.reloadT > 0) { pl.reloadT -= dt; if (pl.reloadT <= 0) { const need = w.clip - ammo.clip, take = Math.min(need, ammo.reserve); ammo.clip += take; ammo.reserve -= take; } }
-    if ((this.input.edge('reload') || (ammo.clip === 0 && inp.fire && ammo.reserve > 0)) && pl.reloadT <= 0 && ammo.clip < w.clip && ammo.reserve > 0) { pl.reloadT = w.reload; this.audio.reload(); }
+    if ((this.input.edge('reload') || (ammo.clip === 0 && inp.fire && ammo.reserve > 0)) && pl.reloadT <= 0 && ammo.clip < w.clip && ammo.reserve > 0) { pl.reloadT = w.reload; this.audio.reloadW(w.snd, w.reload); }
     if (inp.fire && pl.reloadT <= 0 && pl.fireCd <= 0) {
       if (ammo.clip > 0) {
         if (w.auto || !pl.fireHeld) this.playerShoot(w, ammo);
@@ -704,12 +710,13 @@ export class Game {
     this.tracers.add(pl.muzzle, end, w.tracer);
     this.fx.muzzle(pl.muzzle, dir);
     this.audio.gun(w.snd, 1, 0);
+    if (w.pellets) setTimeout(() => this.audio.pump(), 380); else if (w.snd === 'sniper') setTimeout(() => this.audio.bolt(), 520);
     this.cam.pitch += w.recoil * (pl.aiming ? 0.7 : 1); this.cam.yaw += rand(-0.002, 0.002);
     this.shake(0.08);
     this.noise(pl.x, pl.z, 55);
     this.addHeatIfWitnessed(0.5);
     if (r.kind === 'human') this.markHit(r.head);
-    if (ammo.clip === 0 && ammo.reserve > 0) pl.reloadT = w.reload, this.audio.reload();
+    if (ammo.clip === 0 && ammo.reserve > 0) pl.reloadT = w.reload, this.audio.reloadW(w.snd, w.reload);
   }
   meleeAttack() {
     const pl = this.player, m = pl.melee || { dmg: 9, rate: 0.45, name: '맨손' };

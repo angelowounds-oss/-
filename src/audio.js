@@ -12,7 +12,8 @@ export class Audio {
     this.master = ctx.createGain(); this.master.gain.value = this.vol;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
     this.master.connect(comp); comp.connect(ctx.destination);
-    this.sfx = ctx.createGain(); this.sfx.gain.value = 1; this.sfx.connect(this.master);
+    this.sfx = ctx.createGain(); this.sfx.gain.value = 1;
+    this.lp = ctx.createBiquadFilter(); this.lp.type = 'lowpass'; this.lp.frequency.value = 20000; this.lp.Q.value = 0.5; this.sfx.connect(this.lp); this.lp.connect(this.master);
     this.music = ctx.createGain(); this.music.gain.value = this.musicOn ? 0.5 : 0; this.music.connect(this.master);
     // noise buffers
     const len = ctx.sampleRate * 2;
@@ -51,7 +52,7 @@ export class Audio {
     const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
     const g = ctx.createGain(); g.gain.value = gain; s.connect(fl).connect(g).connect(this.sfx); s.start(); return g;
   }
-  setIndoor(on) { if (!this.ctx) return; const t = this.ctx.currentTime; (this.rainG || []).forEach((g, i) => g.gain.setTargetAtTime(on ? [0.07, 0.035, 0.22][i] * 0.12 : [0.07, 0.035, 0.22][i], t, 0.15)); }
+  setIndoor(on) { if (!this.ctx) return; const t = this.ctx.currentTime; this.indoor = on; this.lp.frequency.setTargetAtTime(on ? 2600 : 20000, t, 0.12); (this.rainG || []).forEach((g, i) => g.gain.setTargetAtTime(on ? [0.07, 0.035, 0.22][i] * 0.12 : [0.07, 0.035, 0.22][i], t, 0.15)); }
   ding() { this.tone(1320, 0.7, 'sine', 0.16); this.tone(1760, 0.9, 'sine', 0.12, 0, null, 0.18); }
   elevator(dur) { if (!this.ctx) return; this.noiseShot(dur, 'lowpass', 140, 0.35, 0.5); this.tone(70, dur, 'sine', 0.2, 62); this.tone(990, 0.25, 'sine', 0.08, 0, null, 0.1); }
   setVolume(v) { this.vol = v; if (this.master) this.master.gain.value = v; }
@@ -79,6 +80,19 @@ export class Audio {
       this.noiseShot(0.22, 'bandpass', 2400, 0.7 * vol, 0.7, d, 0, 500);
       this.tone(160, 0.14, 'sine', 0.8 * vol, 40, d);
       this.noiseShot(0.9, 'lowpass', 900, 0.18 * vol, 0.5, d, 0.02, 200);
+    } else if (kind === 'shotgun') {
+      this.noiseShot(0.35, 'bandpass', 1500, 0.95 * vol, 0.5, d, 0, 300);
+      this.tone(90, 0.28, 'sine', 1.0 * vol, 28, d);
+      this.noiseShot(1.3, 'lowpass', 700, 0.3 * vol, 0.5, d, 0.03, 140);
+    } else if (kind === 'sniper') {
+      this.noiseShot(0.12, 'highpass', 2600, 0.8 * vol, 0.8, d);
+      this.tone(70, 0.35, 'sine', 1.0 * vol, 24, d);
+      this.noiseShot(2.2, 'lowpass', 1000, 0.3 * vol, 0.5, d, 0.04, 90);
+      this.tone(1800, 0.5, 'sine', 0.05 * vol, 900, d, 0.1);
+    } else if (kind === 'smg') {
+      this.noiseShot(0.1, 'bandpass', 3800, 0.55 * vol, 0.9, d, 0, 1200);
+      this.tone(200, 0.07, 'square', 0.4 * vol, 70, d);
+      this.noiseShot(0.4, 'lowpass', 1400, 0.1 * vol, 0.5, d, 0.01, 350);
     } else {
       this.noiseShot(0.18, 'bandpass', 3200, 0.6 * vol, 0.6, d, 0, 700);
       this.tone(120, 0.12, 'sawtooth', 0.55 * vol, 35, d);
@@ -88,6 +102,22 @@ export class Audio {
   impact(vol = 1, pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.noiseShot(0.12, 'highpass', 3000, 0.35 * vol, 1, d); this.tone(1800, 0.06, 'square', 0.05 * vol, 600, d); }
   hitMarker() { this.tone(1400, 0.05, 'square', 0.08); this.tone(2100, 0.05, 'square', 0.06, 0, null, 0.04); }
   reload() { this.noiseShot(0.05, 'highpass', 2000, 0.3); this.tone(300, 0.06, 'square', 0.1, 150, null, 0.45); this.noiseShot(0.08, 'highpass', 1500, 0.35, 1, null, 0.9); }
+  pump() { this.noiseShot(0.05, 'highpass', 1500, 0.3); this.tone(180, 0.06, 'square', 0.14, 90, null, 0.02); this.tone(240, 0.05, 'square', 0.12, 120, null, 0.2); this.noiseShot(0.06, 'highpass', 1800, 0.3, 1, null, 0.2); }
+  bolt() { this.tone(500, 0.04, 'square', 0.12, 250); this.noiseShot(0.07, 'highpass', 2200, 0.25, 1, null, 0.04); this.tone(320, 0.05, 'square', 0.14, 160, null, 0.3); this.noiseShot(0.06, 'highpass', 2000, 0.28, 1, null, 0.3); }
+  // per-weapon reload: magazine out, magazine in, slide/bolt
+  reloadW(kind, dur = 1.5) {
+    if (!this.ctx) return;
+    if (kind === 'shotgun') { for (let i = 0; i < 4; i++) { this.tone(260, 0.05, 'square', 0.1, 140, null, 0.2 + i * dur * 0.17); this.noiseShot(0.04, 'highpass', 2500, 0.2, 1, null, 0.2 + i * dur * 0.17); } this.pump(); return; }
+    this.noiseShot(0.05, 'highpass', 2000, 0.3); this.tone(300, 0.06, 'square', 0.1, 150, null, dur * 0.3);
+    this.noiseShot(0.08, 'highpass', 1500, 0.3, 1, null, dur * 0.55); this.tone(200, 0.08, 'square', 0.14, 90, null, dur * 0.55);
+    this.tone(420, 0.04, 'square', 0.12, 200, null, dur * 0.8); this.noiseShot(0.05, 'highpass', 2600, 0.25, 1, null, dur * 0.8);
+  }
+  // footsteps: soft (grass/carpet), hard (asphalt/tile/concrete); vol 0..1
+  footstep(kind = 'hard', vol = 1, pan = 0) {
+    if (!this.ctx) return; const d = this.pan(pan), v = vol * (0.85 + Math.random() * 0.3);
+    if (kind === 'soft') this.noiseShot(0.09, 'lowpass', 500 + Math.random() * 200, 0.22 * v, 0.6, d);
+    else { this.noiseShot(0.05, 'bandpass', 1600 + Math.random() * 500, 0.2 * v, 1.2, d); this.tone(110 + Math.random() * 30, 0.07, 'sine', 0.2 * v, 60, d); }
+  }
   empty() { this.tone(900, 0.04, 'square', 0.08, 500); }
   explosion(vol = 1, pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.noiseShot(1.6, 'lowpass', 1400, 1.0 * vol, 0.5, d, 0, 60); this.tone(90, 1.2, 'sine', 1.1 * vol, 25, d); this.noiseShot(0.4, 'bandpass', 800, 0.6 * vol, 0.7, d, 0, 200); }
   crash(power = 1, pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.noiseShot(0.35 + power * 0.3, 'lowpass', 1800, 0.6 * power, 0.7, d, 0, 150); this.noiseShot(0.25, 'highpass', 2500, 0.3 * power, 2, d, 0.01); this.tone(80, 0.3, 'sine', 0.5 * power, 40, d); }
