@@ -1416,12 +1416,13 @@ function buildWaters(world, scene) {
         void main(){
           vec2 p=vP.xz;float t=uTime*.05;
           float e=.1,h=hgt(p),hx=hgt(p+vec2(e,0.)),hz=hgt(p+vec2(0.,e));
-          vec3 N=normalize(vec3(-(hx-h)/e*1.1,1.,-(hz-h)/e*1.1));
+          float flat=smoothstep(8.,60.,length(cameraPosition-vP));   // far water: calmer normals so the sky reflection does not shimmer into speckle
+          vec3 N=normalize(vec3(-(hx-h)/e*mix(.7,.2,flat),1.,-(hz-h)/e*mix(.7,.2,flat)));
           vec3 V=normalize(cameraPosition-vP);float ndv=max(dot(N,V),0.);
           float F=.017+.983*pow(1.-ndv,5.);                       // Fresnel for IOR 1.3
           vec3 R=reflect(-V,N);float ry=clamp(R.y,0.,1.);
           vec3 sky=mix(mix(vec3(.60,.72,.84),vec3(.18,.36,.66),ry),
-                       mix(vec3(.14,.07,.24),vec3(.02,.03,.09),ry)+vec3(.9,.25,.8)*smoothstep(0.,.2,R.y)*(1.-smoothstep(.2,.45,R.y))*.22+vec3(.2,.7,1.)*smoothstep(.1,.35,R.y)*(1.-smoothstep(.35,.6,R.y))*.16,uNight);
+                       mix(vec3(.14,.07,.24),vec3(.02,.03,.09),ry)+vec3(.9,.25,.8)*smoothstep(0.,.2,R.y)*(1.-smoothstep(.2,.45,R.y))*.12+vec3(.2,.7,1.)*smoothstep(.1,.35,R.y)*(1.-smoothstep(.35,.6,R.y))*.16,uNight);
           float glint=pow(max(dot(R,normalize(uSun)),0.),160.)*(1.-uNight)*3.5+pow(max(dot(R,normalize(uMoon)),0.),120.)*uNight*1.6;
           // body: absorption colour (.28,.74,.74) and a faint teal emission (.21,.36,.32 x .12), darker at night
           float depthN=.5+.5*h;
