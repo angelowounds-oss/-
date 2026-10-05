@@ -1010,7 +1010,7 @@ export class Game {
       const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside);
       const want = Math.round(this.eng.q.npc * pf);
       if (civs.length < want) { const n = want - civs.length > 8 ? 3 : 1; for (let i = 0; i < n; i++) this.spawnCivilian(false); }
-      else if (civs.length > want + 2) { const far = civs.find((h) => Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
+      else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
         const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
         if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.scene.remove(h.group); this.humans.splice(i, 1); }

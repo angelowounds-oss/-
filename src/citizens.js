@@ -13,7 +13,7 @@ const GIV = ['민준', '서연', '도윤', '하은', '시우', '지우', '주원
   '선우', '다은', '연우', '은서', '유준', '소율', '정우', '예린', '승현', '가윤', '태윤', '나연', '동현', '수빈', '재원', '혜진', '상훈', '미경', '영호', '순자'];
 const JOB = { office: ['회사원', '개발자', '디자이너', '회계사', '영업사원', '변호사'], hotel: ['호텔리어', '룸메이드', '프런트 직원'], retail: ['점원', '요리사', '바리스타', '약사'], none: ['학생', '무직', '프리랜서', '은퇴자'] };
 const WALK = 1.35;           // m/s; 1 real second = 1 game minute, so a 150 m walk takes ~110 game minutes
-const RIDE = 18;             // game minutes on the subway between stations
+const RIDE = 16;             // game minutes on the bus / subway between stops
 const SIDE = R / 2 + SW / 2; // sidewalk offset from the road centre line
 const DAY = 1440;
 
@@ -50,7 +50,8 @@ export class Citizens {
     const blds = G.buildings.list; blds.forEach((b) => b.plan());
     const doorOf = (b) => ({ x: b.door.px + b.door.nx * 2.2, z: b.door.pz + b.door.nz * 2.2 });
     const homes = blds.filter((b) => b.kind !== 'office' && !b.lot.far), offices = blds.filter((b) => b.kind === 'office'), hotels = blds.filter((b) => b.kind === 'hotel');
-    const stations = (G.world.metro || []).map((s) => ({ ...s }));
+    // transit stops: subway entrances and bus stops; people walk to the nearest one and ride the rest
+    const stations = [...(G.world.metro || []).map((s) => ({ ...s, kind: 'metro' })), ...(G.world.busStops || []).map((s) => ({ ...s, kind: 'bus' }))];
     const near = (p) => stations.reduce((a, s) => (Math.hypot(s.x - p.x, s.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? s : a), stations[0]);
     const rnd = mulberry32(20261005);
     const pick = (a) => a[Math.floor(rnd() * a.length)];
@@ -84,7 +85,7 @@ export class Citizens {
   makePlan(c, doorOf, near, rnd) {
     const H = doorOf(c.home.b), segs = [];
     const trip = (from, to, t) => { // walk (+ subway when far) from -> to starting at t; returns arrival time
-      const far = Math.hypot(to.x - from.x, to.z - from.z) > 230 && near;
+      const far = Math.hypot(to.x - from.x, to.z - from.z) > 110 && near;
       const leg = (a, b, t0) => { const p = [[a.x, a.z], ...sidewalk(gpsRoute(a.x, a.z, b.x, b.z).slice(1, -1)), [b.x, b.z]], d = polyLen(p); segs.push({ type: 'walk', t0, t1: t0 + d / WALK, path: p, len: d }); return t0 + d / WALK; };
       if (!far) return leg(from, to, t);
       const s1 = near(from), s2 = near(to);
@@ -106,6 +107,8 @@ export class Citizens {
       t = trip(S, H, a + 50);
     }
     segs.push({ type: 'home', t0: t, t1: DAY + 1 });
+    // keep the day inside 24 h: anything that would run past midnight is cut (the person is simply home)
+    for (const sg of segs) { sg.t0 = Math.min(sg.t0, DAY - 1); sg.t1 = Math.min(sg.t1, DAY + 1); }
     return segs;
   }
   segAt(c, min) { const m = ((min % DAY) + DAY) % DAY; for (const s of c.plan) if (m >= s.t0 && m < s.t1) return [s, m]; return [c.plan[c.plan.length - 1], m]; }
@@ -120,7 +123,7 @@ export class Citizens {
   status(c) {
     if (this.st.dead[c.id]) return '사망';
     const L = this.locate(c), h = this.G.clock.hour;
-    return L.where === 'street' ? '이동 중' : L.where === 'subway' ? '지하철 탑승 중' : L.where === 'work' ? `${c.work.b.name}에서 근무 중` : L.where === 'out' ? `${L.b.name} 방문 중` : (h >= 23 || h < 6 ? '집에서 자는 중' : '집에 있음');
+    return L.where === 'street' ? '이동 중' : L.where === 'subway' ? (L.seg.from.kind === 'metro' ? '지하철 탑승 중' : '버스 탑승 중') : L.where === 'work' ? `${c.work.b.name}에서 근무 중` : L.where === 'out' ? `${L.b.name} 방문 중` : (h >= 23 || h < 6 ? '집에서 자는 중' : '집에 있음');
   }
   addr(c) { return `${c.home.b.name} ${c.home.k + 1}층 ${c.home.ri + 1}호`; }
 
@@ -133,7 +136,7 @@ export class Citizens {
       if (this.st.dead[c.id] || this.active.has(c.id) || c.indoor) continue;
       const [s, m] = this.segAt(c, now); if (s.type !== 'walk') continue;
       const [x, z] = along(s.path, (m - s.t0) * WALK); if ((x - pl.x) ** 2 + (z - pl.z) ** 2 > R2) continue;
-      if (this.active.size >= 40) break;
+      if (this.active.size >= 28) break;
       const h = new Human(G, 'civ', { hp: 45, look: c.look });
       h.citizen = c; h.x = x; h.z = z; h.y = 0; h.state = 'route'; h.node = null; h.cash = 10 + Math.floor(c.seed * 120);
       G.humans.push(h); G.scene.add(h.group); this.active.set(c.id, h);

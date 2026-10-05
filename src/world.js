@@ -917,6 +917,19 @@ export function buildWorld(scene, quality) {
         world.colliders.addBox(r0[0], r0[1], r0[2], r0[3], 3.2, 'station'); }
       (world.plazaStreets = world.plazaStreets || []).push({ rect: r, v: c.v });
     }
+    // bus stops: one pole per block side along the north-south roads (east sidewalk), thin enough not to block the pavement
+    world.busStops = [];
+    for (let i = 0; i <= N; i++) for (let j = 0; j < N; j++) {
+      if (!hasEdge(i, j, 0, 1)) continue;
+      const x = roadC(i) + R / 2 + 0.6, z = (roadC(j) + roadC(j + 1)) / 2 + 6;
+      world.busStops.push({ x, z, name: `${String.fromCharCode(65 + i)}${j + 1} 정류장` }); world.colliders.addCircle(x, z, 0.12, 3, 'busstop');
+    }
+    {
+      const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.05, 2.8, 6).translate(0, 1.4, 0), new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.6, roughness: 0.4 }), world.busStops.length);
+      const sign = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.5, 0.42).translate(0.05, 2.55, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 0.6, 1).multiplyScalar(1.8), toneMapped: false }), world.busStops.length);
+      const m4 = new THREE.Matrix4(); world.busStops.forEach((b, k) => { m4.makeTranslation(b.x, 0, b.z); pole.setMatrixAt(k, m4); sign.setMatrixAt(k, m4); });
+      pole.frustumCulled = sign.frustumCulled = false; scene.add(pole, sign);
+    }
     // station canopies: glass roof on posts, a dark stair well and a glowing line sign
     if (world.metro?.length) {
       const B = new Builder();
