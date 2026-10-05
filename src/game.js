@@ -1337,11 +1337,11 @@ export class Game {
   setFirstPerson(on) {
     const pl = this.player; if (this._fp === on) return; this._fp = on;
     for (const o of pl.m.skinMeshes) o.visible = !on;
-    if (!on && this.vm) this.vm.visible = false;
+    if (!on) { if (this.vm) this.vm.visible = false; pl.m.pistol.visible = pl.armed && pl.weapon.short === 'pistol' && !pl.dead; pl.m.rifle.visible = pl.armed && pl.weapon.short === 'rifle' && !pl.dead; }
   }
   firstPersonCam(dt, aim) {
     const cam = this.cam, c = this.camera, pl = this.player;
-    this.setFirstPerson(true);
+    this.setFirstPerson(true); pl.m.pistol.visible = pl.m.rifle.visible = false;   // the viewmodel replaces the hand-held gun
     const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
     const eye = pl.y + (pl.prone ? 0.55 : pl.crouching ? 1.25 : 1.68) + (pl.speed > 0.5 ? Math.sin(performance.now() * 0.011) * 0.012 * Math.min(1, pl.speed / 5) : 0);
     const w = aim && pl.cur !== 9 ? WEAPONS[pl.cur] : null, zoom = w ? w.zoom || 1 : 1;
