@@ -305,6 +305,16 @@ export class Building {
     B.ext('emit', smid - 0.75, y + 2.45, zc + 0.01, smid + 0.75, y + 2.52, zc + 0.04, new THREE.Color(...this.accent), 2);
     // level number plate above doors
     fl.indicator = { x: smid, y: y + 2.7, z: zc + 0.05 };
+    // big floor number on the corridor side of the lift wall (readable from down the corridor)
+    if (!isRoof && hh > 3.1) {
+      const txt = String(fl.k + 1), gs = [];
+      for (let q = 0; q < txt.length; q++) {
+        const g = new THREE.PlaneGeometry(0.26, 0.4), uv = g.attributes.uv;
+        for (let j = 0; j < uv.count; j++) uv.setX(j, (+txt[q] + uv.getX(j)) / 10);
+        g.translate(smid + (q - (txt.length - 1) / 2) * 0.27, y + 2.95, zc + 0.06); gs.push(g);
+      }
+      const m = new THREE.Mesh(mergeGeometries(gs), digitMaterial()); m.frustumCulled = false; fl.group.add(m);
+    }
     // stairs
     const rise = L.h / 2, run = CORE_D - 1.6, ang = Math.atan2(rise, run);
     if (!isRoof) {
