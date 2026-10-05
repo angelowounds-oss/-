@@ -865,6 +865,14 @@ export class Game {
     if (dmg > 3) { this.audio.hurt(); this.shake(0.25); this.input.vibrate?.(); try { navigator.vibrate?.(30); } catch { /* ignore */ } }
     if (pl.hpv <= 0) this.playerDie(kind);
   }
+  // a human's voice, panned/attenuated relative to the camera
+  voiceAt(h, kind = 'scream') {
+    const c = this.camera.position, dx = h.x - c.x, dz = h.z - c.z, dist = Math.hypot(dx, dz), y = this.cam.yaw;
+    if (dist > 60) return;
+    if (!h.pitch) h.pitch = 0.75 + Math.random() * 0.65;
+    const pan = clamp((-dx * Math.cos(y) + dz * Math.sin(y)) / Math.max(4, dist), -1, 1) * 0.8;
+    this.audio.voice(kind, pan, clamp(1 - dist / 60, 0, 1) * (this.indoor && !h.inside ? 0.5 : 1), h.pitch);
+  }
   // red arc at the screen edge pointing toward whatever hit the player (relative to the camera heading), plus a small roll flinch
   hitIndicator(dx, dz) {
     const y = this.cam.yaw, th = Math.atan2(-dx * Math.cos(y) + dz * Math.sin(y), dx * Math.sin(y) + dz * Math.cos(y));
@@ -924,7 +932,7 @@ export class Game {
     else if (h.team === 'cop') { if (src === this.player) { this.addHeat(40); this.feed('경찰 사살', '#ff4560'); } this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, 100); }
     else if (h.team === 'gang') { if (src === this.player) { this.society.addRep(h.zone ?? this.society.zoneAt(h.x, h.z), -6); } if (src === this.player) this.feed('갱단 처치 +$' + h.cash, '#47ffa8'); this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, h.cash); this.missionKill?.(h); }
     if (h.team === 'civ' && src === this.player && Math.random() < 0.7) this.makePickup('cash', [0.3, 1, 0.5], h.x, h.z, this.pickupGeo, h.cash);
-    if (h.team === 'civ') this.audio.scream(0);
+    if (h.team === 'civ') this.voiceAt(h, 'death');
   }
   onVehicleDestroyed(v, src) {
     if (src === this.player || (v.driver === 'player')) this.addHeat(v.police ? 35 : 8);

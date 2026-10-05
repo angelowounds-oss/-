@@ -75,7 +75,7 @@ export class Audio {
   }
   pan(p) { const s = this.ctx.createStereoPanner?.(); if (s) { s.pan.value = Math.max(-1, Math.min(1, p)); s.connect(this.sfx); return s; } return this.sfx; }
   gun(kind, vol = 1, pan = 0) {
-    if (!this.ctx) return; const d = this.pan(pan);
+    if (!this.ctx) return; const d = this.pan(pan); if (vol > 0.5) this.duckFor(0.9);
     if (kind === 'pistol') {
       this.noiseShot(0.22, 'bandpass', 2400, 0.7 * vol, 0.7, d, 0, 500);
       this.tone(160, 0.14, 'sine', 0.8 * vol, 40, d);
@@ -128,7 +128,19 @@ export class Audio {
   hurt() { this.tone(200, 0.2, 'sawtooth', 0.15, 90); }
   star() { this.tone(660, 0.12, 'square', 0.1); this.tone(880, 0.12, 'square', 0.1, 0, null, 0.12); this.tone(1320, 0.2, 'square', 0.1, 0, null, 0.24); }
   complete() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.25, 'triangle', 0.14, 0, null, i * 0.1)); }
-  scream(pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.tone(700 + Math.random() * 300, 0.5, 'sawtooth', 0.06, 450, d); }
+  // human voices: pitch per person (0.75..1.4), distance fade, panning; vibrato sawtooth through a vowel-ish bandpass
+  voice(kind = 'scream', pan = 0, vol = 1, pitch = 1) {
+    if (!this.ctx || vol < 0.03) return; const ctx = this.ctx, d = this.pan(pan), t0 = ctx.currentTime;
+    const dur = kind === 'scream' ? 0.7 : kind === 'death' ? 0.9 : 0.35, f0 = (kind === 'death' ? 380 : 520) * pitch;
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t0);
+    o.frequency.linearRampToValueAtTime(kind === 'death' ? f0 * 0.5 : f0 * 1.35, t0 + dur * 0.4); o.frequency.linearRampToValueAtTime(f0 * (kind === 'scream' ? 0.8 : 0.5), t0 + dur);
+    const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 6 + Math.random() * 3; lg.gain.value = f0 * 0.03; lfo.connect(lg).connect(o.frequency);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 * Math.sqrt(pitch); bp.Q.value = 2.5;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.001, t0); g.gain.linearRampToValueAtTime(0.2 * vol, t0 + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(bp).connect(g).connect(d); o.start(t0); lfo.start(t0); o.stop(t0 + dur + 0.05); lfo.stop(t0 + dur + 0.05);
+  }
+  scream(pan = 0, vol = 1, pitch = 1) { this.voice('scream', pan, vol, pitch); }
+  duckFor(sec) { this.duckT = Math.max(this.duckT || 0, sec); }
 
   update(dt, s) {
     if (!this.started) return;
@@ -147,8 +159,9 @@ export class Audio {
     const sirenOn = s.siren > 0.01;
     this.siren.g.gain.setTargetAtTime(sirenOn ? 0.05 * s.siren : 0, t, 0.1);
     this.siren.o.frequency.setTargetAtTime(700 + Math.abs(Math.sin(t * 3.2)) * 600, t, 0.02);
-    // music
-    if (this.musicOn) this.schedule(t);
+    // music: duck under gunfire / explosions
+    this.duckT = Math.max(0, (this.duckT || 0) - dt);
+    if (this.musicOn) { this.music.gain.setTargetAtTime(0.5 * (1 - 0.6 * Math.min(1, this.duckT * 2)), t, 0.08); this.schedule(t); }
   }
 
   schedule(t) {

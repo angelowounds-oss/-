@@ -73,7 +73,7 @@ export class Human {
     if (this.team === 'civ' || this.team === 'gang') { this.threat = from; }
     if (this.hp <= 0) { this.die(from, src); return true; }
     if (this.m.playOnce && !this.knock && this.speed < 4 && this.m.playOnce(headshot ? 'U_Hit_Head' : 'U_Hit_Chest', false)) this.reactT = 0.4;
-    if (this.team === 'civ') { this.state = 'flee'; this.fleeT = rand(6, 10); G.audio.scream(0); }
+    if (this.team === 'civ') { this.state = 'flee'; this.fleeT = rand(6, 10); G.voiceAt?.(this, 'scream'); }
     else if (this.team === 'gang') { this.alert = 1; this.state = 'attack'; }
     return false;
   }
