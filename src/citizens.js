@@ -12,7 +12,7 @@ const SUR = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임
 const GIV = ['민준', '서연', '도윤', '하은', '시우', '지우', '주원', '서윤', '예준', '하윤', '지호', '민서', '준우', '수아', '현우', '지안', '건우', '윤서', '우진', '채원',
   '선우', '다은', '연우', '은서', '유준', '소율', '정우', '예린', '승현', '가윤', '태윤', '나연', '동현', '수빈', '재원', '혜진', '상훈', '미경', '영호', '순자'];
 const JOB = { office: ['회사원', '개발자', '디자이너', '회계사', '영업사원', '변호사'], hotel: ['호텔리어', '룸메이드', '프런트 직원'], retail: ['점원', '요리사', '바리스타', '약사'], none: ['학생', '무직', '프리랜서', '은퇴자'] };
-const WALK = 1.35;           // m/s; 1 real second = 1 game minute, so a 150 m walk takes ~110 game minutes
+const WALK = 1.5;            // m/s; 1 real second = 1 game minute, so a 150 m walk takes ~110 game minutes
 const RIDE = 16;             // game minutes on the bus / subway between stops
 const SIDE = R / 2 + SW / 2; // sidewalk offset from the road centre line
 const DAY = 1440;

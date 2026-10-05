@@ -923,6 +923,8 @@ export function buildWorld(scene, quality) {
       if (!hasEdge(i, j, 0, 1)) continue;
       const x = roadC(i) + R / 2 + 0.6, z = (roadC(j) + roadC(j + 1)) / 2 + 6;
       world.busStops.push({ x, z, name: `${String.fromCharCode(65 + i)}${j + 1} 정류장` }); world.colliders.addCircle(x, z, 0.12, 3, 'busstop');
+      // and one on the east-west road through the same node (south sidewalk)
+      if (hasEdge(j, i, 1, 0)) { const x2 = (roadC(j) + roadC(j + 1)) / 2 - 6, z2 = roadC(i) + R / 2 + 0.6; world.busStops.push({ x: x2, z: z2, name: `${j + 1}${String.fromCharCode(65 + i)} 정류장` }); world.colliders.addCircle(x2, z2, 0.12, 3, 'busstop'); }
     }
     {
       const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.05, 2.8, 6).translate(0, 1.4, 0), new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.6, roughness: 0.4 }), world.busStops.length);
