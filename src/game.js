@@ -881,6 +881,7 @@ export class Game {
     const pl = this.player;
     pl.dead = true; pl.state = 'dead'; this.deadT = 0; pl.hpv = 0;
     pl.fallDir = rand(-1, 1);
+    if (this.passenger) this.endPassenger?.(true);
     if (this.vehicle) this.exitVehicle(true);
     pl.group.visible = true; pl.m.pistol.visible = pl.m.rifle.visible = false;
     this.toast('<span style="color:#ff4560">WASTED</span>', '사망했습니다');
@@ -892,6 +893,8 @@ export class Game {
     const cost = Math.floor(this.cash * 0.1); this.cash -= cost;
     const hp = this.hospital; pl.x = hp ? hp.x : this.world.spawn.x; pl.z = hp ? hp.z : this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0; pl.bleed = 0; pl.body3.teleport(pl.x, 0, pl.z);
     pl.setWeapon(pl.cur === 9 ? 100 : pl.cur);
+    pl.prone = false; pl.crouching = false; pl.sitting = false; pl.aiming = false; pl.reloadT = 0; this.rollK = 0;
+    if (this.needs?.s) { const n = this.needs.s; n.food = Math.max(n.food, 45); n.water = Math.max(n.water, 45); n.energy = Math.max(n.energy, 50); }
     this.clearWanted();
     this.ui.lt.classList.remove('on'); this.ui.lb.classList.remove('on');
     this.toast('병원에서 깨어났다', `치료비 $${cost}`);
