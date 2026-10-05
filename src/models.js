@@ -242,7 +242,14 @@ const rifleBody = new THREE.BoxGeometry(0.06, 0.1, 0.55), rifleBarrel = new THRE
 
 function makeGuns() {
   const gunMat = stdMat(0x15171d, 0.35, 0.9), accent = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.9, 1).multiplyScalar(2.5), toneMapped: false });
-  const pistol = new THREE.Group(); { const b = new THREE.Mesh(gunBody, gunMat); b.position.z = 0.1; const br = new THREE.Mesh(gunBarrel, gunMat); br.position.set(0, 0.03, 0.22); const st = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.02, 0.2), accent); st.position.set(0, 0.052, 0.1); pistol.add(b, br, st); }
+  const pistol = new THREE.Group();
+  const pg = A.props?.pistol;
+  if (pg) {
+    // Poly Haven "Service Pistol" (CC0): barrel +Z, up +Y, origin at the grip
+    const g = pg.clone(true); g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.material = o.material.clone(); o.material.envMapIntensity = 0.6; } });
+    g.rotation.set(0, 0, 0); pistol.add(g);
+    const slide = g.getObjectByName('slide'); if (slide) pistol.userData.slide = { node: slide, z0: slide.position.z };
+  } else { const b = new THREE.Mesh(gunBody, gunMat); b.position.z = 0.1; const br = new THREE.Mesh(gunBarrel, gunMat); br.position.set(0, 0.03, 0.22); const st = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.02, 0.2), accent); st.position.set(0, 0.052, 0.1); pistol.add(b, br, st); }
   const rifle = new THREE.Group(); { const b = new THREE.Mesh(rifleBody, gunMat); b.position.z = 0.22; const br = new THREE.Mesh(rifleBarrel, gunMat); br.position.set(0, 0.02, 0.62); const sk = new THREE.Mesh(rifleStock, gunMat); sk.position.set(0, -0.01, -0.1); const mg = new THREE.Mesh(rifleMag, gunMat); mg.position.set(0, -0.12, 0.25); const st = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.015, 0.4), accent); st.position.set(0, 0.058, 0.25); rifle.add(b, br, sk, mg, st); }
   rifle.visible = false;
   return { pistol, rifle };

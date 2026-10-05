@@ -313,6 +313,7 @@ export class Human {
       const ph = (t, len, delay) => (t > 0 ? Math.max(0, Math.min(1, (len - t - delay) / (len - delay))) : 0);
       m.rifleIK(this.pose, this.aimPitch || 0, { recoil: this.recoil || 0, pump: this.pumpT > 0 ? Math.sin(ph(this.pumpT, 0.55, 0.12) * Math.PI) : 0, bolt: ph(this.boltT, 0.8, 0.15), reload: this.reloadT > 0 && this.weapon.reload ? 1 - this.reloadT / this.weapon.reload : 0 });
     }
+    { const sl = m.pistol.userData.slide; if (sl) sl.node.position.z = sl.z0 - Math.min(1, this.recoil || 0) * 0.028; }
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
     m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
