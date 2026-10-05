@@ -536,6 +536,7 @@ export class Building {
     const back = south ? z1 : z0, dirIn = south ? 1 : -1; // direction from door wall into the room
     const col = (cx_, cz_, w, d, hgt, color, em) => solid('decor', cx_ - w / 2, y, cz_ - d / 2, cx_ + w / 2, y + hgt, cz_ + d / 2, color, em);
     const acc = fl.acc;
+    if (rm.kind === 'bedroom' && rm.sub != null && fl.deco && (L.type === 'apartment' || L.type === 'hotel')) this.bathCell(fl, L, rm, y);
     if (fl.deco) {
       // rooms are ~8 x 20 m: split into zones of ~6.5 m from the back wall and furnish each as its own room-like area
       const D = rm.z1 - rm.z0 - 0.4, nseg = Math.max(1, Math.round(D / 6.5)), seg = D / nseg;
@@ -589,6 +590,30 @@ export class Building {
       }
       fl.fixtures.push([cx, y + 3.2, cz, [0.4, 0.7, 1]]);
     }
+  }
+  // en-suite bathroom in the back corner of a bedroom: walls with a doorway, tiled floor, toilet, basin with mirror, tub
+  bathCell(fl, L, rm, y) {
+    const { B, solid, cc } = fl, south = rm.wall === 'n', dirIn = south ? 1 : -1, back = south ? rm.z1 - 0.2 : rm.z0 + 0.2;
+    const xa = rm.x0 + 0.2, xb = xa + 2.35, zf = back - dirIn * 2.75, wallC = fl.wallC, t = 0.14, h = L.h - 0.35;
+    const zmin = Math.min(back, zf), zmax = Math.max(back, zf), gap = [xa + 0.35, xa + 1.25];   // doorway towards the bedroom
+    // front wall with the doorway and a lintel, side wall towards the bedroom
+    solid('decor', gap[1], y, zf - t / 2, xb, y + h, zf + t / 2, wallC, 1, 'part');
+    solid('decor', xa, y, zf - t / 2, gap[0], y + h, zf + t / 2, wallC, 1, 'part');
+    B.ext('decor', gap[0], y + 2.1, zf - t / 2, gap[1], y + h, zf + t / 2, wallC); cc(gap[0], zf - t / 2, gap[1], zf + t / 2, y + 2.1, y + h, 'part');
+    solid('decor', xb - t / 2, y, zmin, xb + t / 2, y + h, zmax, wallC, 1, 'part');
+    this.floorFinish(fl, xa, zmin, xb, zmax, y, SURF.tile, 0xe6eaf0);
+    B.surf = SURF.tile; B.ext('decor', xa, y + 0.015, zmin, xa + 0.02, y + 1.5, zmax, 0xcfd6de); B.ext('decor', xb - 0.02, y + 0.015, zmin, xb, y + 1.5, zmax, 0xcfd6de); B.surf = 0; // tiled wainscot
+    const bx = (x0, z0, x1, z1, y0, y1, col, key = 'decor', sol = true) => { const a = Math.min(x0, x1), b = Math.max(x0, x1), c = Math.min(z0, z1), d = Math.max(z0, z1); B.ext(key, a, y + y0, c, b, y + y1, d, col); if (sol) cc(a, c, b, d, y + y0, y + y1, 'furniture'); };
+    const d1 = (k) => back - dirIn * k;
+    // tub along the back wall
+    bx(xa + 0.05, d1(0.05), xa + 0.8, d1(1.75), 0, 0.55, 0xf2f4f8); bx(xa + 0.14, d1(0.14), xa + 0.71, d1(1.66), 0.5, 0.56, 0x9ecbe6, 'decor', false);
+    // toilet (bowl + tank) against the side wall
+    bx(xb - 0.5, d1(0.9), xb - 0.05, d1(1.4), 0, 0.42, 0xf4f6fa); bx(xb - 0.45, d1(0.82), xb - 0.08, d1(0.98), 0.42, 0.85, 0xf4f6fa);
+    // basin on a stand with a mirror above
+    bx(xa + 1.0, d1(1.95), xa + 1.55, d1(2.25), 0, 0.84, 0xe9edf2); bx(xa + 1.02, d1(1.97), xa + 1.53, d1(2.23), 0.82, 0.86, 0x9aa4b0, 'decor', false);
+    bx(xa + 1.0, d1(2.72), xa + 1.6, d1(2.69), 1.15, 1.9, new THREE.Color(0.55, 0.7, 0.85).multiplyScalar(1.1), 'emit', false);
+    fl.fixtures.push([(xa + xb) / 2, y + L.h - 0.5, (back + zf) / 2, [1, 1, 1]]);
+    rm.reserved = [{ x0: xa - 0.1, x1: xb + 0.3, z0: zmin - 0.1, z1: zmax + 0.1 }];
   }
   // glTF living-room furniture, one instanced mesh per material for all living rooms on the floor
   addLivingSets(fl, y) {

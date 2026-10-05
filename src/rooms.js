@@ -1,4 +1,6 @@
+import * as THREE from 'three';
 import { FloorDecor, furnitureReady } from './furnish.js';
+const THREE_C = THREE.Color;
 
 // Room templates for the packed furniture set. The interaction anchors in life.js (sofa/TV/bed/fridge/wardrobe/desk coordinates)
 // are kept, so only what is *visible* changes. Every room works in a local frame: lx = lateral offset from the room centre,
@@ -14,6 +16,8 @@ class Frame {
     this.rm = rm; this.y = y; this.x0 = x0; this.x1 = x1; this.cx = (x0 + x1) / 2; this.fullD = full;
     this.back = south ? z1 : z0; this.dirIn = south ? 1 : -1; this.W = x1 - x0; this.D = z1 - z0;
     this.taken = [];
+    // world-space rectangles other builders have claimed (e.g. the bathroom cell)
+    for (const r of rm.reserved || []) { const a = Math.abs(r.z0 - this.back), b = Math.abs(r.z1 - this.back); this.taken.push({ lx0: r.x0 - this.cx, lx1: r.x1 - this.cx, ld0: Math.min(a, b), ld1: Math.max(a, b) }); }
     // keep the door clear: a 2 m wide strip in front of the door wall (only the zone that touches it)
     if (!sub || sub[1] >= full - 0.1) this.taken.push({ lx0: rm.dx - this.cx - 1.0, lx1: rm.dx - this.cx + 1.0, ld0: this.D - 1.7, ld1: this.D + 0.5 });
   }
@@ -37,6 +41,37 @@ function put(F, deco, id, lx, ld, face, o = {}) {
   const rec = deco.put(id, F.wx(lx), F.wz(ld), ry, { s: o.s, lift: o.lift, solid: o.ghost ? false : o.solid, tag: o.tag });
   if (!o.ghost && !(o.lift > 0.3)) F.taken.push({ lx0: lx - hxl, lx1: lx + hxl, ld0: ld - hzl, ld1: ld + hzl });
   return rec;
+}
+// box in the room's local frame (lx lateral from centre, ld depth from the back wall); y absolute offset above the floor
+function pbox(F, deco, lx0, ld0, lx1, ld1, y0, y1, color, o = {}) {
+  const xa = F.wx(lx0), xb = F.wx(lx1), za = F.wz(ld0), zb = F.wz(ld1), fl = deco.fl;
+  const x0 = Math.min(xa, xb), x1 = Math.max(xa, xb), z0 = Math.min(za, zb), z1 = Math.max(za, zb);
+  fl.B.ext(o.key || 'decor', x0, F.y + y0, z0, x1, F.y + y1, z1, color, o.em || 1);
+  if (o.solid !== false) fl.cc(x0, z0, x1, z1, F.y + y0, F.y + y1, 'furniture');
+  if (o.claim !== false && o.solid !== false) F.taken.push({ lx0: Math.min(lx0, lx1), lx1: Math.max(lx0, lx1), ld0: Math.min(ld0, ld1), ld1: Math.max(ld0, ld1) });
+}
+// fitted kitchen along the back wall + island: cabinets, worktop, sink, hob with hood, fridge, upper cabinets
+function kitchenFixtures(F, deco, L) {
+  const x0 = -F.W / 2 + 0.05, x1 = F.W / 2 - 0.05, cab = 0xe6e2da, top = 0x2b2e36, dep = 0.62;
+  const fr = 0.78; // fridge column on the left end
+  // fridge at the right end, where life.js puts the openable fridge anchor
+  pbox(F, deco, x1 - fr, 0.04, x1, dep + 0.08, 0, 1.85, 0xc9ced6);
+  pbox(F, deco, x1 - fr + 0.04, 0.04 + dep + 0.08 - 0.03, x1 - fr + 0.1, dep + 0.08 + 0.01, 0.95, 1.5, 0x8a909a, { solid: false });   // fridge handle
+  const c0 = x0, cEnd = x1 - fr, mid = (c0 + cEnd) / 2;
+  pbox(F, deco, c0, 0.04, cEnd, dep, 0, 0.86, cab);                                  // base cabinets
+  pbox(F, deco, c0, 0.0, cEnd, dep + 0.03, 0.86, 0.92, top, { claim: false });        // worktop
+  // sink bay (left of centre): dark basin + tap
+  pbox(F, deco, mid - 1.05, 0.12, mid - 0.3, dep - 0.1, 0.9, 0.93, 0x14161c, { solid: false, claim: false });
+  pbox(F, deco, mid - 0.7, 0.05, mid - 0.64, 0.11, 0.92, 1.18, 0xb8bec8, { solid: false, claim: false });
+  // hob (right of centre) with glowing rings and a hood above
+  pbox(F, deco, mid + 0.25, 0.1, mid + 0.95, dep - 0.04, 0.925, 0.945, 0x15171c, { solid: false, claim: false });
+  for (const [bx, bz] of [[0.42, 0.22], [0.78, 0.22], [0.42, 0.45], [0.78, 0.45]]) pbox(F, deco, mid + bx - 0.07, bz - 0.07, mid + bx + 0.07, bz + 0.07, 0.945, 0.955, new THREE_C(1, 0.35, 0.12), { key: 'emit', em: 1.6, solid: false, claim: false });
+  pbox(F, deco, mid + 0.2, 0.05, mid + 1.0, 0.5, 1.75, 2.2, 0x9aa0aa, { solid: false, claim: false });
+  // wall cabinets
+  pbox(F, deco, c0, 0.04, mid - 1.1, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
+  pbox(F, deco, mid + 1.05, 0.04, cEnd, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
+  // island with stools' worth of space around it
+  if (F.D > 5.2) { pbox(F, deco, -0.9, 2.5, 0.9, 3.25, 0, 0.88, 0x3a3f4a); pbox(F, deco, -0.95, 2.45, 0.95, 3.3, 0.88, 0.93, 0xd8d4cc, { claim: false }); }
 }
 const wallSide = (F, side) => (side === 'l' ? -F.W / 2 : F.W / 2);
 
@@ -87,6 +122,7 @@ function decorateRoomCore(F, deco, kind, L) {
     art('hanging_picture_frame_01', 'r', 2.8);
     pend('modern_ceiling_lamp_01', 0, 2.4);
   } else if (kind === 'kitchen') {
+    kitchenFixtures(F, deco, L);
     const t = put(F, deco, 'round_wooden_table_01', -Math.min(1.4, F.W / 2 - 1.5), 2.8, 'in', { margin: 0.02 });
     if (t) for (const a of [0, 2.1, 4.2]) put(F, deco, 'dining_chair_02', -Math.min(1.4, F.W / 2 - 1.5) + Math.sin(a) * 0.95, 2.8 + Math.cos(a) * 0.95, 'in', { ry: a + PI, margin: -0.15 });
     put(F, deco, 'vintage_microwave', -1.4, 0.45, 'in', { ghost: true, lift: 0.93, s: 0.55 });
