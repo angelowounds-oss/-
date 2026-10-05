@@ -61,3 +61,4 @@
 - `assets/env/day_street.rgbe`: Poly Haven CC0 HDRI *german_town_street* (supplied as 4K HDR) reduced to 512x256 RGBE; it is the daytime environment map outdoors (the night plaza HDRI stays for night).
 
 - 권총 모델: Poly Haven "Service Pistol" (CC0), `assets/props/pistol.glb` (슬라이드 반동 애니메이션 포함).
+- 추가 실내 소품(Poly Haven, CC0): 크루아상, 장기보존식품, 와인병, 빈티지 라이터, 조각 코끼리, 사자 머리 — 거실·침실·주방·로비 배치.

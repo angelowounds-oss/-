@@ -362,6 +362,8 @@ export class Building {
     const D = fl.deco;
     if (D) {
       if (ok) D.put('CashRegister_01', rx, rz, Math.atan2(d.nx, d.nz), { lift: 1.1, solid: false });
+      if (ok) { D.put('carved_wooden_elephant', rx - d.nz * 0.7, rz + d.nx * 0.7, Math.atan2(d.nx, d.nz), { lift: 1.1, s: 2, solid: false }); D.put('croissant', rx + d.nz * 0.7, rz - d.nx * 0.7, 1, { lift: 1.1, s: 1.2, solid: false }); }
+      D.put('lion_head', (r.x0 + r.x1) / 2, r.z0 + 0.14, 0, { lift: 2.3, s: 2, solid: false });
       for (let i = 0; i < 3; i++) D.put(i === 1 ? 'painted_wooden_sofa' : 'sofa_02', r.x1 - 2.4, r.z1 - 3 - i * 3.4, -Math.PI / 2);
       D.put('coffee_table_round_01', r.x1 - 4.4, r.z1 - 4.7, 0);
       // lounge groups: two lounge chairs around a low table, plus plants and sconces along the walls

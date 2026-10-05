@@ -107,6 +107,10 @@ function decorateRoomCore(F, deco, kind, L) {
     put(F, deco, 'modern_arm_chair_01', -Math.min(2.4, F.W / 2 - 0.9), 1.9, 'in', { turn: -0.6 });
     put(F, deco, 'wooden_bookshelf_worn', wallSide(F, 'r') - 0.35, 2.5, 'l');
     put(F, deco, 'side_table_01', Math.min(2.2, F.W / 2 - 0.6), 0.5, 'in');
+    put(F, deco, 'vintage_lighter', 0.12, 1.7, 'in', { ghost: true, lift: 0.39, s: 1.4, turn: Math.random() * 6 });
+    put(F, deco, 'wine_bottles_01', 0, 3.2, 'back', { ghost: true, lift: 0.52, s: 0.8 });
+    put(F, deco, 'carved_wooden_elephant', Math.min(2.2, F.W / 2 - 0.6), 0.5, 'in', { ghost: true, lift: 0.551, s: 1.8 });
+    put(F, deco, 'lion_head', 0, 0.12, 'in', { ghost: true, lift: 1.7, s: 1.2 });
     plant(-F.W / 2 + 0.55, 0.55); plant(F.W / 2 - 0.5, F.D - 0.9);
     art('hanging_picture_frame_01', 'l', 2.0); art('hanging_picture_frame_02', 'r', 1.4, 1.5);
     pend('modern_ceiling_lamp_01', 0, 2.0);
@@ -114,6 +118,7 @@ function decorateRoomCore(F, deco, kind, L) {
     const bw = F.W > 6.5 ? 'GothicBed_01' : 'old_bed_frame', b = deco.size(bw);
     put(F, deco, bw, 0, b.d / 2 + 0.05, 'in', { margin: 0.02 });
     for (const s of [-1, 1]) { const r = put(F, deco, 'painted_wooden_nightstand', s * (b.w / 2 + 0.38), 0.4, 'in'); if (r && s > 0) put(F, deco, 'desk_lamp_arm_01', s * (b.w / 2 + 0.38), 0.4, 'in', { ghost: true, lift: 0.62, s: 0.8 }); }
+    put(F, deco, 'vintage_lighter', -(deco.size(bw).w / 2 + 0.38), 0.3, 'in', { ghost: true, lift: 0.616, s: 1.4, turn: 1 });
     put(F, deco, 'vintage_cabinet_01', -F.W / 2 + 0.45, 0.5, 'r', { turn: 0 });
     put(F, deco, 'drawer_cabinet', wallSide(F, 'r') - 0.3, 2.4, 'l');
     put(F, deco, 'ornate_mirror_01', 0, 0, 'in', { ghost: true, lift: 1.0, ry: F.ry('l') + PI / 2 });
@@ -127,6 +132,10 @@ function decorateRoomCore(F, deco, kind, L) {
     if (t) for (const a of [0, 2.1, 4.2]) put(F, deco, 'dining_chair_02', -Math.min(1.4, F.W / 2 - 1.5) + Math.sin(a) * 0.95, 2.8 + Math.cos(a) * 0.95, 'in', { ry: a + PI, margin: -0.15 });
     put(F, deco, 'vintage_microwave', -1.4, 0.45, 'in', { ghost: true, lift: 0.93, s: 0.55 });
     put(F, deco, 'vintage_electric_kettle', 0.5, 0.45, 'in', { ghost: true, lift: 0.93 });
+    if (t) put(F, deco, 'croissant', -Math.min(1.4, F.W / 2 - 1.5) + 0.1, 2.8, 'in', { ghost: true, lift: 1.004, s: 1.2, turn: 0.6 });
+    put(F, deco, 'long_life_food', 1.2, 0.35, 'back', { ghost: true, lift: 0.93, s: 0.9 });
+    put(F, deco, 'wine_bottles_01', -F.W / 2 + 1.0, 0.3, 'back', { ghost: true, lift: 0.93, s: 0.7 });
+    put(F, deco, 'croissant', -0.4, 0.4, 'in', { ghost: true, lift: 0.93, s: 1.2, turn: 2 });
     put(F, deco, 'worn_metal_rack', wallSide(F, 'l') + 0.35, 2.4, 'r');
     plant(F.W / 2 - 0.5, F.D - 0.9);
     art('wall_clock', 'r', 1.8, 1.9);
