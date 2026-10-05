@@ -164,6 +164,16 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
   const e=I.est;wk.textContent=I.plane.on?(e&&e.CdWake!==null?('후류 평면 x='+e.x.toFixed(1)+' m: 전압 결손 적분 '+f(e.CdWake,3)+' (Cd 환산, 근후류에서는 과대) · 힘 적분 Cd '+f(e.CdBalance,3)+' · 유체 표본 '+e.fluid):'후류 평면 적분 계산 중… (흐름이 발달해야 합니다)'):(I.rake.on?'후류 레이크 x='+I.wakeX.toFixed(1)+' m, 높이 '+I.rake.y0+'~'+I.rake.y1+' m':'후류 계측을 켜면 표시됩니다.')};
  setInterval(()=>{if(document.hidden)return;try{draw()}catch(e){void e}},400)}}
 
+/* surface flow: tufts / oil streaks */
+{const T=window.__TUFT,sel=$('tufMode');if(T&&sel){const len=$('tufLen'),lv=$('tufLenV'),stat=$('tufStat'),sb=$('tufStreak');
+ sel.value=T.mode;const showLen=()=>{lv.textContent=Math.round(T.length()*100)+' cm'};len.value=Math.round(T.length()*100);showLen();
+ sel.onchange=()=>{T.len=null;T.setMode(sel.value);len.value=Math.round(T.length()*100);showLen()};
+ len.oninput=()=>{T.len=(+len.value)/100;lv.textContent=len.value+' cm'};
+ sb.onclick=()=>{const S=window.__STREAK;if(!S)return;S.mode=S.mode==='vol'?'both':'vol';sb.textContent='연기 유적선: '+(S.mode==='vol'?'꺼짐':'켜짐');sb.setAttribute('aria-pressed',String(S.mode!=='vol'))};
+ const pct=v=>v===null||v===undefined?'–':Math.round(v*100)+' %';
+ setInterval(()=>{if(document.hidden)return;try{if(T.mode==='off'){stat.textContent=T.err?('오류: '+T.err):'꺼져 있습니다.';return}const s=T.stats;if(!s){stat.textContent='흐름을 읽는 중…';return}const z=s.zones;
+  stat.textContent=(T.mode==='oil'?'오일 줄무늬 ':'터프트 ')+s.valid+'/'+s.count+'개 표시 · 역류(박리 추정) 앞 '+pct(z.front.reversed)+' · 지붕 '+pct(z.roof.reversed)+' · 옆 '+pct(z.side.reversed)+' · 뒤 '+pct(z.rear.reversed)+' · 밑 '+pct(z.under.reversed)}catch(e){void e}},600)}}
+
 /* aero set-up: ride height and pitch */
 {const A=window.__AERO;if(A&&$('aeroRide')){const r=$('aeroRide'),pt=$('aeroPitch'),note=$('aeroSetNote'),show=()=>{$('aeroRideV').textContent=(+r.value)+' mm';$('aeroPitchV').textContent=(+pt.value)+'°'};
  r.oninput=pt.oninput=show;show();

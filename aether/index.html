@@ -100,6 +100,12 @@
     <div class="btn-grid"><button id="instCsv" class="btn" type="button">기록 CSV 저장</button></div>
     <p class="help">Cp·Cp0는 코 앞 자유류 기준점에 대한 값이고, 전압 손실 = −Cp0입니다. 후류 평면 적분(전압 결손 Σ(−Cp0)·dA / 기준 면적)은 정압이 회복되기 전의 근후류에서는 실제 항력보다 크게 나오므로 항력 추정이 아니라 후류 크기 지표로 보세요. 격자 7.5~24 cm, 경계층 미해상이라 정성 계측입니다(L4·L26·L35).</p></section>
 
+  <section class="card" aria-labelledby="tufTitle"><h2 id="tufTitle">표면 흐름 (터프트·오일 줄무늬)</h2>
+    <div class="btn-grid"><select id="tufMode" aria-label="표면 흐름 표시"><option value="off">꺼짐</option><option value="tuft">터프트(실)</option><option value="oil">오일 줄무늬</option></select><button id="tufStreak" class="btn" type="button" aria-pressed="true">연기 유적선: 켜짐</button></div>
+    <label class="row">길이 <input id="tufLen" type="range" min="3" max="20" step="1" value="7"><span id="tufLenV">7 cm</span></label>
+    <div class="status" id="tufStat" aria-live="polite">꺼져 있습니다.</div>
+    <p class="help">차체 표면의 한 점마다, 표면에서 1.5셀 바깥의 솔버 속도 중 표면에 접한 성분의 방향을 그립니다(노랑 = 정상 흐름, 주황 = 역류, 흐릿함 = 느린 흐름). 경계층은 해상되지 않고(셀 7.5~24 cm) 실제 터프트의 펄럭임은 계산하지 않으며, 오일 줄무늬는 안료 계산이 아니라 같은 방향의 해칭입니다. 바퀴는 제외, 흐름이 발달한 뒤(약 8 s)에 보세요(L37).</p></section>
+
   <section class="card" aria-labelledby="aeroSetTitle"><h2 id="aeroSetTitle">공력 세팅 (차고·피치)</h2>
     <label class="row">차고 <input id="aeroRide" type="range" min="-30" max="30" step="5" value="0"><span id="aeroRideV">0 mm</span></label>
     <label class="row">피치 <input id="aeroPitch" type="range" min="-1" max="1" step="0.25" value="0"><span id="aeroPitchV">0°</span></label>
