@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildCar, CAR_SPECS } from './models.js';
-import { N, P, R, LANE, HALF, roadC } from './world.js';
+import { N, P, R, LANE, HALF, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
@@ -220,7 +220,7 @@ export class Vehicle {
   }
 
   // ---------- AI: traffic + police ----------
-  nodeIJ(x, z) { return [clamp(Math.round((x + HALF) / P), 0, N), clamp(Math.round((z + HALF) / P), 0, N)]; }
+  nodeIJ(x, z) { return [roadIdx(x), roadIdx(z)]; }
   setRoute(i, j, di, dj, startAlong = 0.5) {
     // place car on lane between node (i,j) and (i+di, j+dj)... car starts at fraction along edge
     const ai = this.ai;

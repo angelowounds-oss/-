@@ -17,7 +17,13 @@ export const R = 20;         // road width
 export const SW = 5;         // sidewalk width
 export const HALF = (N * P) / 2;
 export const LANE = 4.6;     // lane offset from road center
-export const roadC = (i) => -HALF + i * P;
+// Irregular block sizes: the road at index i sits at a cumulative offset of per-block multipliers (they sum to N, so the outer
+// extent HALF is unchanged). Outside the 0..N range the roads keep the plain pitch P.
+export const BLOCK_MULT = [1.12, 0.86, 1.26, 0.82, 1.04, 1.2, 0.9, 1.15, 0.65];
+const CUMS = [0]; BLOCK_MULT.forEach((m) => CUMS.push(CUMS[CUMS.length - 1] + m * P));
+export const roadC = (i) => (i < 0 ? -HALF + i * P : i > N ? HALF + (i - N) * P : -HALF + CUMS[i]);
+export const blockLen = (i) => roadC(i + 1) - roadC(i);
+export const roadIdx = (v) => { let b = 0, bd = 1e9; for (let i = 0; i <= N; i++) { const d = Math.abs(v - roadC(i)); if (d < bd) { bd = d; b = i; } } return b; };
 export const nodePos = (i, j) => [roadC(i), roadC(j)];
 
 const ACCENTS = [
@@ -191,6 +197,7 @@ function createGround(fakeLights) {
     uFL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uFC: { value: Array.from({ length: MAXL }, () => new THREE.Vector3()) },
     uWet: { value: 1.0 },
+    uRC: { value: Array.from({ length: N + 1 }, (_, i) => roadC(i)) },
     tAsph: { value: groundTex(asphA, true) }, tAsphN: { value: groundTex(asphN, false) },
     tPave: { value: groundTex(paveA, true) }, tPaveN: { value: groundTex(paveN, false) },
   };
@@ -202,10 +209,11 @@ function createGround(fakeLights) {
       varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
       uniform sampler2D tAsph,tAsphN,tPave,tPaveN;
       float fRough,fMetal;vec3 fEmit;float fPud;vec2 fN=vec2(0.);
+      const int NRC=${N};uniform float uRC[${N + 1}];
       const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.,PRO=${(HALF + P - R / 2 + 2 + MODEL_PROM + MODEL_W + 30).toFixed(1)};`,
     fragMain: `
       vec2 p=vWP.xz;
-      vec2 g=(p+HH)/PP;vec2 cl=floor(g);vec2 l=(g-cl)*PP;vec2 dr=min(l,PP-l);
+      float rdx=1e9,rdz=1e9,ix=0.,iz=0.;for(int k=0;k<=NRC;k++){float dx=abs(p.x-uRC[k]);if(dx<rdx){rdx=dx;ix=float(k);}float dz=abs(p.y-uRC[k]);if(dz<rdz){rdz=dz;iz=float(k);}}vec2 dr=vec2(rdx,rdz);
       bool inC=abs(p.x)<=HH+RR*.5&&abs(p.y)<=HH+RR*.5;
       bool rx=dr.x<RR*.5,rz=dr.y<RR*.5;
       bool road=inC&&(rx||rz);
@@ -250,7 +258,7 @@ function createGround(fakeLights) {
         // along z roads: constant x (rx). along x roads: rz
         if(!inter){
           float ax=rx?dr.x:dr.y;float along=rx?p.y:p.x;
-          bool major=mod(rx?cl.x+(dr.x==l.x?0.:1.):cl.y+(dr.y==l.y?0.:1.),3.)<.5;
+          bool major=mod(rx?ix:iz,3.)<.5;
           // center line
           float cw=major?.28:.12;
           if(major){ if(ax>.2&&ax<.2+.13||ax>.62&&ax<.62+.13){pm=1.;paint=vec3(.95,.72,.1);} }
@@ -954,10 +962,10 @@ export function buildWorld(scene, quality) {
       for (let k = 0; k < 3; k++) {
         const t = 0.2 + k * 0.3;
         const col = lampCols[(i + j + k) % 3];
-        const z = roadC(j) + R / 2 + (P - R) * t;
+        const z = roadC(j) + R / 2 + (blockLen(j) - R) * t;
         const x = roadC(i);
         world.lamps.push({ x: x + (R / 2 + SW / 2) * (k % 2 ? 1 : -1), z, c: col });
-        const z2 = roadC(i) + R / 2 + (P - R) * t;
+        const z2 = roadC(i) + R / 2 + (blockLen(i) - R) * t;
         const x2 = roadC(j);
         world.lamps.push({ x: z2, z: x2 + (R / 2 + SW / 2) * (k % 2 ? -1 : 1), c: col });
       }
@@ -972,7 +980,7 @@ export function buildWorld(scene, quality) {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), c = new THREE.Color();
     world.lamps.forEach((l, k) => {
       // face arm toward road
-      const ry = Math.abs(l.x - Math.round((l.x + HALF) / P) * P + HALF) < R ? (l.x > Math.round((l.x + HALF) / P) * P - HALF ? Math.PI : 0) : (l.z > Math.round((l.z + HALF) / P) * P - HALF ? -Math.PI / 2 : Math.PI / 2);
+      const rx0 = roadC(roadIdx(l.x)), rz0 = roadC(roadIdx(l.z)), ry = Math.abs(l.x - rx0) < R ? (l.x > rx0 ? Math.PI : 0) : (l.z > rz0 ? -Math.PI / 2 : Math.PI / 2);
       e.set(0, ry, 0); q.setFromEuler(e); p.set(l.x, 0, l.z);
       m4.compose(p, q, one); poles.setMatrixAt(k, m4); heads.setMatrixAt(k, m4);
       heads.setColorAt(k, c.setRGB(l.c[0] * 3, l.c[1] * 3, l.c[2] * 3));
@@ -1087,7 +1095,7 @@ export function buildWorld(scene, quality) {
     for (let i = 0; i <= N; i++) for (let j = 0; j < N; j++) {
       for (let k = 0; k < 3; k++) {
         const t = R_(0.08, 0.92), side = rnd() < 0.5 ? 1 : -1;
-        const along = roadC(j) + R / 2 + (P - R) * t;
+        const along = roadC(j) + R / 2 + (blockLen(j) - R) * t;
         const off = R / 2 + SW - 0.9;
         if (rnd() < 0.5) vm.push({ x: roadC(i) + side * off, z: along, ry: side > 0 ? Math.PI / 2 : -Math.PI / 2, ci: Math.floor(R_(0, 6)) });
         else bins.push({ x: roadC(i) + side * (off - 0.2), z: along });
@@ -1184,8 +1192,7 @@ export function buildWorld(scene, quality) {
   // road helpers
   world.isRoad = (x, z) => {
     if (Math.abs(x) > HALF + R / 2 || Math.abs(z) > HALF + R / 2) return false;
-    const lx = ((x + HALF) % P + P) % P, lz = ((z + HALF) % P + P) % P;
-    return Math.min(lx, P - lx) < R / 2 || Math.min(lz, P - lz) < R / 2;
+    return Math.abs(x - roadC(roadIdx(x))) < R / 2 || Math.abs(z - roadC(roadIdx(z))) < R / 2;
   };
   world.facade = facade;
   buildEntrances(world, scene);

@@ -1,5 +1,5 @@
 import { el, clamp } from './util.js';
-import { N, P, R, HALF, roadC } from './world.js';
+import { N, P, R, HALF, roadC, roadIdx } from './world.js';
 import { ZONES } from './society.js';
 
 const CSS = `
@@ -99,7 +99,7 @@ export class Phone {
 
 // grid GPS: L-shaped route along road centrelines
 export function gpsRoute(x0, z0, x1, z1) {
-  const ni = (x) => clamp(Math.round((x + HALF) / P), 0, N);
+  const ni = (x) => roadIdx(x);
   const i0 = ni(x0), j0 = ni(z0), i1 = ni(x1), j1 = ni(z1);
   const pts = [[x0, z0], [roadC(i0), roadC(j0)]];
   pts.push([roadC(i1), roadC(j0)], [roadC(i1), roadC(j1)], [x1, z1]);

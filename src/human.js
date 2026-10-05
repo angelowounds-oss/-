@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildHuman } from './models.js';
-import { N, R, SW, roadC } from './world.js';
+import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 
 export const WEAPONS = [
@@ -179,7 +179,7 @@ export class Human {
     // pick nearest sidewalk corner as new node
     const G = this.G;
     let best = null, bd = 1e9;
-    const i0 = clamp(Math.round((this.x + (N * 84) / 2) / 84), 0, N), j0 = clamp(Math.round((this.z + (N * 84) / 2) / 84), 0, N);
+    const i0 = roadIdx(this.x), j0 = roadIdx(this.z);
     for (let i = Math.max(0, i0 - 1); i <= Math.min(N, i0 + 1); i++) for (let j = Math.max(0, j0 - 1); j <= Math.min(N, j0 + 1); j++) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const n = { i, j, sx, sz }; const [x, z] = this.nodePos(n); const d = Math.hypot(x - this.x, z - this.z); if (d < bd) { bd = d; best = n; }
     }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
-import { N, P, R, SW, HALF, roadC } from './world.js';
+import { N, P, R, SW, HALF, roadC, blockLen } from './world.js';
 import { mulberry32 } from './util.js';
 
 // Street dressing: CC0 Poly Haven scans (hydrants, bins, utility boxes, bags, planters) plus the supplied street_props.blend set
@@ -59,9 +59,9 @@ export function buildDressing(scene, world) {
   const rnd = mulberry32(4711), slots = [];
   // sidewalk centre line, offset along the road from the lamp positions so nothing overlaps a pole
   for (let i = 0; i <= N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < 3; k++) {
-    const t = 0.2 + k * 0.3 + 0.13, a = roadC(j) + R / 2 + (P - R) * t, side = (R / 2 + SW / 2) * (k % 2 ? 1 : -1);
+    const t = 0.2 + k * 0.3 + 0.13, a = roadC(j) + R / 2 + (blockLen(j) - R) * t, side = (R / 2 + SW / 2) * (k % 2 ? 1 : -1);
     // fx,fz: unit vector from the sidewalk towards the road (vending machines face it)
-    slots.push({ x: roadC(i) + side, z: a, along: 'z', fx: -Math.sign(side), fz: 0 }, { x: roadC(j) + R / 2 + (P - R) * t, z: roadC(i) + side * -1, along: 'x', fx: 0, fz: Math.sign(side) });
+    slots.push({ x: roadC(i) + side, z: a, along: 'z', fx: -Math.sign(side), fz: 0 }, { x: roadC(j) + R / 2 + (blockLen(j) - R) * t, z: roadC(i) + side * -1, along: 'x', fx: 0, fz: Math.sign(side) });
   }
   const pick = () => { let r = rnd() * WSUM; for (const k of Object.keys(WEIGHT)) { r -= WEIGHT[k]; if (r <= 0) return k; } return 'trash'; };
   const cells = new Map(), place = [];

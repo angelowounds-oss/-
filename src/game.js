@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos } from './world.js';
+import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
@@ -147,7 +147,7 @@ export class Game {
     let tries = 0;
     while (this.vehicles.filter((v) => v.kind === 'parked').length < q.parked && tries++ < 400) {
       const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N)), side = Math.random() < 0.5 ? 1 : -1, ns = Math.random() < 0.5;
-      const t = rand(0.18, 0.82), along = roadC(j) + R / 2 + (P - R) * t;
+      const t = rand(0.18, 0.82), along = roadC(j) + R / 2 + (blockLen(j) - R) * t;
       const off = (R / 2 - 1.55) * side;
       const type = CAR_TYPES[Math.floor(Math.random() * CAR_TYPES.length)];
       const v = new Vehicle(this, type, CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'parked');
