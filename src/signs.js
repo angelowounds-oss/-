@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
 import { mulberry32 } from './util.js';
+import { blackU, ZONE_GLSL } from './shaders.js';
 
 // Shop signs from the supplied street_props.blend (street_signs.glb: signs stand upright, front faces +Z, origin = bottom centre).
 // Every lot with a door gets a fascia sign beside the entrance, usually a two-sided blade sign sticking out of the wall and
@@ -26,6 +27,14 @@ export function buildSigns(scene, world) {
     if (!mats.has(m)) {
       const c = m.clone();
       if (c.map) { c.emissive = new THREE.Color(0xffffff); c.emissiveMap = c.map; c.emissiveIntensity = 0; (world.nightEmit = world.nightEmit || []).push({ m: c, k: 0.85 }); }
+      // signs in a blacked-out zone go dark too
+      c.onBeforeCompile = (sh) => {
+        sh.uniforms.uBlack = blackU;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPg;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPg=(modelMatrix*vec4(transformed,1.)).xyz;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPg;uniform float uBlack[5];' + ZONE_GLSL)
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance*=1.-uBlack[zoneOf(vWPg.xz)];');
+      };
+      c.customProgramCacheKey = () => 'sign-power';
       mats.set(m, c);
     }
     return mats.get(m);
