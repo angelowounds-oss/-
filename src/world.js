@@ -1425,8 +1425,8 @@ function buildWaters(world, scene) {
         void main(){
           vec2 p=vP.xz;float t=uTime*.05;
           float e=.1,h=hgt(p),hx=hgt(p+vec2(e,0.)),hz=hgt(p+vec2(0.,e));
-          float flat=smoothstep(8.,60.,length(cameraPosition-vP));   // far water: calmer normals so the sky reflection does not shimmer into speckle
-          vec3 N=normalize(vec3(-(hx-h)/e*mix(.7,.2,flat),1.,-(hz-h)/e*mix(.7,.2,flat)));
+          float farK=smoothstep(8.,60.,length(cameraPosition-vP));   // far water: calmer normals so the sky reflection does not shimmer into speckle
+          vec3 N=normalize(vec3(-(hx-h)/e*mix(.7,.2,farK),1.,-(hz-h)/e*mix(.7,.2,farK)));
           vec3 V=normalize(cameraPosition-vP);float ndv=max(dot(N,V),0.);
           float F=.017+.983*pow(1.-ndv,5.);                       // Fresnel for IOR 1.3
           vec3 R=reflect(-V,N);float ry=clamp(R.y,0.,1.);
