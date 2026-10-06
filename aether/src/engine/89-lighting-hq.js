@@ -33,7 +33,7 @@ function hqInit(){HQ.ok=false;try{if(!lighting||!lighting.probes)throw Error('M1
   if(!gl.getExtension('EXT_color_buffer_float'))throw Error('float targets missing');
   HQ.prefProg=liveCompile(HQ_PREFILTER);const size=M10_SETTINGS.probeSize;
   HQ.pref.forEach(t=>gl.deleteTexture(t));HQ.pref=lighting.probes.map(p=>hqPrefilter(p,size));HQ.sh=lighting.probes.map(p=>hqSH(p,size));
-  for(const n of ['pref0','pref1','hq','sh0','sh1','csmMap','csmVP','csmSplit','csmOn','pcss','csmTexel','camFwd','clearcoat','prefLod','ambK','vatlas','vdebug'])loc[n]=gl.getUniformLocation(program,'u_'+n);
+  for(const n of ['pref0','pref1','hq','sh0','sh1','csmMap','csmVP','csmSplit','csmOn','pcss','csmTexel','camFwd','clearcoat','prefLod','ambK','vatlas','vdebug','paint','paintR'])loc[n]=gl.getUniformLocation(program,'u_'+n);
   /* energy match: diffuse ambient keeps the M10 brightness at an upward normal, SH supplies direction and colour */
   const E=hqIrr(HQ.sh[0],[0,1,0]),lum=(.2126*E[0]+.7152*E[1]+.0722*E[2])/Math.PI;HQ.ambK=Math.min(4,Math.max(.25,.40*.85/Math.max(lum,1e-4)));
   HQ.gen=runtimeGeneration;HQ.ok=true;FX.shadow=true}catch(e){HQ.err=String(e?.message||e);HQ.ok=false}
@@ -65,7 +65,7 @@ function hqCsm(){const lvl=PERF.set.shadow|0;HQ.csmOn=HQ.ok&&lvl>=2;if(!HQ.csmOn
  const id=identityMatrix(),draw=(mesh,m,vp)=>{gl.uniformMatrix4fv(lighting.depthMVP,false,m===id?vp:matMul(vp,m));drawDepthMesh(mesh)};
  const wp=wheelParts(),PL=OPT.cull?VP.map(m=>frustumPlanes(m,.03,true)):null;
  const casters=(i,vp,pass)=>{ /* pass: 'all' | 'static' | 'dynamic' */
-  if(pass!=='dynamic')for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&o.center[1]+o.size[1]/2<3.5&&(!PL||aabbVisible(PL[i],o)))draw(o.gpu,id,vp);
+  if(pass!=='dynamic')for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&(o.center[1]+o.size[1]/2<3.5||o.category==='tunnel v2 control room')&&(!PL||aabbVisible(PL[i],o)))draw(o.gpu,id,vp);
   if(pass!=='static')for(let j=0;j<scene.roadParts.length;j++){const r=scene.roadParts[j];if(r.gpu)draw(r.gpu,rollerModel(r,rollingState.rollerAngles[j]||0),vp)}
   for(const p of scene.vehicleParts)if(p.gpu){const k=wp.indexOf(p);if(k<0){if(pass!=='dynamic')draw(p.gpu,vehicleModel(),vp)}else if(pass!=='static')draw(p.gpu,wheelModel(p,rollingState.wheelAngles[k]||0),vp)}
   if(pass!=='static'&&bodyOn){const a=-Bd.yaw,cc=Math.cos(a),ss=Math.sin(a),M=new Float64Array([cc,0,-ss,0,0,1,0,0,ss,0,cc,0,Bd.x,Bd.g,Bd.z,1]);for(const g of Bd.parts)draw(g,M,vp)}};

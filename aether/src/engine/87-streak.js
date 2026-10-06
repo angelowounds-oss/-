@@ -1,7 +1,7 @@
 /* ===== STREAKLINES: massless particles released at the rake nozzles and advected by the solver's own MAC velocity field (RK2),
    drawn as thin screen-space ribbons, depth-tested over the composite. One particle per nozzle per frame; a ring of L particles per
    nozzle is the streakline. Display of the same computed flow as the volume smoke, not a second flow model. */
-const STREAK={mode:(location.hash.match(/smoke=(vol|streak|both)/)||[])[1]||'both',L:192,NE:40,head:0,cur:0,key:'',gen:-1,t:null,prog:null,err:null,rows:0,width:1.5,gain:1};
+const STREAK={mode:(location.hash.match(/smoke=(vol|streak|both)/)||[])[1]||'both',L:192,NE:40,head:0,cur:0,key:'',gen:-1,t:null,prog:null,err:null,rows:0,width:1.5,gain:1,col:!/scol=0/.test(location.hash)};
 MAC_FS.pstep=`uniform sampler2D uVel,uPrev,uSol;uniform int uHead,uEmN;uniform float uDt;uniform vec4 uEm[40];
 void main(){ivec2 t=ivec2(gl_FragCoord.xy);if(t.y>=uEmN){o=vec4(0);return;}
  if(t.x==uHead){o=vec4(uEm[t.y].xyz,1.);return;}
@@ -30,8 +30,10 @@ void main(){int seg=gl_VertexID>>1;float side=float(gl_VertexID&1)*2.-1.;int row
 const STREAK_FS=`#version 300 es
 precision highp float;
 in float vA;in float vV;in float vS;uniform float uGain,uCol;out vec4 o;
-void main(){float e=1.-abs(vV);float a=vA*smoothstep(0.,.6,e)*uGain;if(a<.004)discard;
- vec3 base=vec3(.94,.96,1.)*1.6;vec3 sp=mix(vec3(.15,.45,1.),vec3(1.,.55,.12),clamp(vS*1.4,0.,1.))*1.6;o=vec4(mix(base,sp,uCol),a);}`;
+vec3 pal(float r){vec3 c=mix(vec3(.12,.16,.85),vec3(.05,.72,1.),smoothstep(.25,.7,r));c=mix(c,vec3(.86,.97,1.),smoothstep(.7,1.,r));
+ c=mix(c,vec3(1.,.66,.1),smoothstep(1.,1.3,r));return mix(c,vec3(1.,.14,.42),smoothstep(1.3,1.75,r));}
+void main(){float e=1.-abs(vV);float core=smoothstep(.45,1.,e),halo=smoothstep(0.,.8,e);float a=vA*uGain*mix(halo,halo*.5+core*.75,uCol);if(a<.004)discard;
+ vec3 base=vec3(.94,.96,1.)*1.6;vec3 sp=pal(clamp(vS*1.7,0.,2.));sp=mix(sp,vec3(1.),core*.45)*(1.1+1.3*core);o=vec4(mix(base,sp,uCol),a);}`;
 function streakInit(){if(STREAK.gen===runtimeGeneration&&STREAK.t)return true;
  if(!MAC.prog||!MAC.t||LIVE.impl!=='MAC')return false;
  const mk=()=>liveTarget(STREAK.L,STREAK.NE,gl.RGBA32F,gl.RGBA,gl.FLOAT);
@@ -50,9 +52,9 @@ function streakStep(dt){if(STREAK.mode==='vol'||!LIVE.ok||LIVE.impl!=='MAC'||!LI
 /* ribbons over the composite; vp is the same jittered view-projection as the scene pass */
 function streakDraw(vp,rw,rh){if(STREAK.mode==='vol'||!STREAK.t||!STREAK.rows||STREAK.err)return;
  const p=STREAK.prog;gl.useProgram(p);gl.bindVertexArray(null);
- gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(false);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+ gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(false);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE,gl.ONE,gl.ONE);
  gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_2D,STREAK.t[STREAK.cur].t);gl.uniform1i(liveU(p,'uP'),8);
  gl.uniform1i(liveU(p,'uHead'),STREAK.head);gl.uniform1i(liveU(p,'uL'),STREAK.L);gl.uniformMatrix4fv(liveU(p,'uVP'),false,vp);gl.uniform2f(liveU(p,'uPx'),rw,rh);
- gl.uniform1f(liveU(p,'uMaxSeg'),Math.max(.7,.14*(MAC.U||5)));gl.uniform1f(liveU(p,'uPW'),Math.max(1.2,rw/900)*STREAK.width);gl.uniform1f(liveU(p,'uGain'),STREAK.gain);gl.uniform1f(liveU(p,'uCol'),LIVE.colorMode?1:0);
+ gl.uniform1f(liveU(p,'uMaxSeg'),Math.max(.7,.14*(MAC.U||5)));gl.uniform1f(liveU(p,'uPW'),Math.max(1.2,rw/900)*STREAK.width*(STREAK.col?1.7:1));gl.uniform1f(liveU(p,'uGain'),STREAK.gain);gl.uniform1f(liveU(p,'uCol'),STREAK.col?1:0);
  gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,2*STREAK.L,STREAK.rows);
  gl.disable(gl.BLEND);gl.depthMask(true);gl.bindTexture(gl.TEXTURE_2D,null);gl.activeTexture(gl.TEXTURE0)}

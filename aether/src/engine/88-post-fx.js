@@ -2,7 +2,7 @@
    -> composite -> glass -> [TAA] -> bloom -> AgX/ACES tone map -> overlays (LDR) -> [FXAA] -> upscale+sharpen.
    Disabled with #fx=0 or when float render targets are missing (legacy forward path, visible in the HUD). ===== */
 const FX={on:!/fx=0/.test(location.hash),active:false,err:null,gen:-1,rw:0,rh:0,vw:0,vh:0,frame:0,hist:0,shist:0,prevVP:null,jitter:[0,0],tone:(location.hash.match(/tone=(AGX|ACES)/)||[])[1]||'AGX',
- exposure:1.25,bloom:.045,aoStrength:1,g:.35,prog:null,t:null};
+ exposure:1.25,bloom:.085,grade:{on:!/grade=0/.test(location.hash),v:[.30,1.15,.62,.0016],shadow:[.93,1,1.07],high:[1.05,1,.93]},aoStrength:1,g:.35,prog:null,t:null};
 window.__AETHER_FX=FX;
 const FX_H=`#version 300 es
 precision highp float;precision highp sampler2D;precision highp sampler3D;
@@ -97,14 +97,16 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes,t=.5/uRes;o=vec4((texture(uSrc,uv+vec2(
 bup:`uniform sampler2D uSrc,uLow;out vec4 o;
 void main(){vec2 uv=gl_FragCoord.xy/uRes,t=1./vec2(textureSize(uLow,0));vec3 s=vec3(0.);for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++)s+=texture(uLow,uv+vec2(i,j)*t).rgb*((i==0?2.:1.)*(j==0?2.:1.));o=vec4(texture(uSrc,uv).rgb+s/16.,1.);}`,
 /* ---- tone map (AgX default, ACES optional) + exposure + bloom + blue-noise dither ---- */
-tone:`uniform sampler2D uSrc,uBloom,uBlue;uniform float uExp,uBloomK,uAces,uFrame;out vec4 o;
+tone:`uniform sampler2D uSrc,uBloom,uBlue;uniform float uExp,uBloomK,uAces,uFrame;uniform vec4 uGr;uniform vec3 uTs,uTh;out vec4 o;
 vec3 agxC(vec3 x){vec3 x2=x*x,x4=x2*x2;return 15.5*x4*x2-40.14*x4*x+31.96*x4-6.868*x2*x+.4298*x2+.1191*x-.00232;}
 vec3 agx(vec3 v){const mat3 M=mat3(.842479062253094,.0423282422610123,.0423756549057051,.0784335999999992,.878468636469772,.0784336,.0792237451477643,.0791661274605434,.879142973793104);
  const mat3 Mi=mat3(1.19687900512017,-.0528968517574562,-.0529716355144438,-.0980208811401368,1.15190312990417,-.0980434501171241,-.0990297440797205,-.0989611768448433,1.15107367264116);
  v=M*v;v=clamp(log2(max(v,vec3(1e-10))),-12.47393,4.026069);v=(v+12.47393)/16.499999;return Mi*agxC(v);}
 vec3 enc(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0)),vec3(1./2.4))-.055,step(vec3(.0031308),c));}
-void main(){vec2 uv=gl_FragCoord.xy/uRes;vec3 h=(texture(uSrc,uv).rgb+uBloomK*texture(uBloom,uv).rgb)*uExp;
+void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 ca=(uv-.5)*uGr.w;vec3 sc=vec3(texture(uSrc,uv+ca).r,texture(uSrc,uv).g,texture(uSrc,uv-ca).b);vec3 h=(sc+uBloomK*texture(uBloom,uv).rgb)*uExp;
  vec3 c=uAces>.5?enc(clamp((h*(2.51*h+.03))/(h*(2.43*h+.59)+.14),0.,1.)):clamp(agx(h),0.,1.);
+ /* look: S-curve contrast, saturation, teal shadows / warm highlights, vignette (uGr = contrast, saturation, vignette, chromatic aberration; all 0/1/0/0 = neutral) */
+ c=mix(c,c*c*(3.-2.*c),uGr.x);float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,uGr.y);c*=mix(uTs,uTh,smoothstep(.08,.75,l));vec2 q=uv-.5;c*=1.-uGr.z*dot(q,q)*1.7;c=clamp(c,0.,1.);
  float n=fract(texelFetch(uBlue,ivec2(gl_FragCoord.xy)&63,0).r+uFrame*.618034)-.5;o=vec4(c+n/255.,1.);}`,
 /* ---- FXAA (LOW) ---- */
 fxaa:`uniform sampler2D uSrc;out vec4 o;float lu(vec3 c){return dot(c,vec3(.299,.587,.114));}
@@ -178,7 +180,7 @@ function fxPost(){const T=FX.t,M=FX.m,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.
  let bloom=T.bl[0]?.a;if(PERF.set.bloom&&T.bl.length){const B=T.bl;fxPass('bpre',B[0].af,B[0].w,B[0].h,{uSrc:src},{uThr:1.2});
   for(let i=1;i<B.length;i++)fxPass('bdown',B[i].af,B[i].w,B[i].h,{uSrc:B[i-1].a},{});
   for(let i=B.length-2;i>=0;i--){fxPass('bup',B[i].bf,B[i].w,B[i].h,{uSrc:B[i].a,uLow:i===B.length-2?B[i+1].a:B[i+1].b},{})}bloom=B.length>1?B[0].b:B[0].a}
- fxPass('tone',T.ldrF,rw,rh,{uSrc:src,uBloom:bloom||src,uBlue:FX.blue},{uExp:FX.exposure*M10_SETTINGS.exposure,uBloomK:PERF.set.bloom&&bloom?FX.bloom:0,uAces:FX.tone==='ACES'?1:0,uFrame:FX.frame%64});
+ fxPass('tone',T.ldrF,rw,rh,{uSrc:src,uBloom:bloom||src,uBlue:FX.blue},{uExp:FX.exposure*M10_SETTINGS.exposure,uBloomK:PERF.set.bloom&&bloom?FX.bloom:0,uAces:FX.tone==='ACES'?1:0,uFrame:FX.frame%64,uGr:FX.grade.on?FX.grade.v:[0,1,0,0],uTs:FX.grade.on?FX.grade.shadow:[1,1,1],uTh:FX.grade.on?FX.grade.high:[1,1,1]});
  gl.bindFramebuffer(gl.FRAMEBUFFER,T.ldrDF);gl.viewport(0,0,rw,rh);gl.enable(gl.DEPTH_TEST);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0)}
 function fxPresent(){const T=FX.t,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);
  let src=T.ldr;if(PERF.set.aa==='FXAA'){fxPass('fxaa',T.ldr2F,rw,rh,{uSrc:T.ldr},{});src=T.ldr2}

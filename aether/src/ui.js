@@ -164,6 +164,9 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
   const e=I.est;wk.textContent=I.plane.on?(e&&e.CdWake!==null?('후류 평면 x='+e.x.toFixed(1)+' m: 전압 결손 적분 '+f(e.CdWake,3)+' (Cd 환산, 근후류에서는 과대) · 힘 적분 Cd '+f(e.CdBalance,3)+' · 유체 표본 '+e.fluid):'후류 평면 적분 계산 중… (흐름이 발달해야 합니다)'):(I.rake.on?'후류 레이크 x='+I.wakeX.toFixed(1)+' m, 높이 '+I.rake.y0+'~'+I.rake.y1+' m':'후류 계측을 켜면 표시됩니다.')};
  setInterval(()=>{if(document.hidden)return;try{draw()}catch(e){void e}},400)}}
 
+/* body paint */
+{const P=window.__PAINT,sel=$('paintSel');if(P&&sel){P.set.forEach((q,i)=>{const o=document.createElement('option');o.value=i;o.textContent=q[0];sel.appendChild(o)});sel.value=P.idx;sel.onchange=()=>P.select(+sel.value)}}
+
 /* surface flow: tufts / oil streaks */
 {const T=window.__TUFT,sel=$('tufMode');if(T&&sel){const len=$('tufLen'),lv=$('tufLenV'),stat=$('tufStat'),sb=$('tufStreak');
  sel.value=T.mode;const showLen=()=>{lv.textContent=Math.round(T.length()*100)+' cm'};len.value=Math.round(T.length()*100);showLen();

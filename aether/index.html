@@ -100,6 +100,10 @@
     <div class="btn-grid"><button id="instCsv" class="btn" type="button">기록 CSV 저장</button></div>
     <p class="help">Cp·Cp0는 코 앞 자유류 기준점에 대한 값이고, 전압 손실 = −Cp0입니다. 후류 평면 적분(전압 결손 Σ(−Cp0)·dA / 기준 면적)은 정압이 회복되기 전의 근후류에서는 실제 항력보다 크게 나오므로 항력 추정이 아니라 후류 크기 지표로 보세요. 격자 7.5~24 cm, 경계층 미해상이라 정성 계측입니다(L4·L26·L35).</p></section>
 
+  <section class="card" aria-labelledby="paintTitle"><h2 id="paintTitle">차체 도장</h2>
+    <div class="btn-grid"><select id="paintSel" aria-label="차체 도장 색"></select></div>
+    <p class="help">차체 도장 면(아틀라스 한 칸)만 색·메탈릭 입자·광택을 바꿉니다. 유리·카본·휠·타이어·데칼은 그대로이며, 공기역학 계산에는 영향이 없습니다(외관 전용). 휠 안쪽 캘리퍼 등 도장 칸을 쓰는 다른 부품이 있으면 함께 바뀔 수 있습니다.</p></section>
+
   <section class="card" aria-labelledby="tufTitle"><h2 id="tufTitle">표면 흐름 (터프트·오일 줄무늬)</h2>
     <div class="btn-grid"><select id="tufMode" aria-label="표면 흐름 표시"><option value="off">꺼짐</option><option value="tuft">터프트(실)</option><option value="oil">오일 줄무늬</option></select><button id="tufStreak" class="btn" type="button" aria-pressed="true">연기 유적선: 켜짐</button></div>
     <label class="row">길이 <input id="tufLen" type="range" min="3" max="20" step="1" value="7"><span id="tufLenV">7 cm</span></label>

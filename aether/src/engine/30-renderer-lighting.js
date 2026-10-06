@@ -5,7 +5,7 @@ uniform vec4 u_eye,u_surface,u_color;uniform float u_alpha,u_useTex,u_beltSurfac
 in vec3 v_normal;in vec2 v_uv;in vec3 v_world;layout(location=0) out vec4 outColor;layout(location=1) out vec4 outAmb;
 uniform samplerCube u_env0,u_env1;uniform highp sampler2D u_shadowMap;
 uniform mat4 u_lightVP;uniform float u_capture,u_shadowEnabled,u_exposure,u_hdrOut;
-uniform samplerCube u_pref0,u_pref1;uniform highp sampler2D u_csmMap;uniform mat4 u_csmVP[3];uniform vec3 u_csmSplit,u_csmTexel,u_camFwd,u_sh0[9],u_sh1[9];uniform float u_hq,u_csmOn,u_pcss,u_clearcoat,u_prefLod,u_ambK,u_vatlas,u_vdebug;
+uniform samplerCube u_pref0,u_pref1;uniform highp sampler2D u_csmMap;uniform mat4 u_csmVP[3];uniform vec3 u_csmSplit,u_csmTexel,u_camFwd,u_sh0[9],u_sh1[9];uniform vec2 u_pz;uniform float u_hq,u_csmOn,u_pcss,u_clearcoat,u_prefLod,u_ambK,u_vatlas,u_vdebug,u_paintR;uniform vec4 u_paint;
 /* vehicle texture atlas: 5x4 tiles of 512 px (row 0 = top of the source image). Per tile: roughness, metalness, clear coat, glass.
    Assigned by inspecting the atlas and verified on the model with #vtile=1 (body = tile (4,0) black paint, wing = carbon (4,3), rims = (2,0)). */
 const vec4 VT[20]=vec4[20](
@@ -21,6 +21,11 @@ const float PI=3.14159265359;
 vec3 linearize(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));}
 vec3 encode(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0)),vec3(1./2.4))-.055,step(vec3(.0031308),c));}
 vec3 tonemap(vec3 h){return encode(clamp((h*(2.51*h+.03))/(h*(2.43*h+.59)+.14),0.,1.));}
+vec3 rimLight(vec3 L,vec3 col,vec3 n,vec3 v,float nv,vec3 albedo,float rough,float metal,vec3 F0){
+ vec3 h=normalize(L+v);float nl=max(dot(n,L),0.),nh=max(dot(n,h),0.),vh=max(dot(v,h),0.);
+ float a=rough*rough,a2=a*a,den=nh*nh*(a2-1.)+1.,D=a2/max(PI*den*den,.000001),k=(rough+1.)*(rough+1.)/8.;
+ float G=(nv/(nv*(1.-k)+k))*(nl/max(nl*(1.-k)+k,.00001));vec3 F=F0+(1.-F0)*pow(1.-vh,5.);
+ return ((1.-F)*(1.-metal)*albedo/PI+D*G*F/max(4.*nv*nl,.0001))*nl*col;}
 vec3 boxDirection(vec3 ray,vec3 lo,vec3 hi,vec3 center){
  vec3 safeRay=mix(vec3(-1.),vec3(1.),step(vec3(0.),ray))*max(abs(ray),vec3(.0001));
  vec3 farHit=max((lo-v_world)/safeRay,(hi-v_world)/safeRay);float t=max(0.,min(farHit.x,min(farHit.y,farHit.z)));
@@ -30,12 +35,12 @@ vec3 roomReflection(vec3 ray,float rough){
  if(u_capture>.5)return vec3(0.);
  vec3 a=boxDirection(ray,vec3(-9.,0.,-4.),vec3(9.,5.5,4.),vec3(0.,2.,0.));
  vec3 b=boxDirection(ray,vec3(-4.1,.75,4.),vec3(4.1,4.,9.3),vec3(0.,2.4,7.));
- return mix(textureLod(u_env0,a,rough*7.).rgb,textureLod(u_env1,b,rough*7.).rgb,smoothstep(3.8,4.5,v_world.z))*8.;
+ return mix(textureLod(u_env0,a,rough*7.).rgb,textureLod(u_env1,b,rough*7.).rgb,smoothstep(u_pz.x,u_pz.y,v_world.z))*8.;
 }
 float shadowVisibility(vec3 n,vec3 l);
 vec3 prefReflection(vec3 ray,float rough){
  vec3 a=boxDirection(ray,vec3(-9.,0.,-4.),vec3(9.,5.5,4.),vec3(0.,2.,0.));vec3 b=boxDirection(ray,vec3(-4.1,.75,4.),vec3(4.1,4.,9.3),vec3(0.,2.4,7.));
- float lod=clamp(sqrt(rough)*u_prefLod,0.,u_prefLod);return mix(textureLod(u_pref0,a,lod).rgb,textureLod(u_pref1,b,lod).rgb,smoothstep(3.8,4.5,v_world.z))*8.;}
+ float lod=clamp(sqrt(rough)*u_prefLod,0.,u_prefLod);return mix(textureLod(u_pref0,a,lod).rgb,textureLod(u_pref1,b,lod).rgb,smoothstep(u_pz.x,u_pz.y,v_world.z))*8.;}
 float csmVis(vec3 n,vec3 l){float d=dot(v_world-u_eye.xyz,u_camFwd);int ci=d<u_csmSplit.x?0:(d<u_csmSplit.y?1:2);if(d>u_csmSplit.z)return shadowVisibility(n,l);
  float tw=ci==0?u_csmTexel.x:(ci==1?u_csmTexel.y:u_csmTexel.z);vec4 p=u_csmVP[ci]*vec4(v_world+n*tw*1.5,1.);vec3 q=p.xyz/p.w*.5+.5;
  if(any(lessThan(q.xy,vec2(0.)))||any(greaterThan(q.xy,vec2(1.)))||q.z>1.)return 1.;
@@ -68,6 +73,7 @@ void main(){
  float rough=clamp(u_surface.x+grain*u_surface.w*fade,.045,1.),metal=clamp(u_surface.y,0.,1.);float ccW=u_clearcoat,glassT=0.;
  if(u_vatlas>.5){vec2 tu=fract(v_uv);ivec2 tl=ivec2(min(floor(tu.x*5.),4.),3.-min(floor(tu.y*4.),3.));vec4 m=VT[tl.y*5+tl.x];rough=m.x;metal=m.y;ccW=m.z;glassT=m.w;
   if(u_vdebug>.5){albedo=vec3(float(tl.x)/4.,float(tl.y)/3.,fract(float(tl.y*5+tl.x)*.37));metal=0.;rough=.8;}
+  if(u_vdebug<.5&&u_paint.r>=0.&&tl.x==4&&tl.y==0){albedo=linearize(u_paint.rgb)*(1.+.45*u_paint.a*fade*sin(v_world.x*770.+v_world.z*410.)*sin(v_world.y*690.+v_world.z*530.));metal=u_paint.a*.55;rough=u_paintR;ccW=u_paintR>.45?0.:1.;}
   if(glassT>.5)albedo*=.35;}
  vec3 l=normalize(vec3(-.2,1.,.12)),h=normalize(l+v);float nl=max(dot(n,l),0.),nh=max(dot(n,h),0.),vh=max(dot(v,h),0.);
  float a=rough*rough,a2=a*a,den=nh*nh*(a2-1.)+1.;float D=a2/max(PI*den*den,.000001);
@@ -78,12 +84,13 @@ void main(){
  float visibility=u_csmOn>.5?csmVis(n,l):shadowVisibility(n,l);
  vec3 white=vec3(1.,.956,.895);
  vec3 ambD=albedo*(1.-metal)*hemi*.85*white;
- if(u_hq>.5){vec3 irr=mix(shIrr(n,u_sh0),shIrr(n,u_sh1),smoothstep(3.8,4.5,v_world.z));ambD=albedo*(1.-metal)*max(irr,vec3(0.))*(u_ambK/3.14159265);}
+ if(u_hq>.5){vec3 irr=mix(shIrr(n,u_sh0),shIrr(n,u_sh1),smoothstep(u_pz.x,u_pz.y,v_world.z));ambD=albedo*(1.-metal)*max(irr,vec3(0.))*(u_ambK/3.14159265);}
  vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white+ambD;
  vec3 envF=u_hq>.5?envBRDF(F0,rough,nv):F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
  vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF;hdr+=ambS;
  if(ccW>.05&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
   float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);Fv*=ccW;Fc*=ccW;hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white+prefReflection(reflect(-v,n),cr)*Fv;}
+ if(u_vatlas>.5&&u_hq>.5&&u_capture<.5){hdr+=rimLight(normalize(vec3(.55,.35,-.75)),vec3(.35,1.05,1.5)*2.4,n,v,nv,albedo,rough,metal,F0)+rimLight(normalize(vec3(-.6,.25,.6)),vec3(1.5,.82,.42)*1.7,n,v,nv,albedo,rough,metal,F0);}
  hdr+=albedo*u_surface.z;
  outAmb=vec4((ambD+ambS)*u_exposure,rough);
  outColor=u_capture>.5?vec4(clamp(hdr/8.,0.,1.),1.):(u_hdrOut>.5?vec4(hdr*u_exposure,base.a*u_alpha):vec4(tonemap(hdr*u_exposure),base.a*u_alpha));
@@ -173,13 +180,14 @@ function renderLightingShadow(force=false){
  function depth(mesh,m){gl.uniformMatrix4fv(lighting.depthMVP,false,m===id?lighting.lightVP:matMul(lighting.lightVP,m));drawDepthMesh(mesh)}
  const id=identityMatrix();
  // Ceiling fixtures emit below the ceiling: roof/HVAC above fixtures do not occlude them.
- for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&o.center[1]+o.size[1]/2<3.5)depth(o.gpu,id);
+ for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass'&&(o.center[1]+o.size[1]/2<3.5||o.category==='tunnel v2 control room'))depth(o.gpu,id);
  for(const r of scene.roadParts)if(r.gpu)depth(r.gpu,rollerModel(r,rollingState.rollerAngles[scene.roadParts.indexOf(r)]||0));
  for(const p of scene.vehicleParts)if(p.gpu){const i=wheelParts().indexOf(p);depth(p.gpu,i<0?vehicleModel():wheelModel(p,rollingState.wheelAngles[i]||0));}
  lighting.shadowKey=key;lighting.shadowPasses++;if(AETHER.M10)AETHER.M10.shadowPasses=lighting.shadowPasses;
  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);
 }
 function bindLighting(capture=false){
+ if(loc.pz===undefined)loc.pz=gl.getUniformLocation(program,'u_pz');if(loc.pz)gl.uniform2f(loc.pz,TUNNEL_V2.active?6.2:3.8,TUNNEL_V2.active?6.8:4.5);/* where the control-room probe takes over: its wall in the v2 tunnel is z = 6.5 */
  gl.uniform1f(loc.capture,capture?1:0);gl.uniform1f(loc.hdrOut,FX.active&&!capture?1:0);hqBind(capture);gl.uniform1f(loc.shadowEnabled,1);gl.uniform1f(loc.exposure,M10_SETTINGS.exposure);gl.uniformMatrix4fv(loc.lightVP,false,lighting.lightVP);
  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_CUBE_MAP,capture?lighting.dummy:lighting.probes[0]);gl.uniform1i(loc.env0,1);
  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,lighting.shadow);gl.uniform1i(loc.shadowMap,2);

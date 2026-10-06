@@ -96,11 +96,17 @@ let DMC={p:null,v:{}};
 function dm1(name,v){const l=loc[name];if(l===null||l===undefined)return;if(DMC.p!==program){DMC={p:program,v:{}}}if(DMC.v[name]!==v){DMC.v[name]=v;gl.uniform1f(l,v)}}
 function dmi(name,v){const l=loc[name];if(l===null||l===undefined)return;if(DMC.p!==program){DMC={p:program,v:{}}}if(DMC.v[name]!==v){DMC.v[name]=v;gl.uniform1i(l,v)}}
 function dm4(name,a){const l=loc[name];if(l===null||l===undefined)return;if(DMC.p!==program){DMC={p:program,v:{}}}const c=DMC.v[name];if(!c||c[0]!==a[0]||c[1]!==a[1]||c[2]!==a[2]||c[3]!==a[3]){DMC.v[name]=[a[0],a[1],a[2],a[3]];gl.uniform4f(l,a[0],a[1],a[2],a[3])}}
+/* body paint presets: replace the (black) body tile of the vehicle atlas with a flat colour + metallic flake; every other tile (glass, carbon, rims, tyres, decals) is untouched. Colours are sRGB. */
+const PAINT_SET=[['원본(블랙)',null,0,-1],['사파이어 블랙 메탈릭',[.03,.04,.075],.55,.2],['산마리노 블루',[.04,.17,.56],.6,.2],['레이싱 레드',[.62,.025,.035],.3,.18],['펄 화이트',[.86,.87,.9],.3,.2],['시그널 옐로',[.95,.66,.03],.1,.16],['매트 올리브',[.12,.18,.12],0,.62],['그라파이트 건메탈',[.2,.215,.235],.7,.24]];
+const PAINT={idx:Math.max(0,Math.min(PAINT_SET.length-1,+(location.hash.match(/paint=(\d+)/)||[])[1]||0)),set:PAINT_SET,
+ get v(){const q=PAINT_SET[this.idx];return q[1]?[q[1][0],q[1][1],q[1][2],q[2]]:[-1,0,0,0]},get r(){return PAINT_SET[this.idx][3]},
+ select(i){this.idx=Math.max(0,Math.min(PAINT_SET.length-1,i|0))}};
+window.__PAINT=PAINT;
 function drawMesh(mesh,m,material,alpha=1){
  if(OPT.vao)gl.bindVertexArray(meshVao(mesh,'m'));
  else{gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(loc.pos);gl.vertexAttribPointer(loc.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nb);gl.enableVertexAttribArray(loc.normal);gl.vertexAttribPointer(loc.normal,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.ub);gl.enableVertexAttribArray(loc.uv);gl.vertexAttribPointer(loc.uv,2,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib)}
  dm4('color',material.color||[.5,.55,.6,1]);dm4('surface',material.surface||[.72,0,0,.018]);dm1('colorLinear',material.colorLinear?1:0);dm1('alpha',alpha);dm1('useTex',material.texture?1:0);dm1('beltSurface',material.belt?1:0);dm1('beltTravel',material.beltTravel||0);dm1('rollerSurface',material.roller?1:0);
- if(loc.clearcoat)dm1('clearcoat',material.clearcoat?1:0);if(loc.vatlas){dm1('vatlas',material.vatlas?1:0);dm1('vdebug',/vtile=1/.test(location.hash)?1:0)}
+ if(loc.clearcoat)dm1('clearcoat',material.clearcoat?1:0);if(loc.vatlas){dm1('vatlas',material.vatlas?1:0);if(loc.paint){dm4('paint',PAINT.v);dm1('paintR',PAINT.r)}dm1('vdebug',/vtile=1/.test(location.hash)?1:0)}
  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,material.texture||whiteTexture);dmi('tex',0);
  gl.drawElements(gl.TRIANGLES,mesh.count,mesh.type,0);if(OPT.vao)gl.bindVertexArray(null)}
 

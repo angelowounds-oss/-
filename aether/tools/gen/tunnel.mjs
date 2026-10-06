@@ -8,8 +8,12 @@ const D = SPEC.derived;
 
 // materials: engine surface names (src/engine/20-scene-assets.js materialLibrary, plus the v2 additions registered by the loader)
 export const MATERIALS = [
+  { name: 'ControlRoomPaint', base: [.2, .22, .26, 1], metallic: 0, roughness: .55 },
   { name: 'PlenumPaint', base: [.62, .64, .66, 1], metallic: 0, roughness: .62 },
   { name: 'ConcreteFloor', base: [.17, .18, .19, 1], metallic: 0, roughness: .8 },
+  { name: 'PolishedFloor', base: [.045, .05, .058, 1], metallic: 0, roughness: .13 },
+  { name: 'LedCyan', base: [.03, .55, 1, 1], metallic: 0, roughness: .3 },
+  { name: 'LedAmber', base: [1, .38, .05, 1], metallic: 0, roughness: .3 },
   { name: 'AbsorberFoam', base: [.055, .058, .062, 1], metallic: 0, roughness: .97 },
   { name: 'GalvanizedSteel', base: [.50, .53, .56, 1], metallic: .85, roughness: .42 },
   { name: 'NozzleOuter', base: [.74, .76, .78, 1], metallic: 0, roughness: .45 },
@@ -36,7 +40,7 @@ function rrLoop(x, hw, h, r, K = 8, y0 = 0) {
 
 // ---------- plenum shell: floor with a circular turntable hole, walls with openings, ceiling ----------
 function floorMesh() {
-  const S = SPEC, p = S.plenum, t = S.turntable, m = new Mesh('AETHER_TUNNEL_FLOOR', 'ConcreteFloor', { category: 'tunnel floor', role: 'static', solid: false });
+  const S = SPEC, p = S.plenum, t = S.turntable, m = new Mesh('AETHER_TUNNEL_FLOOR', 'PolishedFloor', { category: 'tunnel floor', role: 'static', solid: false });
   const up = [0, 10, 0], N = 96, R = t.r + t.gap, H = t.squareHalf;
   // circle -> square ring (radial correspondence), so the round turntable sits in a square floor module
   const circ = [], sq = [];
@@ -226,7 +230,7 @@ function windowMeshes() {
   frame.box([w.x0 - .12, w.y0 + .002, z - t], [w.x0, w.y1 - .002, z + t]); frame.box([w.x1, w.y0 + .002, z - t], [w.x1 + .12, w.y1 - .002, z + t]);
   for (let k = 1; k < 3; k++) { const x = w.x0 + (w.x1 - w.x0) * k / 3; frame.box([x - .03, w.y0 + .002, z - .04], [x + .03, w.y1 - .002, z + .04]); }
   glass.quad([w.x0, w.y0, z], [w.x1, w.y0, z], [w.x1, w.y1, z], [w.x0, w.y1, z], { toward: [0, 2, 0] });
-  const cr = S.controlRoom, room = new Mesh('AETHER_CONTROL_ROOM_SHELL', 'PlenumPaint', { category: 'control room', role: 'static' });
+  const cr = S.controlRoom, room = new Mesh('AETHER_CONTROL_ROOM_SHELL', 'ControlRoomPaint', { category: 'control room', role: 'static' });
   const rx0 = w.x0 - 1.5, rx1 = w.x1 + 1.5, rz1 = z + cr.depth, ry0 = cr.floorY, ry1 = 3.8, ctr = [(rx0 + rx1) / 2, 2, z + cr.depth / 2];
   room.quad([rx0, ry0, z], [rx1, ry0, z], [rx1, ry0, rz1], [rx0, ry0, rz1], { toward: ctr });
   room.quad([rx0, ry1, z], [rx1, ry1, z], [rx1, ry1, rz1], [rx0, ry1, rz1], { toward: ctr });
@@ -315,11 +319,34 @@ function lightMeshes() {
   return [lights, mark];
 }
 
+// ---------- LED accent lines: walking-boundary guide lines on the floor, a ring around the turntable, outlines around the nozzle exit and the collector mouth ----------
+function ledMeshes() {
+  const S = SPEC, p = S.plenum, n = S.nozzle, c = S.collector, t = S.turntable, dr = S.door;
+  const cy = new Mesh('AETHER_LED_CYAN', 'LedCyan', { category: 'led strip', role: 'static', emissive: true }), am = new Mesh('AETHER_LED_AMBER', 'LedAmber', { category: 'led strip', role: 'static', emissive: true });
+  // floor guide lines at the edge of the walkable band (wedge tips + 0.15 m), interrupted at the access stair
+  const zg = p.zh - p.wedge.depth - .15, x0 = n.x1 + .5, x1 = p.x1 - 1.3, w = .03;
+  for (const sg of [-1, 1]) {
+    const z = sg * zg; if (sg < 0) { cy.box([x0, 0, z - w], [x1, .006, z + w]); continue; }
+    const gap = [dr.x0 - .35, dr.x1 + .35]; cy.box([x0, 0, z - w], [gap[0], .006, z + w]); cy.box([gap[1], 0, z - w], [x1, .006, z + w]);
+  }
+  // ring around the turntable (outside the yellow safety dashes)
+  const r0 = t.r + t.gap + .2, N = 128, q = (r, a) => [r * Math.cos(a), .004, r * Math.sin(a)];
+  for (let i = 0; i < N; i++) { const a0 = i / N * 2 * Math.PI, a1 = (i + 1) / N * 2 * Math.PI; cy.quad(q(r0, a0), q(r0 + .045, a0), q(r0 + .045, a1), q(r0, a1), { toward: [0, 10, 0] }); }
+  // outlines on the walls around the nozzle exit (cyan) and the collector mouth (amber), 0.22 m outside the hole edge
+  const outline = (mesh, wallX, dir, hw, h) => {
+    const th = .05, y1 = h + .22, z1 = hw + .22, a = wallX + dir * .004, b = wallX + dir * .02, lo = Math.min(a, b), hi = Math.max(a, b);
+    mesh.box([lo, 0, -z1 - th], [hi, y1 + th, -z1]); mesh.box([lo, 0, z1], [hi, y1 + th, z1 + th]); mesh.box([lo, y1, -z1 + .002], [hi, y1 + th, z1 - .002]);
+  };
+  const nz = D.nozzleAt(p.x0), ch = D.collectorAt(c.throatX);
+  outline(cy, p.x0, 1, nz.hw + .18, nz.h + .18); outline(am, p.x1, -1, ch.hw + .12, ch.h + .12);
+  return [cy, am];
+}
+
 export function buildTunnel() {
   const parts = [];
   const { walls, ceil, fh, bh } = shellMeshes();
   const w = SPEC.window, win = [w.x0, w.x1, w.y0, w.y1];
-  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...fanRoomMeshes());
+  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...fanRoomMeshes());
   return parts;
 }
 export { rrLoop, D };
