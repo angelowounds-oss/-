@@ -212,6 +212,7 @@ function createGround(fakeLights) {
     uFL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uFC: { value: Array.from({ length: MAXL }, () => new THREE.Vector3()) },
     uWet: { value: 1.0 },
+    uLake: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, 0, 0)) },   // lake rectangles: the ground is cut out there so it cannot z-fight the water
     uRC: { value: Array.from({ length: N + 1 }, (_, i) => roadC(i)) },
     uCut: { value: CUTS.map((c) => new THREE.Vector4(...cutRect(c))) },
     tAsph: { value: groundTex(asphA, true) }, tAsphN: { value: groundTex(asphN, false) },
@@ -223,12 +224,13 @@ function createGround(fakeLights) {
     vertexMain: 'vWP=(modelMatrix*vec4(transformed,1.)).xyz;',
     fragDecl: `${GLSL_NOISE}
       varying vec3 vWP;uniform float uTime,uWet,uNight;uniform vec4 uFL[${MAXL}];uniform vec3 uFC[${MAXL}];
-      uniform sampler2D tAsph,tAsphN,tPave,tPaveN;
+      uniform sampler2D tAsph,tAsphN,tPave,tPaveN;uniform vec4 uLake[4];
       float fRough,fMetal;vec3 fEmit;float fPud;vec2 fN=vec2(0.);
       const int NRC=${N};uniform float uRC[${N + 1}];uniform vec4 uCut[${CUTS.length}];
       const float PP=${P}.,RR=${R}.,HH=${HALF}.,SWW=${SW}.,PRO=${(HALF + P - R / 2 + 2 + MODEL_PROM + MODEL_W + 30).toFixed(1)};`,
     fragMain: `
       vec2 p=vWP.xz;
+      for(int k=0;k<4;k++){vec4 L=uLake[k];if(p.x>L.x&&p.x<L.z&&p.y>L.y&&p.y<L.w)discard;}
       float rdx=1e9,rdz=1e9,ix=0.,iz=0.;for(int k=0;k<=NRC;k++){float dx=abs(p.x-uRC[k]);if(dx<rdx){rdx=dx;ix=float(k);}float dz=abs(p.y-uRC[k]);if(dz<rdz){rdz=dz;iz=float(k);}}vec2 dr=vec2(rdx,rdz);
       bool inC=abs(p.x)<=HH+RR*.5&&abs(p.y)<=HH+RR*.5;
       bool rx=dr.x<RR*.5,rz=dr.y<RR*.5;
@@ -1409,6 +1411,7 @@ function buildEntrances(world, scene) {
 let causticTex = null;
 function buildWaters(world, scene) {
   if (!causticTex) causticTex = groundTex(causticUrl, false);
+  world.waters.slice(0, 4).forEach((w, i) => world.ground.userData.uniforms.uLake.value[i].set(w.x0, w.z0, w.x1, w.z1));
   for (const w of world.waters) {
     const W = w.x1 - w.x0, D = w.z1 - w.z0;
     const mat = new THREE.ShaderMaterial({
@@ -1475,7 +1478,7 @@ function buildWaters(world, scene) {
     });
     liveUniforms(mat); liveUniforms(floorMat);
     const fm = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), floorMat);
-    fm.position.set((w.x0 + w.x1) / 2, w.y - 0.02, (w.z0 + w.z1) / 2); fm.renderOrder = 0; scene.add(fm);
+    fm.position.set((w.x0 + w.x1) / 2, w.y - 0.4, (w.z0 + w.z1) / 2); fm.renderOrder = 0; scene.add(fm);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 1, 1).rotateX(-Math.PI / 2), mat);
     m.position.set((w.x0 + w.x1) / 2, w.y, (w.z0 + w.z1) / 2); m.renderOrder = 1; scene.add(m); w.mesh = m;
   }
