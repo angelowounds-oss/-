@@ -1420,7 +1420,7 @@ function buildWaters(world, scene) {
         uniform vec4 uRip[12];
         // moving swimmers / boats: each slot is an expanding ring packet that fades out (spreads at ~2 m/s, ~3 s life)
         float rip(vec2 p){float s=0.;for(int i=0;i<12;i++){vec4 q=uRip[i];float age=uTime-q.z;if(age<0.||age>3.2)continue;float r=length(p-q.xy),f=age*2.1,d=r-f;
-          s+=q.w*sin(d*8.5)*exp(-d*d*1.1)*exp(-age*.9)/(1.+r*0.0+ (f*.55));}return s*.05;}
+          s+=q.w*sin(d*8.5)*exp(-d*d*1.1)*exp(-age*.9)/(1.+r*0.0+ (f*.55));}return s*.1;}
         float hgt(vec2 p){float t=uTime*.05;return fbm(p*.42+vec2(t*5.,t*2.))*.6+fbm(p*.95-vec2(t*3.,-t*4.))*.4+rip(p);}
         void main(){
           vec2 p=vP.xz;float t=uTime*.05;
