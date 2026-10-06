@@ -545,10 +545,15 @@ function createSignAtlas() {
   return tex;
 }
 
+// ripples on the lake surfaces: 12 ring-buffer slots (x, z, birth time, amplitude), drawn by the water shader as expanding wave packets
+export const ripU = { value: Array.from({ length: 12 }, () => new THREE.Vector4(0, 0, -100, 0)) };
+let ripN = 0;
+export function addRipple(x, z, amp = 1) { ripU.value[ripN++ % 12].set(x, z, timeUniform.value, amp); }
+
 // UniformsUtils.merge copies {value} objects, which would freeze uTime/uNight at their initial values: re-link the shared ones
 function liveUniforms(mat) {
   const u = mat.uniforms;
-  if (u.uTime) u.uTime = timeUniform; if (u.uNight) u.uNight = nightU; if (u.uSun) u.uSun = skyU.uSun; if (u.uMoon) u.uMoon = skyU.uMoon;
+  if (u.uTime) u.uTime = timeUniform; if (u.uNight) u.uNight = nightU; if (u.uSun) u.uSun = skyU.uSun; if (u.uMoon) u.uMoon = skyU.uMoon; if (u.uRip) u.uRip = ripU;
   return mat;
 }
 
@@ -1407,12 +1412,16 @@ function buildWaters(world, scene) {
     const W = w.x1 - w.x0, D = w.z1 - w.z0;
     const mat = new THREE.ShaderMaterial({
       fog: true, transparent: true, depthWrite: false,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, tCaus: { value: causticTex }, uSun: skyU.uSun, uMoon: skyU.uMoon }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, tCaus: { value: causticTex }, uSun: skyU.uSun, uMoon: skyU.uMoon, uRip: { value: ripU.value } }]),
       vertexShader: 'varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vP=(modelMatrix*vec4(position,1.)).xyz;vec4 mvPosition=viewMatrix*vec4(vP,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
       fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;uniform vec4 uRect;uniform sampler2D tCaus;uniform vec3 uSun,uMoon;varying vec3 vP;
         #include <fog_pars_fragment>
         // wave height: two drifting noise layers (the add-on animates a 4D noise; the W axis becomes this slow drift)
-        float hgt(vec2 p){float t=uTime*.05;return fbm(p*.42+vec2(t*5.,t*2.))*.6+fbm(p*.95-vec2(t*3.,-t*4.))*.4;}
+        uniform vec4 uRip[12];
+        // moving swimmers / boats: each slot is an expanding ring packet that fades out (spreads at ~2 m/s, ~3 s life)
+        float rip(vec2 p){float s=0.;for(int i=0;i<12;i++){vec4 q=uRip[i];float age=uTime-q.z;if(age<0.||age>3.2)continue;float r=length(p-q.xy),f=age*2.1,d=r-f;
+          s+=q.w*sin(d*8.5)*exp(-d*d*1.1)*exp(-age*.9)/(1.+r*0.0+ (f*.55));}return s*.05;}
+        float hgt(vec2 p){float t=uTime*.05;return fbm(p*.42+vec2(t*5.,t*2.))*.6+fbm(p*.95-vec2(t*3.,-t*4.))*.4+rip(p);}
         void main(){
           vec2 p=vP.xz;float t=uTime*.05;
           float e=.1,h=hgt(p),hx=hgt(p+vec2(e,0.)),hz=hgt(p+vec2(0.,e));

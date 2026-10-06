@@ -102,6 +102,7 @@ export class Audio {
   impact(vol = 1, pan = 0) { if (!this.ctx) return; const d = this.pan(pan); this.noiseShot(0.12, 'highpass', 3000, 0.35 * vol, 1, d); this.tone(1800, 0.06, 'square', 0.05 * vol, 600, d); }
   hitMarker() { this.tone(1400, 0.05, 'square', 0.08); this.tone(2100, 0.05, 'square', 0.06, 0, null, 0.04); }
   reload() { this.noiseShot(0.05, 'highpass', 2000, 0.3); this.tone(300, 0.06, 'square', 0.1, 150, null, 0.45); this.noiseShot(0.08, 'highpass', 1500, 0.35, 1, null, 0.9); }
+  splash(v = 1) { if (!this.ctx) return; this.noiseShot(0.35 + 0.3 * v, 'lowpass', 1800, 0.35 * v, 0.6, null, 0, 300); this.noiseShot(0.12, 'highpass', 2500, 0.15 * v, 1); this.tone(140, 0.18, 'sine', 0.18 * v, 60); }
   pump() { this.noiseShot(0.05, 'highpass', 1500, 0.3); this.tone(180, 0.06, 'square', 0.14, 90, null, 0.02); this.tone(240, 0.05, 'square', 0.12, 120, null, 0.2); this.noiseShot(0.06, 'highpass', 1800, 0.3, 1, null, 0.2); }
   bolt() { this.tone(500, 0.04, 'square', 0.12, 250); this.noiseShot(0.07, 'highpass', 2200, 0.25, 1, null, 0.04); this.tone(320, 0.05, 'square', 0.14, 160, null, 0.3); this.noiseShot(0.06, 'highpass', 2000, 0.28, 1, null, 0.3); }
   // per-weapon reload: magazine out, magazine in, slide/bolt

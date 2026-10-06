@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addRipple } from './world.js';
 import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
@@ -430,6 +431,18 @@ export class Game {
     const wat = this.waterAt(pl.x, pl.z);
     const swim = wat && wat.y - pl.y > 0.95;
     pl.swimming = !!swim;
+    // wake: rings spread from a swimmer / wader, stronger the faster they move; a splash when going in
+    {
+      const inWater = wat && pl.y < wat.y + 0.15, wasIn = this._wasIn;
+      if (inWater && !wasIn) { addRipple(pl.x, pl.z, 2.4); this.audio.splash?.(1); this.fx.sparks?.(pl.x, wat.y + 0.1, pl.z, 10, [0.7, 0.9, 1], 3); }
+      this._wasIn = !!inWater;
+      if (inWater) {
+        this._ripT = (this._ripT || 0) - dt;
+        const sp = Math.hypot(pl.vx, pl.vz);
+        if (this._ripT <= 0 && sp > 0.35) { addRipple(pl.x, pl.z, clamp(0.5 + sp * 0.16, 0.5, 1.7)); this._ripT = clamp(0.34 - sp * 0.025, 0.12, 0.34); if (swim && sp > 1) this.audio.splash?.(0.35); }
+        else if (this._ripT <= 0 && swim) { addRipple(pl.x, pl.z, 0.3); this._ripT = 0.9; }   // treading water
+      }
+    }
     let impact = 0;
     if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
     else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching ? 7.2 : 0);
@@ -1054,6 +1067,9 @@ export class Game {
     for (const v of active) v.post(dt);
     this.phys.syncProps(THREE);
     this.vehicleVsHumans();
+    // boats and anything else afloat leave a wake
+    this._wakeT = (this._wakeT || 0) - dt;
+    if (this._wakeT <= 0) { this._wakeT = 0.2; for (const v of active) { const w = v.speed > 1.2 && this.waterAt(v.x, v.z); if (w) addRipple(v.x, v.z, clamp(v.speed * 0.12, 0.4, 1.8)); } }
     // keep traffic population
     this.popT = (this.popT || 0) - dt;
     if (this.popT <= 0) {
