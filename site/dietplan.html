@@ -3,13 +3,13 @@
 <title>다이어트 기간 계산기 - 목표 체중 도달 시기</title><meta name="description" content="현재 체중, 목표 체중, 주당 감량 속도로 걸리는 기간과 하루 필요 칼로리 적자를 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/dietplan.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>다이어트 기간 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="c">현재 체중 (kg)</label><input type="number" id="c" value="75" step="any"><label for="t">목표 체중 (kg)</label><input type="number" id="t" value="68" step="any"><label for="w">주당 감량 목표 (kg)</label><input type="number" id="w" value="0.5" step="0.1"><div class="result" id="r"></div></div><h2>계산 기준</h2><p>체지방 1kg을 약 7,700kcal로 보고 계산한 단순 추정입니다. 실제로는 체중 감소에 따라 대사량이 변하고 수분 변동도 있습니다. 급격한 감량이나 질환이 있다면 전문가와 상담하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>주당 얼마가 적당한가요?</h3><p>보통 체중의 0.5~1% 이내가 권장되는 경우가 많습니다.</p><h3>정체기는요?</h3><p>대사 적응과 수분 변동으로 생길 수 있어 계획에 여유를 두세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
-<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
@@ -28,4 +28,11 @@ document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
 run();</script>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "주당 얼마가 적당한가요?", "acceptedAnswer": {"@type": "Answer", "text": "보통 체중의 0.5~1% 이내가 권장되는 경우가 많습니다."}}, {"@type": "Question", "name": "정체기는요?", "acceptedAnswer": {"@type": "Answer", "text": "대사 적응과 수분 변동으로 생길 수 있어 계획에 여유를 두세요."}}]}</script></body></html>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "주당 얼마가 적당한가요?", "acceptedAnswer": {"@type": "Answer", "text": "보통 체중의 0.5~1% 이내가 권장되는 경우가 많습니다."}}, {"@type": "Question", "name": "정체기는요?", "acceptedAnswer": {"@type": "Answer", "text": "대사 적응과 수분 변동으로 생길 수 있어 계획에 여유를 두세요."}}]}</script><!--cj--><script>(function(){try{var c=localStorage.getItem('accent');if(c)document.documentElement.style.setProperty('--lime',c)}catch(e){}
+document.querySelectorAll('.theme button').forEach(function(b){b.style.background=b.dataset.c;b.addEventListener('click',function(){document.documentElement.style.setProperty('--lime',b.dataset.c);try{localStorage.setItem('accent',b.dataset.c)}catch(e){}})});
+var out=document.getElementById('out'),r=document.querySelector('.result')||out;
+if(r&&!r.querySelector('button')&&!document.querySelector('.hero')){var host=out||r.closest('.card')||r;var b=document.createElement('button');b.type='button';b.className='sharebtn';b.textContent='결과 복사해서 공유';host.insertAdjacentElement('afterend',b);
+b.addEventListener('click',function(){var body=out?out.innerText.trim():Array.prototype.map.call(document.querySelectorAll('.result'),function(e){return e.innerText.trim()}).filter(Boolean).join('\n');
+var t=document.title.split(' - ')[0]+'\n'+body+'\n'+location.href;var done=function(){b.textContent='복사됨'};
+var fb=function(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()})}})();</script><!--/cj--></body></html>

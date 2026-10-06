@@ -3,13 +3,13 @@
 <title>연장·야간·휴일수당 계산기 - 가산수당 합계</title><meta name="description" content="통상시급과 연장, 야간, 휴일 근무시간으로 가산수당을 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/overtime.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>연장·야간·휴일수당 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="h">통상시급 (원)</label><input type="number" id="h" value="12000" step="any"><label for="ot">연장근로 시간 (1일 8시간·주 40시간 초과분)</label><input type="number" id="ot" value="10" step="any"><label for="nt">야간근로 시간 (22시~06시)</label><input type="number" id="nt" value="5" step="any"><label for="h1">휴일근로 시간 (8시간 이내)</label><input type="number" id="h1" value="8" step="any"><label for="h2">휴일근로 시간 (8시간 초과)</label><input type="number" id="h2" value="2" step="any"><div class="result" id="r"></div></div><h2>가산율</h2><p>5인 이상 사업장 기준으로 연장·야간은 통상임금의 50% 가산, 휴일은 8시간 이내 50%, 초과 100% 가산입니다. 연장근로 시간이 야간이기도 하면 가산이 겹칠 수 있는데, 이 계산기는 야간은 추가 가산분(50%)만 따로 더합니다. 지급액은 근로계약과 관련 법령에 따릅니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>5인 미만 사업장은요?</h3><p>가산수당 규정이 적용되지 않을 수 있습니다.</p><h3>포괄임금제는요?</h3><p>수당이 급여에 포함되어 있으면 별도로 받지 않습니다. 계약서를 확인하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
-<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
@@ -28,4 +28,11 @@ document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
 run();</script>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "5인 미만 사업장은요?", "acceptedAnswer": {"@type": "Answer", "text": "가산수당 규정이 적용되지 않을 수 있습니다."}}, {"@type": "Question", "name": "포괄임금제는요?", "acceptedAnswer": {"@type": "Answer", "text": "수당이 급여에 포함되어 있으면 별도로 받지 않습니다. 계약서를 확인하세요."}}]}</script></body></html>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "5인 미만 사업장은요?", "acceptedAnswer": {"@type": "Answer", "text": "가산수당 규정이 적용되지 않을 수 있습니다."}}, {"@type": "Question", "name": "포괄임금제는요?", "acceptedAnswer": {"@type": "Answer", "text": "수당이 급여에 포함되어 있으면 별도로 받지 않습니다. 계약서를 확인하세요."}}]}</script><!--cj--><script>(function(){try{var c=localStorage.getItem('accent');if(c)document.documentElement.style.setProperty('--lime',c)}catch(e){}
+document.querySelectorAll('.theme button').forEach(function(b){b.style.background=b.dataset.c;b.addEventListener('click',function(){document.documentElement.style.setProperty('--lime',b.dataset.c);try{localStorage.setItem('accent',b.dataset.c)}catch(e){}})});
+var out=document.getElementById('out'),r=document.querySelector('.result')||out;
+if(r&&!r.querySelector('button')&&!document.querySelector('.hero')){var host=out||r.closest('.card')||r;var b=document.createElement('button');b.type='button';b.className='sharebtn';b.textContent='결과 복사해서 공유';host.insertAdjacentElement('afterend',b);
+b.addEventListener('click',function(){var body=out?out.innerText.trim():Array.prototype.map.call(document.querySelectorAll('.result'),function(e){return e.innerText.trim()}).filter(Boolean).join('\n');
+var t=document.title.split(' - ')[0]+'\n'+body+'\n'+location.href;var done=function(){b.textContent='복사됨'};
+var fb=function(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()})}})();</script><!--/cj--></body></html>

@@ -11,7 +11,7 @@ CATS = [
     ("fin", "금융·투자"), ("pay", "세금·급여"), ("biz", "부업·사업"), ("life", "부동산·생활"),
     ("date", "날짜·시간"), ("health", "건강·운동"), ("tool", "도구·변환"),
 ]
-CATS.insert(0, ("fun", "소비 환산"))
+CATS.insert(0, ("fun", "갓생·소비"))
 
 # slug, title, category, one-line description  (existing hand-written pages first)
 REG = [
@@ -667,6 +667,44 @@ tool("sms", "문자 길이(SMS·LMS) 계산기", "tool", "90바이트 기준", "
  "<h2>기준</h2><p>일반적인 문자 서비스는 90바이트 이하를 단문, 그 이상을 장문으로 처리하며 한글은 2바이트, 영문·숫자·공백은 1바이트로 계산합니다. 발송 서비스마다 기준이 다를 수 있습니다.</p>",
  [("이모지는요?", "이모지는 2바이트 이상으로 처리되거나 발송이 안 될 수 있어 서비스 안내를 확인하세요."), ("MMS는요?", "사진이 포함되면 멀티미디어 문자(MMS)입니다.")])
 
+# ================= 갓생·소비 (MZ) =================
+tool("realhourly", "진짜 시급 계산기", "fun", "통근·야근 포함 내 시급", "월급을 회사에 묶인 시간(통근, 준비, 점심, 야근 포함)으로 나눠 진짜 시급을 계산합니다.",
+ [N("pay", "세후 월급 (원)", 2800000), N("days", "주 출근일수", 5, "0.5"), N("work", "하루 근무시간 (점심 제외)", 8, "0.5"), N("lunch", "점심시간 (분)", 60),
+  N("com", "통근 편도 (분)", 50), N("prep", "출근 준비 (분)", 40), N("ot", "한 달 평균 야근 (시간, 무급)", 10)],
+ r'''const d=v.days*4.345;if(!(d>0&&v.work>0))return '';const per=v.work+v.lunch/60+v.com*2/60+v.prep/60,tot=d*per+v.ot,nom=v.pay/(d*v.work);
+return '<b>진짜 시급 '+W(v.pay/tot)+'</b><br>월급÷근무시간으로 보면 '+W(nom)+'<br><small>하루 '+N2(per,1)+'시간을 회사에 쓰고 있어요 · 한 달 '+N2(tot,0)+'시간</small>';''',
+ "<h2>왜 다르게 나와요?</h2><p>월급을 계약 근로시간으로만 나누면 출퇴근길, 씻고 준비하는 시간, 점심시간, 무급 야근이 빠집니다. 회사 때문에 쓰는 시간을 모두 넣으면 진짜 시급이 훨씬 낮게 나올 수 있어요. 이직이나 재택 근무를 비교할 때 참고해 보세요.</p>",
+ [("통근 시간도 일한 시간인가요?", "법적으로 근로시간은 아니지만 내 시간을 쓰는 건 맞아서 비교용으로 포함했어요."), ("재택이면?", "통근과 준비를 0에 가깝게 넣어 보세요.")])
+
+tool("freetime", "퇴근 후 내 시간 계산기", "fun", "하루 자유시간 얼마나 남을까", "기상과 취침, 출퇴근, 통근 시간을 넣고 하루에 진짜 내 마음대로 쓸 수 있는 시간이 얼마나 남는지 계산합니다.",
+ [TM("wake", "일어나는 시각", "07:00"), TM("sleep", "자는 시각", "00:00"), TM("in", "출근 시각", "09:00"), TM("out", "퇴근 시각", "18:00"), N("com", "통근 편도 (분)", 50), N("must", "씻기·식사·집안일 (분/일)", 150)],
+ r'''const f=s=>{const a=s.split(':').map(Number);return a[0]*60+a[1]},mod=x=>((x%1440)+1440)%1440;if(!v.wake||!v.sleep||!v.in||!v.out)return '';
+const awake=mod(f(v.sleep)-f(v.wake))||1440,work=mod(f(v.out)-f(v.in)),free=awake-work-v.com*2-v.must;if(free<0)return '시간이 모자라요. 입력을 확인해 주세요.';
+return '<b>하루 '+Math.floor(free/60)+'시간 '+(free%60)+'분</b>이 진짜 내 시간<br>깨어 있는 '+N2(awake/60,1)+'시간 중 '+N2(free/awake*100,0)+'%<br><small>평일 5일이면 일주일에 '+N2(free*5/60,1)+'시간 · 1년이면 약 '+N2(free*5*52/1440,0)+'일치</small>';''',
+ "<h2>갓생은 시간 계산부터</h2><p>퇴근 후 운동, 공부, 부업을 하려면 먼저 내가 쓸 수 있는 시간이 얼마인지 알아야 해요. 통근이 길수록, 씻고 먹는 시간이 길수록 자유시간이 크게 줄어듭니다.</p>",
+ [("잠자는 시간은 포함되나요?", "아니요. 깨어 있는 시간에서 근무, 통근, 필수 생활시간을 뺀 시간입니다."), ("주말은요?", "주말은 근무와 통근이 없어서 훨씬 많아요. 평일 기준으로만 계산했어요.")])
+
+tool("latestart", "늦게 시작한 대가 계산기", "fun", "투자 시작 시기 차이", "같은 금액을 매달 투자해도 몇 살에 시작했는지에 따라 목표 나이의 자산이 얼마나 달라지는지 비교합니다.",
+ [N("m", "매달 투자액 (원)", 500000), N("r", "연 수익률 (%)", 6, "0.1"), N("a", "일찍 시작한 나이", 25, "1"), N("b", "늦게 시작한 나이", 35, "1"), N("t", "목표 나이", 60, "1")],
+ r'''const i=v.r/1200,fv=n=>n<=0?0:(i===0?v.m*n:v.m*(Math.pow(1+i,n)-1)/i);if(!(v.t>v.b&&v.b>=v.a))return '일찍 ≤ 늦게 < 목표 나이로 입력해 주세요.';
+const A=fv((v.t-v.a)*12),B=fv((v.t-v.b)*12);return v.a+'세 시작 <b>'+W(A)+'</b><br>'+v.b+'세 시작 <b>'+W(B)+'</b><br>차이 <b>'+W(A-B)+'</b><br><small>원금 차이는 '+W(v.m*(v.b-v.a)*12)+', 나머지는 복리의 힘이에요</small>';''',
+ "<h2>시간이 돈이에요</h2><p>투자에서는 금액만큼 기간이 중요해요. 같은 수익률이라도 일찍 시작한 쪽은 원금이 더 많을 뿐 아니라 이자에 이자가 오래 붙습니다. 수익률은 매년 달라지고 손실도 날 수 있어요. 세금과 수수료는 반영하지 않았습니다.</p>",
+ [("지금 시작해도 늦지 않았나요?", "계산 결과가 말해 주듯 빠를수록 유리하지만, 오늘이 앞으로 가장 이른 날이에요."), ("수익률은 몇 %로 넣나요?", "보수적으로 3~6%대로 넣어 보세요. 확정 수익이 아니에요.")])
+
+tool("nospend", "무지출 챌린지 계산기", "fun", "아낀 돈이 나중엔", "하루 평균 쓰던 돈을 며칠 안 쓰면 얼마가 남는지, 그 돈을 모아 투자하면 나중에 얼마가 되는지 계산합니다.",
+ [N("d", "하루 평균 쓰던 돈 (원)", 15000), N("n", "무지출 일수", 30, "1"), N("r", "연 수익률 (%)", 5, "0.1"), N("y", "몇 년 모으면", 10, "1")],
+ r'''const s=v.d*v.n,i=v.r/1200,mo=v.y*12,fv=i===0?s*mo:s*(Math.pow(1+i,mo)-1)/i;
+return '이번 챌린지로 <b>'+W(s)+'</b> 아껴요<br>매달 이렇게 해서 '+v.y+'년 모으면 <b>'+W(fv)+'</b><br><small>그중 원금 '+W(s*mo)+'</small>';''',
+ "<h2>무리 말고 가볍게</h2><p>무지출은 스트레스가 쌓이면 오래 못 갑니다. 평소 쓰던 금액을 기준으로 현실적인 일수를 정해 보세요. 수익률은 확정된 값이 아니고 세금과 수수료는 반영하지 않았어요.</p>",
+ [("매달 하면 너무 빡센데요?", "일수를 줄이거나 하루 금액을 낮춰서 계산해 보세요."), ("투자는 안 하고 저금만 하면?", "수익률을 0으로 두면 저금만 한 금액이 나와요.")])
+
+tool("daybudget", "월급 하루 생활비 계산기", "fun", "다음 월급까지 하루 얼마", "남은 돈과 다음 월급일로 오늘부터 하루에 쓸 수 있는 금액을 계산합니다.",
+ [N("left", "지금 남은 생활비 (원)", 600000), DT("pay", "다음 월급일", "+12"), N("today", "오늘 이미 쓴 돈 (원)", 0)],
+ r'''const t=P(TODAY),p=P(v.pay),days=DAYS(t,p);if(!(days>0))return '다음 월급일이 오늘 이후여야 해요.';const rest=v.left-v.today,per=rest/days;
+if(rest<0)return '이미 남은 돈보다 더 썼어요.';return '월급까지 <b>'+days+'일</b><br>하루 <b>'+W(per)+'</b> · 일주일 '+W(per*7)+'<br><small>오늘 '+W(per)+'을 다 쓰면 내일도 같은 금액이에요. 더 쓰면 남은 날이 빠듯해져요.</small>';''',
+ "<h2>사용 방법</h2><p>월급날 직전에 통장이 비는 일을 줄이려면 남은 돈을 남은 날로 나눠 보세요. 고정 지출은 이미 빠진 금액을 넣어야 정확해요. 오늘 쓴 돈을 넣으면 내일부터 쓸 수 있는 금액이 줄어드는 것도 볼 수 있어요.</p>",
+ [("월급일이 주말이면?", "실제 입금일을 입력하세요."), ("카드값은요?", "나갈 카드값을 미리 빼고 남은 돈을 입력하세요.")])
+
 # ---------- rendering ----------
 HELPERS = r'''const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
@@ -679,10 +717,12 @@ const pad=n=>String(n).padStart(2,'0');
 const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());'''
 
 def nav():
-    return ('<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a>'
+    return ('<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#student">대학생 필수</a>'
             '<a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>')
 
 FOOT = ('<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span>'
+        '<span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button>'
+        '<button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span>'
         '<span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>')
 
 def related(slug, cat):
@@ -762,12 +802,22 @@ STUDENT = [
     ("dday", "D-", "D-day", "시험일·기념일까지 며칠", "#cdb8ff", "-1deg"),
 ]
 
+MZ = [
+    ("realhourly", "₩/h", "진짜 시급", "통근·야근까지 넣으면?", "#c8f542", "-1deg"),
+    ("freetime", "24h", "퇴근 후 내 시간", "하루 자유시간 얼마나 남지", "#7ee0ff", "1.2deg"),
+    ("latestart", "+10y", "늦게 시작한 대가", "투자 시작 시기 차이", "#ffe14d", "-.8deg"),
+    ("nospend", "0₩", "무지출 챌린지", "아낀 돈이 나중엔", "#ff9ec7", "1deg"),
+    ("daybudget", "/일", "월급 하루 생활비", "다음 월급까지 하루 얼마", "#cdb8ff", "-1.4deg"),
+]
+
 def render_index():
     by = {k: [] for k, _ in CATS}
     for s, ti, c, d in REG: by[c].append((s, ti, d))
     n = len(REG)
     stu = "".join(f'<a href="{s}.html" class="press" style="--bg:{bg};--t:{tl}"><span class="gl">{g}</span><b>{nm}</b><span>{d}</span></a>'
                   for s, g, nm, d, bg, tl in STUDENT)
+    mzs = "".join(f'<a href="{s}.html" class="press" style="--bg:{bg};--t:{tl}"><span class="gl">{g}</span><b>{nm}</b><span>{d}</span></a>'
+                  for s, g, nm, d, bg, tl in MZ)
     groups = ""
     for k, nm in CATS:
         if not by[k]: continue
@@ -784,6 +834,8 @@ def render_index():
             '<div><span>매일 마시면 1년</span><b>A4 2.1장</b></div>'
             '<div><span>끊으면 집 마련</span><mark>12년 1개월 단축</mark></div></div>'
             '<div class="go">내 소비 넣어보기 →</div></a></section>'
+            '<section id="mz"><div class="sec-h"><h2>갓생러 필수 계산기</h2><span class="note-hand">퇴근하고 나서의 나를 계산해봐요</span></div>'
+            f'<div class="stu">{mzs}</div></section>'
             '<section id="student"><div class="sec-h"><h2>대학생 필수 계산기</h2><span class="note-hand">시험기간에 제일 많이 눌러요</span></div>'
             f'<div class="stu">{stu}</div></section>'
             '<section id="all"><div class="sec-h"><h2>전체 계산기</h2><span class="note-hand">분야별로 쭉 훑어보기</span></div>'
@@ -793,7 +845,7 @@ def render_index():
 function apply(){const s=q.value.trim().toLowerCase();let any=false;
 document.querySelectorAll('.pill').forEach(a=>{const ok=!s||a.dataset.q.toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
 document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.pill')].every(r=>r.hidden)});
-document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.querySelector('.feat').hidden=!!s}
+document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.getElementById('mz').hidden=!!s;document.querySelector('.feat').hidden=!!s}
 q.addEventListener('input',apply);
 document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q){e.preventDefault();q.focus()}})})();</script>'''
     write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"학점, 글자수, 알바 시급, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
@@ -806,6 +858,22 @@ def static_pages():
         '<div class="card"><h2 style="margin-top:0">서비스 이용</h2><p>이 사이트의 계산기는 누구나 무료로 이용할 수 있습니다.</p>'
         '<h2>면책</h2><p>제공되는 계산 결과는 일반적인 정보 제공이 목적이며, 정확성이나 특정 목적에의 적합성을 보증하지 않습니다. 계산 결과를 근거로 한 판단과 그 결과에 대한 책임은 이용자에게 있습니다.</p>'
         '<h2>광고</h2><p>사이트 운영을 위해 광고가 게재될 수 있습니다.</p></div>'))
+
+COMMON_JS = r"""(function(){try{var c=localStorage.getItem('accent');if(c)document.documentElement.style.setProperty('--lime',c)}catch(e){}
+document.querySelectorAll('.theme button').forEach(function(b){b.style.background=b.dataset.c;b.addEventListener('click',function(){document.documentElement.style.setProperty('--lime',b.dataset.c);try{localStorage.setItem('accent',b.dataset.c)}catch(e){}})});
+var out=document.getElementById('out'),r=document.querySelector('.result')||out;
+if(r&&!r.querySelector('button')&&!document.querySelector('.hero')){var host=out||r.closest('.card')||r;var b=document.createElement('button');b.type='button';b.className='sharebtn';b.textContent='결과 복사해서 공유';host.insertAdjacentElement('afterend',b);
+b.addEventListener('click',function(){var body=out?out.innerText.trim():Array.prototype.map.call(document.querySelectorAll('.result'),function(e){return e.innerText.trim()}).filter(Boolean).join('\n');
+var t=document.title.split(' - ')[0]+'\n'+body+'\n'+location.href;var done=function(){b.textContent='복사됨'};
+var fb=function(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()})}})();"""
+
+def inject_common():
+    for fn in glob.glob(os.path.join(OUT, "*.html")):
+        s = open(fn, encoding="utf-8").read()
+        s = re.sub(r"<!--cj-->.*?<!--/cj-->", "", s, flags=re.S)
+        s = s.replace("</body>", "<!--cj--><script>" + COMMON_JS + "</script><!--/cj--></body>", 1)
+        open(fn, "w", encoding="utf-8").write(s)
 
 def refresh_existing():
     new = {t["slug"] + ".html" for t in TOOLS} | {"index.html", "about.html", "terms.html"}
@@ -831,5 +899,5 @@ def css():
 
 if __name__ == "__main__":
     for t in TOOLS: render_tool(t)
-    render_index(); static_pages(); refresh_existing(); css(); sitemap()
+    render_index(); static_pages(); refresh_existing(); inject_common(); css(); sitemap()
     print(len(REG), "tools in registry,", len(TOOLS), "generated")

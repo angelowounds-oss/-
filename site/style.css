@@ -82,3 +82,8 @@ footer a{color:#fff}
 #empty{padding:28px 0;color:var(--muted);text-align:center}
 .lead{color:var(--muted)}
 @media(max-width:640px){.sform{flex-direction:row}.feat{transform:rotate(1deg)}.sec-h h2{font-size:28px}.hero p{font-size:17px}}
+.sharebtn{display:block;margin:0 0 16px;background:var(--lime);color:#141414;box-shadow:4px 4px 0 var(--ink)}
+.sharebtn:hover{box-shadow:1px 1px 0 var(--ink)}
+footer .theme{display:flex;align-items:center;gap:8px;font-size:13px;color:#cfcfe0}
+footer .theme button{width:24px;height:24px;border-radius:50%;padding:0;margin:0;border:2px solid #fff;box-shadow:none}
+footer .theme button:hover{transform:scale(1.15);box-shadow:none}

@@ -3,13 +3,13 @@
 <title>단백질 섭취량 계산기 - 목표별 하루 권장량</title><meta name="description" content="체중과 목표(일반, 운동, 근성장, 감량)에 따라 하루 단백질 권장 범위를 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/protein.html">
 <link rel="stylesheet" href="style.css"></head><body>
-<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>단백질 섭취량 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="w">체중 (kg)</label><input type="number" id="w" value="70" step="any"><label for="g">목표</label><select id="g"><option value="0.8:1.0">일반 건강 유지</option><option value="1.2:1.6">규칙적 운동</option><option value="1.6:2.2">근육 증가</option><option value="1.6:2.0">체중 감량 중 근손실 방지</option></select><div class="result" id="r"></div></div><h2>안내</h2><p>체중 1kg당 g으로 계산한 일반적인 범위입니다. 신장 질환이 있거나 특별한 식이 제한이 있으면 의료진과 상담하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>한 끼에 몰아서 먹어도 되나요?</h3><p>여러 끼에 나눠 먹는 편이 흡수에 유리하다는 의견이 많습니다.</p><h3>보충제가 꼭 필요한가요?</h3><p>식사로 채울 수 있으면 필수는 아닙니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
-<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
@@ -27,4 +27,11 @@ document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
 run();</script>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "한 끼에 몰아서 먹어도 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "여러 끼에 나눠 먹는 편이 흡수에 유리하다는 의견이 많습니다."}}, {"@type": "Question", "name": "보충제가 꼭 필요한가요?", "acceptedAnswer": {"@type": "Answer", "text": "식사로 채울 수 있으면 필수는 아닙니다."}}]}</script></body></html>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "한 끼에 몰아서 먹어도 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "여러 끼에 나눠 먹는 편이 흡수에 유리하다는 의견이 많습니다."}}, {"@type": "Question", "name": "보충제가 꼭 필요한가요?", "acceptedAnswer": {"@type": "Answer", "text": "식사로 채울 수 있으면 필수는 아닙니다."}}]}</script><!--cj--><script>(function(){try{var c=localStorage.getItem('accent');if(c)document.documentElement.style.setProperty('--lime',c)}catch(e){}
+document.querySelectorAll('.theme button').forEach(function(b){b.style.background=b.dataset.c;b.addEventListener('click',function(){document.documentElement.style.setProperty('--lime',b.dataset.c);try{localStorage.setItem('accent',b.dataset.c)}catch(e){}})});
+var out=document.getElementById('out'),r=document.querySelector('.result')||out;
+if(r&&!r.querySelector('button')&&!document.querySelector('.hero')){var host=out||r.closest('.card')||r;var b=document.createElement('button');b.type='button';b.className='sharebtn';b.textContent='결과 복사해서 공유';host.insertAdjacentElement('afterend',b);
+b.addEventListener('click',function(){var body=out?out.innerText.trim():Array.prototype.map.call(document.querySelectorAll('.result'),function(e){return e.innerText.trim()}).filter(Boolean).join('\n');
+var t=document.title.split(' - ')[0]+'\n'+body+'\n'+location.href;var done=function(){b.textContent='복사됨'};
+var fb=function(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()})}})();</script><!--/cj--></body></html>
