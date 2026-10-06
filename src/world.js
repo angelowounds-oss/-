@@ -548,6 +548,7 @@ function createSignAtlas() {
 // ripples on the lake surfaces: 12 ring-buffer slots (x, z, birth time, amplitude), drawn by the water shader as expanding wave packets
 export const ripU = { value: Array.from({ length: 12 }, () => new THREE.Vector4(0, 0, -100, 0)) };
 let ripN = 0;
+if (typeof window !== 'undefined') window.__ripAdd = (x, z, a) => addRipple(x, z, a);
 export function addRipple(x, z, amp = 1) { (window.__rip = window.__rip || { n: 0 }).n++; ripU.value[ripN++ % 12].set(x, z, timeUniform.value, amp); }
 
 // UniformsUtils.merge copies {value} objects, which would freeze uTime/uNight at their initial values: re-link the shared ones
