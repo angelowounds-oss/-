@@ -2,4 +2,5 @@ build/
 *.o
 results/balanced_policy_*.txt
 results/rl_*.log
+results/logs/
 /tmp/rl.log
