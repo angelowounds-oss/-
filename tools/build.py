@@ -705,6 +705,8 @@ if(rest<0)return '이미 남은 돈보다 더 썼어요.';return '월급까지 <
  "<h2>사용 방법</h2><p>월급날 직전에 통장이 비는 일을 줄이려면 남은 돈을 남은 날로 나눠 보세요. 고정 지출은 이미 빠진 금액을 넣어야 정확해요. 오늘 쓴 돈을 넣으면 내일부터 쓸 수 있는 금액이 줄어드는 것도 볼 수 있어요.</p>",
  [("월급일이 주말이면?", "실제 입금일을 입력하세요."), ("카드값은요?", "나갈 카드값을 미리 빼고 남은 돈을 입력하세요.")])
 
+REG.append(("challenge", "무지출 챌린지 기록장", "fun", "매일 체크하고 절약액 확인"))
+
 # ---------- rendering ----------
 HELPERS = r'''const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
@@ -723,6 +725,7 @@ def nav():
 FOOT = ('<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span>'
         '<span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button>'
         '<button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span>'
+        '<button type="button" class="modebtn">화면 자동</button>'
         '<span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>')
 
 def related(slug, cat):
@@ -786,11 +789,13 @@ def render_tool(t):
 const IDS={json.dumps(ids)};
 function compute(v){{{t["js"]}}}
 function run(){{const v={{}};IDS.forEach(i=>{{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value}});
-let h='';try{{h=compute(v)||''}}catch(x){{h=''}}document.getElementById('r').innerHTML=h}}
+let h='';try{{h=compute(v)||''}}catch(x){{h=''}}document.getElementById('r').innerHTML=h;save()}}
+function save(){{try{{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}}catch(e){{}}}}
+function load(){{try{{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')}})}}catch(e){{}}}}
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});
 IDS.forEach(i=>{{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)}});
 {t["extra"]}
-run();</script>
+load();run();</script>
 <script type="application/ld+json">{faq_ld(t["faq"])}</script>'''
     write(t["slug"] + ".html", shell(t["slug"] + ".html", t["title"] + " - " + t["line"], t["desc"], t["title"], main, script))
 
@@ -808,6 +813,7 @@ MZ = [
     ("latestart", "+10y", "늦게 시작한 대가", "투자 시작 시기 차이", "#ffe14d", "-.8deg"),
     ("nospend", "0₩", "무지출 챌린지", "아낀 돈이 나중엔", "#ff9ec7", "1deg"),
     ("daybudget", "/일", "월급 하루 생활비", "다음 월급까지 하루 얼마", "#cdb8ff", "-1.4deg"),
+    ("challenge", "✓", "무지출 기록장", "매일 체크하고 절약액 확인", "#b9f27a", "1.2deg"),
 ]
 
 def render_index():
@@ -834,6 +840,7 @@ def render_index():
             '<div><span>매일 마시면 1년</span><b>A4 2.1장</b></div>'
             '<div><span>끊으면 집 마련</span><mark>12년 1개월 단축</mark></div></div>'
             '<div class="go">내 소비 넣어보기 →</div></a></section>'
+            '<section id="mine" hidden><div class="sec-h"><h2>내 계산기</h2><span class="note-hand">즐겨찾기와 최근에 쓴 것</span></div><div class="pills" id="minelist" style="padding:0"></div></section>'
             '<section id="mz"><div class="sec-h"><h2>갓생러 필수 계산기</h2><span class="note-hand">퇴근하고 나서의 나를 계산해봐요</span></div>'
             f'<div class="stu">{mzs}</div></section>'
             '<section id="student"><div class="sec-h"><h2>대학생 필수 계산기</h2><span class="note-hand">시험기간에 제일 많이 눌러요</span></div>'
@@ -845,10 +852,36 @@ def render_index():
 function apply(){const s=q.value.trim().toLowerCase();let any=false;
 document.querySelectorAll('.pill').forEach(a=>{const ok=!s||a.dataset.q.toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
 document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.pill')].every(r=>r.hidden)});
-document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.getElementById('mz').hidden=!!s;document.querySelector('.feat').hidden=!!s}
+document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.getElementById('mz').hidden=!!s;document.getElementById('mine').hidden=!!s||!document.getElementById('minelist').children.length;document.querySelector('.feat').hidden=!!s}
 q.addEventListener('input',apply);
 document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q){e.preventDefault();q.focus()}})})();</script>'''
     write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"학점, 글자수, 알바 시급, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
+
+CHALLENGE_JS = r"""(function(){var now=new Date(),y=now.getFullYear(),m=now.getMonth(),dim=new Date(y,m+1,0).getDate(),first=new Date(y,m,1).getDay(),today=now.getDate();
+var key='ns:'+y+'-'+(m+1),st={amt:15000,days:[]};try{var s=JSON.parse(localStorage.getItem(key));if(s&&s.days)st=s}catch(e){}
+var W=function(n){return Math.round(n).toLocaleString('ko-KR')+'원'};
+var amt=document.getElementById('amt'),cal=document.getElementById('cal'),res=document.getElementById('r'),reset=document.getElementById('reset');
+document.getElementById('month').textContent=y+'년 '+(m+1)+'월';amt.value=st.amt;
+function save(){try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}}
+function draw(){cal.textContent='';'일월화수목금토'.split('').forEach(function(d){var e=document.createElement('div');e.className='dow';e.textContent=d;cal.appendChild(e)});
+for(var i=0;i<first;i++){cal.appendChild(document.createElement('span'))}
+for(var d=1;d<=dim;d++){(function(d){var b=document.createElement('button');b.type='button';b.textContent=d;var on=st.days.indexOf(d)>-1;b.className=(on?'on ':'')+(d===today?'today':'');b.setAttribute('aria-pressed',on);b.setAttribute('aria-label',(m+1)+'월 '+d+'일 무지출');b.disabled=d>today;
+b.addEventListener('click',function(){var k=st.days.indexOf(d);if(k>-1)st.days.splice(k,1);else st.days.push(d);save();draw()});cal.appendChild(b)})(d)}
+var n=st.days.length,cur=today,streak=0;if(st.days.indexOf(cur)<0)cur--;while(cur>0&&st.days.indexOf(cur)>-1){streak++;cur--}
+res.innerHTML='<b>무지출 '+n+'일 성공</b><br>지금 '+streak+'일 연속 · 아낀 돈 <b>'+W(n*st.amt)+'</b><br><small>이 속도로 한 달 다 채우면 '+W(dim*st.amt)+'</small>'}
+amt.addEventListener('input',function(){st.amt=+amt.value||0;save();draw()});
+var armed=false;reset.addEventListener('click',function(){if(!armed){armed=true;reset.textContent='한 번 더 누르면 지워져요';return}st.days=[];save();armed=false;reset.textContent='이번 달 기록 지우기';draw()});
+draw()})();"""
+
+def challenge_page():
+    faq = [("기록은 어디에 저장되나요?", "이 기기의 브라우저에만 저장돼요. 다른 기기나 시크릿 창에서는 보이지 않아요."), ("무지출이 뭐예요?", "하루 동안 필수 고정비 외에 돈을 쓰지 않는 챌린지예요. 기준은 직접 정하세요.")]
+    main = ('<div class="card"><label for="amt">하루 평균 쓰던 돈 (원)</label><input type="number" id="amt" value="15000">'
+            '<h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div>'
+            '<div class="result" id="r"></div><button type="button" id="reset" class="ghost">이번 달 기록 지우기</button></div>'
+            '<h2>이렇게 써요</h2><p>무지출로 보낸 날을 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 아낀 돈이 바로 계산돼요. 결과는 이미지 카드로 만들어 인증용으로 올릴 수도 있어요. 억지로 참기보다 현실적으로 지킬 수 있는 날부터 시작하세요.</p>'
+            + faq_html(faq) + related("challenge", "fun"))
+    script = '<script>' + CHALLENGE_JS + '</script><script type="application/ld+json">' + faq_ld(faq) + '</script>'
+    write("challenge.html", shell("challenge.html", "무지출 챌린지 기록장 - 매일 체크하고 절약액 확인", "무지출로 보낸 날을 체크하면 연속 일수와 아낀 돈을 계산해 줍니다. 기록은 내 브라우저에만 저장됩니다.", "무지출 챌린지 기록장", main, script))
 
 def static_pages():
     write("about.html", shell("about.html", "소개 - 간편계산기", "간편계산기 서비스 소개", "소개",
@@ -859,18 +892,13 @@ def static_pages():
         '<h2>면책</h2><p>제공되는 계산 결과는 일반적인 정보 제공이 목적이며, 정확성이나 특정 목적에의 적합성을 보증하지 않습니다. 계산 결과를 근거로 한 판단과 그 결과에 대한 책임은 이용자에게 있습니다.</p>'
         '<h2>광고</h2><p>사이트 운영을 위해 광고가 게재될 수 있습니다.</p></div>'))
 
-COMMON_JS = r"""(function(){try{var c=localStorage.getItem('accent');if(c)document.documentElement.style.setProperty('--lime',c)}catch(e){}
-document.querySelectorAll('.theme button').forEach(function(b){b.style.background=b.dataset.c;b.addEventListener('click',function(){document.documentElement.style.setProperty('--lime',b.dataset.c);try{localStorage.setItem('accent',b.dataset.c)}catch(e){}})});
-var out=document.getElementById('out'),r=document.querySelector('.result')||out;
-if(r&&!r.querySelector('button')&&!document.querySelector('.hero')){var host=out||r.closest('.card')||r;var b=document.createElement('button');b.type='button';b.className='sharebtn';b.textContent='결과 복사해서 공유';host.insertAdjacentElement('afterend',b);
-b.addEventListener('click',function(){var body=out?out.innerText.trim():Array.prototype.map.call(document.querySelectorAll('.result'),function(e){return e.innerText.trim()}).filter(Boolean).join('\n');
-var t=document.title.split(' - ')[0]+'\n'+body+'\n'+location.href;var done=function(){b.textContent='복사됨'};
-var fb=function(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()};
-if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()})}})();"""
+COMMON_JS = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "common.js"), encoding="utf-8").read()
 
 def inject_common():
     for fn in glob.glob(os.path.join(OUT, "*.html")):
         s = open(fn, encoding="utf-8").read()
+        s = re.sub(r"<!--hm-->.*?<!--/hm-->", "", s, flags=re.S)
+        s = s.replace("</head>", "<!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head>", 1)
         s = re.sub(r"<!--cj-->.*?<!--/cj-->", "", s, flags=re.S)
         s = s.replace("</body>", "<!--cj--><script>" + COMMON_JS + "</script><!--/cj--></body>", 1)
         open(fn, "w", encoding="utf-8").write(s)
@@ -899,5 +927,5 @@ def css():
 
 if __name__ == "__main__":
     for t in TOOLS: render_tool(t)
-    render_index(); static_pages(); refresh_existing(); inject_common(); css(); sitemap()
+    render_index(); static_pages(); challenge_page(); refresh_existing(); inject_common(); css(); sitemap()
     print(len(REG), "tools in registry,", len(TOOLS), "generated")

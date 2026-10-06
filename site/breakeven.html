@@ -2,14 +2,14 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>손익분기점 계산기 - 몇 개 팔아야 본전인지</title><meta name="description" content="고정비, 판매가, 개당 변동비로 손익분기점 판매 수량과 매출을 계산합니다.">
 <link rel="canonical" href="https://YOUR-DOMAIN.example/breakeven.html">
-<link rel="stylesheet" href="style.css"></head><body>
+<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>손익분기점 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="f">월 고정비 (원, 임대료·인건비 등)</label><input type="number" id="f" value="3000000" step="any"><label for="p">판매 단가 (원)</label><input type="number" id="p" value="8000" step="any"><label for="c">개당 변동비 (원, 재료비 등)</label><input type="number" id="c" value="3000" step="any"><div class="result" id="r"></div></div><h2>손익분기점이란?</h2><p>매출이 모든 비용과 같아져 이익도 손실도 없는 지점입니다. 이 수량을 넘어 팔아야 이익이 납니다. 고정비는 판매량과 상관없이 나가는 비용, 변동비는 팔 때마다 드는 비용입니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가격을 올리면 어떻게 되나요?</h3><p>개당 공헌이익이 늘어 손익분기점 수량이 줄어듭니다.</p><h3>내 인건비도 고정비에 넣나요?</h3><p>넣는 것이 정확합니다. 빼면 실제보다 손익분기점이 낮게 나옵니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="rider.html">배달 라이더 순수익 계산기</a><a href="margin.html">판매 마진 계산기</a><a href="roas.html">광고 ROAS 계산기</a><a href="costrate.html">원가율 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
-<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
@@ -23,16 +23,186 @@ const IDS=["f", "p", "c"];
 function compute(v){const mg=v.p-v.c;if(!(mg>0))return '판매가가 변동비보다 커야 합니다.';const q=Math.ceil(v.f/mg);
 return '개당 공헌이익 '+W(mg)+'<br><b>손익분기점 '+q.toLocaleString('ko-KR')+'개</b><br>필요 매출 '+W(q*v.p)+'<br><small>하루 '+Math.ceil(q/30)+'개 (30일 기준)</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h}
+let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
+function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-run();</script>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "가격을 올리면 어떻게 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "개당 공헌이익이 늘어 손익분기점 수량이 줄어듭니다."}}, {"@type": "Question", "name": "내 인건비도 고정비에 넣나요?", "acceptedAnswer": {"@type": "Answer", "text": "넣는 것이 정확합니다. 빼면 실제보다 손익분기점이 낮게 나옵니다."}}]}</script><!--cj--><script>(function(){try{var c=localStorage.getItem('accent');if(c)document.documentElement.style.setProperty('--lime',c)}catch(e){}
-document.querySelectorAll('.theme button').forEach(function(b){b.style.background=b.dataset.c;b.addEventListener('click',function(){document.documentElement.style.setProperty('--lime',b.dataset.c);try{localStorage.setItem('accent',b.dataset.c)}catch(e){}})});
-var out=document.getElementById('out'),r=document.querySelector('.result')||out;
-if(r&&!r.querySelector('button')&&!document.querySelector('.hero')){var host=out||r.closest('.card')||r;var b=document.createElement('button');b.type='button';b.className='sharebtn';b.textContent='결과 복사해서 공유';host.insertAdjacentElement('afterend',b);
-b.addEventListener('click',function(){var body=out?out.innerText.trim():Array.prototype.map.call(document.querySelectorAll('.result'),function(e){return e.innerText.trim()}).filter(Boolean).join('\n');
-var t=document.title.split(' - ')[0]+'\n'+body+'\n'+location.href;var done=function(){b.textContent='복사됨'};
-var fb=function(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()};
-if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fb)}else fb()})}})();</script><!--/cj--></body></html>
+load();run();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "가격을 올리면 어떻게 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "개당 공헌이익이 늘어 손익분기점 수량이 줄어듭니다."}}, {"@type": "Question", "name": "내 인건비도 고정비에 넣나요?", "acceptedAnswer": {"@type": "Answer", "text": "넣는 것이 정확합니다. 빼면 실제보다 손익분기점이 낮게 나옵니다."}}]}</script><!--cj--><script>(function () {
+  var doc = document, root = doc.documentElement;
+  var $ = function (s, r) { return (r || doc).querySelector(s); };
+  var LS = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  var isHome = !!$('.hero');
+  var file = (location.pathname.split('/').pop() || 'index.html');
+
+  /* accent color */
+  try { var ac = localStorage.getItem('accent'); if (ac) root.style.setProperty('--lime', ac); } catch (e) {}
+  doc.querySelectorAll('.theme button').forEach(function (b) {
+    b.style.background = b.dataset.c;
+    b.addEventListener('click', function () {
+      root.style.setProperty('--lime', b.dataset.c);
+      try { localStorage.setItem('accent', b.dataset.c); } catch (e) {}
+    });
+  });
+
+  /* light / dark / auto */
+  var MODES = ['auto', 'dark', 'light'], LABEL = { auto: '자동', dark: '다크', light: '라이트' };
+  var mode = 'auto';
+  try { mode = localStorage.getItem('mode') || 'auto'; } catch (e) {}
+  function applyMode(m) { if (m === 'dark' || m === 'light') root.setAttribute('data-theme', m); else root.removeAttribute('data-theme'); }
+  applyMode(mode);
+  var mb = $('.modebtn');
+  if (mb) {
+    mb.textContent = '화면 ' + LABEL[mode];
+    mb.addEventListener('click', function () {
+      mode = MODES[(MODES.indexOf(mode) + 1) % 3];
+      applyMode(mode);
+      try { localStorage.setItem('mode', mode); } catch (e) {}
+      mb.textContent = '화면 ' + LABEL[mode];
+    });
+  }
+
+  var title = doc.title.split(' - ')[0];
+
+  /* favorites + recent */
+  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
+  var h1 = $('main h1');
+  var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
+  if (isTool) {
+    recent = recent.filter(function (r) { return r.s !== file; });
+    recent.unshift({ s: file, t: title });
+    LS.set('recent', recent.slice(0, 8));
+    var fb = doc.createElement('button');
+    fb.type = 'button'; fb.className = 'favbtn';
+    var paint = function () { var on = inFav(file); fb.textContent = on ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기'; fb.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    paint();
+    fb.addEventListener('click', function () {
+      if (inFav(file)) favs = favs.filter(function (f) { return f.s !== file; });
+      else favs.unshift({ s: file, t: title });
+      LS.set('favs', favs); paint();
+    });
+    h1.insertAdjacentElement('afterend', fb);
+  }
+  if (isHome) {
+    var list = $('#minelist'), box = $('#mine');
+    if (list && box) {
+      var seen = {}, items = [];
+      favs.forEach(function (f) { if (!seen[f.s]) { seen[f.s] = 1; items.push({ s: f.s, t: '★ ' + f.t }); } });
+      recent.forEach(function (r) { if (!seen[r.s] && items.length < 10) { seen[r.s] = 1; items.push(r); } });
+      if (items.length) {
+        items.forEach(function (it) { var a = doc.createElement('a'); a.className = 'pill'; a.href = it.s; a.textContent = it.t; list.appendChild(a); });
+        box.hidden = false;
+      }
+    }
+  }
+
+  /* share text + image card */
+  var out = doc.getElementById('out'), r = $('.result') || out;
+  function bodyText() {
+    return out ? out.innerText.trim()
+      : Array.prototype.map.call(doc.querySelectorAll('.result'), function (e) { return e.innerText.trim(); }).filter(Boolean).join('\n');
+  }
+  function copy(t, btn, label) {
+    var done = function () { btn.textContent = '복사됨'; setTimeout(function () { btn.textContent = label; }, 1800); };
+    var fallback = function () { var a = doc.createElement('textarea'); a.value = t; doc.body.appendChild(a); a.select(); try { doc.execCommand('copy'); done(); } catch (e) {} a.remove(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback); else fallback();
+  }
+
+  function wrap(ctx, text, maxW) {
+    var words = text.split(' '), lines = [], cur = '';
+    words.forEach(function (w) {
+      var t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= maxW) { cur = t; return; }
+      if (cur) { lines.push(cur); cur = ''; }
+      if (ctx.measureText(w).width <= maxW) { cur = w; return; }
+      var piece = '';
+      for (var i = 0; i < w.length; i++) {
+        if (ctx.measureText(piece + w[i]).width > maxW && piece) { lines.push(piece); piece = w[i]; } else piece += w[i];
+      }
+      cur = piece;
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+  function rr(ctx, x, y, w, h, rad) {
+    ctx.beginPath(); ctx.moveTo(x + rad, y); ctx.arcTo(x + w, y, x + w, y + h, rad); ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad); ctx.arcTo(x, y, x + w, y, rad); ctx.closePath();
+  }
+  function drawCard(ttl, lines) {
+    var W = 1080, cx = 70, cw = W - 160, px = cx + 56, tw = cw - 112, cy = 130;
+    var lime = getComputedStyle(root).getPropertyValue('--lime').trim() || '#c8f542';
+    var tmp = doc.createElement('canvas').getContext('2d');
+    var ops = [], py = cy + 170;
+    tmp.font = '64px "Jua", "Noto Sans KR", sans-serif';
+    wrap(tmp, ttl, tw).slice(0, 2).forEach(function (l) { ops.push({ t: l, f: '64px "Jua", "Noto Sans KR", sans-serif', y: py, c: '#141414' }); py += 80; });
+    py += 28;
+    lines.slice(0, 9).forEach(function (ln, idx) {
+      var big = idx === 0, f = (big ? '700 60px' : '400 42px') + ' "Noto Sans KR", sans-serif';
+      tmp.font = f;
+      wrap(tmp, ln, tw).slice(0, big ? 3 : 2).forEach(function (w) {
+        ops.push({ t: w, f: f, y: py, c: big ? '#141414' : '#3a3656', hl: big ? tmp.measureText(w).width : 0 });
+        py += big ? 80 : 58;
+      });
+      py += big ? 22 : 8;
+    });
+    var ch = Math.max(520, py - cy + 40), H = cy + ch + 70 + 96 + 90;
+    var c = doc.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d');
+    x.fillStyle = '#f6f4ff'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#ddd7ff'; x.lineWidth = 2;
+    for (var yy = 36; yy < H; yy += 72) { x.beginPath(); x.moveTo(0, yy); x.lineTo(W, yy); x.stroke(); }
+    x.fillStyle = '#141414'; rr(x, cx + 20, cy + 20, cw, ch, 44); x.fill();
+    x.fillStyle = '#ffffff'; rr(x, cx, cy, cw, ch, 44); x.fill();
+    x.lineWidth = 8; x.strokeStyle = '#141414'; rr(x, cx, cy, cw, ch, 44); x.stroke();
+    x.textBaseline = 'alphabetic';
+    x.fillStyle = '#5b3df5'; x.font = '700 40px "Gaegu", "Noto Sans KR", sans-serif'; x.fillText('오늘의 계산', px, cy + 84);
+    ops.forEach(function (o) {
+      if (o.hl) { x.fillStyle = lime; x.fillRect(px - 10, o.y - 56, o.hl + 20, 74); }
+      x.fillStyle = o.c; x.font = o.f; x.fillText(o.t, px, o.y);
+    });
+    var fy = cy + ch + 70;
+    x.fillStyle = lime; rr(x, 70, fy, 360, 96, 24); x.fill();
+    x.lineWidth = 6; x.strokeStyle = '#141414'; rr(x, 70, fy, 360, 96, 24); x.stroke();
+    x.fillStyle = '#141414'; x.font = '48px "Jua", "Noto Sans KR", sans-serif'; x.fillText('간편계산기', 106, fy + 66);
+    x.fillStyle = '#5a5675'; x.font = '400 34px "Noto Sans KR", sans-serif'; x.textAlign = 'right';
+    x.fillText('나도 계산해보기', W - 80, fy + 62); x.textAlign = 'left';
+    return c.toDataURL('image/png');
+  }
+  function showCard(url) {
+    var ov = doc.createElement('div'); ov.className = 'overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', '이미지 카드');
+    var box = doc.createElement('div'); box.className = 'ovbox';
+    var img = doc.createElement('img'); img.src = url; img.alt = title + ' 결과 이미지 카드';
+    var tip = doc.createElement('p'); tip.textContent = '이미지를 길게 눌러(또는 우클릭) 저장하세요';
+    var row = doc.createElement('div'); row.className = 'actions';
+    var dl = doc.createElement('a'); dl.className = 'btnlink'; dl.href = url; dl.download = '간편계산기-' + file.replace('.html', '') + '.png'; dl.textContent = '다운로드';
+    var cl = doc.createElement('button'); cl.type = 'button'; cl.textContent = '닫기';
+    row.appendChild(dl); row.appendChild(cl); box.appendChild(img); box.appendChild(tip); box.appendChild(row); ov.appendChild(box); doc.body.appendChild(ov);
+    var close = function () { ov.remove(); };
+    cl.addEventListener('click', close); ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+  }
+
+  if (r && !isHome) {
+    var host = out || r.closest('.card') || r;
+    var row = doc.createElement('div'); row.className = 'actions';
+    if (!r.querySelector('button')) {
+      var sb = doc.createElement('button'); sb.type = 'button'; sb.className = 'sharebtn'; sb.textContent = '결과 복사해서 공유';
+      sb.addEventListener('click', function () { copy(title + '\n' + bodyText() + '\n' + location.href, sb, '결과 복사해서 공유'); });
+      row.appendChild(sb);
+    }
+    var ib = doc.createElement('button'); ib.type = 'button'; ib.className = 'imgbtn'; ib.textContent = '이미지 카드 만들기';
+    ib.addEventListener('click', function () {
+      var lines = bodyText().split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s && !/^결과 복사/.test(s) && !/^이미지 카드/.test(s); });
+      var go = function () { showCard(drawCard(title, lines)); };
+      if (doc.fonts && doc.fonts.load) Promise.all([doc.fonts.load('64px Jua'), doc.fonts.load('700 40px "Noto Sans KR"')]).then(go, go); else go();
+    });
+    row.appendChild(ib);
+    host.insertAdjacentElement('afterend', row);
+  }
+})();
+</script><!--/cj--></body></html>
