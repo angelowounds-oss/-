@@ -39,6 +39,7 @@ import { Phone, gpsRoute } from './phone.js';
 import { DayNight } from './daynight.js';
 import { Society, ZONES } from './society.js';
 import { Character } from './character.js';
+import * as AI from './ai.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -893,7 +894,7 @@ export class Game {
     const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = Math.hypot(dx, dy, dz) || 1;
     return this.world.colliders.raycast(x1, y1, z1, dx / d, dy / d, dz / d, d) < 0;
   }
-  noise(x, z, r) { for (const h of this.humans) { if (h.dead) continue; if (h.team === 'civ' && Math.hypot(h.x - x, h.z - z) < r * 0.6 && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(5, 9); h.threat = { x, z }; } } }
+  noise(x, z, r, kind = 'shot') { for (const h of this.humans) { if (h.dead) continue; if (h.team !== 'civ') { if (h.rag === undefined || !h.rag) AI.hear(h, x, z, r * 0.8, kind); continue; } if (h.team === 'civ' && Math.hypot(h.x - x, h.z - z) < r * 0.6 && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(5, 9); h.threat = { x, z }; } } }
   alertCivs(x, z, r) { this.noise(x, z, r * 1.6); }
   enemyShoot(h, target) {
     const w = h.weapon, pl = this.player;
@@ -1209,7 +1210,8 @@ export class Game {
       h.update(dt);
     }
   }
-  alertGang(h) { for (const o of this.humans) if (o.team === 'gang' && !o.dead && o.state !== 'attack' && Math.hypot(o.x - h.x, o.z - h.z) < 30) { o.state = 'attack'; } }
+  // a gang member spotted / was hit: nearby friends come running to where the trouble is (they do not magically see the player)
+  alertGang(h) { for (const o of this.humans) if (o.team === 'gang' && !o.dead && o !== h && o.state !== 'attack' && o.state !== 'cover' && Math.hypot(o.x - h.x, o.z - h.z) < 30) { if (h.mem) o.mem = { ...h.mem }; o.state = 'search'; o.searchT = 12; o.path = null; o.alert = 1; } }
 
   updatePickups(dt) {
     const pl = this.player, t = this.time;

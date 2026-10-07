@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildHuman } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
+import * as AI from './ai.js';
 
 export const WEAPONS = [
   { name: '9MM PISTOL', scope: 'iron', zoom: 1.3, short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
@@ -72,10 +73,11 @@ export class Human {
     this.hp -= dmg;
     this.hitFlash = 0.12;
     if (this.team === 'civ' || this.team === 'gang') { this.threat = from; }
+    if (this.team !== 'civ') { this.hurtT = 1.6; if (from && from.x != null) this.mem = { x: from.x, z: from.z, vx: from.vx || 0, vz: from.vz || 0, t: G.time }; }
     if (this.hp <= 0) { this.die(from, src); return true; }
     if (this.m.playOnce && !this.knock && this.speed < 4 && this.m.playOnce(headshot ? 'U_Hit_Head' : 'U_Hit_Chest', false)) this.reactT = 0.4;
     if (this.team === 'civ') { this.state = 'flee'; this.fleeT = rand(6, 10); G.voiceAt?.(this, 'scream'); }
-    else if (this.team === 'gang') { this.alert = 1; this.state = 'attack'; }
+    else if (this.team === 'gang') { this.alert = 1; if (this.state !== 'cover' && this.state !== 'retreat') this.state = 'attack'; G.alertGang?.(this, 'hit'); }
     return false;
   }
   die(from, src) {
@@ -144,18 +146,19 @@ export class Human {
       } else if (this.state === 'flee') {
         this.fleeT -= dt;
         const t = this.threat || G.player;
-        let ax = this.x - t.x, az = this.z - t.z; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
-        // follow sidewalk-ish: prefer fleeing along dominant axis
-        wantX = ax; wantZ = az; spd = 5.2;
+        const f = AI.flee(this, dt, t.x, t.z); wantX = f.x; wantZ = f.z; spd = f.s;
         if (this.fleeT <= 0) { if (this.citizen && !this.static) this.state = 'route'; else { this.state = 'walk'; this.snapToNode(); } }
       } else {
-        if (this.node) {
+        const cm = AI.civMove(this, dt);
+        if (cm) { wantX = cm.x; wantZ = cm.z; spd = cm.s; face = cm.face; }
+        else if (this.node) {
           const [tx, tz] = this.nodePos(this.node);
           const dx = tx + (this.node.sx ? this.offset * (this.node.along ? 0 : 0) : 0) - this.x, dz = tz - this.z;
           const d = Math.hypot(dx, dz);
           if (d < 1.4) this.chooseNext(); else { wantX = dx / d; wantZ = dz / d; spd = this.stateT > 0 ? 0 : 1.5; }
         }
         if (!this.static) G.society.maybeVisit(this, dt);
+        if (!cm) AI.civ(this, dt);
         // stop & stare
         if (this.stateT > 0) this.stateT -= dt;
         else if (Math.random() < dt * 0.04) this.stateT = rand(1.5, 4);
@@ -163,7 +166,7 @@ export class Human {
         if (G.player.weaponDrawn && dp < 14 && G.playerOnFoot) { this.state = 'flee'; this.fleeT = 6; this.threat = G.player; }
       }
     } else if (this.team === 'gang' || this.team === 'cop') {
-      this.updateCombat(dt, dp, dxp, dzp);
+      this.updateCombat(dt);
       wantX = this.cmdX || 0; wantZ = this.cmdZ || 0; spd = this.cmdSpeed || 0; face = this.faceAngle;
     }
     // movement integration
@@ -171,7 +174,7 @@ export class Human {
     this.vx = damp(this.vx, tvx, 9, dt); this.vz = damp(this.vz, tvz, 9, dt);
     let nx = this.x + this.vx * dt, nz = this.z + this.vz * dt;
     const r = G.world.colliders.resolve(nx, nz, this.radius, this.y);
-    this.x = r.x; this.z = r.z;
+    this.x = r.x; this.z = r.z; this.blocked = !!r.hit;
     // slide blocked sidewalk walkers: if blocked, pick another node
     if (r.hit && this.team === 'civ' && this.state !== 'flee') { if (Math.random() < 0.05) this.chooseNext(); }
     this.speed = Math.hypot(this.vx, this.vz);
@@ -216,48 +219,7 @@ export class Human {
   }
 
   // armed AI
-  updateCombat(dt, dp, dxp, dzp) {
-    const G = this.G;
-    const pl = G.player;
-    this.cmdSpeed = 0; this.faceAngle = null;
-    const los = dp < 80 && G.hasLOS(this.x, 1.5, this.z, pl.x, 1.4, pl.z);
-    if (this.guard && this.state !== 'attack') { if (los && dp < this.detect && (pl.weaponDrawn || G.alarm)) { this.state = 'attack'; this.fireCd = rand(0.8, 1.5); G.alertGang?.(this); } else { this.cmdSpeed = 0; this.faceAngle = null; return; } }
-    if (this.team === 'cop') {
-      const hunt = G.wanted > 0;
-      if (!hunt) { this.cmdSpeed = 0; this.faceAngle = null; return; }
-      this.alert = 1;
-    } else {
-      if (this.state !== 'attack') {
-        if (los && dp < (this.detect || 38) * (G.player.prone ? 0.3 : G.player.crouching ? 0.55 : 1)) { this.state = 'attack'; this.alert = 1; this.fireCd = rand(0.7, 1.4); G.alertGang?.(this); }
-        else { this.cmdSpeed = 0; if (this.patrol) this.doPatrol(dt); return; }
-      }
-    }
-    // attack
-    const toP = Math.atan2(dxp, dzp);
-    if (this.team === 'cop' && !pl.weaponDrawn && !pl.dead && (G.wanted <= 3 || pl.surrenderT > 0) && G.time - (G.lastShotT || -9) > 2.5 && !G.vehicle) {
-      // player is not resisting: move in to cuff
-      this.faceAngle = toP; this.aimT = 0.5;
-      if (dp > 1.6) { this.cmdX = dxp / dp; this.cmdZ = dzp / dp; this.cmdSpeed = dp > 12 ? 6.2 : 4.4; } else this.cmdSpeed = 0;
-      return;
-    }
-    const ideal = this.team === 'cop' ? 11 : 13;
-    this.faceAngle = toP; this.aimT = 1;
-    let mx = 0, mz = 0;
-    if (dp > ideal + 4 || !los) { mx = dxp / dp; mz = dzp / dp; this.cmdSpeed = dp > 30 ? 6.3 : 4.2; }
-    else if (dp < ideal - 4) { mx = -dxp / dp; mz = -dzp / dp; this.cmdSpeed = 2.4; }
-    else { // strafe
-      this.strafeT = (this.strafeT || 0) - dt; if (this.strafeT <= 0) { this.strafeT = rand(1, 2.5); this.strafeDir = Math.random() < 0.5 ? -1 : 1; }
-      mx = Math.cos(toP) * this.strafeDir; mz = -Math.sin(toP) * this.strafeDir; this.cmdSpeed = 2.2;
-    }
-    this.cmdX = mx; this.cmdZ = mz;
-    // shoot
-    this.fireCd -= dt;
-    if (los && dp < 60 && this.fireCd <= 0 && !this.dead) {
-      this.fireCd = this.burstLeft > 0 ? (this.weapon.short === 'rifle' ? 0.14 : 0.28) : rand(1.1, 2.2);
-      if (this.burstLeft > 0) this.burstLeft--; else this.burstLeft = Math.floor(rand(1, 4));
-      G.enemyShoot(this, pl);
-    }
-  }
+  updateCombat(dt) { AI.combat(this, dt); }
   doPatrol(dt) {
     this.patrolT = (this.patrolT || 0) - dt;
     if (this.patrolT <= 0) { this.patrolT = rand(2, 5); const a = rand(0, TAU); this.pdx = Math.sin(a); this.pdz = Math.cos(a); this.pmove = Math.random() < 0.6; }
