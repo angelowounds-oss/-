@@ -24,7 +24,8 @@ function compute(v){if(!(v.rate>0))return '';const f=1-v.fee/100;
 if(v.dir==='f2k')return '<b>'+W(v.a*v.rate*f)+'</b> 받습니다<br><small>수수료 전 '+W(v.a*v.rate)+'</small>';
 return '<b>'+N2(v.a/v.rate*f,2)+'</b> 받습니다<br><small>수수료 전 '+N2(v.a/v.rate,2)+'</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

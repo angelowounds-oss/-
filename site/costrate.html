@@ -22,7 +22,8 @@ const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pa
 const IDS=["p", "c", "t"];
 function compute(v){if(!(v.p>0&&v.t>0))return '';return '<b>원가율 '+N2(v.c/v.p*100,1)+'%</b> · 마진 '+W(v.p-v.c)+' ('+N2((1-v.c/v.p)*100,1)+'%)<br>목표 원가율 '+v.t+'%에 맞는 판매가 <b>'+W(v.c/(v.t/100))+'</b>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

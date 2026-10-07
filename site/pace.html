@@ -23,7 +23,8 @@ const IDS=["d", "hh", "mm", "ss"];
 function compute(v){const t=v.hh*3600+v.mm*60+v.ss;if(!(v.d>0&&t>0))return '';const p=t/v.d,pm=Math.floor(p/60),ps=Math.round(p%60);const ft=x=>{const h=Math.floor(x/3600),m=Math.floor(x%3600/60),s=Math.round(x%60);return (h?h+'시간 ':'')+m+'분 '+s+'초'};
 return '<b>페이스 '+pm+"'"+String(ps).padStart(2,'0')+'" /km</b><br>평균 속도 '+N2(v.d/(t/3600),2)+' km/h<br>이 페이스로 10km '+ft(p*10)+' · 하프 '+ft(p*21.0975)+' · 풀 '+ft(p*42.195);}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

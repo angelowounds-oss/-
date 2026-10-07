@@ -23,7 +23,8 @@ const IDS=["d", "e", "p"];
 function compute(v){if(!(v.e>0))return '';const l=v.d/v.e,c=l*v.p;
 return '필요 연료 '+N2(l,1)+'L<br><b>주유비 '+W(c)+'</b><br>km당 '+W(c/v.d)+'<br><small>편도 기준이면 왕복은 2배입니다.</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

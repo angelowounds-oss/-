@@ -59,7 +59,7 @@ footer a{color:#fff}
 .sform input{font-size:18px;padding:14px 18px;border-radius:14px;box-shadow:5px 5px 0 var(--ink)}
 .sform button{margin:0;padding:0 24px;font-size:18px;border-radius:14px;box-shadow:5px 5px 0 var(--lime)}
 .feat{flex:0 1 430px;min-width:0;display:block;position:relative;background:var(--card);border:3px solid var(--ink);border-radius:22px;padding:28px 26px 24px;box-shadow:8px 8px 0 var(--ink);transform:rotate(1.5deg);text-decoration:none}
-.feat .new{position:absolute;top:-20px;right:-12px;font:400 20px "Jua",sans-serif;background:#ff5ca8;color:#fff;border:3px solid var(--ink);border-radius:99px;padding:2px 16px;transform:rotate(8deg)}
+.feat .new{position:absolute;top:-20px;right:-12px;font:400 20px "Jua",sans-serif;background:#ff5ca8;color:#141414;border:3px solid var(--ink);border-radius:99px;padding:2px 16px;transform:rotate(8deg)}
 .feat .ft{font:400 34px/1.2 "Jua",sans-serif;margin:2px 0 14px}
 .feat .box{background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
 .feat .box div{display:flex;justify-content:space-between;gap:12px}
@@ -110,3 +110,7 @@ footer .modebtn{margin:0;padding:3px 12px;font-size:13px;background:transparent;
 .opt:hover{background:var(--lime);color:#141414}
 #lad{touch-action:manipulation}
 .cal+.result{margin-top:16px}
+@media(max-width:640px){
+.stu{display:flex;overflow-x:auto;gap:16px;padding:6px 6px 14px;margin-inline:-16px;padding-inline:16px;scroll-snap-type:x proximity;scrollbar-width:thin}
+.stu a{flex:0 0 150px;min-height:150px;scroll-snap-align:start}
+}

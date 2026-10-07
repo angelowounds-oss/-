@@ -26,7 +26,8 @@ const IDS=["t"];
 function compute(v){let tot=0,bad=0;v.t.split('\n').forEach(l=>{l=l.trim();if(!l)return;const m=l.match(/^(\d+):(\d{1,2})$/);if(m)tot+=(+m[1])*60+(+m[2]);else if(/^\d+$/.test(l))tot+=+l;else bad++});
 return '<b>합계 '+Math.floor(tot/60)+'시간 '+(tot%60)+'분</b><br>소수 표기 '+N2(tot/60,2)+'시간 · '+tot+'분'+(bad?'<br><small>인식하지 못한 줄 '+bad+'개</small>':'');}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

@@ -23,7 +23,8 @@ const IDS=["c", "t", "w"];
 function compute(v){if(!(v.w>0)||v.t>=v.c)return '목표 체중을 현재보다 낮게 입력하세요.';const wk=Math.ceil((v.c-v.t)/v.w),d=new Date();d.setDate(d.getDate()+wk*7);
 const pct=v.w/v.c*100;return '<b>약 '+wk+'주</b> (도달 예정 '+FD(d)+')<br>하루 칼로리 적자 약 '+Math.round(v.w*7700/7)+'kcal'+(pct>1?'<br><small>주당 체중의 1%를 넘는 속도는 무리일 수 있습니다</small>':'');}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

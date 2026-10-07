@@ -23,7 +23,8 @@ const IDS=["left", "pay", "today"];
 function compute(v){const t=P(TODAY),p=P(v.pay),days=DAYS(t,p);if(!(days>0))return '다음 월급일이 오늘 이후여야 해요.';const rest=v.left-v.today,per=rest/days;
 if(rest<0)return '이미 남은 돈보다 더 썼어요.';return '월급까지 <b>'+days+'일</b><br>하루 <b>'+W(per)+'</b> · 일주일 '+W(per*7)+'<br><small>오늘 '+W(per)+'을 다 쓰면 내일도 같은 금액이에요. 더 쓰면 남은 날이 빠듯해져요.</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

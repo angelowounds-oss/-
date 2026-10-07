@@ -81,7 +81,7 @@ if(v.now>0)h+='<br>현재가 기준 손익 '+W((v.now-avg)*q)+' ('+N2((v.now/avg
  [("물타기가 항상 좋은가요?", "평균단가는 낮아지지만 투자금이 늘어 손실 위험도 커집니다. 추가 매수 전에 종목의 가치를 다시 판단하세요."), ("세 번 이상 매수했다면?", "총 매수금액 합계를 총 수량 합계로 나누면 같은 방식으로 구할 수 있습니다.")])
 
 tool("stock", "주식 수익률 계산기", "fin", "수수료·세금 반영 실현손익", "매수가, 매도가, 수량, 수수료와 거래세를 넣어 실제 손익과 수익률을 계산합니다.",
- [N("b", "매수가 (원)", 50000), N("s", "매도가 (원)", 56000), N("q", "수량", 100), N("fee", "매매 수수료율 (%, 매수·매도 각각)", 0.015, "0.001"), N("tx", "매도 시 거래세율 (%)", 0.18, "0.01")],
+ [N("b", "매수가 (원)", 50000), N("s", "매도가 (원)", 56000), N("q", "수량", 100), N("fee", "매매 수수료율 (%, 매수·매도 각각)", 0.015, "0.001"), N("tx", "매도 시 거래세율 (%, 현재 세율 확인 후 입력)", 0.15, "0.01")],
  r'''const buy=v.b*v.q,sell=v.s*v.q,fees=(buy+sell)*v.fee/100,tax=sell*v.tx/100,pl=sell-buy-fees-tax;
 return '<b>실현 손익 '+W(pl)+'</b> ('+N2(pl/buy*100,2)+'%)<br>수수료 '+W(fees)+' · 거래세 '+W(tax)+'<br><small>매수금액 '+W(buy)+' · 매도금액 '+W(sell)+'</small>';''',
  "<h2>세율 입력 안내</h2><p>증권사 수수료와 증권거래세율은 시장과 시기에 따라 달라지고 자주 조정됩니다. 기본값은 예시이므로 이용 중인 증권사와 현재 세율을 확인해 직접 수정하세요. 양도소득세와 배당소득세는 포함하지 않습니다.</p>",
@@ -875,7 +875,8 @@ def render_tool(t):
 const IDS={json.dumps(ids)};
 function compute(v){{{t["js"]}}}
 function run(){{const v={{}};IDS.forEach(i=>{{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value}});
-let h='';try{{h=compute(v)||''}}catch(x){{h=''}}document.getElementById('r').innerHTML=h;save()}}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){{document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}}
+let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}}
 function save(){{try{{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}}catch(e){{}}}}
 function load(){{try{{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')}})}}catch(e){{}}}}
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});

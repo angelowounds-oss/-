@@ -24,7 +24,8 @@ function compute(v){const s=v.n.trim().toUpperCase();if(!s)return '';const map=[
 if(/^\d+$/.test(s)){let n=+s;if(n<1||n>3999)return '1~3999 사이로 입력하세요.';let r='';map.forEach(([a,b])=>{while(n>=a){r+=b;n-=a}});return '<b>'+r+'</b>'}
 if(/^[IVXLCDM]+$/.test(s)){let i=0,t=0;map.forEach(([a,b])=>{while(s.startsWith(b,i)){t+=a;i+=b.length}});return i===s.length?'<b>'+t+'</b>':'올바른 로마 숫자가 아닙니다.'}return '숫자 또는 I, V, X, L, C, D, M으로 입력하세요.';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-let h='';try{h=compute(v)||''}catch(x){h=''}document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
