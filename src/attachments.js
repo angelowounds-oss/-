@@ -60,6 +60,7 @@ const parts = {
   pistol: { sup: [0.018, 0.14, 0.048, 0.162], dot: [0.095, 0.02], scope: [0.1, 0.02] },
   rifle: { sup: [0.02, 0.2, 0.02, 0.77], dot: [0.09, 0.3], scope: [0.1, 0.3] },
 };
+const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
 function ensure(root, name, make) { let o = root.getObjectByName(name); if (!o) { o = make(); o.name = name; root.add(o); } return o; }
 function setVis(root, kind, att) {
   const P = parts[kind];
@@ -67,17 +68,17 @@ function setVis(root, kind, att) {
   sup.visible = att.muzzle === 'att_sup';
   const dot = ensure(root, 'att_dot', () => {
     const g = new THREE.Group(), [y, z] = P.dot;
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.05), metal), { position: new THREE.Vector3(0, 0, 0) }));
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.004), glass), { position: new THREE.Vector3(0, 0.004, 0.027) }));
-    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 4), lens), { position: new THREE.Vector3(0, 0.004, 0.03) }));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.05), metal), 0, 0, 0));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.004), glass), 0, 0.004, 0.027));
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 4), lens), 0, 0.004, 0.03));
     g.position.set(0, y, z); return g;
   });
   dot.visible = att.optic === 'att_reddot';
   const sc = ensure(root, 'att_scope', () => {
     const g = new THREE.Group(), [y, z] = P.scope;
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.2, 14).rotateX(Math.PI / 2), metal));
-    g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.03, 14).rotateX(Math.PI / 2), metal), { position: new THREE.Vector3(0, 0, 0.1) }));
-    g.add(Object.assign(new THREE.Mesh(new THREE.CircleGeometry(0.026, 14), glass), { position: new THREE.Vector3(0, 0, 0.116) }));
+    g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.03, 14).rotateX(Math.PI / 2), metal), 0, 0, 0.1));
+    g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.026, 14), glass), 0, 0, 0.116));
     g.position.set(0, y + 0.02, z); return g;
   });
   sc.visible = att.optic === 'att_scope4';
