@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>습관 기록장</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="hname">습관 이름</label><input type="text" id="hname" maxlength="20" value="운동 30분"><h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div><div class="result" id="r"></div><button type="button" id="reset" class="ghost">이번 달 기록 지우기</button></div><h2>이렇게 써요</h2><p>한 가지 습관을 정하고 한 날을 지킬 때마다 날짜를 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 달성률이 바로 계산돼요. 달이 바뀌면 새 달력으로 시작해요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>여러 습관을 기록할 수 있나요?</h3><p>현재는 한 달에 한 가지 습관만 기록해요. 이름을 바꾸면 같은 달력의 이름만 바뀝니다.</p><h3>기록이 사라졌어요</h3><p>브라우저 데이터를 지우거나 시크릿 창을 쓰면 보이지 않을 수 있어요.</p></div><!--fb--><div class="fb" data-slug="habit"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="housing-clock.html">내 집 마련 시계</a><a href="realhourly.html">진짜 시급 계산기</a><a href="freetime.html">퇴근 후 내 시간 계산기</a><a href="latestart.html">늦게 시작한 대가 계산기</a></div>
+<div class="card"><label for="hname">습관 이름</label><input type="text" id="hname" maxlength="20" value="운동 30분"><h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div><div class="result" id="res"></div><button type="button" id="reset" class="ghost">이번 달 기록 지우기</button></div><h2>이렇게 써요</h2><p>한 가지 습관을 정하고 한 날을 지킬 때마다 날짜를 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 달성률이 바로 계산돼요. 달이 바뀌면 새 달력으로 시작해요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>여러 습관을 기록할 수 있나요?</h3><p>현재는 한 달에 한 가지 습관만 기록해요. 이름을 바꾸면 같은 달력의 이름만 바뀝니다.</p><h3>기록이 사라졌어요</h3><p>브라우저 데이터를 지우거나 시크릿 창을 쓰면 보이지 않을 수 있어요.</p></div><!--fb--><div class="fb" data-slug="habit"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="housing-clock.html">내 집 마련 시계</a><a href="realhourly.html">진짜 시급 계산기</a><a href="freetime.html">퇴근 후 내 시간 계산기</a><a href="latestart.html">늦게 시작한 대가 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -13,7 +13,7 @@
   var now = new Date(), y = now.getFullYear(), m = now.getMonth(), dim = new Date(y, m + 1, 0).getDate(), first = new Date(y, m, 1).getDay(), today = now.getDate();
   var key = 'habit:' + y + '-' + (m + 1), st = { name: '운동 30분', days: [] };
   try { var s = JSON.parse(localStorage.getItem(key)); if (s && s.days) st = s; } catch (e) {}
-  var nameEl = document.getElementById('hname'), cal = document.getElementById('cal'), res = document.getElementById('r'), reset = document.getElementById('reset');
+  var nameEl = document.getElementById('hname'), cal = document.getElementById('cal'), res = document.getElementById('res'), reset = document.getElementById('reset');
   document.getElementById('month').textContent = y + '년 ' + (m + 1) + '월'; nameEl.value = st.name;
   function save() { try { localStorage.setItem(key, JSON.stringify(st)); } catch (e) {} }
   function draw() {
@@ -80,7 +80,12 @@
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -228,6 +233,12 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

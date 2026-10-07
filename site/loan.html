@@ -77,7 +77,12 @@ out.innerHTML=c('원리금균등 (월 납입액)',w(m1),t1-p)+c('원금균등 (�
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -225,6 +230,12 @@ out.innerHTML=c('원리금균등 (월 납입액)',w(m1),t1-p)+c('원금균등 (�
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>내 집 마련 시계</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="name">소비 항목</label><input type="text" id="name" value="커피"><label for="amt">한 번 쓰는 금액 (원)</label><input type="number" id="amt" value="5000" step="any"><label for="freq">얼마나 자주</label><select id="freq"><option value="365">매일</option><option value="156">주 3회</option><option value="52">주 1회</option><option value="12">매달</option><option value="0">한 번만</option></select><label for="region">집 지역 (평당 가격 예시값)</label><select id="region"><option value="4500">서울 평균 (예시 4,500만원/평)</option><option value="2500">경기·인천 (예시 2,500만원/평)</option><option value="1500">광역시 (예시 1,500만원/평)</option><option value="900">그 외 지방 (예시 900만원/평)</option></select><label for="pp">평당 가격 (만원, 직접 수정 가능)</label><input type="number" id="pp" value="4500" step="any"><label for="size">목표 평형 (평)</label><input type="number" id="size" value="25" step="any"><label for="have">지금까지 모은 돈 (원)</label><input type="number" id="have" value="30000000" step="any"><label for="save">매달 모을 수 있는 돈 (원)</label><input type="number" id="save" value="1000000" step="any"><div class="result" id="r"></div></div><h2>이 계산기는 어떻게 쓰나요?</h2><p>쓴 돈을 집값으로 나눠 그 돈이 내 집의 몇 cm²인지 보여줍니다. 매달 모을 수 있는 돈을 넣으면 한 번의 소비가 내 집 마련을 며칠 늦추는지, 매일 반복되는 소비를 끊었을 때 목표 평형까지 얼마나 앞당겨지는지도 계산합니다.</p><h2>알아두세요</h2><p>평당 가격은 지역과 단지마다 크게 다르므로 기본값은 예시일 뿐입니다. 실제로 사려는 집의 평당 가격으로 바꿔 입력하세요. 이자, 집값 변동, 대출은 반영하지 않은 단순 계산이고, 재미와 소비 습관을 돌아보는 용도입니다.</p><!--guide--><section class="guide">
+<div class="card"><label for="name">소비 항목</label><input type="text" id="name" value="커피"><label for="amt">한 번 쓰는 금액 (원)</label><input type="number" id="amt" value="5000" step="any"><label for="freq">얼마나 자주</label><select id="freq"><option value="365">매일</option><option value="156">주 3회</option><option value="52">주 1회</option><option value="12">매달</option><option value="0">한 번만</option></select><label for="region">집 지역 (평당 가격 예시값)</label><select id="region"><option value="4500">서울 평균 (예시 4,500만원/평)</option><option value="2500">경기·인천 (예시 2,500만원/평)</option><option value="1500">광역시 (예시 1,500만원/평)</option><option value="900">그 외 지방 (예시 900만원/평)</option></select><label for="pp">평당 가격 (만원, 직접 수정 가능)</label><input type="number" id="pp" value="4500" step="any"><label for="size">목표 평형 (평)</label><input type="number" id="size" value="25" step="any"><label for="have">지금까지 모은 돈 (원)</label><input type="number" id="have" value="30000000" step="any"><label for="save">매달 모을 수 있는 돈 (원)</label><input type="number" id="save" value="1000000" step="any"><div class="result" id="res"></div></div><h2>이 계산기는 어떻게 쓰나요?</h2><p>쓴 돈을 집값으로 나눠 그 돈이 내 집의 몇 cm²인지 보여줍니다. 매달 모을 수 있는 돈을 넣으면 한 번의 소비가 내 집 마련을 며칠 늦추는지, 매일 반복되는 소비를 끊었을 때 목표 평형까지 얼마나 앞당겨지는지도 계산합니다.</p><h2>알아두세요</h2><p>평당 가격은 지역과 단지마다 크게 다르므로 기본값은 예시일 뿐입니다. 실제로 사려는 집의 평당 가격으로 바꿔 입력하세요. 이자, 집값 변동, 대출은 반영하지 않은 단순 계산이고, 재미와 소비 습관을 돌아보는 용도입니다.</p><!--guide--><section class="guide">
 <h2>계산 방법</h2>
 <ol>
 <li>㎡당 가격 = 평당 가격 ÷ 3.3058</li>
@@ -25,7 +25,8 @@
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
@@ -36,12 +37,12 @@ const pad=n=>String(n).padStart(2,'0');
 const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
 const IDS=["name", "amt", "freq", "region", "pp", "size", "have", "save"];
 function compute(v){const ppm2=v.pp*10000/3.305785;if(!(v.amt>0&&ppm2>0))return '';
-const nm=v.name||'이 소비';
+const raw=v.name||'이 소비',nm=X(raw);
 const area=(sqm)=>{const cm=sqm*1e4;if(cm<623.7)return N2(cm,1)+'cm² (A4 용지의 '+N2(cm/623.7*100,1)+'%)';if(cm<1e4)return N2(cm,0)+'cm² (A4 용지 '+N2(cm/623.7,1)+'장)';return N2(sqm,2)+'㎡ ('+N2(sqm/3.305785,2)+'평)'};
 const dur=(d)=>{if(d<1)return '약 '+N2(d*24,1)+'시간';if(d<60)return '약 '+N2(d,1)+'일';const m=d/30;if(m<24)return '약 '+N2(m,1)+'개월';return '약 '+N2(m/12,1)+'년'};
 const a1=area(v.amt/ppm2);let delay='';if(v.save>0)delay=dur(v.amt/(v.save/30));
 let h='<b>'+nm+' 한 번 = 내 집 '+a1+'</b>';if(delay)h+='<br>내 집 마련이 <b>'+delay+'</b> 늦어집니다';
-let share=nm+' '+W(v.amt)+' = 내 집 '+a1+(delay?', 집 마련 '+delay+' 지연':'');
+let share=raw+' '+W(v.amt)+' = 내 집 '+a1+(delay?', 집 마련 '+delay+' 지연':'');
 const f=+v.freq;if(f>0){const yr=v.amt*f,ya=area(yr/ppm2);h+='<br><br>이 소비가 1년 쌓이면 '+W(yr)+' = 내 집 <b>'+ya+'</b>';
  share+=' / 1년이면 '+ya;
  const goal=v.pp*10000*v.size,rem=Math.max(0,goal-v.have);if(v.save>0&&rem>0){const cut=yr/12,m0=rem/v.save,m1=rem/(v.save+cut),d=m0-m1;
@@ -49,8 +50,8 @@ const f=+v.freq;if(f>0){const yr=v.amt*f,ya=area(yr/ppm2);h+='<br><br>이 소비
   h+='<br>끊고 저축하면 '+v.size+'평 집 마련이 <b>'+ds+'</b> 앞당겨집니다';share+=', 끊으면 집 마련 '+ds+' 단축'}}
 h+='<br><button onclick="copyShare(this)" data-t="'+encodeURIComponent(share+' (내 집 마련 시계)')+'">결과 복사해서 공유</button>';return h;}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
@@ -100,7 +101,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -248,6 +254,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

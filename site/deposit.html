@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>예적금 이자 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="kind">종류</label><select id="kind"><option value="dep">정기예금 (목돈 예치)</option><option value="sav">정기적금 (매월 납입)</option></select><label for="p">금액 (예금: 예치금 / 적금: 월 납입액, 원)</label><input type="number" id="p" value="10000000" step="any"><label for="rate">연 이율 (%)</label><input type="number" id="rate" value="3.5" step="0.01"><label for="n">기간 (개월)</label><input type="number" id="n" value="12" step="any"><label for="tax">세금</label><select id="tax"><option value="15.4">일반과세 15.4%</option><option value="9.5">세금우대 9.5%</option><option value="0">비과세</option></select><div class="result" id="r"></div></div><h2>계산 방식</h2><p>예금은 예치금 × 연 이율 × 기간(월) ÷ 12로, 적금은 매월 납입액이 남은 개월 수만큼 이자를 받는 단리로 계산합니다. 은행 상품마다 이자 계산 일수와 우대금리가 달라 실제 지급액과 차이가 날 수 있는 참고용 값입니다.</p><!--guide--><section class="guide">
+<div class="card"><label for="kind">종류</label><select id="kind"><option value="dep">정기예금 (목돈 예치)</option><option value="sav">정기적금 (매월 납입)</option></select><label for="p">금액 (예금: 예치금 / 적금: 월 납입액, 원)</label><input type="number" id="p" value="10000000" step="any"><label for="rate">연 이율 (%)</label><input type="number" id="rate" value="3.5" step="0.01"><label for="n">기간 (개월)</label><input type="number" id="n" value="12" step="any"><label for="tax">세금</label><select id="tax"><option value="15.4">일반과세 15.4%</option><option value="9.5">세금우대 9.5%</option><option value="0">비과세</option></select><div class="result" id="res"></div></div><h2>계산 방식</h2><p>예금은 예치금 × 연 이율 × 기간(월) ÷ 12로, 적금은 매월 납입액이 남은 개월 수만큼 이자를 받는 단리로 계산합니다. 은행 상품마다 이자 계산 일수와 우대금리가 달라 실제 지급액과 차이가 날 수 있는 참고용 값입니다.</p><!--guide--><section class="guide">
 <h2>예금과 적금의 이자 계산</h2>
 <ul>
 <li><b>정기예금</b>: 이자 = 예치금 × 연이율 × 개월 수 ÷ 12</li>
@@ -26,7 +26,8 @@
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
@@ -41,8 +42,8 @@ if(v.kind==='dep'){principal=v.p;interest=principal*r*n/12}else{principal=v.p*n;
 const tax=Math.floor(interest*v.tax/100);
 return '세전 이자 '+W(interest)+'<br>이자소득세 '+W(tax)+'<br><b>세후 이자 '+W(interest-tax)+'</b><br><small>원금 '+W(principal)+' → 만기 수령 '+W(principal+interest-tax)+'</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
@@ -89,7 +90,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -237,6 +243,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

@@ -10,24 +10,25 @@
 마라탕
 초밥
 떡볶이
-파스타</textarea><canvas id="wheel" width="360" height="360" style="display:block;width:100%;max-width:360px;height:auto;margin:18px auto 0" aria-label="룰렛 판"></canvas><div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="r" aria-live="polite"></div></div><h2>사용 방법</h2><p>메뉴를 한 줄에 하나씩 쓰고 돌리기를 누르세요. 후보는 최대 20개까지 가능해요. 결과가 마음에 안 들어도 한 번 정했으면 따르는 게 룰렛의 규칙입니다. 룰렛 돌리기 전에 먹기 싫은 메뉴는 빼 두세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정말 무작위인가요?</h3><p>브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다.</p><h3>메뉴 목록이 저장되나요?</h3><p>아니요. 새로고침하면 처음 목록으로 돌아가요.</p></div><!--fb--><div class="fb" data-slug="roulette"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="ladder.html">사다리타기</a><a href="quiz.html">소비 유형 테스트</a></div>
+파스타</textarea><canvas id="wheel" width="360" height="360" style="display:block;width:100%;max-width:360px;height:auto;margin:18px auto 0" aria-label="룰렛 판"></canvas><div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="res" aria-live="polite"></div></div><h2>사용 방법</h2><p>메뉴를 한 줄에 하나씩 쓰고 돌리기를 누르세요. 후보는 최대 20개까지 가능해요. 결과가 마음에 안 들어도 한 번 정했으면 따르는 게 룰렛의 규칙입니다. 룰렛 돌리기 전에 먹기 싫은 메뉴는 빼 두세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정말 무작위인가요?</h3><p>브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다.</p><h3>메뉴 목록이 저장되나요?</h3><p>아니요. 새로고침하면 처음 목록으로 돌아가요.</p></div><!--fb--><div class="fb" data-slug="roulette"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="ladder.html">사다리타기</a><a href="quiz.html">소비 유형 테스트</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>(function () {
-  var ta = document.getElementById('opts'), cv = document.getElementById('wheel'), btn = document.getElementById('spin'), res = document.getElementById('r');
+  var ta = document.getElementById('opts'), cv = document.getElementById('wheel'), btn = document.getElementById('spin'), res = document.getElementById('res');
   var ctx = cv.getContext('2d'), TAU = Math.PI * 2;
   var COLORS = ['#ffe14d', '#7ee0ff', '#ff9ec7', '#b9f27a', '#cdb8ff', '#ffb86b', '#7fe3c9', '#9db8ff'];
   var rot = 0, spinning = false;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function opts() { return ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 20); }
+  function ink() { return getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#141414'; }
   function draw() {
     var o = opts(), n = o.length, R = cv.width / 2;
     ctx.clearRect(0, 0, cv.width, cv.height); ctx.save(); ctx.translate(R, R);
     if (n < 2) {
       ctx.fillStyle = '#e6e3f5'; ctx.beginPath(); ctx.arc(0, 0, R - 10, 0, TAU); ctx.fill();
-      ctx.lineWidth = 5; ctx.strokeStyle = '#141414'; ctx.stroke(); ctx.restore(); return;
+      ctx.lineWidth = 5; ctx.strokeStyle = ink(); ctx.stroke(); ctx.restore(); return;
     }
     var seg = TAU / n;
     for (var i = 0; i < n; i++) {
@@ -37,8 +38,8 @@
       ctx.font = '700 ' + (n > 12 ? 17 : 22) + 'px "Noto Sans KR", sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
       var t = o[i]; if (t.length > 9) t = t.slice(0, 8) + '…'; ctx.fillText(t, R - 32, 0); ctx.restore();
     }
-    ctx.beginPath(); ctx.arc(0, 0, 24, 0, TAU); ctx.fillStyle = '#141414'; ctx.fill(); ctx.restore();
-    ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.moveTo(R - 18, 0); ctx.lineTo(R + 18, 0); ctx.lineTo(R, 44); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 24, 0, TAU); ctx.fillStyle = ink(); ctx.fill(); ctx.restore();
+    ctx.fillStyle = ink(); ctx.beginPath(); ctx.moveTo(R - 18, 0); ctx.lineTo(R + 18, 0); ctx.lineTo(R, 44); ctx.closePath(); ctx.fill();
   }
   function spin() {
     if (spinning) return;
@@ -60,6 +61,7 @@
   }
   ta.addEventListener('input', function () { if (!spinning) { res.textContent = ''; draw(); } });
   btn.addEventListener('click', spin);
+  try { new MutationObserver(function () { draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
   draw();
 })();
 </script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "정말 무작위인가요?", "acceptedAnswer": {"@type": "Answer", "text": "브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다."}}, {"@type": "Question", "name": "메뉴 목록이 저장되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요. 새로고침하면 처음 목록으로 돌아가요."}}]}</script><!--cj--><script>(function () {
@@ -102,7 +104,12 @@
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -250,6 +257,12 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

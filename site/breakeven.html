@@ -5,11 +5,12 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>손익분기점 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="f">월 고정비 (원, 임대료·인건비 등)</label><input type="number" id="f" value="3000000" step="any"><label for="p">판매 단가 (원)</label><input type="number" id="p" value="8000" step="any"><label for="c">개당 변동비 (원, 재료비 등)</label><input type="number" id="c" value="3000" step="any"><div class="result" id="r"></div></div><h2>손익분기점이란?</h2><p>매출이 모든 비용과 같아져 이익도 손실도 없는 지점입니다. 이 수량을 넘어 팔아야 이익이 납니다. 고정비는 판매량과 상관없이 나가는 비용, 변동비는 팔 때마다 드는 비용입니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가격을 올리면 어떻게 되나요?</h3><p>개당 공헌이익이 늘어 손익분기점 수량이 줄어듭니다.</p><h3>내 인건비도 고정비에 넣나요?</h3><p>넣는 것이 정확합니다. 빼면 실제보다 손익분기점이 낮게 나옵니다.</p></div><!--fb--><div class="fb" data-slug="breakeven"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="rider.html">배달 라이더 순수익 계산기</a><a href="margin.html">판매 마진 계산기</a><a href="roas.html">광고 ROAS 계산기</a><a href="costrate.html">원가율 계산기</a></div>
+<div class="card"><label for="f">월 고정비 (원, 임대료·인건비 등)</label><input type="number" id="f" value="3000000" step="any"><label for="p">판매 단가 (원)</label><input type="number" id="p" value="8000" step="any"><label for="c">개당 변동비 (원, 재료비 등)</label><input type="number" id="c" value="3000" step="any"><div class="result" id="res"></div></div><h2>손익분기점이란?</h2><p>매출이 모든 비용과 같아져 이익도 손실도 없는 지점입니다. 이 수량을 넘어 팔아야 이익이 납니다. 고정비는 판매량과 상관없이 나가는 비용, 변동비는 팔 때마다 드는 비용입니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가격을 올리면 어떻게 되나요?</h3><p>개당 공헌이익이 늘어 손익분기점 수량이 줄어듭니다.</p><h3>내 인건비도 고정비에 넣나요?</h3><p>넣는 것이 정확합니다. 빼면 실제보다 손익분기점이 낮게 나옵니다.</p></div><!--fb--><div class="fb" data-slug="breakeven"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="rider.html">배달 라이더 순수익 계산기</a><a href="margin.html">판매 마진 계산기</a><a href="roas.html">광고 ROAS 계산기</a><a href="costrate.html">원가율 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
@@ -22,8 +23,8 @@ const IDS=["f", "p", "c"];
 function compute(v){const mg=v.p-v.c;if(!(mg>0))return '판매가가 변동비보다 커야 합니다.';const q=Math.ceil(v.f/mg);
 return '개당 공헌이익 '+W(mg)+'<br><b>손익분기점 '+q.toLocaleString('ko-KR')+'개</b><br>필요 매출 '+W(q*v.p)+'<br><small>하루 '+Math.ceil(q/30)+'개 (30일 기준)</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
@@ -70,7 +71,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -218,6 +224,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

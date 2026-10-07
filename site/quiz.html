@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>소비 유형 테스트</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><div id="quiz"></div><div class="result" id="r" aria-live="polite"></div><div id="qlinks"></div></div><h2>안내</h2><p>오락용 테스트이며 심리 검사나 재무 상담이 아닙니다. 네 가지 유형 중 가장 많이 고른 쪽으로 결과가 나와요. 결과 카드를 이미지로 만들어 친구에게 공유해 보세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>결과는 저장되나요?</h3><p>아니요. 이 브라우저 안에서만 계산되고 저장되지 않아요.</p><h3>유형이 마음에 안 들면?</h3><p>다시 하기로 다른 답을 골라 보세요.</p></div><!--fb--><div class="fb" data-slug="quiz"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="roulette.html">메뉴 룰렛</a><a href="ladder.html">사다리타기</a></div>
+<div class="card"><div id="quiz"></div><div class="result" id="res" aria-live="polite"></div><div id="qlinks"></div></div><h2>안내</h2><p>오락용 테스트이며 심리 검사나 재무 상담이 아닙니다. 네 가지 유형 중 가장 많이 고른 쪽으로 결과가 나와요. 결과 카드를 이미지로 만들어 친구에게 공유해 보세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>결과는 저장되나요?</h3><p>아니요. 이 브라우저 안에서만 계산되고 저장되지 않아요.</p><h3>유형이 마음에 안 들면?</h3><p>다시 하기로 다른 답을 골라 보세요.</p></div><!--fb--><div class="fb" data-slug="quiz"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="roulette.html">메뉴 룰렛</a><a href="ladder.html">사다리타기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -26,7 +26,7 @@
     C: { n: '가성비 탐험가', d: '비교하고 찾는 재미를 아는 타입이에요. 같은 돈으로 더 많이 얻는 데 진심이에요.', tip: '최저가를 찾는 시간도 비용이에요. 내 시급과 비교해 보면 어디서 멈출지 보여요.', l: [['unitprice.html', '단가 비교'], ['discount.html', '중복 할인']] },
     D: { n: '구독·수집러', d: '정기결제와 굿즈 모으기가 낙인 타입이에요. 좋아하는 게 분명하고 취향이 풍부해요.', tip: '분기마다 한 번씩 구독 목록을 점검하면 새는 돈을 막을 수 있어요.', l: [['daybudget.html', '월급 하루 생활비'], ['realhourly.html', '진짜 시급']] }
   };
-  var box = document.getElementById('quiz'), res = document.getElementById('r'), links = document.getElementById('qlinks');
+  var box = document.getElementById('quiz'), res = document.getElementById('res'), links = document.getElementById('qlinks');
   var i = 0, score = { A: 0, B: 0, C: 0, D: 0 };
   function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function show() {
@@ -93,7 +93,12 @@
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -241,6 +246,12 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

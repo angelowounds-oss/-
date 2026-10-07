@@ -8,11 +8,12 @@
 <div class="card"><label for="t">쓴 사람 금액 (한 줄에 하나, 여러 번 써도 돼요)</label><textarea id="t" style="min-height:130px">민수 120000
 지영 80000
 서준 45000
-민수 30000</textarea><label for="x">지출은 없지만 함께한 사람 (한 줄에 한 명)</label><textarea id="x" style="min-height:130px">하은</textarea><div class="result" id="r"></div></div><h2>정산 방식</h2><p>총 지출을 모두 같은 비율로 나누고, 더 낸 사람이 돌려받도록 송금 횟수를 줄여서 계산합니다. 사람마다 쓴 항목이 다르면 항목별로 나눠 각각 계산한 뒤 합치세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원 단위는 어떻게 처리하나요?</h3><p>반올림해서 표시하니 합계가 1~2원 다를 수 있어요.</p><h3>이름이 같으면?</h3><p>같은 이름은 한 사람으로 합산됩니다.</p></div><!--fb--><div class="fb" data-slug="tripsplit"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a></div>
+민수 30000</textarea><label for="x">지출은 없지만 함께한 사람 (한 줄에 한 명)</label><textarea id="x" style="min-height:130px">하은</textarea><div class="result" id="res"></div></div><h2>정산 방식</h2><p>총 지출을 모두 같은 비율로 나누고, 더 낸 사람이 돌려받도록 송금 횟수를 줄여서 계산합니다. 사람마다 쓴 항목이 다르면 항목별로 나눠 각각 계산한 뒤 합치세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원 단위는 어떻게 처리하나요?</h3><p>반올림해서 표시하니 합계가 1~2원 다를 수 있어요.</p><h3>이름이 같으면?</h3><p>같은 이름은 한 사람으로 합산됩니다.</p></div><!--fb--><div class="fb" data-slug="tripsplit"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
@@ -25,11 +26,11 @@ const IDS=["t", "x"];
 function compute(v){const paid={};v.t.split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{const k=l.split(/\s+/),a=parseFloat(k.pop().replace(/,/g,''));if(isNaN(a))return;const n=k.join(' ');if(n)paid[n]=(paid[n]||0)+a});
 v.x.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean).forEach(n=>{if(!(n in paid))paid[n]=0});const names=Object.keys(paid);if(names.length<2)return '2명 이상 입력해 주세요.';
 const tot=names.reduce((a,n)=>a+paid[n],0),share=tot/names.length;const net=names.map(n=>({n,v:paid[n]-share}));const give=net.filter(x=>x.v<-0.5).sort((a,b)=>a.v-b.v),get=net.filter(x=>x.v>0.5).sort((a,b)=>b.v-a.v);
-const tr=[];let i=0,j=0;while(i<give.length&&j<get.length){const a=Math.min(-give[i].v,get[j].v);tr.push(give[i].n+' → '+get[j].n+' <b>'+W(a)+'</b>');give[i].v+=a;get[j].v-=a;if(give[i].v>-0.5)i++;if(get[j].v<0.5)j++}
+const tr=[];let i=0,j=0;while(i<give.length&&j<get.length){const a=Math.min(-give[i].v,get[j].v);tr.push(X(give[i].n)+' → '+X(get[j].n)+' <b>'+W(a)+'</b>');give[i].v+=a;get[j].v-=a;if(give[i].v>-0.5)i++;if(get[j].v<0.5)j++}
 return '총 '+W(tot)+' · '+names.length+'명 · 1인 <b>'+W(share)+'</b><br>'+(tr.length?tr.join('<br>'):'정산할 금액이 없어요');}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
@@ -76,7 +77,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -224,6 +230,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

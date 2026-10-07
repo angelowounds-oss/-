@@ -317,12 +317,12 @@ tool("housing-clock", "내 집 마련 시계", "fun", "소비를 집 면적으�
   S("region", "집 지역 (평당 가격 예시값)", [("4500", "서울 평균 (예시 4,500만원/평)"), ("2500", "경기·인천 (예시 2,500만원/평)"), ("1500", "광역시 (예시 1,500만원/평)"), ("900", "그 외 지방 (예시 900만원/평)")]),
   N("pp", "평당 가격 (만원, 직접 수정 가능)", 4500), N("size", "목표 평형 (평)", 25), N("have", "지금까지 모은 돈 (원)", 30000000), N("save", "매달 모을 수 있는 돈 (원)", 1000000)],
  r"""const ppm2=v.pp*10000/3.305785;if(!(v.amt>0&&ppm2>0))return '';
-const nm=v.name||'이 소비';
+const raw=v.name||'이 소비',nm=X(raw);
 const area=(sqm)=>{const cm=sqm*1e4;if(cm<623.7)return N2(cm,1)+'cm² (A4 용지의 '+N2(cm/623.7*100,1)+'%)';if(cm<1e4)return N2(cm,0)+'cm² (A4 용지 '+N2(cm/623.7,1)+'장)';return N2(sqm,2)+'㎡ ('+N2(sqm/3.305785,2)+'평)'};
 const dur=(d)=>{if(d<1)return '약 '+N2(d*24,1)+'시간';if(d<60)return '약 '+N2(d,1)+'일';const m=d/30;if(m<24)return '약 '+N2(m,1)+'개월';return '약 '+N2(m/12,1)+'년'};
 const a1=area(v.amt/ppm2);let delay='';if(v.save>0)delay=dur(v.amt/(v.save/30));
 let h='<b>'+nm+' 한 번 = 내 집 '+a1+'</b>';if(delay)h+='<br>내 집 마련이 <b>'+delay+'</b> 늦어집니다';
-let share=nm+' '+W(v.amt)+' = 내 집 '+a1+(delay?', 집 마련 '+delay+' 지연':'');
+let share=raw+' '+W(v.amt)+' = 내 집 '+a1+(delay?', 집 마련 '+delay+' 지연':'');
 const f=+v.freq;if(f>0){const yr=v.amt*f,ya=area(yr/ppm2);h+='<br><br>이 소비가 1년 쌓이면 '+W(yr)+' = 내 집 <b>'+ya+'</b>';
  share+=' / 1년이면 '+ya;
  const goal=v.pp*10000*v.size,rem=Math.max(0,goal-v.have);if(v.save>0&&rem>0){const cut=yr/12,m0=rem/v.save,m1=rem/(v.save+cut),d=m0-m1;
@@ -474,10 +474,11 @@ return '<b>사람 나이로 약 '+Math.round(h)+'세</b><br><small>'+(v.k==='dog
 # ---- 날짜·시간 ----
 tool("datediff", "날짜 간격(년·월·일) 계산기", "date", "두 날짜 사이 기간", "두 날짜 사이를 몇 년 몇 개월 며칠로, 총 일수로 계산합니다.",
  [DT("a", "시작일", "2020-03-01"), DT("b", "종료일", "today")],
- r'''const a=P(v.a),b=P(v.b);if(b<a)return '종료일이 시작일보다 빠릅니다.';let y=b.getFullYear()-a.getFullYear(),m=b.getMonth()-a.getMonth(),d=b.getDate()-a.getDate();
-if(d<0){m--;d+=new Date(b.getFullYear(),b.getMonth(),0).getDate()}if(m<0){y--;m+=12}
+ r'''const a=P(v.a),b=P(v.b);if(b<a)return '종료일이 시작일보다 빠릅니다.';
+const addM=(d,k)=>{const q=d.getFullYear()*12+d.getMonth()+k,yy=Math.floor(q/12),mo=q%12,last=new Date(yy,mo+1,0).getDate();return new Date(yy,mo,Math.min(d.getDate(),last))};
+let mm=(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth();while(mm>0&&addM(a,mm)>b)mm--;const y=Math.floor(mm/12),m=mm%12,d=DAYS(addM(a,mm),b);
 return '<b>'+y+'년 '+m+'개월 '+d+'일</b><br>총 '+DAYS(a,b).toLocaleString('ko-KR')+'일 · '+N2(DAYS(a,b)/7,1)+'주';''',
- "<h2>계산 방식</h2><p>시작일부터 종료일까지 달력 기준으로 년, 월, 일을 순서대로 뺍니다. 종료일을 포함하려면 하루를 더해서 보세요.</p>",
+ "<h2>계산 방식</h2><p>시작일에 개월 수를 더해 가며 종료일을 넘지 않는 가장 큰 개월 수를 구하고, 남은 날을 일수로 셉니다. 31일에 한 달을 더했는데 다음 달에 31일이 없으면 그 달 말일로 맞춰요(날짜 더하기 계산기와 같은 규칙). 종료일을 포함하려면 하루를 더해서 보세요.</p>",
  [("근속기간 계산에 쓸 수 있나요?", "네. 입사일과 오늘 날짜를 넣으면 됩니다."), ("종료일을 포함하나요?", "기본은 포함하지 않습니다.")])
 
 tool("timesum", "시간 합계 계산기", "date", "시:분 더하기", "여러 개의 시간(시:분)을 한꺼번에 더해 총 시간을 계산합니다. 한 줄에 하나씩 입력하세요.",
@@ -578,7 +579,7 @@ tool("roman", "로마 숫자 변환기", "tool", "아라비아 숫자 ↔ 로마
  [TX("n", "숫자 또는 로마 숫자", "2026")],
  r'''const s=v.n.trim().toUpperCase();if(!s)return '';const map=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
 if(/^\d+$/.test(s)){let n=+s;if(n<1||n>3999)return '1~3999 사이로 입력하세요.';let r='';map.forEach(([a,b])=>{while(n>=a){r+=b;n-=a}});return '<b>'+r+'</b>'}
-if(/^[IVXLCDM]+$/.test(s)){let i=0,t=0;map.forEach(([a,b])=>{while(s.startsWith(b,i)){t+=a;i+=b.length}});return i===s.length?'<b>'+t+'</b>':'올바른 로마 숫자가 아닙니다.'}return '숫자 또는 I, V, X, L, C, D, M으로 입력하세요.';''',
+if(/^[IVXLCDM]+$/.test(s)){let i=0,t=0;map.forEach(([a,b])=>{while(s.startsWith(b,i)){t+=a;i+=b.length}});const toR=n=>{let r='';map.forEach(([a,b])=>{while(n>=a){r+=b;n-=a}});return r};return i===s.length&&t>0&&toR(t)===s?'<b>'+t+'</b>':'올바른 로마 숫자가 아닙니다.'}return '숫자 또는 I, V, X, L, C, D, M으로 입력하세요.';''',
  "<h2>기호</h2><p>I=1, V=5, X=10, L=50, C=100, D=500, M=1000입니다. 4는 IV, 9는 IX처럼 작은 수를 앞에 놓아 뺍니다.</p>",
  [("0이나 4000 이상은요?", "표준 로마 숫자에는 0이 없고 4000 이상은 표기법이 다릅니다."), ("소문자도 되나요?", "네. 자동으로 대문자로 처리합니다.")])
 
@@ -614,14 +615,14 @@ tool("teams", "팀 나누기", "tool", "무작위 팀 배정", "이름 목록을
  [TA("names", "이름 (한 줄에 한 명)", "민수\n지영\n서준\n하은\n도윤\n수아\n예준"), N("k", "팀 수", 3, "1")],
  r'''const a=v.names.split('\n').map(x=>x.trim()).filter(Boolean),k=Math.floor(v.k);if(!a.length||!(k>=1))return '';if(k>a.length)return '인원보다 팀이 많습니다.';
 for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}const t=Array.from({length:k},()=>[]);a.forEach((x,i)=>t[i%k].push(x));
-return t.map((m,i)=>'<b>'+(i+1)+'팀</b> '+m.join(', ')).join('<br>');''',
+return t.map((m,i)=>'<b>'+(i+1)+'팀</b> '+m.map(X).join(', ')).join('<br>');''',
  "<h2>활용</h2><p>조별 과제, 모임 게임, 청소 당번 정하기에 쓰세요. 인원이 나누어떨어지지 않으면 앞 팀부터 한 명씩 더 배정됩니다.</p>",
  [("다시 섞으려면?", "버튼을 누르거나 입력을 조금 수정하세요."), ("이름이 저장되나요?", "아니요. 이 브라우저 안에서만 처리됩니다.")],
  button="다시 섞기")
 
 tool("textcase", "대소문자 변환기", "tool", "영문 대·소문자", "영문 텍스트를 대문자, 소문자, 단어 첫 글자 대문자로 바꿉니다.",
  [TA("t", "영문 텍스트", "hello World from the calculator site")],
- r'''const t=v.t;if(!t)return '';const title=t.toLowerCase().replace(/(^|\s)([a-z])/g,(m,a,b)=>a+b.toUpperCase());return '대문자: <b>'+t.toUpperCase()+'</b><br>소문자: <b>'+t.toLowerCase()+'</b><br>단어 첫 글자: <b>'+title+'</b>';''',
+ r'''const t=v.t;if(!t)return '';const title=t.toLowerCase().replace(/(^|\s)([a-z])/g,(m,a,b)=>a+b.toUpperCase());return '대문자: <b>'+X(t.toUpperCase())+'</b><br>소문자: <b>'+X(t.toLowerCase())+'</b><br>단어 첫 글자: <b>'+X(title)+'</b>';''',
  "<h2>안내</h2><p>한글에는 대소문자가 없어 영문자만 바뀝니다.</p>",
  [("카멜케이스는요?", "지원하지 않습니다. 단어 첫 글자 변환 후 공백을 지우세요."), ("글자 수가 궁금하면?", "글자수 세기를 쓰세요.")])
 
@@ -743,7 +744,7 @@ tool("roommate", "룸메 공과금 정산 계산기", "life", "거주 일수 비
  [N("t", "총 공과금 (원)", 120000), TA("p", "이름 일수 (한 줄에 한 명)", "민수 30\n지영 30\n서준 12")],
  r'''const rows=v.p.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const k=l.split(/\s+/),d=parseFloat(k.pop());return {n:k.join(' ')||'이름 없음',d}}).filter(r=>r.d>0);
 const sum=rows.reduce((a,r)=>a+r.d,0);if(!rows.length||!(v.t>0))return '이름과 일수를 입력해 주세요.';
-return rows.map(r=>r.n+' <b>'+W(Math.floor(v.t*r.d/sum/10)*10)+'</b> ('+r.d+'일)').join('<br>')+'<br><small>10원 단위로 내림해서 합계가 조금 모자랄 수 있어요</small>';''',
+return rows.map(r=>X(r.n)+' <b>'+W(Math.floor(v.t*r.d/sum/10)*10)+'</b> ('+r.d+'일)').join('<br>')+'<br><small>10원 단위로 내림해서 합계가 조금 모자랄 수 있어요</small>';''',
  "<h2>사용 방법</h2><p>룸메이트가 중간에 들어오거나 나갔을 때, 같이 지낸 일수가 다를 때 쓰세요. 일수가 같으면 N분의 1과 같습니다. 개인 사용량이 확연히 다른 항목(개인 인터넷 등)은 따로 계산하는 편이 공평합니다.</p>",
  [("전기료처럼 사용량이 다르면요?", "계량기가 따로 있으면 각자 금액을 따로 내고 공통 요금만 이 계산기로 나누세요."), ("이름이 두 글자 이상 띄어쓰기면?", "마지막 단어를 일수로 인식하니 숫자를 맨 끝에 적으세요.")])
 
@@ -765,7 +766,7 @@ tool("tripsplit", "여행 경비 정산 계산기", "life", "누가 누구에게
  r'''const paid={};v.t.split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{const k=l.split(/\s+/),a=parseFloat(k.pop().replace(/,/g,''));if(isNaN(a))return;const n=k.join(' ');if(n)paid[n]=(paid[n]||0)+a});
 v.x.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean).forEach(n=>{if(!(n in paid))paid[n]=0});const names=Object.keys(paid);if(names.length<2)return '2명 이상 입력해 주세요.';
 const tot=names.reduce((a,n)=>a+paid[n],0),share=tot/names.length;const net=names.map(n=>({n,v:paid[n]-share}));const give=net.filter(x=>x.v<-0.5).sort((a,b)=>a.v-b.v),get=net.filter(x=>x.v>0.5).sort((a,b)=>b.v-a.v);
-const tr=[];let i=0,j=0;while(i<give.length&&j<get.length){const a=Math.min(-give[i].v,get[j].v);tr.push(give[i].n+' → '+get[j].n+' <b>'+W(a)+'</b>');give[i].v+=a;get[j].v-=a;if(give[i].v>-0.5)i++;if(get[j].v<0.5)j++}
+const tr=[];let i=0,j=0;while(i<give.length&&j<get.length){const a=Math.min(-give[i].v,get[j].v);tr.push(X(give[i].n)+' → '+X(get[j].n)+' <b>'+W(a)+'</b>');give[i].v+=a;get[j].v-=a;if(give[i].v>-0.5)i++;if(get[j].v<0.5)j++}
 return '총 '+W(tot)+' · '+names.length+'명 · 1인 <b>'+W(share)+'</b><br>'+(tr.length?tr.join('<br>'):'정산할 금액이 없어요');''',
  "<h2>정산 방식</h2><p>총 지출을 모두 같은 비율로 나누고, 더 낸 사람이 돌려받도록 송금 횟수를 줄여서 계산합니다. 사람마다 쓴 항목이 다르면 항목별로 나눠 각각 계산한 뒤 합치세요.</p>",
  [("원 단위는 어떻게 처리하나요?", "반올림해서 표시하니 합계가 1~2원 다를 수 있어요."), ("이름이 같으면?", "같은 이름은 한 사람으로 합산됩니다.")])
@@ -787,7 +788,7 @@ return '남은 '+left+'쪽 · <b>'+d+'일 뒤 완독</b><br>'+FD(e)+' ('+DOW(e)+
 tool("pick", "제비뽑기", "play", "이름 중 당첨자 뽑기", "이름을 넣고 당첨자 수를 정하면 무작위로 뽑아줍니다. 점심 쏘기, 청소 당번 정하기에 쓰세요.",
  [TA("n", "이름 (한 줄에 한 명)", "민수\n지영\n서준\n하은\n도윤"), N("k", "뽑을 인원", 1, "1")],
  r'''const a=v.n.split('\n').map(x=>x.trim()).filter(Boolean),k=Math.floor(v.k);if(a.length<1||!(k>=1))return '';if(k>a.length)return '인원보다 많이 뽑을 수 없어요.';
-for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return '당첨 <b>'+a.slice(0,k).join(', ')+'</b>';''',
+for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return '당첨 <b>'+a.slice(0,k).map(X).join(', ')+'</b>';''',
  "<h2>공정한 추첨</h2><p>브라우저의 난수로 균등하게 뽑습니다. 결과는 버튼을 누를 때마다 바뀌니 마음에 들 때까지 누르면 공정하지 않아요. 한 번 정하고 따르기로 약속하세요.</p>",
  [("법적 추첨에도 쓸 수 있나요?", "아니요. 재미와 가벼운 결정용입니다."), ("같은 이름이 있으면?", "같은 이름이 두 번 들어간 만큼 뽑힐 확률이 커져요.")],
  button="다시 뽑기")
@@ -799,7 +800,8 @@ REG.append(("ladder", "사다리타기", "play", "이름과 결과 연결하기"
 REG.append(("quiz", "소비 유형 테스트", "play", "8문항으로 보는 내 소비 성향"))
 
 # ---------- rendering ----------
-HELPERS = r'''const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+HELPERS = r'''const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
@@ -873,14 +875,14 @@ def render_tool(t):
     ids = [i["id"] for i in t["inputs"]]
     inputs = "".join(render_input(i) for i in t["inputs"])
     btn = f'<button onclick="run()">{t["button"]}</button>' if t["button"] else ""
-    main = (f'<div class="card">{inputs}{btn}<div class="result" id="r"></div></div>'
+    main = (f'<div class="card">{inputs}{btn}<div class="result" id="res"></div></div>'
             f'{t["body"]}{faq_html(t["faq"])}{related(t["slug"], t["cat"])}')
     script = f'''<script>{HELPERS}
 const IDS={json.dumps(ids)};
 function compute(v){{{t["js"]}}}
 function run(){{const v={{}};IDS.forEach(i=>{{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value}});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){{document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}}
-let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){{document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}}
+let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}}
 function save(){{try{{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}}catch(e){{}}}}
 function load(){{try{{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')}})}}catch(e){{}}}}
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});
@@ -964,7 +966,7 @@ document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!=
 CHALLENGE_JS = r"""(function(){var now=new Date(),y=now.getFullYear(),m=now.getMonth(),dim=new Date(y,m+1,0).getDate(),first=new Date(y,m,1).getDay(),today=now.getDate();
 var key='ns:'+y+'-'+(m+1),st={amt:15000,days:[]};try{var s=JSON.parse(localStorage.getItem(key));if(s&&s.days)st=s}catch(e){}
 var W=function(n){return Math.round(n).toLocaleString('ko-KR')+'원'};
-var amt=document.getElementById('amt'),cal=document.getElementById('cal'),res=document.getElementById('r'),reset=document.getElementById('reset');
+var amt=document.getElementById('amt'),cal=document.getElementById('cal'),res=document.getElementById('res'),reset=document.getElementById('reset');
 document.getElementById('month').textContent=y+'년 '+(m+1)+'월';amt.value=st.amt;
 function save(){try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}}
 function draw(){cal.textContent='';'일월화수목금토'.split('').forEach(function(d){var e=document.createElement('div');e.className='dow';e.textContent=d;cal.appendChild(e)});
@@ -981,7 +983,7 @@ def challenge_page():
     faq = [("기록은 어디에 저장되나요?", "이 기기의 브라우저에만 저장돼요. 다른 기기나 시크릿 창에서는 보이지 않아요."), ("무지출이 뭐예요?", "하루 동안 필수 고정비 외에 돈을 쓰지 않는 챌린지예요. 기준은 직접 정하세요.")]
     main = ('<div class="card"><label for="amt">하루 평균 쓰던 돈 (원)</label><input type="number" id="amt" value="15000">'
             '<h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div>'
-            '<div class="result" id="r"></div><button type="button" id="reset" class="ghost">이번 달 기록 지우기</button></div>'
+            '<div class="result" id="res"></div><button type="button" id="reset" class="ghost">이번 달 기록 지우기</button></div>'
             '<h2>이렇게 써요</h2><p>무지출로 보낸 날을 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 아낀 돈이 바로 계산돼요. 결과는 이미지 카드로 만들어 인증용으로 올릴 수도 있어요. 억지로 참기보다 현실적으로 지킬 수 있는 날부터 시작하세요.</p>'
             + faq_html(faq) + related("challenge", "fun"))
     script = '<script>' + CHALLENGE_JS + '</script><script type="application/ld+json">' + faq_ld(faq) + '</script>'
@@ -998,7 +1000,7 @@ def custom_pages():
     page("roulette", "메뉴 룰렛", "오늘 뭐 먹지 돌려보기", "메뉴 후보를 넣고 룰렛을 돌려 오늘 먹을 것을 정하세요. 점심, 저녁, 야식 고르기 힘들 때 쓰는 무료 메뉴 룰렛입니다.",
          '<label for="opts">메뉴 (한 줄에 하나, 최대 20개)</label><textarea id="opts" style="min-height:150px">김치찌개\n치킨\n마라탕\n초밥\n떡볶이\n파스타</textarea>'
          '<canvas id="wheel" width="360" height="360" style="display:block;width:100%;max-width:360px;height:auto;margin:18px auto 0" aria-label="룰렛 판"></canvas>'
-         '<div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="r" aria-live="polite"></div>',
+         '<div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="res" aria-live="polite"></div>',
          "<h2>사용 방법</h2><p>메뉴를 한 줄에 하나씩 쓰고 돌리기를 누르세요. 후보는 최대 20개까지 가능해요. 결과가 마음에 안 들어도 한 번 정했으면 따르는 게 룰렛의 규칙입니다. 룰렛 돌리기 전에 먹기 싫은 메뉴는 빼 두세요.</p>",
          [("정말 무작위인가요?", "브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다."), ("메뉴 목록이 저장되나요?", "아니요. 새로고침하면 처음 목록으로 돌아가요.")], "roulette.js")
     page("ladder", "사다리타기", "이름과 결과 연결하기", "참가자와 결과를 넣고 사다리를 타요. 이름을 눌러 한 명씩 확인하거나 전체 결과를 한 번에 볼 수 있는 무료 사다리타기입니다.",
@@ -1006,16 +1008,16 @@ def custom_pages():
          '<label for="prizes">결과 (이름과 같은 순서로)</label><textarea id="prizes" style="min-height:120px">커피 쏘기\n통과\n통과\n통과</textarea>'
          '<canvas id="lad" width="360" height="420" style="display:block;width:100%;height:auto;margin:16px auto" aria-label="사다리"></canvas>'
          '<div class="actions" id="who"></div><div class="actions"><button type="button" id="showall">전체 결과 보기</button><button type="button" id="newlad" class="ghost">새 사다리 만들기</button></div>'
-         '<div class="result" id="r" aria-live="polite"></div>',
+         '<div class="result" id="res" aria-live="polite"></div>',
          "<h2>사용 방법</h2><p>이름과 결과를 같은 순서로 적으면 사다리가 만들어져요. 이름 버튼을 누르면 그 사람의 길이 표시되고 결과가 나옵니다. 입력을 바꾸면 사다리가 새로 만들어져요.</p>",
          [("가로줄은 어떻게 정하나요?", "무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요."), ("결과를 미리 알 수 있나요?", "사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요.")], "ladder.js")
     page("quiz", "소비 유형 테스트", "8문항으로 보는 내 소비 성향", "8가지 질문에 답하면 나의 소비 유형을 알려줘요. 계획형 저축러, 필코노미 플렉서 등 4가지 유형 중 나는 어디일까요? 재미로 해 보세요.",
-         '<div id="quiz"></div><div class="result" id="r" aria-live="polite"></div><div id="qlinks"></div>',
+         '<div id="quiz"></div><div class="result" id="res" aria-live="polite"></div><div id="qlinks"></div>',
          "<h2>안내</h2><p>오락용 테스트이며 심리 검사나 재무 상담이 아닙니다. 네 가지 유형 중 가장 많이 고른 쪽으로 결과가 나와요. 결과 카드를 이미지로 만들어 친구에게 공유해 보세요.</p>",
          [("결과는 저장되나요?", "아니요. 이 브라우저 안에서만 계산되고 저장되지 않아요."), ("유형이 마음에 안 들면?", "다시 하기로 다른 답을 골라 보세요.")], "quiz.js")
     page("habit", "습관 기록장", "한 달 습관 체크와 연속 기록", "운동, 공부, 독서 같은 습관을 한 달 달력에 체크하고 연속 일수와 달성률을 확인해요. 기록은 내 브라우저에만 저장됩니다.",
          '<label for="hname">습관 이름</label><input type="text" id="hname" maxlength="20" value="운동 30분">'
-         '<h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div><div class="result" id="r"></div>'
+         '<h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div><div class="result" id="res"></div>'
          '<button type="button" id="reset" class="ghost">이번 달 기록 지우기</button>',
          "<h2>이렇게 써요</h2><p>한 가지 습관을 정하고 한 날을 지킬 때마다 날짜를 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 달성률이 바로 계산돼요. 달이 바뀌면 새 달력으로 시작해요.</p>",
          [("여러 습관을 기록할 수 있나요?", "현재는 한 달에 한 가지 습관만 기록해요. 이름을 바꾸면 같은 달력의 이름만 바뀝니다."), ("기록이 사라졌어요", "브라우저 데이터를 지우거나 시크릿 창을 쓰면 보이지 않을 수 있어요.")], "habit.js")

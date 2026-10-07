@@ -132,3 +132,4 @@ footer .modebtn{margin:0;padding:3px 12px;font-size:13px;background:transparent;
 .fb a{font-size:14px;font-weight:700}
 .fb .fbt{flex-basis:100%;font-size:14px;color:var(--muted)}.fb .fbt:empty{display:none}
 .fb.voted button{display:none}
+.actions[hidden]{display:none}

@@ -2,7 +2,7 @@
   var now = new Date(), y = now.getFullYear(), m = now.getMonth(), dim = new Date(y, m + 1, 0).getDate(), first = new Date(y, m, 1).getDay(), today = now.getDate();
   var key = 'habit:' + y + '-' + (m + 1), st = { name: '운동 30분', days: [] };
   try { var s = JSON.parse(localStorage.getItem(key)); if (s && s.days) st = s; } catch (e) {}
-  var nameEl = document.getElementById('hname'), cal = document.getElementById('cal'), res = document.getElementById('r'), reset = document.getElementById('reset');
+  var nameEl = document.getElementById('hname'), cal = document.getElementById('cal'), res = document.getElementById('res'), reset = document.getElementById('reset');
   document.getElementById('month').textContent = y + '년 ' + (m + 1) + '월'; nameEl.value = st.name;
   function save() { try { localStorage.setItem(key, JSON.stringify(st)); } catch (e) {} }
   function draw() {

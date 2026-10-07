@@ -15,7 +15,7 @@
     C: { n: '가성비 탐험가', d: '비교하고 찾는 재미를 아는 타입이에요. 같은 돈으로 더 많이 얻는 데 진심이에요.', tip: '최저가를 찾는 시간도 비용이에요. 내 시급과 비교해 보면 어디서 멈출지 보여요.', l: [['unitprice.html', '단가 비교'], ['discount.html', '중복 할인']] },
     D: { n: '구독·수집러', d: '정기결제와 굿즈 모으기가 낙인 타입이에요. 좋아하는 게 분명하고 취향이 풍부해요.', tip: '분기마다 한 번씩 구독 목록을 점검하면 새는 돈을 막을 수 있어요.', l: [['daybudget.html', '월급 하루 생활비'], ['realhourly.html', '진짜 시급']] }
   };
-  var box = document.getElementById('quiz'), res = document.getElementById('r'), links = document.getElementById('qlinks');
+  var box = document.getElementById('quiz'), res = document.getElementById('res'), links = document.getElementById('qlinks');
   var i = 0, score = { A: 0, B: 0, C: 0, D: 0 };
   function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function show() {

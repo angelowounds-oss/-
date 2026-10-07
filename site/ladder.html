@@ -11,13 +11,13 @@
 하은</textarea><label for="prizes">결과 (이름과 같은 순서로)</label><textarea id="prizes" style="min-height:120px">커피 쏘기
 통과
 통과
-통과</textarea><canvas id="lad" width="360" height="420" style="display:block;width:100%;height:auto;margin:16px auto" aria-label="사다리"></canvas><div class="actions" id="who"></div><div class="actions"><button type="button" id="showall">전체 결과 보기</button><button type="button" id="newlad" class="ghost">새 사다리 만들기</button></div><div class="result" id="r" aria-live="polite"></div></div><h2>사용 방법</h2><p>이름과 결과를 같은 순서로 적으면 사다리가 만들어져요. 이름 버튼을 누르면 그 사람의 길이 표시되고 결과가 나옵니다. 입력을 바꾸면 사다리가 새로 만들어져요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가로줄은 어떻게 정하나요?</h3><p>무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요.</p><h3>결과를 미리 알 수 있나요?</h3><p>사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요.</p></div><!--fb--><div class="fb" data-slug="ladder"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="roulette.html">메뉴 룰렛</a><a href="quiz.html">소비 유형 테스트</a></div>
+통과</textarea><canvas id="lad" width="360" height="420" style="display:block;width:100%;height:auto;margin:16px auto" aria-label="사다리"></canvas><div class="actions" id="who"></div><div class="actions"><button type="button" id="showall">전체 결과 보기</button><button type="button" id="newlad" class="ghost">새 사다리 만들기</button></div><div class="result" id="res" aria-live="polite"></div></div><h2>사용 방법</h2><p>이름과 결과를 같은 순서로 적으면 사다리가 만들어져요. 이름 버튼을 누르면 그 사람의 길이 표시되고 결과가 나옵니다. 입력을 바꾸면 사다리가 새로 만들어져요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가로줄은 어떻게 정하나요?</h3><p>무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요.</p><h3>결과를 미리 알 수 있나요?</h3><p>사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요.</p></div><!--fb--><div class="fb" data-slug="ladder"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="roulette.html">메뉴 룰렛</a><a href="quiz.html">소비 유형 테스트</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>(function () {
   var namesEl = document.getElementById('names'), prizesEl = document.getElementById('prizes'), cv = document.getElementById('lad'),
-    btns = document.getElementById('who'), res = document.getElementById('r'), newBtn = document.getElementById('newlad'), allBtn = document.getElementById('showall');
+    btns = document.getElementById('who'), res = document.getElementById('res'), newBtn = document.getElementById('newlad'), allBtn = document.getElementById('showall');
   var ctx = cv.getContext('2d'), ROWS = 12;
   var COLORS = ['#e8590c', '#1c7ed6', '#d6336c', '#2f9e44', '#7048e8', '#f08c00', '#0b7285', '#c92a2a'];
   var names = [], prizes = [], rungs = [], shown = {}, order = [];
@@ -35,6 +35,7 @@
     });
     res.textContent = ''; render();
   }
+  function ink() { return getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#141414'; }
   function geo() {
     var n = names.length, W = Math.max(300, n * 90), H = 420, pad = 50, top = 60, bot = 60;
     return { n: n, W: W, H: H, x: function (c) { return n === 1 ? W / 2 : pad + c * (W - 2 * pad) / (n - 1); }, y: function (r) { return top + (r + 1) * (H - top - bot) / (ROWS + 1); }, top: top, bot: H - bot };
@@ -52,14 +53,14 @@
     var n = names.length; if (n < 2) { ctx.clearRect(0, 0, cv.width, cv.height); res.textContent = '이름을 2명 이상 입력해 주세요'; return; }
     var g = geo(); cv.width = g.W; cv.height = g.H; cv.style.maxWidth = g.W + 'px';
     ctx.clearRect(0, 0, g.W, g.H); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#141414'; ctx.lineWidth = 5;
+    var INK = ink(); ctx.strokeStyle = INK; ctx.lineWidth = 5;
     for (var c = 0; c < n; c++) { ctx.beginPath(); ctx.moveTo(g.x(c), g.top); ctx.lineTo(g.x(c), g.bot); ctx.stroke(); }
     for (var r = 0; r < ROWS; r++) for (var k = 0; k < n - 1; k++) if (rungs[r][k]) { ctx.beginPath(); ctx.moveTo(g.x(k), g.y(r)); ctx.lineTo(g.x(k + 1), g.y(r)); ctx.stroke(); }
     Object.keys(shown).forEach(function (key) {
       var c2 = +key, p = path(c2); ctx.strokeStyle = COLORS[c2 % COLORS.length]; ctx.lineWidth = 8; ctx.beginPath();
       p.pts.forEach(function (pt, i) { if (i) ctx.lineTo(pt[0], pt[1]); else ctx.moveTo(pt[0], pt[1]); }); ctx.stroke();
     });
-    ctx.fillStyle = '#141414'; ctx.textAlign = 'center'; ctx.font = '700 17px "Noto Sans KR", sans-serif';
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.font = '700 17px "Noto Sans KR", sans-serif';
     for (var c3 = 0; c3 < n; c3++) {
       ctx.fillText(names[c3].length > 6 ? names[c3].slice(0, 5) + '…' : names[c3], g.x(c3), g.top - 22);
       var out = Object.keys(shown).filter(function (key) { return path(+key).end === c3; });
@@ -73,6 +74,8 @@
   newBtn.addEventListener('click', build);
   allBtn.addEventListener('click', function () { for (var c = 0; c < names.length; c++) reveal(c); });
   namesEl.addEventListener('input', build); prizesEl.addEventListener('input', build);
+  try { new MutationObserver(function () { render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
+  if (window.matchMedia) { var mq = matchMedia('(prefers-color-scheme: dark)'); (mq.addEventListener ? mq.addEventListener('change', render) : null); }
   build();
 })();
 </script><script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "가로줄은 어떻게 정하나요?", "acceptedAnswer": {"@type": "Answer", "text": "무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요."}}, {"@type": "Question", "name": "결과를 미리 알 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요."}}]}</script><!--cj--><script>(function () {
@@ -115,7 +118,12 @@
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -263,6 +271,12 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';

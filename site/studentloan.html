@@ -5,11 +5,12 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>학자금 대출 상환 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="p">대출 원금 (원)</label><input type="number" id="p" value="10000000" step="any"><label for="r">연 금리 (%)</label><input type="number" id="r" value="1.7" step="0.01"><label for="g">거치 기간 (개월, 이자만 납부)</label><input type="number" id="g" value="12" step="1"><label for="n">상환 기간 (개월)</label><input type="number" id="n" value="120" step="1"><div class="result" id="r"></div></div><h2>알아두세요</h2><p>학자금 대출은 상품에 따라 소득에 연동해 갚는 방식이 있고 금리도 학기마다 바뀝니다. 이 계산기는 매월 같은 금액을 갚는 원리금균등 방식을 가정하며, 실제 상환액은 한국장학재단의 안내를 따르세요. 금리는 적용 학기의 값을 입력하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>거치 기간은 무엇인가요?</h3><p>원금 상환을 미루고 이자만 내는 기간입니다.</p><h3>소득 연동 상환은요?</h3><p>소득이 일정 수준을 넘으면 갚기 시작하는 방식이라 이 계산기와 다릅니다.</p></div><!--fb--><div class="fb" data-slug="studentloan"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a></div>
+<div class="card"><label for="p">대출 원금 (원)</label><input type="number" id="p" value="10000000" step="any"><label for="r">연 금리 (%)</label><input type="number" id="r" value="1.7" step="0.01"><label for="g">거치 기간 (개월, 이자만 납부)</label><input type="number" id="g" value="12" step="1"><label for="n">상환 기간 (개월)</label><input type="number" id="n" value="120" step="1"><div class="result" id="res"></div></div><h2>알아두세요</h2><p>학자금 대출은 상품에 따라 소득에 연동해 갚는 방식이 있고 금리도 학기마다 바뀝니다. 이 계산기는 매월 같은 금액을 갚는 원리금균등 방식을 가정하며, 실제 상환액은 한국장학재단의 안내를 따르세요. 금리는 적용 학기의 값을 입력하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>거치 기간은 무엇인가요?</h3><p>원금 상환을 미루고 이자만 내는 기간입니다.</p><h3>소득 연동 상환은요?</h3><p>소득이 일정 수준을 넘으면 갚기 시작하는 방식이라 이 계산기와 다릅니다.</p></div><!--fb--><div class="fb" data-slug="studentloan"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
 const W0=n=>Math.round(n).toLocaleString('ko-KR');
 const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
@@ -22,8 +23,8 @@ const IDS=["p", "r", "g", "n"];
 function compute(v){const i=v.r/1200,n=v.n;if(!(n>0))return '';const pay=i===0?v.p/n:v.p*i/(1-Math.pow(1+i,-n)),gi=v.p*i;
 return '거치 중 월 이자 '+W(gi)+'<br><b>상환 시작 후 월 '+W(pay)+'</b> ('+n+'개월)<br><small>총 이자 약 '+W(gi*v.g+pay*n-v.p)+' · 총 상환 약 '+W(v.p+gi*v.g+pay*n-v.p)+'</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('r').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('r').innerHTML=h;save()}
+if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
@@ -70,7 +71,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   var title = doc.title.split(' - ')[0];
 
   /* favorites + recent */
-  var favs = LS.get('favs', []), recent = LS.get('recent', []);
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
@@ -218,6 +224,12 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
       note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
