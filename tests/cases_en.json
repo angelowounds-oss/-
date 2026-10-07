@@ -1,0 +1,1712 @@
+[
+ {
+  "slug": "loan",
+  "inputs": {
+   "a": "250000",
+   "r": "6.5",
+   "y": "30",
+   "x": "0"
+  },
+  "expect": [
+   "Monthly payment $1,580.17",
+   "Total interest $318,861.22",
+   "Total paid $568,861.22",
+   "First payment: $1,354.17 interest + $226.00 principal"
+  ],
+  "click": null,
+  "name": "loan"
+ },
+ {
+  "slug": "loan",
+  "inputs": {
+   "a": "250000",
+   "r": "6.5",
+   "y": "30",
+   "x": "200"
+  },
+  "expect": [
+   "debt-free in 22 yr 1 mo",
+   "pay $221,243.10 interest",
+   "saves $97,618.12"
+  ],
+  "click": null,
+  "name": "loan-extra"
+ },
+ {
+  "slug": "loan",
+  "inputs": {
+   "a": "12000",
+   "r": "0",
+   "y": "2",
+   "x": "0"
+  },
+  "expect": [
+   "Monthly payment $500.00",
+   "Total interest $0.00"
+  ],
+  "click": null,
+  "name": "loan-0rate"
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "10000",
+   "m": "200",
+   "r": "7",
+   "y": "20",
+   "f": "12"
+  },
+  "expect": [
+   "Future value $144,572.72",
+   "Total contributed $58,000.00",
+   "Interest earned $86,572.72"
+  ],
+  "click": null,
+  "name": "compound"
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "10000",
+   "m": "0",
+   "r": "7",
+   "y": "10",
+   "f": "1"
+  },
+  "expect": [
+   "Future value $19,671.51"
+  ],
+  "click": null,
+  "name": "compound-annual"
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "5000",
+   "m": "100",
+   "r": "0",
+   "y": "5",
+   "f": "12"
+  },
+  "expect": [
+   "Future value $11,000.00"
+  ],
+  "click": null,
+  "name": "compound-0rate"
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "10000",
+   "b": "15000",
+   "y": "5"
+  },
+  "expect": [
+   "Total return 50%",
+   "CAGR 8.45% per year",
+   "Gain / loss $5,000.00"
+  ],
+  "click": null,
+  "name": "cagr"
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "20000",
+   "b": "10000",
+   "y": "3"
+  },
+  "expect": [
+   "Total return -50%",
+   "CAGR -20.63%",
+   "-$10,000.00"
+  ],
+  "click": null,
+  "name": "cagr-loss"
+ },
+ {
+  "slug": "avgprice",
+  "inputs": {
+   "p1": "100",
+   "q1": "10",
+   "p2": "80",
+   "q2": "20",
+   "p3": "0",
+   "q3": "0",
+   "now": "90"
+  },
+  "expect": [
+   "Average cost $86.67",
+   "Total invested $2,600.00",
+   "$100.00 (3.85%)"
+  ],
+  "click": null,
+  "name": "avgprice"
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "20000",
+   "c": "1000",
+   "m": "400",
+   "r": "3"
+  },
+  "expect": [
+   "About 45 months (3 yr 9 mo)",
+   "Total deposited $19,000.00"
+  ],
+  "click": null,
+  "name": "savegoal"
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "1000",
+   "c": "2000",
+   "m": "100",
+   "r": "3"
+  },
+  "expect": [
+   "already reached"
+  ],
+  "click": null,
+  "name": "savegoal-done"
+ },
+ {
+  "slug": "inflation",
+  "inputs": {
+   "a": "1000",
+   "r": "3",
+   "y": "10"
+  },
+  "expect": [
+   "will cost $1,343.92",
+   "what $744.09 buys today"
+  ],
+  "click": null,
+  "name": "inflation"
+ },
+ {
+  "slug": "dividend",
+  "inputs": {
+   "p": "50",
+   "d": "2",
+   "q": "100",
+   "tax": "15"
+  },
+  "expect": [
+   "Dividend yield 4%",
+   "Yearly dividends $200.00",
+   "$170.00 after tax",
+   "About $14.17 per month"
+  ],
+  "click": null,
+  "name": "dividend"
+ },
+ {
+  "slug": "apy",
+  "inputs": {
+   "r": "4.5",
+   "n": "12"
+  },
+  "expect": [
+   "APY 4.594%"
+  ],
+  "click": null,
+  "name": "apy"
+ },
+ {
+  "slug": "apy",
+  "inputs": {
+   "r": "5",
+   "n": "0"
+  },
+  "expect": [
+   "APY 5.1271%"
+  ],
+  "click": null,
+  "name": "apy-continuous"
+ },
+ {
+  "slug": "fire",
+  "inputs": {
+   "s": "40000",
+   "w": "4",
+   "c": "50000",
+   "m": "15000",
+   "r": "5"
+  },
+  "expect": [
+   "Target savings $1,000,000.00",
+   "about 27 years"
+  ],
+  "click": null,
+  "name": "fire"
+ },
+ {
+  "slug": "fire",
+  "inputs": {
+   "s": "40000",
+   "w": "4",
+   "c": "2000000",
+   "m": "0",
+   "r": "5"
+  },
+  "expect": [
+   "already there"
+  ],
+  "click": null,
+  "name": "fire-done"
+ },
+ {
+  "slug": "salary",
+  "inputs": {
+   "a": "25",
+   "per": "h",
+   "hpw": "40",
+   "dpw": "5",
+   "wpy": "52"
+  },
+  "expect": [
+   "Hourly $25.00",
+   "Daily $200.00",
+   "Weekly $1,000.00",
+   "Biweekly $2,000.00",
+   "Monthly $4,333.33",
+   "Yearly $52,000.00"
+  ],
+  "click": null,
+  "name": "salary"
+ },
+ {
+  "slug": "salary",
+  "inputs": {
+   "a": "6000",
+   "per": "m",
+   "hpw": "40",
+   "dpw": "5",
+   "wpy": "52"
+  },
+  "expect": [
+   "Yearly $72,000.00",
+   "Hourly $34.62"
+  ],
+  "click": null,
+  "name": "salary-monthly"
+ },
+ {
+  "slug": "raise",
+  "inputs": {
+   "c": "50000",
+   "p": "4",
+   "i": "3"
+  },
+  "expect": [
+   "New salary $52,000.00",
+   "$2,000.00 more per year",
+   "$166.67 per month",
+   "raise is 0.97%"
+  ],
+  "click": null,
+  "name": "raise"
+ },
+ {
+  "slug": "raise",
+  "inputs": {
+   "c": "50000",
+   "p": "2",
+   "i": "5"
+  },
+  "expect": [
+   "lose purchasing power"
+  ],
+  "click": null,
+  "name": "raise-negative-real"
+ },
+ {
+  "slug": "overtime",
+  "inputs": {
+   "r": "20",
+   "h": "40",
+   "o": "6",
+   "om": "1.5",
+   "d": "0",
+   "dm": "2"
+  },
+  "expect": [
+   "Total pay $980.00",
+   "Regular $800.00",
+   "Overtime $180.00",
+   "Overtime rate $30.00 per hour"
+  ],
+  "click": null,
+  "name": "overtime"
+ },
+ {
+  "slug": "overtime",
+  "inputs": {
+   "r": "20",
+   "h": "40",
+   "o": "6",
+   "om": "1.5",
+   "d": "2",
+   "dm": "2"
+  },
+  "expect": [
+   "Total pay $1,060.00",
+   "Double time $80.00"
+  ],
+  "click": null,
+  "name": "overtime-double"
+ },
+ {
+  "slug": "tip",
+  "inputs": {
+   "b": "85",
+   "t": "18",
+   "n": "2",
+   "rd": "no"
+  },
+  "expect": [
+   "Tip $15.30",
+   "Total $100.30",
+   "Each person pays $50.15"
+  ],
+  "click": null,
+  "name": "tip"
+ },
+ {
+  "slug": "tip",
+  "inputs": {
+   "b": "85",
+   "t": "18",
+   "n": "2",
+   "rd": "up"
+  },
+  "expect": [
+   "Tip $17.00",
+   "Total $102.00",
+   "Each person pays $51.00"
+  ],
+  "click": null,
+  "name": "tip-roundup"
+ },
+ {
+  "slug": "salestax",
+  "inputs": {
+   "a": "100",
+   "r": "20",
+   "m": "add"
+  },
+  "expect": [
+   "Tax $20.00",
+   "Total $120.00"
+  ],
+  "click": null,
+  "name": "salestax"
+ },
+ {
+  "slug": "salestax",
+  "inputs": {
+   "a": "120",
+   "r": "20",
+   "m": "rem"
+  },
+  "expect": [
+   "Tax $20.00",
+   "Net price $100.00"
+  ],
+  "click": null,
+  "name": "salestax-remove"
+ },
+ {
+  "slug": "discount",
+  "inputs": {
+   "p": "100",
+   "d1": "20",
+   "d2": "10",
+   "c": "0"
+  },
+  "expect": [
+   "Final price $72.00",
+   "You save $28.00 (28% off",
+   "After the first discount: $80.00"
+  ],
+  "click": null,
+  "name": "discount"
+ },
+ {
+  "slug": "discount",
+  "inputs": {
+   "p": "100",
+   "d1": "50",
+   "d2": "0",
+   "c": "60"
+  },
+  "expect": [
+   "Final price $0.00"
+  ],
+  "click": null,
+  "name": "discount-floor"
+ },
+ {
+  "slug": "margin",
+  "inputs": {
+   "c": "40",
+   "m": "p",
+   "p": "100",
+   "t": "30"
+  },
+  "expect": [
+   "Margin 60%",
+   "Markup 150%",
+   "Profit per unit $60.00"
+  ],
+  "click": null,
+  "name": "margin"
+ },
+ {
+  "slug": "margin",
+  "inputs": {
+   "c": "40",
+   "m": "t",
+   "p": "100",
+   "t": "30"
+  },
+  "expect": [
+   "Selling price $57.14",
+   "Markup 42.86%"
+  ],
+  "click": null,
+  "name": "margin-target"
+ },
+ {
+  "slug": "margin",
+  "inputs": {
+   "c": "40",
+   "m": "t",
+   "p": "100",
+   "t": "100"
+  },
+  "expect": [
+   "below 100%"
+  ],
+  "click": null,
+  "name": "margin-100"
+ },
+ {
+  "slug": "breakeven",
+  "inputs": {
+   "f": "3000",
+   "p": "25",
+   "c": "10",
+   "t": "0"
+  },
+  "expect": [
+   "Break-even: 200 units",
+   "Revenue needed $5,000.00",
+   "Contribution per unit $15.00 (60%)"
+  ],
+  "click": null,
+  "name": "breakeven"
+ },
+ {
+  "slug": "breakeven",
+  "inputs": {
+   "f": "3000",
+   "p": "25",
+   "c": "10",
+   "t": "1500"
+  },
+  "expect": [
+   "Units for target profit: 300 units"
+  ],
+  "click": null,
+  "name": "breakeven-target"
+ },
+ {
+  "slug": "breakeven",
+  "inputs": {
+   "f": "3000",
+   "p": "10",
+   "c": "12",
+   "t": "0"
+  },
+  "expect": [
+   "must be higher"
+  ],
+  "click": null,
+  "name": "breakeven-neg"
+ },
+ {
+  "slug": "roas",
+  "inputs": {
+   "s": "1000",
+   "r": "4000",
+   "m": "40"
+  },
+  "expect": [
+   "ROAS 4x",
+   "break-even ROAS 2.5x",
+   "Profit after ad spend $600.00",
+   "Ad ROI 60%"
+  ],
+  "click": null,
+  "name": "roas"
+ },
+ {
+  "slug": "roas",
+  "inputs": {
+   "s": "1000",
+   "r": "2000",
+   "m": "40"
+  },
+  "expect": [
+   "You lose money"
+  ],
+  "click": null,
+  "name": "roas-loss"
+ },
+ {
+  "slug": "fuel",
+  "inputs": {
+   "u": "us",
+   "d": "300",
+   "e": "30",
+   "p": "3.5"
+  },
+  "expect": [
+   "Fuel needed 10 US gal",
+   "Fuel cost $35.00",
+   "$0.12 per mile"
+  ],
+  "click": null,
+  "name": "fuel"
+ },
+ {
+  "slug": "fuel",
+  "inputs": {
+   "u": "met",
+   "d": "500",
+   "e": "7",
+   "p": "1.8"
+  },
+  "expect": [
+   "Fuel needed 35 L",
+   "Fuel cost $63.00",
+   "$0.13 per km"
+  ],
+  "click": null,
+  "name": "fuel-metric"
+ },
+ {
+  "slug": "unitprice",
+  "inputs": {
+   "p1": "3.99",
+   "q1": "500",
+   "p2": "6.49",
+   "q2": "1000",
+   "p3": "0",
+   "q3": "0"
+  },
+  "expect": [
+   "Item A: $0.80 per 100 units",
+   "Item B: $0.65 per 100 units (best value)",
+   "Best value is 23% cheaper"
+  ],
+  "click": null,
+  "name": "unitprice"
+ },
+ {
+  "slug": "petage",
+  "inputs": {
+   "k": "dog",
+   "a": "5",
+   "s": "5"
+  },
+  "expect": [
+   "About 39 human years",
+   "DNA-methylation formula: 56.8 human years"
+  ],
+  "click": null,
+  "name": "petage"
+ },
+ {
+  "slug": "petage",
+  "inputs": {
+   "k": "cat",
+   "a": "5",
+   "s": "5"
+  },
+  "expect": [
+   "About 36 human years"
+  ],
+  "click": null,
+  "name": "petage-cat"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "b": "1995-06-15",
+   "t": "2026-10-07"
+  },
+  "expect": [
+   "31 years, 3 months, 22 days",
+   "11,437 days lived",
+   "Next birthday: Tue, Jun 15, 2027 (in 251 days)"
+  ],
+  "click": null,
+  "name": "age"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "b": "2000-10-07",
+   "t": "2026-10-07"
+  },
+  "expect": [
+   "26 years, 0 months, 0 days",
+   "today!"
+  ],
+  "click": null,
+  "name": "age-on-birthday"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "b": "2000-02-29",
+   "t": "2026-03-01"
+  },
+  "expect": [
+   "26 years, 0 months, 1 day"
+  ],
+  "click": null,
+  "name": "age-leap"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "b": "2030-01-01",
+   "t": "2026-10-07"
+  },
+  "expect": [
+   "must be after"
+  ],
+  "click": null,
+  "name": "age-future"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2026-01-01",
+   "b": "2026-10-07",
+   "i": "0"
+  },
+  "expect": [
+   "279 days",
+   "39 weeks 6 days",
+   "0 years, 9 months, 6 days"
+  ],
+  "click": null,
+  "name": "datediff"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2026-01-01",
+   "b": "2026-10-07",
+   "i": "1"
+  },
+  "expect": [
+   "280 days"
+  ],
+  "click": null,
+  "name": "datediff-inclusive"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2026-01-31",
+   "b": "2026-03-01",
+   "i": "0"
+  },
+  "expect": [
+   "29 days",
+   "0 years, 1 month, 1 day"
+  ],
+  "click": null,
+  "name": "datediff-monthend"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2026-10-07",
+   "b": "2026-01-01",
+   "i": "0"
+  },
+  "expect": [
+   "must be after"
+  ],
+  "click": null,
+  "name": "datediff-reverse"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-07",
+   "dir": "1",
+   "n": "90",
+   "u": "d"
+  },
+  "expect": [
+   "Tue, Jan 5, 2027"
+  ],
+  "click": null,
+  "name": "dateadd"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-01-31",
+   "dir": "1",
+   "n": "1",
+   "u": "m"
+  },
+  "expect": [
+   "Sat, Feb 28, 2026"
+  ],
+  "click": null,
+  "name": "dateadd-monthend"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-07",
+   "dir": "-1",
+   "n": "2",
+   "u": "w"
+  },
+  "expect": [
+   "Wed, Sep 23, 2026"
+  ],
+  "click": null,
+  "name": "dateadd-sub"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2024-02-29",
+   "dir": "1",
+   "n": "1",
+   "u": "y"
+  },
+  "expect": [
+   "Fri, Feb 28, 2025"
+  ],
+  "click": null,
+  "name": "dateadd-leap"
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-07",
+   "b": "2026-11-06",
+   "h": "0"
+  },
+  "expect": [
+   "23 business days",
+   "31 calendar days"
+  ],
+  "click": null,
+  "name": "bizdays"
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-07",
+   "b": "2026-11-06",
+   "h": "2"
+  },
+  "expect": [
+   "21 business days"
+  ],
+  "click": null,
+  "name": "bizdays-holidays"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2026-10-07"
+  },
+  "expect": [
+   "Week 41 of 2026",
+   "Wednesday",
+   "Day 280 of the year",
+   "85 days left",
+   "Q4"
+  ],
+  "click": null,
+  "name": "weeknum"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2027-01-01"
+  },
+  "expect": [
+   "Week 53 of 2026",
+   "Friday"
+  ],
+  "click": null,
+  "name": "weeknum-year-boundary"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2024-12-30"
+  },
+  "expect": [
+   "Week 1 of 2025"
+  ],
+  "click": null,
+  "name": "weeknum-w1-next-year"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-10-07",
+   "t": "09:00",
+   "from": "UTC",
+   "to": "America/New_York"
+  },
+  "expect": [
+   "Wednesday, October 7, 2026",
+   "5:00 AM EDT"
+  ],
+  "click": null,
+  "name": "timezone"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-01-15",
+   "t": "09:00",
+   "from": "Europe/London",
+   "to": "Asia/Tokyo"
+  },
+  "expect": [
+   "Thursday, January 15, 2026",
+   "6:00 PM GMT+9"
+  ],
+  "click": null,
+  "name": "timezone-winter"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-07-01",
+   "t": "09:00",
+   "from": "Europe/London",
+   "to": "Asia/Tokyo"
+  },
+  "expect": [
+   "5:00 PM GMT+9"
+  ],
+  "click": null,
+  "name": "timezone-summer"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-03-08",
+   "t": "03:30",
+   "from": "America/New_York",
+   "to": "UTC"
+  },
+  "expect": [
+   "7:30 AM UTC"
+  ],
+  "click": null,
+  "name": "timezone-dst-start"
+ },
+ {
+  "slug": "timediff",
+  "inputs": {
+   "a": "09:00",
+   "b": "17:30",
+   "k": "30"
+  },
+  "expect": [
+   "8 h 0 min",
+   "8 hours"
+  ],
+  "click": null,
+  "name": "timediff"
+ },
+ {
+  "slug": "timediff",
+  "inputs": {
+   "a": "22:00",
+   "b": "06:00",
+   "k": "0"
+  },
+  "expect": [
+   "8 h 0 min"
+  ],
+  "click": null,
+  "name": "timediff-overnight"
+ },
+ {
+  "slug": "timediff",
+  "inputs": {
+   "a": "09:00",
+   "b": "09:10",
+   "k": "30"
+  },
+  "expect": [
+   "break is longer"
+  ],
+  "click": null,
+  "name": "timediff-break"
+ },
+ {
+  "slug": "timesum",
+  "inputs": {
+   "l": "1:30\n2:45\n0:50"
+  },
+  "expect": [
+   "5:05:00",
+   "5.08 hours"
+  ],
+  "click": null,
+  "name": "timesum"
+ },
+ {
+  "slug": "timesum",
+  "inputs": {
+   "l": "0:45\n0:45\nabc"
+  },
+  "expect": [
+   "1:30:00",
+   "1 line(s) ignored"
+  ],
+  "click": null,
+  "name": "timesum-bad"
+ },
+ {
+  "slug": "bmi",
+  "inputs": {
+   "u": "m",
+   "h": "170",
+   "hi": "0",
+   "w": "68"
+  },
+  "expect": [
+   "BMI 23.5",
+   "Healthy weight",
+   "53.5 kg to 72 kg"
+  ],
+  "click": null,
+  "name": "bmi"
+ },
+ {
+  "slug": "bmi",
+  "inputs": {
+   "u": "i",
+   "h": "5",
+   "hi": "7",
+   "w": "154"
+  },
+  "expect": [
+   "BMI 24.1",
+   "Healthy weight"
+  ],
+  "click": null,
+  "name": "bmi-imperial"
+ },
+ {
+  "slug": "bmi",
+  "inputs": {
+   "u": "m",
+   "h": "175",
+   "hi": "0",
+   "w": "110"
+  },
+  "expect": [
+   "BMI 35.9",
+   "Obesity class II"
+  ],
+  "click": null,
+  "name": "bmi-obese2"
+ },
+ {
+  "slug": "bmi",
+  "inputs": {
+   "u": "m",
+   "h": "175",
+   "hi": "0",
+   "w": "50"
+  },
+  "expect": [
+   "BMI 16.3",
+   "Underweight"
+  ],
+  "click": null,
+  "name": "bmi-under"
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "m",
+   "a": "30",
+   "u": "m",
+   "h": "175",
+   "w": "72",
+   "act": "1.375"
+  },
+  "expect": [
+   "BMR 1,669 kcal/day",
+   "Maintenance (TDEE) 2,295 kcal/day",
+   "~1,795 kcal"
+  ],
+  "click": null,
+  "name": "bmr"
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "f",
+   "a": "30",
+   "u": "m",
+   "h": "165",
+   "w": "60",
+   "act": "1.2"
+  },
+  "expect": [
+   "BMR 1,320 kcal/day"
+  ],
+  "click": null,
+  "name": "bmr-female"
+ },
+ {
+  "slug": "idealweight",
+  "inputs": {
+   "sex": "m",
+   "u": "m",
+   "h": "175"
+  },
+  "expect": [
+   "Devine: 70.5 kg",
+   "Robinson: 68.9 kg",
+   "Miller: 68.7 kg",
+   "Hamwi: 72 kg"
+  ],
+  "click": null,
+  "name": "idealweight"
+ },
+ {
+  "slug": "idealweight",
+  "inputs": {
+   "sex": "f",
+   "u": "i",
+   "h": "40"
+  },
+  "expect": [
+   "at least 58 in"
+  ],
+  "click": null,
+  "name": "idealweight-short"
+ },
+ {
+  "slug": "bodyfat",
+  "inputs": {
+   "sex": "m",
+   "u": "m",
+   "h": "178",
+   "w": "85",
+   "n": "38",
+   "p": "95"
+  },
+  "expect": [
+   "Body fat about 16.4%"
+  ],
+  "click": null,
+  "name": "bodyfat"
+ },
+ {
+  "slug": "bodyfat",
+  "inputs": {
+   "sex": "f",
+   "u": "m",
+   "h": "165",
+   "w": "80",
+   "n": "33",
+   "p": "98"
+  },
+  "expect": [
+   "Body fat about 30.9%"
+  ],
+  "click": null,
+  "name": "bodyfat-female"
+ },
+ {
+  "slug": "bodyfat",
+  "inputs": {
+   "sex": "m",
+   "u": "m",
+   "h": "178",
+   "w": "30",
+   "n": "38",
+   "p": "0"
+  },
+  "expect": [
+   "Waist must be larger"
+  ],
+  "click": null,
+  "name": "bodyfat-bad"
+ },
+ {
+  "slug": "water",
+  "inputs": {
+   "u": "m",
+   "w": "60",
+   "a": "30"
+  },
+  "expect": [
+   "About 1.8 L (61 fl oz) to 2.1 L",
+   "350 ml"
+  ],
+  "click": null,
+  "name": "water"
+ },
+ {
+  "slug": "protein",
+  "inputs": {
+   "u": "m",
+   "w": "70",
+   "g": "1.6:2.2"
+  },
+  "expect": [
+   "112 – 154 g per day"
+  ],
+  "click": null,
+  "name": "protein"
+ },
+ {
+  "slug": "protein",
+  "inputs": {
+   "u": "i",
+   "w": "154",
+   "g": "0.8:1.0"
+  },
+  "expect": [
+   "56 – 70 g"
+  ],
+  "click": null,
+  "name": "protein-lb"
+ },
+ {
+  "slug": "heartrate",
+  "inputs": {
+   "a": "35",
+   "r": "60"
+  },
+  "expect": [
+   "max heart rate 185 bpm",
+   "Fat burn: 135 – 148 bpm",
+   "Hard: 160 – 173 bpm"
+  ],
+  "click": null,
+  "name": "heartrate"
+ },
+ {
+  "slug": "heartrate",
+  "inputs": {
+   "a": "35",
+   "r": "0"
+  },
+  "expect": [
+   "Aerobic: 130 – 148 bpm"
+  ],
+  "click": null,
+  "name": "heartrate-norest"
+ },
+ {
+  "slug": "onerm",
+  "inputs": {
+   "w": "100",
+   "r": "5"
+  },
+  "expect": [
+   "1RM about 116.7",
+   "112.5 (Brzycki)",
+   "90%: 105"
+  ],
+  "click": null,
+  "name": "onerm"
+ },
+ {
+  "slug": "pace",
+  "inputs": {
+   "d": "5",
+   "hh": "0",
+   "mm": "28",
+   "ss": "30"
+  },
+  "expect": [
+   "Pace 5:42 /km",
+   "9:10 /mile",
+   "10.53 km/h",
+   "10 km 57:00",
+   "half marathon 2:00:15",
+   "marathon 4:00:31"
+  ],
+  "click": null,
+  "name": "pace"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "m": "of",
+   "x": "20",
+   "y": "150"
+  },
+  "expect": [
+   "30"
+  ],
+  "click": null,
+  "name": "percent"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "m": "is",
+   "x": "30",
+   "y": "150"
+  },
+  "expect": [
+   "20%"
+  ],
+  "click": null,
+  "name": "percent"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "m": "chg",
+   "x": "80",
+   "y": "100"
+  },
+  "expect": [
+   "+25%",
+   "increase"
+  ],
+  "click": null,
+  "name": "percent-change"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "m": "chg",
+   "x": "100",
+   "y": "75"
+  },
+  "expect": [
+   "-25%",
+   "decrease"
+  ],
+  "click": null,
+  "name": "percent-decrease"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "m": "inc",
+   "x": "200",
+   "y": "15"
+  },
+  "expect": [
+   "230"
+  ],
+  "click": null,
+  "name": "percent-inc"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "m": "dec",
+   "x": "200",
+   "y": "15"
+  },
+  "expect": [
+   "170"
+  ],
+  "click": null,
+  "name": "percent-dec"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "1",
+   "f": "km",
+   "t": "mi"
+  },
+  "expect": [
+   "1 km = 0.6213711922 mi"
+  ],
+  "click": null,
+  "name": "unit"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "100",
+   "f": "c",
+   "t": "f"
+  },
+  "expect": [
+   "100 °C = 212 °F"
+  ],
+  "click": null,
+  "name": "unit-temp"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "-40",
+   "f": "f",
+   "t": "c"
+  },
+  "expect": [
+   "-40 °F = -40 °C"
+  ],
+  "click": null,
+  "name": "unit-temp-neg"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "1",
+   "f": "lb",
+   "t": "kg"
+  },
+  "expect": [
+   "0.45359237 kg"
+  ],
+  "click": null,
+  "name": "unit-lb"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "1",
+   "f": "km",
+   "t": "kg"
+  },
+  "expect": [
+   "same type"
+  ],
+  "click": null,
+  "name": "unit-mismatch"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "1",
+   "f": "ac",
+   "t": "m2"
+  },
+  "expect": [
+   "4046.856422 m²"
+  ],
+  "click": null,
+  "name": "unit-acre"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "1",
+   "f": "gal",
+   "t": "l"
+  },
+  "expect": [
+   "3.785411784 L"
+  ],
+  "click": null,
+  "name": "unit-gal"
+ },
+ {
+  "slug": "unit",
+  "inputs": {
+   "x": "abc",
+   "f": "km",
+   "t": "mi"
+  },
+  "expect": [
+   "Enter a number"
+  ],
+  "click": null,
+  "name": "unit-nan"
+ },
+ {
+  "slug": "average",
+  "inputs": {
+   "l": "12, 15, 15, 20, 28"
+  },
+  "expect": [
+   "Mean 18",
+   "Median 15",
+   "Mode 15",
+   "Sum 90",
+   "Range 16",
+   "5.6214 (population)",
+   "6.2849 (sample)"
+  ],
+  "click": null,
+  "name": "average"
+ },
+ {
+  "slug": "average",
+  "inputs": {
+   "l": "1 2 3 4"
+  },
+  "expect": [
+   "Median 2.5",
+   "Mode none"
+  ],
+  "click": null,
+  "name": "average-even"
+ },
+ {
+  "slug": "average",
+  "inputs": {
+   "l": "1, x"
+  },
+  "expect": [
+   "Enter numbers"
+  ],
+  "click": null,
+  "name": "average-bad"
+ },
+ {
+  "slug": "gcdlcm",
+  "inputs": {
+   "l": "12, 18, 30"
+  },
+  "expect": [
+   "GCD (greatest common divisor) 6",
+   "LCM (least common multiple) 180"
+  ],
+  "click": null,
+  "name": "gcdlcm"
+ },
+ {
+  "slug": "primes",
+  "inputs": {
+   "n": "360"
+  },
+  "expect": [
+   "360 = 2",
+   "Divisors: 1, 2, 3, 4, 5, 6, 8, 9, 10, 12"
+  ],
+  "click": null,
+  "name": "primes"
+ },
+ {
+  "slug": "primes",
+  "inputs": {
+   "n": "97"
+  },
+  "expect": [
+   "97 is prime"
+  ],
+  "click": null,
+  "name": "primes-prime"
+ },
+ {
+  "slug": "base",
+  "inputs": {
+   "x": "255",
+   "f": "10"
+  },
+  "expect": [
+   "Binary 11111111",
+   "Octal 377",
+   "Hex FF"
+  ],
+  "click": null,
+  "name": "base"
+ },
+ {
+  "slug": "base",
+  "inputs": {
+   "x": "ff",
+   "f": "16"
+  },
+  "expect": [
+   "Decimal 255"
+  ],
+  "click": null,
+  "name": "base-hex"
+ },
+ {
+  "slug": "base",
+  "inputs": {
+   "x": "102",
+   "f": "2"
+  },
+  "expect": [
+   "not a valid base-2"
+  ],
+  "click": null,
+  "name": "base-bad"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "x": "2026"
+  },
+  "expect": [
+   "MMXXVI"
+  ],
+  "click": null,
+  "name": "roman"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "x": "MCMXCIV"
+  },
+  "expect": [
+   "1994"
+  ],
+  "click": null,
+  "name": "roman-back"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "x": "IIII"
+  },
+  "expect": [
+   "not a standard"
+  ],
+  "click": null,
+  "name": "roman-bad"
+ },
+ {
+  "slug": "ratio",
+  "inputs": {
+   "w": "1920",
+   "h": "1080",
+   "nw": "1280"
+  },
+  "expect": [
+   "Aspect ratio 16:9",
+   "height is 720"
+  ],
+  "click": null,
+  "name": "ratio"
+ },
+ {
+  "slug": "random",
+  "inputs": {
+   "a": "1",
+   "b": "1000000000000000",
+   "n": "3",
+   "u": "yes"
+  },
+  "expect": [
+   "smaller than 4 billion"
+  ],
+  "click": null,
+  "name": "random-huge"
+ },
+ {
+  "slug": "textcase",
+  "inputs": {
+   "t": "hello World foo",
+   "m": "ca"
+  },
+  "expect": [
+   "helloWorldFoo"
+  ],
+  "click": null,
+  "name": "textcase-camel"
+ },
+ {
+  "slug": "textcase",
+  "inputs": {
+   "t": "hello World foo",
+   "m": "sn"
+  },
+  "expect": [
+   "hello_world_foo"
+  ],
+  "click": null,
+  "name": "textcase-snake"
+ },
+ {
+  "slug": "textcase",
+  "inputs": {
+   "t": "hello World. second one",
+   "m": "se"
+  },
+  "expect": [
+   "Hello world. Second one"
+  ],
+  "click": null,
+  "name": "textcase-sentence"
+ },
+ {
+  "slug": "textcase",
+  "inputs": {
+   "t": "hello World",
+   "m": "ti"
+  },
+  "expect": [
+   "Hello World"
+  ],
+  "click": null,
+  "name": "textcase-title"
+ },
+ {
+  "slug": "textcase",
+  "inputs": {
+   "t": "<b>x</b>",
+   "m": "up"
+  },
+  "expect": [
+   "<B>X</B>"
+  ],
+  "click": null,
+  "name": "textcase-escape"
+ },
+ {
+  "slug": "datasize",
+  "inputs": {
+   "x": "1",
+   "f": "1e9"
+  },
+  "expect": [
+   "1,000,000,000 bytes",
+   "1 GB",
+   "0.931323 GiB"
+  ],
+  "click": null,
+  "name": "datasize"
+ },
+ {
+  "slug": "datasize",
+  "inputs": {
+   "x": "1",
+   "f": "1073741824"
+  },
+  "expect": [
+   "1,073,741,824 bytes",
+   "1.073742 GB"
+  ],
+  "click": null,
+  "name": "datasize-gib"
+ }
+]

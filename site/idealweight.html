@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>적정체중 계산기 - 키 기준 표준체중 범위</title><meta name="description" content="키로 BMI 정상 범위의 체중과 표준체중을 계산합니다.">
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/idealweight.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="적정체중 계산기"><meta property="og:description" content="키로 BMI 정상 범위의 체중과 표준체중을 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/idealweight.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><link rel="alternate" hreflang="ko" href="https://YOUR-DOMAIN.example/idealweight.html"><link rel="alternate" hreflang="en" href="https://YOUR-DOMAIN.example/en/idealweight.html"><link rel="alternate" hreflang="x-default" href="https://YOUR-DOMAIN.example/en/idealweight.html"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/idealweight.html" lang="en" hreflang="en">English</a></nav></header>
+<main><h1>적정체중 계산기</h1>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+<div class="card"><label for="h">키 (cm)</label><input type="number" id="h" value="170" step="any" min="0"><label for="w">현재 몸무게 (kg, 선택)</label><input type="number" id="w" value="70" step="any" min="0"><div class="result" id="res"></div></div><h2>계산 기준</h2><p>표준체중은 BMI 22를 기준으로, 정상 범위는 대한비만학회 기준 BMI 18.5 이상 23 미만으로 계산했습니다. 근육량과 체형에 따라 건강 체중은 다를 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>키가 큰 사람도 같은 공식인가요?</h3><p>키의 제곱에 비례하는 방식이라 키가 클수록 체중 기준도 높아집니다.</p><h3>체지방률은 안 보나요?</h3><p>이 도구는 키와 체중만 사용합니다.</p></div><!--fb--><div class="fb" data-slug="idealweight"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a><a href="sleep.html">수면 사이클 계산기</a></div>
+<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
+</main>
+<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
+<script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const W=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+const W0=n=>(Math.round(n)+0).toLocaleString('ko-KR');
+const N2=(n,d)=>((+n.toFixed(d))+0).toLocaleString('ko-KR');
+const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+const DAYS=(a,b)=>Math.round((b-a)/864e5);
+const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+const DOW=d=>'일월화수목금토'[d.getDay()];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+const IDS=["h", "w"];
+function compute(v){const m=v.h/100;const lo=18.5*m*m,hi=22.9*m*m,std=22*m*m;
+let h='<b>표준체중 '+N2(std,1)+'kg</b><br>정상 범위 '+N2(lo,1)+' ~ '+N2(hi,1)+'kg';
+if(v.w>0){const d=v.w-std;h+='<br>현재 체중은 표준체중보다 '+N2(Math.abs(d),1)+'kg '+(d>0?'많습니다':'적습니다')}return h;}
+function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
+if(IDS.some(i=>{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')})){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
+function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
+function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
+document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
+IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
+
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "키가 큰 사람도 같은 공식인가요?", "acceptedAnswer": {"@type": "Answer", "text": "키의 제곱에 비례하는 방식이라 키가 클수록 체중 기준도 높아집니다."}}, {"@type": "Question", "name": "체지방률은 안 보나요?", "acceptedAnswer": {"@type": "Answer", "text": "이 도구는 키와 체중만 사용합니다."}}]}</script><!--cj--><script>(function () {
+  var doc = document, root = doc.documentElement;
+  var $ = function (s, r) { return (r || doc).querySelector(s); };
+  var LS = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  var L = {
+    screen: '화면 ', mode: { auto: '자동', dark: '다크', light: '라이트' }, fav: '☆ 즐겨찾기', unfav: '★ 즐겨찾기 해제',
+    up: '고마워요! 더 잘 만들게요.', down: '알려줘서 고마워요. 고칠 점을 찾아볼게요.', copied: '복사됨',
+    kicker: '오늘의 계산', brand: '간편계산기', cta: '나도 계산해보기', cardLabel: '이미지 카드', cardAlt: ' 결과 이미지 카드',
+    cardTip: '이미지를 길게 눌러(또는 우클릭) 저장하세요', download: '다운로드', close: '닫기', share: '결과 복사해서 공유',
+    mkCard: '이미지 카드 만들기', ns: '', shareNote: '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.'
+  };
+  try { if (window.__L) for (var k in window.__L) L[k] = window.__L[k]; } catch (e) {}
+  var isHome = !!$('.hero');
+  var file = (location.pathname.split('/').pop() || 'index.html');
+
+  /* accent color */
+  try { var ac = localStorage.getItem('accent'); if (ac) root.style.setProperty('--lime', ac); } catch (e) {}
+  doc.querySelectorAll('.theme button').forEach(function (b) {
+    b.style.background = b.dataset.c;
+    b.addEventListener('click', function () {
+      root.style.setProperty('--lime', b.dataset.c);
+      try { localStorage.setItem('accent', b.dataset.c); } catch (e) {}
+    });
+  });
+
+  /* light / dark / auto */
+  var MODES = ['auto', 'dark', 'light'], LABEL = L.mode;
+  var mode = 'auto';
+  try { mode = localStorage.getItem('mode') || 'auto'; } catch (e) {}
+  function applyMode(m) { if (m === 'dark' || m === 'light') root.setAttribute('data-theme', m); else root.removeAttribute('data-theme'); }
+  applyMode(mode);
+  var mb = $('.modebtn');
+  if (mb) {
+    mb.textContent = L.screen + LABEL[mode];
+    mb.addEventListener('click', function () {
+      mode = MODES[(MODES.indexOf(mode) + 1) % 3];
+      applyMode(mode);
+      try { localStorage.setItem('mode', mode); } catch (e) {}
+      mb.textContent = L.screen + LABEL[mode];
+    });
+  }
+
+  var cs = $('#cur');
+  if (cs) {
+    try { var cv = localStorage.getItem('cur'); cs.value = cv === null ? '$' : cv; } catch (e) {}
+    cs.addEventListener('change', function () { try { localStorage.setItem('cur', cs.value); } catch (e) {} location.reload(); });
+  }
+
+  var title = doc.title.split(' - ')[0];
+
+  /* favorites + recent */
+  function clean(list) {
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
+    });
+  }
+  var favs = clean(LS.get('favs' + L.ns, [])), recent = clean(LS.get('recent' + L.ns, []));
+  function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
+  var h1 = $('main h1');
+  var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
+  if (isTool) {
+    recent = recent.filter(function (r) { return r.s !== file; });
+    recent.unshift({ s: file, t: title });
+    LS.set('recent' + L.ns, recent.slice(0, 8));
+    var fb = doc.createElement('button');
+    fb.type = 'button'; fb.className = 'favbtn';
+    var paint = function () { var on = inFav(file); fb.textContent = on ? L.unfav : L.fav; fb.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    paint();
+    fb.addEventListener('click', function () {
+      if (inFav(file)) favs = favs.filter(function (f) { return f.s !== file; });
+      else favs.unshift({ s: file, t: title });
+      LS.set('favs' + L.ns, favs); paint();
+    });
+    h1.insertAdjacentElement('afterend', fb);
+  }
+  if (isHome) {
+    var list = $('#minelist'), box = $('#mine');
+    if (list && box) {
+      var seen = {}, items = [];
+      favs.forEach(function (f) { if (!seen[f.s]) { seen[f.s] = 1; items.push({ s: f.s, t: '★ ' + f.t }); } });
+      recent.forEach(function (r) { if (!seen[r.s] && items.length < 10) { seen[r.s] = 1; items.push(r); } });
+      if (items.length) {
+        items.forEach(function (it) { var a = doc.createElement('a'); a.className = 'pill'; a.href = it.s; a.textContent = it.t; list.appendChild(a); });
+        box.hidden = false;
+      }
+    }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb' + L.ns + ':' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? L.up : L.down; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
+  }
+
+  /* share text + image card */
+  var out = doc.getElementById('out'), r = $('.result') || out;
+  function bodyText() {
+    return out ? out.innerText.trim()
+      : Array.prototype.map.call(doc.querySelectorAll('.result'), function (e) { return e.innerText.trim(); }).filter(Boolean).join('\n');
+  }
+  function copy(t, btn, label) {
+    var done = function () { btn.textContent = L.copied; setTimeout(function () { btn.textContent = label; }, 1800); };
+    var fallback = function () { var a = doc.createElement('textarea'); a.value = t; doc.body.appendChild(a); a.select(); try { doc.execCommand('copy'); done(); } catch (e) {} a.remove(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback); else fallback();
+  }
+
+  function wrap(ctx, text, maxW) {
+    var words = text.split(' '), lines = [], cur = '';
+    words.forEach(function (w) {
+      var t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= maxW) { cur = t; return; }
+      if (cur) { lines.push(cur); cur = ''; }
+      if (ctx.measureText(w).width <= maxW) { cur = w; return; }
+      var piece = '';
+      for (var i = 0; i < w.length; i++) {
+        if (ctx.measureText(piece + w[i]).width > maxW && piece) { lines.push(piece); piece = w[i]; } else piece += w[i];
+      }
+      cur = piece;
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+  function rr(ctx, x, y, w, h, rad) {
+    ctx.beginPath(); ctx.moveTo(x + rad, y); ctx.arcTo(x + w, y, x + w, y + h, rad); ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad); ctx.arcTo(x, y, x + w, y, rad); ctx.closePath();
+  }
+  function drawCard(ttl, lines) {
+    var W = 1080, cx = 70, cw = W - 160, px = cx + 56, tw = cw - 112, cy = 130;
+    var lime = getComputedStyle(root).getPropertyValue('--lime').trim() || '#c8f542';
+    var tmp = doc.createElement('canvas').getContext('2d');
+    var ops = [], py = cy + 170;
+    tmp.font = '64px "Jua", "Noto Sans KR", sans-serif';
+    wrap(tmp, ttl, tw).slice(0, 2).forEach(function (l) { ops.push({ t: l, f: '64px "Jua", "Noto Sans KR", sans-serif', y: py, c: '#141414' }); py += 80; });
+    py += 28;
+    lines.slice(0, 9).forEach(function (ln, idx) {
+      var big = idx === 0, f = (big ? '700 60px' : '400 42px') + ' "Noto Sans KR", sans-serif';
+      tmp.font = f;
+      wrap(tmp, ln, tw).slice(0, big ? 3 : 2).forEach(function (w) {
+        ops.push({ t: w, f: f, y: py, c: big ? '#141414' : '#3a3656', hl: big ? tmp.measureText(w).width : 0 });
+        py += big ? 80 : 58;
+      });
+      py += big ? 22 : 8;
+    });
+    var ch = Math.max(520, py - cy + 40), H = cy + ch + 70 + 96 + 90;
+    var c = doc.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d');
+    x.fillStyle = '#f6f4ff'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#ddd7ff'; x.lineWidth = 2;
+    for (var yy = 36; yy < H; yy += 72) { x.beginPath(); x.moveTo(0, yy); x.lineTo(W, yy); x.stroke(); }
+    x.fillStyle = '#141414'; rr(x, cx + 20, cy + 20, cw, ch, 44); x.fill();
+    x.fillStyle = '#ffffff'; rr(x, cx, cy, cw, ch, 44); x.fill();
+    x.lineWidth = 8; x.strokeStyle = '#141414'; rr(x, cx, cy, cw, ch, 44); x.stroke();
+    x.textBaseline = 'alphabetic';
+    x.fillStyle = '#5b3df5'; x.font = '700 40px "Gaegu", "Noto Sans KR", sans-serif'; x.fillText(L.kicker, px, cy + 84);
+    ops.forEach(function (o) {
+      if (o.hl) { x.fillStyle = lime; x.fillRect(px - 10, o.y - 56, o.hl + 20, 74); }
+      x.fillStyle = o.c; x.font = o.f; x.fillText(o.t, px, o.y);
+    });
+    var fy = cy + ch + 70;
+    x.fillStyle = lime; rr(x, 70, fy, 360, 96, 24); x.fill();
+    x.lineWidth = 6; x.strokeStyle = '#141414'; rr(x, 70, fy, 360, 96, 24); x.stroke();
+    x.fillStyle = '#141414'; x.font = '48px "Jua", "Noto Sans KR", sans-serif'; x.fillText(L.brand, 106, fy + 66);
+    x.fillStyle = '#5a5675'; x.font = '400 34px "Noto Sans KR", sans-serif'; x.textAlign = 'right';
+    x.fillText(L.cta, W - 80, fy + 62); x.textAlign = 'left';
+    return c.toDataURL('image/png');
+  }
+  function showCard(url) {
+    var ov = doc.createElement('div'); ov.className = 'overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', L.cardLabel);
+    var box = doc.createElement('div'); box.className = 'ovbox';
+    var img = doc.createElement('img'); img.src = url; img.alt = title + L.cardAlt;
+    var tip = doc.createElement('p'); tip.textContent = L.cardTip;
+    var row = doc.createElement('div'); row.className = 'actions';
+    var dl = doc.createElement('a'); dl.className = 'btnlink'; dl.href = url; dl.download = L.brand + '-' + file.replace('.html', '') + '.png'; dl.textContent = L.download;
+    var cl = doc.createElement('button'); cl.type = 'button'; cl.textContent = L.close;
+    row.appendChild(dl); row.appendChild(cl); box.appendChild(img); box.appendChild(tip); box.appendChild(row); ov.appendChild(box); doc.body.appendChild(ov);
+    var close = function () { ov.remove(); };
+    cl.addEventListener('click', close); ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+  }
+
+  if (r && !isHome) {
+    var host = out || r.closest('.card') || r;
+    var row = doc.createElement('div'); row.className = 'actions';
+    if (!r.querySelector('button')) {
+      var sb = doc.createElement('button'); sb.type = 'button'; sb.className = 'sharebtn'; sb.textContent = L.share;
+      sb.addEventListener('click', function () { copy(title + '\n' + bodyText() + '\n' + location.href, sb, L.share); });
+      row.appendChild(sb);
+    }
+    var ib = doc.createElement('button'); ib.type = 'button'; ib.className = 'imgbtn'; ib.textContent = L.mkCard;
+    ib.addEventListener('click', function () {
+      var lines = bodyText().split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s && s.indexOf(L.share) !== 0 && s.indexOf(L.mkCard) !== 0; });
+      var go = function () { showCard(drawCard(title, lines)); };
+      if (doc.fonts && doc.fonts.load) Promise.all([doc.fonts.load('64px Jua'), doc.fonts.load('700 40px "Noto Sans KR"')]).then(go, go); else go();
+    });
+    row.appendChild(ib);
+    host.insertAdjacentElement('afterend', row);
+    var syncRow = function () { row.hidden = !bodyText().length; };
+    syncRow();
+    try {
+      var mo = new MutationObserver(syncRow);
+      (out ? [out] : Array.prototype.slice.call(doc.querySelectorAll('.result'))).forEach(function (el) { mo.observe(el, { childList: true, subtree: true, characterData: true }); });
+    } catch (e) {}
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = L.shareNote;
+      row.insertAdjacentElement('afterend', note);
+    }
+  }
+})();
+</script><!--/cj--></body></html>

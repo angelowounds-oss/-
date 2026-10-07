@@ -1,0 +1,2708 @@
+[
+ {
+  "slug": "loan",
+  "inputs": {
+   "P": "100000000",
+   "R": "4.5",
+   "N": "360"
+  },
+  "expect": [
+   "506,685원",
+   "82,406,712원",
+   "652,778원",
+   "278,819원",
+   "67,687,500원",
+   "375,000원",
+   "135,000,000원"
+  ],
+  "click": "button",
+  "name": "loan"
+ },
+ {
+  "slug": "loan",
+  "inputs": {
+   "P": "12000000",
+   "R": "0",
+   "N": "24"
+  },
+  "expect": [
+   "500,000원"
+  ],
+  "click": "button",
+  "name": "loan-0rate"
+ },
+ {
+  "slug": "vat",
+  "inputs": {
+   "x": "110000",
+   "m": "in"
+  },
+  "expect": [
+   "공급가액 100,000원",
+   "부가세 10,000원"
+  ],
+  "click": null,
+  "name": "vat"
+ },
+ {
+  "slug": "vat",
+  "inputs": {
+   "x": "100000",
+   "m": "ex"
+  },
+  "expect": [
+   "합계 110,000원",
+   "부가세 10,000원"
+  ],
+  "click": null,
+  "name": "vat-ex"
+ },
+ {
+  "slug": "wage",
+  "inputs": {
+   "h": "10320",
+   "d": "8",
+   "n": "5"
+  },
+  "expect": [
+   "주급 495,360원",
+   "주휴수당 82,560원",
+   "월급(세전) 2,152,457원"
+  ],
+  "click": null,
+  "name": "wage"
+ },
+ {
+  "slug": "wage",
+  "inputs": {
+   "h": "10320",
+   "d": "5",
+   "n": "3"
+  },
+  "expect": [
+   "주급 185,760원",
+   "주휴수당 30,960원",
+   "월급(세전) 807,171원"
+  ],
+  "click": null,
+  "name": "wage-15h"
+ },
+ {
+  "slug": "wage",
+  "inputs": {
+   "h": "10320",
+   "d": "3",
+   "n": "4"
+  },
+  "expect": [
+   "주급 123,840원",
+   "주휴수당 0원"
+  ],
+  "click": null,
+  "name": "wage-under15"
+ },
+ {
+  "slug": "freelance",
+  "inputs": {
+   "m": "fwd",
+   "x": "1000000"
+  },
+  "expect": [
+   "실수령액 967,000원",
+   "소득세 30,000원",
+   "지방소득세 3,000원"
+  ],
+  "click": null,
+  "name": "freelance"
+ },
+ {
+  "slug": "freelance",
+  "inputs": {
+   "m": "rev",
+   "x": "967000"
+  },
+  "expect": [
+   "약 1,000,000원"
+  ],
+  "click": null,
+  "name": "freelance-rev"
+ },
+ {
+  "slug": "dday",
+  "inputs": {
+   "d1": "2026-10-07",
+   "d2": "2026-12-25"
+  },
+  "expect": [
+   "D-79",
+   "79일 (11주 2일)"
+  ],
+  "click": "button",
+  "name": "dday"
+ },
+ {
+  "slug": "dday",
+  "inputs": {
+   "d1": "2026-10-07",
+   "d2": "2026-10-07"
+  },
+  "expect": [
+   "D-Day"
+  ],
+  "click": "button",
+  "name": "dday-zero"
+ },
+ {
+  "slug": "dday",
+  "inputs": {
+   "d1": "2026-10-07",
+   "d2": "2026-09-30"
+  },
+  "expect": [
+   "D+7"
+  ],
+  "click": "button",
+  "name": "dday-past"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "bd": "2000-05-20",
+   "bs": "2026-10-07"
+  },
+  "expect": [
+   "만 26세",
+   "용띠"
+  ],
+  "click": "button",
+  "name": "age"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "bd": "2000-12-25",
+   "bs": "2026-10-07"
+  },
+  "expect": [
+   "만 25세",
+   "연 나이 26세"
+  ],
+  "click": "button",
+  "name": "age-before-bday"
+ },
+ {
+  "slug": "age",
+  "inputs": {
+   "bd": "2000-10-07",
+   "bs": "2026-10-07"
+  },
+  "expect": [
+   "만 26세",
+   "다음 생일까지 0일"
+  ],
+  "click": "button",
+  "name": "age-on-bday"
+ },
+ {
+  "slug": "bmi",
+  "inputs": {
+   "h": "170",
+   "w": "65"
+  },
+  "expect": [
+   "BMI 22.5",
+   "정상"
+  ],
+  "click": "button",
+  "name": "bmi"
+ },
+ {
+  "slug": "bmi",
+  "inputs": {
+   "h": "175",
+   "w": "80"
+  },
+  "expect": [
+   "BMI 26.1",
+   "1단계 비만"
+  ],
+  "click": "button",
+  "name": "bmi-obese"
+ },
+ {
+  "slug": "pyeong",
+  "inputs": {
+   "p": "32"
+  },
+  "expect": [
+   "105.79"
+  ],
+  "click": null,
+  "name": "pyeong-p"
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "a1": "200",
+   "b1": "15",
+   "a3": "100",
+   "b3": "120"
+  },
+  "expect": [
+   "30",
+   "+20%"
+  ],
+  "click": null,
+  "name": "percent"
+ },
+ {
+  "slug": "deposit",
+  "inputs": {
+   "kind": "dep",
+   "p": "10000000",
+   "rate": "3.5",
+   "n": "12",
+   "tax": "15.4"
+  },
+  "expect": [
+   "세전 이자 350,000원",
+   "이자소득세 53,900원",
+   "세후 이자 296,100원"
+  ],
+  "click": null,
+  "name": "deposit"
+ },
+ {
+  "slug": "deposit",
+  "inputs": {
+   "kind": "sav",
+   "p": "1000000",
+   "rate": "3.5",
+   "n": "12",
+   "tax": "15.4"
+  },
+  "expect": [
+   "세전 이자 227,500원",
+   "세후 이자 192,465원",
+   "만기 수령 12,192,465원"
+  ],
+  "click": null,
+  "name": "deposit-sav"
+ },
+ {
+  "slug": "deposit",
+  "inputs": {
+   "kind": "dep",
+   "p": "10000000",
+   "rate": "3.5",
+   "n": "12",
+   "tax": "0"
+  },
+  "expect": [
+   "세후 이자 350,000원"
+  ],
+  "click": null,
+  "name": "deposit-taxfree"
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "10000000",
+   "m": "500000",
+   "rate": "6",
+   "y": "10"
+  },
+  "expect": [
+   "100,133,641원",
+   "총 원금 70,000,000원"
+  ],
+  "click": null,
+  "name": "compound"
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "1000000",
+   "m": "100000",
+   "rate": "0",
+   "y": "2"
+  },
+  "expect": [
+   "만기 금액 3,400,000원"
+  ],
+  "click": null,
+  "name": "compound-0rate"
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "10000000",
+   "b": "15000000",
+   "y": "5"
+  },
+  "expect": [
+   "총 수익률 50%",
+   "8.45%",
+   "5,000,000원"
+  ],
+  "click": null,
+  "name": "cagr"
+ },
+ {
+  "slug": "avgprice",
+  "inputs": {
+   "p1": "70000",
+   "q1": "10",
+   "p2": "55000",
+   "q2": "20",
+   "now": "60000"
+  },
+  "expect": [
+   "평균 단가 60,000원",
+   "총 수량 30주",
+   "총 투자금 1,800,000원"
+  ],
+  "click": null,
+  "name": "avgprice"
+ },
+ {
+  "slug": "avgprice",
+  "inputs": {
+   "p1": "100000",
+   "q1": "3",
+   "p2": "80000",
+   "q2": "7",
+   "now": "90000"
+  },
+  "expect": [
+   "평균 단가 86,000원",
+   "40,000원"
+  ],
+  "click": null,
+  "name": "avgprice-2"
+ },
+ {
+  "slug": "stock",
+  "inputs": {
+   "b": "50000",
+   "s": "56000",
+   "q": "100",
+   "fee": "0.015",
+   "tx": "0.15"
+  },
+  "expect": [
+   "590,010원",
+   "수수료 1,590원",
+   "거래세 8,400원"
+  ],
+  "click": null,
+  "name": "stock"
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "100000000",
+   "c": "10000000",
+   "m": "1000000",
+   "rate": "3"
+  },
+  "expect": [
+   "약 80개월",
+   "6년 8개월"
+  ],
+  "click": null,
+  "name": "savegoal"
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "100000000",
+   "c": "10000000",
+   "m": "1000000",
+   "rate": "0"
+  },
+  "expect": [
+   "약 90개월",
+   "7년 6개월"
+  ],
+  "click": null,
+  "name": "savegoal-0rate"
+ },
+ {
+  "slug": "inflation",
+  "inputs": {
+   "a": "10000000",
+   "r": "2.5",
+   "y": "10"
+  },
+  "expect": [
+   "12,800,845원",
+   "7,811,984원"
+  ],
+  "click": null,
+  "name": "inflation"
+ },
+ {
+  "slug": "apy",
+  "inputs": {
+   "r": "4",
+   "n": "12"
+  },
+  "expect": [
+   "4.074%"
+  ],
+  "click": null,
+  "name": "apy"
+ },
+ {
+  "slug": "dividend",
+  "inputs": {
+   "p": "70000",
+   "d": "2500",
+   "q": "100",
+   "tax": "15.4"
+  },
+  "expect": [
+   "배당수익률 3.57%",
+   "250,000원",
+   "211,500원"
+  ],
+  "click": null,
+  "name": "dividend"
+ },
+ {
+  "slug": "exchange",
+  "inputs": {
+   "dir": "f2k",
+   "a": "100",
+   "rate": "1400",
+   "fee": "1.5"
+  },
+  "expect": [
+   "137,900원"
+  ],
+  "click": null,
+  "name": "exchange"
+ },
+ {
+  "slug": "exchange",
+  "inputs": {
+   "dir": "k2f",
+   "a": "1400000",
+   "rate": "1400",
+   "fee": "1.5"
+  },
+  "expect": [
+   "985"
+  ],
+  "click": null,
+  "name": "exchange-k2f"
+ },
+ {
+  "slug": "payoff",
+  "inputs": {
+   "b": "30000000",
+   "r": "5",
+   "m": "700000"
+  },
+  "expect": [
+   "약 48개월",
+   "3,116,130원"
+  ],
+  "click": null,
+  "name": "payoff"
+ },
+ {
+  "slug": "payoff",
+  "inputs": {
+   "b": "30000000",
+   "r": "12",
+   "m": "200000"
+  },
+  "expect": [
+   "갚을 수 없습니다"
+  ],
+  "click": null,
+  "name": "payoff-never"
+ },
+ {
+  "slug": "prepay",
+  "inputs": {
+   "amt": "50000000",
+   "rate": "1.2",
+   "rem": "900",
+   "tot": "1095"
+  },
+  "expect": [
+   "493,151원"
+  ],
+  "click": null,
+  "name": "prepay"
+ },
+ {
+  "slug": "fire",
+  "inputs": {
+   "s": "36000000",
+   "w": "4",
+   "c": "50000000",
+   "m": "1500000",
+   "r": "5"
+  },
+  "expect": [
+   "900,000,000원",
+   "22년 7개월"
+  ],
+  "click": null,
+  "name": "fire"
+ },
+ {
+  "slug": "fire",
+  "inputs": {
+   "s": "36000000",
+   "w": "4",
+   "c": "950000000",
+   "m": "0",
+   "r": "5"
+  },
+  "expect": [
+   "이미 달성"
+  ],
+  "click": null,
+  "name": "fire-done"
+ },
+ {
+  "slug": "recover",
+  "inputs": {
+   "l": "30"
+  },
+  "expect": [
+   "42.9%"
+  ],
+  "click": null,
+  "name": "recover"
+ },
+ {
+  "slug": "recover",
+  "inputs": {
+   "l": "50"
+  },
+  "expect": [
+   "100%"
+  ],
+  "click": null,
+  "name": "recover-50"
+ },
+ {
+  "slug": "studentloan",
+  "inputs": {
+   "p": "10000000",
+   "r": "1.7",
+   "g": "12",
+   "n": "120"
+  },
+  "expect": [
+   "90,676원",
+   "거치 중 월 이자 14,167원"
+  ],
+  "click": null,
+  "name": "studentloan"
+ },
+ {
+  "slug": "youthsave",
+  "inputs": {
+   "m": "700000",
+   "n": "36",
+   "r": "5",
+   "s": "0",
+   "t": "15.4"
+  },
+  "expect": [
+   "26,843,355원"
+  ],
+  "click": null,
+  "name": "youthsave"
+ },
+ {
+  "slug": "youthsave",
+  "inputs": {
+   "m": "100000",
+   "n": "12",
+   "r": "0",
+   "s": "10000",
+   "t": "0"
+  },
+  "expect": [
+   "만기 수령 약 1,320,000원"
+  ],
+  "click": null,
+  "name": "youthsave-subsidy"
+ },
+ {
+  "slug": "latestart",
+  "inputs": {
+   "m": "500000",
+   "r": "6",
+   "a": "25",
+   "b": "35",
+   "t": "60"
+  },
+  "expect": [
+   "712,355,149원",
+   "346,496,981원"
+  ],
+  "click": null,
+  "name": "latestart"
+ },
+ {
+  "slug": "nospend",
+  "inputs": {
+   "d": "15000",
+   "n": "30",
+   "r": "5",
+   "y": "10"
+  },
+  "expect": [
+   "450,000원",
+   "69,877,026원"
+  ],
+  "click": null,
+  "name": "nospend"
+ },
+ {
+  "slug": "ltv",
+  "inputs": {
+   "p": "700000000",
+   "l": "350000000",
+   "i": "60000000",
+   "d": "18000000"
+  },
+  "expect": [
+   "LTV 50%",
+   "DSR 30%"
+  ],
+  "click": null,
+  "name": "ltv"
+ },
+ {
+  "slug": "salary",
+  "inputs": {
+   "a": "36000000",
+   "h": "209"
+  },
+  "expect": [
+   "월급 3,000,000원",
+   "주급 692,308원",
+   "일급(월급÷30) 100,000원",
+   "시급 14,354원"
+  ],
+  "click": null,
+  "name": "salary"
+ },
+ {
+  "slug": "severance",
+  "inputs": {
+   "j": "2022-03-01",
+   "l": "2025-02-28",
+   "w": "9000000",
+   "d": "92"
+  },
+  "expect": [
+   "재직 1096일",
+   "1일 평균임금 97,826원",
+   "8,812,388원"
+  ],
+  "click": null,
+  "name": "severance"
+ },
+ {
+  "slug": "severance",
+  "inputs": {
+   "j": "2024-06-01",
+   "l": "2025-03-31",
+   "w": "7500000",
+   "d": "90"
+  },
+  "expect": [
+   "재직 304일",
+   "대상이 아닙니다"
+  ],
+  "click": null,
+  "name": "severance-under1y"
+ },
+ {
+  "slug": "annualleave",
+  "inputs": {
+   "j": "2023-04-10",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "발생 연차 16일"
+  ],
+  "click": null,
+  "name": "al-3y"
+ },
+ {
+  "slug": "annualleave",
+  "inputs": {
+   "j": "2025-10-07",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "발생 연차 15일"
+  ],
+  "click": null,
+  "name": "al-exact1y"
+ },
+ {
+  "slug": "annualleave",
+  "inputs": {
+   "j": "2025-10-08",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "발생 연차 11일"
+  ],
+  "click": null,
+  "name": "al-11m"
+ },
+ {
+  "slug": "annualleave",
+  "inputs": {
+   "j": "2000-01-01",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "발생 연차 25일"
+  ],
+  "click": null,
+  "name": "al-cap"
+ },
+ {
+  "slug": "annualleave",
+  "inputs": {
+   "j": "2026-10-07",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "발생 연차 0일"
+  ],
+  "click": null,
+  "name": "al-day0"
+ },
+ {
+  "slug": "annualleave",
+  "inputs": {
+   "j": "2026-10-08",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "기준일이 입사일보다"
+  ],
+  "click": null,
+  "name": "al-future"
+ },
+ {
+  "slug": "overtime",
+  "inputs": {
+   "h": "12000",
+   "ot": "10",
+   "nt": "5",
+   "h1": "8",
+   "h2": "2"
+  },
+  "expect": [
+   "연장 180,000원",
+   "야간 가산 30,000원",
+   "휴일 192,000원",
+   "합계 402,000원"
+  ],
+  "click": null,
+  "name": "overtime"
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "40"
+  },
+  "expect": [
+   "월 환산 208.6시간",
+   "월급 2,152,457원"
+  ],
+  "click": null,
+  "name": "minwage"
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "10"
+  },
+  "expect": [
+   "448,429원"
+  ],
+  "click": null,
+  "name": "minwage-10h"
+ },
+ {
+  "slug": "dismissal",
+  "inputs": {
+   "h": "11000",
+   "d": "0",
+   "hd": "8"
+  },
+  "expect": [
+   "2,640,000원",
+   "30일분"
+  ],
+  "click": null,
+  "name": "dismissal"
+ },
+ {
+  "slug": "dismissal",
+  "inputs": {
+   "h": "11000",
+   "d": "30",
+   "hd": "8"
+  },
+  "expect": [
+   "0원"
+  ],
+  "click": null,
+  "name": "dismissal-notified"
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "3.3",
+   "a": "1000000"
+  },
+  "expect": [
+   "소득세 30,000원",
+   "지방소득세 3,000원",
+   "967,000원"
+  ],
+  "click": null,
+  "name": "withholding-3.3"
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "8.8",
+   "a": "1000000"
+  },
+  "expect": [
+   "소득세 80,000원",
+   "지방소득세 8,000원",
+   "912,000원"
+  ],
+  "click": null,
+  "name": "withholding-8.8"
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "15.4",
+   "a": "1000000"
+  },
+  "expect": [
+   "소득세 140,000원",
+   "지방소득세 14,000원",
+   "846,000원"
+  ],
+  "click": null,
+  "name": "withholding-15.4"
+ },
+ {
+  "slug": "raise",
+  "inputs": {
+   "m": "a",
+   "o": "40000000",
+   "n": "44000000",
+   "p": "5"
+  },
+  "expect": [
+   "인상률 10%",
+   "월 333,333원"
+  ],
+  "click": null,
+  "name": "raise"
+ },
+ {
+  "slug": "raise",
+  "inputs": {
+   "m": "b",
+   "o": "40000000",
+   "n": "0",
+   "p": "5"
+  },
+  "expect": [
+   "새 연봉 42,000,000원"
+  ],
+  "click": null,
+  "name": "raise-b"
+ },
+ {
+  "slug": "breakeven",
+  "inputs": {
+   "f": "3000000",
+   "p": "8000",
+   "c": "3000"
+  },
+  "expect": [
+   "600개",
+   "4,800,000원"
+  ],
+  "click": null,
+  "name": "breakeven"
+ },
+ {
+  "slug": "breakeven",
+  "inputs": {
+   "f": "3000000",
+   "p": "3000",
+   "c": "3500"
+  },
+  "expect": [
+   "변동비보다 커야"
+  ],
+  "click": null,
+  "name": "breakeven-loss"
+ },
+ {
+  "slug": "roas",
+  "inputs": {
+   "c": "500000",
+   "r": "1800000",
+   "k": "1200",
+   "o": "45",
+   "m": "35"
+  },
+  "expect": [
+   "ROAS 360%",
+   "손익분기 286%",
+   "130,000원"
+  ],
+  "click": null,
+  "name": "roas"
+ },
+ {
+  "slug": "costrate",
+  "inputs": {
+   "p": "6500",
+   "c": "1800",
+   "t": "30"
+  },
+  "expect": [
+   "원가율 27.7%",
+   "6,000원"
+  ],
+  "click": null,
+  "name": "costrate"
+ },
+ {
+  "slug": "freerate",
+  "inputs": {
+   "t": "4000000",
+   "h": "160",
+   "b": "60",
+   "e": "20"
+  },
+  "expect": [
+   "필요 매출 5,000,000원",
+   "청구 시급 52,083원"
+  ],
+  "click": null,
+  "name": "freerate"
+ },
+ {
+  "slug": "ytrev",
+  "inputs": {
+   "v": "100000",
+   "rpm": "1500",
+   "n": "8"
+  },
+  "expect": [
+   "월 예상 수익 150,000원",
+   "1,800,000원",
+   "18,750원"
+  ],
+  "click": null,
+  "name": "ytrev"
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "fwd",
+   "j": "300000000",
+   "dep": "50000000",
+   "mo": "800000",
+   "rate": "5"
+  },
+  "expect": [
+   "월세 1,041,667원"
+  ],
+  "click": null,
+  "name": "jeonse"
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "rev",
+   "j": "300000000",
+   "dep": "50000000",
+   "mo": "800000",
+   "rate": "5"
+  },
+  "expect": [
+   "전세금 242,000,000원"
+  ],
+  "click": null,
+  "name": "jeonse-rev"
+ },
+ {
+  "slug": "fuel",
+  "inputs": {
+   "d": "500",
+   "e": "12",
+   "p": "1700"
+  },
+  "expect": [
+   "필요 연료 41.7L",
+   "주유비 70,833원",
+   "km당 142원"
+  ],
+  "click": null,
+  "name": "fuel"
+ },
+ {
+  "slug": "splitbill",
+  "inputs": {
+   "t": "187000",
+   "n": "6",
+   "tip": "0"
+  },
+  "expect": [
+   "1인당 31,167원",
+   "31,200원",
+   "총 187,200원"
+  ],
+  "click": null,
+  "name": "splitbill"
+ },
+ {
+  "slug": "splitbill",
+  "inputs": {
+   "t": "187000",
+   "n": "6",
+   "tip": "10"
+  },
+  "expect": [
+   "1인당 34,283원",
+   "34,300원"
+  ],
+  "click": null,
+  "name": "splitbill-tip"
+ },
+ {
+  "slug": "discount",
+  "inputs": {
+   "p": "50000",
+   "d1": "20",
+   "d2": "10",
+   "c": "3000"
+  },
+  "expect": [
+   "최종 가격 33,000원",
+   "총 할인 17,000원",
+   "실제 할인율 34%"
+  ],
+  "click": null,
+  "name": "discount"
+ },
+ {
+  "slug": "discount",
+  "inputs": {
+   "p": "10000",
+   "d1": "0",
+   "d2": "0",
+   "c": "20000"
+  },
+  "expect": [
+   "최종 가격 0원"
+  ],
+  "click": null,
+  "name": "discount-over"
+ },
+ {
+  "slug": "unitprice",
+  "inputs": {
+   "pa": "12900",
+   "qa": "450",
+   "pb": "9800",
+   "qb": "300",
+   "u": "100"
+  },
+  "expect": [
+   "A 100당 2,867원",
+   "B 100당 3,267원",
+   "A가 12.2% 저렴"
+  ],
+  "click": null,
+  "name": "unitprice"
+ },
+ {
+  "slug": "roommate",
+  "inputs": {
+   "t": "120000",
+   "p": "민수 30\n지영 30\n서준 12"
+  },
+  "expect": [
+   "민수 50,000원",
+   "서준 20,000원"
+  ],
+  "click": null,
+  "name": "roommate"
+ },
+ {
+  "slug": "cookvsdeliver",
+  "inputs": {
+   "d": "16000",
+   "f": "3500",
+   "c": "5000",
+   "w": "4",
+   "m": "45",
+   "h": "10320"
+  },
+  "expect": [
+   "한 끼에 14,500원",
+   "252,010원",
+   "134,521원"
+  ],
+  "click": null,
+  "name": "cookvsdeliver"
+ },
+ {
+  "slug": "giftbudget",
+  "inputs": {
+   "a": "6",
+   "ap": "50000",
+   "b": "2",
+   "bp": "50000",
+   "c": "3",
+   "cp": "30000"
+  },
+  "expect": [
+   "올해 경조사 예산 490,000원",
+   "40,833원",
+   "총 11건"
+  ],
+  "click": null,
+  "name": "giftbudget"
+ },
+ {
+  "slug": "tripsplit",
+  "inputs": {
+   "t": "민수 120000\n지영 80000\n서준 45000\n민수 30000",
+   "x": "하은"
+  },
+  "expect": [
+   "총 275,000원",
+   "4명",
+   "1인 68,750원",
+   "하은 → 민수 68,750원",
+   "서준 → 민수 12,500원",
+   "서준 → 지영 11,250원"
+  ],
+  "click": null,
+  "name": "tripsplit"
+ },
+ {
+  "slug": "tripbudget",
+  "inputs": {
+   "t": "2000000",
+   "f": "600000",
+   "h": "500000",
+   "d": "5",
+   "r": "9.5"
+  },
+  "expect": [
+   "하루 180,000원",
+   "약 18,947",
+   "162,000원"
+  ],
+  "click": null,
+  "name": "tripbudget"
+ },
+ {
+  "slug": "tripbudget",
+  "inputs": {
+   "t": "1000000",
+   "f": "800000",
+   "h": "500000",
+   "d": "5",
+   "r": "0"
+  },
+  "expect": [
+   "총 예산을 넘었어요"
+  ],
+  "click": null,
+  "name": "tripbudget-over"
+ },
+ {
+  "slug": "reading",
+  "inputs": {
+   "t": "360",
+   "c": "80",
+   "p": "20"
+  },
+  "expect": [
+   "남은 280쪽",
+   "14일 뒤 완독",
+   "진행률 22%"
+  ],
+  "click": null,
+  "name": "reading"
+ },
+ {
+  "slug": "realhourly",
+  "inputs": {
+   "pay": "2800000",
+   "days": "5",
+   "work": "8",
+   "lunch": "60",
+   "com": "50",
+   "prep": "40",
+   "ot": "10"
+  },
+  "expect": [
+   "진짜 시급 10,928원",
+   "월급÷근무시간으로 보면 16,110원",
+   "하루 11.3시간"
+  ],
+  "click": null,
+  "name": "realhourly"
+ },
+ {
+  "slug": "freetime",
+  "inputs": {
+   "wake": "07:00",
+   "sleep": "00:00",
+   "in": "09:00",
+   "out": "18:00",
+   "com": "50",
+   "must": "150"
+  },
+  "expect": [
+   "하루 3시간 50분"
+  ],
+  "click": null,
+  "name": "freetime"
+ },
+ {
+  "slug": "freetime",
+  "inputs": {
+   "wake": "07:00",
+   "sleep": "01:30",
+   "in": "22:00",
+   "out": "06:00",
+   "com": "30",
+   "must": "100"
+  },
+  "expect": [
+   "하루 7시간 50분"
+  ],
+  "click": null,
+  "name": "freetime-night"
+ },
+ {
+  "slug": "rentratio",
+  "inputs": {
+   "i": "3000000",
+   "r": "700000",
+   "m": "100000"
+  },
+  "expect": [
+   "소득의 26.7%",
+   "일반적인 수준"
+  ],
+  "click": null,
+  "name": "rentratio"
+ },
+ {
+  "slug": "caffeine",
+  "inputs": {
+   "c": "2",
+   "e": "0",
+   "k": "1",
+   "t": "1"
+  },
+  "expect": [
+   "약 365mg",
+   "한도까지 약 35mg"
+  ],
+  "click": null,
+  "name": "caffeine"
+ },
+ {
+  "slug": "alcohol",
+  "inputs": {
+   "ml": "360",
+   "abv": "16.9",
+   "n": "1"
+  },
+  "expect": [
+   "순수 알코올 약 48.7g",
+   "341kcal"
+  ],
+  "click": null,
+  "name": "alcohol"
+ },
+ {
+  "slug": "petage",
+  "inputs": {
+   "k": "dog",
+   "a": "5"
+  },
+  "expect": [
+   "약 57세"
+  ],
+  "click": null,
+  "name": "petage"
+ },
+ {
+  "slug": "petage",
+  "inputs": {
+   "k": "cat",
+   "a": "5"
+  },
+  "expect": [
+   "약 36세"
+  ],
+  "click": null,
+  "name": "petage-cat"
+ },
+ {
+  "slug": "petage",
+  "inputs": {
+   "k": "dog",
+   "a": "0.5"
+  },
+  "expect": [
+   "1살 이상만"
+  ],
+  "click": null,
+  "name": "petage-puppy"
+ },
+ {
+  "slug": "daybudget",
+  "inputs": {
+   "left": "600000",
+   "pay": "2026-10-19",
+   "today": "0"
+  },
+  "expect": [
+   "월급까지 12일",
+   "하루 50,000원",
+   "일주일 350,000원"
+  ],
+  "click": null,
+  "name": "daybudget"
+ },
+ {
+  "slug": "daybudget",
+  "inputs": {
+   "left": "600000",
+   "pay": "2026-10-07",
+   "today": "0"
+  },
+  "expect": [
+   "이후여야"
+  ],
+  "click": null,
+  "name": "daybudget-today"
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-05",
+   "b": "2026-10-16"
+  },
+  "expect": [
+   "영업일 10일",
+   "전체 12일",
+   "주말 2일"
+  ],
+  "click": null,
+  "name": "bizdays"
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-16",
+   "b": "2026-10-05"
+  },
+  "expect": [
+   "종료일이 시작일보다"
+  ],
+  "click": null,
+  "name": "bizdays-reversed"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-01-31",
+   "dir": "1",
+   "n": "1",
+   "u": "m"
+  },
+  "expect": [
+   "2026.2.28 (토요일)"
+  ],
+  "click": null,
+  "name": "dateadd"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2024-02-29",
+   "dir": "1",
+   "n": "1",
+   "u": "y"
+  },
+  "expect": [
+   "2025.2.28 (금요일)"
+  ],
+  "click": null,
+  "name": "dateadd-leap"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-07",
+   "dir": "1",
+   "n": "100",
+   "u": "d"
+  },
+  "expect": [
+   "2027.1.15 (금요일)"
+  ],
+  "click": null,
+  "name": "dateadd-100d"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-03-31",
+   "dir": "-1",
+   "n": "1",
+   "u": "m"
+  },
+  "expect": [
+   "2026.2.28 (토요일)"
+  ],
+  "click": null,
+  "name": "dateadd-sub-month"
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-07",
+   "dir": "1",
+   "n": "2",
+   "u": "w"
+  },
+  "expect": [
+   "2026.10.21 (수요일)"
+  ],
+  "click": null,
+  "name": "dateadd-weeks"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2020-03-01",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "6년 7개월 6일",
+   "총 2,411일"
+  ],
+  "click": null,
+  "name": "datediff-2020-03-01-2026-10-07"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2024-01-31",
+   "b": "2024-03-01"
+  },
+  "expect": [
+   "0년 1개월 1일",
+   "총 30일"
+  ],
+  "click": null,
+  "name": "datediff-2024-01-31-2024-03-01"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2023-05-31",
+   "b": "2023-06-30"
+  },
+  "expect": [
+   "0년 1개월 0일",
+   "총 30일"
+  ],
+  "click": null,
+  "name": "datediff-2023-05-31-2023-06-30"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2024-02-29",
+   "b": "2025-02-28"
+  },
+  "expect": [
+   "1년 0개월 0일",
+   "총 365일"
+  ],
+  "click": null,
+  "name": "datediff-2024-02-29-2025-02-28"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2026-10-07",
+   "b": "2026-10-07"
+  },
+  "expect": [
+   "0년 0개월 0일",
+   "총 0일"
+  ],
+  "click": null,
+  "name": "datediff-2026-10-07-2026-10-07"
+ },
+ {
+  "slug": "datediff",
+  "inputs": {
+   "a": "2025-12-31",
+   "b": "2026-01-01"
+  },
+  "expect": [
+   "0년 0개월 1일",
+   "총 1일"
+  ],
+  "click": null,
+  "name": "datediff-2025-12-31-2026-01-01"
+ },
+ {
+  "slug": "weekday",
+  "inputs": {
+   "d": "2026-10-07"
+  },
+  "expect": [
+   "2026.10.7 수요일",
+   "280번째 날",
+   "평년"
+  ],
+  "click": null,
+  "name": "weekday"
+ },
+ {
+  "slug": "weekday",
+  "inputs": {
+   "d": "2024-02-29"
+  },
+  "expect": [
+   "2024.2.29 목요일",
+   "60번째 날",
+   "윤년"
+  ],
+  "click": null,
+  "name": "weekday-leap"
+ },
+ {
+  "slug": "weekday",
+  "inputs": {
+   "d": "1900-02-28"
+  },
+  "expect": [
+   "수요일",
+   "평년"
+  ],
+  "click": null,
+  "name": "weekday-1900"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2026-01-01"
+  },
+  "expect": [
+   "2026년 1주차"
+  ],
+  "click": null,
+  "name": "weeknum-2026-01-01"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2027-01-01"
+  },
+  "expect": [
+   "2026년 53주차"
+  ],
+  "click": null,
+  "name": "weeknum-2027-01-01"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2024-12-30"
+  },
+  "expect": [
+   "2025년 1주차"
+  ],
+  "click": null,
+  "name": "weeknum-2024-12-30"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2021-01-03"
+  },
+  "expect": [
+   "2020년 53주차"
+  ],
+  "click": null,
+  "name": "weeknum-2021-01-03"
+ },
+ {
+  "slug": "weeknum",
+  "inputs": {
+   "d": "2026-12-28"
+  },
+  "expect": [
+   "2026년 53주차"
+  ],
+  "click": null,
+  "name": "weeknum-2026-12-28"
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2025-03-04",
+   "t": "18"
+  },
+  "expect": [
+   "전역일 2026.9.3 (목요일)",
+   "복무 549일"
+  ],
+  "click": null,
+  "name": "military"
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2025-08-31",
+   "t": "18"
+  },
+  "expect": [
+   "전역일 2027.2.28"
+  ],
+  "click": null,
+  "name": "military-month-end"
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2024-02-29",
+   "t": "18"
+  },
+  "expect": [
+   "전역일 2025.8.28"
+  ],
+  "click": null,
+  "name": "military-leap"
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2025-12-15",
+   "t": "21"
+  },
+  "expect": [
+   "전역일 2027.9.14"
+  ],
+  "click": null,
+  "name": "military-21"
+ },
+ {
+  "slug": "timediff",
+  "inputs": {
+   "a": "09:00",
+   "b": "18:00",
+   "br": "60"
+  },
+  "expect": [
+   "실근무 8시간 0분",
+   "소수 표기 8시간"
+  ],
+  "click": null,
+  "name": "timediff"
+ },
+ {
+  "slug": "timediff",
+  "inputs": {
+   "a": "22:00",
+   "b": "06:00",
+   "br": "30"
+  },
+  "expect": [
+   "실근무 7시간 30분",
+   "7.5시간"
+  ],
+  "click": null,
+  "name": "timediff-night"
+ },
+ {
+  "slug": "timediff",
+  "inputs": {
+   "a": "09:00",
+   "b": "09:30",
+   "br": "60"
+  },
+  "expect": [
+   "휴게시간이 근무시간보다 깁니다"
+  ],
+  "click": null,
+  "name": "timediff-negative"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "2000-03-20"
+  },
+  "expect": [
+   "물고기자리"
+  ],
+  "click": null,
+  "name": "zodiac-2000-03-20"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "2000-03-21"
+  },
+  "expect": [
+   "양자리"
+  ],
+  "click": null,
+  "name": "zodiac-2000-03-21"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "1995-01-19"
+  },
+  "expect": [
+   "염소자리"
+  ],
+  "click": null,
+  "name": "zodiac-1995-01-19"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "1995-01-20"
+  },
+  "expect": [
+   "물병자리"
+  ],
+  "click": null,
+  "name": "zodiac-1995-01-20"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "1995-12-21"
+  },
+  "expect": [
+   "사수자리"
+  ],
+  "click": null,
+  "name": "zodiac-1995-12-21"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "1995-12-22"
+  },
+  "expect": [
+   "염소자리"
+  ],
+  "click": null,
+  "name": "zodiac-1995-12-22"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "2000-02-29"
+  },
+  "expect": [
+   "물고기자리"
+  ],
+  "click": null,
+  "name": "zodiac-2000-02-29"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "2000-05-20"
+  },
+  "expect": [
+   "용띠"
+  ],
+  "click": null,
+  "name": "zodiac-dragon"
+ },
+ {
+  "slug": "zodiac",
+  "inputs": {
+   "d": "2008-05-20"
+  },
+  "expect": [
+   "쥐띠"
+  ],
+  "click": null,
+  "name": "zodiac-rat"
+ },
+ {
+  "slug": "duedate",
+  "inputs": {
+   "l": "2026-07-01"
+  },
+  "expect": [
+   "출산예정일 2027.4.7 (수요일)",
+   "현재 14주 0일"
+  ],
+  "click": null,
+  "name": "duedate"
+ },
+ {
+  "slug": "birthday",
+  "inputs": {
+   "b": "2000-05-20"
+  },
+  "expect": [
+   "D-225",
+   "2027.5.20 (목요일)",
+   "만 27세"
+  ],
+  "click": null,
+  "name": "birthday"
+ },
+ {
+  "slug": "birthday",
+  "inputs": {
+   "b": "2000-10-07"
+  },
+  "expect": [
+   "오늘이 생일"
+  ],
+  "click": null,
+  "name": "birthday"
+ },
+ {
+  "slug": "secconv",
+  "inputs": {
+   "m": "a",
+   "s": "3725",
+   "h": "0",
+   "mi": "0",
+   "se": "0"
+  },
+  "expect": [
+   "1시간 2분 5초",
+   "01:02:05"
+  ],
+  "click": null,
+  "name": "secconv"
+ },
+ {
+  "slug": "secconv",
+  "inputs": {
+   "m": "b",
+   "s": "0",
+   "h": "1",
+   "mi": "2",
+   "se": "5"
+  },
+  "expect": [
+   "3,725초"
+  ],
+  "click": null,
+  "name": "secconv-b"
+ },
+ {
+  "slug": "timesum",
+  "inputs": {
+   "t": "1:30\n0:45\n2:15\n0:50"
+  },
+  "expect": [
+   "합계 5시간 20분",
+   "5.33시간"
+  ],
+  "click": null,
+  "name": "timesum"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-10-07",
+   "t": "09:00",
+   "from": "Asia/Seoul",
+   "to": "America/New_York"
+  },
+  "expect": [
+   "10월 6일 화요일 오후 8:00"
+  ],
+  "click": null,
+  "name": "tz-Asia/Seoul-America/New_York"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-10-07",
+   "t": "09:00",
+   "from": "Asia/Seoul",
+   "to": "America/Los_Angeles"
+  },
+  "expect": [
+   "10월 6일 화요일 오후 5:00"
+  ],
+  "click": null,
+  "name": "tz-Asia/Seoul-America/Los_Angeles"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-10-07",
+   "t": "09:00",
+   "from": "Asia/Seoul",
+   "to": "UTC"
+  },
+  "expect": [
+   "10월 7일 수요일 오전 12:00"
+  ],
+  "click": null,
+  "name": "tz-Asia/Seoul-UTC"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-10-07",
+   "t": "09:00",
+   "from": "UTC",
+   "to": "Asia/Seoul"
+  },
+  "expect": [
+   "10월 7일 수요일 오후 6:00"
+  ],
+  "click": null,
+  "name": "tz-UTC-Asia/Seoul"
+ },
+ {
+  "slug": "timezone",
+  "inputs": {
+   "d": "2026-01-15",
+   "t": "09:00",
+   "from": "Asia/Seoul",
+   "to": "America/Los_Angeles"
+  },
+  "expect": [
+   "1월 14일 수요일 오후 4:00"
+  ],
+  "click": null,
+  "name": "tz-winter-la"
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "m",
+   "age": "30",
+   "h": "172",
+   "w": "68",
+   "act": "1.2"
+  },
+  "expect": [
+   "기초대사량 1,610 kcal",
+   "하루 소비 1,932 kcal"
+  ],
+  "click": null,
+  "name": "bmr"
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "f",
+   "age": "30",
+   "h": "160",
+   "w": "52",
+   "act": "1.375"
+  },
+  "expect": [
+   "기초대사량 1,209",
+   "1,662"
+  ],
+  "click": null,
+  "name": "bmr-f"
+ },
+ {
+  "slug": "idealweight",
+  "inputs": {
+   "h": "170",
+   "w": "70"
+  },
+  "expect": [
+   "표준체중 63.6kg",
+   "53.5 ~ 66.2kg",
+   "6.4kg 많습니다"
+  ],
+  "click": null,
+  "name": "idealweight"
+ },
+ {
+  "slug": "calories",
+  "inputs": {
+   "met": "7",
+   "w": "68",
+   "m": "40"
+  },
+  "expect": [
+   "약 333 kcal"
+  ],
+  "click": null,
+  "name": "calories"
+ },
+ {
+  "slug": "sleep",
+  "inputs": {
+   "w": "07:00",
+   "f": "15"
+  },
+  "expect": [
+   "21:45 취침",
+   "23:15 취침",
+   "00:45 취침"
+  ],
+  "click": null,
+  "name": "sleep"
+ },
+ {
+  "slug": "sleep",
+  "inputs": {
+   "w": "00:10",
+   "f": "15"
+  },
+  "expect": [
+   "14:55 취침",
+   "16:25 취침",
+   "17:55 취침"
+  ],
+  "click": null,
+  "name": "sleep-wrap"
+ },
+ {
+  "slug": "pace",
+  "inputs": {
+   "d": "5",
+   "hh": "0",
+   "mm": "28",
+   "ss": "30"
+  },
+  "expect": [
+   "5'42\"",
+   "10.53 km/h",
+   "10km 57분 0초"
+  ],
+  "click": null,
+  "name": "pace"
+ },
+ {
+  "slug": "bodyfat",
+  "inputs": {
+   "sex": "m",
+   "h": "175",
+   "w": "82",
+   "n": "38",
+   "p": "95"
+  },
+  "expect": [
+   "14.5%"
+  ],
+  "click": null,
+  "name": "bodyfat"
+ },
+ {
+  "slug": "bodyfat",
+  "inputs": {
+   "sex": "m",
+   "h": "175",
+   "w": "30",
+   "n": "38",
+   "p": "95"
+  },
+  "expect": [
+   "허리둘레가 목둘레보다"
+  ],
+  "click": null,
+  "name": "bodyfat-invalid"
+ },
+ {
+  "slug": "protein",
+  "inputs": {
+   "w": "70",
+   "g": "1.6:2.2"
+  },
+  "expect": [
+   "하루 112 ~ 154g"
+  ],
+  "click": null,
+  "name": "protein"
+ },
+ {
+  "slug": "heartrate",
+  "inputs": {
+   "a": "30",
+   "r": "60"
+  },
+  "expect": [
+   "최대 심박수 약 190bpm",
+   "125 ~ 138bpm"
+  ],
+  "click": null,
+  "name": "heartrate"
+ },
+ {
+  "slug": "onerm",
+  "inputs": {
+   "w": "60",
+   "r": "8"
+  },
+  "expect": [
+   "추정 1RM 약 76kg",
+   "68.4kg"
+  ],
+  "click": null,
+  "name": "onerm"
+ },
+ {
+  "slug": "heightpred",
+  "inputs": {
+   "s": "m",
+   "f": "175",
+   "m": "162"
+  },
+  "expect": [
+   "예상 키 약 175cm"
+  ],
+  "click": null,
+  "name": "heightpred"
+ },
+ {
+  "slug": "heightpred",
+  "inputs": {
+   "s": "f",
+   "f": "175",
+   "m": "162"
+  },
+  "expect": [
+   "예상 키 약 162cm"
+  ],
+  "click": null,
+  "name": "heightpred-f"
+ },
+ {
+  "slug": "dietplan",
+  "inputs": {
+   "c": "75",
+   "t": "68",
+   "w": "0.5"
+  },
+  "expect": [
+   "약 14주",
+   "약 550kcal"
+  ],
+  "click": null,
+  "name": "dietplan"
+ },
+ {
+  "slug": "dietplan",
+  "inputs": {
+   "c": "60",
+   "t": "70",
+   "w": "0.5"
+  },
+  "expect": [
+   "낮게 입력"
+  ],
+  "click": null,
+  "name": "dietplan-wrong"
+ },
+ {
+  "slug": "water",
+  "inputs": {
+   "w": "65",
+   "a": "30"
+  },
+  "expect": [
+   "운동 30분 추가 약 350ml"
+  ],
+  "click": null,
+  "name": "water"
+ },
+ {
+  "slug": "average",
+  "inputs": {
+   "nums": "85 92 78 90 66"
+  },
+  "expect": [
+   "합계 411",
+   "평균 82.2",
+   "중앙값 85",
+   "최대 92",
+   "최소 66"
+  ],
+  "click": null,
+  "name": "average"
+ },
+ {
+  "slug": "average",
+  "inputs": {
+   "nums": "1,2,3,4"
+  },
+  "expect": [
+   "평균 2.5",
+   "중앙값 2.5"
+  ],
+  "click": null,
+  "name": "average-even"
+ },
+ {
+  "slug": "gpa",
+  "inputs": {
+   "scale": "45",
+   "rows": "3 A+\n3 B0\n2 A0\n3 C+\n1 B+"
+  },
+  "expect": [
+   "평균평점 3.46 / 4.5",
+   "이수 학점 12"
+  ],
+  "click": null,
+  "name": "gpa"
+ },
+ {
+  "slug": "gpa",
+  "inputs": {
+   "scale": "43",
+   "rows": "3 A+\n3 A-\n3 B0"
+  },
+  "expect": [
+   "평균평점 3.67 / 4.3"
+  ],
+  "click": null,
+  "name": "gpa-43"
+ },
+ {
+  "slug": "gpa",
+  "inputs": {
+   "scale": "45",
+   "rows": "3 A+\n3 F"
+  },
+  "expect": [
+   "평균평점 2.25",
+   "취득 학점 3"
+  ],
+  "click": null,
+  "name": "gpa-F"
+ },
+ {
+  "slug": "ratio",
+  "inputs": {
+   "w": "1920",
+   "h": "1080",
+   "nw": "1280"
+  },
+  "expect": [
+   "16:9",
+   "1280 × 720"
+  ],
+  "click": null,
+  "name": "ratio"
+ },
+ {
+  "slug": "ratio",
+  "inputs": {
+   "w": "1000",
+   "h": "750",
+   "nw": "800"
+  },
+  "expect": [
+   "4:3",
+   "800 × 600"
+  ],
+  "click": null,
+  "name": "ratio-43"
+ },
+ {
+  "slug": "base",
+  "inputs": {
+   "n": "255",
+   "b": "10"
+  },
+  "expect": [
+   "11111111",
+   "377",
+   "FF"
+  ],
+  "click": null,
+  "name": "base"
+ },
+ {
+  "slug": "base",
+  "inputs": {
+   "n": "ff",
+   "b": "16"
+  },
+  "expect": [
+   "10진수 255"
+  ],
+  "click": null,
+  "name": "base-hex"
+ },
+ {
+  "slug": "base",
+  "inputs": {
+   "n": "102",
+   "b": "2"
+  },
+  "expect": [
+   "맞지 않는 숫자"
+  ],
+  "click": null,
+  "name": "base-invalid"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "n": "2026"
+  },
+  "expect": [
+   "MMXXVI"
+  ],
+  "click": null,
+  "name": "roman"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "n": "MCMXCIV"
+  },
+  "expect": [
+   "1994"
+  ],
+  "click": null,
+  "name": "roman-rev"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "n": "3999"
+  },
+  "expect": [
+   "MMMCMXCIX"
+  ],
+  "click": null,
+  "name": "roman-max"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "n": "4000"
+  },
+  "expect": [
+   "1~3999"
+  ],
+  "click": null,
+  "name": "roman-over"
+ },
+ {
+  "slug": "roman",
+  "inputs": {
+   "n": "IIII"
+  },
+  "expect": [
+   "올바른 로마 숫자가 아닙니다"
+  ],
+  "click": null,
+  "name": "roman-bad"
+ },
+ {
+  "slug": "primes",
+  "inputs": {
+   "n": "360"
+  },
+  "expect": [
+   "360 = 2",
+   "합성수입니다"
+  ],
+  "click": null,
+  "name": "primes"
+ },
+ {
+  "slug": "primes",
+  "inputs": {
+   "n": "97"
+  },
+  "expect": [
+   "소수입니다"
+  ],
+  "click": null,
+  "name": "primes-97"
+ },
+ {
+  "slug": "primes",
+  "inputs": {
+   "n": "1"
+  },
+  "expect": [
+   "2 이상"
+  ],
+  "click": null,
+  "name": "primes-1"
+ },
+ {
+  "slug": "gcdlcm",
+  "inputs": {
+   "a": "24",
+   "b": "36",
+   "c": "0"
+  },
+  "expect": [
+   "최대공약수 12",
+   "최소공배수 72"
+  ],
+  "click": null,
+  "name": "gcdlcm"
+ },
+ {
+  "slug": "gcdlcm",
+  "inputs": {
+   "a": "12",
+   "b": "18",
+   "c": "30"
+  },
+  "expect": [
+   "최대공약수 6",
+   "최소공배수 180"
+  ],
+  "click": null,
+  "name": "gcdlcm-3"
+ },
+ {
+  "slug": "proportion",
+  "inputs": {
+   "a": "3",
+   "b": "5",
+   "c": "12"
+  },
+  "expect": [
+   "3 : 5 = 12 : 20"
+  ],
+  "click": null,
+  "name": "proportion"
+ },
+ {
+  "slug": "koreanmoney",
+  "inputs": {
+   "n": "1234567"
+  },
+  "expect": [
+   "백이십삼만사천오백육십칠원",
+   "일금 일백이십삼만사천오백육십칠원정"
+  ],
+  "click": null,
+  "name": "koreanmoney"
+ },
+ {
+  "slug": "koreanmoney",
+  "inputs": {
+   "n": "100"
+  },
+  "expect": [
+   "백원",
+   "일금 일백원정"
+  ],
+  "click": null,
+  "name": "koreanmoney-100"
+ },
+ {
+  "slug": "koreanmoney",
+  "inputs": {
+   "n": "10000"
+  },
+  "expect": [
+   "일만원"
+  ],
+  "click": null,
+  "name": "koreanmoney-10000"
+ },
+ {
+  "slug": "koreanmoney",
+  "inputs": {
+   "n": "100000000"
+  },
+  "expect": [
+   "일억원"
+  ],
+  "click": null,
+  "name": "koreanmoney-1e8"
+ },
+ {
+  "slug": "sms",
+  "inputs": {
+   "t": "안녕하세요"
+  },
+  "expect": [
+   "10바이트",
+   "단문(SMS)"
+  ],
+  "click": null,
+  "name": "sms"
+ },
+ {
+  "slug": "sms",
+  "inputs": {
+   "t": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+  },
+  "expect": [
+   "92바이트",
+   "장문(LMS)"
+  ],
+  "click": null,
+  "name": "sms-lms"
+ },
+ {
+  "slug": "colorconv",
+  "inputs": {
+   "c": "#ff8a1f"
+  },
+  "expect": [
+   "HEX #FF8A1F",
+   "RGB 255, 138, 31",
+   "HSL 29, 100%, 56%"
+  ],
+  "click": null,
+  "name": "colorconv"
+ },
+ {
+  "slug": "colorconv",
+  "inputs": {
+   "c": "255,138,31"
+  },
+  "expect": [
+   "HEX #FF8A1F"
+  ],
+  "click": null,
+  "name": "colorconv-rgb"
+ },
+ {
+  "slug": "colorconv",
+  "inputs": {
+   "c": "#f80"
+  },
+  "expect": [
+   "RGB 255, 136, 0"
+  ],
+  "click": null,
+  "name": "colorconv-short"
+ },
+ {
+  "slug": "colorconv",
+  "inputs": {
+   "c": "#000"
+  },
+  "expect": [
+   "HSL 0, 0%, 0%"
+  ],
+  "click": null,
+  "name": "colorconv-black"
+ },
+ {
+  "slug": "colorconv",
+  "inputs": {
+   "c": "256,0,0"
+  },
+  "expect": [
+   "0~255"
+  ],
+  "click": null,
+  "name": "colorconv-over"
+ },
+ {
+  "slug": "datasize",
+  "inputs": {
+   "n": "1",
+   "u": "3",
+   "b": "1024"
+  },
+  "expect": [
+   "1,073,741,824 B",
+   "1,024 MB"
+  ],
+  "click": null,
+  "name": "datasize"
+ },
+ {
+  "slug": "datasize",
+  "inputs": {
+   "n": "1",
+   "u": "3",
+   "b": "1000"
+  },
+  "expect": [
+   "1,000,000,000 B"
+  ],
+  "click": null,
+  "name": "datasize-1000"
+ },
+ {
+  "slug": "dltime",
+  "inputs": {
+   "s": "10",
+   "u": "1024",
+   "sp": "500"
+  },
+  "expect": [
+   "약 2분 44초",
+   "62.5MB/s"
+  ],
+  "click": null,
+  "name": "dltime"
+ },
+ {
+  "slug": "textcase",
+  "inputs": {
+   "t": "hello World"
+  },
+  "expect": [
+   "HELLO WORLD",
+   "hello world",
+   "Hello World"
+  ],
+  "click": null,
+  "name": "textcase"
+ }
+]
