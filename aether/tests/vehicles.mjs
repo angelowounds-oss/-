@@ -27,7 +27,7 @@ try {
   await page.screenshot({ path: path.join(outDir, 'agera.png'), timeout: 300000 });
   // switching from the UI: reloads with the BMW profile
   const nav = page.waitForNavigation({ timeout: 120000 }).catch(() => null);
-  const sw = await page.evaluate(() => __VEHICLE.set('bmw'));
+  const sw = await page.evaluate(() => { setTimeout(() => __VEHICLE.set('bmw'), 50); return true; }); // set() reloads the page, so it must not be awaited inside evaluate
   await nav; await sleep(1000);
   const hash = await page.evaluate(() => location.hash);
   check('차량 바꾸기(bmw): 다시 불러오며 해시에 car=bmw', sw === true && /car=bmw/.test(hash) && !/car=agera/.test(hash) && /q=LITE/.test(hash), { sw, hash });
