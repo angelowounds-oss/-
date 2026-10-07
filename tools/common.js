@@ -5,6 +5,14 @@
     get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
+  var L = {
+    screen: '화면 ', mode: { auto: '자동', dark: '다크', light: '라이트' }, fav: '☆ 즐겨찾기', unfav: '★ 즐겨찾기 해제',
+    up: '고마워요! 더 잘 만들게요.', down: '알려줘서 고마워요. 고칠 점을 찾아볼게요.', copied: '복사됨',
+    kicker: '오늘의 계산', brand: '간편계산기', cta: '나도 계산해보기', cardLabel: '이미지 카드', cardAlt: ' 결과 이미지 카드',
+    cardTip: '이미지를 길게 눌러(또는 우클릭) 저장하세요', download: '다운로드', close: '닫기', share: '결과 복사해서 공유',
+    mkCard: '이미지 카드 만들기', ns: '', shareNote: '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.'
+  };
+  try { if (window.__L) for (var k in window.__L) L[k] = window.__L[k]; } catch (e) {}
   var isHome = !!$('.hero');
   var file = (location.pathname.split('/').pop() || 'index.html');
 
@@ -19,20 +27,26 @@
   });
 
   /* light / dark / auto */
-  var MODES = ['auto', 'dark', 'light'], LABEL = { auto: '자동', dark: '다크', light: '라이트' };
+  var MODES = ['auto', 'dark', 'light'], LABEL = L.mode;
   var mode = 'auto';
   try { mode = localStorage.getItem('mode') || 'auto'; } catch (e) {}
   function applyMode(m) { if (m === 'dark' || m === 'light') root.setAttribute('data-theme', m); else root.removeAttribute('data-theme'); }
   applyMode(mode);
   var mb = $('.modebtn');
   if (mb) {
-    mb.textContent = '화면 ' + LABEL[mode];
+    mb.textContent = L.screen + LABEL[mode];
     mb.addEventListener('click', function () {
       mode = MODES[(MODES.indexOf(mode) + 1) % 3];
       applyMode(mode);
       try { localStorage.setItem('mode', mode); } catch (e) {}
-      mb.textContent = '화면 ' + LABEL[mode];
+      mb.textContent = L.screen + LABEL[mode];
     });
+  }
+
+  var cs = $('#cur');
+  if (cs) {
+    try { var cv = localStorage.getItem('cur'); cs.value = cv === null ? '$' : cv; } catch (e) {}
+    cs.addEventListener('change', function () { try { localStorage.setItem('cur', cs.value); } catch (e) {} location.reload(); });
   }
 
   var title = doc.title.split(' - ')[0];
@@ -43,22 +57,22 @@
       return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
     });
   }
-  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
+  var favs = clean(LS.get('favs' + L.ns, [])), recent = clean(LS.get('recent' + L.ns, []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
   if (isTool) {
     recent = recent.filter(function (r) { return r.s !== file; });
     recent.unshift({ s: file, t: title });
-    LS.set('recent', recent.slice(0, 8));
+    LS.set('recent' + L.ns, recent.slice(0, 8));
     var fb = doc.createElement('button');
     fb.type = 'button'; fb.className = 'favbtn';
-    var paint = function () { var on = inFav(file); fb.textContent = on ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기'; fb.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    var paint = function () { var on = inFav(file); fb.textContent = on ? L.unfav : L.fav; fb.setAttribute('aria-pressed', on ? 'true' : 'false'); };
     paint();
     fb.addEventListener('click', function () {
       if (inFav(file)) favs = favs.filter(function (f) { return f.s !== file; });
       else favs.unshift({ s: file, t: title });
-      LS.set('favs', favs); paint();
+      LS.set('favs' + L.ns, favs); paint();
     });
     h1.insertAdjacentElement('afterend', fb);
   }
@@ -78,8 +92,8 @@
   /* quick feedback */
   var fbBox = $('.fb');
   if (fbBox) {
-    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
-    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    var fkey = 'fb' + L.ns + ':' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? L.up : L.down; fbBox.classList.add('voted'); };
     if (done) thank(done);
     fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -97,7 +111,7 @@
       : Array.prototype.map.call(doc.querySelectorAll('.result'), function (e) { return e.innerText.trim(); }).filter(Boolean).join('\n');
   }
   function copy(t, btn, label) {
-    var done = function () { btn.textContent = '복사됨'; setTimeout(function () { btn.textContent = label; }, 1800); };
+    var done = function () { btn.textContent = L.copied; setTimeout(function () { btn.textContent = label; }, 1800); };
     var fallback = function () { var a = doc.createElement('textarea'); a.value = t; doc.body.appendChild(a); a.select(); try { doc.execCommand('copy'); done(); } catch (e) {} a.remove(); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback); else fallback();
   }
@@ -149,7 +163,7 @@
     x.fillStyle = '#ffffff'; rr(x, cx, cy, cw, ch, 44); x.fill();
     x.lineWidth = 8; x.strokeStyle = '#141414'; rr(x, cx, cy, cw, ch, 44); x.stroke();
     x.textBaseline = 'alphabetic';
-    x.fillStyle = '#5b3df5'; x.font = '700 40px "Gaegu", "Noto Sans KR", sans-serif'; x.fillText('오늘의 계산', px, cy + 84);
+    x.fillStyle = '#5b3df5'; x.font = '700 40px "Gaegu", "Noto Sans KR", sans-serif'; x.fillText(L.kicker, px, cy + 84);
     ops.forEach(function (o) {
       if (o.hl) { x.fillStyle = lime; x.fillRect(px - 10, o.y - 56, o.hl + 20, 74); }
       x.fillStyle = o.c; x.font = o.f; x.fillText(o.t, px, o.y);
@@ -157,19 +171,19 @@
     var fy = cy + ch + 70;
     x.fillStyle = lime; rr(x, 70, fy, 360, 96, 24); x.fill();
     x.lineWidth = 6; x.strokeStyle = '#141414'; rr(x, 70, fy, 360, 96, 24); x.stroke();
-    x.fillStyle = '#141414'; x.font = '48px "Jua", "Noto Sans KR", sans-serif'; x.fillText('간편계산기', 106, fy + 66);
+    x.fillStyle = '#141414'; x.font = '48px "Jua", "Noto Sans KR", sans-serif'; x.fillText(L.brand, 106, fy + 66);
     x.fillStyle = '#5a5675'; x.font = '400 34px "Noto Sans KR", sans-serif'; x.textAlign = 'right';
-    x.fillText('나도 계산해보기', W - 80, fy + 62); x.textAlign = 'left';
+    x.fillText(L.cta, W - 80, fy + 62); x.textAlign = 'left';
     return c.toDataURL('image/png');
   }
   function showCard(url) {
-    var ov = doc.createElement('div'); ov.className = 'overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', '이미지 카드');
+    var ov = doc.createElement('div'); ov.className = 'overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', L.cardLabel);
     var box = doc.createElement('div'); box.className = 'ovbox';
-    var img = doc.createElement('img'); img.src = url; img.alt = title + ' 결과 이미지 카드';
-    var tip = doc.createElement('p'); tip.textContent = '이미지를 길게 눌러(또는 우클릭) 저장하세요';
+    var img = doc.createElement('img'); img.src = url; img.alt = title + L.cardAlt;
+    var tip = doc.createElement('p'); tip.textContent = L.cardTip;
     var row = doc.createElement('div'); row.className = 'actions';
-    var dl = doc.createElement('a'); dl.className = 'btnlink'; dl.href = url; dl.download = '간편계산기-' + file.replace('.html', '') + '.png'; dl.textContent = '다운로드';
-    var cl = doc.createElement('button'); cl.type = 'button'; cl.textContent = '닫기';
+    var dl = doc.createElement('a'); dl.className = 'btnlink'; dl.href = url; dl.download = L.brand + '-' + file.replace('.html', '') + '.png'; dl.textContent = L.download;
+    var cl = doc.createElement('button'); cl.type = 'button'; cl.textContent = L.close;
     row.appendChild(dl); row.appendChild(cl); box.appendChild(img); box.appendChild(tip); box.appendChild(row); ov.appendChild(box); doc.body.appendChild(ov);
     var close = function () { ov.remove(); };
     cl.addEventListener('click', close); ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
@@ -179,13 +193,13 @@
     var host = out || r.closest('.card') || r;
     var row = doc.createElement('div'); row.className = 'actions';
     if (!r.querySelector('button')) {
-      var sb = doc.createElement('button'); sb.type = 'button'; sb.className = 'sharebtn'; sb.textContent = '결과 복사해서 공유';
-      sb.addEventListener('click', function () { copy(title + '\n' + bodyText() + '\n' + location.href, sb, '결과 복사해서 공유'); });
+      var sb = doc.createElement('button'); sb.type = 'button'; sb.className = 'sharebtn'; sb.textContent = L.share;
+      sb.addEventListener('click', function () { copy(title + '\n' + bodyText() + '\n' + location.href, sb, L.share); });
       row.appendChild(sb);
     }
-    var ib = doc.createElement('button'); ib.type = 'button'; ib.className = 'imgbtn'; ib.textContent = '이미지 카드 만들기';
+    var ib = doc.createElement('button'); ib.type = 'button'; ib.className = 'imgbtn'; ib.textContent = L.mkCard;
     ib.addEventListener('click', function () {
-      var lines = bodyText().split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s && !/^결과 복사/.test(s) && !/^이미지 카드/.test(s); });
+      var lines = bodyText().split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s && s.indexOf(L.share) !== 0 && s.indexOf(L.mkCard) !== 0; });
       var go = function () { showCard(drawCard(title, lines)); };
       if (doc.fonts && doc.fonts.load) Promise.all([doc.fonts.load('64px Jua'), doc.fonts.load('700 40px "Noto Sans KR"')]).then(go, go); else go();
     });
@@ -199,7 +213,7 @@
     } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
-      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      note.textContent = L.shareNote;
       row.insertAdjacentElement('afterend', note);
     }
   }

@@ -2,7 +2,7 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>연장·야간·휴일수당 계산기 - 가산수당 합계</title><meta name="description" content="통상시급과 연장, 야간, 휴일 근무시간으로 가산수당을 계산합니다.">
 <!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/overtime.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="연장·야간·휴일수당 계산기"><meta property="og:description" content="통상시급과 연장, 야간, 휴일 근무시간으로 가산수당을 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/overtime.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
-<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
+<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>연장·야간·휴일수당 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <div class="card"><label for="h">통상시급 (원)</label><input type="number" id="h" value="12000" step="any" min="0"><label for="ot">연장근로 시간 (1일 8시간·주 40시간 초과분)</label><input type="number" id="ot" value="10" step="any" min="0"><label for="nt">야간근로 시간 (22시~06시)</label><input type="number" id="nt" value="5" step="any" min="0"><label for="h1">휴일근로 시간 (8시간 이내)</label><input type="number" id="h1" value="8" step="any" min="0"><label for="h2">휴일근로 시간 (8시간 초과)</label><input type="number" id="h2" value="2" step="any" min="0"><div class="result" id="res"></div></div><h2>가산율</h2><p>5인 이상 사업장 기준으로 연장·야간은 통상임금의 50% 가산, 휴일은 8시간 이내 50%, 초과 100% 가산입니다. 연장근로 시간이 야간이기도 하면 가산이 겹칠 수 있는데, 이 계산기는 야간은 추가 가산분(50%)만 따로 더합니다. 지급액은 근로계약과 관련 법령에 따릅니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>5인 미만 사업장은요?</h3><p>가산수당 규정이 적용되지 않을 수 있습니다.</p><h3>포괄임금제는요?</h3><p>수당이 급여에 포함되어 있으면 별도로 받지 않습니다. 계약서를 확인하세요.</p></div><!--fb--><div class="fb" data-slug="overtime"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
@@ -39,6 +39,14 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
+  var L = {
+    screen: '화면 ', mode: { auto: '자동', dark: '다크', light: '라이트' }, fav: '☆ 즐겨찾기', unfav: '★ 즐겨찾기 해제',
+    up: '고마워요! 더 잘 만들게요.', down: '알려줘서 고마워요. 고칠 점을 찾아볼게요.', copied: '복사됨',
+    kicker: '오늘의 계산', brand: '간편계산기', cta: '나도 계산해보기', cardLabel: '이미지 카드', cardAlt: ' 결과 이미지 카드',
+    cardTip: '이미지를 길게 눌러(또는 우클릭) 저장하세요', download: '다운로드', close: '닫기', share: '결과 복사해서 공유',
+    mkCard: '이미지 카드 만들기', ns: '', shareNote: '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.'
+  };
+  try { if (window.__L) for (var k in window.__L) L[k] = window.__L[k]; } catch (e) {}
   var isHome = !!$('.hero');
   var file = (location.pathname.split('/').pop() || 'index.html');
 
@@ -53,20 +61,26 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   });
 
   /* light / dark / auto */
-  var MODES = ['auto', 'dark', 'light'], LABEL = { auto: '자동', dark: '다크', light: '라이트' };
+  var MODES = ['auto', 'dark', 'light'], LABEL = L.mode;
   var mode = 'auto';
   try { mode = localStorage.getItem('mode') || 'auto'; } catch (e) {}
   function applyMode(m) { if (m === 'dark' || m === 'light') root.setAttribute('data-theme', m); else root.removeAttribute('data-theme'); }
   applyMode(mode);
   var mb = $('.modebtn');
   if (mb) {
-    mb.textContent = '화면 ' + LABEL[mode];
+    mb.textContent = L.screen + LABEL[mode];
     mb.addEventListener('click', function () {
       mode = MODES[(MODES.indexOf(mode) + 1) % 3];
       applyMode(mode);
       try { localStorage.setItem('mode', mode); } catch (e) {}
-      mb.textContent = '화면 ' + LABEL[mode];
+      mb.textContent = L.screen + LABEL[mode];
     });
+  }
+
+  var cs = $('#cur');
+  if (cs) {
+    try { var cv = localStorage.getItem('cur'); cs.value = cv === null ? '$' : cv; } catch (e) {}
+    cs.addEventListener('change', function () { try { localStorage.setItem('cur', cs.value); } catch (e) {} location.reload(); });
   }
 
   var title = doc.title.split(' - ')[0];
@@ -77,22 +91,22 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
       return x && typeof x.s === 'string' && typeof x.t === 'string' && /^[a-z0-9-]+\.html$/.test(x.s) && x.t.length < 80;
     });
   }
-  var favs = clean(LS.get('favs', [])), recent = clean(LS.get('recent', []));
+  var favs = clean(LS.get('favs' + L.ns, [])), recent = clean(LS.get('recent' + L.ns, []));
   function inFav(s) { return favs.some(function (f) { return f.s === s; }); }
   var h1 = $('main h1');
   var isTool = !isHome && h1 && $('main .card') && !/^(about|terms|privacy)\.html$/.test(file);
   if (isTool) {
     recent = recent.filter(function (r) { return r.s !== file; });
     recent.unshift({ s: file, t: title });
-    LS.set('recent', recent.slice(0, 8));
+    LS.set('recent' + L.ns, recent.slice(0, 8));
     var fb = doc.createElement('button');
     fb.type = 'button'; fb.className = 'favbtn';
-    var paint = function () { var on = inFav(file); fb.textContent = on ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기'; fb.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    var paint = function () { var on = inFav(file); fb.textContent = on ? L.unfav : L.fav; fb.setAttribute('aria-pressed', on ? 'true' : 'false'); };
     paint();
     fb.addEventListener('click', function () {
       if (inFav(file)) favs = favs.filter(function (f) { return f.s !== file; });
       else favs.unshift({ s: file, t: title });
-      LS.set('favs', favs); paint();
+      LS.set('favs' + L.ns, favs); paint();
     });
     h1.insertAdjacentElement('afterend', fb);
   }
@@ -112,8 +126,8 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
   /* quick feedback */
   var fbBox = $('.fb');
   if (fbBox) {
-    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
-    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    var fkey = 'fb' + L.ns + ':' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? L.up : L.down; fbBox.classList.add('voted'); };
     if (done) thank(done);
     fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -131,7 +145,7 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
       : Array.prototype.map.call(doc.querySelectorAll('.result'), function (e) { return e.innerText.trim(); }).filter(Boolean).join('\n');
   }
   function copy(t, btn, label) {
-    var done = function () { btn.textContent = '복사됨'; setTimeout(function () { btn.textContent = label; }, 1800); };
+    var done = function () { btn.textContent = L.copied; setTimeout(function () { btn.textContent = label; }, 1800); };
     var fallback = function () { var a = doc.createElement('textarea'); a.value = t; doc.body.appendChild(a); a.select(); try { doc.execCommand('copy'); done(); } catch (e) {} a.remove(); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback); else fallback();
   }
@@ -183,7 +197,7 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     x.fillStyle = '#ffffff'; rr(x, cx, cy, cw, ch, 44); x.fill();
     x.lineWidth = 8; x.strokeStyle = '#141414'; rr(x, cx, cy, cw, ch, 44); x.stroke();
     x.textBaseline = 'alphabetic';
-    x.fillStyle = '#5b3df5'; x.font = '700 40px "Gaegu", "Noto Sans KR", sans-serif'; x.fillText('오늘의 계산', px, cy + 84);
+    x.fillStyle = '#5b3df5'; x.font = '700 40px "Gaegu", "Noto Sans KR", sans-serif'; x.fillText(L.kicker, px, cy + 84);
     ops.forEach(function (o) {
       if (o.hl) { x.fillStyle = lime; x.fillRect(px - 10, o.y - 56, o.hl + 20, 74); }
       x.fillStyle = o.c; x.font = o.f; x.fillText(o.t, px, o.y);
@@ -191,19 +205,19 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     var fy = cy + ch + 70;
     x.fillStyle = lime; rr(x, 70, fy, 360, 96, 24); x.fill();
     x.lineWidth = 6; x.strokeStyle = '#141414'; rr(x, 70, fy, 360, 96, 24); x.stroke();
-    x.fillStyle = '#141414'; x.font = '48px "Jua", "Noto Sans KR", sans-serif'; x.fillText('간편계산기', 106, fy + 66);
+    x.fillStyle = '#141414'; x.font = '48px "Jua", "Noto Sans KR", sans-serif'; x.fillText(L.brand, 106, fy + 66);
     x.fillStyle = '#5a5675'; x.font = '400 34px "Noto Sans KR", sans-serif'; x.textAlign = 'right';
-    x.fillText('나도 계산해보기', W - 80, fy + 62); x.textAlign = 'left';
+    x.fillText(L.cta, W - 80, fy + 62); x.textAlign = 'left';
     return c.toDataURL('image/png');
   }
   function showCard(url) {
-    var ov = doc.createElement('div'); ov.className = 'overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', '이미지 카드');
+    var ov = doc.createElement('div'); ov.className = 'overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', L.cardLabel);
     var box = doc.createElement('div'); box.className = 'ovbox';
-    var img = doc.createElement('img'); img.src = url; img.alt = title + ' 결과 이미지 카드';
-    var tip = doc.createElement('p'); tip.textContent = '이미지를 길게 눌러(또는 우클릭) 저장하세요';
+    var img = doc.createElement('img'); img.src = url; img.alt = title + L.cardAlt;
+    var tip = doc.createElement('p'); tip.textContent = L.cardTip;
     var row = doc.createElement('div'); row.className = 'actions';
-    var dl = doc.createElement('a'); dl.className = 'btnlink'; dl.href = url; dl.download = '간편계산기-' + file.replace('.html', '') + '.png'; dl.textContent = '다운로드';
-    var cl = doc.createElement('button'); cl.type = 'button'; cl.textContent = '닫기';
+    var dl = doc.createElement('a'); dl.className = 'btnlink'; dl.href = url; dl.download = L.brand + '-' + file.replace('.html', '') + '.png'; dl.textContent = L.download;
+    var cl = doc.createElement('button'); cl.type = 'button'; cl.textContent = L.close;
     row.appendChild(dl); row.appendChild(cl); box.appendChild(img); box.appendChild(tip); box.appendChild(row); ov.appendChild(box); doc.body.appendChild(ov);
     var close = function () { ov.remove(); };
     cl.addEventListener('click', close); ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
@@ -213,13 +227,13 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     var host = out || r.closest('.card') || r;
     var row = doc.createElement('div'); row.className = 'actions';
     if (!r.querySelector('button')) {
-      var sb = doc.createElement('button'); sb.type = 'button'; sb.className = 'sharebtn'; sb.textContent = '결과 복사해서 공유';
-      sb.addEventListener('click', function () { copy(title + '\n' + bodyText() + '\n' + location.href, sb, '결과 복사해서 공유'); });
+      var sb = doc.createElement('button'); sb.type = 'button'; sb.className = 'sharebtn'; sb.textContent = L.share;
+      sb.addEventListener('click', function () { copy(title + '\n' + bodyText() + '\n' + location.href, sb, L.share); });
       row.appendChild(sb);
     }
-    var ib = doc.createElement('button'); ib.type = 'button'; ib.className = 'imgbtn'; ib.textContent = '이미지 카드 만들기';
+    var ib = doc.createElement('button'); ib.type = 'button'; ib.className = 'imgbtn'; ib.textContent = L.mkCard;
     ib.addEventListener('click', function () {
-      var lines = bodyText().split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s && !/^결과 복사/.test(s) && !/^이미지 카드/.test(s); });
+      var lines = bodyText().split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s && s.indexOf(L.share) !== 0 && s.indexOf(L.mkCard) !== 0; });
       var go = function () { showCard(drawCard(title, lines)); };
       if (doc.fonts && doc.fonts.load) Promise.all([doc.fonts.load('64px Jua'), doc.fonts.load('700 40px "Noto Sans KR"')]).then(go, go); else go();
     });
@@ -233,7 +247,7 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
     } catch (e) {}
     if (typeof IDS !== 'undefined') {
       var note = doc.createElement('p'); note.className = 'sharenote';
-      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      note.textContent = L.shareNote;
       row.insertAdjacentElement('afterend', note);
     }
   }

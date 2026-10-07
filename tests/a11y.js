@@ -5,7 +5,7 @@ const BASE = process.argv[2] || 'http://localhost:8810/';
 const axeSrc = fs.readFileSync(process.argv[3], 'utf8');
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
-  const slugs = fs.readdirSync(__dirname + '/../site').filter(f => f.endsWith('.html')).map(f => f.slice(0, -5));
+  const slugs = fs.readdirSync(__dirname + '/../site/' + (process.env.SUBDIR || '')).filter(f => f.endsWith('.html')).map(f => f.slice(0, -5));
   const agg = {}; const over = [];
   for (const scheme of ['light', 'dark']) {
     const ctx = await b.newContext({ viewport: { width: 390, height: 900 }, colorScheme: scheme }); const p = await ctx.newPage();

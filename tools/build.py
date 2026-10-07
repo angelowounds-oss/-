@@ -11,6 +11,13 @@ FEEDBACK_URL = os.environ.get("FEEDBACK_URL", "").strip()  # e.g. a Google Form 
 FONT_URL = "https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "site")
 AD = '<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>'
+ALT = set()        # slugs that exist in both the Korean and English editions (hreflang pairs)
+EN_PAGES = []      # English page paths for the sitemap
+# UI strings that differ per language (build_en.py overrides these)
+STR = dict(lang="ko", locale="ko_KR", brand="간편계산기", prefix="", related="관련 계산기", faq="자주 묻는 질문",
+           blank="빈칸을 채워 주세요", neg="0 이상의 값을 입력해 주세요",
+           bad="입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.",
+           fbq="이 계산기 어땠나요?", fb_up="도움됐어요", fb_down="아쉬워요", fb_link="의견 보내기")
 
 CATS = [
     ("fin", "금융·투자"), ("pay", "세금·급여"), ("biz", "부업·사업"), ("life", "부동산·생활"),
@@ -813,7 +820,7 @@ const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pa
 
 def nav():
     return ('<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a>'
-            '<a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>')
+            '<a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>')
 
 FOOT = ('<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span>'
         '<span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button>'
@@ -824,7 +831,7 @@ FOOT = ('<footer><span class="note">계산 결과는 참고용이에요. 큰 돈
 def related(slug, cat):
     r = [(s, t) for s, t, c, _ in REG if c == cat and s != slug][:4]
     if not r: return ""
-    return '<h2>관련 계산기</h2><div class="tools">' + "".join(f'<a href="{s}.html">{t}</a>' for s, t in r) + "</div>"
+    return f'<h2>{STR["related"]}</h2><div class="tools">' + "".join(f'<a href="{s}.html">{t}</a>' for s, t in r) + "</div>"
 
 def render_input(i):
     if i["t"] == "number":
@@ -846,7 +853,7 @@ def render_input(i):
         return f'<label for="{i["id"]}">{i["label"]}</label><textarea id="{i["id"]}" style="min-height:130px">{i["d"]}</textarea>'
 
 def faq_html(faq):
-    return '<div class="faq-block"><h2>자주 묻는 질문</h2>' + "".join(f"<h3>{q}</h3><p>{a}</p>" for q, a in faq) + "</div>"
+    return f'<div class="faq-block"><h2>{STR["faq"]}</h2>' + "".join(f"<h3>{q}</h3><p>{a}</p>" for q, a in faq) + "</div>"
 
 def faq_ld(faq):
     return json.dumps({"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
@@ -856,7 +863,7 @@ def shell(fn, title, desc, h1, main, script="", hero=False):
     bcls = ' class="home"' if hero else ''
     h1tag = ('<h1 class="sr">' + h1 + '</h1>') if hero else ('<h1>' + h1 + '</h1>')
     return f'''<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="{STR['lang']}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><meta name="description" content="{desc}">
 <link rel="stylesheet" href="style.css"></head><body{bcls}>
 {nav()}
@@ -877,13 +884,14 @@ def render_tool(t):
     btn = f'<button onclick="run()">{t["button"]}</button>' if t["button"] else ""
     main = (f'<div class="card">{inputs}{btn}<div class="result" id="res"></div></div>'
             f'{t["body"]}{faq_html(t["faq"])}{related(t["slug"], t["cat"])}')
+    blank, neg, bad = STR["blank"], STR["neg"], STR["bad"]
     script = f'''<script>{HELPERS}
 const IDS={json.dumps(ids)};
 function compute(v){{{t["js"]}}}
 function run(){{const v={{}};IDS.forEach(i=>{{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value}});
-if(IDS.some(i=>{{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')}})){{document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}}
-if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){{document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}}
-let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}}
+if(IDS.some(i=>{{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')}})){{document.getElementById('res').innerHTML='<small>{blank}</small>';return}}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){{document.getElementById('res').innerHTML='<small>{neg}</small>';return}}
+let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity|undefined/.test(h))h='<small>{bad}</small>';document.getElementById('res').innerHTML=h;save()}}
 function save(){{try{{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}}catch(e){{}}}}
 function load(){{try{{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')}})}}catch(e){{}}}}
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});
@@ -1051,16 +1059,20 @@ def head_block(fn, s):
     title = re.search(r"<title>(.*?)</title>", s, re.S).group(1)
     m = re.search(r'<meta name="description" content="(.*?)"', s)
     desc = m.group(1) if m else ""
-    url = SITE + "/" + ("" if fn == "index.html" else fn)
+    url = SITE + STR["prefix"] + "/" + ("" if fn == "index.html" else fn)
     h = [f'<link rel="canonical" href="{url}">',
-         '<meta property="og:type" content="website">', '<meta property="og:site_name" content="간편계산기">',
+         '<meta property="og:type" content="website">', f'<meta property="og:site_name" content="{STR["brand"]}">',
          f'<meta property="og:title" content="{title.split(" - ")[0]}">', f'<meta property="og:description" content="{desc}">',
-         f'<meta property="og:url" content="{url}">', f'<meta property="og:image" content="{SITE}/og.png">',
+         f'<meta property="og:url" content="{url}">', f'<meta property="og:image" content="{SITE}{STR["prefix"]}/og.png">',
          '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">',
-         '<meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image">',
+         f'<meta property="og:locale" content="{STR["locale"]}"><meta name="twitter:card" content="summary_large_image">',
          '<link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">',
          '<meta name="theme-color" content="#c8f542">',
          f'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="{FONT_URL}">']
+    sl = fn[:-5]
+    if sl in ALT:
+        tail = "" if sl == "index" else fn
+        h.append(f'<link rel="alternate" hreflang="ko" href="{SITE}/{tail}"><link rel="alternate" hreflang="en" href="{SITE}/en/{tail}"><link rel="alternate" hreflang="x-default" href="{SITE}/en/{tail}">')
     if ADSENSE:
         h.append(f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={ADSENSE}" crossorigin="anonymous"></script>')
     if GOATCOUNTER:
@@ -1076,14 +1088,17 @@ def inject_common():
         s = s.replace('<link rel="stylesheet" href="style.css">', head_block(b, s) + '<link rel="stylesheet" href="style.css">', 1)
         s = re.sub(r"<!--guide-->.*?<!--/guide-->", "", s, flags=re.S)
         slug = b[:-5]
+        if slug in ALT and slug != "index":
+            s = s.replace('href="en/" lang="en"', f'href="en/{b}" lang="en"').replace('href="../" lang="ko"', f'href="../{b}" lang="ko"')
         s = re.sub(r"<!--fb-->.*?<!--/fb-->", "", s, flags=re.S)
         if b not in ("index.html", "about.html", "terms.html", "privacy.html"):
-            fb = ('<!--fb--><div class="fb" data-slug="' + slug + '"><span class="fbq">이 계산기 어땠나요?</span>'
-                  '<button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button>'
-                  + (f'<a href="{FEEDBACK_URL}" target="_blank" rel="noopener">의견 보내기</a>' if FEEDBACK_URL else '')
+            fb = ('<!--fb--><div class="fb" data-slug="' + slug + '"><span class="fbq">' + STR["fbq"] + '</span>'
+                  '<button type="button" data-v="up">' + STR["fb_up"] + '</button><button type="button" data-v="down">' + STR["fb_down"] + '</button>'
+                  + (f'<a href="{FEEDBACK_URL}" target="_blank" rel="noopener">' + STR["fb_link"] + '</a>' if FEEDBACK_URL else '')
                   + '<span class="fbt" role="status"></span></div><!--/fb-->')
-            if "<h2>관련 계산기</h2>" in s:
-                s = s.replace("<h2>관련 계산기</h2>", fb + "<h2>관련 계산기</h2>", 1)
+            rel = "<h2>" + STR["related"] + "</h2>"
+            if rel in s:
+                s = s.replace(rel, fb + rel, 1)
             else:
                 s = s.replace("</main>", fb + "</main>", 1)
         if slug in GUIDES:
@@ -1109,7 +1124,7 @@ def refresh_existing():
         open(fn, "w", encoding="utf-8").write(s)
 
 def sitemap():
-    pages = ["", "about.html", "terms.html", "privacy.html"] + [s + ".html" for s, *_ in REG]
+    pages = ["", "about.html", "terms.html", "privacy.html"] + [s + ".html" for s, *_ in REG] + EN_PAGES
     body = "".join(f"<url><loc>{SITE}/{p}</loc></url>" for p in pages)
     write("sitemap.xml", f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>')
     write("robots.txt", f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n")
@@ -1124,6 +1139,12 @@ def css():
     shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "style.css"), os.path.join(OUT, "style.css"))
 
 if __name__ == "__main__":
+    import sys, build_en
+    ALT.update((set(build_en.slugs()) & {s for s, *_ in REG}) - {"overtime"})
+    ALT.add("index")
     for t in TOOLS: render_tool(t)
-    render_index(); static_pages(); challenge_page(); custom_pages(); refresh_existing(); inject_common(); css(); sitemap()
+    render_index(); static_pages(); challenge_page(); custom_pages(); refresh_existing(); inject_common(); css()
+    en_n = build_en.run(sys.modules[__name__], None, ALT)
+    sitemap()
+    print(en_n, "English tools generated; hreflang pairs:", len(ALT))
     print(len(REG), "tools in registry,", len(TOOLS), "generated")

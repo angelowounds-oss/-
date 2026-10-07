@@ -133,3 +133,7 @@ footer .modebtn{margin:0;padding:3px 12px;font-size:13px;background:transparent;
 .fb .fbt{flex-basis:100%;font-size:14px;color:var(--muted)}.fb .fbt:empty{display:none}
 .fb.voted button{display:none}
 .actions[hidden]{display:none}
+footer .cur{display:flex;align-items:center;gap:8px;font-size:13px;color:#cfcfe0;margin:0;font-weight:400}
+footer .cur select{width:auto;padding:2px 10px;border:2px solid #fff;border-radius:99px;background:transparent;color:#fff;font:inherit;font-size:13px}
+footer .cur select:focus{box-shadow:0 0 0 3px var(--lime)}
+footer .cur option{color:#141414;background:#fff}

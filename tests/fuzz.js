@@ -4,11 +4,11 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const BASE = process.argv[2] || 'http://localhost:8810/';
 const skip = new Set(['index', 'about', 'terms', 'privacy']);
-const BAD = /NaN|Infinity|undefined|\[object|-0원|null/;
+const BAD = /NaN|Infinity|undefined|\[object|-0원|-\$0\.00|null/;
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
   const ctx = await b.newContext({ locale: 'ko-KR', timezoneId: 'Asia/Seoul', viewport: { width: 420, height: 900 } });
-  const slugs = fs.readdirSync(__dirname + '/../site').filter(f => f.endsWith('.html')).map(f => f.slice(0, -5)).filter(s => !skip.has(s));
+  const slugs = fs.readdirSync(__dirname + '/../site/' + (process.env.SUBDIR || '')).filter(f => f.endsWith('.html')).map(f => f.slice(0, -5)).filter(s => !skip.has(s));
   const findings = [];
   for (const slug of slugs) {
     const p = await ctx.newPage(); const errs = [];

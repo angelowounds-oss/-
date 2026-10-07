@@ -2,17 +2,17 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const BASE = process.argv[2] || 'http://localhost:8800/';
-const cases = JSON.parse(fs.readFileSync(__dirname + '/cases.json', 'utf8'));
+const cases = JSON.parse(fs.readFileSync(__dirname + '/' + (process.env.CASES || 'cases.json'), 'utf8'));
 const norm = s => s.replace(/\s+/g, ' ').trim();
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
-  const ctx = await b.newContext({ locale: 'ko-KR', timezoneId: 'Asia/Seoul', viewport: { width: 420, height: 900 } });
+  const ctx = await b.newContext({ locale: process.env.LOCALE || 'ko-KR', timezoneId: process.env.TZ_ID || 'Asia/Seoul', viewport: { width: 420, height: 900 } });
   let fail = 0, pass = 0;
   for (const c of cases) {
     const p = await ctx.newPage();
     const errs = [];
     p.on('pageerror', e => errs.push(e.message));
-    await p.clock.install({ time: new Date('2026-10-07T12:00:00+09:00') });
+    await p.clock.install({ time: new Date(process.env.NOW || '2026-10-07T12:00:00+09:00') });
     await p.goto(BASE + c.slug + '.html');
     for (const [id, v] of Object.entries(c.inputs)) {
       const el = p.locator('#' + id);
