@@ -438,7 +438,7 @@ export class Game {
     // wake: rings spread from a swimmer / wader, stronger the faster they move; a splash when going in
     {
       const inWater = wat && pl.y < wat.y + 0.15, wasIn = this._wasIn;
-      if (inWater && !wasIn) { addRipple(pl.x, pl.z, 2.4); this.audio.splash?.(1); this.fx.sparks?.(pl.x, wat.y + 0.1, pl.z, 10, [0.7, 0.9, 1], 3); }
+      if (inWater && !wasIn) { const fv = Math.max(0, -(this._prevVy || 0)); addRipple(pl.x, pl.z, clamp(2.4 + fv * 0.12, 2.4, 4)); this.audio.splash?.(clamp(0.8 + fv / 15, 0.8, 1.6)); this.fx.sparks?.(pl.x, wat.y + 0.1, pl.z, Math.round(10 + fv), [0.7, 0.9, 1], 3 + fv * 0.25); if (fv > 6) this.landKick = Math.max(this.landKick || 0, clamp(fv / 30, 0, 0.6)); }
       this._wasIn = !!inWater;
       if (inWater) {
         this._ripT = (this._ripT || 0) - dt;
@@ -450,6 +450,7 @@ export class Game {
     let impact = 0;
     if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
     else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 : 0);
+    this._prevVy = pl.vy;
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;
     if (impact > 0) this.land(impact, wat);
     if (c3.y < -30) c3.teleport(this.world.spawn.x, 0, this.world.spawn.z);
