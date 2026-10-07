@@ -63,6 +63,7 @@ function canWalkV2(x,z,fromX,fromZ,r){const sp=TUNNEL_SPEC,p=sp.plenum,d=sp.door
  if(inPass&&Math.abs(z-zh)<.12&&DOOR.t<.85)return false; /* closed door */
  if(vb&&x+r>vb.min[0]-.1&&x-r<vb.max[0]+.1&&z+r>vb.min[2]-.1&&z-r<vb.max[2]+.1)return false;
  const cb=AETHER.M6?.bounds;if(inRoom&&cb&&x+r>cb.min[0]&&x-r<cb.max[0]&&z+r>cb.min[2]&&z-r<cb.max[2])return false;
+ if(inRoom&&cr.furniture?.some(f=>x+r>f.x0&&x-r<f.x1&&z+r>f.z0&&z-r<f.z1))return false;
  if(Math.abs(doorGround(x,z)-doorGround(fromX,fromZ))>.2)return false;
  return true}
 function canWalk(x,z,fromX=fpv.x,fromZ=fpv.z){const r=.22,{x0,x1}=DOOR;

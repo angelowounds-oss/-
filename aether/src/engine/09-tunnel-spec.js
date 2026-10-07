@@ -13,7 +13,7 @@ const TUNNEL_SPEC=(()=>{
   collector:{x0:6.5,throatX:10,inW:8,inH:5.4,thW:6.4,thH:4.6,x1:18.5,xOut:19.5,lipR:.25,wall:.06},
   turntable:{r:3.75,thickness:.3,gap:.025,pit:{hx:3.2,hz:1.35},squareHalf:4.2},
   window:{x0:-3,x1:3,y0:1.1,y1:4.3,wallZ:1}, /* observation window in the +Z side wall */
-  controlRoom:{depth:5.5,floorY:.75},
+  controlRoom:{depth:5.5,floorY:.75,furniture:[{n:'desk1',x0:-3.7,x1:-1.5,z0:10.7,z1:11.5},{n:'desk2',x0:-.7,x1:1.5,z0:10.7,z1:11.5},{n:'chair1',x0:-3.05,x1:-2.15,z0:9.9,z1:10.6},{n:'chair2',x0:-.05,x1:.85,z0:9.9,z1:10.6},{n:'rack',x0:-4.5,x1:-3.85,z0:8.0,z1:9.0}]},/* furniture footprints (x/z, metres): drawn by tools/gen/tunnel.mjs and used as walking obstacles */
   /* personnel door in the +Z plenum wall beside the window, reached by a 4-step stair from the plenum floor to the control-room floor (sill = floorY) */
   door:{x0:3.55,x1:4.4,y0:.75,y1:2.85,steps:4,tread:.28,landing:.36,N:12},
   /* fan room behind the plenum back wall (visual only, outside the CFD domain x <= 19.5): diffuser -> fan wall -> contraction -> return duct leaving through the east wall.

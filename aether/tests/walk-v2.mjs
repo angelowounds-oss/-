@@ -36,6 +36,8 @@ try {
     out.stairGround = [W.ground(3.95, 6.4), W.ground(3.95, 6.0), W.ground(3.95, 5.7), W.ground(3.95, 5.4), W.ground(3.95, 5.0)].map(v => +v.toFixed(4));
     // console collision: the console (user GLB) is an obstacle
     const cb = AETHER.M6.bounds; out.consoleSolid = !W.canWalk((cb.min[0] + cb.max[0]) / 2, (cb.min[2] + cb.max[2]) / 2, (cb.min[0] + cb.max[0]) / 2, cb.max[2] + .6);
+    // control-room furniture (SPEC.controlRoom.furniture): desks, chairs and the rack block; the aisle in front of the desks and between them stays open
+    out.furniture = { desk1: !W.canWalk(-2.6, 11.1, -2.6, 10.5), desk2: !W.canWalk(.4, 11.1, .4, 10.5), chair: !W.canWalk(-2.6, 10.25, -2.6, 9.7), rack: !W.canWalk(-4.2, 8.5, -3.4, 8.5), aisleOpen: W.canWalk(-2.6, 9.4, -2.6, 9.2) && W.canWalk(-1.1, 11.1, -1.1, 10.7), } ;
     // plenum: still free around the nozzle exit, car and turntable remain obstacles
     out.plenumFree = W.canWalk(-4, 3.2, -4, 3.0); out.carSolid = !W.canWalk(0, 0, 0, 2);
     // aisle beside the collector up to the fan-room inspection hatches (back wall x=18.5, hatches z 4.1..5.3)
@@ -43,6 +45,7 @@ try {
     out.aisle = { ok: aisleOk, end: [+x.toFixed(2), +z.toFixed(2)], funnelSolid: !W.canWalk(12, 3.5, 12, 4.4) && !W.canWalk(8, 3.9, 8, 5.0), backWallSolid: !W.canWalk(18.0, 5.0, 17.6, 5.0) };
     return out;
   });
+  check('제어실 가구: 책상 2·의자·장비 랙은 통과 불가, 책상 앞 통로와 책상 사이는 열려 있음', Object.values(R.furniture).every(Boolean), R.furniture);
   check('복도: 수집부 옆을 따라 점검 개구부 앞(x 17.4)까지 걸어감, 깔때기·뒷벽은 통과 불가', R.aisle.ok && R.aisle.funnelSolid && R.aisle.backWallSolid, R.aisle);
   check('v2 문 장면 객체 생성(슬라이딩 12프레임)', R.built);
   check('제어실 시작 위치: 지면 0.75 m, 이동 가능', R.spawnGround === 0.75 && R.spawnFree, R.spawnGround);

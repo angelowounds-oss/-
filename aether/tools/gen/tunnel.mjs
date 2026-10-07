@@ -11,6 +11,8 @@ export const MATERIALS = [
   { name: 'ControlRoomPaint', base: [.2, .22, .26, 1], metallic: 0, roughness: .55 },
   { name: 'PlenumPaint', base: [.62, .64, .66, 1], metallic: 0, roughness: .62 },
   { name: 'ConcreteFloor', base: [.17, .18, .19, 1], metallic: 0, roughness: .8 },
+  { name: 'DeskTop', base: [.42, .44, .47, 1], metallic: 0, roughness: .4 },
+  { name: 'MonitorGlow', base: [.015, .06, .11, 1], metallic: 0, roughness: .8 },
   { name: 'RoomLight', base: [1, .93, .82, 1], metallic: 0, roughness: .3 },
   { name: 'ControlRoomFloor', base: [.06, .07, .085, 1], metallic: 0, roughness: .65 },
   { name: 'DisplayScreen', base: [1, 1, 1, 1], metallic: 0, roughness: .3 },
@@ -362,6 +364,36 @@ function controlRoomInterior() {
   return [carpet, lights, am, cy, bez, scr];
 }
 
+// ---------- control room furniture (footprints in SPEC.controlRoom.furniture, also the walking obstacles): two workstations facing the video wall, two chairs, an equipment rack ----------
+function controlRoomFurniture() {
+  const cr = SPEC.controlRoom, y0 = cr.floorY, F = Object.fromEntries(cr.furniture.map(f => [f.n, f])), out = [];
+  const ccx = f => (f.x0 + f.x1) / 2;
+  for (const dn of ['desk1', 'desk2']) {
+    const f = F[dn], steel = new Mesh('AETHER_' + dn.toUpperCase() + '_FRAME', 'BlackPowderCoat', { category: 'control room furniture', role: 'static' }), top = new Mesh('AETHER_' + dn.toUpperCase() + '_TOP', 'DeskTop', { category: 'control room furniture', role: 'static' });
+    const yt = y0 + .75;
+    top.box([f.x0, yt - .04, f.z0], [f.x1, yt, f.z1]);
+    steel.box([f.x0 + .03, y0 + .005, f.z0 + .05], [f.x0 + .07, yt - .041, f.z1 - .05]); steel.box([f.x1 - .07, y0 + .005, f.z0 + .05], [f.x1 - .03, yt - .041, f.z1 - .05]);
+    steel.box([f.x0 + .08, y0 + .35, f.z1 - .06], [f.x1 - .08, yt - .045, f.z1 - .04]);
+    const sc = new Mesh('AETHER_' + dn.toUpperCase() + '_SCREENS', 'MonitorGlow', { category: 'control room furniture', role: 'static', emissive: true }), bz = new Mesh('AETHER_' + dn.toUpperCase() + '_MONITORS', 'BlackPowderCoat', { category: 'control room furniture', role: 'static' });
+    for (const dx of [-.34, .34]) {
+      const cx = ccx(f) + dx, zf = f.z1 - .22, w = .31, ya = yt + .16, yb = ya + .36;
+      bz.box([cx - w - .015, ya - .015, zf], [cx + w + .015, yb + .015, zf + .03]); bz.box([cx - .03, yt, zf + .005], [cx + .03, ya - .016, zf + .025]); bz.box([cx - .12, yt, zf - .03], [cx + .12, yt + .012, zf + .09]);
+      sc.tri([cx + w, ya, zf - .003], [cx - w, ya, zf - .003], [cx - w, yb, zf - .003]); sc.tri([cx + w, ya, zf - .003], [cx - w, yb, zf - .003], [cx + w, yb, zf - .003]);
+    }
+    out.push(top, steel, bz, sc);
+  }
+  for (const cn of ['chair1', 'chair2']) {
+    const f = F[cn], c = new Mesh('AETHER_' + cn.toUpperCase(), 'BlackPowderCoat', { category: 'control room furniture', role: 'static' }), cx = ccx(f), cz = (f.z0 + f.z1) / 2;
+    c.box([cx - .25, y0 + .45, cz - .22], [cx + .25, y0 + .51, cz + .22]); c.box([cx - .24, y0 + .55, cz - .27], [cx + .24, y0 + .98, cz - .22]); c.cylinderY(cx, cz, .035, y0 + .06, y0 + .45, 10); c.cylinderY(cx, cz, .3, y0 + .02, y0 + .06, 16);
+    out.push(c);
+  }
+  const r = F.rack, rk = new Mesh('AETHER_EQUIPMENT_RACK', 'BlackPowderCoat', { category: 'control room furniture', role: 'static' }), led = new Mesh('AETHER_RACK_LEDS', 'LedCyan', { category: 'led strip', role: 'static', emissive: true });
+  rk.box([r.x0, y0, r.z0], [r.x1, y0 + 2.1, r.z1]);
+  for (let i = 0; i < 9; i++) { const y = y0 + .25 + i * .2, z = r.z0 + .08; for (let k = 0; k < 6; k++) led.box([r.x1 + .002, y, z + k * .14], [r.x1 + .012, y + .025, z + k * .14 + .06]); }
+  out.push(rk, led);
+  return out;
+}
+
 // ---------- LED accent lines: walking-boundary guide lines on the floor, a ring around the turntable, outlines around the nozzle exit and the collector mouth ----------
 function ledMeshes() {
   const S = SPEC, p = S.plenum, n = S.nozzle, c = S.collector, t = S.turntable, dr = S.door;
@@ -394,7 +426,7 @@ export function buildTunnel() {
   const parts = [];
   const { walls, ceil, fh, bh } = shellMeshes();
   const w = SPEC.window, win = [w.x0, w.x1, w.y0, w.y1];
-  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...displayMeshes(), ...controlRoomInterior(), ...fanRoomMeshes());
+  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...displayMeshes(), ...controlRoomInterior(), ...controlRoomFurniture(), ...fanRoomMeshes());
   return parts;
 }
 export { rrLoop, D };

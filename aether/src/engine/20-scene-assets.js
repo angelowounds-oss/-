@@ -112,7 +112,7 @@ const materialLibrary=Object.freeze(Object.fromEntries(Object.entries({
  StainlessSteel:[.25,1,0,.015],BlackPowderCoat:[.67,0,0,.026],
  IndustrialRubber:[.88,0,0,.030],EpoxyFloor:[.52,0,0,.025],
  AcousticGlass:[.08,0,0,0],ABSPlastic:[.43,0,0,.012],
- PlenumPaint:[.62,0,0,.02],ControlRoomPaint:[.55,0,0,.02],AbsorberFoam:[.97,0,0,.05],GalvanizedSteel:[.42,.85,0,.04],NozzleOuter:[.45,0,0,.02],TurntableSteel:[.24,.9,0,.02],ConcreteFloor:[.78,0,0,.06],PlenumLight:[.2,0,7,0],DisplayScreen:[.3,0,1.5,0],RoomLight:[.2,0,3.4,0],ControlRoomFloor:[.65,0,0,.03],PolishedFloor:[.18,0,0,.006],LedCyan:[.3,0,3.4,0],LedAmber:[.3,0,3.0,0],
+ PlenumPaint:[.62,0,0,.02],ControlRoomPaint:[.55,0,0,.02],AbsorberFoam:[.97,0,0,.05],GalvanizedSteel:[.42,.85,0,.04],NozzleOuter:[.45,0,0,.02],TurntableSteel:[.24,.9,0,.02],ConcreteFloor:[.78,0,0,.06],PlenumLight:[.2,0,7,0],DisplayScreen:[.3,0,1.5,0],RoomLight:[.2,0,3.4,0],DeskTop:[.4,0,0,.02],MonitorGlow:[.8,0,1.6,0],ControlRoomFloor:[.65,0,0,.03],PolishedFloor:[.18,0,0,.006],LedCyan:[.3,0,3.4,0],LedAmber:[.3,0,3.0,0],
  MonitorGlass:[.16,0,.45,0],VehiclePaint:[.27,0,0,0],LabelWhite:[.52,.06,0,.01],IndicatorGreen:[.20,.04,0,.01],IndicatorBlue:[.22,.03,0,.01],IndicatorAmber:[.22,.04,0,.01],SafetyYellow:[.43,.18,0,.01],EmergencyRed:[.30,.02,0,.01],ScreenUI:[.34,.04,0,.01]
 }).map(([id,surface])=>[id,Object.freeze({id,surface:Object.freeze(surface)})])));
 AETHER.MATERIALS=materialLibrary;
