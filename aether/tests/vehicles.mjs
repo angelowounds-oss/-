@@ -1,4 +1,4 @@
-/* global AETHER __VEHICLE __LIVE __PAINT */
+/* global AETHER __VEHICLE __PAINT __CINE */
 // Second vehicle (Koenigsegg Agera): boots under its own contract, flows, can be repainted, and the UI switch reloads with the other car. node tests/vehicles.mjs
 import path from 'node:path'; import fs from 'node:fs';
 import { open, sleep } from './lib.mjs';
