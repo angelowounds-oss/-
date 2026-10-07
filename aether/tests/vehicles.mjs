@@ -26,12 +26,11 @@ try {
   check('도장 프리셋 선택이 Agera에서도 동작', P === 2, P);
   await page.screenshot({ path: path.join(outDir, 'agera.png'), timeout: 300000 });
   // switching from the UI: reloads with the BMW profile
-  const nav = page.waitForNavigation({ timeout: 120000 }).catch(() => null);
-  const sw = await page.evaluate(() => { setTimeout(() => __VEHICLE.set('bmw'), 50); return true; }); // set() reloads the page, so it must not be awaited inside evaluate
-  await nav; await sleep(1000);
+  // set() first changes the hash and then reloads, so the page navigates twice: wait for the BMW profile to appear in whichever document is current
+  const sw = await page.evaluate(() => { setTimeout(() => __VEHICLE.set('bmw'), 50); return true; });
+  await page.waitForFunction(() => window.__VEHICLE && __VEHICLE.id === 'bmw', null, { timeout: 300000, polling: 1000 });
   const hash = await page.evaluate(() => location.hash);
   check('차량 바꾸기(bmw): 다시 불러오며 해시에 car=bmw', sw === true && /car=bmw/.test(hash) && !/car=agera/.test(hash) && /q=LITE/.test(hash), { sw, hash });
-  await page.waitForFunction(() => window.__VEHICLE, null, { timeout: 200000 });
   const id2 = await page.evaluate(() => __VEHICLE.id);
   check('다시 불러온 뒤 BMW 프로필', id2 === 'bmw', id2);
 } catch (e) { check('vehicles test completed', false, String(e).slice(0, 300)); }
