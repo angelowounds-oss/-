@@ -104,6 +104,12 @@
     <div class="btn-grid"><select id="carSel" aria-label="차량 선택"></select></div>
     <p class="help">차량을 바꾸면 그 차량에 맞춰 풍동 장면과 유동 계산을 처음부터 다시 만들기 위해 페이지를 다시 불러옵니다(선택은 기억됩니다). Koenigsegg Agera는 재질 파일이 없는 OBJ라 재질을 이름으로 지정했고(차체 도장·카본·유리·후미등·타이어·림), 도장 색은 "차체 도장" 카드에서 바꿀 수 있습니다.</p></section>
 
+  <section class="card" aria-labelledby="refTitle"><h2 id="refTitle">사전 계산 기준 결과</h2>
+    <div class="btn-grid"><select id="refMode" aria-label="사전 계산 기준 결과 선택"><option value="builtin">내장 오프라인 결과</option><option value="file">파일 불러오기(JSON)</option><option value="off">끄기</option></select><label class="btn" for="refFile" id="refFileBtn" style="cursor:pointer;text-align:center">JSON 파일 선택</label><input id="refFile" type="file" accept="application/json,.json" style="display:none"></div>
+    <div class="status" id="refStat" aria-live="polite">불러오는 중…</div>
+    <canvas id="refChart" width="320" height="120" aria-label="격자 크기에 따른 Cd 변화"></canvas>
+    <p class="help">이 값은 <b>실시간 계산이 아닙니다</b>. 같은 솔버를 더 촘촘한 격자로 오프라인에서 미리 돌린 결과이거나(내장), 외부 CFD에서 가져온 결과(파일)이며, 항상 계산 방법·격자·조건·날짜·출처·한계를 함께 표시합니다. 라벨이 없는 파일은 거부합니다. 파일은 이 기기 안에서만 읽습니다(업로드 없음). 형식: <code>schema: "aether-reference-v1"</code> (README 참고). 격자를 촘촘히 해도 절대 Cd가 실제와 같아진다는 뜻은 아닙니다(L36).</p></section>
+
   <section class="card" aria-labelledby="paintTitle"><h2 id="paintTitle">차체 도장</h2>
     <div class="btn-grid"><select id="paintSel" aria-label="차체 도장 색"></select></div>
     <p class="help">차체 도장 면(아틀라스 한 칸)만 색·메탈릭 입자·광택을 바꿉니다. 유리·카본·휠·타이어·데칼은 그대로이며, 공기역학 계산에는 영향이 없습니다(외관 전용). 휠 안쪽 캘리퍼 등 도장 칸을 쓰는 다른 부품이 있으면 함께 바뀔 수 있습니다.</p></section>
@@ -141,6 +147,7 @@
 <script src="assets/console-asset.js"></script>
 <script src="assets/vehicle-asset.js"></script>
 <script src="assets/vehicle-agera.js"></script>
+<script src="assets/reference-results.js"></script>
 <script src="assets/fan-asset.js"></script>
 <script src="assets/tunnel-asset.js"></script>
 <script src="assets/bluenoise.js"></script>

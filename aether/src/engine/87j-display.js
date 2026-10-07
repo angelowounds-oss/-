@@ -31,6 +31,7 @@ function dispDraw(){const c=DISP.cx,W=DISP.w,H=DISP.h,v=dispVals(),cy='#52e3ff',
   c.strokeStyle=cy;c.lineWidth=4;c.beginPath();h.forEach((y,i)=>{const px=cx0+cw*i/79,py=cy0+ch/2-(y-mid)/span*(ch-30);i?c.lineTo(px,py):c.moveTo(px,py)});c.stroke();
   T(hi.toFixed(2),cx0+cw+10,cy0+22,22,dim,'500');T(lo.toFixed(2),cx0+cw+10,cy0+ch,22,dim,'500');void mu}
  else T(LIVE.ok?'settling (first 4 s)…':'waiting for flow…',cx0+24,cy0+ch/2,28,dim,'500');
+ const rf=window.__REF&&window.__REF.active;if(rf){const F=rf.forces,L=rf.label;T('PRECOMPUTED (offline, not live) · '+(L.gridCellM*100).toFixed(1)+' cm grid · Cd '+F.Cd.toFixed(3)+(F.CdStd!==undefined?' ± '+F.CdStd.toFixed(3):'')+(F.Cl!==undefined?' · Cl '+F.Cl.toFixed(3):'')+' · '+L.date,W/2,H-60,26,am,'600','center','ui-monospace, monospace')}
  T('QUALITATIVE · coarse-grid CFD, boundary layer not resolved · ± = std over last 8 s · not a measurement',W/2,H-24,24,dim,'500','center')}
 function dispStep(now){if(!DISP.on||DISP.err||!gl||gl.isContextLost())return;try{dispStep2(now)}catch(e){DISP.err=String(e?.message||e);for(const q of DISP.objs||[])q.texture=null}}
 function dispStep2(now){if(!DISP.obj||DISP.gen!==runtimeGeneration){if(!dispInit())return}

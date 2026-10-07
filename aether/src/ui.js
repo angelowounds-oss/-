@@ -164,6 +164,22 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
   const e=I.est;wk.textContent=I.plane.on?(e&&e.CdWake!==null?('후류 평면 x='+e.x.toFixed(1)+' m: 전압 결손 적분 '+f(e.CdWake,3)+' (Cd 환산, 근후류에서는 과대) · 힘 적분 Cd '+f(e.CdBalance,3)+' · 유체 표본 '+e.fluid):'후류 평면 적분 계산 중… (흐름이 발달해야 합니다)'):(I.rake.on?'후류 레이크 x='+I.wakeX.toFixed(1)+' m, 높이 '+I.rake.y0+'~'+I.rake.y1+' m':'후류 계측을 켜면 표시됩니다.')};
  setInterval(()=>{if(document.hidden)return;try{draw()}catch(e){void e}},400)}}
 
+/* precomputed reference results (always shown with their label) */
+{const R=window.__REF,sel=$('refMode'),stat=$('refStat'),file=$('refFile'),cv=$('refChart');if(R&&sel){sel.value=R.mode;
+ const draw=()=>{const o=R.active,c=cv.getContext('2d'),W=cv.width,H=cv.height;c.clearRect(0,0,W,H);const cs=getComputedStyle(document.body),fg=cs.color||'#ccc';c.fillStyle=fg;c.strokeStyle=fg;c.font='11px system-ui,sans-serif';
+  const g=o&&o.gridStudy&&o.gridStudy.length>1?o.gridStudy.slice().sort((a,b)=>b.cellM-a.cellM):null;if(!g){c.fillText('격자 수렴 자료 없음',8,16);return}
+  const xs=g.map(q=>q.cellM),ys=g.map(q=>q.Cd),x0=Math.min(...xs),x1=Math.max(...xs),y1=Math.max(...ys,o.forces.Cd)*1.15,y0=0,px=x=>34+(x1-x)/(x1-x0||1)*(W-52),py=y=>H-22-(y-y0)/(y1-y0||1)*(H-40);
+  c.globalAlpha=.4;c.beginPath();c.moveTo(34,6);c.lineTo(34,H-22);c.lineTo(W-14,H-22);c.stroke();c.globalAlpha=1;c.beginPath();g.forEach((q,i)=>{const X=px(q.cellM),Y=py(q.Cd);i?c.lineTo(X,Y):c.moveTo(X,Y)});c.stroke();
+  g.forEach(q=>{c.beginPath();c.arc(px(q.cellM),py(q.Cd),3,0,6.3);c.fill();c.fillText(q.Cd.toFixed(2),px(q.cellM)-8,py(q.Cd)-7);c.fillText((q.cellM*100).toFixed(0),px(q.cellM)-6,H-8)});c.fillText('Cd (세로) vs 셀 크기 cm (가로, 오른쪽이 촘촘)',34,H-0.5>0?H-1:H)};
+ const show=()=>{const o=R.refresh();sel.value=R.mode;
+  if(R.err){stat.textContent='불러오기 실패: '+R.err;draw();return}
+  if(R.mode==='off'){stat.textContent='꺼져 있습니다.';draw();return}
+  if(!o){stat.textContent=R.mode==='builtin'?'이 차량에 대한 내장 오프라인 결과가 없습니다.':'JSON 파일을 선택하세요.';draw();return}
+  const cmp=R.compare(),F=o.forces;stat.textContent=R.labelLine(o)+' — Cd '+F.Cd.toFixed(3)+(F.CdStd!==undefined?' ± '+F.CdStd.toFixed(3):'')+(F.Cl!==undefined?' · Cl '+F.Cl.toFixed(3):'')+(o.car!==(window.__VEHICLE&&window.__VEHICLE.id)?' · ※ 현재 차량과 다른 차량의 결과':'')+(cmp?' · 현재 실시간 Cd '+cmp.live.toFixed(3)+' (기준 대비 '+(cmp.ratio>=1?'+':'')+((cmp.ratio-1)*100).toFixed(0)+' %)':'')+' · '+o.label.limits;draw()};
+ sel.onchange=()=>{if(sel.value==='file'&&!R.file){R.mode='file';R.refresh();file.click();show();return}R.setMode(sel.value);show()};
+ file.onchange=()=>{const f=file.files&&file.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{R.loadText(String(rd.result));show()};rd.onerror=()=>{R.err='파일을 읽지 못했습니다';show()};if(f.size>R.limit){R.err='1 MB를 넘는 파일입니다';show();return}rd.readAsText(f)};
+ show();setInterval(()=>{if(!document.hidden)try{show()}catch(e){void e}},3000)}}
+
 /* vehicle choice (reloads with the other profile) */
 {const Vh=window.__VEHICLE,sel=$('carSel');if(Vh&&sel){Vh.list.forEach(q=>{const o=document.createElement('option');o.value=q.id;o.textContent=q.label;sel.appendChild(o)});sel.value=Vh.id;sel.onchange=()=>Vh.set(sel.value)}}
 
