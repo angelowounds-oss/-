@@ -406,6 +406,7 @@ export class Game {
   }
 
   footControl(dt, inp) {
+    if (this.player.rag) { const r = this.player; r.vx = r.vz = 0; r.speed = 0; r.update(dt); if (!r.rag) return; this.nearInteract = null; return; }
     const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
@@ -912,8 +913,12 @@ export class Game {
       else if (pl.m.playOnce?.('U_Jump_Land', false)) pl.reactT = clamp(0.2 + v * 0.03, 0.25, 0.6);
       this.shake(clamp(v * 0.03, 0.08, 0.6));
     }
-    if (!roll && v > 12.5) { pl.stunT = clamp((v - 12.5) * 0.25 + 0.8, 0.8, 2.2); pl.vx *= 0.2; pl.vz *= 0.2; this.audio.tone?.(160, 0.12, 'square', 0.12, 60); }
     if (dmg > 0) this.hurtPlayer(dmg, null, 'fall');
+    if (!roll && v > 12.5 && !pl.dead) {   // knocked flat: a living ragdoll that gets back up on its own
+      pl.stunT = clamp((v - 12.5) * 0.25 + 0.8, 0.8, 2.2); this.audio.tone?.(160, 0.12, 'square', 0.12, 60);
+      this.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: pl.vx * 0.5, y: 0, z: pl.vz * 0.5 } });
+      pl.vx *= 0.2; pl.vz *= 0.2;
+    }
     if (roll) this.toast('낙법', '굴러서 충격을 줄였다');
   }
   // a human's voice, panned/attenuated relative to the camera
@@ -943,11 +948,15 @@ export class Game {
     if (this.passenger) this.endPassenger?.(true);
     if (this.vehicle) this.exitVehicle(true);
     pl.group.visible = true; pl.m.pistol.visible = pl.m.rifle.visible = false;
+    this.ragdolls.destroy(pl);
+    this.ragdolls.spawn(pl, { cause: kind, alive: false, vel: { x: pl.vx || 0, y: Math.min(0, pl.vy || 0), z: pl.vz || 0 } });
     this.toast('<span style="color:#ff4560">WASTED</span>', '사망했습니다');
     this.ui.lt.classList.add('on'); this.ui.lb.classList.add('on');
   }
   respawn() {
     const pl = this.player;
+    this.ragdolls.destroy(pl); pl.rag = null; pl.stunT = 0;
+    for (const k in pl.m.act) pl.m.act[k].weight = 0; pl.m.act.Idle.weight = 1; pl.m.mixer.update(0);
     pl.dead = false; pl.state = 'walk'; pl.hpv = 100; pl.armor = 0; pl.m.body.rotation.set(0, 0, 0); pl.m.body.position.y = 0; pl.group.scale.setScalar(1);
     const cost = Math.floor(this.cash * 0.1); this.cash -= cost;
     const hp = this.hospital; pl.x = hp ? hp.x : this.world.spawn.x; pl.z = hp ? hp.z : this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0; pl.bleed = 0; pl.body3.teleport(pl.x, 0, pl.z);

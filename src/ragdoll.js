@@ -357,16 +357,14 @@ export class Ragdoll {
     const g = h.group; h.x = lying.x; h.z = lying.z; h.ry = face;
     g.position.set(h.x, h.y, h.z); g.rotation.y = face; m.body.position.set(0, 0, 0); m.body.rotation.set(0, 0, 0);
     g.updateMatrixWorld(true);
+    for (const k in m.act) m.act[k].weight = 0; m.act.Idle.weight = 1; m.act.Idle.time = 0;
     this.state = 'GETUP'; this.gt = 0; this.gtDur = this.chestDown ? RAG_TUNE.getUpFront : RAG_TUNE.getUpBack;
     if (h.isPlayer && h.stunT !== undefined) h.stunT = Math.max(h.stunT || 0, this.gtDur);
   }
   facingYaw() {
-    const c = this.worldBoneQuat('Spine2');
-    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(c), up = new THREE.Vector3(0, 1, 0).applyQuaternion(c);
-    // lying on the belly the chest's up points down-ish; the character's front then faces the ground: face where the head is
+    const c = this.worldBoneQuat('Spine2'), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(c);
     const hd = this.m.bones.Head.getWorldPosition(new THREE.Vector3()), hp = this.m.bones.Hips.getWorldPosition(new THREE.Vector3());
-    this.chestDown = up.y < -0.2 ? false : fwd.y < -0.2;
-    // dir toward the head on the ground plane when lying; otherwise the chest forward on the ground plane
+    this.chestDown = fwd.y < -0.2;                       // on the belly: push up facing where the head points; on the back: sit up facing where the feet point
     const dx = hd.x - hp.x, dz = hd.z - hp.z;
     if (Math.hypot(dx, dz) > 0.35) return Math.atan2(dx, dz) + (this.chestDown ? 0 : Math.PI);
     return Math.atan2(fwd.x, fwd.z);
@@ -453,7 +451,13 @@ export class RagdollSystem {
     return !!this.spawn(h, { cause: 'shove', alive: alive && !h.dead, vel: { x: vx * 0.6, y: up * 0.6, z: vz * 0.6 }, shove: { x: vx * 0.4, z: vz * 0.4, up: up * 0.4 } });
   }
   destroy(h) { const r = h.rag; if (!r) return; r.destroy(); const i = this.list.indexOf(r); if (i >= 0) this.list.splice(i, 1); }
-  afterGetUp(h) { const i = this.list.indexOf(h.rag); void i; }
+  // back on their feet: hand control back to the AI / the player
+  afterGetUp(h) {
+    const G = this.G; h.rag = null; h.knock = 0;
+    h.m.body.rotation.set(0, 0, 0); h.m.body.position.y = 0;
+    if (h === G.player) { h.stunT = 0; h.body3.teleport(h.x, h.y, h.z); h.y = h.body3.y; h.vx = h.vz = 0; h.reactT = 0; }
+    else { h.state = 'flee'; h.fleeT = 5; }
+  }
   // physics step hooks
   preStep(dt) { for (const r of this.list) r.preStep(dt); }
   postStep(dt) {

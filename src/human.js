@@ -345,6 +345,7 @@ export class Human {
     if (this.aimT > 0) this.aimT -= dt * 0.5;
   }
   animate(dt, desired) {
+    if (this.rag && this.rag.state !== 'GETUP') return;   // the ragdoll drives the skeleton
     if (this.m.skinned) return this.animateSkinned(dt);
     const m = this.m;
     this.phase += this.speed * dt * 2.1;

@@ -201,6 +201,7 @@ export class Building {
   dropFloor(k) {
     const fl = this.floors.get(k); if (!fl) return;
     const col = this.G.world.colliders;
+    { const L = this.levels[k], r = L.rect; this.G.ragdolls?.bakeInBox(r.x0, r.z0, r.x1, r.z1, L.y, L.y + L.h); }   // bodies lying on this floor freeze before it disappears
     if (fl.glassMesh) fl.glassMesh.dispose();
     for (const b of fl.boxes) col.removeBox(b);
     for (const c of fl.bodies) this.G.phys.world.removeCollider(c, false);
