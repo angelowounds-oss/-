@@ -21,7 +21,7 @@ function dispDraw(){const c=DISP.cx,W=DISP.w,H=DISP.h,v=dispVals(),cy='#52e3ff',
  c.fillStyle=cy;c.fillRect(0,0,W,6);c.fillRect(0,H-6,W,6);
  const T=(txt,x,y,size,col,w='600',al='left',fam='system-ui, sans-serif')=>{c.font=w+' '+size+'px '+fam;c.fillStyle=col;c.textAlign=al;c.fillText(txt,x,y)};
  T('AETHER',48,84,64,fg,'800');T('WIND TUNNEL · LIVE',48,128,28,cy,'600');
- T(v.state,W-48,84,56,v.state==='RUNNING'?'#5dffa4':(v.state==='E-STOP'?'#ff5a4a':am),'800','right');T('t = '+v.t.toFixed(1)+' s · '+v.tier+(v.cell?' · cell '+v.cell.toFixed(1)+' cm':''),W-48,128,28,dim,'500','right','ui-monospace, monospace');
+ T(v.state,W-48,84,56,v.state==='RUNNING'?'#5dffa4':(v.state==='E-STOP'?'#ff5a4a':am),'800','right');T('t = '+v.t.toFixed(1)+' s · '+v.tier+(v.cell?' · cell '+v.cell.toFixed(1)+' cm':'')+(v.Cd!==null&&v.CdStd!==null?(v.CdStd/Math.max(Math.abs(v.Cd),1e-6)>.05?' · Cd SETTLING':' · Cd STEADY'):''),W-48,128,28,dim,'500','right','ui-monospace, monospace');
  c.strokeStyle='rgba(234,246,255,.18)';c.lineWidth=2;c.beginPath();c.moveTo(48,156);c.lineTo(W-48,156);c.stroke();
  const cell=(i,label,val,unit,col)=>{const x=48+(i&1)*640,ly=206+(i>>1)*186,vy=ly+98;T(label,x,ly,28,dim,'600');T(val,x,vy,112,col,'700','left','ui-monospace, monospace');c.font='700 112px ui-monospace, monospace';const w=c.measureText(val).width;T(unit,x+w+16,vy,28,dim,'500')};
  cell(0,'WIND SPEED',v.U.toFixed(1),'m/s',fg);cell(1,'DYNAMIC PRESSURE q',v.q.toFixed(0),'Pa',fg);
