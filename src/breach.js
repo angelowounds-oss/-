@@ -77,6 +77,13 @@ export class Breach {
   // split every partition collider that crosses the hole into the parts left, right, above and below it
   cut(fl, h) {
     const col = this.G.world.colliders, hit = [];
+    // furniture in the blast path (the hole widened by 1.1 m each side, as drawn by the furniture shader) is gone
+    const thinX = (h.x1 - h.x0) < (h.z1 - h.z0), px0 = thinX ? h.x0 - 1.1 : h.x0, px1 = thinX ? h.x1 + 1.1 : h.x1, pz0 = thinX ? h.z0 : h.z0 - 1.1, pz1 = thinX ? h.z1 : h.z1 + 1.1;
+    for (const b of [...fl.boxes]) {
+      if (b.tag !== 'furniture') continue;
+      if (b.x1 <= px0 || b.x0 >= px1 || b.z1 <= pz0 || b.z0 >= pz1 || b.h <= h.y0 || (b.y0 || 0) >= h.y1 + 0.3) continue;
+      col.removeBox(b); fl.boxes.splice(fl.boxes.indexOf(b), 1);
+    }
     for (const b of fl.boxes) {
       if (b.tag !== 'part') continue;
       if (b.x1 <= h.x0 || b.x0 >= h.x1 || b.z1 <= h.z0 || b.z0 >= h.z1 || b.h <= h.y0 || (b.y0 || 0) >= h.y1) continue;

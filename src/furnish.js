@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
-import { toFloatGeo } from './gfx.js';
+import { toFloatGeo, holeCU, holeHU } from './gfx.js';
 import defs from '../assets/interior/defs.json';
 
 // Furniture from the packed Poly Haven set (build/interior_pack.mjs): every model is one mesh on a shared 2048px atlas, so a whole
@@ -28,7 +28,19 @@ function load() {
     g.computeBoundingBox();
     cache.set(name, { geo: g.index ? g.toNonIndexed() : g, w: d.w * k, h: d.h * k, d: d.d * k });
   });
-  if (material) { material = material.clone(); material.roughness = 0.72; material.metalness = 0.05; material.envMapIntensity = 0.7; }
+  if (material) {
+    material = material.clone(); material.roughness = 0.72; material.metalness = 0.05; material.envMapIntensity = 0.7;
+    // furniture caught in a breach is blown away: not drawn inside the hole widened by ~1 m on both sides of the wall
+    material.onBeforeCompile = (sh) => {
+      sh.uniforms.uHoleC = holeCU; sh.uniforms.uHoleH = holeHU;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vHWP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvHWP=(modelMatrix*vec4(transformed,1.)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vHWP;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];')
+        .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        for(int i=0;i<16;i++){vec4 c=uHoleC[i];if(c.w<.5)continue;vec3 hh=uHoleH[i].xyz;if(hh.x<hh.z)hh.x+=1.1;else hh.z+=1.1;hh.y+=.3;
+          vec3 d=abs(vHWP-c.xyz)-hh;if(max(d.x,max(d.y,d.z))<0.)discard;}`);
+    };
+    material.customProgramCacheKey = () => 'furniture-holes';
+  }
   return cache;
 }
 export const furnitureReady = () => load().size > 0;
