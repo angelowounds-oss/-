@@ -12,6 +12,7 @@ CATS = [
     ("date", "날짜·시간"), ("health", "건강·운동"), ("tool", "도구·변환"),
 ]
 CATS.insert(0, ("fun", "갓생·소비"))
+CATS.insert(1, ("play", "놀이·테스트"))
 
 # slug, title, category, one-line description  (existing hand-written pages first)
 REG = [
@@ -705,7 +706,92 @@ if(rest<0)return '이미 남은 돈보다 더 썼어요.';return '월급까지 <
  "<h2>사용 방법</h2><p>월급날 직전에 통장이 비는 일을 줄이려면 남은 돈을 남은 날로 나눠 보세요. 고정 지출은 이미 빠진 금액을 넣어야 정확해요. 오늘 쓴 돈을 넣으면 내일부터 쓸 수 있는 금액이 줄어드는 것도 볼 수 있어요.</p>",
  [("월급일이 주말이면?", "실제 입금일을 입력하세요."), ("카드값은요?", "나갈 카드값을 미리 빼고 남은 돈을 입력하세요.")])
 
+# ================= 사회초년생·자취·여행·자기계발 =================
+tool("studentloan", "학자금 대출 상환 계산기", "fin", "거치·상환 월 납입액", "학자금 대출 원금, 금리, 거치 기간, 상환 기간으로 월 이자와 월 상환액을 계산합니다. 금리는 직접 입력합니다.",
+ [N("p", "대출 원금 (원)", 10000000), N("r", "연 금리 (%)", 1.7, "0.01"), N("g", "거치 기간 (개월, 이자만 납부)", 12, "1"), N("n", "상환 기간 (개월)", 120, "1")],
+ r'''const i=v.r/1200,n=v.n;if(!(n>0))return '';const pay=i===0?v.p/n:v.p*i/(1-Math.pow(1+i,-n)),gi=v.p*i;
+return '거치 중 월 이자 '+W(gi)+'<br><b>상환 시작 후 월 '+W(pay)+'</b> ('+n+'개월)<br><small>총 이자 약 '+W(gi*v.g+pay*n-v.p)+' · 총 상환 약 '+W(v.p+gi*v.g+pay*n-v.p)+'</small>';''',
+ "<h2>알아두세요</h2><p>학자금 대출은 상품에 따라 소득에 연동해 갚는 방식이 있고 금리도 학기마다 바뀝니다. 이 계산기는 매월 같은 금액을 갚는 원리금균등 방식을 가정하며, 실제 상환액은 한국장학재단의 안내를 따르세요. 금리는 적용 학기의 값을 입력하세요.</p>",
+ [("거치 기간은 무엇인가요?", "원금 상환을 미루고 이자만 내는 기간입니다."), ("소득 연동 상환은요?", "소득이 일정 수준을 넘으면 갚기 시작하는 방식이라 이 계산기와 다릅니다.")])
+
+tool("youthsave", "청년 적금 만기 계산기", "fin", "이자·지원금 합산 수령액", "월 납입액, 금리, 정부 지원금을 입력해 청년 적금류 상품의 만기 수령액을 계산합니다. 상품 조건은 직접 입력합니다.",
+ [N("m", "월 납입액 (원)", 700000), N("n", "가입 기간 (개월)", 36, "1"), N("r", "연 금리 (%, 우대 포함)", 5, "0.01"), N("s", "월 정부 지원금 (원, 없으면 0)", 0), S("t", "이자소득세", [("15.4", "일반과세 15.4%"), ("0", "비과세")])],
+ r'''const int=v.m*v.r/1200*v.n*(v.n+1)/2,tax=int*v.t/100,pr=v.m*v.n,sub=v.s*v.n;
+return '<b>만기 수령 약 '+W(pr+int-tax+sub)+'</b><br>납입 원금 '+W(pr)+' · 이자(세후) '+W(int-tax)+(sub?' · 지원금 '+W(sub):'')+'<br><small>원금 대비 '+N2((int-tax+sub)/pr*100,1)+'% 추가</small>';''',
+ "<h2>상품 조건은 직접 확인하세요</h2><p>청년 대상 적금·통장은 가입 조건, 지원금, 우대금리, 비과세 여부가 제도와 시기에 따라 달라지고 자주 바뀝니다. 이 계산기는 입력한 값으로 단리 방식으로 계산하는 참고용이며 상품의 실제 이율 계산 방식과 차이가 날 수 있습니다.</p>",
+ [("지원금은 어디서 확인하나요?", "상품을 운영하는 금융기관과 정부 공식 안내를 확인하세요."), ("중도 해지하면?", "우대금리와 지원금을 받지 못할 수 있습니다. 약관을 확인하세요.")])
+
+tool("netpay", "연봉 실수령액 계산기", "pay", "4대보험·소득세 추정", "연봉과 비과세 식대, 부양가족 수로 월 실수령액을 추정합니다. 보험 요율은 직접 수정할 수 있습니다.",
+ [N("sal", "연봉 (세전, 원)", 35000000), N("nt", "월 비과세액 (식대 등, 원)", 200000), N("dep", "부양가족 수 (본인 포함)", 1, "1"),
+  N("pr", "국민연금 요율 (%)", 4.5, "0.001"), N("hr", "건강보험 요율 (%)", 3.545, "0.001"), N("lr", "장기요양 (건강보험료의 %)", 12.95, "0.01"), N("er", "고용보험 요율 (%)", 0.9, "0.01")],
+ r'''const yr=v.sal,g=yr-v.nt*12;if(!(g>0))return '';const base=g/12,pen=base*v.pr/100,hea=base*v.hr/100,ltc=hea*v.lr/100,emp=base*v.er/100,ins=pen+hea+ltc+emp;
+const ded=g<=5e6?g*0.7:g<=15e6?3.5e6+(g-5e6)*0.4:g<=45e6?7.5e6+(g-15e6)*0.15:g<=1e8?12e6+(g-45e6)*0.05:14.75e6+(g-1e8)*0.02;
+let ti=Math.max(0,g-Math.min(ded,2e7)-1.5e6*Math.max(1,v.dep)-ins*12);const br=[[14e6,.06],[50e6,.15],[88e6,.24],[150e6,.35],[300e6,.38],[500e6,.40],[1e9,.42],[Infinity,.45]];
+let tax=0,prev=0;for(const [lim,rt] of br){if(ti>prev){tax+=(Math.min(ti,lim)-prev)*rt}prev=lim}
+let cr=tax<=1.3e6?tax*0.55:715000+(tax-1.3e6)*0.3;const cap=g<=33e6?740000:g<=70e6?Math.max(660000,740000-(g-33e6)*0.008):Math.max(500000,660000-(g-70e6)*0.5);cr=Math.min(cr,cap);
+const fin=Math.max(0,tax-cr-130000),mt=fin/12,ml=mt*0.1,net=yr/12-ins-mt-ml;
+return '<b>월 실수령 약 '+W(net)+'</b><br>월급(세전) '+W(yr/12)+'<br>4대보험 '+W(ins)+' · 소득세 '+W(mt)+' · 지방소득세 '+W(ml)+'<br><small>연 환산 실수령 약 '+W(net*12)+'</small>';''',
+ "<h2>이 계산은 추정입니다</h2><p>연말정산 구조(근로소득공제, 인적공제, 보험료 공제, 세액공제)를 단순화해 한 해 세금을 구한 뒤 12로 나눈 값입니다. 회사가 매달 떼는 간이세액표 금액이나 상여금, 다른 공제와는 차이가 날 수 있습니다. 보험 요율은 해마다 바뀌어서 기본값은 2025년 기준 예시이니 해당 연도 요율로 수정하세요.</p>",
+ [("정확한 금액은 어디서 보나요?", "급여명세서와 국세청 간이세액표, 국민연금·건강보험 안내를 확인하세요."), ("부양가족을 늘리면?", "인적공제가 늘어 소득세가 줄어듭니다. 요건이 있으니 해당 여부는 확인하세요.")])
+
+tool("roommate", "룸메 공과금 정산 계산기", "life", "거주 일수 비례 정산", "전기·가스·인터넷 같은 공과금을 각자 지낸 일수에 비례해 나눕니다. 한 줄에 이름과 일수를 입력하세요.",
+ [N("t", "총 공과금 (원)", 120000), TA("p", "이름 일수 (한 줄에 한 명)", "민수 30\n지영 30\n서준 12")],
+ r'''const rows=v.p.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const k=l.split(/\s+/),d=parseFloat(k.pop());return {n:k.join(' ')||'이름 없음',d}}).filter(r=>r.d>0);
+const sum=rows.reduce((a,r)=>a+r.d,0);if(!rows.length||!(v.t>0))return '이름과 일수를 입력해 주세요.';
+return rows.map(r=>r.n+' <b>'+W(Math.floor(v.t*r.d/sum/10)*10)+'</b> ('+r.d+'일)').join('<br>')+'<br><small>10원 단위로 내림해서 합계가 조금 모자랄 수 있어요</small>';''',
+ "<h2>사용 방법</h2><p>룸메이트가 중간에 들어오거나 나갔을 때, 같이 지낸 일수가 다를 때 쓰세요. 일수가 같으면 N분의 1과 같습니다. 개인 사용량이 확연히 다른 항목(개인 인터넷 등)은 따로 계산하는 편이 공평합니다.</p>",
+ [("전기료처럼 사용량이 다르면요?", "계량기가 따로 있으면 각자 금액을 따로 내고 공통 요금만 이 계산기로 나누세요."), ("이름이 두 글자 이상 띄어쓰기면?", "마지막 단어를 일수로 인식하니 숫자를 맨 끝에 적으세요.")])
+
+tool("cookvsdeliver", "집밥 vs 배달 계산기", "life", "한 달 절약액과 시간 비용", "배달 음식과 직접 해 먹는 식사의 한 달 비용 차이를 계산하고, 요리 시간을 내 시간으로 환산했을 때도 비교합니다.",
+ [N("d", "배달 음식값 (1끼, 원)", 16000), N("f", "배달비·팁 (원)", 3500), N("c", "집밥 재료비 (1끼, 원)", 5000), N("w", "주 몇 끼 바꿀까", 4, "1"), N("m", "요리·설거지 시간 (분)", 45), N("h", "내 시간 가치 (시급, 원, 0이면 제외)", 10320)],
+ r'''const wk=4.345,per=v.d+v.f-v.c,mon=per*v.w*wk,tm=v.m/60*v.h*v.w*wk;
+return '한 끼에 <b>'+W(per)+'</b> 아껴요<br>한 달 <b>'+W(mon)+'</b> 절약<br>'+(v.h>0?'요리 시간을 시급으로 환산하면 '+W(tm)+' → 실질 '+(mon-tm>=0?'<b>'+W(mon-tm)+'</b> 이득':'<b>'+W(tm-mon)+'</b> 손해'):'')+'<br><small>1년이면 '+W(mon*12)+'</small>';''',
+ "<h2>시간도 비용일까?</h2><p>요리에 쓰는 시간을 내 시급으로 환산하면 집밥이 더 비쌀 수도 있습니다. 그래도 건강, 기분, 취미로서의 가치는 숫자에 담기지 않으니 참고만 하세요. 시급 칸을 0으로 두면 재료비 차이만 비교합니다.</p>",
+ [("장보기 시간도 넣나요?", "요리·설거지 시간에 장보기 시간을 나눠서 포함해 보세요."), ("재료가 남으면?", "여러 끼에 나눠 쓰는 재료는 1끼 재료비를 낮게 잡으세요.")])
+
+tool("giftbudget", "경조사비 연간 예산 계산기", "life", "한 해 경조사 지출 가늠", "올해 예상되는 결혼식, 장례, 기타 경조사 횟수와 내가 낼 금액으로 한 해 예산과 월 적립액을 계산합니다.",
+ [N("a", "결혼식 예상 횟수", 6, "1"), N("ap", "결혼식 1회 평균 내는 금액 (원)", 50000), N("b", "조의 예상 횟수", 2, "1"), N("bp", "조의 1회 평균 금액 (원)", 50000), N("c", "그 밖의 경조사 횟수 (돌잔치·집들이 등)", 3, "1"), N("cp", "그 밖의 1회 평균 금액 (원)", 30000)],
+ r'''const tot=v.a*v.ap+v.b*v.bp+v.c*v.cp;return '<b>올해 경조사 예산 '+W(tot)+'</b><br>매달 <b>'+W(tot/12)+'</b>씩 따로 모아 두면 편해요<br><small>총 '+(v.a+v.b+v.c)+'건</small>';''',
+ "<h2>참고</h2><p>적정 금액은 관계와 지역, 상황에 따라 달라서 이 계산기는 기준 금액을 제시하지 않고 내가 정한 금액으로 한 해 예산만 계산합니다. 전년도 경조사 기록을 참고해 입력해 보세요.</p>",
+ [("얼마를 내야 하나요?", "정해진 정답은 없습니다. 관계와 내 형편에 맞게 정하세요."), ("예산을 넘으면?", "다음 달 적립액을 조금 늘려 보세요.")])
+
+tool("tripsplit", "여행 경비 정산 계산기", "life", "누가 누구에게 얼마 보낼지", "여행에서 각자 쓴 돈을 입력하면 1인당 부담액을 구하고 누가 누구에게 얼마를 보내면 되는지 알려줍니다.",
+ [TA("t", "쓴 사람 금액 (한 줄에 하나, 여러 번 써도 돼요)", "민수 120000\n지영 80000\n서준 45000\n민수 30000"), TA("x", "지출은 없지만 함께한 사람 (한 줄에 한 명)", "하은")],
+ r'''const paid={};v.t.split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{const k=l.split(/\s+/),a=parseFloat(k.pop().replace(/,/g,''));if(isNaN(a))return;const n=k.join(' ');if(n)paid[n]=(paid[n]||0)+a});
+v.x.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean).forEach(n=>{if(!(n in paid))paid[n]=0});const names=Object.keys(paid);if(names.length<2)return '2명 이상 입력해 주세요.';
+const tot=names.reduce((a,n)=>a+paid[n],0),share=tot/names.length;const net=names.map(n=>({n,v:paid[n]-share}));const give=net.filter(x=>x.v<-0.5).sort((a,b)=>a.v-b.v),get=net.filter(x=>x.v>0.5).sort((a,b)=>b.v-a.v);
+const tr=[];let i=0,j=0;while(i<give.length&&j<get.length){const a=Math.min(-give[i].v,get[j].v);tr.push(give[i].n+' → '+get[j].n+' <b>'+W(a)+'</b>');give[i].v+=a;get[j].v-=a;if(give[i].v>-0.5)i++;if(get[j].v<0.5)j++}
+return '총 '+W(tot)+' · '+names.length+'명 · 1인 <b>'+W(share)+'</b><br>'+(tr.length?tr.join('<br>'):'정산할 금액이 없어요');''',
+ "<h2>정산 방식</h2><p>총 지출을 모두 같은 비율로 나누고, 더 낸 사람이 돌려받도록 송금 횟수를 줄여서 계산합니다. 사람마다 쓴 항목이 다르면 항목별로 나눠 각각 계산한 뒤 합치세요.</p>",
+ [("원 단위는 어떻게 처리하나요?", "반올림해서 표시하니 합계가 1~2원 다를 수 있어요."), ("이름이 같으면?", "같은 이름은 한 사람으로 합산됩니다.")])
+
+tool("tripbudget", "하루 여행 예산 계산기", "life", "총예산에서 하루 쓸 돈", "총 예산에서 항공권과 숙박비를 빼고 여행 일수로 나눠 하루에 쓸 수 있는 금액을 계산합니다. 현지 통화 환산도 가능합니다.",
+ [N("t", "총 예산 (원)", 2000000), N("f", "항공권 (원)", 600000), N("h", "숙박 총액 (원)", 500000), N("d", "여행 일수", 5, "1"), N("r", "현지 통화 1단위 = 원 (환산 안 하려면 0)", 9.5, "0.01")],
+ r'''const rest=v.t-v.f-v.h;if(!(v.d>0))return '';if(rest<0)return '항공권과 숙박비가 총 예산을 넘었어요.';const day=rest/v.d;
+return '쓸 수 있는 돈 '+W(rest)+'<br>하루 <b>'+W(day)+'</b>'+(v.r>0?' = 현지 통화 약 <b>'+N2(day/v.r,0)+'</b>':'')+'<br><small>비상금으로 10%를 남기면 하루 '+W(day*0.9)+'</small>';''',
+ "<h2>사용 팁</h2><p>환율은 직접 입력하는 값이라 출발 전 실제 환율로 바꿔 보세요. 교통, 식비, 입장료, 환전 수수료까지 합친 값이 하루 예산입니다.</p>",
+ [("환율을 어떻게 입력하나요?", "엔화는 1엔당 원화, 달러는 1달러당 원화 값을 넣으세요."), ("쇼핑 예산은요?", "총 예산에서 미리 빼고 입력하세요.")])
+
+tool("reading", "완독일 계산기", "fun", "하루 읽는 쪽수로 완독일", "책의 전체 쪽수와 현재 쪽수, 하루 읽는 쪽수로 완독 날짜를 알려줍니다.",
+ [N("t", "전체 쪽수", 360, "1"), N("c", "지금까지 읽은 쪽수", 80, "1"), N("p", "하루에 읽을 쪽수", 20, "1")],
+ r'''const left=v.t-v.c;if(!(v.p>0))return '';if(left<=0)return '이미 다 읽었어요!';const d=Math.ceil(left/v.p),e=new Date();e.setDate(e.getDate()+d);
+return '남은 '+left+'쪽 · <b>'+d+'일 뒤 완독</b><br>'+FD(e)+' ('+DOW(e)+'요일)<br><small>진행률 '+N2(v.c/v.t*100,0)+'%</small>';''',
+ "<h2>독서 습관</h2><p>하루 읽는 쪽수를 현실적으로 정해야 오래 갑니다. 하루 20쪽이면 300쪽 책을 보름 정도에 읽을 수 있어요. 오늘 읽은 쪽수는 현재 쪽수에 더해서 다시 계산하세요.</p>",
+ [("전자책은요?", "페이지 수가 다를 수 있어 퍼센트로 환산해 입력해도 돼요."), ("완독 목표를 앞당기려면?", "하루 쪽수를 늘려 비교해 보세요.")])
+
+tool("pick", "제비뽑기", "play", "이름 중 당첨자 뽑기", "이름을 넣고 당첨자 수를 정하면 무작위로 뽑아줍니다. 점심 쏘기, 청소 당번 정하기에 쓰세요.",
+ [TA("n", "이름 (한 줄에 한 명)", "민수\n지영\n서준\n하은\n도윤"), N("k", "뽑을 인원", 1, "1")],
+ r'''const a=v.n.split('\n').map(x=>x.trim()).filter(Boolean),k=Math.floor(v.k);if(a.length<1||!(k>=1))return '';if(k>a.length)return '인원보다 많이 뽑을 수 없어요.';
+for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return '당첨 <b>'+a.slice(0,k).join(', ')+'</b>';''',
+ "<h2>공정한 추첨</h2><p>브라우저의 난수로 균등하게 뽑습니다. 결과는 버튼을 누를 때마다 바뀌니 마음에 들 때까지 누르면 공정하지 않아요. 한 번 정하고 따르기로 약속하세요.</p>",
+ [("법적 추첨에도 쓸 수 있나요?", "아니요. 재미와 가벼운 결정용입니다."), ("같은 이름이 있으면?", "같은 이름이 두 번 들어간 만큼 뽑힐 확률이 커져요.")],
+ button="다시 뽑기")
+
 REG.append(("challenge", "무지출 챌린지 기록장", "fun", "매일 체크하고 절약액 확인"))
+REG.append(("habit", "습관 기록장", "fun", "한 달 습관 체크와 연속 기록"))
+REG.append(("roulette", "메뉴 룰렛", "play", "오늘 뭐 먹지 돌려보기"))
+REG.append(("ladder", "사다리타기", "play", "이름과 결과 연결하기"))
+REG.append(("quiz", "소비 유형 테스트", "play", "8문항으로 보는 내 소비 성향"))
 
 # ---------- rendering ----------
 HELPERS = r'''const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
@@ -719,7 +805,7 @@ const pad=n=>String(n).padStart(2,'0');
 const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());'''
 
 def nav():
-    return ('<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#student">대학생 필수</a>'
+    return ('<header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a>'
             '<a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>')
 
 FOOT = ('<footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span>'
@@ -807,6 +893,14 @@ STUDENT = [
     ("dday", "D-", "D-day", "시험일·기념일까지 며칠", "#cdb8ff", "-1deg"),
 ]
 
+PLAY = [
+    ("roulette", "GO", "메뉴 룰렛", "오늘 뭐 먹지 돌려보기", "#ffe14d", "-1deg"),
+    ("ladder", "H", "사다리타기", "이름과 결과 연결하기", "#7ee0ff", "1.2deg"),
+    ("quiz", "Q", "소비 유형 테스트", "8문항으로 보는 내 성향", "#ff9ec7", "-.8deg"),
+    ("pick", "뽑", "제비뽑기", "당첨자 뽑기", "#b9f27a", "1deg"),
+    ("teams", "팀", "팀 나누기", "무작위 팀 배정", "#cdb8ff", "-1.2deg"),
+]
+
 MZ = [
     ("realhourly", "₩/h", "진짜 시급", "통근·야근까지 넣으면?", "#c8f542", "-1deg"),
     ("freetime", "24h", "퇴근 후 내 시간", "하루 자유시간 얼마나 남지", "#7ee0ff", "1.2deg"),
@@ -824,6 +918,8 @@ def render_index():
                   for s, g, nm, d, bg, tl in STUDENT)
     mzs = "".join(f'<a href="{s}.html" class="press" style="--bg:{bg};--t:{tl}"><span class="gl">{g}</span><b>{nm}</b><span>{d}</span></a>'
                   for s, g, nm, d, bg, tl in MZ)
+    plays = "".join(f'<a href="{s}.html" class="press" style="--bg:{bg};--t:{tl}"><span class="gl">{g}</span><b>{nm}</b><span>{d}</span></a>'
+                    for s, g, nm, d, bg, tl in PLAY)
     groups = ""
     for k, nm in CATS:
         if not by[k]: continue
@@ -843,6 +939,8 @@ def render_index():
             '<section id="mine" hidden><div class="sec-h"><h2>내 계산기</h2><span class="note-hand">즐겨찾기와 최근에 쓴 것</span></div><div class="pills" id="minelist" style="padding:0"></div></section>'
             '<section id="mz"><div class="sec-h"><h2>갓생러 필수 계산기</h2><span class="note-hand">퇴근하고 나서의 나를 계산해봐요</span></div>'
             f'<div class="stu">{mzs}</div></section>'
+            '<section id="play"><div class="sec-h"><h2>친구랑 같이 해요</h2><span class="note-hand">정하기 힘들 땐 돌려봐요</span></div>'
+            f'<div class="stu">{plays}</div></section>'
             '<section id="student"><div class="sec-h"><h2>대학생 필수 계산기</h2><span class="note-hand">시험기간에 제일 많이 눌러요</span></div>'
             f'<div class="stu">{stu}</div></section>'
             '<section id="all"><div class="sec-h"><h2>전체 계산기</h2><span class="note-hand">분야별로 쭉 훑어보기</span></div>'
@@ -852,7 +950,7 @@ def render_index():
 function apply(){const s=q.value.trim().toLowerCase();let any=false;
 document.querySelectorAll('.pill').forEach(a=>{const ok=!s||a.dataset.q.toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
 document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.pill')].every(r=>r.hidden)});
-document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.getElementById('mz').hidden=!!s;document.getElementById('mine').hidden=!!s||!document.getElementById('minelist').children.length;document.querySelector('.feat').hidden=!!s}
+document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.getElementById('mz').hidden=!!s;document.getElementById('play').hidden=!!s;document.getElementById('mine').hidden=!!s||!document.getElementById('minelist').children.length;document.querySelector('.feat').hidden=!!s}
 q.addEventListener('input',apply);
 document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q){e.preventDefault();q.focus()}})})();</script>'''
     write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"학점, 글자수, 알바 시급, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
@@ -882,6 +980,39 @@ def challenge_page():
             + faq_html(faq) + related("challenge", "fun"))
     script = '<script>' + CHALLENGE_JS + '</script><script type="application/ld+json">' + faq_ld(faq) + '</script>'
     write("challenge.html", shell("challenge.html", "무지출 챌린지 기록장 - 매일 체크하고 절약액 확인", "무지출로 보낸 날을 체크하면 연속 일수와 아낀 돈을 계산해 줍니다. 기록은 내 브라우저에만 저장됩니다.", "무지출 챌린지 기록장", main, script))
+
+def _js(name):
+    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "js", name), encoding="utf-8").read()
+
+def custom_pages():
+    def page(slug, title, line, desc, card, body, faq, js):
+        main = f'<div class="card">{card}</div>{body}{faq_html(faq)}{related(slug, next(c for s, _, c, _ in REG if s == slug))}'
+        script = '<script>' + _js(js) + '</script><script type="application/ld+json">' + faq_ld(faq) + '</script>'
+        write(slug + ".html", shell(slug + ".html", title + " - " + line, desc, title, main, script))
+    page("roulette", "메뉴 룰렛", "오늘 뭐 먹지 돌려보기", "메뉴 후보를 넣고 룰렛을 돌려 오늘 먹을 것을 정하세요. 점심, 저녁, 야식 고르기 힘들 때 쓰는 무료 메뉴 룰렛입니다.",
+         '<label for="opts">메뉴 (한 줄에 하나, 최대 20개)</label><textarea id="opts" style="min-height:150px">김치찌개\n치킨\n마라탕\n초밥\n떡볶이\n파스타</textarea>'
+         '<canvas id="wheel" width="360" height="360" style="display:block;width:100%;max-width:360px;height:auto;margin:18px auto 0" aria-label="룰렛 판"></canvas>'
+         '<div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="r" aria-live="polite"></div>',
+         "<h2>사용 방법</h2><p>메뉴를 한 줄에 하나씩 쓰고 돌리기를 누르세요. 후보는 최대 20개까지 가능해요. 결과가 마음에 안 들어도 한 번 정했으면 따르는 게 룰렛의 규칙입니다. 룰렛 돌리기 전에 먹기 싫은 메뉴는 빼 두세요.</p>",
+         [("정말 무작위인가요?", "브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다."), ("메뉴 목록이 저장되나요?", "아니요. 새로고침하면 처음 목록으로 돌아가요.")], "roulette.js")
+    page("ladder", "사다리타기", "이름과 결과 연결하기", "참가자와 결과를 넣고 사다리를 타요. 이름을 눌러 한 명씩 확인하거나 전체 결과를 한 번에 볼 수 있는 무료 사다리타기입니다.",
+         '<label for="names">이름 (한 줄에 한 명, 2~8명)</label><textarea id="names" style="min-height:120px">민수\n지영\n서준\n하은</textarea>'
+         '<label for="prizes">결과 (이름과 같은 순서로)</label><textarea id="prizes" style="min-height:120px">커피 쏘기\n통과\n통과\n통과</textarea>'
+         '<canvas id="lad" width="360" height="420" style="display:block;width:100%;height:auto;margin:16px auto" aria-label="사다리"></canvas>'
+         '<div class="actions" id="who"></div><div class="actions"><button type="button" id="showall">전체 결과 보기</button><button type="button" id="newlad" class="ghost">새 사다리 만들기</button></div>'
+         '<div class="result" id="r" aria-live="polite"></div>',
+         "<h2>사용 방법</h2><p>이름과 결과를 같은 순서로 적으면 사다리가 만들어져요. 이름 버튼을 누르면 그 사람의 길이 표시되고 결과가 나옵니다. 입력을 바꾸면 사다리가 새로 만들어져요.</p>",
+         [("가로줄은 어떻게 정하나요?", "무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요."), ("결과를 미리 알 수 있나요?", "사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요.")], "ladder.js")
+    page("quiz", "소비 유형 테스트", "8문항으로 보는 내 소비 성향", "8가지 질문에 답하면 나의 소비 유형을 알려줘요. 계획형 저축러, 필코노미 플렉서 등 4가지 유형 중 나는 어디일까요? 재미로 해 보세요.",
+         '<div id="quiz"></div><div class="result" id="r" aria-live="polite"></div><div id="qlinks"></div>',
+         "<h2>안내</h2><p>오락용 테스트이며 심리 검사나 재무 상담이 아닙니다. 네 가지 유형 중 가장 많이 고른 쪽으로 결과가 나와요. 결과 카드를 이미지로 만들어 친구에게 공유해 보세요.</p>",
+         [("결과는 저장되나요?", "아니요. 이 브라우저 안에서만 계산되고 저장되지 않아요."), ("유형이 마음에 안 들면?", "다시 하기로 다른 답을 골라 보세요.")], "quiz.js")
+    page("habit", "습관 기록장", "한 달 습관 체크와 연속 기록", "운동, 공부, 독서 같은 습관을 한 달 달력에 체크하고 연속 일수와 달성률을 확인해요. 기록은 내 브라우저에만 저장됩니다.",
+         '<label for="hname">습관 이름</label><input type="text" id="hname" maxlength="20" value="운동 30분">'
+         '<h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div><div class="result" id="r"></div>'
+         '<button type="button" id="reset" class="ghost">이번 달 기록 지우기</button>',
+         "<h2>이렇게 써요</h2><p>한 가지 습관을 정하고 한 날을 지킬 때마다 날짜를 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 달성률이 바로 계산돼요. 달이 바뀌면 새 달력으로 시작해요.</p>",
+         [("여러 습관을 기록할 수 있나요?", "현재는 한 달에 한 가지 습관만 기록해요. 이름을 바꾸면 같은 달력의 이름만 바뀝니다."), ("기록이 사라졌어요", "브라우저 데이터를 지우거나 시크릿 창을 쓰면 보이지 않을 수 있어요.")], "habit.js")
 
 def static_pages():
     write("about.html", shell("about.html", "소개 - 간편계산기", "간편계산기 서비스 소개", "소개",
@@ -927,5 +1058,5 @@ def css():
 
 if __name__ == "__main__":
     for t in TOOLS: render_tool(t)
-    render_index(); static_pages(); challenge_page(); refresh_existing(); inject_common(); css(); sitemap()
+    render_index(); static_pages(); challenge_page(); custom_pages(); refresh_existing(); inject_common(); css(); sitemap()
     print(len(REG), "tools in registry,", len(TOOLS), "generated")
