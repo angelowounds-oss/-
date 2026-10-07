@@ -3,6 +3,12 @@
 Usage: SITE_URL=https://<user>.github.io/<repo> [CONTACT_EMAIL=...] python3 tools/publish_docs.py"""
 import os, shutil, subprocess, sys
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+conf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site.conf")  # defaults: SITE_URL, CONTACT_EMAIL, ...
+if os.path.exists(conf):
+    for line in open(conf, encoding="utf-8"):
+        if "=" in line and not line.lstrip().startswith("#"):
+            k, v = line.strip().split("=", 1)
+            os.environ.setdefault(k, v)
 if not os.environ.get("SITE_URL"):
     sys.exit("Set SITE_URL first, e.g. SITE_URL=https://user.github.io/repo")
 subprocess.check_call([sys.executable, os.path.join(root, "tools", "build.py")])
