@@ -1,6 +1,7 @@
 build/
 *.o
 results/balanced_policy_*.txt
+results/sampled_decks_*.txt
 results/rl_*.log
 results/logs/
 /tmp/rl.log
