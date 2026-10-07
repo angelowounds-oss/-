@@ -71,10 +71,11 @@ export class CarRider {
     pl.x = c3.x; pl.z = c3.z; pl.y = c3.y; c3.grounded = true; c3.vy = -2;
     // shaken off?
     const dvx = v.vx - r.pvx, dvz = v.vz - r.pvz; r.pvx = v.vx; r.pvz = v.vz;
+    const k = Math.min(1, dt * 2.5); r.hx += (v.vx - r.hx) * k; r.hz += (v.vz - r.hz) * k;     // the rider's own momentum lags behind the car
     this.accS += (Math.hypot(dvx, dvz) / Math.max(dt, 1e-3) - this.accS) * Math.min(1, dt * 8);
     const up = v.pv.body.rotation(), upY = 1 - 2 * (up.x * up.x + up.z * up.z);
     const limit = pl.prone ? THROW_ACC_LOW : THROW_ACC;
-    if (this.accS > limit || upY < 0.55) this.throwOff(v);
+    if (this.accS > limit || upY < 0.55) this.throwOff(v, r.hx, r.hz);
   }
   // after the character has moved
   after(dt) {
@@ -97,7 +98,7 @@ export class CarRider {
       if (pl.y < top - 0.45 || pl.y > top + 0.2 || c3.vy > 1.5 || !this.inFoot(v, pl.x, pl.z)) continue;
       if (v.speed > MOUNT_MAX * 1.8) continue;
       const s = Math.sin(v.h), c = Math.cos(v.h), dx = pl.x - v.x, dz = pl.z - v.z;
-      this.roof = { v, lx: dx * c - dz * s, lz: dx * s + dz * c, pvx: v.vx, pvz: v.vz }; this.accS = 0;
+      this.roof = { v, lx: dx * c - dz * s, lz: dx * s + dz * c, pvx: v.vx, pvz: v.vz, hx: v.vx, hz: v.vz }; this.accS = 0;
       c3.shift(0, top - pl.y, 0); pl.y = c3.y; c3.grounded = true; c3.vy = -2; pl.vx = pl.vz = 0;
       if (!this._hint) { this._hint = true; G.toast('차 지붕 위', '급제동·급회전하면 떨어진다 · <kbd>Z</kbd> 엎드려 버티기'); }
       break;
@@ -110,14 +111,14 @@ export class CarRider {
     const sp = Math.hypot(r.v.vx, r.v.vz);
     if (sp > 6 && !pl.body3.grounded) this.landing = true;
   }
-  throwOff(v) {
+  throwOff(v, hx, hz) {
     const G = this.G, pl = G.player; this.roof = null; pl.body3.rideHandle = null;
-    const sp = Math.hypot(v.vx, v.vz);
-    pl.vx = v.vx; pl.vz = v.vz; pl.momentum = true;
-    G.toast('지붕에서 떨어졌다');
+    const sp = Math.hypot(hx, hz);
+    pl.vx = hx; pl.vz = hz; pl.momentum = true;
+    G.toast('지붕에서 떨어졌다', `시속 ${(sp * 3.6) | 0} km`);
     this.prepareBones(pl);
     const side = rand(-1, 1) > 0 ? 1 : -1, c = Math.cos(v.h), s = Math.sin(v.h);
-    const r = G.ragdolls.spawn(pl, { cause: 'bail', alive: true, vel: { x: v.vx * 0.85 + c * side * 2, y: 1.2, z: v.vz * 0.85 - s * side * 2 } });
+    const r = G.ragdolls.spawn(pl, { cause: 'bail', alive: true, vel: { x: hx * 0.85 + c * side * 2, y: 1.2, z: hz * 0.85 - s * side * 2 } });
     G.hurtPlayer((sp > 8 ? (sp - 8) * (sp - 8) * 0.5 : 0) + 4, null, 'bail');
     if (!r) { pl.body3.vy = 3; pl.body3.grounded = false; }
   }
