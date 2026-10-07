@@ -155,6 +155,7 @@ export class Building {
     // ---- finish meshes ----
     B.finish(fl.group);
     this.buildGlassMesh(fl);
+    this.G.breach?.applyFloor(this, fl, k);   // walls breached earlier stay open
     this.floors.set(k, fl);
     this.built.add(k);
     this.M.onFloorBuilt?.(this, fl, L);

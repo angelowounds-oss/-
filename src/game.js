@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { addRipple } from './world.js';
 import { RagdollSystem, RAG_TUNE } from './ragdoll.js';
+import { Mobility } from './mobility.js';
+import { Breach } from './breach.js';
 import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
@@ -78,6 +80,7 @@ export class Game {
     this.signs = buildSigns(this.scene, this.world);
     this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt;
     this.ragdolls = new RagdollSystem(this);
+    this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
@@ -86,6 +89,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
+    this.breach = new Breach(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -337,7 +341,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -410,7 +414,7 @@ export class Game {
     const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
-    if (this.input.edge('crouch')) { if (pl.body3 && !pl.body3.grounded && !pl.swimming) pl.rollReq = this.time; else pl.stance = pl.stance === 1 ? 0 : 1; }   // in the air: crouch = roll on landing
+    if (this.input.edge('crouch')) { if (this.mobility.chute) this.mobility.cutAway(); else if (pl.body3 && !pl.body3.grounded && !pl.swimming) pl.rollReq = this.time; else pl.stance = pl.stance === 1 ? 0 : 1; }   // in the air: crouch = roll on landing
     if (this.input.edge('prone')) pl.stance = pl.stance === 2 ? 0 : 2;
     pl.crouching = pl.stance >= 1; pl.prone = pl.stance === 2;
     pl.crouch = damp(pl.crouch || 0, pl.stance === 1 ? 0.65 : pl.prone ? 0.2 : 0, 10, dt);
@@ -434,7 +438,8 @@ export class Game {
     const riding = this.buildings.ridingElevator(pl);
     if (pl.hang) { this.stepHang(dt, inp); return; }
     if (pl.mantle) { this.stepMantle(dt); return; }
-    if (this.input.edges.jump > 0 && !pl.crouching && !pl.swimming && this.tryMantle(inp)) { this.input.edge('jump'); return; }
+    this.mobility.input(dt, inp);
+    if (this.input.edges.jump > 0 && !pl.crouching && !pl.swimming && !this.mobility.active() && this.tryMantle(inp)) { this.input.edge('jump'); return; }
     const wat = this.waterAt(pl.x, pl.z);
     const swim = wat && wat.y - pl.y > 0.95;
     pl.swimming = !!swim;
@@ -452,6 +457,7 @@ export class Game {
     }
     let impact = 0;
     if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
+    else if (this.mobility.active()) this.mobility.move(dt, inp, dx, dz, mag);
     else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 : 0);
     this._prevVy = pl.vy;
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;

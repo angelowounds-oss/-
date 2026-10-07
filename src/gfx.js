@@ -12,16 +12,25 @@ const tex = (a, b, seam, size = 256) => {
 // a per-vertex surface id (0 plaster, 1 wood planks, 2 tile, 3 carpet, 4 concrete); ceilings (faces looking down) get a panel grid.
 // Pattern coordinates are world metres, so nothing needs UVs or texture memory.
 export const SURF = { plaster: 0, wood: 1, tile: 2, carpet: 3, concrete: 4 };
+// breached wall openings (world-space boxes): interior surfaces inside one are not drawn. Filled by breach.js with the holes near the camera.
+export const HOLES = 16;
+export const holeCU = { value: Array.from({ length: HOLES }, () => new THREE.Vector4(0, -999, 0, 0)) };
+export const holeHU = { value: Array.from({ length: HOLES }, () => new THREE.Vector4()) };
 function surfaceMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.12, envMapIntensity: 1.1 });
   m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSurf;attribute vec2 aSUv;varying float vSurf;varying vec2 vSUv;varying float vSNy;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf=aSurf;vSUv=aSUv;vSNy=objectNormal.y;');
+    sh.uniforms.uHoleC = holeCU; sh.uniforms.uHoleH = holeHU;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSurf;attribute vec2 aSUv;varying float vSurf;varying vec2 vSUv;varying float vSNy;varying vec3 vHWP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf=aSurf;vSUv=aSUv;vSNy=objectNormal.y;vHWP=(modelMatrix*vec4(transformed,1.)).xyz;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying float vSurf;varying vec2 vSUv;varying float vSNy;
+      varying float vSurf;varying vec2 vSUv;varying float vSNy;varying vec3 vHWP;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];
       float sh1(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float sn2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(sh1(i),sh1(i+vec2(1,0)),f.x),mix(sh1(i+vec2(0,1)),sh1(i+vec2(1,1)),f.x),f.y);}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+      for(int i=0;i<16;i++){vec4 c=uHoleC[i];if(c.w<.5)continue;vec3 d=abs(vHWP-c.xyz)-uHoleH[i].xyz;
+        float jag=(sn2(vHWP.xy*5.+vHWP.zz*3.)-.5)*.22;                     // ragged, broken edge
+        float dm=max(d.x,max(d.y,d.z));if(dm<jag)discard;
+        if(dm<jag+.07)diffuseColor.rgb*=.3;}                                 // scorched rim
       {
         vec2 u=vSUv;float k=1.;
         if(vSNy<-.5){ // ceiling panels

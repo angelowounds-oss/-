@@ -50,6 +50,18 @@ export class Character {
     this.body.setTranslation({ x: this.x, y: this.y + this.h / 2, z: this.z }, true);
     return impact;
   }
+  // free 3D velocity (rope swing, canopy): moves with collisions and returns the velocity actually achieved
+  moveVel(dt, vx, vy, vz) {
+    this.ctrl.computeColliderMovement(this.col, { x: vx * dt, y: vy * dt, z: vz * dt }, undefined, this.query, this.pred);
+    const m = this.ctrl.computedMovement();
+    this.x += m.x; this.y += m.y; this.z += m.z;
+    this.grounded = this.ctrl.computedGrounded();
+    const out = { x: m.x / dt, y: m.y / dt, z: m.z / dt };
+    this.vy = this.grounded ? -2 : out.y;
+    if (!this.grounded) { this.airT += dt; this.peakVy = Math.min(this.peakVy, this.vy); } else { this.airT = 0; this.peakVy = 0; }
+    this.body.setTranslation({ x: this.x, y: this.y + this.h / 2, z: this.z }, true);
+    return out;
+  }
   // floating at the water surface: targetY is the desired feet height
   swim(dt, vx, vz, targetY) {
     const dy = Math.max(-3, Math.min(3, (targetY - this.y) * 5)) * dt;

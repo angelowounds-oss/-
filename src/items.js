@@ -23,6 +23,9 @@ export const ITEMS = {
   crowbar: { name: '빠루', shape: ['box', 0.5, 0.03, 0.03], color: 0x703030, mass: 1.6, price: 30, tool: 'crowbar', melee: { dmg: 28, rate: 0.55, name: '빠루' } },
   bat: { name: '야구 방망이', shape: ['cyl', 0.035, 0.85], color: 0xb08850, mass: 1.1, price: 25, melee: { dmg: 24, rate: 0.5, name: '방망이' }, laid: true },
   knife: { name: '단검', shape: ['box', 0.22, 0.015, 0.03], color: 0xc8ccd8, mass: 0.2, price: 30, melee: { dmg: 22, rate: 0.35, name: '단검' } },
+  grapple: { name: '그래플링 훅', shape: ['box', 0.12, 0.1, 0.3], color: 0x30343e, mass: 1.4, price: 450, tool: 'grapple' },
+  parachute: { name: '낙하산', shape: ['box', 0.3, 0.4, 0.18], color: 0xd0602a, mass: 2.5, price: 160, tool: 'parachute' },
+  breach: { name: '폭파 장약', shape: ['box', 0.16, 0.06, 0.1], color: 0x50503a, mass: 0.6, price: 120, tool: 'breach' },
   flashlight: { name: '손전등', shape: ['cyl', 0.03, 0.18], color: 0x303040, mass: 0.3, price: 18, tool: 'flashlight' },
   parcel: { name: '소포', shape: ['box', 0.3, 0.2, 0.25], color: 0xb89868, mass: 1.5, price: 0 },
   jerrycan: { name: '연료통', shape: ['cyl', 0.1, 0.3], color: 0xc02818, mass: 2.4, price: 12, fuelCan: true },
@@ -117,6 +120,7 @@ export class ItemWorld {
     this.G = G; this.recs = new Map(); this.props = new Map();
     this.nextId = 1; this.t = 0; this.carry = null; this.carryDist = 1.7;
     this.inv = G.state.inv || (G.state.inv = { items: {}, unpaid: {}, equipped: null });
+    if (!G.state.gear1) { G.state.gear1 = 1; this.add('grapple'); this.add('parachute', 2); this.add('breach', 2); }   // starter movement gear (also for older saves)
     if (!G.state.dropped) G.state.dropped = [];
     for (const r of G.state.dropped) this.recs.set(r.key, r);
     G.state.taken = G.state.taken || {};
