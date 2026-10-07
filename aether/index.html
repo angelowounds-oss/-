@@ -100,6 +100,10 @@
     <div class="btn-grid"><button id="instCsv" class="btn" type="button">기록 CSV 저장</button></div>
     <p class="help">Cp·Cp0는 코 앞 자유류 기준점에 대한 값이고, 전압 손실 = −Cp0입니다. 후류 평면 적분(전압 결손 Σ(−Cp0)·dA / 기준 면적)은 정압이 회복되기 전의 근후류에서는 실제 항력보다 크게 나오므로 항력 추정이 아니라 후류 크기 지표로 보세요. 격자 7.5~24 cm, 경계층 미해상이라 정성 계측입니다(L4·L26·L35).</p></section>
 
+  <section class="card" aria-labelledby="carTitle"><h2 id="carTitle">차량 선택</h2>
+    <div class="btn-grid"><select id="carSel" aria-label="차량 선택"></select></div>
+    <p class="help">차량을 바꾸면 그 차량에 맞춰 풍동 장면과 유동 계산을 처음부터 다시 만들기 위해 페이지를 다시 불러옵니다(선택은 기억됩니다). Koenigsegg Agera는 재질 파일이 없는 OBJ라 재질을 이름으로 지정했고(차체 도장·카본·유리·후미등·타이어·림), 도장 색은 "차체 도장" 카드에서 바꿀 수 있습니다.</p></section>
+
   <section class="card" aria-labelledby="paintTitle"><h2 id="paintTitle">차체 도장</h2>
     <div class="btn-grid"><select id="paintSel" aria-label="차체 도장 색"></select></div>
     <p class="help">차체 도장 면(아틀라스 한 칸)만 색·메탈릭 입자·광택을 바꿉니다. 유리·카본·휠·타이어·데칼은 그대로이며, 공기역학 계산에는 영향이 없습니다(외관 전용). 휠 안쪽 캘리퍼 등 도장 칸을 쓰는 다른 부품이 있으면 함께 바뀔 수 있습니다.</p></section>
@@ -136,6 +140,7 @@
 <script>window.setStatus=window.setStatus||function(){};</script>
 <script src="assets/console-asset.js"></script>
 <script src="assets/vehicle-asset.js"></script>
+<script src="assets/vehicle-agera.js"></script>
 <script src="assets/fan-asset.js"></script>
 <script src="assets/tunnel-asset.js"></script>
 <script src="assets/bluenoise.js"></script>
