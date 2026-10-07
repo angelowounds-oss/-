@@ -11,14 +11,14 @@
 하은
 도윤
 수아
-예준</textarea><label for="k">팀 수</label><input type="number" id="k" value="3" step="1"><button onclick="run()">다시 섞기</button><div class="result" id="res"></div></div><h2>활용</h2><p>조별 과제, 모임 게임, 청소 당번 정하기에 쓰세요. 인원이 나누어떨어지지 않으면 앞 팀부터 한 명씩 더 배정됩니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>다시 섞으려면?</h3><p>버튼을 누르거나 입력을 조금 수정하세요.</p><h3>이름이 저장되나요?</h3><p>아니요. 이 브라우저 안에서만 처리됩니다.</p></div><!--fb--><div class="fb" data-slug="teams"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+예준</textarea><label for="k">팀 수</label><input type="number" id="k" value="3" step="1" min="0"><button onclick="run()">다시 섞기</button><div class="result" id="res"></div></div><h2>활용</h2><p>조별 과제, 모임 게임, 청소 당번 정하기에 쓰세요. 인원이 나누어떨어지지 않으면 앞 팀부터 한 명씩 더 배정됩니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>다시 섞으려면?</h3><p>버튼을 누르거나 입력을 조금 수정하세요.</p><h3>이름이 저장되나요?</h3><p>아니요. 이 브라우저 안에서만 처리됩니다.</p></div><!--fb--><div class="fb" data-slug="teams"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
-const W0=n=>Math.round(n).toLocaleString('ko-KR');
-const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const W=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+const W0=n=>(Math.round(n)+0).toLocaleString('ko-KR');
+const N2=(n,d)=>((+n.toFixed(d))+0).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
 const DAYS=(a,b)=>Math.round((b-a)/864e5);
 const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
@@ -30,8 +30,9 @@ function compute(v){const a=v.names.split('\n').map(x=>x.trim()).filter(Boolean)
 for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}const t=Array.from({length:k},()=>[]);a.forEach((x,i)=>t[i%k].push(x));
 return t.map((m,i)=>'<b>'+(i+1)+'팀</b> '+m.map(X).join(', ')).join('<br>');}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
+if(IDS.some(i=>{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')})){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

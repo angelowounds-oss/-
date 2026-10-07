@@ -5,14 +5,14 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>원가율 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="p">판매가 (원)</label><input type="number" id="p" value="6500" step="any"><label for="c">원가 (재료비 등, 원)</label><input type="number" id="c" value="1800" step="any"><label for="t">목표 원가율 (%)</label><input type="number" id="t" value="30" step="0.1"><div class="result" id="res"></div></div><h2>외식업 기준</h2><p>음식점 원가율은 보통 30% 안팎을 목표로 삼는 경우가 많지만 업종에 따라 크게 다릅니다. 인건비와 임대료는 원가에 포함하지 않았습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원가율이 높으면 어떻게 하나요?</h3><p>가격 인상, 양 조절, 재료 단가 협상 순으로 점검하세요.</p><h3>배달 수수료는요?</h3><p>판매 수수료는 판매 마진 계산기에서 반영하세요.</p></div><!--fb--><div class="fb" data-slug="costrate"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="rider.html">배달 라이더 순수익 계산기</a><a href="margin.html">판매 마진 계산기</a><a href="breakeven.html">손익분기점 계산기</a><a href="roas.html">광고 ROAS 계산기</a></div>
+<div class="card"><label for="p">판매가 (원)</label><input type="number" id="p" value="6500" step="any" min="0"><label for="c">원가 (재료비 등, 원)</label><input type="number" id="c" value="1800" step="any" min="0"><label for="t">목표 원가율 (%)</label><input type="number" id="t" value="30" step="0.1" min="0"><div class="result" id="res"></div></div><h2>외식업 기준</h2><p>음식점 원가율은 보통 30% 안팎을 목표로 삼는 경우가 많지만 업종에 따라 크게 다릅니다. 인건비와 임대료는 원가에 포함하지 않았습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원가율이 높으면 어떻게 하나요?</h3><p>가격 인상, 양 조절, 재료 단가 협상 순으로 점검하세요.</p><h3>배달 수수료는요?</h3><p>판매 수수료는 판매 마진 계산기에서 반영하세요.</p></div><!--fb--><div class="fb" data-slug="costrate"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="rider.html">배달 라이더 순수익 계산기</a><a href="margin.html">판매 마진 계산기</a><a href="breakeven.html">손익분기점 계산기</a><a href="roas.html">광고 ROAS 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
-const W0=n=>Math.round(n).toLocaleString('ko-KR');
-const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const W=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+const W0=n=>(Math.round(n)+0).toLocaleString('ko-KR');
+const N2=(n,d)=>((+n.toFixed(d))+0).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
 const DAYS=(a,b)=>Math.round((b-a)/864e5);
 const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
@@ -22,8 +22,9 @@ const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pa
 const IDS=["p", "c", "t"];
 function compute(v){if(!(v.p>0&&v.t>0))return '';return '<b>원가율 '+N2(v.c/v.p*100,1)+'%</b> · 마진 '+W(v.p-v.c)+' ('+N2((1-v.c/v.p)*100,1)+'%)<br>목표 원가율 '+v.t+'%에 맞는 판매가 <b>'+W(v.c/(v.t/100))+'</b>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
+if(IDS.some(i=>{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')})){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

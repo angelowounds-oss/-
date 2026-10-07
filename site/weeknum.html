@@ -10,9 +10,9 @@
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
-const W0=n=>Math.round(n).toLocaleString('ko-KR');
-const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const W=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+const W0=n=>(Math.round(n)+0).toLocaleString('ko-KR');
+const N2=(n,d)=>((+n.toFixed(d))+0).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
 const DAYS=(a,b)=>Math.round((b-a)/864e5);
 const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
@@ -23,8 +23,9 @@ const IDS=["d"];
 function compute(v){const p=P(v.d),d=new Date(Date.UTC(p.getFullYear(),p.getMonth(),p.getDate())),dn=d.getUTCDay()||7;d.setUTCDate(d.getUTCDate()+4-dn);
 const ys=Date.UTC(d.getUTCFullYear(),0,1),wk=Math.ceil(((d-ys)/864e5+1)/7);return '<b>'+d.getUTCFullYear()+'년 '+wk+'주차</b> ('+DOW(p)+'요일)<br>연중 '+(DAYS(new Date(p.getFullYear(),0,1),p)+1)+'번째 날';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
+if(IDS.some(i=>{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')})){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});

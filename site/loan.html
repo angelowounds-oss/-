@@ -5,9 +5,9 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>대출 이자 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="P">대출금 (원)</label><input type="number" id="P" value="100000000">
-<label for="R">연 금리 (%)</label><input type="number" id="R" step="0.01" value="4.5">
-<label for="N">기간 (개월)</label><input type="number" id="N" value="360">
+<div class="card"><label for="P">대출금 (원)</label><input type="number" id="P" value="100000000" min="0">
+<label for="R">연 금리 (%)</label><input type="number" id="R" step="0.01" value="4.5" min="0">
+<label for="N">기간 (개월)</label><input type="number" id="N" value="360" min="0">
 <button onclick="go()">계산하기</button></div><div id="out"></div>
 <h2>상환 방식 차이</h2><p><b>원리금균등</b>은 매월 같은 금액을 내며 초기에 이자 비중이 큽니다. <b>원금균등</b>은 원금을 똑같이 나눠 내므로 첫 달 부담이 가장 크지만 총 이자는 적습니다. <b>만기일시</b>는 매월 이자만 내고 만기에 원금을 갚습니다. 본 계산은 참고용이며 실제 금액은 금융기관 약정에 따릅니다.</p>
 <!--guide--><section class="guide">
@@ -32,8 +32,9 @@
 <!--fb--><div class="fb" data-slug="loan"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const w=n=>Math.round(n).toLocaleString('ko-KR')+'원';
-function go(){const p=+P.value,r=+R.value/1200,n=+N.value;if(!(p>0&&n>0)){out.innerHTML='';return}
+<script>const w=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+function go(){const p=+P.value,r=+R.value/1200,n=+N.value;if(P.value===''||R.value===''||N.value===''||(!(p>0)&&p!==0)){out.innerHTML='';return}
+if(!(p>0&&n>=1&&r>=0&&R.value<=100&&n<=1200&&p<=1e13&&isFinite(p+r+n))){out.innerHTML='<div class="card">값을 확인해 주세요. 금리는 0~100%, 기간은 1~1200개월, 대출금은 0보다 크고 10조 원 이하로 입력하세요.</div>';return}
 let m1,t1;if(r===0){m1=p/n;t1=p}else{m1=p*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);t1=m1*n}
 const first=p/n+p*r,last=p/n+(p/n)*r,t2=p*r*(n+1)/2,m3=p*r,t3=m3*n;
 const c=(t,b,tot)=>'<div class="card"><b>'+t+'</b><div class="result">'+b+'</div>총 이자 '+w(tot)+' · 총 상환 '+w(p+tot)+'</div>';

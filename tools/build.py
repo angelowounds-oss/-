@@ -801,9 +801,9 @@ REG.append(("quiz", "소비 유형 테스트", "play", "8문항으로 보는 내
 
 # ---------- rendering ----------
 HELPERS = r'''const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
-const W0=n=>Math.round(n).toLocaleString('ko-KR');
-const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const W=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+const W0=n=>(Math.round(n)+0).toLocaleString('ko-KR');
+const N2=(n,d)=>((+n.toFixed(d))+0).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
 const DAYS=(a,b)=>Math.round((b-a)/864e5);
 const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
@@ -828,7 +828,7 @@ def related(slug, cat):
 
 def render_input(i):
     if i["t"] == "number":
-        return f'<label for="{i["id"]}">{i["label"]}</label><input type="number" id="{i["id"]}" value="{i["d"]}" step="{i["step"]}">'
+        return f'<label for="{i["id"]}">{i["label"]}</label><input type="number" id="{i["id"]}" value="{i["d"]}" step="{i["step"]}" min="0">'
     if i["t"] == "select":
         o = "".join(f'<option value="{v}">{l}</option>' for v, l in i["opts"])
         return f'<label for="{i["id"]}">{i["label"]}</label><select id="{i["id"]}">{o}</select>'
@@ -881,8 +881,9 @@ def render_tool(t):
 const IDS={json.dumps(ids)};
 function compute(v){{{t["js"]}}}
 function run(){{const v={{}};IDS.forEach(i=>{{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value}});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){{document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}}
-let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}}
+if(IDS.some(i=>{{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')}})){{document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){{document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}}
+let h='';try{{h=compute(v)||''}}catch(x){{h=''}}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}}
 function save(){{try{{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}}catch(e){{}}}}
 function load(){{try{{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')}})}}catch(e){{}}}}
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});
@@ -975,13 +976,13 @@ for(var d=1;d<=dim;d++){(function(d){var b=document.createElement('button');b.ty
 b.addEventListener('click',function(){var k=st.days.indexOf(d);if(k>-1)st.days.splice(k,1);else st.days.push(d);save();draw()});cal.appendChild(b)})(d)}
 var n=st.days.length,cur=today,streak=0;if(st.days.indexOf(cur)<0)cur--;while(cur>0&&st.days.indexOf(cur)>-1){streak++;cur--}
 res.innerHTML='<b>무지출 '+n+'일 성공</b><br>지금 '+streak+'일 연속 · 아낀 돈 <b>'+W(n*st.amt)+'</b><br><small>이 속도로 한 달 다 채우면 '+W(dim*st.amt)+'</small>'}
-amt.addEventListener('input',function(){st.amt=+amt.value||0;save();draw()});
+amt.addEventListener('input',function(){st.amt=Math.max(0,+amt.value||0);save();draw()});
 var armed=false;reset.addEventListener('click',function(){if(!armed){armed=true;reset.textContent='한 번 더 누르면 지워져요';return}st.days=[];save();armed=false;reset.textContent='이번 달 기록 지우기';draw()});
 draw()})();"""
 
 def challenge_page():
     faq = [("기록은 어디에 저장되나요?", "이 기기의 브라우저에만 저장돼요. 다른 기기나 시크릿 창에서는 보이지 않아요."), ("무지출이 뭐예요?", "하루 동안 필수 고정비 외에 돈을 쓰지 않는 챌린지예요. 기준은 직접 정하세요.")]
-    main = ('<div class="card"><label for="amt">하루 평균 쓰던 돈 (원)</label><input type="number" id="amt" value="15000">'
+    main = ('<div class="card"><label for="amt">하루 평균 쓰던 돈 (원)</label><input type="number" id="amt" value="15000" min="0">'
             '<h2 id="month" style="margin:22px 0 10px"></h2><div class="cal" id="cal"></div>'
             '<div class="result" id="res"></div><button type="button" id="reset" class="ghost">이번 달 기록 지우기</button></div>'
             '<h2>이렇게 써요</h2><p>무지출로 보낸 날을 눌러 체크하세요. 오늘까지만 체크할 수 있고, 연속 일수와 아낀 돈이 바로 계산돼요. 결과는 이미지 카드로 만들어 인증용으로 올릴 수도 있어요. 억지로 참기보다 현실적으로 지킬 수 있는 날부터 시작하세요.</p>'

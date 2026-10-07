@@ -5,11 +5,11 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>판매 마진 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="a">상품 원가 (원)</label><input type="number" id="a" value="10000">
-<label for="b">배송비 등 개당 부대비용 (원)</label><input type="number" id="b" value="3000">
-<label for="c">판매 수수료 합계 (%)</label><input type="number" id="c" value="6" step="0.1">
-<label for="d">현재 판매가 (원)</label><input type="number" id="d" value="25000">
-<label for="t">목표 마진율 (%)</label><input type="number" id="t" value="20">
+<div class="card"><label for="a">상품 원가 (원)</label><input type="number" id="a" value="10000" min="0">
+<label for="b">배송비 등 개당 부대비용 (원)</label><input type="number" id="b" value="3000" min="0">
+<label for="c">판매 수수료 합계 (%)</label><input type="number" id="c" value="6" step="0.1" min="0">
+<label for="d">현재 판매가 (원)</label><input type="number" id="d" value="25000" min="0">
+<label for="t">목표 마진율 (%)</label><input type="number" id="t" value="20" min="0">
 <div class="result" id="r"></div></div>
 <h2>수수료 입력 방법</h2><p>판매 수수료는 플랫폼, 카테고리, 결제수단, 등급마다 다르고 자주 바뀝니다. 이 계산기는 수수료율을 직접 입력받는 방식이라 판매하는 곳의 현재 수수료표를 확인해 합산한 값을 넣어 주세요. 부가세와 소득세는 반영하지 않았습니다.</p>
 <p><b>마진율</b>은 순이익을 판매가로 나눈 값입니다. 목표 판매가는 (원가 + 부대비용) ÷ (1 - 수수료율 - 목표 마진율)로 구합니다.</p>
@@ -18,7 +18,7 @@
 <!--fb--><div class="fb" data-slug="margin"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="rider.html">배달 라이더 순수익 계산기</a><a href="breakeven.html">손익분기점 계산기</a></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const w=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const w=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
 function go(){const A=+a.value,B=+b.value,C=+c.value/100,D=+d.value,T=+t.value/100;if(!(D>0)){r.textContent='';return}
 const net=D-A-B-D*C,rate=net/D*100;let h='현재 순이익 '+w(net)+' (마진율 '+rate.toFixed(1)+'%)';
 const den=1-C-T;h+=den>0?'<br>목표 마진 달성 판매가 <b>'+w((A+B)/den)+'</b>':'<br>수수료와 목표 마진의 합이 100% 이상입니다';

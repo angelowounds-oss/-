@@ -5,9 +5,9 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>시급 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="h">시급 (원)</label><input type="number" id="h" value="10320">
-<label for="d">하루 근무시간</label><input type="number" id="d" value="8" step="0.5">
-<label for="n">주 근무일수</label><input type="number" id="n" value="5">
+<div class="card"><label for="h">시급 (원)</label><input type="number" id="h" value="10320" min="0">
+<label for="d">하루 근무시간</label><input type="number" id="d" value="8" step="0.5" min="0">
+<label for="n">주 근무일수</label><input type="number" id="n" value="5" min="0">
 <div class="result" id="r"></div></div>
 <h2>주휴수당이란?</h2><p>1주 소정근로시간이 15시간 이상이고 그 주를 개근하면 유급휴일(주휴일)에 대한 수당이 지급됩니다. 주휴시간은 (1주 소정근로시간 ÷ 40) × 8시간으로, 주 40시간이면 8시간, 주 15시간이면 3시간입니다. 월 환산 시간은 주 소정근로시간에 주휴시간을 더해 (365÷7÷12 ≈ 4.345주)를 곱해 계산합니다. 최저시급은 매년 바뀌므로 고용노동부 고시를 확인하세요. 세전 금액이며 실제 수령액은 4대 보험 등에 따라 달라집니다.</p>
 <!--guide--><section class="guide">
@@ -30,7 +30,7 @@
 <!--fb--><div class="fb" data-slug="wage"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a><a href="severance.html">퇴직금 계산기</a></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
-<script>const w=n=>Math.round(n).toLocaleString('ko-KR')+'원';
+<script>const w=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
 function go(){const H=+h.value,D=+d.value,N=+n.value,wk=D*N;if(!(H>0&&wk>0)){r.textContent='';return}
 const ju=wk>=15?Math.min(wk/40,1)*8*H:0;const week=wk*H+ju;const mon=week*365/7/12;
 r.innerHTML='주급 '+w(week)+' (주휴수당 '+w(ju)+')<br>월급(세전) '+w(mon)}

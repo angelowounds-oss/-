@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>연봉 실수령액 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="sal">연봉 (세전, 원)</label><input type="number" id="sal" value="35000000" step="any"><label for="nt">월 비과세액 (식대 등, 원)</label><input type="number" id="nt" value="200000" step="any"><label for="dep">부양가족 수 (본인 포함)</label><input type="number" id="dep" value="1" step="1"><label for="pr">국민연금 요율 (%)</label><input type="number" id="pr" value="4.5" step="0.001"><label for="hr">건강보험 요율 (%)</label><input type="number" id="hr" value="3.545" step="0.001"><label for="lr">장기요양 (건강보험료의 %)</label><input type="number" id="lr" value="12.95" step="0.01"><label for="er">고용보험 요율 (%)</label><input type="number" id="er" value="0.9" step="0.01"><div class="result" id="res"></div></div><h2>이 계산은 추정입니다</h2><p>연말정산 구조(근로소득공제, 인적공제, 보험료 공제, 세액공제)를 단순화해 한 해 세금을 구한 뒤 12로 나눈 값입니다. 회사가 매달 떼는 간이세액표 금액이나 상여금, 다른 공제와는 차이가 날 수 있습니다. 보험 요율은 해마다 바뀌어서 기본값은 2025년 기준 예시이니 해당 연도 요율로 수정하세요.</p><!--guide--><section class="guide">
+<div class="card"><label for="sal">연봉 (세전, 원)</label><input type="number" id="sal" value="35000000" step="any" min="0"><label for="nt">월 비과세액 (식대 등, 원)</label><input type="number" id="nt" value="200000" step="any" min="0"><label for="dep">부양가족 수 (본인 포함)</label><input type="number" id="dep" value="1" step="1" min="0"><label for="pr">국민연금 요율 (%)</label><input type="number" id="pr" value="4.5" step="0.001" min="0"><label for="hr">건강보험 요율 (%)</label><input type="number" id="hr" value="3.545" step="0.001" min="0"><label for="lr">장기요양 (건강보험료의 %)</label><input type="number" id="lr" value="12.95" step="0.01" min="0"><label for="er">고용보험 요율 (%)</label><input type="number" id="er" value="0.9" step="0.01" min="0"><div class="result" id="res"></div></div><h2>이 계산은 추정입니다</h2><p>연말정산 구조(근로소득공제, 인적공제, 보험료 공제, 세액공제)를 단순화해 한 해 세금을 구한 뒤 12로 나눈 값입니다. 회사가 매달 떼는 간이세액표 금액이나 상여금, 다른 공제와는 차이가 날 수 있습니다. 보험 요율은 해마다 바뀌어서 기본값은 2025년 기준 예시이니 해당 연도 요율로 수정하세요.</p><!--guide--><section class="guide">
 <h2>연봉 실수령액은 이렇게 계산해요</h2>
 <p>월급에서 빠지는 돈은 크게 4대보험과 세금 두 가지예요. 이 계산기는 회사가 매달 떼는 금액을 연말정산 구조로 다시 계산한 추정치입니다.</p>
 <ol>
@@ -31,9 +31,9 @@
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const X=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const W=n=>Math.round(n).toLocaleString('ko-KR')+'원';
-const W0=n=>Math.round(n).toLocaleString('ko-KR');
-const N2=(n,d)=>(+n.toFixed(d)).toLocaleString('ko-KR');
+const W=n=>(Math.round(n)+0).toLocaleString('ko-KR')+'원';
+const W0=n=>(Math.round(n)+0).toLocaleString('ko-KR');
+const N2=(n,d)=>((+n.toFixed(d))+0).toLocaleString('ko-KR');
 const P=s=>{const a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
 const DAYS=(a,b)=>Math.round((b-a)/864e5);
 const FD=d=>d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
@@ -49,8 +49,9 @@ let cr=tax<=1.3e6?tax*0.55:715000+(tax-1.3e6)*0.3;const cap=g<=33e6?740000:g<=70
 const fin=Math.max(0,tax-cr-130000),mt=fin/12,ml=mt*0.1,net=yr/12-ins-mt-ml;
 return '<b>월 실수령 약 '+W(net)+'</b><br>월급(세전) '+W(yr/12)+'<br>4대보험 '+W(ins)+' · 소득세 '+W(mt)+' · 지방소득세 '+W(ml)+'<br><small>연 환산 실수령 약 '+W(net*12)+'</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
-if(IDS.some(i=>typeof v[i]==='number'&&isNaN(v[i]))){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
-let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
+if(IDS.some(i=>{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')})){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
+if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}
+let h='';try{h=compute(v)||''}catch(x){h=''}if(/NaN|Infinity|undefined/.test(h))h='<small>입력값을 확인해 주세요. 0이 들어가면 계산할 수 없는 경우가 있어요.</small>';document.getElementById('res').innerHTML=h;save()}
 function save(){try{history.replaceState(null,'','#'+IDS.map(i=>i+'='+encodeURIComponent(document.getElementById(i).value)).join('&'))}catch(e){}}
 function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.split('&').forEach(p=>{const k=p.split('=');if(IDS.indexOf(k[0])>=0)document.getElementById(k[0]).value=decodeURIComponent(k[1]||'')})}catch(e){}}
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
