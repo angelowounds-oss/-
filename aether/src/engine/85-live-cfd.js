@@ -130,8 +130,8 @@ void main(){vec2 n=gl_FragCoord.xy/uRes*2.-1.;vec4 a=uInv*vec4(n,-1,1),b=uInv*ve
   vec4 c=textureLod(uVol,uvw,2.);if(uCal<.5&&c.g<.002&&c.r*dens<.0012){t+=dt*4.;continue;}
   vec4 s=textureLod(uVol,uvw,0.);if(s.g>.55)break;float d=uCal>.5?.004:smk(vis(s.r,ro+rd*t))*dens;if(d<.003){t+=dt;continue;}
   float sh=smk(textureLod(uVol,uvw+ld*.17,0.).r);if(uQ>0)sh+=.7*smk(textureLod(uVol,uvw+ld*.4,0.).r);if(uQ>1)sh+=.5*smk(textureLod(uVol,uvw+ld*.75,0.).r);
-  float lit=.32+.68*exp(-sh*dens*.9);d*=smoothstep(.15,.7,t);
-  vec3 col=mix(vec3(.86,.92,1.),turbo(clamp(.5+(s.b-1.)*1.25,0.,1.)),uCMode)*lit*ph*uTF.w;float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;t+=dt;}
+  float lit=.32+.68*exp(-sh*dens*.9);d*=smoothstep(.25,1.2,t);
+  vec3 sb=mix(vec3(.2,.4,.78),vec3(.98,.94,.88),smoothstep(.32,1.,lit))*(.55+.45*lit)*.9;vec3 col=mix(sb,turbo(clamp(.5+(s.b-1.)*1.25,0.,1.))*lit,uCMode)*ph*uTF.w;float al=1.-exp(-d*dt*8.);acc.rgb+=(1.-acc.a)*al*col;acc.a+=(1.-acc.a)*al;t+=dt;}
  if(acc.a<.004)discard;o=acc;}`;
 const LIVE_COMP=`#version 300 es
 precision highp float;precision highp sampler2D;uniform sampler2D uT;uniform vec2 uRes;out vec4 o;

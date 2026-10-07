@@ -11,7 +11,7 @@ export const MATERIALS = [
   { name: 'ControlRoomPaint', base: [.2, .22, .26, 1], metallic: 0, roughness: .55 },
   { name: 'PlenumPaint', base: [.62, .64, .66, 1], metallic: 0, roughness: .62 },
   { name: 'ConcreteFloor', base: [.17, .18, .19, 1], metallic: 0, roughness: .8 },
-  { name: 'PolishedFloor', base: [.045, .05, .058, 1], metallic: 0, roughness: .13 },
+  { name: 'PolishedFloor', base: [.045, .05, .058, 1], metallic: 0, roughness: .18 },
   { name: 'LedCyan', base: [.03, .55, 1, 1], metallic: 0, roughness: .3 },
   { name: 'LedAmber', base: [1, .38, .05, 1], metallic: 0, roughness: .3 },
   { name: 'AbsorberFoam', base: [.055, .058, .062, 1], metallic: 0, roughness: .97 },
@@ -313,10 +313,12 @@ function lightMeshes() {
   const p = SPEC.plenum, lights = new Mesh('AETHER_PLENUM_LIGHTS', 'PlenumLight', { category: 'lighting recess', role: 'static', emissive: true });
   const y = p.y1 - SPEC.plenum.wedge.depth - .05;
   for (let i = 0; i < 6; i++) for (const z of [-3.6, 0, 3.6]) { const x = p.x0 + 2.5 + i * 4.2; lights.box([x - 1.0, y - .06, z - .25], [x + 1.0, y, z + .25]); }
+  const beams = new Mesh('AETHER_PLENUM_BEAMS', 'BlackPowderCoat', { category: 'ceiling', role: 'static' });
+  for (let i = 0; i < 6; i++) { const x = p.x0 + 2.5 + i * 4.2 + 2.1; beams.box([x - .14, y - .42, -p.zh + p.wedge.depth + .1], [x + .14, y - .12, p.zh - p.wedge.depth - .1]); }
   const mark = new Mesh('AETHER_FLOOR_MARKS', 'SafetyYellow', { category: 'floor marks', role: 'static' });
   const t = SPEC.turntable.r + SPEC.turntable.gap + .08;
   for (let i = 0; i < 128; i++) { const a0 = i / 128 * 2 * Math.PI, a1 = (i + 1) / 128 * 2 * Math.PI; if (i % 4 === 3) continue; const q = (r, a) => [r * Math.cos(a), .003, r * Math.sin(a)]; mark.quad(q(t, a0), q(t + .06, a0), q(t + .06, a1), q(t, a1), { toward: [0, 10, 0] }); }
-  return [lights, mark];
+  return [lights, beams, mark];
 }
 
 // ---------- LED accent lines: walking-boundary guide lines on the floor, a ring around the turntable, outlines around the nozzle exit and the collector mouth ----------
@@ -337,9 +339,14 @@ function ledMeshes() {
     const th = .05, y1 = h + .22, z1 = hw + .22, a = wallX + dir * .004, b = wallX + dir * .02, lo = Math.min(a, b), hi = Math.max(a, b);
     mesh.box([lo, 0, -z1 - th], [hi, y1 + th, -z1]); mesh.box([lo, 0, z1], [hi, y1 + th, z1 + th]); mesh.box([lo, y1, -z1 + .002], [hi, y1 + th, z1 - .002]);
   };
+  // cove lines where the ceiling meets the side walls, and light blades along the walking band (modern linear lighting)
+  const hs = new Mesh('AETHER_LED_HOUSINGS', 'BlackPowderCoat', { category: 'led fixture', role: 'static' });
+  const yc = p.y1 - p.wedge.depth - .14, zc = p.zh - p.wedge.depth - .16;
+  for (const sg of [-1, 1]) cy.box([p.x0 + .6, yc, sg * zc - .025], [p.x1 - .6, yc + .05, sg * zc + .025]);
+  for (let i = 0; i < 7; i++) { const x = p.x0 + 3 + i * 3.6; if (Math.abs(x - (dr.x0 + dr.x1) / 2) < 1.6) continue; for (const sg of [-1, 1]) { const zz = sg * (zg + .06); cy.box([x - .025, .35, zz - .02], [x + .025, 2.9, zz + .02]); hs.box([x - .06, .28, zz - .05], [x + .06, .35, zz + .05]); hs.box([x - .06, 2.9, zz - .05], [x + .06, 2.97, zz + .05]); hs.box([x - .035, .35, zz + sg * .03 - .01], [x + .035, 2.9, zz + sg * .03 + .01]); } }
   const nz = D.nozzleAt(p.x0), ch = D.collectorAt(c.throatX);
   outline(cy, p.x0, 1, nz.hw + .18, nz.h + .18); outline(am, p.x1, -1, ch.hw + .12, ch.h + .12);
-  return [cy, am];
+  return [cy, am, hs];
 }
 
 export function buildTunnel() {

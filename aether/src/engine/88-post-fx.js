@@ -2,7 +2,7 @@
    -> composite -> glass -> [TAA] -> bloom -> AgX/ACES tone map -> overlays (LDR) -> [FXAA] -> upscale+sharpen.
    Disabled with #fx=0 or when float render targets are missing (legacy forward path, visible in the HUD). ===== */
 const FX={on:!/fx=0/.test(location.hash),active:false,err:null,gen:-1,rw:0,rh:0,vw:0,vh:0,frame:0,hist:0,shist:0,prevVP:null,jitter:[0,0],tone:(location.hash.match(/tone=(AGX|ACES)/)||[])[1]||'AGX',
- exposure:1.25,bloom:.085,grade:{on:!/grade=0/.test(location.hash),v:[.30,1.15,.62,.0016],shadow:[.93,1,1.07],high:[1.05,1,.93]},aoStrength:1,g:.35,prog:null,t:null};
+ exposure:1.25,bloom:.14,grade:{on:!/grade=0/.test(location.hash),v:[.30,1.15,.62,.0016],shadow:[.93,1,1.07],high:[1.05,1,.93]},aoStrength:1,g:.35,prog:null,t:null};
 window.__AETHER_FX=FX;
 const FX_H=`#version 300 es
 precision highp float;precision highp sampler2D;precision highp sampler3D;
@@ -177,7 +177,7 @@ function fxAfterOpaque(){const T=FX.t,M=FX.m=fxMatrices(),rw=FX.rw,rh=FX.rh;gl.b
  if(LIVE.enabled&&LIVE.ok){const vpJ=matMul(fxJitter(M.proj),M.view);streakDraw(vpJ,rw,rh);cpDraw(vpJ);tuftDraw(vpJ,rw,rh);instrDraw(vpJ,rw)}}
 function fxPost(){const T=FX.t,M=FX.m,rw=FX.rw,rh=FX.rh;gl.bindVertexArray(LIVE.vao);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(false);gl.disable(gl.CULL_FACE);
  let src=T.comp;if(FX.taa){const cur=FX.hist,nxt=1-cur;fxPass('taa',T.histF[nxt],rw,rh,{uCur:T.comp,uHist:T.hist[cur],uDepth:T.depth},{uInvVP:M.inv,uPrevVP:FX.prevVP||M.vp,uReset:FX.reset?1:0});FX.hist=nxt;src=T.hist[nxt]}
- let bloom=T.bl[0]?.a;if(PERF.set.bloom&&T.bl.length){const B=T.bl;fxPass('bpre',B[0].af,B[0].w,B[0].h,{uSrc:src},{uThr:1.2});
+ let bloom=T.bl[0]?.a;if(PERF.set.bloom&&T.bl.length){const B=T.bl;fxPass('bpre',B[0].af,B[0].w,B[0].h,{uSrc:src},{uThr:1.05});
   for(let i=1;i<B.length;i++)fxPass('bdown',B[i].af,B[i].w,B[i].h,{uSrc:B[i-1].a},{});
   for(let i=B.length-2;i>=0;i--){fxPass('bup',B[i].bf,B[i].w,B[i].h,{uSrc:B[i].a,uLow:i===B.length-2?B[i+1].a:B[i+1].b},{})}bloom=B.length>1?B[0].b:B[0].a}
  fxPass('tone',T.ldrF,rw,rh,{uSrc:src,uBloom:bloom||src,uBlue:FX.blue},{uExp:FX.exposure*M10_SETTINGS.exposure,uBloomK:PERF.set.bloom&&bloom?FX.bloom:0,uAces:FX.tone==='ACES'?1:0,uFrame:FX.frame%64,uGr:FX.grade.on?FX.grade.v:[0,1,0,0],uTs:FX.grade.on?FX.grade.shadow:[1,1,1],uTh:FX.grade.on?FX.grade.high:[1,1,1]});
