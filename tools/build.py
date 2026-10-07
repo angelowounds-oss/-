@@ -1136,6 +1136,8 @@ def sitemap():
 
 def css():
     import shutil
+    for f in glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "google*.html")):  # Search Console ownership files
+        shutil.copy(f, os.path.join(OUT, os.path.basename(f)))
     shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "style.css"), os.path.join(OUT, "style.css"))
 
 if __name__ == "__main__":
