@@ -1,4 +1,6 @@
 import { ITEMS, itemName } from './items.js';
+import { ATT, SLOT_NAME, attOf, attach, detach } from './attachments.js';
+import { WEAPONS } from './human.js';
 import { el } from './util.js';
 
 // Generic two-column modal: left = backpack, right = container / shop / ATM
@@ -33,14 +35,21 @@ export class Panels {
     el('invT').textContent = { inv: '가방', container: c?.name || '보관함', shop: c?.name || '상점', atm: 'ATM', sell: c?.name || '매입', talk: c?.name || '대화' }[m] || '가방';
     el('invW').textContent = `무게 ${W.weight().toFixed(1)} / 25 kg · $${G.cash | 0}`;
     el('invRS').style.display = m === 'inv' ? 'none' : ''; el('invLS').style.display = m === 'talk' ? 'none' : '';
+    // attachments fitted on the weapon in hand
+    if (m === 'inv' && G.player.cur !== 9 && WEAPONS[G.player.cur]) {
+      const wi = G.player.cur, a = attOf(G, wi) || {};
+      const li = document.createElement('li'); li.style.cssText = 'color:var(--muted);font-size:11px;padding:4px 0'; li.textContent = `${WEAPONS[wi].name} 부착물 (장착 가능: ${Object.keys(ATT).filter((k) => ATT[k].compat.includes(wi)).map((k) => ATT[k].name).join(', ')})`; L.appendChild(li);
+      for (const slot of ['muzzle', 'optic', 'mag']) { const id = a[slot]; this.row(L, `${SLOT_NAME[slot]}: ${id ? ATT[id].name : '없음'}`, id ? ATT[id].text : '', id ? [['해제', () => detach(G, wi, slot)]] : []); }
+    }
     // left: backpack
     const ids = Object.keys(inv.items);
-    if (!ids.length) L.innerHTML = '<li style="color:var(--muted)">비어 있음</li>';
+    if (!ids.length) L.insertAdjacentHTML('beforeend', '<li style="color:var(--muted)">비어 있음</li>');
     for (const id of ids) {
       const d = ITEMS[id], n = inv.items[id], unpaid = inv.unpaid[id] || 0;
       const bt = [];
       if (m === 'inv' || m === 'container') {
         if (d.eat || d.heal || d.ammo || d.cash || d.fuelCan || d.gun !== undefined) bt.push(['사용', () => W.use(id)]);
+        if (d.att) bt.push(['장착', () => attach(G, id)]);
         if (d.melee) bt.push(['장비', () => G.equipMelee?.(id)]);
         if (d.tool === 'flashlight') bt.push([G.flashlightOn ? '끄기' : '켜기', () => G.toggleFlashlight?.()]);
         bt.push(['버리기', () => W.dropFromInv(id)]);

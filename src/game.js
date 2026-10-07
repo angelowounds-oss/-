@@ -3,6 +3,9 @@ import { addRipple } from './world.js';
 import { RagdollSystem, RAG_TUNE } from './ragdoll.js';
 import { Mobility } from './mobility.js';
 import { Breach } from './breach.js';
+import { CarRider, MOUNT_MAX } from './carrider.js';
+import { Sandbox } from './sandbox.js';
+import { effective, attOf, refreshVisuals, attach, detach } from './attachments.js';
 import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
@@ -90,6 +93,8 @@ export class Game {
     this.memory = new Memory(this);
     this.power = new Power(this);
     this.breach = new Breach(this);
+    this.carRider = new CarRider(this);
+    this.sandbox = new Sandbox(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
     progress(0.5, '효과 · 시스템 준비…');
     await new Promise((r) => setTimeout(r, 30));
@@ -131,7 +136,8 @@ export class Game {
       smoke(x, y, z, big = 1) { G.smokeP.emit(x + rand(-0.2, 0.2), y, z + rand(-0.2, 0.2), rand(-0.6, 0.6), rand(1.5, 3), rand(-0.6, 0.6), rand(1.2, 2.2), rand(0.8, 1.6) * big, 0.07, 0.07, 0.09, 0.8, 0.2, 0.4); },
       fire(x, y, z) { G.fireP.emit(x, y, z, rand(-0.4, 0.4), rand(2, 4.5), rand(-0.4, 0.4), rand(0.4, 0.9), rand(0.7, 1.5), 3.2, rand(0.7, 1.4), 0.2, 1, 0, 0.6); if (Math.random() < 0.25) G.smokeP.emit(x, y + 1, z, rand(-1, 1), rand(2, 4), rand(-1, 1), rand(1.5, 2.8), rand(1.2, 2.4), 0.05, 0.05, 0.06, 0.8, 0.3, 0.3); },
       tireSmoke(x, z) { G.smokeP.emit(x, 0.2, z, rand(-1, 1), rand(0.3, 1), rand(-1, 1), rand(0.6, 1.1), rand(0.7, 1.2), 0.3, 0.3, 0.33, 0.45, 0.3, 0.6); },
-      muzzle(p, dir) {
+      muzzle(p, dir, sup = false) {
+        if (sup) { G.sparksP.emit(p.x, p.y, p.z, dir.x * 2, dir.y * 2, dir.z * 2, 0.05, 0.12, 3, 1.8, 1, 1, 0, 1); return; }
         for (let i = 0; i < 3; i++) G.sparksP.emit(p.x + dir.x * 0.1, p.y + dir.y * 0.1, p.z + dir.z * 0.1, dir.x * rand(3, 9) + rand(-1, 1), dir.y * rand(3, 9) + rand(-1, 1), dir.z * rand(3, 9) + rand(-1, 1), rand(0.04, 0.09), rand(0.25, 0.5), 4, 2.6, 1, 1, 0, 1);
         G.lights.flash(p.x, p.y, p.z, 0xffc070, 7, 16, 0.07);
       },
@@ -341,7 +347,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -389,7 +395,7 @@ export class Game {
     if (this.frozen()) { for (const e of ['use', 'jump', 'reload', 'swap', 'cam']) this.input.edge(e); pl.animate(dt, 0); return; }
     if (this.input.edge('cam')) { cam.fp = !cam.fp; this.toast(cam.fp ? '1인칭 시점' : '3인칭 시점'); }
     // camera look
-    const wz = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] ? WEAPONS[pl.cur].zoom || 1 : 1;
+    const wz = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] ? this.pw(pl.cur).zoom || 1 : 1;
     const k = 0.0022 * (pl.aiming ? 0.6 : 1) / Math.pow(wz, 0.85);
     cam.yaw -= inp.lookX * k; cam.pitch = clamp(cam.pitch - inp.lookY * k, -1.2, 1.05);
     if (inp.lookX || inp.lookY) cam.offsetT = 2.2;
@@ -403,15 +409,19 @@ export class Game {
     this.regen = (this.regen || 0) + dt;
   }
 
+  attachItem(id) { return attach(this, id); }
+  detachItem(i, slot) { detach(this, i, slot); }
+  // the player's weapon with its attachments applied
+  pw(i) { return effective(i, attOf(this, i)); }
   switchWeapon(i) {
     const pl = this.player; if (i === pl.cur || !this.playerOnFoot) return;
-    pl.cur = i; pl.setWeapon(i === 9 ? 100 : i); pl.reloadT = 0; pl.fireCd = 0.25;
+    pl.cur = i; pl.setWeapon(i === 9 ? 100 : i); pl.reloadT = 0; pl.fireCd = 0.25; refreshVisuals(this);
     this.audio.tone?.(500, 0.05, 'square', 0.06);
   }
 
   footControl(dt, inp) {
     if (this.player.rag) { const r = this.player; r.vx = r.vz = 0; r.speed = 0; r.update(dt); if (!r.rag) return; this.nearInteract = null; return; }
-    const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
+    const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : this.pw(pl.cur), ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
     if (this.input.edge('crouch')) { if (this.mobility.chute) this.mobility.cutAway(); else if (pl.body3 && !pl.body3.grounded && !pl.swimming) pl.rollReq = this.time; else pl.stance = pl.stance === 1 ? 0 : 1; }   // in the air: crouch = roll on landing
@@ -427,12 +437,12 @@ export class Game {
     let mx = inp.mx, my = inp.my; const mag = Math.min(1, Math.hypot(mx, my));
     let dx = fwdX * my + rX * mx, dz = fwdZ * my + rZ * mx;
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.prone ? 0.25 : pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1);
+    const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.prone ? 0.25 : pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1) * (this.sandbox?.on ? this.sandbox.speed : 1);
     const spd = base * (mag < 0.15 ? 0 : clamp(mag * 1.1, 0.5, 1));
     const onGnd = pl.body3.grounded || pl.swimming;
     // stunned after a hard landing: no input until back on their feet
     const stunned = (pl.stunT || 0) > 0; if (stunned) pl.stunT -= dt;
-    const tv = stunned ? 0 : spd, ctl = onGnd ? (stunned ? 6 : 10) : 0.9;   // air control is weak: momentum carries a jump / fall
+    const tv = stunned ? 0 : spd, ctl = onGnd ? (stunned ? 6 : 10) : (pl.momentum ? 0.12 : 0.9);   // air control is weak: momentum carries a jump / fall
     pl.vx = damp(pl.vx, dx * tv, ctl, dt); pl.vz = damp(pl.vz, dz * tv, ctl, dt);
     const c3 = pl.body3;
     const riding = this.buildings.ridingElevator(pl);
@@ -455,13 +465,16 @@ export class Game {
         else if (this._ripT <= 0 && swim) { addRipple(pl.x, pl.z, 0.3); this._ripT = 0.9; }   // treading water
       }
     }
+    this.carRider.before(dt);
     let impact = 0;
     if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
     else if (this.mobility.active()) this.mobility.move(dt, inp, dx, dz, mag);
-    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 : 0);
+    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 * (this.sandbox?.on ? Math.sqrt(this.sandbox.jump) : 1) : 0);
     this._prevVy = pl.vy;
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;
     if (impact > 0) this.land(impact, wat);
+    this.carRider.after(dt);
+    if (c3.grounded && pl.momentum && !this.carRider.roof) pl.momentum = false;
     if (c3.y < -30) c3.teleport(this.world.spawn.x, 0, this.world.spawn.z);
     // vehicles block player
     { const ox = pl.x, oz = pl.z; this.pushOutOfVehicles(pl, 0.38); if (pl.x !== ox || pl.z !== oz) c3.shift(pl.x - ox, 0, pl.z - oz); }
@@ -509,6 +522,7 @@ export class Game {
     return Math.hypot(Math.max(lf, 0), Math.max(ll, 0));
   }
   pushOutOfVehicles(h, r) {
+    if ((h.y || 0) > 0.9) return;   // standing on a roof
     for (const v of this.vehicles) {
       if (!v.group.visible) continue;
       const dx = h.x - v.x, dz = h.z - v.z;
@@ -543,13 +557,14 @@ export class Game {
   tryMantle(inp) {
     const pl = this.player, ph = this.phys, yaw = (inp.mx || inp.my) ? Math.atan2(pl.vx || Math.sin(this.cam.yaw), pl.vz || Math.cos(this.cam.yaw)) : pl.ry;
     const dx = Math.sin(yaw), dz = Math.cos(yaw), M = 1 | 16 | 8 | 32;
-    const probe = (h) => ph.ray(pl.x, pl.y + h, pl.z, dx, 0, dz, 1.1, 1 | 16 | 32);
+    const probe = (h) => ph.ray(pl.x, pl.y + h, pl.z, dx, 0, dz, 1.1, 1 | 2 | 16 | 32);
     const lo = probe(0.55), hi = probe(1.15);
     if (!lo && !hi) return false;
     const hit = hi || lo, t = hit.t;
+    { const cv = this.carRider.vehicleOf(hit.collider); if (cv && cv.speed > MOUNT_MAX) return false; }   // cars can be climbed onto, but not while racing past
     // find the top surface just beyond the wall face
     const px = pl.x + dx * (t + 0.45), pz = pl.z + dz * (t + 0.45);
-    const top = ph.ray(px, pl.y + 2.9, pz, 0, -1, 0, 3.4, 1 | 16 | 32);
+    const top = ph.ray(px, pl.y + 2.9, pz, 0, -1, 0, 3.4, 1 | 2 | 16 | 32);
     if (!top) return false;
     const ty = pl.y + 2.9 - top.t, h = ty - pl.y;
     if (h < 0.45 || h > 3.7) return false;
@@ -680,6 +695,7 @@ export class Game {
   }
   exitVehicle(force = false) {
     const v = this.vehicle, pl = this.player; if (!v) return;
+    const spd0 = v.speed;
     const s = Math.sin(v.h), c = Math.cos(v.h);
     // choose free side
     let placed = false;
@@ -697,6 +713,7 @@ export class Game {
     document.body.classList.add('onfoot'); document.body.classList.remove('incar');
     this.ui.speedo.classList.remove('on');
     this.cam.yaw = v.h; this.audio.door();
+    if (!force && !v.spec.craft) this.carRider.bail(v, spd0, pl.x - v.x, pl.z - v.z);   // keeps the car's speed: a stumble, a roll or a tumble
   }
   driveControl(dt, inp) {
     if (this.rider) { const m = this.player.m; m.mixer.update(dt); m.applyPose(0, 0); m.body.position.y = m.rideOn ? 0 : -0.5; if (this.riderCar) this.player.group.visible = this.cam.mode !== 2; }
@@ -733,7 +750,7 @@ export class Game {
     const pel = w.pellets || 1;
     for (let pi = 1; pi < pel; pi++) { const d2 = dir0.clone(); d2.x += rand(-w.spread, w.spread); d2.y += rand(-w.spread, w.spread); d2.z += rand(-w.spread, w.spread); d2.normalize(); this.hitscan(cam.position.x, cam.position.y, cam.position.z, d2.x, d2.y, d2.z, w.range, pl, w.damage, w.head); }
     const dir = this.tmpV.copy(dir0);
-    const sp = w.spread + pl.spread + (pl.speed > 1 ? 0.01 : 0) + (pl.aiming ? -w.spread * 0.6 : 0);
+    const sp = (w.spread + pl.spread + (pl.speed > 1 ? 0.01 : 0) + (pl.aiming ? -w.spread * 0.6 : 0)) * (pl.aiming ? (w.aimSpread || 1) : 1);
     dir.x += rand(-sp, sp); dir.y += rand(-sp, sp); dir.z += rand(-sp, sp); dir.normalize();
     pl.spread = Math.min(0.03, pl.spread + w.spread * 0.4);
     const ox = cam.position.x, oy = cam.position.y, oz = cam.position.z;
@@ -742,13 +759,13 @@ export class Game {
     pl.muzzle = this.muzzleWorld(pl);
     const end = this.tmpV2.set(ox + dir.x * r.t, oy + dir.y * r.t, oz + dir.z * r.t);
     this.tracers.add(pl.muzzle, end, w.tracer);
-    this.fx.muzzle(pl.muzzle, dir);
-    this.audio.gun(w.snd, 1, 0);
+    this.fx.muzzle(pl.muzzle, dir, w.sup);
+    this.audio.gun(w.snd, 1, 0, w.sup);
     if (w.pellets) setTimeout(() => this.audio.pump(), 380); else if (w.snd === 'sniper') setTimeout(() => this.audio.bolt(), 520);
     this.cam.pitch += w.recoil * (pl.aiming ? 0.7 : 1); this.cam.yaw += rand(-0.002, 0.002);
     this.shake(0.08);
-    this.noise(pl.x, pl.z, 55);
-    this.addHeatIfWitnessed(0.5);
+    this.noise(pl.x, pl.z, 55 * (w.noiseK || 1));
+    this.addHeatIfWitnessed(w.sup ? 0.12 : 0.5);
     if (r.kind === 'human') this.markHit(r.head);
     if (ammo.clip === 0 && ammo.reserve > 0) pl.reloadT = w.reload, this.audio.reloadW(w.snd, w.reload);
   }
@@ -893,6 +910,7 @@ export class Game {
   }
   hurtPlayer(dmg, src, kind) {
     const pl = this.player; if (pl.dead) return;
+    if (this.sandbox?.on && this.sandbox.god) return;
     this.lastHurt = this.time;
     if (pl.armor > 0) { const a = Math.min(pl.armor, dmg * 0.7); pl.armor -= a; dmg -= a; }
     pl.hpv -= dmg;
@@ -908,6 +926,7 @@ export class Game {
   // most of it; a hard landing without a roll knocks the player down for a moment.
   land(v, wat) {
     const pl = this.player, hs = Math.hypot(pl.vx, pl.vz);
+    if (pl.momentum && !wat) v = Math.hypot(v, hs * 0.85);   // came off a moving car: the sideways speed counts too
     this.landKick = Math.max(this.landKick || 0, clamp(v / 16, 0, 1));
     if (wat && pl.y < wat.y + 0.4) { addRipple(pl.x, pl.z, clamp(v / 4, 1, 3)); this.audio.splash?.(clamp(v / 10, 0.4, 1.4)); this.fx.sparks?.(pl.x, wat.y + 0.2, pl.z, Math.round(clamp(v, 6, 30)), [0.7, 0.9, 1], 2 + v * 0.3); return; }
     const roll = v > 5 && v < 15 && hs > 2.2 && this.time - (pl.rollReq || -9) < 0.45;
@@ -1161,7 +1180,7 @@ export class Game {
         }
       }
       // player on foot hit by cars
-      if (this.playerOnFoot && !this.player.dead && v.driver) {
+      if (this.playerOnFoot && !this.player.dead && v.driver && this.player.y < 0.9) {
         const pl = this.player; const dx = pl.x - v.x, dz = pl.z - v.z; const lf = dx * s + dz * c, ll = dx * c - dz * s;
         if (Math.abs(lf) < v.L / 2 + 0.4 && Math.abs(ll) < v.W / 2 + 0.3 && this.time - (this.lastRunOver || -9) > 0.6) {
           this.lastRunOver = this.time; this.hurtPlayer(spd * 2.2, null, 'car'); pl.vx = v.vx; pl.vz = v.vz; pl.vy = 4;
@@ -1407,7 +1426,7 @@ export class Game {
     this.setFirstPerson(true); pl.m.pistol.visible = pl.m.rifle.visible = false;   // the viewmodel replaces the hand-held gun
     const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
     const eye = pl.y + (pl.prone ? 0.55 : pl.crouching ? 1.25 : 1.68) + (pl.speed > 0.5 ? Math.sin(performance.now() * 0.011) * 0.012 * Math.min(1, pl.speed / 5) : 0);
-    const w = aim && pl.cur !== 9 ? WEAPONS[pl.cur] : null, zoom = w ? w.zoom || 1 : 1;
+    const w = aim && pl.cur !== 9 ? this.pw(pl.cur) : null, zoom = w ? w.zoom || 1 : 1;
     cam.fov = damp(cam.fov, aim ? 2 * Math.atan(Math.tan(36 * Math.PI / 180) / zoom) * 180 / Math.PI : (pl.speed > 6 ? 78 : 72), 10, dt);
     if (w && w.scope === 'sniper') { const t = performance.now() * 0.001; cam.yaw += Math.sin(t * 1.3) * 0.00022; cam.pitch += Math.cos(t * 1.7) * 0.00018; }
     c.position.set(pl.x + L.x * 0.12, eye, pl.z + L.z * 0.12);
@@ -1415,19 +1434,19 @@ export class Game {
     if (!this.vm) { this.vm = new THREE.Group(); c.add(this.vm); this.vmGun = {}; }
     const kind = pl.armed ? pl.weapon.short : null;
     for (const k of ['pistol', 'rifle']) {
-      if (!this.vmGun[k]) { const m = pl.m[k].clone(true); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.setScalar(0.8); m.traverse((o) => { o.frustumCulled = false; o.castShadow = false; }); m.rotation.y = Math.PI; this.vmGun[k] = m; this.vm.add(m); }
+      if (!this.vmGun[k]) { const m = pl.m[k].clone(true); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.setScalar(0.8); m.traverse((o) => { o.frustumCulled = false; o.castShadow = false; }); m.rotation.y = Math.PI; this.vmGun[k] = m; this.vm.add(m); refreshVisuals(this); }
       this.vmGun[k].visible = kind === k;
     }
     const kick = Math.min(0.08, (pl.recoil || 0) * 0.02);
     { const sl = pl.m.pistol.userData.slide, vs = this.vmGun.pistol && this.vmGun.pistol.getObjectByName('slide'); if (sl && vs) vs.position.x = sl.x0 - Math.min(1, pl.recoil || 0) * 0.028; }
-    this.vm.visible = !!kind && !(aim && kind && WEAPONS[pl.cur]?.scope === 'sniper') && !(aim && WEAPONS[pl.cur]?.scope === 'iron' && false);
+    this.vm.visible = !!kind && !(aim && kind && this.pw(pl.cur)?.scope === 'sniper');
     this.vm.position.set(aim ? 0 : 0.17, aim ? (kind === 'pistol' ? -0.045 : -0.12) : -0.2, -0.45 + kick);
     this.vm.rotation.set(-kick * 2, 0, 0);
   }
   updateCamera(dt, inp) {
     const cam = this.cam, c = this.camera, pl = this.player, G = this;
     let ax, ay, az;
-    const adsW = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] && !pl.sitting && !pl.prone ? WEAPONS[pl.cur] : null;
+    const adsW = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] && !pl.sitting && !pl.prone ? this.pw(pl.cur) : null;
     const fpOn = (!!cam.fp || !!adsW) && !pl.dead && this.playerOnFoot;
     this.setScope(fpOn && adsW ? adsW.scope : '');
     if (fpOn) this.firstPersonCam(dt, pl.aiming);
@@ -1528,7 +1547,7 @@ export class Game {
     this.ui.hp.classList.toggle('low', pl.hpv < 30);
     this.setText('cash', ui.cash, '$' + (this.cash | 0).toLocaleString());
     this.setHTML('stars', ui.stars, Array.from({ length: 5 }, (_, i) => (i < this.wanted ? '<b>★</b>' : '★')).join(''));
-    const w = WEAPONS[pl.cur] || { name: pl.melee ? pl.melee.name.toUpperCase() : 'FISTS' }, am = pl.ammo[pl.cur] || { clip: 1, reserve: 0 };
+    const w = (pl.cur !== 9 && WEAPONS[pl.cur] ? this.pw(pl.cur) : null) || { name: pl.melee ? pl.melee.name.toUpperCase() : 'FISTS' }, am = pl.ammo[pl.cur] || { clip: 1, reserve: 0 };
     this.setText('wn', ui.wName, w.name);
     this.setHTML('am', ui.ammo, pl.cur === 9 ? '—' : pl.reloadT > 0 ? 'RELOAD' : `${am.clip}<small> / ${am.reserve}</small>` + (this.items.count('grenade') ? `<small> · 💣${this.items.count('grenade')}</small>` : ''));
     ui.ammo.classList.toggle('empty', am.clip === 0 && pl.cur !== 9);

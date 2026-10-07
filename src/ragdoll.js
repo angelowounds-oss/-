@@ -124,6 +124,7 @@ export class Ragdoll {
     const m = h.m, bones = m.bones; this.m = m;
     if (!BIND) BIND = computeBind(m);
     const R = this.R, world = this.world;
+    h.group.updateMatrixWorld(true);
     m.body.updateMatrixWorld(true);
     // current bone transforms -> body transforms
     this.hipsParent = bones.Hips.parent; this.hipsParent.updateWorldMatrix(true, false);

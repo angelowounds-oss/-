@@ -20,11 +20,12 @@ export class Character {
     this.query = grp(GR.CHAR, GR.STATIC | GR.PROP | GR.OBJ | GR.GLASS | GR.VEH);
     this.pred = (col) => {
       const p = col.parent(); if (!p) return true;
+      if (this.rideHandle != null && p.handle === this.rideHandle) return true;   // the car under the feet is solid whatever its speed
       const v = phys.bodies.get(p.handle);
       if (!v) return true;
       const lv = p.linvel(); return Math.hypot(lv.x, lv.z) < 3;
     };
-    this.platformDy = 0;
+    this.platformDy = 0; this.rideHandle = null;
   }
   teleport(x, y, z) {
     y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0; this.airT = 0; this.peakVy = 0;

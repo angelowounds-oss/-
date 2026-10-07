@@ -7,7 +7,7 @@ const SHOPS = {
   convenience: { name: '편의점', stock: [['burger', 6], ['noodles', 4], ['sandwich', 5], ['soda', 2], ['water', 2], ['coffee', 3], ['energy', 4], ['cigarette', 8], ['newspaper', 2], ['bandage', 8]] },
   hardware: { name: '철물점', stock: [['lockpick', 35], ['crowbar', 30], ['flashlight', 18], ['bat', 25], ['brick', 2], ['knife', 30], ['grapple', 450], ['parachute', 160]] },
   pharmacy: { name: '약국', stock: [['medkit', 40], ['bandage', 8], ['pills', 15], ['water', 2], ['energy', 4]] },
-  arms: { name: '무기상', stock: [['mag_pistol', 12], ['mag_rifle', 20], ['mag_smg', 16], ['shells', 14], ['mag_sniper', 25], ['w_smg', 520], ['w_shotgun', 640], ['w_sniper', 1500], ['knife', 30], ['grenade', 90], ['bat', 25], ['breach', 120], ['parachute', 160]] },
+  arms: { name: '무기상', stock: [['mag_pistol', 12], ['mag_rifle', 20], ['mag_smg', 16], ['shells', 14], ['mag_sniper', 25], ['w_smg', 520], ['w_shotgun', 640], ['w_sniper', 1500], ['knife', 30], ['grenade', 90], ['bat', 25], ['breach', 120], ['parachute', 160], ['att_sup', 260], ['att_reddot', 140], ['att_scope4', 320], ['att_mag', 110]] },
   restaurant: { name: '식당', stock: [['meal', 18], ['noodles', 9], ['burger', 11], ['sandwich', 8], ['coffee', 4], ['water', 3], ['energy', 6]] },
   clothes: { name: '의류점', stock: [], clothes: true },
   pawn: { name: '전당포', stock: [['watch', 600], ['laptop', 700], ['lockpick', 40], ['gold', 1300]], buys: 0.5 },

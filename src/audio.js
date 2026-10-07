@@ -74,8 +74,9 @@ export class Audio {
     o.connect(g).connect(dest || this.sfx); o.start(t0); o.stop(t0 + dur + 0.05);
   }
   pan(p) { const s = this.ctx.createStereoPanner?.(); if (s) { s.pan.value = Math.max(-1, Math.min(1, p)); s.connect(this.sfx); return s; } return this.sfx; }
-  gun(kind, vol = 1, pan = 0) {
-    if (!this.ctx) return; const d = this.pan(pan); if (vol > 0.5) this.duckFor(0.9);
+  gun(kind, vol = 1, pan = 0, sup = false) {
+    if (!this.ctx) return; if (sup) { vol *= 0.34; this.tone(190, 0.07, 'sine', 0.22 * vol, 90); this.noiseShot(0.05, 'bandpass', 1500, 0.2 * vol, 1); }
+    const d = this.pan(pan); if (vol > 0.5 && !sup) this.duckFor(0.9);
     if (kind === 'pistol') {
       this.noiseShot(0.22, 'bandpass', 2400, 0.7 * vol, 0.7, d, 0, 500);
       this.tone(160, 0.14, 'sine', 0.8 * vol, 40, d);
