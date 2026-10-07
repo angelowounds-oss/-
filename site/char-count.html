@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>글자수 세기 - 공백 포함/제외 바이트 계산</title><meta name="description" content="자기소개서, 블로그, 문자 작성 시 글자수를 공백 포함/제외로 즉시 계산합니다. 바이트 수도 확인하세요.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/char-count.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/char-count.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="글자수 세기"><meta property="og:description" content="자기소개서, 블로그, 문자 작성 시 글자수를 공백 포함/제외로 즉시 계산합니다. 바이트 수도 확인하세요."><meta property="og:url" content="https://YOUR-DOMAIN.example/char-count.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>글자수 세기 - 공백 포함/제외 바이트 계산</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
@@ -12,7 +11,24 @@
 <div class="stat"><b id="c">0</b>단어</div><div class="stat"><b id="d">0</b>바이트</div></div></div>
 <h2>사용 방법</h2><p>입력창에 글을 붙여넣으면 공백 포함/제외 글자수, 단어 수, 바이트 수가 실시간으로 표시됩니다. 자기소개서(보통 500~1,000자), 블로그 제목, 문자메시지(90바이트 SMS 기준) 작성에 유용합니다.</p>
 <h2>바이트 계산 기준</h2><p>한글은 2바이트(EUC-KR 기준), 영문·숫자·공백은 1바이트로 계산합니다. UTF-8 기준(한글 3바이트)과 다를 수 있습니다.</p>
-<div class="faq-block"><h2>자주 묻는 질문</h2><h3>자기소개서 글자수는 공백 포함인가요?</h3><p>기업마다 다릅니다. 지원 공고에 '공백 포함/제외'가 명시되어 있으니 확인 후 해당 수치를 보세요.</p><h3>문자메시지는 몇 바이트까지 SMS인가요?</h3><p>SMS는 90바이트(한글 45자) 이하이며, 초과하면 LMS로 발송됩니다.</p></div>
+<!--guide--><section class="guide">
+<h2>공백 포함과 공백 제외</h2>
+<p>자기소개서 글자수는 회사마다 기준이 달라요. 공고에 "공백 포함 1,000자"처럼 적혀 있으면 띄어쓰기와 줄바꿈까지 한 글자로 셉니다. 이 계산기는 띄어쓰기, 줄바꿈, 탭을 모두 공백으로 보고 따로 셉니다.</p>
+<h2>바이트는 왜 다르게 나와요?</h2>
+<ul>
+<li>여기서는 한글 1자를 2바이트, 영문·숫자·공백을 1바이트로 셉니다(EUC-KR 방식). 문자 메시지와 오래된 시스템이 이 방식을 써요.</li>
+<li>웹과 앱은 대부분 UTF-8을 써서 한글 1자가 3바이트예요. 입력 제한이 "바이트"라면 어떤 방식인지 확인하세요.</li>
+<li>단문 문자는 90바이트(한글 45자)까지예요.</li>
+</ul>
+<h2>예시로 보기</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>입력</th><th>공백 포함</th><th>공백 제외</th><th>바이트</th></tr></thead><tbody><tr><td>안녕 hello</td><td>8자</td><td>7자</td><td>10바이트</td></tr></tbody></table></div>
+<h2>자소서 쓸 때 팁</h2>
+<ul>
+<li>제출 사이트에 붙여넣으면 줄바꿈이 다르게 세지는 경우가 있어서, 제한보다 20~30자 여유를 두는 게 안전해요.</li>
+<li>특수문자(·, “ ”)도 한 글자로 셉니다.</li>
+</ul>
+<p class="reviewed">기준 검토: 2026년 10월</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>자기소개서 글자수는 공백 포함인가요?</h3><p>기업마다 다릅니다. 지원 공고에 '공백 포함/제외'가 명시되어 있으니 확인 후 해당 수치를 보세요.</p><h3>문자메시지는 몇 바이트까지 SMS인가요?</h3><p>SMS는 90바이트(한글 45자) 이하이며, 초과하면 LMS로 발송됩니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <h2>관련 계산기</h2><div class="tools"><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a><a href="gpa.html">학점 계산기</a></div>
 </main>
@@ -192,6 +208,11 @@ let n=0;for(const ch of v)n+=ch.charCodeAt(0)>127?2:1;d.textContent=n;});</scrip
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>제비뽑기 - 이름 중 당첨자 뽑기</title><meta name="description" content="이름을 넣고 당첨자 수를 정하면 무작위로 뽑아줍니다. 점심 쏘기, 청소 당번 정하기에 쓰세요.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/pick.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/pick.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="제비뽑기"><meta property="og:description" content="이름을 넣고 당첨자 수를 정하면 무작위로 뽑아줍니다. 점심 쏘기, 청소 당번 정하기에 쓰세요."><meta property="og:url" content="https://YOUR-DOMAIN.example/pick.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>제비뽑기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
@@ -34,7 +33,7 @@ function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "법적 추첨에도 쓸 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요. 재미와 가벼운 결정용입니다."}}, {"@type": "Question", "name": "같은 이름이 있으면?", "acceptedAnswer": {"@type": "Answer", "text": "같은 이름이 두 번 들어간 만큼 뽑힐 확률이 커져요."}}]}</script><!--cj--><script>(function () {
   var doc = document, root = doc.documentElement;
   var $ = function (s, r) { return (r || doc).querySelector(s); };
@@ -208,6 +207,11 @@ load();run();</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

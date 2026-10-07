@@ -3,7 +3,11 @@
 Run from repo root: python3 tools/build.py"""
 import json, re, glob, os
 
-SITE = "https://YOUR-DOMAIN.example"
+SITE = (os.environ.get("SITE_URL") or "https://YOUR-DOMAIN.example").rstrip("/")
+ADSENSE = os.environ.get("ADSENSE_CLIENT", "").strip()      # ca-pub-XXXXXXXXXXXXXXXX
+GOATCOUNTER = os.environ.get("GOATCOUNTER_CODE", "").strip()  # e.g. mysite -> mysite.goatcounter.com
+CONTACT = os.environ.get("CONTACT_EMAIL", "").strip()
+FONT_URL = "https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "site")
 AD = '<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>'
 
@@ -851,7 +855,6 @@ def shell(fn, title, desc, h1, main, script="", hero=False):
     return f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><meta name="description" content="{desc}">
-<link rel="canonical" href="{SITE}/{fn}">
 <link rel="stylesheet" href="style.css"></head><body{bcls}>
 {nav()}
 <main>{h1tag}
@@ -882,7 +885,7 @@ function load(){{try{{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;
 document.querySelectorAll('[data-off]').forEach(e=>{{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}});
 IDS.forEach(i=>{{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)}});
 {t["extra"]}
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{{load();run()}});</script>
 <script type="application/ld+json">{faq_ld(t["faq"])}</script>'''
     write(t["slug"] + ".html", shell(t["slug"] + ".html", t["title"] + " - " + t["line"], t["desc"], t["title"], main, script))
 
@@ -924,8 +927,8 @@ def render_index():
     groups = ""
     for k, nm in CATS:
         if not by[k]: continue
-        groups += (f'<section class="grp" style="--bg:var(--f-{k})"><header><h3>{nm}</h3><span>{len(by[k])}종</span></header><div class="pills">'
-                   + "".join(f'<a class="pill" href="{s}.html" data-q="{ti} {d}">{ti}</a>' for s, ti, d in by[k]) + "</div></section>")
+        groups += (f'<details class="grp" style="--bg:var(--f-{k})" open><summary><h3>{nm}</h3><span>{len(by[k])}종</span></summary><div class="pills">'
+                   + "".join(f'<a class="pill" href="{s}.html" data-q="{ti} {d}">{ti}</a>' for s, ti, d in by[k]) + "</div></details>")
     main = (f'<section class="hero"><div class="hero-l"><div class="note-hand tilt">가입 없이, 바로, {n}종 ✎</div>'
             '<h2>계산은 <mark>빠르게</mark>,<br>시간은 내 것으로</h2>'
             '<p>시간표 짜듯 쉽게 누르세요. 입력한 값은 이 브라우저 밖으로 나가지 않아요.</p>'
@@ -949,10 +952,11 @@ def render_index():
             f'<div class="groups">{groups}</div></section>')
     script = '''<script>(function(){const q=document.getElementById('q');
 function apply(){const s=q.value.trim().toLowerCase();let any=false;
-document.querySelectorAll('.pill').forEach(a=>{const ok=!s||a.dataset.q.toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
-document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.pill')].every(r=>r.hidden)});
+document.querySelectorAll('#all .pill').forEach(a=>{const ok=!s||(a.dataset.q||'').toLowerCase().includes(s);a.hidden=!ok;if(ok)any=true});
+document.querySelectorAll('.grp').forEach(g=>{g.hidden=[...g.querySelectorAll('.pill')].every(r=>r.hidden);if(s)g.open=true});
 document.getElementById('empty').hidden=any;document.getElementById('student').hidden=!!s;document.getElementById('mz').hidden=!!s;document.getElementById('play').hidden=!!s;document.getElementById('mine').hidden=!!s||!document.getElementById('minelist').children.length;document.querySelector('.feat').hidden=!!s}
 q.addEventListener('input',apply);
+if(window.matchMedia&&matchMedia('(max-width:640px)').matches)document.querySelectorAll('.grp').forEach((g,i)=>{if(i>1)g.open=false});
 document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==q){e.preventDefault();q.focus()}})})();</script>'''
     write("index.html", shell("index.html", "간편계산기 - 생활 계산기 모음", f"학점, 글자수, 알바 시급, 퇴직금, 대출 이자, 평수 변환 등 생활 계산기 {n}종을 가입 없이 무료로.", "간편계산기", main, script, hero=True))
 
@@ -1018,7 +1022,18 @@ def custom_pages():
 def static_pages():
     write("about.html", shell("about.html", "소개 - 간편계산기", "간편계산기 서비스 소개", "소개",
         '<div class="card"><p>간편계산기는 일상에서 자주 필요한 계산을 가입 없이 바로 할 수 있도록 만든 무료 계산기 모음입니다. 모든 계산은 이용자의 브라우저에서 처리되며 입력값을 서버에 저장하지 않습니다.</p>'
-        '<p>계산 결과는 참고용입니다. 세금, 급여, 퇴직금, 대출 등 금액이 큰 사안은 반드시 관련 기관이나 전문가에게 확인하세요. 법령과 요율은 바뀔 수 있으며, 잘못된 계산을 발견하면 알려주시면 고치겠습니다.</p></div>'))
+        '<p>계산 결과는 참고용입니다. 세금, 급여, 퇴직금, 대출 등 금액이 큰 사안은 반드시 관련 기관이나 전문가에게 확인하세요. 법령과 요율은 바뀔 수 있으며, 잘못된 계산을 발견하면 알려주시면 고치겠습니다.</p>'
+        '<h2>계산 기준은 이렇게 관리해요</h2><p>핵심 계산기에는 계산 공식, 실제 예시, 검토한 날짜를 함께 적어 두었습니다. 세율과 보험 요율처럼 해마다 바뀌는 값은 화면에서 직접 고칠 수 있게 만들고 예시값임을 표시했습니다.</p>'
+        + (f'<h2>문의</h2><p>오류 제보와 제안은 <b>{CONTACT}</b>로 보내 주세요.</p>' if CONTACT else '') + '</div>'))
+    privacy = ('<div class="card"><h2 style="margin-top:0">수집하는 정보</h2><p>간편계산기는 회원가입이 없고, 계산기에 입력한 값을 서버로 보내거나 저장하지 않습니다. 모든 계산은 이용자의 브라우저 안에서 처리됩니다.</p>'
+        '<h2>브라우저에 저장되는 정보</h2><p>즐겨찾기, 최근 본 계산기, 포인트 색과 화면 모드, 무지출·습관 기록장의 체크 기록은 이용자의 브라우저 저장소(localStorage)에만 저장됩니다. 브라우저 데이터를 지우면 함께 사라지며 운영자는 이 정보를 볼 수 없습니다.</p>'
+        '<h2>공유 링크</h2><p>계산기 주소 뒤에는 입력한 숫자가 함께 붙습니다. 링크를 공유하면 받는 사람도 같은 값을 볼 수 있으니 연봉처럼 민감한 숫자가 담긴 링크는 공유할 때 주의하세요.</p>'
+        + ('<h2>광고</h2><p>이 사이트는 Google AdSense 광고를 게재합니다. Google을 포함한 제3자 광고 사업자는 쿠키를 사용해 이용자의 이 사이트 및 다른 사이트 방문 기록을 바탕으로 광고를 표시할 수 있습니다. 맞춤 광고는 <a href="https://adssettings.google.com">Google 광고 설정</a>에서 해제할 수 있습니다.</p>' if ADSENSE else
+           '<h2>광고</h2><p>이 사이트는 운영을 위해 Google AdSense 등 제3자 광고를 게재할 수 있으며, 이 경우 광고 사업자가 쿠키를 사용할 수 있습니다. 맞춤 광고는 <a href="https://adssettings.google.com">Google 광고 설정</a>에서 해제할 수 있습니다.</p>')
+        + ('<h2>방문 통계</h2><p>어떤 페이지가 많이 쓰이는지 알기 위해 쿠키를 쓰지 않는 GoatCounter로 페이지 조회 수를 집계합니다. 개인을 식별하는 정보는 수집하지 않습니다.</p>' if GOATCOUNTER else '')
+        + (f'<h2>문의</h2><p>개인정보 관련 문의는 <b>{CONTACT}</b>로 보내 주세요.</p>' if CONTACT else '')
+        + '<p class="reviewed">시행일: 2026년 10월</p></div>')
+    write("privacy.html", shell("privacy.html", "개인정보처리방침 - 간편계산기", "간편계산기 개인정보처리방침", "개인정보처리방침", privacy))
     write("terms.html", shell("terms.html", "이용약관 - 간편계산기", "간편계산기 이용약관", "이용약관",
         '<div class="card"><h2 style="margin-top:0">서비스 이용</h2><p>이 사이트의 계산기는 누구나 무료로 이용할 수 있습니다.</p>'
         '<h2>면책</h2><p>제공되는 계산 결과는 일반적인 정보 제공이 목적이며, 정확성이나 특정 목적에의 적합성을 보증하지 않습니다. 계산 결과를 근거로 한 판단과 그 결과에 대한 책임은 이용자에게 있습니다.</p>'
@@ -1026,9 +1041,40 @@ def static_pages():
 
 COMMON_JS = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "common.js"), encoding="utf-8").read()
 
+from content import GUIDES
+
+def head_block(fn, s):
+    title = re.search(r"<title>(.*?)</title>", s, re.S).group(1)
+    m = re.search(r'<meta name="description" content="(.*?)"', s)
+    desc = m.group(1) if m else ""
+    url = SITE + "/" + ("" if fn == "index.html" else fn)
+    h = [f'<link rel="canonical" href="{url}">',
+         '<meta property="og:type" content="website">', '<meta property="og:site_name" content="간편계산기">',
+         f'<meta property="og:title" content="{title.split(" - ")[0]}">', f'<meta property="og:description" content="{desc}">',
+         f'<meta property="og:url" content="{url}">', f'<meta property="og:image" content="{SITE}/og.png">',
+         '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">',
+         '<meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image">',
+         '<link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">',
+         '<meta name="theme-color" content="#c8f542">',
+         f'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="{FONT_URL}">']
+    if ADSENSE:
+        h.append(f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={ADSENSE}" crossorigin="anonymous"></script>')
+    if GOATCOUNTER:
+        h.append(f'<script data-goatcounter="https://{GOATCOUNTER}.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>')
+    return "<!--hd-->" + "".join(h) + "<!--/hd-->"
+
 def inject_common():
     for fn in glob.glob(os.path.join(OUT, "*.html")):
         s = open(fn, encoding="utf-8").read()
+        b = os.path.basename(fn)
+        s = re.sub(r"<!--hd-->.*?<!--/hd-->", "", s, flags=re.S)
+        s = re.sub(r'<link rel="canonical"[^>]*>\n?', "", s)
+        s = s.replace('<link rel="stylesheet" href="style.css">', head_block(b, s) + '<link rel="stylesheet" href="style.css">', 1)
+        s = re.sub(r"<!--guide-->.*?<!--/guide-->", "", s, flags=re.S)
+        slug = b[:-5]
+        if slug in GUIDES:
+            g = '<!--guide--><section class="guide">' + GUIDES[slug] + '</section><!--/guide-->'
+            s = s.replace('<div class="faq-block">', g + '<div class="faq-block">', 1) if '<div class="faq-block">' in s else s
         s = re.sub(r"<!--hm-->.*?<!--/hm-->", "", s, flags=re.S)
         s = s.replace("</head>", "<!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head>", 1)
         s = re.sub(r"<!--cj-->.*?<!--/cj-->", "", s, flags=re.S)
@@ -1052,6 +1098,12 @@ def sitemap():
     pages = ["", "about.html", "terms.html", "privacy.html"] + [s + ".html" for s, *_ in REG]
     body = "".join(f"<url><loc>{SITE}/{p}</loc></url>" for p in pages)
     write("sitemap.xml", f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>')
+    write("robots.txt", f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n")
+    ads = os.path.join(OUT, "ads.txt")
+    if ADSENSE:
+        write("ads.txt", f"google.com, {ADSENSE.replace('ca-', '')}, DIRECT, f08c47fec0942fa0\n")
+    elif os.path.exists(ads):
+        os.remove(ads)
 
 def css():
     import shutil

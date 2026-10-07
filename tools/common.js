@@ -171,5 +171,10 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();

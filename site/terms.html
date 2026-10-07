@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>이용약관 - 간편계산기</title><meta name="description" content="간편계산기 이용약관">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/terms.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/terms.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="이용약관"><meta property="og:description" content="간편계산기 이용약관"><meta property="og:url" content="https://YOUR-DOMAIN.example/terms.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>이용약관</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
@@ -183,6 +182,11 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

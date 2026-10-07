@@ -1,12 +1,28 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>예적금 이자 계산기 - 예금·적금 세후 이자</title><meta name="description" content="정기예금과 정기적금의 단리 이자를 세전·세후로 계산합니다. 이자소득세 15.4%를 반영합니다.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/deposit.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/deposit.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="예적금 이자 계산기"><meta property="og:description" content="정기예금과 정기적금의 단리 이자를 세전·세후로 계산합니다. 이자소득세 15.4%를 반영합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/deposit.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>예적금 이자 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="kind">종류</label><select id="kind"><option value="dep">정기예금 (목돈 예치)</option><option value="sav">정기적금 (매월 납입)</option></select><label for="p">금액 (예금: 예치금 / 적금: 월 납입액, 원)</label><input type="number" id="p" value="10000000" step="any"><label for="rate">연 이율 (%)</label><input type="number" id="rate" value="3.5" step="0.01"><label for="n">기간 (개월)</label><input type="number" id="n" value="12" step="any"><label for="tax">세금</label><select id="tax"><option value="15.4">일반과세 15.4%</option><option value="9.5">세금우대 9.5%</option><option value="0">비과세</option></select><div class="result" id="r"></div></div><h2>계산 방식</h2><p>예금은 예치금 × 연 이율 × 기간(월) ÷ 12로, 적금은 매월 납입액이 남은 개월 수만큼 이자를 받는 단리로 계산합니다. 은행 상품마다 이자 계산 일수와 우대금리가 달라 실제 지급액과 차이가 날 수 있는 참고용 값입니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>적금 이자가 예금보다 적은 이유는?</h3><p>적금은 매월 돈을 나눠 넣어 평균 예치 기간이 짧기 때문입니다. 같은 금리라도 이자는 예금의 절반 수준입니다.</p><h3>세금우대는 누구나 받나요?</h3><p>조건이 있는 상품만 해당합니다. 가입한 상품의 약관을 확인하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
+<div class="card"><label for="kind">종류</label><select id="kind"><option value="dep">정기예금 (목돈 예치)</option><option value="sav">정기적금 (매월 납입)</option></select><label for="p">금액 (예금: 예치금 / 적금: 월 납입액, 원)</label><input type="number" id="p" value="10000000" step="any"><label for="rate">연 이율 (%)</label><input type="number" id="rate" value="3.5" step="0.01"><label for="n">기간 (개월)</label><input type="number" id="n" value="12" step="any"><label for="tax">세금</label><select id="tax"><option value="15.4">일반과세 15.4%</option><option value="9.5">세금우대 9.5%</option><option value="0">비과세</option></select><div class="result" id="r"></div></div><h2>계산 방식</h2><p>예금은 예치금 × 연 이율 × 기간(월) ÷ 12로, 적금은 매월 납입액이 남은 개월 수만큼 이자를 받는 단리로 계산합니다. 은행 상품마다 이자 계산 일수와 우대금리가 달라 실제 지급액과 차이가 날 수 있는 참고용 값입니다.</p><!--guide--><section class="guide">
+<h2>예금과 적금의 이자 계산</h2>
+<ul>
+<li><b>정기예금</b>: 이자 = 예치금 × 연이율 × 개월 수 ÷ 12</li>
+<li><b>정기적금</b>: 매달 넣은 돈이 남은 기간만큼만 이자를 받아요. 이자 = 월 납입액 × 연이율 ÷ 12 × n(n+1) ÷ 2</li>
+<li>이자소득세는 15.4%(소득세 14% + 지방소득세 1.4%)예요.</li>
+</ul>
+<h2>예시로 보기 (연 3.5%, 12개월)</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>상품</th><th>넣은 원금</th><th>세전 이자</th><th>세후 이자</th></tr></thead><tbody><tr><td>예금 1,000만 원</td><td>10,000,000원</td><td>350,000원</td><td>296,100원</td></tr><tr><td>적금 월 100만 원</td><td>12,000,000원</td><td>227,500원</td><td>192,465원</td></tr></tbody></table></div>
+<p>같은 금리라도 적금 이자가 예금의 절반 수준인 건 매달 나눠 넣어서 돈이 은행에 머무는 평균 기간이 짧기 때문이에요. "연 7% 적금"의 실제 수익률이 생각보다 낮은 이유이기도 해요.</p>
+<h2>확인할 것</h2>
+<ul>
+<li>우대금리는 조건(급여 이체, 카드 실적 등)을 채워야 받을 수 있어요.</li>
+<li>은행마다 일 단위로 이자를 계산하는 경우가 있어 몇백 원 차이가 날 수 있어요.</li>
+<li>금융소득이 한 해 2,000만 원을 넘으면 종합과세 대상이 될 수 있어요.</li>
+</ul>
+<p class="reviewed">계산 기준 검토: 2026년 10월</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>적금 이자가 예금보다 적은 이유는?</h3><p>적금은 매월 돈을 나눠 넣어 평균 예치 기간이 짧기 때문입니다. 같은 금리라도 이자는 예금의 절반 수준입니다.</p><h3>세금우대는 누구나 받나요?</h3><p>조건이 있는 상품만 해당합니다. 가입한 상품의 약관을 확인하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -32,7 +48,7 @@ function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "적금 이자가 예금보다 적은 이유는?", "acceptedAnswer": {"@type": "Answer", "text": "적금은 매월 돈을 나눠 넣어 평균 예치 기간이 짧기 때문입니다. 같은 금리라도 이자는 예금의 절반 수준입니다."}}, {"@type": "Question", "name": "세금우대는 누구나 받나요?", "acceptedAnswer": {"@type": "Answer", "text": "조건이 있는 상품만 해당합니다. 가입한 상품의 약관을 확인하세요."}}]}</script><!--cj--><script>(function () {
   var doc = document, root = doc.documentElement;
   var $ = function (s, r) { return (r || doc).querySelector(s); };
@@ -206,6 +222,11 @@ load();run();</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

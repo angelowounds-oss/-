@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>출산예정일 계산기 - 마지막 생리일 기준</title><meta name="description" content="마지막 생리 시작일로 출산예정일과 현재 임신 주수를 계산합니다.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/duedate.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/duedate.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="출산예정일 계산기"><meta property="og:description" content="마지막 생리 시작일로 출산예정일과 현재 임신 주수를 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/duedate.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>출산예정일 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
@@ -31,7 +30,7 @@ function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "예정일에 정확히 낳나요?", "acceptedAnswer": {"@type": "Answer", "text": "예정일에 출산하는 경우는 드물고 보통 전후 2주 안에 이루어집니다."}}, {"@type": "Question", "name": "주수는 어떻게 세나요?", "acceptedAnswer": {"@type": "Answer", "text": "마지막 생리 시작일을 0주 0일로 봅니다."}}]}</script><!--cj--><script>(function () {
   var doc = document, root = doc.documentElement;
   var $ = function (s, r) { return (r || doc).querySelector(s); };
@@ -205,6 +204,11 @@ load();run();</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

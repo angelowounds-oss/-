@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>학점 계산기 - 평균평점 4.5 / 4.3</title><meta name="description" content="과목별 학점과 성적을 입력하면 평균평점(GPA)을 4.5 또는 4.3 만점으로 계산합니다.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/gpa.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/gpa.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="학점 계산기"><meta property="og:description" content="과목별 학점과 성적을 입력하면 평균평점(GPA)을 4.5 또는 4.3 만점으로 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/gpa.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>학점 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
@@ -10,7 +9,19 @@
 3 B0
 2 A0
 3 C+
-1 B+</textarea><div class="result" id="r"></div></div><h2>환산 기준</h2><p>4.5 만점은 A+ 4.5, A0 4.0, B+ 3.5처럼 올라가고, 4.3 만점은 A+ 4.3, A0 4.0, A- 3.7처럼 세분됩니다. 학교마다 기준이 다를 수 있어 학칙을 확인하세요. F는 평균평점에 포함되고 취득 학점에서는 제외됩니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>P/NP 과목은요?</h3><p>평균평점에 포함하지 않으므로 입력하지 마세요.</p><h3>재수강은 어떻게 계산하나요?</h3><p>학교 규정에 따라 다릅니다. 최종 성적만 입력하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+1 B+</textarea><div class="result" id="r"></div></div><h2>환산 기준</h2><p>4.5 만점은 A+ 4.5, A0 4.0, B+ 3.5처럼 올라가고, 4.3 만점은 A+ 4.3, A0 4.0, A- 3.7처럼 세분됩니다. 학교마다 기준이 다를 수 있어 학칙을 확인하세요. F는 평균평점에 포함되고 취득 학점에서는 제외됩니다.</p><!--guide--><section class="guide">
+<h2>평균평점 계산법</h2>
+<p>평균평점 = Σ(과목 학점 × 성적 점수) ÷ 이수 학점 합계예요. 학점이 큰 과목일수록 평균에 더 큰 영향을 줘요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>성적</th><th>4.5 만점</th><th>4.3 만점</th></tr></thead><tbody><tr><td>A+</td><td>4.5</td><td>4.3</td></tr><tr><td>A0 (A)</td><td>4.0</td><td>4.0</td></tr><tr><td>A−</td><td>없음</td><td>3.7</td></tr><tr><td>B+</td><td>3.5</td><td>3.3</td></tr><tr><td>B0 (B)</td><td>3.0</td><td>3.0</td></tr><tr><td>C+</td><td>2.5</td><td>2.3</td></tr><tr><td>F</td><td>0</td><td>0</td></tr></tbody></table></div>
+<h2>예시로 보기</h2>
+<p>3학점 A+, 3학점 B0, 2학점 A0, 3학점 C+, 1학점 B+를 4.5 만점으로 계산하면 (13.5 + 9 + 8 + 7.5 + 3.5) ÷ 12 = <b>3.46</b>이에요.</p>
+<h2>학교마다 다른 부분</h2>
+<ul>
+<li>F를 평균에 넣는지, P/NP 과목을 빼는지, 재수강 전 성적을 지우는지는 학칙마다 달라요.</li>
+<li>100점 만점 환산 공식도 학교마다 다르니 취업·대학원 지원 때는 학교 환산표를 쓰세요.</li>
+</ul>
+<p class="reviewed">기준 검토: 2026년 10월</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>P/NP 과목은요?</h3><p>평균평점에 포함하지 않으므로 입력하지 마세요.</p><h3>재수강은 어떻게 계산하나요?</h3><p>학교 규정에 따라 다릅니다. 최종 성적만 입력하세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -38,7 +49,7 @@ function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "P/NP 과목은요?", "acceptedAnswer": {"@type": "Answer", "text": "평균평점에 포함하지 않으므로 입력하지 마세요."}}, {"@type": "Question", "name": "재수강은 어떻게 계산하나요?", "acceptedAnswer": {"@type": "Answer", "text": "학교 규정에 따라 다릅니다. 최종 성적만 입력하세요."}}]}</script><!--cj--><script>(function () {
   var doc = document, root = doc.documentElement;
   var $ = function (s, r) { return (r || doc).querySelector(s); };
@@ -212,6 +223,11 @@ load();run();</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

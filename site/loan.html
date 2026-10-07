@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>대출 이자 계산기 - 원리금균등·원금균등·만기일시</title><meta name="description" content="대출금, 금리, 기간을 입력하면 원리금균등, 원금균등, 만기일시상환 방식별 월 납입액과 총 이자를 비교 계산합니다.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/loan.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/loan.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="대출 이자 계산기"><meta property="og:description" content="대출금, 금리, 기간을 입력하면 원리금균등, 원금균등, 만기일시상환 방식별 월 납입액과 총 이자를 비교 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/loan.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>대출 이자 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
@@ -11,7 +10,24 @@
 <label for="N">기간 (개월)</label><input type="number" id="N" value="360">
 <button onclick="go()">계산하기</button></div><div id="out"></div>
 <h2>상환 방식 차이</h2><p><b>원리금균등</b>은 매월 같은 금액을 내며 초기에 이자 비중이 큽니다. <b>원금균등</b>은 원금을 똑같이 나눠 내므로 첫 달 부담이 가장 크지만 총 이자는 적습니다. <b>만기일시</b>는 매월 이자만 내고 만기에 원금을 갚습니다. 본 계산은 참고용이며 실제 금액은 금융기관 약정에 따릅니다.</p>
-<div class="faq-block"><h2>자주 묻는 질문</h2><h3>원리금균등과 원금균등 중 무엇이 유리한가요?</h3><p>총 이자는 원금균등이 적고, 초기 월 부담은 원리금균등이 낮습니다. 소득과 상환 계획에 맞게 선택하세요.</p><h3>중도상환수수료는 포함되나요?</h3><p>이 계산기는 이자만 계산하며 중도상환수수료와 각종 비용은 포함하지 않습니다.</p></div>
+<!--guide--><section class="guide">
+<h2>상환 방식 세 가지</h2>
+<ul>
+<li><b>원리금균등</b>: 매달 같은 금액. 월 납입액 = 원금 × 월이율 × (1+월이율)<sup>n</sup> ÷ ((1+월이율)<sup>n</sup> − 1)</li>
+<li><b>원금균등</b>: 원금을 n등분해서 갚고 이자는 남은 원금에 붙어요. 첫 달이 가장 많고 점점 줄어요.</li>
+<li><b>만기일시</b>: 매달 이자만 내고 마지막에 원금을 한 번에 갚아요.</li>
+</ul>
+<h2>예시로 보기 (1억 원, 연 4.5%, 30년)</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>방식</th><th>월 납입액</th><th>총 이자</th></tr></thead><tbody><tr><td>원리금균등</td><td>506,685원</td><td>82,406,712원</td></tr><tr><td>원금균등</td><td>첫 달 652,778원 → 마지막 278,819원</td><td>67,687,500원</td></tr><tr><td>만기일시</td><td>매월 이자 375,000원</td><td>135,000,000원</td></tr></tbody></table></div>
+<h2>어떤 걸 고를까?</h2>
+<ul>
+<li>총 이자를 줄이려면 원금균등이 유리하지만 초기 부담이 커요.</li>
+<li>매달 예산을 일정하게 짜야 하면 원리금균등이 편해요.</li>
+<li>대출 한도는 소득 대비 원리금 비율(DSR) 규제를 받아요. LTV·DSR 계산기로 함께 확인하세요.</li>
+<li>변동금리라면 금리가 바뀔 때마다 월 납입액도 달라집니다. 중도상환수수료도 미리 확인하세요.</li>
+</ul>
+<p class="reviewed">계산 기준 검토: 2026년 10월 · 실제 상환액은 금융기관 약정서를 따릅니다.</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원리금균등과 원금균등 중 무엇이 유리한가요?</h3><p>총 이자는 원금균등이 적고, 초기 월 부담은 원리금균등이 낮습니다. 소득과 상환 계획에 맞게 선택하세요.</p><h3>중도상환수수료는 포함되나요?</h3><p>이 계산기는 이자만 계산하며 중도상환수수료와 각종 비용은 포함하지 않습니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <h2>관련 계산기</h2><div class="tools"><a href="deposit.html">예적금 이자 계산기</a><a href="compound.html">복리 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 </main>
@@ -194,6 +210,11 @@ out.innerHTML=c('원리금균등 (월 납입액)',w(m1),t1-p)+c('원금균등 (�
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

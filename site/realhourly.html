@@ -1,12 +1,19 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>진짜 시급 계산기 - 통근·야근 포함 내 시급</title><meta name="description" content="월급을 회사에 묶인 시간(통근, 준비, 점심, 야근 포함)으로 나눠 진짜 시급을 계산합니다.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/realhourly.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/realhourly.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="진짜 시급 계산기"><meta property="og:description" content="월급을 회사에 묶인 시간(통근, 준비, 점심, 야근 포함)으로 나눠 진짜 시급을 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/realhourly.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>진짜 시급 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="pay">세후 월급 (원)</label><input type="number" id="pay" value="2800000" step="any"><label for="days">주 출근일수</label><input type="number" id="days" value="5" step="0.5"><label for="work">하루 근무시간 (점심 제외)</label><input type="number" id="work" value="8" step="0.5"><label for="lunch">점심시간 (분)</label><input type="number" id="lunch" value="60" step="any"><label for="com">통근 편도 (분)</label><input type="number" id="com" value="50" step="any"><label for="prep">출근 준비 (분)</label><input type="number" id="prep" value="40" step="any"><label for="ot">한 달 평균 야근 (시간, 무급)</label><input type="number" id="ot" value="10" step="any"><div class="result" id="r"></div></div><h2>왜 다르게 나와요?</h2><p>월급을 계약 근로시간으로만 나누면 출퇴근길, 씻고 준비하는 시간, 점심시간, 무급 야근이 빠집니다. 회사 때문에 쓰는 시간을 모두 넣으면 진짜 시급이 훨씬 낮게 나올 수 있어요. 이직이나 재택 근무를 비교할 때 참고해 보세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>통근 시간도 일한 시간인가요?</h3><p>법적으로 근로시간은 아니지만 내 시간을 쓰는 건 맞아서 비교용으로 포함했어요.</p><h3>재택이면?</h3><p>통근과 준비를 0에 가깝게 넣어 보세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="housing-clock.html">내 집 마련 시계</a><a href="freetime.html">퇴근 후 내 시간 계산기</a><a href="latestart.html">늦게 시작한 대가 계산기</a><a href="nospend.html">무지출 챌린지 계산기</a></div>
+<div class="card"><label for="pay">세후 월급 (원)</label><input type="number" id="pay" value="2800000" step="any"><label for="days">주 출근일수</label><input type="number" id="days" value="5" step="0.5"><label for="work">하루 근무시간 (점심 제외)</label><input type="number" id="work" value="8" step="0.5"><label for="lunch">점심시간 (분)</label><input type="number" id="lunch" value="60" step="any"><label for="com">통근 편도 (분)</label><input type="number" id="com" value="50" step="any"><label for="prep">출근 준비 (분)</label><input type="number" id="prep" value="40" step="any"><label for="ot">한 달 평균 야근 (시간, 무급)</label><input type="number" id="ot" value="10" step="any"><div class="result" id="r"></div></div><h2>왜 다르게 나와요?</h2><p>월급을 계약 근로시간으로만 나누면 출퇴근길, 씻고 준비하는 시간, 점심시간, 무급 야근이 빠집니다. 회사 때문에 쓰는 시간을 모두 넣으면 진짜 시급이 훨씬 낮게 나올 수 있어요. 이직이나 재택 근무를 비교할 때 참고해 보세요.</p><!--guide--><section class="guide">
+<h2>왜 "진짜" 시급인가요?</h2>
+<p>보통은 월급을 계약한 근무시간으로만 나눠요. 하지만 출퇴근, 출근 준비, 점심시간, 돈을 받지 못하는 야근도 결국 회사 때문에 쓰는 시간이에요. 이 시간을 모두 넣으면 내 시간의 실제 가격이 보입니다.</p>
+<p>진짜 시급 = 세후 월급 ÷ {(근무시간 + 점심 + 통근 왕복 + 준비) × 월 출근일 + 무급 야근}</p>
+<h2>예시로 보기 (세후 280만 원, 주 5일 8시간, 점심 1시간)</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>상황</th><th>회사에 쓰는 하루</th><th>진짜 시급</th></tr></thead><tbody><tr><td>근무시간만 계산</td><td>8시간</td><td>16,110원</td></tr><tr><td>준비 20분, 재택(통근 0)</td><td>9.3시간</td><td>13,809원</td></tr><tr><td>준비 40분, 통근 편도 50분, 월 야근 10시간</td><td>11.3시간</td><td>10,928원</td></tr></tbody></table></div>
+<p>같은 월급이라도 통근이 길면 시급이 30% 넘게 줄어들 수 있어요. 이직이나 이사를 고민할 때 연봉 숫자만이 아니라 이 값을 비교해 보세요.</p>
+<p class="reviewed">계산 기준 검토: 2026년 10월 · 법적 근로시간 계산이 아니라 개인 비교용 지표예요.</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>통근 시간도 일한 시간인가요?</h3><p>법적으로 근로시간은 아니지만 내 시간을 쓰는 건 맞아서 비교용으로 포함했어요.</p><h3>재택이면?</h3><p>통근과 준비를 0에 가깝게 넣어 보세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="housing-clock.html">내 집 마련 시계</a><a href="freetime.html">퇴근 후 내 시간 계산기</a><a href="latestart.html">늦게 시작한 대가 계산기</a><a href="nospend.html">무지출 챌린지 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -30,7 +37,7 @@ function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "통근 시간도 일한 시간인가요?", "acceptedAnswer": {"@type": "Answer", "text": "법적으로 근로시간은 아니지만 내 시간을 쓰는 건 맞아서 비교용으로 포함했어요."}}, {"@type": "Question", "name": "재택이면?", "acceptedAnswer": {"@type": "Answer", "text": "통근과 준비를 0에 가깝게 넣어 보세요."}}]}</script><!--cj--><script>(function () {
   var doc = document, root = doc.documentElement;
   var $ = function (s, r) { return (r || doc).querySelector(s); };
@@ -204,6 +211,11 @@ load();run();</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

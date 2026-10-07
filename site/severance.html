@@ -1,12 +1,33 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>퇴직금 계산기 - 평균임금 기준 퇴직금</title><meta name="description" content="입사일, 퇴사일, 최근 3개월 임금으로 법정 퇴직금을 계산합니다.">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/severance.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/severance.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="퇴직금 계산기"><meta property="og:description" content="입사일, 퇴사일, 최근 3개월 임금으로 법정 퇴직금을 계산합니다."><meta property="og:url" content="https://YOUR-DOMAIN.example/severance.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>퇴직금 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="j">입사일</label><input type="date" id="j" value="2022-03-01"><label for="l">퇴사일</label><input type="date" id="l" value="" data-off="0"><label for="w">퇴직 전 3개월 임금 총액 (원, 상여·연차수당 포함)</label><input type="number" id="w" value="9000000" step="any"><label for="d">그 3개월의 총 일수 (보통 89~92)</label><input type="number" id="d" value="92" step="any"><div class="result" id="r"></div></div><h2>계산식</h2><p>퇴직금 = 1일 평균임금 × 30일 × (재직일수 ÷ 365)입니다. 1일 평균임금은 퇴직 전 3개월 동안 받은 임금 총액을 그 기간의 총 일수로 나눠 구합니다. 연간 상여금과 연차수당 중 퇴직 전 3개월에 해당하는 몫도 임금 총액에 더해야 합니다. 이 계산기는 참고용이며 실제 지급액은 사업장 규정과 고용노동부 판단에 따릅니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>퇴직금은 몇 년 일해야 받나요?</h3><p>계속근로기간 1년 이상, 주 15시간 이상 근무한 근로자가 대상입니다.</p><h3>퇴직소득세는 반영되나요?</h3><p>아니요. 세전 금액이며 퇴직소득세는 별도로 부과됩니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
+<div class="card"><label for="j">입사일</label><input type="date" id="j" value="2022-03-01"><label for="l">퇴사일</label><input type="date" id="l" value="" data-off="0"><label for="w">퇴직 전 3개월 임금 총액 (원, 상여·연차수당 포함)</label><input type="number" id="w" value="9000000" step="any"><label for="d">그 3개월의 총 일수 (보통 89~92)</label><input type="number" id="d" value="92" step="any"><div class="result" id="r"></div></div><h2>계산식</h2><p>퇴직금 = 1일 평균임금 × 30일 × (재직일수 ÷ 365)입니다. 1일 평균임금은 퇴직 전 3개월 동안 받은 임금 총액을 그 기간의 총 일수로 나눠 구합니다. 연간 상여금과 연차수당 중 퇴직 전 3개월에 해당하는 몫도 임금 총액에 더해야 합니다. 이 계산기는 참고용이며 실제 지급액은 사업장 규정과 고용노동부 판단에 따릅니다.</p><!--guide--><section class="guide">
+<h2>퇴직금 받을 수 있는 조건</h2>
+<ul>
+<li>같은 회사에서 <b>1년 이상</b> 계속 일했어야 해요.</li>
+<li>4주 평균 <b>주 15시간 이상</b> 일했어야 해요. 아르바이트도 이 조건을 채우면 받을 수 있어요.</li>
+<li>회사는 퇴직 후 원칙적으로 14일 안에 지급해야 합니다.</li>
+</ul>
+<h2>계산 순서</h2>
+<ol>
+<li><b>1일 평균임금</b> = 퇴직 전 3개월 동안 받은 임금 총액 ÷ 그 3개월의 총 일수(보통 89~92일)</li>
+<li>임금 총액에는 기본급과 수당뿐 아니라 <b>1년 상여금의 3/12</b>, <b>전년도 미사용 연차수당의 3/12</b>도 더해요.</li>
+<li><b>퇴직금</b> = 1일 평균임금 × 30일 × (재직일수 ÷ 365)</li>
+</ol>
+<h2>예시로 보기</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>재직 기간</th><th>3개월 임금 / 일수</th><th>1일 평균임금</th><th>퇴직금</th></tr></thead><tbody><tr><td>2022.3.1 ~ 2025.2.28 (1,096일)</td><td>900만 원 / 92일</td><td>97,826원</td><td>약 8,812,388원</td></tr><tr><td>2024.6.1 ~ 2025.3.31 (304일)</td><td>750만 원 / 90일</td><td>83,333원</td><td>대상 아님 (1년 미만)</td></tr></tbody></table></div>
+<h2>자주 하는 실수</h2>
+<ul>
+<li>상여금과 연차수당을 빼고 계산해서 실제보다 적게 나오는 경우가 많아요.</li>
+<li>평균임금이 통상임금보다 적으면 통상임금으로 계산해야 합니다.</li>
+<li>퇴직소득세가 따로 붙어서 실제로 받는 돈은 조금 줄어요. 퇴직연금(DB·DC형)에 가입했다면 계산 방식이 다를 수 있습니다.</li>
+</ul>
+<p class="reviewed">계산 기준 검토: 2026년 10월 · 분쟁이 있으면 고용노동부 상담센터(국번 없이 1350)에 문의하세요.</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>퇴직금은 몇 년 일해야 받나요?</h3><p>계속근로기간 1년 이상, 주 15시간 이상 근무한 근로자가 대상입니다.</p><h3>퇴직소득세는 반영되나요?</h3><p>아니요. 세전 금액이며 퇴직소득세는 별도로 부과됩니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -32,7 +53,7 @@ function load(){try{const h=location.hash.slice(1);if(h.indexOf('=')<0)return;h.
 document.querySelectorAll('[data-off]').forEach(e=>{const d=new Date();d.setDate(d.getDate()+(+e.dataset.off));e.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())});
 IDS.forEach(i=>{const e=document.getElementById(i);e.addEventListener('input',run);e.addEventListener('change',run)});
 
-load();run();</script>
+load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "퇴직금은 몇 년 일해야 받나요?", "acceptedAnswer": {"@type": "Answer", "text": "계속근로기간 1년 이상, 주 15시간 이상 근무한 근로자가 대상입니다."}}, {"@type": "Question", "name": "퇴직소득세는 반영되나요?", "acceptedAnswer": {"@type": "Answer", "text": "아니요. 세전 금액이며 퇴직소득세는 별도로 부과됩니다."}}]}</script><!--cj--><script>(function () {
   var doc = document, root = doc.documentElement;
   var $ = function (s, r) { return (r || doc).querySelector(s); };
@@ -206,6 +227,11 @@ load();run();</script>
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>

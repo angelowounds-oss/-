@@ -1,14 +1,11 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>개인정보처리방침</title><meta name="description" content="간편계산기 개인정보처리방침">
-<link rel="canonical" href="https://YOUR-DOMAIN.example/privacy.html">
-<link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
+<title>개인정보처리방침 - 간편계산기</title><meta name="description" content="간편계산기 개인정보처리방침">
+<!--hd--><link rel="canonical" href="https://YOUR-DOMAIN.example/privacy.html"><meta property="og:type" content="website"><meta property="og:site_name" content="간편계산기"><meta property="og:title" content="개인정보처리방침"><meta property="og:description" content="간편계산기 개인정보처리방침"><meta property="og:url" content="https://YOUR-DOMAIN.example/privacy.html"><meta property="og:image" content="https://YOUR-DOMAIN.example/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="ko_KR"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="theme-color" content="#c8f542"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!--/hd--><link rel="stylesheet" href="style.css"><!--hm--><script>(function(){try{var m=localStorage.getItem('mode');if(m&&m!=='auto')document.documentElement.setAttribute('data-theme',m)}catch(e){}})()</script><!--/hm--></head><body>
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>개인정보처리방침</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><p>본 사이트는 회원가입이 없으며, 입력한 모든 값은 사용자의 브라우저에서만 처리되고 서버로 전송·저장되지 않습니다.</p>
-<h2>광고</h2><p>본 사이트는 Google AdSense 등 제3자 광고를 게재할 수 있으며, 이 과정에서 Google을 포함한 광고 사업자가 쿠키를 사용해 사용자의 방문 기록을 바탕으로 맞춤 광고를 표시할 수 있습니다. 사용자는 <a href="https://adssettings.google.com">Google 광고 설정</a>에서 맞춤 광고를 해제할 수 있습니다.</p>
-<h2>문의</h2><p>문의는 사이트 운영자 이메일로 보내주세요.</p></div>
+<div class="card"><h2 style="margin-top:0">수집하는 정보</h2><p>간편계산기는 회원가입이 없고, 계산기에 입력한 값을 서버로 보내거나 저장하지 않습니다. 모든 계산은 이용자의 브라우저 안에서 처리됩니다.</p><h2>브라우저에 저장되는 정보</h2><p>즐겨찾기, 최근 본 계산기, 포인트 색과 화면 모드, 무지출·습관 기록장의 체크 기록은 이용자의 브라우저 저장소(localStorage)에만 저장됩니다. 브라우저 데이터를 지우면 함께 사라지며 운영자는 이 정보를 볼 수 없습니다.</p><h2>공유 링크</h2><p>계산기 주소 뒤에는 입력한 숫자가 함께 붙습니다. 링크를 공유하면 받는 사람도 같은 값을 볼 수 있으니 연봉처럼 민감한 숫자가 담긴 링크는 공유할 때 주의하세요.</p><h2>광고</h2><p>이 사이트는 운영을 위해 Google AdSense 등 제3자 광고를 게재할 수 있으며, 이 경우 광고 사업자가 쿠키를 사용할 수 있습니다. 맞춤 광고는 <a href="https://adssettings.google.com">Google 광고 설정</a>에서 해제할 수 있습니다.</p><p class="reviewed">시행일: 2026년 10월</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -185,6 +182,11 @@
     });
     row.appendChild(ib);
     host.insertAdjacentElement('afterend', row);
+    if (typeof IDS !== 'undefined') {
+      var note = doc.createElement('p'); note.className = 'sharenote';
+      note.textContent = '공유 링크에는 입력한 숫자가 함께 담겨요. 연봉처럼 민감한 값은 공유할 때 주의하세요.';
+      row.insertAdjacentElement('afterend', note);
+    }
   }
 })();
 </script><!--/cj--></body></html>
