@@ -149,7 +149,13 @@ body.touch #helpov{display:none!important}
 #elevCard{width:min(420px,92vw);padding:20px;border-radius:18px}
 #elevCard h2{margin:0 0 4px;font-size:13px;letter-spacing:.24em;color:var(--cyan)}
 #elevCard p{margin:0 0 14px;font-size:11px;color:var(--muted)}
-#elevBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#elevRow{display:flex;gap:8px;align-items:stretch}
+#elevNum{flex:1;min-width:0;text-align:center;font:800 40px ui-monospace,monospace;letter-spacing:.12em;padding:8px;border-radius:12px;border:1px solid var(--line);background:#0c1422;color:#47ffa8;outline:none}
+#elevNum:focus{border-color:var(--cyan)}
+#elevGo{width:96px;margin:0}
+#elevInfo{min-height:20px;margin:10px 0 6px;font-size:12px;color:var(--muted);text-align:center}
+#elevInfo.bad{color:#ff8a5c}
+#elevBtns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .eb{padding:12px 6px;border-radius:12px;border:1px solid var(--line);background:#0e1626;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit}
 .eb b{font-size:22px;font-variant-numeric:tabular-nums}.eb small{font-size:10px;color:var(--muted)}
 .eb:hover{border-color:var(--cyan);background:#12223a;box-shadow:0 0 18px rgba(77,227,255,.25)}
@@ -230,7 +236,7 @@ body.touch #helpov{display:none!important}
   <button id="bNade" class="mb foot" type="button">NADE</button>
   <button id="bPause" class="mb" type="button">II</button>
 </div>
-<div id="elev"><div id="elevCard" class="glass"><h2 id="elevTitle">ELEVATOR</h2><p>층을 선택하세요 (숫자키 1~9 · Esc 닫기)</p><div id="elevBtns"></div></div></div>
+<div id="elev"><div id="elevCard" class="glass"><h2 id="elevTitle">ELEVATOR</h2><p id="elevSub">이동할 층 번호를 입력하세요 · Enter 이동 · Esc 닫기</p><div id="elevRow"><input id="elevNum" type="text" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="층"><button id="elevGo" class="pbtn p" type="button">이동</button></div><div id="elevInfo"></div><div id="elevBtns"></div></div></div>
 <div id="inv"><div id="invCard" class="glass"><header><h2 id="invT">가방</h2><span id="invW" style="font-size:11px;color:var(--muted)"></span><button class="xb" id="invX" type="button">닫기 (Esc)</button></header><div id="invCols"><section id="invLS"><h3 id="invLT">소지품</h3><ul class="ul" id="invL"></ul></section><section id="invRS"><h3 id="invRT"></h3><ul class="ul" id="invR"></ul></section></div><div id="invF"></div></div></div>
 <div id="pause"><div id="pc" class="glass">
   <h2>PAUSED</h2>

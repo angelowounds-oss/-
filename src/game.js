@@ -644,19 +644,25 @@ export class Game {
     }
     this.where = inside ? info : null;
   }
+  // lift panel: type the floor number (1 .. top, R = roof) instead of picking from a button grid that overflows in tall towers
   openElevatorUI(b) {
-    const list = b.levels, cur = b.elev.level;
-    const box = el('elevBtns'); box.innerHTML = '';
+    const list = b.levels, cur = b.elev.level, top = list.length - 1;
     const names = { lobby: '로비', retail: '상점가', apartment: '레지던스', office: '오피스', hotel: '호텔', roof: '옥상' };
-    for (let k = list.length - 1; k >= 0; k--) {
-      const f = list[k];
-      const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'eb' + (k === cur ? ' cur' : '');
-      bt.innerHTML = `<b>${f.tier === 'roof' ? 'R' : k + 1}</b><small>${names[f.type]}</small>`;
-      bt.onclick = () => { this.closeElevatorUI(); b.elev.send(k); };
-      box.appendChild(bt);
+    const label = (k) => (list[k].tier === 'roof' ? '옥상' : `${k + 1}층`) + ` · ${names[list[k].type]}`;
+    const num = el('elevNum'), info = el('elevInfo'), box = el('elevBtns');
+    const parse = (t) => { t = t.trim().toLowerCase(); if (!t) return -1; if (t === 'r') return top; const n = parseInt(t, 10); return Number.isFinite(n) && n >= 1 && n <= top + 1 ? n - 1 : -1; };
+    const upd = () => { const k = parse(num.value); if (!num.value.trim()) { info.className = ''; info.textContent = `현재 ${label(cur)} · 1 ~ ${top} 층, R = 옥상`; } else if (k < 0) { info.className = 'bad'; info.textContent = `없는 층입니다 (1 ~ ${top}, R = 옥상)`; } else { info.className = ''; info.textContent = k === cur ? `이미 ${label(k)}` : `→ ${label(k)}`; } };
+    const go = (k) => { if (k < 0 || k === cur) return upd(); this.closeElevatorUI(); b.elev.send(k); };
+    el('elevGo').onclick = () => go(parse(num.value));
+    box.innerHTML = '';
+    for (const [t, k] of [['로비', 0], ['▼ 아래층', Math.max(0, cur - 1)], ['▲ 위층', Math.min(top, cur + 1)], ['옥상', top]]) {
+      const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'pbtn'; bt.style.cssText = 'margin:0;padding:10px 4px;font-size:12px'; bt.textContent = t; bt.onclick = () => go(k); box.appendChild(bt);
     }
-    el('elevTitle').textContent = b.name;
+    num.value = ''; num.oninput = () => { num.value = num.value.replace(/[^0-9rR]/g, ''); upd(); };
+    num.onkeydown = (e) => { e.stopPropagation(); if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); go(parse(num.value)); } else if (e.code === 'Escape') { e.stopImmediatePropagation(); this.closeElevatorUI(); } };
+    el('elevTitle').textContent = b.name; upd();
     el('elev').classList.add('on'); this.uiModal = true; this.input.unlock();
+    setTimeout(() => num.focus(), 30);
     this._elevKey = (e) => { if (e.code === 'Escape') { e.stopImmediatePropagation(); this.closeElevatorUI(); } };
     addEventListener('keydown', this._elevKey, true);
   }

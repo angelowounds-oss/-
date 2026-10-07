@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Builder } from './gfx.js';
+import { Builder , holeCU, holeHU } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
@@ -365,7 +365,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
+  const uniforms = { uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
@@ -379,7 +379,7 @@ function createFacadeMaterial() {
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;`,
     fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
-      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -387,6 +387,7 @@ function createFacadeMaterial() {
         if(k<3.5)return vec3(.55,.35,1.);if(k<4.5)return vec3(.2,1.,.6);return vec3(1.,.22,.32);
       }`,
     fragMain: `
+      for(int i=0;i<16;i++){vec4 hc=uHoleC[i];if(hc.w<.5)continue;vec3 hd=abs(vWP-hc.xyz)-uHoleH[i].xyz;if(max(hd.x,max(hd.y,hd.z))<0.)discard;}   // breached outer walls are open from outside too
       vec3 N=normalize(vWN);float seed=vInfo.x;float style=vInfo.y;vec3 acc=accentOf(vInfo.z);
       vec3 base=diffuseColor.rgb;vec3 alb=base;fRough=.85;fMetal=0.;fEmit=vec3(0.);
       float topY=vSz.y;

@@ -5,7 +5,8 @@ import { rand } from './util.js';
 // Breaching charges: stick one on an interior wall (G), it blows a doorway-sized hole after a short fuse.
 // The hole is real: the wall's colliders are split around it, the wall surface is not drawn inside it (shader, gfx.js),
 // and it is saved, so it is cut again whenever that floor is rebuilt.
-const FUSE = 3.0, HW = 0.72, HH = 1.06, HT = 0.36;   // hole half width / half height / half thickness
+const FUSE = 3.0, HW = 0.72, HH = 1.06;   // hole half width / half height; depth follows the wall that was hit
+const DENY = new Set(['glass', 'furniture', 'slab', 'moving', 'canvas']);   // everything else that is a wall can be breached
 
 export class Breach {
   constructor(G) {
@@ -17,12 +18,16 @@ export class Breach {
     this.ledMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.1, 0.1).multiplyScalar(3), toneMapped: false });
     this.updateUniforms();
   }
-  // the wall in front of the player, if it can be breached
+  // the wall in front of the player, if it can be breached (any wall: partitions, outer walls, pillars, the stair / lift core)
   wallAhead(pl) {
     const G = this.G, yaw = G.cam.yaw, dx = Math.sin(yaw), dz = Math.cos(yaw);
-    const hit = G.phys.ray(pl.x, pl.y + 1.1, pl.z, dx, 0, dz, 1.7, 1);
-    if (!hit || !hit.ref || hit.ref.tag !== 'part' || Math.abs(hit.ny) > 0.3) return null;
-    return { x: pl.x + dx * hit.t, y: pl.y + 1.1, z: pl.z + dz * hit.t, nx: hit.nx, nz: hit.nz, box: hit.ref };
+    // chest height first; windows and furniture in the way are skipped by probing lower / higher
+    for (const hy of [1.1, 0.5, 1.7, 0.2]) {
+      const hit = G.phys.ray(pl.x, pl.y + hy, pl.z, dx, 0, dz, 1.7, 1);
+      if (!hit || !hit.ref || DENY.has(hit.ref.tag) || hit.ref.h == null || Math.abs(hit.ny) > 0.3) continue;
+      return { x: pl.x + dx * hit.t, y: pl.y + hy, z: pl.z + dz * hit.t, nx: hit.nx, nz: hit.nz, box: hit.ref };
+    }
+    return null;
   }
   provide(pl, out) {
     const G = this.G;
@@ -60,12 +65,17 @@ export class Breach {
     for (const b of G.buildings.active) for (const [k, fl] of b.floors) if (fl.boxes.includes(c.box)) { found = { b, k, fl }; break; }
     G.explosion(c.x + c.nx * 0.3, c.y, c.z + c.nz * 0.3, 3.4, 40, G.player);
     if (!found) return;
-    const L = found.b.levels[found.k], along = Math.abs(c.nx) > Math.abs(c.nz) ? 'z' : 'x';   // wall runs along this axis
+    const L = found.b.levels[found.k], b0 = c.box, alongZ = Math.abs(c.nx) > Math.abs(c.nz);   // wall runs along z when its normal is x
     const cx = c.x, cz = c.z, y0 = L.y + 0.02, y1 = L.y + 0.02 + HH * 2;
-    const h = along === 'z' ? { x0: cx - HT, x1: cx + HT, z0: cz - HW, z1: cz + HW } : { x0: cx - HW, x1: cx + HW, z0: cz - HT, z1: cz + HT };
+    // depth: the thickness of the wall that was hit (a big solid block is cut 1 m deep around the hit point)
+    const thick = alongZ ? b0.x1 - b0.x0 : b0.z1 - b0.z0, mid = alongZ ? (b0.x0 + b0.x1) / 2 : (b0.z0 + b0.z1) / 2;
+    const dep = thick > 1.4 ? 0.5 : thick / 2 + 0.07, dc = thick > 1.4 ? (alongZ ? cx : cz) : mid;
+    const h = alongZ ? { x0: dc - dep, x1: dc + dep, z0: cz - HW, z1: cz + HW } : { x0: cx - HW, x1: cx + HW, z0: dc - dep, z1: dc + dep };
     const hole = { b: found.b.id, k: found.k, ...h, y0, y1 };
     this.holes.push(hole);
     this.cut(found.fl, hole);
+    // windows inside the opening shatter with the wall
+    for (const gb of [...found.fl.glass]) { const e = gb.pane.ex; if (e[3] > h.x0 && e[0] < h.x1 && e[5] > h.z0 && e[2] < h.z1 && e[4] > y0 && e[1] < y1) found.b.breakPane(gb, G.player); }
     this.updateUniforms();
     // dust and rubble
     for (let n = 0; n < 24; n++) G.smokeP.emit(cx + rand(-0.6, 0.6), y0 + rand(0.2, 2), cz + rand(-0.6, 0.6), rand(-1.5, 1.5), rand(0.2, 1.2), rand(-1.5, 1.5), rand(2, 4), rand(1.2, 2.4), 0.16, 0.15, 0.14, 0.7, 0.3, 0.5);
@@ -85,7 +95,7 @@ export class Breach {
       col.removeBox(b); fl.boxes.splice(fl.boxes.indexOf(b), 1);
     }
     for (const b of fl.boxes) {
-      if (b.tag !== 'part') continue;
+      if (DENY.has(b.tag)) continue;
       if (b.x1 <= h.x0 || b.x0 >= h.x1 || b.z1 <= h.z0 || b.z0 >= h.z1 || b.h <= h.y0 || (b.y0 || 0) >= h.y1) continue;
       hit.push(b);
     }
