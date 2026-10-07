@@ -21,7 +21,7 @@ const DOW=d=>['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Satur
 const pad=n=>String(n).padStart(2,'0');
 const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
 const IDS=["a", "b", "n", "u"];
-function compute(v){const a=Math.floor(v.a),b=Math.floor(v.b),n=Math.floor(v.n);if(!(b>=a)||!(n>=1)||n>1000)return 'Check the range and count (1 to 1000).';const size=b-a+1;
+function compute(v){const a=Math.floor(v.a),b=Math.floor(v.b),n=Math.floor(v.n);if(!(b>=a)||!(n>=1)||n>1000)return 'Check the range and count (1 to 1000).';const size=b-a+1;if(size>4294967296)return 'Please use a range smaller than 4 billion.';
 if(v.u==='no'&&n>size)return 'You asked for more numbers than the range contains.';
 const rnd=m=>{const u=new Uint32Array(1),lim=Math.floor(4294967296/m)*m;let x;do{crypto.getRandomValues(u);x=u[0]}while(x>=lim);return x%m};
 const out=[];if(v.u==='yes'){for(let i=0;i<n;i++)out.push(a+rnd(size))}else{const seen=new Set();while(out.length<n){const x=a+rnd(size);if(!seen.has(x)){seen.add(x);out.push(x)}}}

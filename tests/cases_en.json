@@ -1609,6 +1609,20 @@
   "name": "ratio"
  },
  {
+  "slug": "random",
+  "inputs": {
+   "a": "1",
+   "b": "1000000000000000",
+   "n": "3",
+   "u": "yes"
+  },
+  "expect": [
+   "smaller than 4 billion"
+  ],
+  "click": null,
+  "name": "random-huge"
+ },
+ {
   "slug": "textcase",
   "inputs": {
    "t": "hello World foo",

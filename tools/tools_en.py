@@ -505,7 +505,7 @@ let o='<b>Aspect ratio '+(w/d)+':'+(h/d)+'</b> ('+N2(w/h,3)+':1)';if(v.nw>0)o+='
     tool("random", "Random Number Generator", "play", "pick random numbers in a range",
          "Generate one or more random whole numbers between a minimum and maximum, with or without repeats.",
          [N("a", "Minimum", 1, "1"), N("b", "Maximum", 100, "1"), N("n", "How many", 5, "1"), S("u", "Duplicates", [("no", "No repeats"), ("yes", "Allow repeats")])],
-         r'''const a=Math.floor(v.a),b=Math.floor(v.b),n=Math.floor(v.n);if(!(b>=a)||!(n>=1)||n>1000)return 'Check the range and count (1 to 1000).';const size=b-a+1;
+         r'''const a=Math.floor(v.a),b=Math.floor(v.b),n=Math.floor(v.n);if(!(b>=a)||!(n>=1)||n>1000)return 'Check the range and count (1 to 1000).';const size=b-a+1;if(size>4294967296)return 'Please use a range smaller than 4 billion.';
 if(v.u==='no'&&n>size)return 'You asked for more numbers than the range contains.';
 const rnd=m=>{const u=new Uint32Array(1),lim=Math.floor(4294967296/m)*m;let x;do{crypto.getRandomValues(u);x=u[0]}while(x>=lim);return x%m};
 const out=[];if(v.u==='yes'){for(let i=0;i<n;i++)out.push(a+rnd(size))}else{const seen=new Set();while(out.length<n){const x=a+rnd(size);if(!seen.has(x)){seen.add(x);out.push(x)}}}
