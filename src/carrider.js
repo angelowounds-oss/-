@@ -51,18 +51,24 @@ export class CarRider {
     pl.group.updateMatrixWorld(true);
   }
 
-  // ------------------------------------------------------------------ roof riding (before the character moves)
+  // ------------------------------------------------------------------ roof riding
+  // The character controller does not collide with vehicles (cars are solid to people through the OBB push-out in game.js), so the roof is a
+  // virtual floor here: standing / falling onto the car's footprint at roof height mounts it, then the person is carried with the car.
+  roofTop(v) { return v.pv.body.translation().y + 0.54; }               // collider centre +0.12, half height 0.42
+  inFoot(v, x, z, m = 0) {
+    const s = Math.sin(v.h), c = Math.cos(v.h), dx = x - v.x, dz = z - v.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+    return Math.abs(lx) < v.W / 2 * 0.98 + m && Math.abs(lz) < v.L / 2 * 0.98 + m;
+  }
   before(dt) {
     const G = this.G, pl = G.player, c3 = pl.body3, r = this.roof;
-    if (!r) { c3.rideHandle = null; return; }
+    if (!r) return;
     const v = r.v;
     if (!v.pv || v.dead || pl.swimming || pl.rag) { this.leave(); return; }
-    // carry: same place in the car's frame
+    // carry: same place in the car's frame, standing on the roof
     const s = Math.sin(v.h), c = Math.cos(v.h);
-    const tx = v.x + c * r.lx + s * r.lz, tz = v.z - s * r.lx + c * r.lz;
-    c3.shift(tx - pl.x, (v.vy || 0) * dt, tz - pl.z);
-    pl.x = c3.x; pl.z = c3.z; pl.y = c3.y;
-    c3.rideHandle = v.pv.body.handle;
+    const tx = v.x + c * r.lx + s * r.lz, tz = v.z - s * r.lx + c * r.lz, top = this.roofTop(v);
+    c3.shift(tx - pl.x, top - pl.y, tz - pl.z);
+    pl.x = c3.x; pl.z = c3.z; pl.y = c3.y; c3.grounded = true; c3.vy = -2;
     // shaken off?
     const dvx = v.vx - r.pvx, dvz = v.vz - r.pvz; r.pvx = v.vx; r.pvz = v.vz;
     this.accS += (Math.hypot(dvx, dvz) / Math.max(dt, 1e-3) - this.accS) * Math.min(1, dt * 8);
@@ -74,22 +80,28 @@ export class CarRider {
   after(dt) {
     const G = this.G, pl = G.player, c3 = pl.body3;
     if (G.vehicle || pl.dead || pl.rag) { this.roof = null; return; }
-    let r = this.roof;
+    const r = this.roof;
     if (r) {
-      const v = r.v, s = Math.sin(v.h), c = Math.cos(v.h), dx = pl.x - v.x, dz = pl.z - v.z;
+      const v = r.v, s = Math.sin(v.h), c = Math.cos(v.h), top = this.roofTop(v), dx = pl.x - v.x, dz = pl.z - v.z;
+      if (c3.vy > 1 || pl.hang || pl.mantle) { this.leave(); return; }      // jumped off / grabbed something
       r.lx = dx * c - dz * s; r.lz = dx * s + dz * c;
-      const off = Math.abs(r.lx) > v.W / 2 + 0.35 || Math.abs(r.lz) > v.L / 2 + 0.35;
-      this.air = c3.grounded ? 0 : this.air + dt;
-      if (off || this.air > 0.25 || pl.y - (v.pv.body.translation().y) < -0.2) this.leave();
+      if (!this.inFoot(v, pl.x, pl.z, 0.1)) { this.leave(); return; }      // walked off the edge
+      c3.shift(0, top - pl.y, 0); pl.y = c3.y; c3.grounded = true; c3.vy = -2;   // stay on the roof surface
       return;
     }
-    // find a roof under the feet
-    if (!c3.grounded || pl.y < 0.8) return;
-    const hit = G.phys.ray(pl.x, pl.y + 0.3, pl.z, 0, -1, 0, 0.7, 2);
-    const v = hit && this.vehicleOf(hit.collider); if (!v) return;
-    const s = Math.sin(v.h), c = Math.cos(v.h), dx = pl.x - v.x, dz = pl.z - v.z;
-    this.roof = { v, lx: dx * c - dz * s, lz: dx * s + dz * c, pvx: v.vx, pvz: v.vz }; this.accS = 0; this.air = 0;
-    if (!this._hint) { this._hint = true; G.toast('차 지붕 위', '급제동·급회전하면 떨어진다 · <kbd>Z</kbd> 엎드려 버티기'); }
+    // mounting: feet at roof height over the footprint of a car that is not racing past
+    if (pl.mantle || pl.hang || pl.swimming) return;
+    for (const v of G.vehicles) {
+      if (!v.pv || v.dead || v.spec.craft || Math.abs(v.x - pl.x) > 4 || Math.abs(v.z - pl.z) > 4) continue;
+      const top = this.roofTop(v);
+      if (pl.y < top - 0.45 || pl.y > top + 0.2 || c3.vy > 1.5 || !this.inFoot(v, pl.x, pl.z)) continue;
+      if (v.speed > MOUNT_MAX * 1.8) continue;
+      const s = Math.sin(v.h), c = Math.cos(v.h), dx = pl.x - v.x, dz = pl.z - v.z;
+      this.roof = { v, lx: dx * c - dz * s, lz: dx * s + dz * c, pvx: v.vx, pvz: v.vz }; this.accS = 0;
+      c3.shift(0, top - pl.y, 0); pl.y = c3.y; c3.grounded = true; c3.vy = -2; pl.vx = pl.vz = 0;
+      if (!this._hint) { this._hint = true; G.toast('차 지붕 위', '급제동·급회전하면 떨어진다 · <kbd>Z</kbd> 엎드려 버티기'); }
+      break;
+    }
   }
   leave() {
     const G = this.G, pl = G.player, r = this.roof; if (!r) return;
