@@ -16,7 +16,7 @@ export async function open(url, { width = 960, height = 540, init, ctx } = {}) {
     P.compileShader = function (sh) { cs.call(this, sh); window.__SHADERS.compiled++; if (!this.getShaderParameter(sh, this.COMPILE_STATUS)) window.__SHADERS.failed.push({ log: String(this.getShaderInfoLog(sh)).slice(0, 300), head: String(sh.__src || '').slice(0, 120) }); };
   });
   if (init) await page.addInitScript(init);
-  await page.goto(url + (process.env.AETHER_HASH || ''), { timeout: 240000 });
+  await page.goto(url + (process.env.AETHER_HASH || ''), { timeout: +(process.env.AETHER_GOTO_TIMEOUT || 240000) });
   return { browser, page, log };
 }
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
