@@ -79,18 +79,32 @@ export class Human {
     return false;
   }
   die(from, src) {
+    const sp0 = this.speed;
     this.dead = true; this.deadT = 0; this.state = 'dead'; this.speed = 0;
     this.G.onHumanKilled?.(this, src);
     this.fallDir = rand(-1, 1);
     this.m.pistol.visible = false; this.m.rifle.visible = false;
+    // physical ragdoll when there is room for one; otherwise the death clip
+    const lh = this.lastHit && this.G.time - this.lastHit.t < 0.1 ? this.lastHit : null; this.speed = sp0;
+    const rag = this.G.ragdolls?.spawn(this, { cause: lh ? 'bullet' : 'other', alive: false, hit: lh });
+    this.speed = 0;
+    if (rag) { this.clipDeath = false; return; }
     this.clipDeath = !!(this.m.playOnce && this.m.playOnce('U_Death01'));
     if (this.clipDeath) { this.m.body.rotation.set(0, 0, 0); this.m.body.position.y = 0; }
   }
-  ragdoll(vx, vz, up = 4) { this.knock = 1; this.vx = vx; this.vz = vz; this.vy = up; }
+  ragdoll(vx, vz, up = 4) {
+    if (this.G.ragdolls?.knock(this, vx, vz, up)) return;
+    this.knock = 1; this.vx = vx; this.vz = vz; this.vy = up;
+  }
 
   update(dt) {
     const G = this.G;
     if (this.hitFlash > 0) this.hitFlash -= dt;
+    if (this.rag) {   // physical ragdoll owns the body: skeleton is driven by the physics
+      if (this.dead) { this.deadT += dt; if (this.deadT > 22) this.group.scale.setScalar(Math.max(0.001, 1 - (this.deadT - 22) * 0.8)); return; }
+      if (this.rag.getUpTick(dt)) return;
+      return;
+    }
     if (this.dead) {
       this.deadT += dt;
       const k = Math.min(1, this.deadT * 3);

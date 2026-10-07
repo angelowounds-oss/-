@@ -88,7 +88,7 @@ export function createCraftBody(phys, spec, x, y, z, heading) {
   if (spec.craft === 'heli') desc = desc.enabledRotations(false, true, false);
   const body = w.createRigidBody(desc);
   const hx = spec.W / 2, hz = spec.L / 2, hy = spec.craft === 'heli' ? 0.9 : 0.4;
-  const col = w.createCollider(R.ColliderDesc.cuboid(hx, hy, spec.craft === 'heli' ? 3.2 : hz).setTranslation(0, spec.craft === 'heli' ? 0.3 : 0.0, 0).setMass(mass).setFriction(0.3).setRestitution(0.12).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS)), body);
+  const col = w.createCollider(R.ColliderDesc.cuboid(hx, hy, spec.craft === 'heli' ? 3.2 : hz).setTranslation(0, spec.craft === 'heli' ? 0.3 : 0.0, 0).setMass(mass).setFriction(0.3).setRestitution(0.12).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS | GR.RAG | GR.RAGL)), body);
   const v = { body, col, ctrl: null, mass, spec };
   (phys.vehicles || (phys.vehicles = [])).push(v); phys.bodies.set(body.handle, v);
   return v;

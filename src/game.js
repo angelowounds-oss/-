@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { addRipple } from './world.js';
+import { RagdollSystem, RAG_TUNE } from './ragdoll.js';
 import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
@@ -76,6 +77,7 @@ export class Game {
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
     this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt;
+    this.ragdolls = new RagdollSystem(this);
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
@@ -838,6 +840,10 @@ export class Game {
     const px = ox + dx * best, py = oy + dy * best, pz = oz + dz * best;
     if ((kind === 'world' || kind === 'ground') && this.memory) this.memory.markHit(px, py, pz, kind === 'world' ? this._hitN : null);
     if (kind === 'human') {
+      { // remember where and how this person was hit: a ragdoll created by the kill uses it for the impulse
+        const hy = py - (obj.y || 0), segId = head || hy > 1.5 ? 'head' : hy > 1.15 ? 'chest' : hy > 0.85 ? 'abdomen' : hy > 0.45 ? (Math.random() < 0.5 ? 'thighL' : 'thighR') : (Math.random() < 0.5 ? 'shinL' : 'shinR');
+        obj.lastHit = { t: this.time, seg: segId, dir: { x: dx, y: dy, z: dz }, point: { x: px, y: py, z: pz }, j: Math.min(RAG_TUNE.bulletJMax, damage * RAG_TUNE.bulletJ * (head ? 0.6 : 1)) };
+      }
       obj.hurt(damage * (head ? headMul : 1), owner, head, owner);
       this.fx.sparks(px, py, pz, 3, [1, 0.2, 0.3], 5);
       if (owner === this.player) { this.noise(px, pz, 25); this.alertCivs(px, pz, 22); }
@@ -1088,7 +1094,8 @@ export class Game {
       active.push(v);
     }
     for (const v of active) v.control(dt);
-    this.phys.step(dt, () => { for (const v of active) v.applyDrive(); }, active.map((v) => v.pv));
+    this.phys.step(dt, (sdt) => { for (const v of active) v.applyDrive(); this.ragdolls.preStep(sdt); }, active.map((v) => v.pv));
+    this.ragdolls.postStep(dt); this.ragdolls.syncBones();
     for (const v of active) v.post(dt);
     this.phys.syncProps(THREE);
     this.vehicleVsHumans();
@@ -1108,7 +1115,7 @@ export class Game {
       else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
         const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
-        if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.scene.remove(h.group); this.humans.splice(i, 1); }
+        if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.ragdolls.destroy(h); this.scene.remove(h.group); this.humans.splice(i, 1); }
       }
     }
   }

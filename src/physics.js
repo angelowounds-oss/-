@@ -5,7 +5,7 @@ export const PHYS = {
   mass: 1300, rest: 0.34, radius: 0.35, connY: -0.12, bodyY: 0.78,
 };
 
-export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32 };
+export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32, RAG: 64, RAGL: 128 };
 export const RAY_DEFAULT = 1 | 16 | 8 | 32;
 export const grp = (mem, filt) => ((mem << 16) | filt) >>> 0;
 const ALL = 0xffff;
@@ -128,7 +128,7 @@ export class Physics {
     const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
     const body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, PHYS.bodyY, z).setRotation(q)
       .setLinearDamping(0.04).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true).setGravityScale(PHYS.vehGravScale));
-    const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS)), body);
+    const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS | GR.RAG | GR.RAGL)), body);
     // low centre of mass + realistic inertia
     const ix = (mass / 12) * (4 * hy * hy + 4 * hz * hz) * 0.55, iy = (mass / 12) * (4 * hx * hx + 4 * hz * hz) * 0.7, iz = (mass / 12) * (4 * hx * hx + 4 * hy * hy) * 0.55;
     body.setAdditionalMassProperties(mass, { x: 0, y: -0.42, z: 0 }, { x: ix, y: iy, z: iz }, { x: 0, y: 0, z: 0, w: 1 });

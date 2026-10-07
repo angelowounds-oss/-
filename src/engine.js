@@ -12,10 +12,10 @@ import hdriSuite from '../assets/env/interior_suite.rgbe';
 import hdriDay from '../assets/env/day_street.rgbe';
 
 export const QUALITY = [
-  { name: 'LOW', shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
-  { name: 'MEDIUM', shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 80, parked: 28, rain: 3000, far: 1 },
-  { name: 'HIGH', shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 120, parked: 40, rain: 4500, far: 1 },
-  { name: 'ULTRA', shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 160, parked: 52, rain: 6000, far: 1 },
+  { name: 'LOW', ragdolls: 3, ragDist: 35, shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
+  { name: 'MEDIUM', ragdolls: 5, ragDist: 50, shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 80, parked: 28, rain: 3000, far: 1 },
+  { name: 'HIGH', ragdolls: 8, ragDist: 60, shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 120, parked: 40, rain: 4500, far: 1 },
+  { name: 'ULTRA', ragdolls: 10, ragDist: 70, shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 160, parked: 52, rain: 6000, far: 1 },
 ];
 
 // Final color grade: chromatic aberration, vignette, film grain, speed/radial blur, damage tint
