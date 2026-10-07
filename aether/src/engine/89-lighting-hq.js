@@ -32,7 +32,7 @@ function hqSH(cube,size){const lvl=Math.max(0,Math.round(Math.log2(size/16))),s=
 function hqInit(){HQ.ok=false;try{if(!lighting||!lighting.probes)throw Error('M10 probes missing');
   if(!gl.getExtension('EXT_color_buffer_float'))throw Error('float targets missing');
   HQ.prefProg=liveCompile(HQ_PREFILTER);const size=M10_SETTINGS.probeSize;
-  HQ.pref.forEach(t=>gl.deleteTexture(t));HQ.pref=lighting.probes.map(p=>hqPrefilter(p,size));HQ.sh=lighting.probes.map(p=>hqSH(p,size));
+  HQ.pref.forEach(t=>gl.deleteTexture(t));HQ.pref=lighting.probes.map(p=>hqPrefilter(p,size));HQ.sh=lighting.probes.map((p,i)=>i===0&&lighting.shBase?lighting.shBase:hqSH(p,size));/* diffuse light comes from the capture WITHOUT the virtual studio panels, which only feed specular reflections */
   for(const n of ['pref0','pref1','hq','sh0','sh1','csmMap','csmVP','csmSplit','csmOn','pcss','csmTexel','camFwd','clearcoat','prefLod','ambK','vatlas','vdebug','paint','paintR'])loc[n]=gl.getUniformLocation(program,'u_'+n);
   /* energy match: diffuse ambient keeps the M10 brightness at an upward normal, SH supplies direction and colour */
   const E=hqIrr(HQ.sh[0],[0,1,0]),lum=(.2126*E[0]+.7152*E[1]+.0722*E[2])/Math.PI;HQ.ambK=Math.min(4,Math.max(.25,.40*.85/Math.max(lum,1e-4)));

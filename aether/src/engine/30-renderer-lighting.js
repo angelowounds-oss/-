@@ -166,7 +166,7 @@ function initLighting(){
   /* fixed units for the M6 samplers so cube and 2D samplers never share a unit */gl.useProgram(program);gl.uniform1i(gl.getUniformLocation(program,'u_pref0'),4);gl.uniform1i(gl.getUniformLocation(program,'u_pref1'),5);gl.uniform1i(gl.getUniformLocation(program,'u_csmMap'),6);
   for(const u of [4,5]){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_CUBE_MAP,lighting.dummy)}gl.activeTexture(gl.TEXTURE0);
   AETHER.M10={implementationReady:false,exposure:M10_SETTINGS.exposure,whiteBalance:'neutral warm industrial, approximately 4500K',reflection:'two scene-captured box-projected cubemaps',probeResolution:M10_SETTINGS.probeSize,shadowResolution:lighting.shadowSize,externalEnvironment:false,visualApproval:'PENDING',browserVerified:false,limitations:['Cubemap mip blur approximates rough reflections; not GGX-prefiltered IBL','Static facility captures exclude vehicle and transparent surfaces','Overhead directional shadow approximates distributed ceiling fixtures','Device performance and visual review pending']};
-  renderLightingShadow(true);captureLightingProbes();hqInit();AETHER.M10.implementationReady=true;AETHER.M10.capturedFaces=lighting.capturedFaces;
+  renderLightingShadow(true);lighting.shBase=null;if(STUDIO_ON){captureLightingProbes(false);lighting.shBase=hqSH(lighting.probes[0],M10_SETTINGS.probeSize)}captureLightingProbes(true);hqInit();AETHER.M10.implementationReady=true;AETHER.M10.capturedFaces=lighting.capturedFaces;
   AETHER.M9.limitations=['M9/M10 device visual approval remains pending'];
   if(AETHER.M7)AETHER.M7.opticalModel='single optical surface, Fresnel tint and scene-captured indoor reflection';
  }catch(e){disposeLighting();throw e}finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);gl.viewport(0,0,glCanvas.width,glCanvas.height);gl.clearColor(.08,.11,.13,1);gl.activeTexture(gl.TEXTURE0);}
@@ -193,7 +193,25 @@ function bindLighting(capture=false){
  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,lighting.shadow);gl.uniform1i(loc.shadowMap,2);
  gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_CUBE_MAP,capture?lighting.dummy:lighting.probes[1]);gl.uniform1i(loc.env1,3);gl.activeTexture(gl.TEXTURE0);
 }
-function captureLightingProbes(){
+/* virtual photo-studio softboxes: emissive panels that exist ONLY in the probe-0 capture (never drawn in the scene), so every glossy surface (clear-coat body, wheels, polished floor) reflects long soft highlights.
+   Each panel is three nested quads, dimmer toward the rim, so the prefiltered mips have a soft edge. Radiance is capture units (hdr/8 clamp, so <= 8). */
+const STUDIO_ON=!/studio=0/.test(location.hash);
+const STUDIO_PANELS=[
+ {c:[0,6.5,0],u:[4.5,0,0],v:[0,0,.45],n:[0,-1,0],col:[1,.95,.88],E:7},
+ {c:[0,6.5,2.2],u:[4,0,0],v:[0,0,.18],n:[0,-1,0],col:[.82,.92,1],E:5},
+ {c:[0,6.5,-2.2],u:[4,0,0],v:[0,0,.18],n:[0,-1,0],col:[.82,.92,1],E:5},
+ {c:[0,1.95,4.8],u:[4,0,0],v:[0,1.65,0],n:[0,0,-1],col:[.84,.93,1],E:3.2},
+ {c:[0,1.95,-4.8],u:[4,0,0],v:[0,1.65,0],n:[0,0,1],col:[.84,.93,1],E:3.2}];
+function drawStudioPanels(){
+ const id=identityMatrix(),layers=[[1.25,.22],[1.1,.55],[1,1]];
+ for(const P of STUDIO_PANELS)layers.forEach(([k,e],li)=>{
+  const c=P.c.map((x,i)=>x-P.n[i]*li*.02),pos=[],at=(a,b)=>{for(let i=0;i<3;i++)pos.push(c[i]+P.u[i]*k*a+P.v[i]*k*b)};at(-1,-1);at(1,-1);at(1,1);at(-1,1);
+  const cr=[P.u[1]*P.v[2]-P.u[2]*P.v[1],P.u[2]*P.v[0]-P.u[0]*P.v[2],P.u[0]*P.v[1]-P.u[1]*P.v[0]],flip=cr[0]*P.n[0]+cr[1]*P.n[1]+cr[2]*P.n[2]<0;
+  const m=bindMesh(new Float32Array(pos),new Float32Array([...P.n,...P.n,...P.n,...P.n]),new Float32Array(8),new Uint16Array(flip?[0,2,1,0,3,2]:[0,1,2,0,2,3]));
+  drawMesh(m,id,{color:[...P.col,1],colorLinear:true,surface:[.9,0,P.E*e,0]});
+  gl.deleteBuffer(m.pb);gl.deleteBuffer(m.nb);gl.deleteBuffer(m.ub);gl.deleteBuffer(m.ib)})
+}
+function captureLightingProbes(studio=true){
  const directions=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]],ups=[[0,-1,0],[0,-1,0],[0,0,1],[0,0,-1],[0,-1,0],[0,-1,0]],id=identityMatrix();
  gl.bindFramebuffer(gl.FRAMEBUFFER,lighting.probeFBO);gl.drawBuffers([gl.COLOR_ATTACHMENT0]);gl.readBuffer(gl.COLOR_ATTACHMENT0);gl.viewport(0,0,M10_SETTINGS.probeSize,M10_SETTINGS.probeSize);gl.useProgram(program);bindLighting(true);gl.clearColor(0,0,0,1);
  for(let p=0;p<2;p++){
@@ -202,6 +220,7 @@ function captureLightingProbes(){
    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_CUBE_MAP_POSITIVE_X+f,lighting.probes[p],0);lightingFramebufferCheck('probe '+p+'/'+f);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    const target=eye.map((v,i)=>v+directions[f][i]),vp=matMul(perspective(90,1,.05,100),lookAt(eye,target,ups[f]));gl.uniformMatrix4fv(loc.model,false,id);gl.uniformMatrix4fv(loc.mvp,false,vp);
    for(const o of scene.objects)if(o.visible&&o.gpu&&o.material!=='glass')drawMesh(o.gpu,o.tunnelRole==='rotating'&&YAW.rad?yawMatrix():id,{color:lightingColor(o),surface:surfaceFor(o),belt:o.name==='belt',beltTravel:0});
+   if(p===0&&studio&&STUDIO_ON)drawStudioPanels();
    lighting.capturedFaces++;
   }
  }
