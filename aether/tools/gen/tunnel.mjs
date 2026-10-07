@@ -11,6 +11,7 @@ export const MATERIALS = [
   { name: 'ControlRoomPaint', base: [.2, .22, .26, 1], metallic: 0, roughness: .55 },
   { name: 'PlenumPaint', base: [.62, .64, .66, 1], metallic: 0, roughness: .62 },
   { name: 'ConcreteFloor', base: [.17, .18, .19, 1], metallic: 0, roughness: .8 },
+  { name: 'DisplayScreen', base: [1, 1, 1, 1], metallic: 0, roughness: .3 },
   { name: 'PolishedFloor', base: [.045, .05, .058, 1], metallic: 0, roughness: .18 },
   { name: 'LedCyan', base: [.03, .55, 1, 1], metallic: 0, roughness: .3 },
   { name: 'LedAmber', base: [1, .38, .05, 1], metallic: 0, roughness: .3 },
@@ -321,6 +322,22 @@ function lightMeshes() {
   return [lights, beams, mark];
 }
 
+// ---------- wall LED display on the -Z side (faces +Z, toward the control room and the car); the screen texture is drawn live by the engine (87j-display.js) ----------
+const DISPLAY = { x0: -3.2, x1: 3.0, y0: 2.2, y1: 3.9 };
+function displayMeshes() {
+  const p = SPEC.plenum, zf = -(p.zh - p.wedge.depth - .15) + .005, zb = -(p.zh - p.wedge.depth) , b = .08, d = DISPLAY;
+  const bez = new Mesh('AETHER_WALL_DISPLAY_BEZEL', 'BlackPowderCoat', { category: 'led fixture', role: 'static' });
+  // four frame bars that overlap in plan (no shared coplanar faces) plus a back plate behind the screen, all slightly different in depth so no two boxes touch face to face
+  bez.box([d.x0 - b, d.y0 - b, zb], [d.x1 + b, d.y0, zf - .005]); bez.box([d.x0 - b, d.y1, zb + .01], [d.x1 + b, d.y1 + b, zf - .006]);
+  bez.box([d.x0 - b, d.y0 + .001, zb + .02], [d.x0, d.y1 - .001, zf - .007]); bez.box([d.x1, d.y0 + .001, zb + .02], [d.x1 + b, d.y1 - .001, zf - .007]);
+  bez.box([d.x0 + .001, d.y0 + .001, zb + .03], [d.x1 - .001, d.y1 - .001, zf - .04]);
+  const scr = new Mesh('AETHER_WALL_DISPLAY', 'DisplayScreen', { category: 'display', role: 'static', emissive: true });
+  // counter-clockwise seen from +Z (normal +Z); a viewer on the +Z side looking toward -Z sees +x to the right, so u runs with x
+  scr.tri([d.x0, d.y0, zf], [d.x1, d.y0, zf], [d.x1, d.y1, zf], { uv: [[0, 0], [1, 0], [1, 1]] });
+  scr.tri([d.x0, d.y0, zf], [d.x1, d.y1, zf], [d.x0, d.y1, zf], { uv: [[0, 0], [1, 1], [0, 1]] });
+  return [bez, scr];
+}
+
 // ---------- LED accent lines: walking-boundary guide lines on the floor, a ring around the turntable, outlines around the nozzle exit and the collector mouth ----------
 function ledMeshes() {
   const S = SPEC, p = S.plenum, n = S.nozzle, c = S.collector, t = S.turntable, dr = S.door;
@@ -343,7 +360,7 @@ function ledMeshes() {
   const hs = new Mesh('AETHER_LED_HOUSINGS', 'BlackPowderCoat', { category: 'led fixture', role: 'static' });
   const yc = p.y1 - p.wedge.depth - .14, zc = p.zh - p.wedge.depth - .16;
   for (const sg of [-1, 1]) cy.box([p.x0 + .6, yc, sg * zc - .025], [p.x1 - .6, yc + .05, sg * zc + .025]);
-  for (let i = 0; i < 7; i++) { const x = p.x0 + 3 + i * 3.6; if (Math.abs(x - (dr.x0 + dr.x1) / 2) < 1.6) continue; for (const sg of [-1, 1]) { const zz = sg * (zg + .06); cy.box([x - .025, .35, zz - .02], [x + .025, 2.9, zz + .02]); hs.box([x - .06, .28, zz - .05], [x + .06, .35, zz + .05]); hs.box([x - .06, 2.9, zz - .05], [x + .06, 2.97, zz + .05]); hs.box([x - .035, .35, zz + sg * .03 - .01], [x + .035, 2.9, zz + sg * .03 + .01]); } }
+  for (let i = 0; i < 7; i++) { const x = p.x0 + 3 + i * 3.6; if (Math.abs(x - (dr.x0 + dr.x1) / 2) < 1.6) continue; for (const sg of [-1, 1]) { if (sg < 0 && x > DISPLAY.x0 - .3 && x < DISPLAY.x1 + .3) continue; const zz = sg * (zg + .06); cy.box([x - .025, .35, zz - .02], [x + .025, 2.9, zz + .02]); hs.box([x - .06, .28, zz - .05], [x + .06, .35, zz + .05]); hs.box([x - .06, 2.9, zz - .05], [x + .06, 2.97, zz + .05]); hs.box([x - .035, .35, zz + sg * .03 - .01], [x + .035, 2.9, zz + sg * .03 + .01]); } }
   const nz = D.nozzleAt(p.x0), ch = D.collectorAt(c.throatX);
   outline(cy, p.x0, 1, nz.hw + .18, nz.h + .18); outline(am, p.x1, -1, ch.hw + .12, ch.h + .12);
   return [cy, am, hs];
@@ -353,7 +370,7 @@ export function buildTunnel() {
   const parts = [];
   const { walls, ceil, fh, bh } = shellMeshes();
   const w = SPEC.window, win = [w.x0, w.x1, w.y0, w.y1];
-  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...fanRoomMeshes());
+  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...displayMeshes(), ...fanRoomMeshes());
   return parts;
 }
 export { rrLoop, D };
