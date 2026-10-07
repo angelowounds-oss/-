@@ -472,7 +472,7 @@ export class RagdollSystem {
   }
   // floors that are about to disappear: freeze everything lying in the box
   bakeInBox(x0, z0, x1, z1, y0, y1) {
-    for (const r of this.list) { if (r.state === 'BAKED') continue; const p = r.bodies[0].translation(); if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1 && p.y > y0 - 1 && p.y < y1 + 1) r.bake(); }
+    for (const r of this.list) { if (r.state === 'BAKED' || r.state === 'GETUP' || !r.bodies[0]) continue; const p = r.bodies[0].translation(); if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1 && p.y > y0 - 1 && p.y < y1 + 1) r.bake(); }
   }
-  bakeAll() { for (const r of this.list) if (r.state !== 'BAKED') r.bake(); }
+  bakeAll() { for (const r of this.list) if (r.state !== 'BAKED' && r.state !== 'GETUP') r.bake(); }
 }
