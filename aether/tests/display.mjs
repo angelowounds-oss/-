@@ -1,4 +1,4 @@
-/* global __DISP __LIVE __YAW */
+/* global __DISP __YAW __CINE */
 // Wall LED display: exists, gets a texture, shows live values, respects the start-up transient and #display=0. node tests/display.mjs
 import path from 'node:path'; import fs from 'node:fs';
 import { open, sleep } from './lib.mjs';

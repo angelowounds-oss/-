@@ -5,12 +5,12 @@
    so the panel says so itself. Off with #display=0. */
 const DISP={on:!/display=0/.test(location.hash),w:2048,h:560,cv:null,cx:null,tex:null,obj:null,last:0,histT:0,hist:[],gen:-1,draws:0};
 window.__DISP=DISP;
-function dispInit(){const o=scene.objects.find(q=>q.name==='tv2.AETHER_WALL_DISPLAY');if(!o)return false;
+function dispInit(){const os=scene.objects.filter(q=>q.name==='tv2.AETHER_WALL_DISPLAY'||q.name==='tv2.AETHER_CTRL_WALL_DISPLAY'),o=os.find(q=>q.name==='tv2.AETHER_WALL_DISPLAY')||os[0];if(!o)return false;
  if(!DISP.cv){DISP.cv=document.createElement('canvas');DISP.cv.width=DISP.w;DISP.cv.height=DISP.h;DISP.cx=DISP.cv.getContext('2d',{alpha:false})}
  if(DISP.gen!==runtimeGeneration||!DISP.tex){DISP.tex=gl.createTexture();gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,DISP.tex);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,DISP.w,DISP.h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);DISP.gen=runtimeGeneration}
- DISP.obj=o;o.texture=DISP.tex;return true}
+ DISP.obj=o;DISP.objs=os;for(const q of os)q.texture=DISP.tex;return true}
 function dispVals(){const F=LIVE.forces,ok=!!(LIVE.ok&&F&&Number.isFinite(F.Cd)&&(LIVE.t||0)>=4),U=LIVE.U;/* the first seconds are the start-up transient: no coefficients shown until 4 s of simulated time */
  return {ok,U,q:.5*1.2*U*U,Cd:ok?(F.CdMean??F.Cd):null,CdStd:ok&&Number.isFinite(F.CdStd)?F.CdStd:null,Cl:ok&&Number.isFinite(F.ClMean??F.Cl)?(F.ClMean??F.Cl):null,ClStd:ok&&Number.isFinite(F.ClStd)?F.ClStd:null,yaw:window.__YAW?.deg||0,ride:AERO.rideMm,pitch:AERO.pitchDeg,tier:LIVE.q||'–',cell:LIVE.h?Math.min(...LIVE.h)*100:null,t:LIVE.t||0,
   state:AETHER.M14?.getSnapshot?.()?.control?.emergencyStopped?'E-STOP':(LIVE.freeze?'PAUSED':(LIVE.ok?'RUNNING':'WAITING'))}}
@@ -32,7 +32,7 @@ function dispDraw(){const c=DISP.cx,W=DISP.w,H=DISP.h,v=dispVals(),cy='#52e3ff',
   T(hi.toFixed(2),cx0+cw+10,cy0+22,22,dim,'500');T(lo.toFixed(2),cx0+cw+10,cy0+ch,22,dim,'500');void mu}
  else T(LIVE.ok?'settling (first 4 s)…':'waiting for flow…',cx0+24,cy0+ch/2,28,dim,'500');
  T('QUALITATIVE · coarse-grid CFD, boundary layer not resolved · ± = std over last 8 s · not a measurement',W/2,H-24,24,dim,'500','center')}
-function dispStep(now){if(!DISP.on||DISP.err||!gl||gl.isContextLost())return;try{dispStep2(now)}catch(e){DISP.err=String(e?.message||e);DISP.obj&&(DISP.obj.texture=null)}}
+function dispStep(now){if(!DISP.on||DISP.err||!gl||gl.isContextLost())return;try{dispStep2(now)}catch(e){DISP.err=String(e?.message||e);for(const q of DISP.objs||[])q.texture=null}}
 function dispStep2(now){if(!DISP.obj||DISP.gen!==runtimeGeneration){if(!dispInit())return}
  if(now-DISP.histT>500){DISP.histT=now;const F=LIVE.forces;if(LIVE.ok&&F&&Number.isFinite(F.Cd)&&!LIVE.freeze){DISP.hist.push(F.CdMean??F.Cd);if(DISP.hist.length>80)DISP.hist.shift()}else if(!F)DISP.hist.length=0}
  if(now-DISP.last<200)return;DISP.last=now;dispDraw();

@@ -11,6 +11,8 @@ export const MATERIALS = [
   { name: 'ControlRoomPaint', base: [.2, .22, .26, 1], metallic: 0, roughness: .55 },
   { name: 'PlenumPaint', base: [.62, .64, .66, 1], metallic: 0, roughness: .62 },
   { name: 'ConcreteFloor', base: [.17, .18, .19, 1], metallic: 0, roughness: .8 },
+  { name: 'RoomLight', base: [1, .93, .82, 1], metallic: 0, roughness: .3 },
+  { name: 'ControlRoomFloor', base: [.06, .07, .085, 1], metallic: 0, roughness: .65 },
   { name: 'DisplayScreen', base: [1, 1, 1, 1], metallic: 0, roughness: .3 },
   { name: 'PolishedFloor', base: [.045, .05, .058, 1], metallic: 0, roughness: .18 },
   { name: 'LedCyan', base: [.03, .55, 1, 1], metallic: 0, roughness: .3 },
@@ -338,6 +340,28 @@ function displayMeshes() {
   return [bez, scr];
 }
 
+// ---------- control room interior: dark floor, ceiling light panels, cove and base LED lines, a video wall on the back wall (same live texture as the plenum display) ----------
+function controlRoomInterior() {
+  const S = SPEC, p = S.plenum, w = S.window, cr = S.controlRoom, z0 = p.zh, rx0 = w.x0 - 1.5, rx1 = w.x1 + 1.5, rz1 = z0 + cr.depth, ry0 = cr.floorY, ry1 = 3.8;
+  const carpet = new Mesh('AETHER_CONTROL_CARPET', 'ControlRoomFloor', { category: 'control room', role: 'static' });
+  carpet.quad([rx0 + .02, ry0 + .002, z0 + .02], [rx1 - .02, ry0 + .002, z0 + .02], [rx1 - .02, ry0 + .002, rz1 - .02], [rx0 + .02, ry0 + .002, rz1 - .02], { toward: [0, ry1, (z0 + rz1) / 2] });
+  const lights = new Mesh('AETHER_CONTROL_LIGHTS', 'RoomLight', { category: 'lighting recess', role: 'static', emissive: true });
+  for (const x of [-3.2, -.6, 2.0]) for (const z of [8.0, 10.2]) lights.box([x - .8, ry1 - .06, z - .25], [x + .8, ry1 - .004, z + .25]);
+  const am = new Mesh('AETHER_CONTROL_COVE', 'LedAmber', { category: 'led strip', role: 'static', emissive: true }), cy = new Mesh('AETHER_CONTROL_BASE_LED', 'LedCyan', { category: 'led strip', role: 'static', emissive: true });
+  am.box([rx0 + .1, ry1 - .1, rz1 - .06], [rx1 - .1, ry1 - .05, rz1 - .02]); am.box([rx0 + .02, ry1 - .1, z0 + .5], [rx0 + .06, ry1 - .05, rz1 - .1]); am.box([rx1 - .06, ry1 - .1, z0 + .5], [rx1 - .02, ry1 - .05, rz1 - .1]);
+  cy.box([rx0 + .1, ry0 + .004, rz1 - .06], [rx1 - .1, ry0 + .03, rz1 - .02]); cy.box([rx0 + .02, ry0 + .004, z0 + .5], [rx0 + .06, ry0 + .03, rz1 - .1]); cy.box([rx1 - .06, ry0 + .004, z0 + .5], [rx1 - .02, ry0 + .03, rz1 - .1]);
+  // video wall: 7.2 x 1.97 m, same aspect as the canvas (2048 x 560); faces -Z, so +x is to the viewer's left and u runs against x
+  const X0 = -4.4, X1 = 2.8, Y0 = 1.45, Y1 = 3.42, zs = rz1 - .06, b = .07;
+  const bez = new Mesh('AETHER_VIDEO_WALL_BEZEL', 'BlackPowderCoat', { category: 'led fixture', role: 'static' });
+  bez.box([X0 - b, Y0 - b, zs + .005], [X1 + b, Y0, rz1 - .005]); bez.box([X0 - b, Y1, zs + .006], [X1 + b, Y1 + b, rz1 - .006]);
+  bez.box([X0 - b, Y0 + .001, zs + .007], [X0, Y1 - .001, rz1 - .007]); bez.box([X1, Y0 + .001, zs + .007], [X1 + b, Y1 - .001, rz1 - .007]);
+  bez.box([X0 + .001, Y0 + .001, zs + .02], [X1 - .001, Y1 - .001, rz1 - .008]);
+  const scr = new Mesh('AETHER_CTRL_WALL_DISPLAY', 'DisplayScreen', { category: 'display', role: 'static', emissive: true });
+  scr.tri([X1, Y0, zs], [X0, Y0, zs], [X0, Y1, zs], { uv: [[0, 0], [1, 0], [1, 1]] });
+  scr.tri([X1, Y0, zs], [X0, Y1, zs], [X1, Y1, zs], { uv: [[0, 0], [1, 1], [0, 1]] });
+  return [carpet, lights, am, cy, bez, scr];
+}
+
 // ---------- LED accent lines: walking-boundary guide lines on the floor, a ring around the turntable, outlines around the nozzle exit and the collector mouth ----------
 function ledMeshes() {
   const S = SPEC, p = S.plenum, n = S.nozzle, c = S.collector, t = S.turntable, dr = S.door;
@@ -370,7 +394,7 @@ export function buildTunnel() {
   const parts = [];
   const { walls, ceil, fh, bh } = shellMeshes();
   const w = SPEC.window, win = [w.x0, w.x1, w.y0, w.y1];
-  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...displayMeshes(), ...fanRoomMeshes());
+  parts.push(...floorMesh(), walls, ceil, wedges([fh, bh, win]), ...nozzleMeshes(), ...settlingMeshes(), ...collectorMeshes(), ...turntableMeshes(), ...windowMeshes(), ...lightMeshes(), ...ledMeshes(), ...displayMeshes(), ...controlRoomInterior(), ...fanRoomMeshes());
   return parts;
 }
 export { rrLoop, D };
