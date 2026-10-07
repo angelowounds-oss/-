@@ -125,3 +125,10 @@ footer .modebtn{margin:0;padding:3px 12px;font-size:13px;background:transparent;
 .tbl th{background:var(--paper);font-weight:700}.tbl tr:last-child td{border-bottom:0}
 .reviewed{font-size:13px;color:var(--muted)}
 .sharenote{font-size:13px;color:var(--muted);margin:-8px 0 16px}
+.fb{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:28px 0 8px;padding:14px 16px;border:2px dashed var(--ink);border-radius:14px;background:var(--card)}
+.fb .fbq{font-weight:700;margin-right:4px}
+.fb button{margin:0;padding:6px 14px;font-size:14px;border-width:2px;box-shadow:none;background:var(--paper);color:var(--fg)}
+.fb button:hover{background:var(--lime);color:#141414;transform:none}
+.fb a{font-size:14px;font-weight:700}
+.fb .fbt{flex-basis:100%;font-size:14px;color:var(--muted)}.fb .fbt:empty{display:none}
+.fb.voted button{display:none}

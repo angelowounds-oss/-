@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>진법 변환기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="n">숫자</label><input type="text" id="n" value="255"><label for="b">입력 진법</label><select id="b"><option value="10">10진수</option><option value="2">2진수</option><option value="8">8진수</option><option value="16">16진수</option></select><div class="result" id="r"></div></div><h2>안내</h2><p>2^53(약 9천조) 이하의 정수까지 정확합니다. 16진수는 영문 대소문자를 구분하지 않습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>16진수 앞의 0x는요?</h3><p>0x는 빼고 숫자만 입력하세요.</p><h3>음수는요?</h3><p>지원하지 않습니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
+<div class="card"><label for="n">숫자</label><input type="text" id="n" value="255"><label for="b">입력 진법</label><select id="b"><option value="10">10진수</option><option value="2">2진수</option><option value="8">8진수</option><option value="16">16진수</option></select><div class="result" id="r"></div></div><h2>안내</h2><p>2^53(약 9천조) 이하의 정수까지 정확합니다. 16진수는 영문 대소문자를 구분하지 않습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>16진수 앞의 0x는요?</h3><p>0x는 빼고 숫자만 입력하세요.</p><h3>음수는요?</h3><p>지원하지 않습니다.</p></div><!--fb--><div class="fb" data-slug="base"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -100,6 +100,21 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

@@ -17,7 +17,7 @@
 <h2>꼭 확인할 점</h2><p>배달 수입은 보통 세전 금액입니다. 라이더는 대부분 사업소득자로 3.3% 원천징수 후 종합소득세 신고 대상이고, 산재·고용보험 가입 여부에 따라 보험료가 따로 들 수 있습니다. 이 계산기는 유류비와 월 고정비만 뺀 단순 추정이며, 세금과 보험료는 반영하지 않았습니다. 입력값은 본인 상황에 맞게 바꿔 사용하세요.</p>
 <div class="faq-block"><h2>자주 묻는 질문</h2><h3>건당 단가는 어떻게 정하나요?</h3><p>플랫폼과 거리, 시간대마다 달라서 직접 입력하도록 했습니다. 최근 한 달 평균을 넣어 보세요.</p><h3>세금은 반영되나요?</h3><p>아니요. 3.3% 원천징수와 보험료는 반영하지 않은 참고용 추정입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<h2>관련 계산기</h2><div class="tools"><a href="margin.html">판매 마진 계산기</a><a href="breakeven.html">손익분기점 계산기</a></div>
+<!--fb--><div class="fb" data-slug="rider"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="margin.html">판매 마진 계산기</a><a href="breakeven.html">손익분기점 계산기</a></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const w=n=>Math.round(n).toLocaleString('ko-KR')+'원';
@@ -94,6 +94,21 @@ document.querySelectorAll('input').forEach(i=>i.oninput=go);go();</script><scrip
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

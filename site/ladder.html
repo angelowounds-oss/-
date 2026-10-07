@@ -11,7 +11,7 @@
 하은</textarea><label for="prizes">결과 (이름과 같은 순서로)</label><textarea id="prizes" style="min-height:120px">커피 쏘기
 통과
 통과
-통과</textarea><canvas id="lad" width="360" height="420" style="display:block;width:100%;height:auto;margin:16px auto" aria-label="사다리"></canvas><div class="actions" id="who"></div><div class="actions"><button type="button" id="showall">전체 결과 보기</button><button type="button" id="newlad" class="ghost">새 사다리 만들기</button></div><div class="result" id="r" aria-live="polite"></div></div><h2>사용 방법</h2><p>이름과 결과를 같은 순서로 적으면 사다리가 만들어져요. 이름 버튼을 누르면 그 사람의 길이 표시되고 결과가 나옵니다. 입력을 바꾸면 사다리가 새로 만들어져요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가로줄은 어떻게 정하나요?</h3><p>무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요.</p><h3>결과를 미리 알 수 있나요?</h3><p>사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="roulette.html">메뉴 룰렛</a><a href="quiz.html">소비 유형 테스트</a></div>
+통과</textarea><canvas id="lad" width="360" height="420" style="display:block;width:100%;height:auto;margin:16px auto" aria-label="사다리"></canvas><div class="actions" id="who"></div><div class="actions"><button type="button" id="showall">전체 결과 보기</button><button type="button" id="newlad" class="ghost">새 사다리 만들기</button></div><div class="result" id="r" aria-live="polite"></div></div><h2>사용 방법</h2><p>이름과 결과를 같은 순서로 적으면 사다리가 만들어져요. 이름 버튼을 누르면 그 사람의 길이 표시되고 결과가 나옵니다. 입력을 바꾸면 사다리가 새로 만들어져요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>가로줄은 어떻게 정하나요?</h3><p>무작위로 놓되 같은 줄에 가로선이 붙어 있지 않게 해요.</p><h3>결과를 미리 알 수 있나요?</h3><p>사다리가 만들어진 뒤에는 이름을 눌러 확인하기 전까지 숨겨져 있어요.</p></div><!--fb--><div class="fb" data-slug="ladder"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="roulette.html">메뉴 룰렛</a><a href="quiz.html">소비 유형 테스트</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -145,6 +145,21 @@
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

@@ -30,7 +30,7 @@
 <p class="reviewed">기준 검토: 2026년 10월</p>
 </section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>자기소개서 글자수는 공백 포함인가요?</h3><p>기업마다 다릅니다. 지원 공고에 '공백 포함/제외'가 명시되어 있으니 확인 후 해당 수치를 보세요.</p><h3>문자메시지는 몇 바이트까지 SMS인가요?</h3><p>SMS는 90바이트(한글 45자) 이하이며, 초과하면 LMS로 발송됩니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<h2>관련 계산기</h2><div class="tools"><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a><a href="gpa.html">학점 계산기</a></div>
+<!--fb--><div class="fb" data-slug="char-count"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="percent.html">퍼센트 계산기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a><a href="gpa.html">학점 계산기</a></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
 <script>const t=document.getElementById('t');t.addEventListener('input',()=>{const v=t.value;
@@ -105,6 +105,21 @@ let n=0;for(const ch of v)n+=ch.charCodeAt(0)>127?2:1;d.textContent=n;});</scrip
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

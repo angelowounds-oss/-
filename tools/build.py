@@ -7,6 +7,7 @@ SITE = (os.environ.get("SITE_URL") or "https://YOUR-DOMAIN.example").rstrip("/")
 ADSENSE = os.environ.get("ADSENSE_CLIENT", "").strip()      # ca-pub-XXXXXXXXXXXXXXXX
 GOATCOUNTER = os.environ.get("GOATCOUNTER_CODE", "").strip()  # e.g. mysite -> mysite.goatcounter.com
 CONTACT = os.environ.get("CONTACT_EMAIL", "").strip()
+FEEDBACK_URL = os.environ.get("FEEDBACK_URL", "").strip()  # e.g. a Google Form link
 FONT_URL = "https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "site")
 AD = '<div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>'
@@ -1030,7 +1031,7 @@ def static_pages():
         '<h2>공유 링크</h2><p>계산기 주소 뒤에는 입력한 숫자가 함께 붙습니다. 링크를 공유하면 받는 사람도 같은 값을 볼 수 있으니 연봉처럼 민감한 숫자가 담긴 링크는 공유할 때 주의하세요.</p>'
         + ('<h2>광고</h2><p>이 사이트는 Google AdSense 광고를 게재합니다. Google을 포함한 제3자 광고 사업자는 쿠키를 사용해 이용자의 이 사이트 및 다른 사이트 방문 기록을 바탕으로 광고를 표시할 수 있습니다. 맞춤 광고는 <a href="https://adssettings.google.com">Google 광고 설정</a>에서 해제할 수 있습니다.</p>' if ADSENSE else
            '<h2>광고</h2><p>이 사이트는 운영을 위해 Google AdSense 등 제3자 광고를 게재할 수 있으며, 이 경우 광고 사업자가 쿠키를 사용할 수 있습니다. 맞춤 광고는 <a href="https://adssettings.google.com">Google 광고 설정</a>에서 해제할 수 있습니다.</p>')
-        + ('<h2>방문 통계</h2><p>어떤 페이지가 많이 쓰이는지 알기 위해 쿠키를 쓰지 않는 GoatCounter로 페이지 조회 수를 집계합니다. 개인을 식별하는 정보는 수집하지 않습니다.</p>' if GOATCOUNTER else '')
+        + ('<h2>방문 통계</h2><p>어떤 페이지가 많이 쓰이는지 알기 위해 쿠키를 쓰지 않는 GoatCounter로 페이지 조회 수와 계산기 아래 "도움됐어요·아쉬워요" 버튼을 누른 횟수를 집계합니다. 개인을 식별하는 정보는 수집하지 않습니다.</p>' if GOATCOUNTER else '')
         + (f'<h2>문의</h2><p>개인정보 관련 문의는 <b>{CONTACT}</b>로 보내 주세요.</p>' if CONTACT else '')
         + '<p class="reviewed">시행일: 2026년 10월</p></div>')
     write("privacy.html", shell("privacy.html", "개인정보처리방침 - 간편계산기", "간편계산기 개인정보처리방침", "개인정보처리방침", privacy))
@@ -1072,6 +1073,16 @@ def inject_common():
         s = s.replace('<link rel="stylesheet" href="style.css">', head_block(b, s) + '<link rel="stylesheet" href="style.css">', 1)
         s = re.sub(r"<!--guide-->.*?<!--/guide-->", "", s, flags=re.S)
         slug = b[:-5]
+        s = re.sub(r"<!--fb-->.*?<!--/fb-->", "", s, flags=re.S)
+        if b not in ("index.html", "about.html", "terms.html", "privacy.html"):
+            fb = ('<!--fb--><div class="fb" data-slug="' + slug + '"><span class="fbq">이 계산기 어땠나요?</span>'
+                  '<button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button>'
+                  + (f'<a href="{FEEDBACK_URL}" target="_blank" rel="noopener">의견 보내기</a>' if FEEDBACK_URL else '')
+                  + '<span class="fbt" role="status"></span></div><!--/fb-->')
+            if "<h2>관련 계산기</h2>" in s:
+                s = s.replace("<h2>관련 계산기</h2>", fb + "<h2>관련 계산기</h2>", 1)
+            else:
+                s = s.replace("</main>", fb + "</main>", 1)
         if slug in GUIDES:
             g = '<!--guide--><section class="guide">' + GUIDES[slug] + '</section><!--/guide-->'
             s = s.replace('<div class="faq-block">', g + '<div class="faq-block">', 1) if '<div class="faq-block">' in s else s

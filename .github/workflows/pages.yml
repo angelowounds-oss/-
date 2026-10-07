@@ -31,6 +31,7 @@ jobs:
           ADSENSE_CLIENT: ${{ vars.ADSENSE_CLIENT }}
           GOATCOUNTER_CODE: ${{ vars.GOATCOUNTER_CODE }}
           CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          FEEDBACK_URL: ${{ vars.FEEDBACK_URL }}
         run: python3 tools/build.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

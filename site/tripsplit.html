@@ -8,7 +8,7 @@
 <div class="card"><label for="t">쓴 사람 금액 (한 줄에 하나, 여러 번 써도 돼요)</label><textarea id="t" style="min-height:130px">민수 120000
 지영 80000
 서준 45000
-민수 30000</textarea><label for="x">지출은 없지만 함께한 사람 (한 줄에 한 명)</label><textarea id="x" style="min-height:130px">하은</textarea><div class="result" id="r"></div></div><h2>정산 방식</h2><p>총 지출을 모두 같은 비율로 나누고, 더 낸 사람이 돌려받도록 송금 횟수를 줄여서 계산합니다. 사람마다 쓴 항목이 다르면 항목별로 나눠 각각 계산한 뒤 합치세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원 단위는 어떻게 처리하나요?</h3><p>반올림해서 표시하니 합계가 1~2원 다를 수 있어요.</p><h3>이름이 같으면?</h3><p>같은 이름은 한 사람으로 합산됩니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a></div>
+민수 30000</textarea><label for="x">지출은 없지만 함께한 사람 (한 줄에 한 명)</label><textarea id="x" style="min-height:130px">하은</textarea><div class="result" id="r"></div></div><h2>정산 방식</h2><p>총 지출을 모두 같은 비율로 나누고, 더 낸 사람이 돌려받도록 송금 횟수를 줄여서 계산합니다. 사람마다 쓴 항목이 다르면 항목별로 나눠 각각 계산한 뒤 합치세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>원 단위는 어떻게 처리하나요?</h3><p>반올림해서 표시하니 합계가 1~2원 다를 수 있어요.</p><h3>이름이 같으면?</h3><p>같은 이름은 한 사람으로 합산됩니다.</p></div><!--fb--><div class="fb" data-slug="tripsplit"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -106,6 +106,21 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

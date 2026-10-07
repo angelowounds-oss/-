@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a></nav></header>
 <main><h1>1RM 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="w">들어 올린 무게 (kg)</label><input type="number" id="w" value="60" step="any"><label for="r">반복 횟수</label><input type="number" id="r" value="8" step="1"><div class="result" id="r"></div></div><h2>Epley 공식</h2><p>1RM = 무게 × (1 + 반복 횟수 ÷ 30)입니다. 10회 이내 세트에서 비교적 잘 맞고 횟수가 많을수록 오차가 커집니다. 실제 1RM 도전은 보조자와 함께 안전하게 하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>1RM을 직접 재야 하나요?</h3><p>부상 위험이 있어 추정치를 쓰는 경우가 많습니다.</p><h3>근력 운동은 몇 %로 하나요?</h3><p>근비대는 보통 65~80%, 근력은 80% 이상을 많이 씁니다.</p></div><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a></div>
+<div class="card"><label for="w">들어 올린 무게 (kg)</label><input type="number" id="w" value="60" step="any"><label for="r">반복 횟수</label><input type="number" id="r" value="8" step="1"><div class="result" id="r"></div></div><h2>Epley 공식</h2><p>1RM = 무게 × (1 + 반복 횟수 ÷ 30)입니다. 10회 이내 세트에서 비교적 잘 맞고 횟수가 많을수록 오차가 커집니다. 실제 1RM 도전은 보조자와 함께 안전하게 하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>1RM을 직접 재야 하나요?</h3><p>부상 위험이 있어 추정치를 쓰는 경우가 많습니다.</p><h3>근력 운동은 몇 %로 하나요?</h3><p>근비대는 보통 65~80%, 근력은 80% 이상을 많이 씁니다.</p></div><!--fb--><div class="fb" data-slug="onerm"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="bmr.html">기초대사량 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -99,6 +99,21 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

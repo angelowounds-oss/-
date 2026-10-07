@@ -10,7 +10,7 @@
 마라탕
 초밥
 떡볶이
-파스타</textarea><canvas id="wheel" width="360" height="360" style="display:block;width:100%;max-width:360px;height:auto;margin:18px auto 0" aria-label="룰렛 판"></canvas><div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="r" aria-live="polite"></div></div><h2>사용 방법</h2><p>메뉴를 한 줄에 하나씩 쓰고 돌리기를 누르세요. 후보는 최대 20개까지 가능해요. 결과가 마음에 안 들어도 한 번 정했으면 따르는 게 룰렛의 규칙입니다. 룰렛 돌리기 전에 먹기 싫은 메뉴는 빼 두세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정말 무작위인가요?</h3><p>브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다.</p><h3>메뉴 목록이 저장되나요?</h3><p>아니요. 새로고침하면 처음 목록으로 돌아가요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="ladder.html">사다리타기</a><a href="quiz.html">소비 유형 테스트</a></div>
+파스타</textarea><canvas id="wheel" width="360" height="360" style="display:block;width:100%;max-width:360px;height:auto;margin:18px auto 0" aria-label="룰렛 판"></canvas><div style="text-align:center"><button type="button" id="spin">돌리기</button></div><div class="result" id="r" aria-live="polite"></div></div><h2>사용 방법</h2><p>메뉴를 한 줄에 하나씩 쓰고 돌리기를 누르세요. 후보는 최대 20개까지 가능해요. 결과가 마음에 안 들어도 한 번 정했으면 따르는 게 룰렛의 규칙입니다. 룰렛 돌리기 전에 먹기 싫은 메뉴는 빼 두세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정말 무작위인가요?</h3><p>브라우저의 난수로 미리 당첨 칸을 정한 뒤 그 칸에 멈추도록 돌려요. 모든 칸의 확률이 같습니다.</p><h3>메뉴 목록이 저장되나요?</h3><p>아니요. 새로고침하면 처음 목록으로 돌아가요.</p></div><!--fb--><div class="fb" data-slug="roulette"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pick.html">제비뽑기</a><a href="ladder.html">사다리타기</a><a href="quiz.html">소비 유형 테스트</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -132,6 +132,21 @@
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */

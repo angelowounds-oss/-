@@ -13,7 +13,7 @@
 <div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>상황</th><th>회사에 쓰는 하루</th><th>진짜 시급</th></tr></thead><tbody><tr><td>근무시간만 계산</td><td>8시간</td><td>16,110원</td></tr><tr><td>준비 20분, 재택(통근 0)</td><td>9.3시간</td><td>13,809원</td></tr><tr><td>준비 40분, 통근 편도 50분, 월 야근 10시간</td><td>11.3시간</td><td>10,928원</td></tr></tbody></table></div>
 <p>같은 월급이라도 통근이 길면 시급이 30% 넘게 줄어들 수 있어요. 이직이나 이사를 고민할 때 연봉 숫자만이 아니라 이 값을 비교해 보세요.</p>
 <p class="reviewed">계산 기준 검토: 2026년 10월 · 법적 근로시간 계산이 아니라 개인 비교용 지표예요.</p>
-</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>통근 시간도 일한 시간인가요?</h3><p>법적으로 근로시간은 아니지만 내 시간을 쓰는 건 맞아서 비교용으로 포함했어요.</p><h3>재택이면?</h3><p>통근과 준비를 0에 가깝게 넣어 보세요.</p></div><h2>관련 계산기</h2><div class="tools"><a href="housing-clock.html">내 집 마련 시계</a><a href="freetime.html">퇴근 후 내 시간 계산기</a><a href="latestart.html">늦게 시작한 대가 계산기</a><a href="nospend.html">무지출 챌린지 계산기</a></div>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>통근 시간도 일한 시간인가요?</h3><p>법적으로 근로시간은 아니지만 내 시간을 쓰는 건 맞아서 비교용으로 포함했어요.</p><h3>재택이면?</h3><p>통근과 준비를 0에 가깝게 넣어 보세요.</p></div><!--fb--><div class="fb" data-slug="realhourly"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="housing-clock.html">내 집 마련 시계</a><a href="freetime.html">퇴근 후 내 시간 계산기</a><a href="latestart.html">늦게 시작한 대가 계산기</a><a href="nospend.html">무지출 챌린지 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -108,6 +108,21 @@ load();run();window.addEventListener('hashchange',()=>{load();run()});</script>
         box.hidden = false;
       }
     }
+  }
+
+  /* quick feedback */
+  var fbBox = $('.fb');
+  if (fbBox) {
+    var fkey = 'fb:' + fbBox.dataset.slug, msg = $('.fbt', fbBox), done = LS.get(fkey, null);
+    var thank = function (v) { msg.textContent = v === 'up' ? '고마워요! 더 잘 만들게요.' : '알려줘서 고마워요. 고칠 점을 찾아볼게요.'; fbBox.classList.add('voted'); };
+    if (done) thank(done);
+    fbBox.querySelectorAll('button[data-v]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (LS.get(fkey, null)) return;
+        var v = b.dataset.v; LS.set(fkey, v); thank(v);
+        try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: 'feedback/' + v + '/' + fbBox.dataset.slug, title: title, event: true }); } catch (e) {}
+      });
+    });
   }
 
   /* share text + image card */
