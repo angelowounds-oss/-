@@ -1083,6 +1083,7 @@ def inject_common():
     for fn in glob.glob(os.path.join(OUT, "*.html")):
         s = open(fn, encoding="utf-8").read()
         b = os.path.basename(fn)
+        if "<title>" not in s: continue  # e.g. Search Console ownership files
         s = re.sub(r"<!--hd-->.*?<!--/hd-->", "", s, flags=re.S)
         s = re.sub(r'<link rel="canonical"[^>]*>\n?', "", s)
         s = s.replace('<link rel="stylesheet" href="style.css">', head_block(b, s) + '<link rel="stylesheet" href="style.css">', 1)
