@@ -407,7 +407,7 @@ export class Game {
     const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : WEAPONS[pl.cur], ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
     if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
-    if (this.input.edge('crouch')) pl.stance = pl.stance === 1 ? 0 : 1;
+    if (this.input.edge('crouch')) { if (pl.body3 && !pl.body3.grounded && !pl.swimming) pl.rollReq = this.time; else pl.stance = pl.stance === 1 ? 0 : 1; }   // in the air: crouch = roll on landing
     if (this.input.edge('prone')) pl.stance = pl.stance === 2 ? 0 : 2;
     pl.crouching = pl.stance >= 1; pl.prone = pl.stance === 2;
     pl.crouch = damp(pl.crouch || 0, pl.stance === 1 ? 0.65 : pl.prone ? 0.2 : 0, 10, dt);
@@ -422,7 +422,11 @@ export class Game {
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
     const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.prone ? 0.25 : pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1);
     const spd = base * (mag < 0.15 ? 0 : clamp(mag * 1.1, 0.5, 1));
-    pl.vx = damp(pl.vx, dx * spd, 10, dt); pl.vz = damp(pl.vz, dz * spd, 10, dt);
+    const onGnd = pl.body3.grounded || pl.swimming;
+    // stunned after a hard landing: no input until back on their feet
+    const stunned = (pl.stunT || 0) > 0; if (stunned) pl.stunT -= dt;
+    const tv = stunned ? 0 : spd, ctl = onGnd ? (stunned ? 6 : 10) : 0.9;   // air control is weak: momentum carries a jump / fall
+    pl.vx = damp(pl.vx, dx * tv, ctl, dt); pl.vz = damp(pl.vz, dz * tv, ctl, dt);
     const c3 = pl.body3;
     const riding = this.buildings.ridingElevator(pl);
     if (pl.hang) { this.stepHang(dt, inp); return; }
@@ -445,9 +449,9 @@ export class Game {
     }
     let impact = 0;
     if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
-    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching ? 7.2 : 0);
+    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 : 0);
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;
-    if (impact > 12) { this.hurtPlayer((impact - 12) * 5, null, 'fall'); this.shake(0.4); this.audio.impact(0.8, 0); }
+    if (impact > 0) this.land(impact, wat);
     if (c3.y < -30) c3.teleport(this.world.spawn.x, 0, this.world.spawn.z);
     // vehicles block player
     { const ox = pl.x, oz = pl.z; this.pushOutOfVehicles(pl, 0.38); if (pl.x !== ox || pl.z !== oz) c3.shift(pl.x - ox, 0, pl.z - oz); }
@@ -884,6 +888,26 @@ export class Game {
     if (src && src.x != null && dmg > 0.5) this.hitIndicator(src.x - pl.x, src.z - pl.z);
     if (dmg > 3) { this.audio.hurt(); this.shake(0.25); this.input.vibrate?.(); try { navigator.vibrate?.(30); } catch { /* ignore */ } }
     if (pl.hpv <= 0) this.playerDie(kind);
+  }
+  // touching down: v = vertical speed at impact (m/s). Below ~5 m/s nothing; a landing animation from 5; injury above 8 m/s
+  // (a ~3.3 m drop), lethal around 17 m/s (~15 m). Water takes the energy; a roll (crouch just before landing while moving) takes
+  // most of it; a hard landing without a roll knocks the player down for a moment.
+  land(v, wat) {
+    const pl = this.player, hs = Math.hypot(pl.vx, pl.vz);
+    this.landKick = Math.max(this.landKick || 0, clamp(v / 16, 0, 1));
+    if (wat && pl.y < wat.y + 0.4) { addRipple(pl.x, pl.z, clamp(v / 4, 1, 3)); this.audio.splash?.(clamp(v / 10, 0.4, 1.4)); this.fx.sparks?.(pl.x, wat.y + 0.2, pl.z, Math.round(clamp(v, 6, 30)), [0.7, 0.9, 1], 2 + v * 0.3); return; }
+    const roll = v > 5 && v < 15 && hs > 2.2 && this.time - (pl.rollReq || -9) < 0.45;
+    let dmg = v > 8 ? (v - 8) * (v - 8) * 1.5 : 0;
+    if (roll) dmg *= 0.35;
+    if (v > 4.5) this.audio.impact(clamp(v / 14, 0.3, 1.2), 0);
+    if (v > 5) {
+      if (roll && pl.m.playOnce?.('U_Roll', false)) { pl.reactT = 0.75; pl.vx *= 1.1; pl.vz *= 1.1; }
+      else if (pl.m.playOnce?.('U_Jump_Land', false)) pl.reactT = clamp(0.2 + v * 0.03, 0.25, 0.6);
+      this.shake(clamp(v * 0.03, 0.08, 0.6));
+    }
+    if (!roll && v > 12.5) { pl.stunT = clamp((v - 12.5) * 0.25 + 0.8, 0.8, 2.2); pl.vx *= 0.2; pl.vz *= 0.2; this.audio.tone?.(160, 0.12, 'square', 0.12, 60); }
+    if (dmg > 0) this.hurtPlayer(dmg, null, 'fall');
+    if (roll) this.toast('낙법', '굴러서 충격을 줄였다');
   }
   // a human's voice, panned/attenuated relative to the camera
   voiceAt(h, kind = 'scream') {
@@ -1444,7 +1468,12 @@ export class Game {
     // roll: a flinch toward the side the hit came from, and a slow tilt as the player collapses
     this.rollK = damp(this.rollK || 0, pl.dead ? (pl.fallDir || 0.6) * 0.45 : 0, pl.dead ? 1.5 : 7, dt);
     if (Math.abs(this.rollK) > 0.002) c.rotateZ(this.rollK);
-    if (c.fov !== cam.fov) { c.fov = cam.fov; c.updateProjectionMatrix(); }
+    // fall feel: the view widens and the wind roars while falling fast; the camera dips on touchdown
+    const fallTarget = !pl.dead && this.playerOnFoot && pl.body3 && !pl.body3.grounded && !pl.swimming && !pl.hang ? clamp((-(pl.vy || 0) - 7) / 25, 0, 1) : 0;
+    this.fallK = damp(this.fallK || 0, fallTarget, 4, dt); this.audio.wind?.(this.fallK);
+    if ((this.landKick || 0) > 0.002) { c.position.y -= this.landKick * 0.3; this.landKick *= Math.exp(-7 * dt); }
+    const fov = cam.fov + this.fallK * 16;
+    if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;

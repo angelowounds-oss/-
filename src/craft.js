@@ -84,7 +84,7 @@ export function buildCustom(type, color, opts = {}) {
 export function createCraftBody(phys, spec, x, y, z, heading) {
   const R = phys.R, w = phys.world, mass = 1300 * spec.mass;
   const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
-  let desc = R.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation(q).setLinearDamping(spec.craft === 'heli' ? 0.5 : 0.05).setAngularDamping(spec.craft === 'heli' ? 3 : 2.5).setCanSleep(spec.craft !== 'boat').setCcdEnabled(true);
+  let desc = R.RigidBodyDesc.dynamic().setGravityScale(22 / 9.81).setTranslation(x, y, z).setRotation(q).setLinearDamping(spec.craft === 'heli' ? 0.5 : 0.05).setAngularDamping(spec.craft === 'heli' ? 3 : 2.5).setCanSleep(spec.craft !== 'boat').setCcdEnabled(true);
   if (spec.craft === 'heli') desc = desc.enabledRotations(false, true, false);
   const body = w.createRigidBody(desc);
   const hx = spec.W / 2, hz = spec.L / 2, hy = spec.craft === 'heli' ? 0.9 : 0.4;

@@ -1,7 +1,7 @@
 // Rapier-backed physics: fixed-step world, static city colliders, raycast-suspension rigid-body vehicles.
 // RAPIER is injected so the same module can be unit-tested under Node.
 export const PHYS = {
-  dt: 1 / 60, gravity: -22, maxSub: 4,
+  dt: 1 / 60, gravity: -9.81, vehGravScale: 22 / 9.81, maxSub: 4,
   mass: 1300, rest: 0.34, radius: 0.35, connY: -0.12, bodyY: 0.78,
 };
 
@@ -127,7 +127,7 @@ export class Physics {
     const hx = spec.W / 2, hy = 0.42, hz = spec.L / 2;
     const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
     const body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, PHYS.bodyY, z).setRotation(q)
-      .setLinearDamping(0.04).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true));
+      .setLinearDamping(0.04).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true).setGravityScale(PHYS.vehGravScale));
     const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS)), body);
     // low centre of mass + realistic inertia
     const ix = (mass / 12) * (4 * hy * hy + 4 * hz * hz) * 0.55, iy = (mass / 12) * (4 * hx * hx + 4 * hz * hz) * 0.7, iz = (mass / 12) * (4 * hx * hx + 4 * hy * hy) * 0.55;

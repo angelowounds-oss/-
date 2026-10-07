@@ -13,6 +13,7 @@ export const WEAPONS = [
 const SW_MID = R / 2 + SW / 2;
 let uid = 0;
 
+const _fq = new THREE.Quaternion(), _fe = new THREE.Euler();
 export class Human {
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
@@ -190,10 +191,10 @@ export class Human {
     this.node = best; this.prevNode = null;
   }
   stepKnock(dt) {
-    this.vy -= 22 * dt;
+    this.vy -= 9.81 * dt; this.vy -= Math.sign(this.vy) * this.vy * this.vy * (9.81 / 3025) * dt;
     this.x += this.vx * dt; this.z += this.vz * dt; this.y += this.vy * dt;
     const r = this.G.world.colliders.resolve(this.x, this.z, this.radius, this.y); this.x = r.x; this.z = r.z;
-    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) this.knock = 0; } }
+    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (this.vy < -9 && !this.dead) this.hurt((-this.vy - 9) * (-this.vy - 9) * 1.5, null, false, null); if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) this.knock = 0; } }
     this.group.position.set(this.x, this.y, this.z);
     if (!this.dead) { this.m.body.rotation.x += dt * 9; this.group.rotation.y = this.ry; }
     else this.group.rotation.y = this.ry;
@@ -264,11 +265,11 @@ export class Human {
     // stance sets: retargeted UAL crouch / swim clips replace the stand set (idle+walk+run) while active
     const swimC = this.swimming, crouchC = !swimC && !this.prone && !this.lying && this.crouching !== false && this.crouch > 0.3 && !m.sit;
     const sitC = (m.sit || 0) > 0.5, airC = !sitC && !swimC && !!this.body3 && !this.body3.grounded && !this.hang && !this.mantle && !this.ladder;
-    const set = sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : airC ? ['U_Jump_Loop', 'U_Jump_Loop'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
+    const set = sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : airC ? ['U_Jump', 'U_Jump'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump_Loop: 0 };
+    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
     if (set && a[set[1]]) a[set[1]].timeScale = clamp(sp / 1.6, 0.6, 1.8);
@@ -317,7 +318,14 @@ export class Human {
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
     m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
-    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone ? 1.35 : this.lying ? -1.5 : (this.punchT > 0 ? 0.35 : 0), 14, dt);
+    const freefall = !!this.body3 && !this.body3.grounded && !this.swimming && !this.hang && (this.vy || 0) < -9;
+    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone ? 1.35 : this.lying ? -1.5 : freefall ? 0.45 : (this.punchT > 0 ? 0.35 : 0), freefall ? 3 : 14, dt);
+    // freefall: arms and legs flail against the wind
+    if (freefall && m.bones) { const t = performance.now() * 0.001, B = m.bones, a = 0.55 + clamp((-this.vy - 9) / 20, 0, 1) * 0.5;
+      const sw = (b, x, y, z) => { if (b) { _fq.setFromEuler(_fe.set(x, y, z)); b.quaternion.multiply(_fq); } };
+      sw(B.LeftArm, 0, 0, Math.sin(t * 9) * a - 0.6); sw(B.RightArm, 0, 0, -Math.sin(t * 9 + 1) * a + 0.6);
+      sw(B.LeftForeArm, 0, 0, Math.sin(t * 7) * 0.4); sw(B.RightForeArm, 0, 0, -Math.sin(t * 7 + 2) * 0.4);
+      sw(B.LeftUpLeg, Math.sin(t * 6) * a * 0.6, 0, 0); sw(B.RightUpLeg, -Math.sin(t * 6) * a * 0.6, 0, 0); }
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if (this.aimT > 0) this.aimT -= dt * 0.5;

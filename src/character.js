@@ -16,7 +16,7 @@ export class Character {
     c.setMinSlopeSlideAngle(62 * Math.PI / 180);
     c.setApplyImpulsesToDynamicBodies(true);
     c.setCharacterMass(75);
-    y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0; this.grounded = true; this.fallSpeed = 0;
+    y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0; this.grounded = true; this.fallSpeed = 0; this.airT = 0; this.peakVy = 0;
     this.query = grp(GR.CHAR, GR.STATIC | GR.PROP | GR.OBJ | GR.GLASS | GR.VEH);
     this.pred = (col) => {
       const p = col.parent(); if (!p) return true;
@@ -27,13 +27,15 @@ export class Character {
     this.platformDy = 0;
   }
   teleport(x, y, z) {
-    y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0;
+    y += 0.06; this.x = x; this.y = y; this.z = z; this.vy = 0; this.airT = 0; this.peakVy = 0;
     this.body.setTranslation({ x, y: y + this.h / 2, z }, true);
   }
   // returns landing impact speed (>0) on the frame we land
-  move(dt, vx, vz, jump = 0, gravity = 22) {
+  // gravity 9.81 m/s^2 with quadratic air drag: a falling body tops out near 55 m/s (human terminal velocity)
+  move(dt, vx, vz, jump = 0, gravity = 9.81) {
     if (jump && this.grounded) { this.vy = jump; this.grounded = false; }
-    if (!this.grounded) this.vy -= gravity * dt; else this.vy = -2;
+    if (!this.grounded) { this.vy -= gravity * dt; this.vy -= Math.sign(this.vy) * this.vy * this.vy * (gravity / (55 * 55)) * dt; this.airT += dt; this.peakVy = Math.min(this.peakVy, this.vy); }
+    else { this.vy = -2; this.airT = 0; this.peakVy = 0; }
     const prevVy = this.vy;
     const dx = vx * dt, dy = this.vy * dt, dz = vz * dt;
     this.ctrl.computeColliderMovement(this.col, { x: dx, y: dy, z: dz }, undefined, this.query, this.pred);
@@ -53,7 +55,7 @@ export class Character {
     const dy = Math.max(-3, Math.min(3, (targetY - this.y) * 5)) * dt;
     this.ctrl.computeColliderMovement(this.col, { x: vx * dt, y: dy, z: vz * dt }, undefined, this.query, this.pred);
     const m = this.ctrl.computedMovement();
-    this.x += m.x; this.y += m.y; this.z += m.z; this.grounded = false; this.vy = 0;
+    this.x += m.x; this.y += m.y; this.z += m.z; this.grounded = false; this.vy = 0; this.airT = 0; this.peakVy = 0;
     this.body.setTranslation({ x: this.x, y: this.y + this.h / 2, z: this.z }, true);
   }
   // externally displace (platform riding, pushes) without collision
