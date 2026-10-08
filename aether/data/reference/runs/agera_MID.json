@@ -1,0 +1,63 @@
+{
+ "schema": "aether-offline-run-v1",
+ "car": "agera",
+ "tier": "MID",
+ "dt": 0.02,
+ "every": 5,
+ "endTime": 14,
+ "started": "2026-10-08T14:28:03.950Z",
+ "machine": "headless Chromium, SwiftShader (CPU), 4 cores",
+ "rec": [
+  {
+   "t": 1.3,
+   "Cd": 0.7104,
+   "CdMean": 0.5122,
+   "CdStd": 3.0546,
+   "Cl": -28.923,
+   "ClMean": -31.0796,
+   "ClStd": 30.6871,
+   "A": 2.4877,
+   "window": 0.8,
+   "guard": 1,
+   "wallS": 32
+  }
+ ],
+ "setup": {
+  "tierRunning": "MID",
+  "N": [
+   181,
+   43,
+   70
+  ],
+  "cellM": [
+   0.1851,
+   0.186,
+   0.1857
+  ],
+  "U": 5,
+  "yawDeg": 0,
+  "car": "agera",
+  "dims": {
+   "lengthX": 4.293,
+   "widthZ": 2.102519706224216,
+   "heightY": 1.1322689331131648
+  },
+  "voxCarCells": 1288,
+  "voxFrontM2": 2.487707641196013,
+  "mgCycles": 1
+ },
+ "last": {
+  "t": 1.3,
+  "Cd": 0.7104,
+  "CdMean": 0.5122,
+  "CdStd": 3.0546,
+  "Cl": -28.923,
+  "ClMean": -31.0796,
+  "ClStd": 30.6871,
+  "A": 2.4877,
+  "window": 0.8,
+  "guard": 1,
+  "wallS": 32
+ },
+ "error": "solver guard tripped"
+}

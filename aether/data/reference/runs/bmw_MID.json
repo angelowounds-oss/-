@@ -1,0 +1,63 @@
+{
+ "schema": "aether-offline-run-v1",
+ "car": "bmw",
+ "tier": "MID",
+ "dt": 0.02,
+ "every": 5,
+ "endTime": 14,
+ "started": "2026-10-08T14:24:15.124Z",
+ "machine": "headless Chromium, SwiftShader (CPU), 4 cores",
+ "rec": [
+  {
+   "t": 1.252,
+   "Cd": 0.5834,
+   "CdMean": 0.3403,
+   "CdStd": 3.0783,
+   "Cl": -23.2707,
+   "ClMean": -24.48,
+   "ClStd": 27.7901,
+   "A": 2.7641,
+   "window": 0.8,
+   "guard": 1,
+   "wallS": 34
+  }
+ ],
+ "setup": {
+  "tierRunning": "MID",
+  "N": [
+   181,
+   43,
+   70
+  ],
+  "cellM": [
+   0.1851,
+   0.186,
+   0.1857
+  ],
+  "U": 5,
+  "yawDeg": 0,
+  "car": "bmw",
+  "dims": {
+   "lengthX": 4.7,
+   "widthZ": 1.928297490761,
+   "heightY": 1.297449006023
+  },
+  "voxCarCells": 1480,
+  "voxFrontM2": 2.7641196013289036,
+  "mgCycles": 1
+ },
+ "last": {
+  "t": 1.252,
+  "Cd": 0.5834,
+  "CdMean": 0.3403,
+  "CdStd": 3.0783,
+  "Cl": -23.2707,
+  "ClMean": -24.48,
+  "ClStd": 27.7901,
+  "A": 2.7641,
+  "window": 0.8,
+  "guard": 1,
+  "wallS": 34
+ },
+ "error": "solver guard tripped"
+}
