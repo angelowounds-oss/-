@@ -2704,5 +2704,53 @@
   ],
   "click": null,
   "name": "textcase"
+ },
+ {
+  "slug": "netpay",
+  "inputs": {
+   "sal": "30000000"
+  },
+  "expect": [
+   "월 실수령 약 2,253,594원",
+   "4대보험 223,500원"
+  ],
+  "click": null,
+  "name": "netpay-3000"
+ },
+ {
+  "slug": "netpay",
+  "inputs": {
+   "sal": "50000000"
+  },
+  "expect": [
+   "월 실수령 약 3,565,640원",
+   "4대보험 385,456원"
+  ],
+  "click": null,
+  "name": "netpay-5000"
+ },
+ {
+  "slug": "netpay",
+  "inputs": {
+   "sal": "100000000"
+  },
+  "expect": [
+   "월 실수령 약 6,545,048원",
+   "4대보험 790,347원"
+  ],
+  "click": null,
+  "name": "netpay-10000"
+ },
+ {
+  "slug": "netpay",
+  "inputs": {
+   "sal": "50000000",
+   "dep": "3"
+  },
+  "expect": [
+   "월 실수령 약 3,606,890원"
+  ],
+  "click": null,
+  "name": "netpay-dep3"
  }
 ]
