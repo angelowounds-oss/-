@@ -262,7 +262,7 @@ static double evalStateW(const GameManager& g, int team, const float* w) {
   return v;
 }
 
-static bool searchThink(GameManager& g, Player& P) {
+static bool searchChoose(GameManager& g, Player& P, int& slotOut, float& xOut, float& yOut) {
   int team = P.team, en = 1 - team; const auto& hand = g.getHand(team); float el = g.getElixir(team); int H = P.pol.lookahead;
   const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); const float maxOwnY = g.getOwnHalfMaxY();
   struct Cand { int slot; float x, y; };
@@ -321,7 +321,13 @@ static bool searchThink(GameManager& g, Player& P) {
   double base = rollout(-1); double bestV = base + (P.ew ? P.ew[14] : 0.6); int bi = -1;
   for (int i = 0; i < (int)cands.size(); i++) { double v = rollout(i); if (v > bestV) { bestV = v; bi = i; } }
   if (bi < 0) return false;
-  return g.playCard(team, hand[cands[bi].slot], cands[bi].x, cands[bi].y);
+  slotOut = cands[bi].slot; xOut = cands[bi].x; yOut = cands[bi].y;
+  return true;
+}
+static bool searchThink(GameManager& g, Player& P) {
+  int s; float x, y;
+  if (!searchChoose(g, P, s, x, y)) return false;
+  return g.playCard(P.team, g.getHand(P.team)[s], x, y);
 }
 
 
@@ -395,6 +401,7 @@ static int towersAlive(const GameManager& g, int team) { int n = 0; for (auto& e
 
 static Result playMatch(const Deck& a, const Deck& b, int pa, int pb, uint64_t seed, const vector<float>* net0 = nullptr, const vector<float>* net1 = nullptr, const float* ew0 = nullptr, const float* ew1 = nullptr) {
   GameManager g(vector<int>(a.begin(), a.end()), vector<int>(b.begin(), b.end()));
+  g.seed((unsigned)(seed * 2654435761ULL + 7)); g.reset();  // engine seeds its deal from random_device by default
   Player P0(0, POL[pa], seed * 3 + 1), P1(1, POL[pb], seed * 7 + 2); P0.net = net0; P1.net = net1; P0.ew = ew0; P1.ew = ew1;
   const int MAXT = 3600;  // regular 1800 + overtime; MatchRules ends the match itself
   while (!g.isGameOver() && g.currentTick < MAXT) {
@@ -451,6 +458,8 @@ static bool loadNet(vector<float>& th, const string& f) { ifstream in(f, ios::bi
 
 static void parFor(int n, const function<void(int)>& fn) { atomic<int> nx(0); vector<thread> th; for (int t = 0; t < NT; t++) th.emplace_back([&] { for (;;) { int i = nx++; if (i >= n) break; fn(i); } }); for (auto& x : th) x.join(); }
 static vector<Deck> readDecks(const string& f) { vector<Deck> v; ifstream in(f); string l; while (getline(in, l)) { if (l.empty() || l[0] == '#') continue; size_t p = l.find('|'); if (p != string::npos) l = l.substr(p + 1); v.push_back(parseDeck(l)); } return v; }
+
+#include "student.inc"
 
 int main(int argc, char** argv) {
   initPolicies(); initProfiles(); if (const char* e = getenv("CR_THREADS")) NT = atoi(e); if (const char* e = getenv("CR_NPOL")) NPOL = atoi(e); if (const char* e = getenv("CR_POLS")) { stringstream ss(e); string t; while (getline(ss, t, ',')) POLSET.push_back(atoi(t.c_str())); }
@@ -601,6 +610,6 @@ int main(int argc, char** argv) {
       double wr = 0.5 + (imb > 0 ? (rand() & 1 ? imb : -imb) : 0);  // approximate
       printf("%3d   %4d     %.4f      %.1f%%\n", r+1, idx+1, imb, (0.5 - imb)*100);
     }
-  } else printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");
+  } else if (!studentMode(argc, argv)) printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");
   return 0;
 }

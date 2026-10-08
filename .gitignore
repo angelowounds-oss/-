@@ -5,3 +5,5 @@ results/sampled_decks_*.txt
 results/rl_*.log
 results/logs/
 /tmp/rl.log
+results/student/*.bin
+results/student/*.progress
