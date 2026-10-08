@@ -40,6 +40,7 @@ import { DayNight } from './daynight.js';
 import { Society, ZONES } from './society.js';
 import { Character } from './character.js';
 import * as AI from './ai.js';
+import { Military } from './military.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -93,7 +94,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
-    this.breach = new Breach(this);
+    this.breach = new Breach(this); this.military = new Military(this);
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
@@ -348,7 +349,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.sandbox.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -868,6 +869,7 @@ export class Game {
       }
       if (ok && t0 < best) { best = t0; kind = 'vehicle'; obj = v; }
     }
+    { const mh = this.military?.rayHit(ox, oy, oz, dx, dy, dz, best); if (mh && owner === this.player) { best = mh.t; kind = 'military'; obj = mh.e; } }
     const px = ox + dx * best, py = oy + dy * best, pz = oz + dz * best;
     if ((kind === 'world' || kind === 'ground') && this.memory) this.memory.markHit(px, py, pz, kind === 'world' ? this._hitN : null);
     if (kind === 'human') {
@@ -878,6 +880,9 @@ export class Game {
       obj.hurt(damage * (head ? headMul : 1), owner, head, owner);
       this.fx.sparks(px, py, pz, 3, [1, 0.2, 0.3], 5);
       if (owner === this.player) { this.noise(px, pz, 25); this.alertCivs(px, pz, 22); }
+    } else if (kind === 'military') {
+      this.military.damage(obj, damage, owner, true); this.fx.sparks(px, py, pz, 6, [1, 0.8, 0.4], 6); this.audio.impact(0.6, 0); this.addHeat(1.5);
+      if (owner === this.player) this.markHit(false);
     } else if (kind === 'vehicle') {
       obj.damage(damage * 0.28, owner); obj.awake = true; obj.pv.body.wakeUp();
       this.fx.sparks(px, py, pz, 6, [1, 0.8, 0.4], 6);
@@ -1015,7 +1020,7 @@ export class Game {
     if (s > this.wanted) { this.audio.star(); this.toast('<span style="color:#ffc94d">WANTED ' + '★'.repeat(s) + '</span>', '경찰이 추적 중'); this.ui.stars.classList.add('flash'); setTimeout(() => this.ui.stars.classList.remove('flash'), 2500); }
     this.wanted = s;
   }
-  clearWanted() { this.heat = 0; this.wanted = 0; this.evade = 0; for (const v of this.vehicles) if (v.police) { v.chaseTarget = null; v.direct = false; } }
+  clearWanted() { this.military?.clear(); this.heat = 0; this.wanted = 0; this.evade = 0; for (const v of this.vehicles) if (v.police) { v.chaseTarget = null; v.direct = false; } }
   onHumanKilled(h, src) {
     if (h.citizen) this.citizens.killed(h);
     if (src === this.player && h.team === 'civ') this.memory?.log('murder', h.x, h.z, h.citizen ? { name: h.citizen.name, age: h.citizen.age } : {});
@@ -1052,6 +1057,7 @@ export class Game {
       const k = 1 - dd / (radius * 1.5); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
       const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.addImpulse(nx * 14 * k, 5 * k, nz * 14 * k);
     }
+    this.military?.blast(x, y, z, radius, dmg, src);
     this.addHeat(6);
   }
 
@@ -1069,10 +1075,10 @@ export class Game {
       if (seen) this.evade = 0; else this.evade += dt;
       if (this.evade > 8) { this.heat = Math.max(0, this.heat - dt * (1.5 + (this.evade - 8) * 0.25)); const prev = this.wanted; this.recalcStars(); if (prev > 0 && this.wanted === 0) { this.toast('<span style="color:#47ffa8">WANTED LEVEL LOST</span>', '추적에서 벗어났습니다'); this.clearWanted(); } }
     }
-    const desired = this.wanted === 0 ? 0 : [0, 1, 2, 3, 4, 5][this.wanted] + (this.wanted >= 4 ? 1 : 0);
+    const desired = this.wanted === 0 ? 0 : [0, 1, 2, 3, 4, 5][this.wanted] + (this.wanted >= 4 ? 1 : 0) + (this.wanted >= 5 ? 2 : 0);
     if (this.copTimer <= 0) {
       this.copTimer = this.wanted >= 3 ? 2.5 : 4;
-      if (cars.length < desired && cars.length < 7) this.spawnPoliceCar();
+      if (cars.length < desired && cars.length < 9) this.spawnPoliceCar();
     }
     for (const c of cars) {
       c.chaseTarget = this.wanted > 0 ? target : null;
@@ -1082,7 +1088,7 @@ export class Game {
       if (this.wanted === 0) { c.ai.speed = 12; c.chaseTarget = null; if (d > 90) c.despawn = true; }
       // deploy officers
       if (this.wanted > 0 && d < 20 && c.speed < 7 && !c.deployed) {
-        c.deployed = true; const n = this.wanted >= 3 ? 2 : 1;
+        c.deployed = true; const n = this.wanted >= 5 ? 4 : this.wanted >= 4 ? 3 : this.wanted >= 3 ? 2 : 1;
         for (let k = 0; k < n; k++) this.spawnCop(c.x + Math.cos(c.h) * (c.W / 2 + 1.2) * (k ? -1 : 1), c.z - Math.sin(c.h) * (c.W / 2 + 1.2) * (k ? -1 : 1));
       }
       if (c.despawn) { this.removeVehicle(c); }
@@ -1110,8 +1116,9 @@ export class Game {
     this.addVehicle(v);
   }
   spawnCop(x, z) {
-    if (this.humans.filter((h) => h.team === 'cop' && !h.dead).length > 8) return;
-    const h = new Human(this, 'cop', { hp: 70, weapon: this.wanted >= 3 ? 2 : 1, look: { top: 0x101a38, pants: 0x0b1020, cap: 0x0b1020, trim: [0.3, 0.45, 1], hair: 0x111111 } });
+    if (this.humans.filter((h) => h.team === 'cop' && !h.dead).length > (this.wanted >= 5 ? 14 : this.wanted >= 4 ? 11 : 8)) return;
+    const w = this.wanted, swat = w >= 4, army = w >= 5;
+    const h = new Human(this, 'cop', { hp: army ? 150 : swat ? 110 : 70, weapon: army ? (Math.random() < 0.25 ? 4 : Math.random() < 0.5 ? 3 : 2) : w >= 3 ? 2 : 1, look: army ? { top: 0x39422b, pants: 0x2b3322, cap: 0x2b3322, trim: [0.5, 0.6, 0.3], hair: 0x111111 } : swat ? { top: 0x0d0f14, pants: 0x0d0f14, cap: 0x0d0f14, trim: [0.2, 0.25, 0.3], hair: 0x111111 } : { top: 0x101a38, pants: 0x0b1020, cap: 0x0b1020, trim: [0.3, 0.45, 1], hair: 0x111111 } });
     h.x = x; h.z = z; h.state = 'attack'; this.humans.push(h); this.scene.add(h.group);
   }
 
