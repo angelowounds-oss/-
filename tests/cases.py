@@ -239,6 +239,25 @@ case("datasize", {"n": "1", "u": "3", "b": "1000"}, "1,000,000,000 B", name="dat
 case("dltime", {"s": "10", "u": "1024", "sp": "500"}, "약 2분 44초", "62.5MB/s")
 case("textcase", {"t": "hello World"}, "HELLO WORLD", "hello world", "Hello World")
 
+# ---- netpay: independent Python port of the 2026 rates + 2023-law income tax structure ----
+def netpay(sal, nt=200000, dep=1, pr=4.75, hr=3.595, lr=13.14, er=0.9):
+    g = sal - nt * 12; base = g / 12
+    hea = base * hr / 100; ins = base * pr / 100 + hea + hea * lr / 100 + base * er / 100
+    ded = g * 0.7 if g <= 5e6 else 3.5e6 + (g - 5e6) * .4 if g <= 15e6 else 7.5e6 + (g - 15e6) * .15 if g <= 45e6 else 12e6 + (g - 45e6) * .05 if g <= 1e8 else 14.75e6 + (g - 1e8) * .02
+    ti = max(0, g - min(ded, 2e7) - 1.5e6 * max(1, dep) - ins * 12)
+    tax = 0; prev = 0
+    for lim, rt in [(14e6, .06), (50e6, .15), (88e6, .24), (150e6, .35), (300e6, .38), (500e6, .40), (1e9, .42), (float("inf"), .45)]:
+        if ti > prev: tax += (min(ti, lim) - prev) * rt
+        prev = lim
+    cr = tax * .55 if tax <= 1.3e6 else 715000 + (tax - 1.3e6) * .3
+    cap = 740000 if g <= 33e6 else max(660000, 740000 - (g - 33e6) * .008) if g <= 70e6 else max(500000, 660000 - (g - 70e6) * .5)
+    mt = max(0, tax - min(cr, cap) - 130000) / 12
+    return ins, mt, sal / 12 - ins - mt - mt * .1
+for sal in (30000000, 50000000, 100000000):
+    i, t, n = netpay(sal)
+    case("netpay", {"sal": str(sal)}, "월 실수령 약 " + W(n), "4대보험 " + W(i), name=f"netpay-{sal // 10000}")
+case("netpay", {"sal": "50000000", "dep": "3"}, "월 실수령 약 " + W(netpay(50000000, dep=3)[2]), name="netpay-dep3")
+
 if __name__ == "__main__":
     json.dump(cases, open("tests/cases.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(len(cases), "cases")

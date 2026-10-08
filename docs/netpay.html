@@ -5,7 +5,7 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>연봉 실수령액 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="sal">연봉 (세전, 원)</label><input type="number" id="sal" value="35000000" step="any" min="0"><label for="nt">월 비과세액 (식대 등, 원)</label><input type="number" id="nt" value="200000" step="any" min="0"><label for="dep">부양가족 수 (본인 포함)</label><input type="number" id="dep" value="1" step="1" min="0"><label for="pr">국민연금 요율 (%)</label><input type="number" id="pr" value="4.5" step="0.001" min="0"><label for="hr">건강보험 요율 (%)</label><input type="number" id="hr" value="3.545" step="0.001" min="0"><label for="lr">장기요양 (건강보험료의 %)</label><input type="number" id="lr" value="12.95" step="0.01" min="0"><label for="er">고용보험 요율 (%)</label><input type="number" id="er" value="0.9" step="0.01" min="0"><div class="result" id="res"></div></div><h2>이 계산은 추정입니다</h2><p>연말정산 구조(근로소득공제, 인적공제, 보험료 공제, 세액공제)를 단순화해 한 해 세금을 구한 뒤 12로 나눈 값입니다. 회사가 매달 떼는 간이세액표 금액이나 상여금, 다른 공제와는 차이가 날 수 있습니다. 보험 요율은 해마다 바뀌어서 기본값은 2025년 기준 예시이니 해당 연도 요율로 수정하세요.</p><!--guide--><section class="guide">
+<div class="card"><label for="sal">연봉 (세전, 원)</label><input type="number" id="sal" value="35000000" step="any" min="0"><label for="nt">월 비과세액 (식대 등, 원)</label><input type="number" id="nt" value="200000" step="any" min="0"><label for="dep">부양가족 수 (본인 포함)</label><input type="number" id="dep" value="1" step="1" min="0"><label for="pr">국민연금 근로자 부담 요율 (%, 2026년 4.75)</label><input type="number" id="pr" value="4.75" step="0.001" min="0"><label for="hr">건강보험 근로자 부담 요율 (%, 2026년 3.595)</label><input type="number" id="hr" value="3.595" step="0.001" min="0"><label for="lr">장기요양 (건강보험료의 %, 2026년 13.14)</label><input type="number" id="lr" value="13.14" step="0.01" min="0"><label for="er">고용보험 요율 (%)</label><input type="number" id="er" value="0.9" step="0.01" min="0"><div class="result" id="res"></div></div><h2>이 계산은 추정입니다</h2><p>연말정산 구조(근로소득공제, 인적공제, 보험료 공제, 세액공제)를 단순화해 한 해 세금을 구한 뒤 12로 나눈 값입니다. 회사가 매달 떼는 간이세액표 금액이나 상여금, 다른 공제와는 차이가 날 수 있습니다. 보험 요율은 해마다 바뀌어서 기본값은 2025년 기준 예시이니 해당 연도 요율로 수정하세요.</p><!--guide--><section class="guide">
 <h2>연봉 실수령액은 이렇게 계산해요</h2>
 <p>월급에서 빠지는 돈은 크게 4대보험과 세금 두 가지예요. 이 계산기는 회사가 매달 떼는 금액을 연말정산 구조로 다시 계산한 추정치입니다.</p>
 <ol>
@@ -16,16 +16,17 @@
 <li>근로소득세액공제와 표준세액공제 13만 원을 빼면 1년 소득세, 그 10%가 지방소득세</li>
 </ol>
 <h2>예시로 보기</h2>
-<p>비과세 식대 월 20만 원, 부양가족 본인 1명, 보험 요율은 화면 기본값(2025년 기준 예시)으로 계산한 결과예요.</p>
-<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>연봉</th><th>월급(세전)</th><th>4대보험</th><th>소득세+지방세</th><th>월 실수령</th></tr></thead><tbody><tr><td>3,000만 원</td><td>2,500,000원</td><td>216,294원</td><td>23,442원</td><td>약 2,260,265원</td></tr><tr><td>4,000만 원</td><td>3,333,333원</td><td>294,661원</td><td>106,142원</td><td>약 2,932,530원</td></tr><tr><td>5,000만 원</td><td>4,166,667원</td><td>373,028원</td><td>217,621원</td><td>약 3,576,017원</td></tr></tbody></table></div>
+<p>비과세 식대 월 20만 원, 부양가족 본인 1명, 보험 요율은 화면 기본값(2026년 기준: 국민연금 4.75%, 건강보험 3.595%, 장기요양 건강보험료의 13.14%, 고용보험 0.9%)으로 계산한 결과예요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>연봉</th><th>월급(세전)</th><th>4대보험</th><th>소득세+지방세</th><th>월 실수령</th></tr></thead><tbody><tr><td>3,000만 원</td><td>2,500,000원</td><td>223,500원</td><td>22,907원</td><td>약 2,253,594원</td></tr><tr><td>4,000만 원</td><td>3,333,333원</td><td>304,478원</td><td>104,522원</td><td>약 2,924,333원</td></tr><tr><td>5,000만 원</td><td>4,166,667원</td><td>385,456원</td><td>215,571원</td><td>약 3,565,640원</td></tr></tbody></table></div>
 <h2>실제 월급과 다를 수 있는 이유</h2>
 <ul>
 <li>회사는 매달 <b>근로소득 간이세액표</b>로 세금을 떼고, 차이는 다음 해 연말정산 때 돌려받거나 더 냅니다.</li>
 <li>신용카드·의료비·교육비·연금저축 공제, 자녀세액공제는 이 계산에 들어가지 않아요. 실제 세금은 대개 이보다 적어집니다.</li>
 <li>상여금, 야근수당, 성과급이 있으면 그 달 월급과 세금이 달라져요.</li>
-<li>보험 요율은 해마다 바뀝니다. 국민연금공단, 국민건강보험공단의 올해 요율로 바꿔 넣어 보세요.</li>
+<li>보험 요율은 해마다 바뀝니다. 2026년 요율(국민연금 9.5%, 건강보험 7.19%, 장기요양 0.9448%는 보건복지부 발표 기준, 근로자 부담은 절반)을 기본값으로 넣었어요. 내년에는 국민연금공단·국민건강보험공단의 새 요율로 바꿔 넣어 보세요.</li>
+<li>국민연금·건강보험에는 보수의 상한과 하한이 있어요. 이 계산기는 상·하한을 반영하지 않아서 월급이 아주 높거나 낮으면 4대보험이 실제와 다를 수 있어요.</li>
 </ul>
-<p class="reviewed">계산 기준 검토: 2026년 10월 · 정확한 금액은 급여명세서와 국세청 홈택스의 안내를 확인하세요.</p>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 정확한 금액은 급여명세서와 국세청 홈택스의 안내를 확인하세요.</p>
 </section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정확한 금액은 어디서 보나요?</h3><p>급여명세서와 국세청 간이세액표, 국민연금·건강보험 안내를 확인하세요.</p><h3>부양가족을 늘리면?</h3><p>인적공제가 늘어 소득세가 줄어듭니다. 요건이 있으니 해당 여부는 확인하세요.</p></div><!--fb--><div class="fb" data-slug="netpay"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
