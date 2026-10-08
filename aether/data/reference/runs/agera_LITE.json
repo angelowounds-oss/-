@@ -1,0 +1,166 @@
+{
+ "schema": "aether-offline-run-v1",
+ "car": "agera",
+ "tier": "LITE",
+ "dt": 0.02,
+ "every": 5,
+ "endTime": 14,
+ "started": "2026-10-08T13:14:13.190Z",
+ "machine": "headless Chromium, SwiftShader (CPU), 4 cores",
+ "rec": [
+  {
+   "t": 2.273,
+   "Cd": 0.3889,
+   "CdMean": 0.3821,
+   "CdStd": 0.0934,
+   "Cl": -4.2684,
+   "ClMean": -3.7745,
+   "ClStd": 1.5952,
+   "A": 2.3092,
+   "window": 1.1292,
+   "guard": 0,
+   "wallS": 45
+  },
+  {
+   "t": 3.273,
+   "Cd": 0.5635,
+   "CdMean": 0.4804,
+   "CdStd": 0.1394,
+   "Cl": -3.187,
+   "ClMean": -3.3641,
+   "ClStd": 1.2936,
+   "A": 2.3092,
+   "window": 2.1292,
+   "guard": 0,
+   "wallS": 88
+  },
+  {
+   "t": 4.273,
+   "Cd": 0.4885,
+   "CdMean": 0.4781,
+   "CdStd": 0.122,
+   "Cl": -2.3108,
+   "ClMean": -2.977,
+   "ClStd": 1.2422,
+   "A": 2.3092,
+   "window": 3.1292,
+   "guard": 0,
+   "wallS": 129
+  },
+  {
+   "t": 5.273,
+   "Cd": 0.6533,
+   "CdMean": 0.5302,
+   "CdStd": 0.1465,
+   "Cl": -1.987,
+   "ClMean": -2.7083,
+   "ClStd": 1.1942,
+   "A": 2.3092,
+   "window": 4.1292,
+   "guard": 0,
+   "wallS": 174
+  },
+  {
+   "t": 6.273,
+   "Cd": 0.6656,
+   "CdMean": 0.5577,
+   "CdStd": 0.1439,
+   "Cl": -1.9446,
+   "ClMean": -2.5603,
+   "ClStd": 1.1186,
+   "A": 2.3092,
+   "window": 5.1292,
+   "guard": 0,
+   "wallS": 218
+  },
+  {
+   "t": 7.273,
+   "Cd": 0.6345,
+   "CdMean": 0.5689,
+   "CdStd": 0.1347,
+   "Cl": -1.6817,
+   "ClMean": -2.4169,
+   "ClStd": 1.0811,
+   "A": 2.3092,
+   "window": 6.1292,
+   "guard": 0,
+   "wallS": 262
+  },
+  {
+   "t": 8.273,
+   "Cd": 0.6646,
+   "CdMean": 0.5806,
+   "CdStd": 0.1306,
+   "Cl": -0.9215,
+   "ClMean": -2.1822,
+   "ClStd": 1.1675,
+   "A": 2.3092,
+   "window": 7.1292,
+   "guard": 0,
+   "wallS": 306
+  },
+  {
+   "t": 9.273,
+   "Cd": 0.6703,
+   "CdMean": 0.6025,
+   "CdStd": 0.1201,
+   "Cl": -0.5921,
+   "ClMean": -1.9233,
+   "ClStd": 1.1815,
+   "A": 2.3092,
+   "window": 8,
+   "guard": 0,
+   "wallS": 353
+  },
+  {
+   "t": 10.273,
+   "Cd": 0.6807,
+   "CdMean": 0.6357,
+   "CdStd": 0.0901,
+   "Cl": -0.2469,
+   "ClMean": -1.4845,
+   "ClStd": 0.8936,
+   "A": 2.3092,
+   "window": 8,
+   "guard": 0,
+   "wallS": 397
+  }
+ ],
+ "setup": {
+  "tierRunning": "LITE",
+  "N": [
+   99,
+   24,
+   38
+  ],
+  "cellM": [
+   0.3384,
+   0.3333,
+   0.3421
+  ],
+  "U": 5,
+  "yawDeg": 0,
+  "car": "agera",
+  "dims": {
+   "lengthX": 4.293,
+   "widthZ": 2.102519706224216,
+   "heightY": 1.1322689331131648
+  },
+  "voxCarCells": 203,
+  "voxFrontM2": 2.3092105263157894,
+  "mgCycles": 1
+ },
+ "last": {
+  "t": 10.273,
+  "Cd": 0.6807,
+  "CdMean": 0.6357,
+  "CdStd": 0.0901,
+  "Cl": -0.2469,
+  "ClMean": -1.4845,
+  "ClStd": 0.8936,
+  "A": 2.3092,
+  "window": 8,
+  "guard": 0,
+  "wallS": 397
+ }
+}
