@@ -1,0 +1,15 @@
+Random_0002|Barbarian Hut,Archer Queen,Graveyard,Giant Skeleton,Suspicious Bush,Bomber,Skeletons,Inferno Tower
+Random_0008|Mega Minion,The Log,Ronin,Mega Knight,Skeleton Dragons,Goblin Cage,Mini PEKKA,Valkyrie
+Random_0009|Royal Ghost,Goblin Cage,Dart Goblin,Royal Hogs,Royal Delivery,Balloon,Suspicious Bush,Tornado
+Random_0039|Goblin Giant,Miner,Ice Golem,Lava Hound,Bandit,Zap,Cannon Cart,Mortar
+Random_0074|Cannon,Vines,Goblin Demolisher,Bandit,Wall Breakers,Tombstone,Royal Recruits,Inferno Dragon
+Random_0095|Wizard,Goblinstein,Cannon,Lumberjack,Vines,Minion Horde,Fire Spirit,Archers
+Random_0099|Mini PEKKA,Musketeer,Elite Barbarians,Rocket,Tombstone,Inferno Tower,Royal Recruits,Miner
+Random_0188|Electro Spirit,Dart Goblin,Balloon,Knight,Barbarian Barrel,Goblin Machine,Barbarian Hut,Inferno Tower
+Random_0213|Rune Giant,Hunter,Mega Minion,Royal Recruits,Balloon,Earthquake,Graveyard,X-Bow
+Random_0225|Goblin Machine,Cannon,Phoenix,P.E.K.K.A.,Goblins,Vines,Electro Giant,Elixir Golem
+Random_0235|Royal Ghost,Prince,Graveyard,Three Musketeers,Goblin Cage,Minion Horde,Elixir Collector,Zappies
+Random_0296|Electro Dragon,Poison,Golem,Cannon,Earthquake,Bomber,Giant Skeleton,Goblin Gang
+Random_0310|Bomb Tower,Fireball,Mega Knight,Minion Horde,Royal Ghost,Royal Delivery,Furnace,Fire Spirit
+Random_0329|Fisherman,Princess,Flying Machine,Barbarian Barrel,Inferno Dragon,Minion Horde,Royal Delivery,X-Bow
+Random_0354|Skeleton Dragons,Mini PEKKA,Arrows,Suspicious Bush,Goblin Demolisher,Tesla,Goblin Cage,Electro Giant
