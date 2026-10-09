@@ -2,3 +2,8 @@ A=nresults/student/net_r5.bin B=p0  A win 54.75%  se 2.49  games 400  ms/game 3.
 A=nresults/student/net_r5.bin B=p1  A win 59.25%  se 2.46  games 400  ms/game 3.0
 A=nresults/student/net_r5.bin B=p2  A win 59.00%  se 2.46  games 400  ms/game 3.0
 A=nresults/student/net_r5.bin B=p3  A win 34.62%  se 2.38  games 400  ms/game 75.7
+A=nresults/student/net_r5.bin B=p4  A win 30.00%  se 2.29  games 400  ms/game 92.9
+A=nresults/student/net_r5.bin B=p6  A win 31.87%  se 2.33  games 400  ms/game 104.1
+A=nresults/student/net_r5.bin B=p8  A win 33.75%  se 2.36  games 400  ms/game 188.6
+A=nresults/student/net_r5.bin B=p11  A win 33.12%  se 2.35  games 400  ms/game 100.2
+A=nresults/student/net_r5.bin B=nresults/student/net_bc.bin  A win 92.75%  se 1.30  games 400  ms/game 1.7
