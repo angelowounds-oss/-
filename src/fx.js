@@ -141,7 +141,7 @@ export class LightPool {
     this.lights = []; this.items = [];
     for (let i = 0; i < n; i++) {
       const l = new THREE.PointLight(0xffffff, 0, 30, 1.6);
-      l.castShadow = false; scene.add(l); this.lights.push(l); this.items.push(null);
+      l.castShadow = false; l.visible = i < LIGHT_CAP.fx; scene.add(l); this.lights.push(l); this.items.push(null);   // final visibility now: shaders compile for this light count
     }
   }
   flash(x, y, z, color, intensity, dist, life) {

@@ -28,6 +28,7 @@ function fatal(e) {
     await game.init((p, t) => { bar.style.width = p * 100 + '%'; txt.textContent = t; });
     furnitureReady();   // prepare the furniture models during loading, not in the middle of the first building that opens
     game.buildings.warm(game.player.x, game.player.z, game.player.y || 0);
+    game.prewarmShaders();
   } catch (e) { fatal(e); return; }
   const go = el('go');
   go.classList.add('rdy');

@@ -301,5 +301,11 @@ export class Military {
     e.g.userData.tur.rotation.y += rand(-0.5, 0.5); e.g.userData.tur.position.y += 0.15; e.g.userData.tur.rotation.z = 0.12;
     this.wrecks.push({ g: e.g, x: e.x, y: 1, z: e.z, t: 0 }); e.gone = true;
   }
+  // one of each unit, for compiling their shaders during loading (see Game.prewarmShaders)
+  warmModels() {
+    const h = buildHeli(), t = buildTank();
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.6, 0.2).multiplyScalar(3), toneMapped: false }));
+    return [h, h.userData.beam, t, shell];
+  }
   clear() { for (const e of [...this.heli, ...this.tank]) e.leaving = true; }
 }

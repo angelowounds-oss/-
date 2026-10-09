@@ -12,9 +12,10 @@ import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
-import { glowSpriteMat } from './models.js';
+import { glowSpriteMat, buildCar, CAR_SPECS } from './models.js';
+import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
-import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth } from './util.js';
+import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
 import { QUALITY } from './engine.js';
 import { loadAssets } from './assets.js';
 import { buildDressing } from './dressing.js';
@@ -108,6 +109,8 @@ export class Game {
     this.tracers = new Tracers(this.scene, 48);
     this.lights = new LightPool(this.scene, 5);
     this.head = new THREE.SpotLight(0xfff0d0, 0, 80, 0.5, 0.6, 1.6); this.scene.add(this.head, this.head.target);
+    // the flashlight exists from the start at zero intensity: adding a light later changes the light count every shader is compiled for
+    this.flash = new THREE.SpotLight(0xdff4ff, 0, 38, 0.38, 0.5, 1.3); this.scene.add(this.flash, this.flash.target);
     this.fx = this.makeFX();
     this.setupPlayer();
     this.buildMinimap();
@@ -401,6 +404,32 @@ export class Game {
     eng.render(dt);
   }
 
+  // During loading: compile the shader programs of everything that can come into view later - every vehicle type and trim, the military
+  // units, and whatever is already in the scene but out of view. On a real GPU the first draw of a material that has no program yet blocks
+  // while it compiles and links (tens to hundreds of ms): a hitch the moment that thing first appears.
+  prewarmShaders() {
+    const eng = this.eng, R = eng.renderer, cam = this.camera, warm = new THREE.Group(), models = [];
+    try {
+      for (const t of Object.keys(CAR_SPECS)) {
+        models.push(buildCar(t, CAR_COLORS[0], {}).group, buildCar(t, 0x0c1220, { police: true, glow: [0.2, 0.4, 1] }).group, buildCar(t, 0xe8b820, { taxi: true, glow: [1, 0.8, 0.3] }).group);
+        if (t === 'sport') models.push(buildCar(t, CAR_COLORS[1], { hero: true, glow: [1, 0.3, 0.6] }).group);
+      }
+      for (const t of Object.keys(CRAFT_SPECS)) models.push(buildCustom(t, CAR_COLORS[2], {}).group);
+      models.push(...this.military.warmModels());
+    } catch (e) { console.warn('prewarm models', e); }
+    // a row just in front of the camera, so the warm-up frame really draws them (main pass, shadow pass, post)
+    const dir = new THREE.Vector3(); cam.getWorldDirection(dir); const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+    models.forEach((m, i) => { m.position.copy(cam.position).addScaledVector(dir, 14 + (i % 4) * 4).addScaledVector(side, ((i >> 2) % 7 - 3) * 4); m.traverse((o) => { o.frustumCulled = false; }); warm.add(m); });
+    this.scene.add(warm);
+    const undoFloors = this.buildings.prewarmFloors?.();
+    const prev = R.getRenderTarget();
+    R.setRenderTarget(eng.composer.readBuffer); R.compile(this.scene, cam); R.setRenderTarget(prev);   // the scene is drawn into the composer's target
+    R.shadowMap.needsUpdate = true; eng.composer.render(0);
+    this.scene.remove(warm); undoFloors?.();
+    // geometry only: disposing the materials would also release the programs this was all about
+    warm.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    return R.info.programs.length;
+  }
   // skinned bodies are frustum culled with a fixed sphere; while a ragdoll drives the bones away from the (frozen) group, culling is off
   cullSkins() {
     const f = (h) => { const m = h.m, c = !h.rag; if (m && m.skinMeshes && m.cullOn !== c) { m.cullOn = c; for (const o of m.skinMeshes) o.frustumCulled = c; } };
@@ -1639,8 +1668,37 @@ export class Game {
     if (a.slow > 0.6) {
       a.slow = 0; a.cool = 1.2;
       if (eng.scale > 0.7) eng.setScale(eng.scale - 0.1);
-      else if (eng.qIndex > 0) { eng.setQuality(eng.qIndex - 1); a.cool = 6; el('qSel').value = String(eng.qIndex); }
+      else if (eng.qIndex > 0) { this.dropQualityTier(); a.cool = 6; }
     } else if (a.fast > 6 && eng.scale < 1) { a.fast = 0; a.cool = 3; eng.setScale(eng.scale + 0.1); }
+  }
+  // light visibility follows LIGHT_CAP at once (the light pools also apply it in their own updates)
+  applyLightCaps() {
+    this.lights.lights.forEach((l, i) => { l.visible = i < LIGHT_CAP.fx; });
+    this.buildings?.lights.forEach((l, i) => { l.visible = i < LIGHT_CAP.bld; });
+  }
+  // Automatic tier drop. The lower tier has fewer lights, so every shader needs a different variant: compiling them all at the switch
+  // would freeze the game exactly when it is already struggling. Compile them first with the lower tier's lights (the GPU does this in
+  // parallel where KHR_parallel_shader_compile exists), keep drawing with the current programs, and switch when they are ready.
+  dropQualityTier() {
+    const eng = this.eng, R = eng.renderer, next = eng.qIndex - 1;
+    if (next < 0 || this._tierPending) return;
+    this._tierPending = true;
+    const keep = [LIGHT_CAP.fx, LIGHT_CAP.bld];
+    [LIGHT_CAP.fx, LIGHT_CAP.bld] = QUALITY[next].lights; this.applyLightCaps();
+    const prev = R.getRenderTarget(); let progs = [];
+    try {
+      R.setRenderTarget(eng.composer.readBuffer);
+      const mats = R.compile(this.scene, this.camera);
+      progs = [...mats].map((m) => R.properties.get(m).currentProgram).filter(Boolean);   // the new variants themselves (the material switches back below)
+    } catch (e) { console.warn('tier precompile', e); }
+    R.setRenderTarget(prev);
+    [LIGHT_CAP.fx, LIGHT_CAP.bld] = keep; this.applyLightCaps();
+    const t0 = performance.now();
+    const check = () => {
+      if (progs.every((p) => p.isReady()) || performance.now() - t0 > 8000) { eng.setQuality(next); this.applyLightCaps(); el('qSel').value = String(eng.qIndex); this._tierPending = false; }
+      else setTimeout(check, 30);
+    };
+    check();
   }
   audioUpdate(dt) {
     const v = this.vehicle;

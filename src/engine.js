@@ -144,10 +144,14 @@ export function createEngine(parent, qIndex) {
           composer.insertPass(gtao, 1);
         } catch (e) { console.warn('GTAO unavailable', e); gtao = null; }
       }
-      if (smaa) { composer.removePass(smaa); smaa.dispose?.(); smaa = null; }
-      if (q.smaa) {
-        smaa = new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
-        composer.addPass(smaa);
+      // every tier uses SMAA: keep the pass (and its compiled shaders) and only resize it
+      if (smaa && q.smaa) smaa.setSize(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+      else {
+        if (smaa) { composer.removePass(smaa); smaa.dispose?.(); smaa = null; }
+        if (q.smaa) {
+          smaa = new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+          composer.addPass(smaa);
+        }
       }
       eng.onQuality?.(q);
     },

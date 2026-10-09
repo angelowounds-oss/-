@@ -1030,7 +1030,7 @@ export class Buildings {
     this.G = G; this.list = []; this.active = new Set(); this.t = 0;
     for (const l of G.world.lots) if (l.name && l.door) this.list.push(new Building(this, l));
     this.byLot = new Map(this.list.map((b) => [b.lot, b]));
-    this.lights = Array.from({ length: 6 }, () => { const l = new THREE.PointLight(0xffe2b0, 0, 17, 1.6); G.scene.add(l); return l; });
+    this.lights = Array.from({ length: 6 }, (_, i) => { const l = new THREE.PointLight(0xffe2b0, 0, 17, 1.6); l.visible = i < LIGHT_CAP.bld; G.scene.add(l); return l; });
     this.lt = 0;
   }
   populateFloor(b, fl, L, rooms) { this.populateLife(b, fl, L, rooms); this.populateCitizens(b, fl, L, rooms); }
@@ -1088,6 +1088,19 @@ export class Buildings {
       if (inside && !(b.elev && b.elev.state === 'moving')) { const k = b.levelAt(py); b.ensureRange(k - 2, k + 3); b.curLevel = k; if (at && !b.floors.has(k)) b.buildFloor(k); }   // never leave the floor someone stands on unbuilt
       b.tick(dt);
     }
+  }
+  // loading: one floor of every kind (retail podium, each kind of tower floor, roof) built somewhere, so their materials - furniture sets, room
+  // number plates, living-room sets - get their shader programs compiled before play. Returns the function that removes them again.
+  prewarmFloors() {
+    const made = [];
+    for (const kind of KINDS) {
+      const b = this.list.find((x) => x.kind === kind && !x.open); if (!b) continue;
+      b.activate();
+      const L = b.levels, ks = new Set([L.findIndex((l) => l.type === 'retail'), L.findIndex((l) => l.tier === 'tower'), L.length - 1]);
+      for (const k of ks) if (k >= 0) b.buildFloor(k);
+      made.push(b);
+    }
+    return () => { for (const b of made) b.deactivate(); };
   }
   // loading screen: open the buildings around the start and finish their floors now, so the first minutes of play do not pay for it
   warm(fx, fz, py) {
