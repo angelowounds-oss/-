@@ -112,30 +112,57 @@ export function fastMerge(geos) {
   return out;
 }
 
+// Growable float buffers for one material class of one Builder. They are lent from a pool and handed back when the Builder finishes,
+// so building a floor no longer leaves thousands of little BufferGeometry objects (uuid, attribute objects, arrays) behind as garbage.
+class Acc {
+  constructor(decor) { this.decor = decor; this.n = 0; this.cap = 0; this.grow(2048); }
+  grow(min) {
+    const cap = Math.max(this.cap * 2, min), keep = this.n;
+    const re = (old, k) => { const a = new Float32Array(cap * k); if (old) a.set(old.subarray(0, keep * k)); return a; };
+    this.pos = re(this.pos, 3); this.nor = re(this.nor, 3); this.col = re(this.col, 3);
+    if (this.decor) { this.suv = re(this.suv, 2); this.surf = re(this.surf, 1); }
+    this.cap = cap;
+  }
+}
+const ACC_POOL = { decor: [], plain: [] };
+const takeAcc = (decor) => { const a = (decor ? ACC_POOL.decor : ACC_POOL.plain).pop() || new Acc(decor); a.n = 0; return a; };
+const giveAcc = (a) => { (a.decor ? ACC_POOL.decor : ACC_POOL.plain).push(a); };
+const _bp = new Float32Array(108), _bn = new Float32Array(108), _bc = new THREE.Color();
+const PART_KEYS = ['decor', 'emit', 'glass', 'steel'];
+
 export class Builder {
-  constructor() { this.parts = { decor: [], emit: [], glass: [], steel: [] }; this.surf = 0; }
-  _push(key, g, col, em = 1) {
-    const n = g.attributes.position.count, a = new Float32Array(n * 3), c = new THREE.Color(col);
-    for (let i = 0; i < n; i++) { a[i * 3] = c.r * em; a[i * 3 + 1] = c.g * em; a[i * 3 + 2] = c.b * em; }
-    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
-    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k);
-    if (key === 'decor') { // world-metre pattern coordinates, projected along the dominant normal axis
-      const p = g.attributes.position, nr = g.attributes.normal, uv = new Float32Array(n * 2), sf = new Float32Array(n).fill(this.surf);
-      for (let i = 0; i < n; i++) {
-        const nx = Math.abs(nr.getX(i)), ny = Math.abs(nr.getY(i)), nz = Math.abs(nr.getZ(i));
-        if (ny >= nx && ny >= nz) { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = p.getZ(i); }
-        else if (nx >= nz) { uv[i * 2] = p.getZ(i); uv[i * 2 + 1] = p.getY(i); }
-        else { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = p.getY(i); }
+  constructor() { this.acc = {}; this.surf = 0; }
+  // append n vertices (or the vertices picked by index) with one flat colour; decor also gets world-metre pattern coordinates projected
+  // along the dominant normal axis and the current surface id. Same values, same order as the old per-piece geometry + merge.
+  _append(key, pos, nor, n, index, col, em) {
+    const A = this.acc[key] || (this.acc[key] = takeAcc(key === 'decor')), cnt = index ? index.length : n;
+    if (A.n + cnt > A.cap) A.grow(A.n + cnt);
+    const c = _bc.set(col), cr = c.r * em, cg = c.g * em, cb = c.b * em, P = A.pos, N = A.nor, C = A.col, U = A.suv, S = A.surf, sf = this.surf;
+    for (let j = 0; j < cnt; j++) {
+      const v = index ? index[j] : j, o = A.n + j, v3 = v * 3, o3 = o * 3;
+      const px = pos[v3], py = pos[v3 + 1], pz = pos[v3 + 2], qx = nor[v3], qy = nor[v3 + 1], qz = nor[v3 + 2];
+      P[o3] = px; P[o3 + 1] = py; P[o3 + 2] = pz; N[o3] = qx; N[o3 + 1] = qy; N[o3 + 2] = qz;
+      C[o3] = cr; C[o3 + 1] = cg; C[o3 + 2] = cb;
+      if (A.decor) {
+        const ax = Math.abs(qx), ay = Math.abs(qy), az = Math.abs(qz);
+        if (ay >= ax && ay >= az) { U[o * 2] = px; U[o * 2 + 1] = pz; }
+        else if (ax >= az) { U[o * 2] = pz; U[o * 2 + 1] = py; }
+        else { U[o * 2] = px; U[o * 2 + 1] = py; }
+        S[o] = sf;
       }
-      g.setAttribute('aSUv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('aSurf', new THREE.BufferAttribute(sf, 1));
     }
-    this.parts[key].push(g.index ? g.toNonIndexed() : g);
+    A.n += cnt;
+  }
+  _push(key, g, col, em = 1) {
+    const pa = g.attributes.position, na = g.attributes.normal;
+    const pos = pa.array instanceof Float32Array ? pa.array : Float32Array.from(pa.array), nor = na.array instanceof Float32Array ? na.array : Float32Array.from(na.array);
+    this._append(key, pos, nor, pa.count, g.index ? g.index.array : null, col, em);
   }
   // center-based box in world coords (x,z center; y base).
-  // Built straight into typed arrays, repeating the float32 steps of the old BoxGeometry -> translate -> rotateX -> rotateY -> translate -> toNonIndexed
-  // chain (same vertices, same normals, same triangle order), without the temporary geometry and the four passes over its attributes.
+  // Repeats the float32 steps of the old BoxGeometry -> translate -> rotateX -> rotateY -> translate -> toNonIndexed chain (same vertices,
+  // same normals, same triangle order) in two scratch arrays, then appends them.
   box(key, x, y, z, w, h, d, col, ry = 0, em = 1, rx = 0) {
-    const T = boxTemplate(), n = 36, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), hw = w / 2, hh = h / 2, hd = d / 2, f = Math.fround;
+    const T = boxTemplate(), n = 36, pos = _bp, nor = _bn, hw = w / 2, hh = h / 2, hd = d / 2, f = Math.fround;
     for (let i = 0; i < n; i++) {
       pos[i * 3] = T.sx[i] * hw; pos[i * 3 + 1] = T.sy[i] * hh; pos[i * 3 + 2] = T.sz[i] * hd;      // float32 of +-half extent, as BoxGeometry stored it
       nor[i * 3] = T.nx[i]; nor[i * 3 + 1] = T.ny[i]; nor[i * 3 + 2] = T.nz[i];
@@ -145,20 +172,26 @@ export class Builder {
     if (ry) rotAttr(pos, nor, _m4.makeRotationY(ry));
     if (rx || ry) for (let i = 0; i < nor.length; i += 3) { const l = Math.sqrt(nor[i] * nor[i] + nor[i + 1] * nor[i + 1] + nor[i + 2] * nor[i + 2]) || 1, il = 1 / l; nor[i] = f(nor[i] * il); nor[i + 1] = f(nor[i + 1] * il); nor[i + 2] = f(nor[i + 2] * il); }   // the final translate() normalised again
     for (let i = 0; i < n; i++) { pos[i * 3] = f(pos[i * 3] + x); pos[i * 3 + 1] = f(pos[i * 3 + 1] + y); pos[i * 3 + 2] = f(pos[i * 3 + 2] + z); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-    this._push(key, g, col, em);
+    this._append(key, pos, nor, n, null, col, em);
   }
   // min/max extents box
   ext(key, x0, y0, z0, x1, y1, z1, col, em = 1) { this.box(key, (x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, col, 0, em); }
   cyl(key, x, y, z, r, h, col, seg = 14, em = 1) { const g = new THREE.CylinderGeometry(r, r, h, seg); g.translate(x, y + h / 2, z); this._push(key, g, col, em); }
   ico(key, x, y, z, r, col, sy = 1) { const g = new THREE.IcosahedronGeometry(r, 1); g.scale(1, sy, 1); g.translate(x, y, z); this._push(key, g, col); }
   finish(parent) { const out = []; for (const m of this.finishGen(parent, out)); return out; }
-  // one merged mesh per material class; a generator so a floor build can pause between them
+  // one mesh per material class (exact-length copies of the buffers, which go back to the pool); a generator so a floor build can pause
   *finishGen(parent, out = []) {
     const m = mats();
-    for (const [k, arr] of Object.entries(this.parts)) {
-      if (!arr.length) continue;
-      const geo = fastMerge(arr); if (!geo) continue;
+    for (const k of PART_KEYS) {
+      const A = this.acc[k]; if (!A) continue;
+      delete this.acc[k];
+      if (!A.n) { giveAcc(A); continue; }
+      const n = A.n, geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(A.pos.slice(0, n * 3), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(A.nor.slice(0, n * 3), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(A.col.slice(0, n * 3), 3));
+      if (A.decor) { geo.setAttribute('aSUv', new THREE.BufferAttribute(A.suv.slice(0, n * 2), 2)); geo.setAttribute('aSurf', new THREE.BufferAttribute(A.surf.slice(0, n), 1)); }
+      giveAcc(A);
       const mesh = new THREE.Mesh(geo, k === 'decor' ? m.decor : k === 'emit' ? m.emit : k === 'glass' ? m.glass : m.steel);
       mesh.frustumCulled = true; mesh.receiveShadow = k !== 'emit'; if (k === 'glass') mesh.renderOrder = 3;
       parent.add(mesh); out.push(mesh);

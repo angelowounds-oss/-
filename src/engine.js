@@ -122,11 +122,12 @@ export function createEngine(parent, qIndex) {
       composer.setSize(innerWidth, innerHeight);
       if (smaa) smaa.setSize(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
     },
-    setQuality(i) {
+    // keepLights: leave the light caps as they are (the number of lights is part of every shader; changing it means recompiling them all)
+    setQuality(i, opt = {}) {
       i = Math.max(0, Math.min(QUALITY.length - 1, i));
       eng.qIndex = i;
       const q = (eng.q = QUALITY[i]);
-      eng.scale = 1; [LIGHT_CAP.fx, LIGHT_CAP.bld] = q.lights;
+      eng.scale = 1; if (!opt.keepLights) [LIGHT_CAP.fx, LIGHT_CAP.bld] = q.lights;
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.dpr));
       renderer.setSize(innerWidth, innerHeight);
       composer.setPixelRatio(renderer.getPixelRatio());

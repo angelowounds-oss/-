@@ -81,6 +81,12 @@ export class Game {
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
     this.world = buildWorld(this.scene, eng.q); uploadSigns(this.world, eng.renderer);
+    // the name-board texture array is filled by hand (uploadSigns), so after a lost-and-restored WebGL context three.js recreates it
+    // empty: fill it again once the restored context has drawn a frame
+    eng.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      if (this.world.signMesh) this.world.signMesh.userData.uploaded = false;
+      requestAnimationFrame(() => uploadSigns(this.world, eng.renderer));
+    });
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
@@ -425,6 +431,18 @@ export class Game {
     const prev = R.getRenderTarget();
     R.setRenderTarget(eng.composer.readBuffer); R.compile(this.scene, cam); R.setRenderTarget(prev);   // the scene is drawn into the composer's target
     R.shadowMap.needsUpdate = true; eng.composer.render(0);
+    // and upload every texture the scene uses: a texture is otherwise sent to the GPU the first time something with it is drawn
+    // (the 2048 furniture atlas, facade arrays, model skins... tens of ms each, mid-game)
+    const texs = new Set(), take = (v) => { if (v && v.isTexture && !v.isRenderTargetTexture) texs.add(v); };
+    this.scene.traverse((o) => {
+      const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      for (const m of ms) {
+        for (const k in m) take(m[k]);
+        if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k] && m.uniforms[k].value; if (Array.isArray(v)) v.forEach(take); else take(v); }
+      }
+    });
+    take(this.scene.environment); take(this.scene.background);
+    for (const t of texs) { try { R.initTexture(t); } catch (e) { /* not ready yet: uploaded on first use */ } }
     this.scene.remove(warm); undoFloors?.();
     // geometry only: disposing the materials would also release the programs this was all about
     warm.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
@@ -1671,34 +1689,12 @@ export class Game {
       else if (eng.qIndex > 0) { this.dropQualityTier(); a.cool = 6; }
     } else if (a.fast > 6 && eng.scale < 1) { a.fast = 0; a.cool = 3; eng.setScale(eng.scale + 0.1); }
   }
-  // light visibility follows LIGHT_CAP at once (the light pools also apply it in their own updates)
-  applyLightCaps() {
-    this.lights.lights.forEach((l, i) => { l.visible = i < LIGHT_CAP.fx; });
-    this.buildings?.lights.forEach((l, i) => { l.visible = i < LIGHT_CAP.bld; });
-  }
-  // Automatic tier drop. The lower tier has fewer lights, so every shader needs a different variant: compiling them all at the switch
-  // would freeze the game exactly when it is already struggling. Compile them first with the lower tier's lights (the GPU does this in
-  // parallel where KHR_parallel_shader_compile exists), keep drawing with the current programs, and switch when they are ready.
+  // Automatic tier drop: resolution, shadow map size, bloom and AO go down, the light caps stay. The number of lights is part of every
+  // shader, so lowering it would recompile all of them right when the game is already struggling (and the shadow pass's depth shaders
+  // too). Picking a quality level by hand in the menu still sets everything, lights included.
   dropQualityTier() {
-    const eng = this.eng, R = eng.renderer, next = eng.qIndex - 1;
-    if (next < 0 || this._tierPending) return;
-    this._tierPending = true;
-    const keep = [LIGHT_CAP.fx, LIGHT_CAP.bld];
-    [LIGHT_CAP.fx, LIGHT_CAP.bld] = QUALITY[next].lights; this.applyLightCaps();
-    const prev = R.getRenderTarget(); let progs = [];
-    try {
-      R.setRenderTarget(eng.composer.readBuffer);
-      const mats = R.compile(this.scene, this.camera);
-      progs = [...mats].map((m) => R.properties.get(m).currentProgram).filter(Boolean);   // the new variants themselves (the material switches back below)
-    } catch (e) { console.warn('tier precompile', e); }
-    R.setRenderTarget(prev);
-    [LIGHT_CAP.fx, LIGHT_CAP.bld] = keep; this.applyLightCaps();
-    const t0 = performance.now();
-    const check = () => {
-      if (progs.every((p) => p.isReady()) || performance.now() - t0 > 8000) { eng.setQuality(next); this.applyLightCaps(); el('qSel').value = String(eng.qIndex); this._tierPending = false; }
-      else setTimeout(check, 30);
-    };
-    check();
+    const eng = this.eng; if (eng.qIndex <= 0) return;
+    eng.setQuality(eng.qIndex - 1, { keepLights: true }); el('qSel').value = String(eng.qIndex);
   }
   audioUpdate(dt) {
     const v = this.vehicle;
