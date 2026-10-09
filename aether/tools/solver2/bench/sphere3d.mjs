@@ -17,7 +17,7 @@ const t0 = Date.now(), S = createLBM3D({ nx, ny, nz, nu, solid, linkQ, U });
 const stepsPerT = Nd / U, ramp = Math.round(2 * stepsPerT) /* start-up transient excluded from the convergence test */, maxSteps = Math.round(+(maxTArg || 60) * stepsPerT), every = Math.round(stepsPerT / 2), A = Math.PI * R * R;
 const coef = () => 2 * S.force[0] / (U * U * A);
 // checkpoint every 10 min so a killed job resumes (AETHER_CKPT = directory, default /tmp/solver2-ckpt)
-const ckDir = process.env.AETHER_CKPT || '/tmp/solver2-ckpt', ck = path.join(ckDir, `sphere3d_${method}_${Nd}`); fs.mkdirSync(ckDir, { recursive: true });
+const ckDir = process.env.AETHER_CKPT || '/tmp/solver2-ckpt', tag = `${method}_${Nd}${U !== .06 ? `_u${U}` : ''}${boxArg && boxArg !== '12,6' ? `_box${LxD}x${LyD}` : ''}`, ck = path.join(ckDir, `sphere3d_${tag}`); fs.mkdirSync(ckDir, { recursive: true });
 let last = null, hist = [], conv = false, lastSave = Date.now(), wallPrev = 0;
 if (S.load(ck + '.bin')) { const m = JSON.parse(fs.readFileSync(ck + '.json', 'utf8')); hist = m.hist; wallPrev = m.wallS; console.log(`resumed at step ${S.step}`); }
 // convergence: the slow pressure oscillation (reflecting inlet and outlet) defeats a step-to-step test, so require the last 10 D/U (20 samples) to stay within 0.5 % and report their mean
@@ -35,5 +35,5 @@ while (S.step < maxSteps) {
 const res = { method, Nd, grid: [nx, ny, nz], U, nu, tau: S.tau, Re, steps: S.step, converged: conv, Cd: last, ref: REF, err: (last - REF) / REF, blockage: Math.PI / 4 / (LyD * LyD), links: S.links, wallS: wallPrev + (Date.now() - t0) / 1000, window: `mean of the last ${WIN} samples (${WIN / 2} D/U)`, hist };
 res.cellUpdates = nx * ny * nz * res.steps; res.mlups = res.cellUpdates / res.wallS / 1e6;
 const out = path.join(root, 'tools/solver2/out'); fs.mkdirSync(out, { recursive: true });
-fs.writeFileSync(path.join(out, `sphere3d_${method}_${Nd}.json`), JSON.stringify(res, null, 1));
+fs.writeFileSync(path.join(out, `sphere3d_${tag}.json`), JSON.stringify(res, null, 1));
 console.log('\n' + JSON.stringify({ method, Nd, grid: res.grid, Cd: +last.toFixed(4), errPct: +(res.err * 100).toFixed(2), blockagePct: +(res.blockage * 100).toFixed(2), converged: conv, steps: res.steps, wallS: res.wallS, mlups: +res.mlups.toFixed(2) }));
