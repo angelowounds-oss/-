@@ -1338,8 +1338,20 @@ export function buildWorld(scene, quality) {
   for (const l of world.lots) {
     if (!l.door || l.tierIdx == null) continue;
     const arr = (l.far ? farMesh : facade).geometry.attributes.aDoor, d = l.door, along = d.nx !== 0 ? l.z0 : l.x0;
-    arr.setXYZW(l.tierIdx, along, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 1); arr.needsUpdate = true;
+    // w = 0: the glazed ground-floor bays stay closed (drawn as facade) until the building's lobby exists, see setEntranceOpen
+    arr.setXYZW(l.tierIdx, along, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 0); arr.needsUpdate = true;
+    (l.doorRefs || (l.doorRefs = [])).push({ attr: arr, start: l.tierIdx, count: 1 });
   }
+  // The facade (and the skyline models) cut the glazed bays of an entrance open within 58 m of the player so the lobby behind shows.
+  // That must only happen while the lobby is actually there: a building that is not open, or whose ground floor is still being built,
+  // would otherwise show a hole straight through its ground floor. Building calls this when its ground floor appears / goes.
+  world.setEntranceOpen = (lot, on) => {
+    for (const r of lot.doorRefs || []) {
+      const a = r.attr, v = on ? 1 : 0; let changed = false;
+      for (let i = r.start; i < r.start + r.count; i++) if (a.getW(i) !== v) { a.setW(i, v); changed = true; }
+      if (changed) { a.addUpdateRange(r.start * 4, r.count * 4); a.needsUpdate = true; }
+    }
+  };
   buildWaters(world, scene);
   world.objects = scene.children.slice(objStart);
   return world;

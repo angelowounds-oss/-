@@ -94,18 +94,22 @@ export function buildSkyline(scene, world, wallUrl) {
     for (const l of lots) {
       if (l.model.side !== side) continue;
       rq.setFromAxisAngle(ax, l.model.rot); pv.set(l.model.cx, 0, l.model.cz); m4.compose(pv, rq, one);
-      const d = l.door, dv = d ? [d.nx !== 0 ? l.z0 : l.x0, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 1] : [0, 1, 0, 0];
+      const d = l.door, dv = d ? [d.nx !== 0 ? l.z0 : l.x0, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 0] : [0, 1, 0, 0];
       for (const p of parts[l.model.variant]) {
         const g = p.g.clone().applyMatrix4(m4), n = g.attributes.position.count, a = new Float32Array(n * 4);
         for (let i = 0; i < n; i++) a.set(dv, i * 4);
         g.setAttribute('aDoor', new THREE.BufferAttribute(a, 4));
-        (p.glass ? glassG : wallG).push(g);
+        (p.glass ? glassG : wallG).push({ g, lot: d ? l : null });
       }
     }
-    const add = (geos, mat) => {
-      if (!geos.length) return;
-      const g = mergeGeometries(geos.map((q) => (q.index ? q.toNonIndexed() : q)), false); if (!g) return;
+    const add = (items, mat) => {
+      if (!items.length) return;
+      const geos = items.map((it) => (it.g.index ? it.g.toNonIndexed() : it.g));
+      const g = mergeGeometries(geos, false); if (!g) return;
       const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = false; mesh.castShadow = false; g.computeBoundingSphere(); group.add(mesh);
+      // where each building's vertices ended up, so its entrance flag can be switched later
+      let start = 0;
+      items.forEach((it, i) => { const n = geos[i].attributes.position.count; if (it.lot) (it.lot.doorRefs || (it.lot.doorRefs = [])).push({ attr: g.attributes.aDoor, start, count: n }); start += n; });
     };
     add(wallG, wall); add(glassG, glass);
   }

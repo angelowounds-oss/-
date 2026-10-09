@@ -186,6 +186,7 @@ export class Building {
     this.G.breach?.applyFloor(this, fl, k);   // walls breached earlier stay open
     this.floors.set(k, fl);
     this.built.add(k);
+    if (k === 0) G.world.setEntranceOpen?.(this.lot, true);   // the lobby exists: the glazed entrance bays may open
     this.M.onFloorBuilt?.(this, fl, L);
   }
   // fire-escape ladder on the side opposite the entrance: base at the street level, top on the podium roof
@@ -229,6 +230,7 @@ export class Building {
   }
   dropFloor(k) {
     const fl = this.floors.get(k); if (!fl) return;
+    if (k === 0) this.G.world.setEntranceOpen?.(this.lot, false);   // no lobby behind the glass any more
     const col = this.G.world.colliders;
     { const L = this.levels[k], r = L.rect; this.G.ragdolls?.bakeInBox(r.x0, r.z0, r.x1, r.z1, L.y, L.y + L.h); }   // bodies lying on this floor freeze before it disappears
     if (fl.glassMesh) fl.glassMesh.dispose();
