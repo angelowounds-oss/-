@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
-import { toFloatGeo, holeCU, holeHU } from './gfx.js';
+import { toFloatGeo, holeCU, holeHU, takeF32, poolOnDispose } from './gfx.js';
 import defs from '../assets/interior/defs.json';
 
 // Furniture from the packed Poly Haven set (build/interior_pack.mjs): every model is one mesh on a shared 2048px atlas, so a whole
@@ -72,7 +72,7 @@ export class FloorDecor {
   *finishGen(group) {
     if (!this.geos.length || !material) return;
     let nv = 0; for (const it of this.geos) nv += it.m.geo.attributes.position.count;
-    const P = new Float32Array(nv * 3), Nn = new Float32Array(nv * 3), U = new Float32Array(nv * 2);
+    const P = takeF32(nv * 3), Nn = takeF32(nv * 3), U = takeF32(nv * 2);
     let o = 0, budget = 0;
     for (const { m, e, ne } of this.geos) {
       const ga = m.geo.attributes, p = ga.position.array, n = ga.normal.array, c = ga.position.count;
@@ -88,6 +88,7 @@ export class FloorDecor {
       if ((budget += c) > 25000) { budget = 0; yield; }
     }
     const merged = new THREE.BufferGeometry();
+    poolOnDispose(merged, [P, Nn, U]);   // pooled buffers (see gfx.js): back to the pool when the floor is dropped
     merged.setAttribute('position', new THREE.BufferAttribute(P, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(Nn, 3)); merged.setAttribute('uv', new THREE.BufferAttribute(U, 2));
     const mesh = new THREE.Mesh(merged, material); mesh.castShadow = false; mesh.receiveShadow = true; mesh.frustumCulled = true;
     group.add(mesh); this.mesh = mesh;

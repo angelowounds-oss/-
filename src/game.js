@@ -1764,7 +1764,8 @@ export class Game {
     g.save(); g.translate(W / 2, W / 2); g.rotate(0); g.fillStyle = '#4de3ff'; g.strokeStyle = '#001'; g.lineWidth = 2;
     g.beginPath(); g.moveTo(0, -11); g.lineTo(8, 9); g.lineTo(0, 5); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke(); g.restore();
     // vignette ring
-    const gr = g.createRadialGradient(W / 2, W / 2, W * 0.36, W / 2, W / 2, W / 2); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.55)');
+    let gr = this._mmVig;   // made once (a gradient object per frame was garbage for the DOM heap)
+    if (!gr || this._mmVigW !== W) { gr = this._mmVig = g.createRadialGradient(W / 2, W / 2, W * 0.36, W / 2, W / 2, W / 2); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.55)'); this._mmVigW = W; }
     g.fillStyle = gr; g.fillRect(0, 0, W, W);
   }
 }

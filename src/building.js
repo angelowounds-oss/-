@@ -137,7 +137,7 @@ export class Building {
     const G = this.G, col = G.world.colliders, L = this.levels[k], r = L.rect;
     const fl = { k, boxes: [], bodies: [], doors: [], fixtures: [], interact: [], group: new THREE.Group(), glass: [], props: [] };
     this.group.add(fl.group);
-    const B = new Builder();
+    const B = new Builder(); B.pooled = true;   // floor buffers are pooled (dropped floors give them back)
     const rnd = mulberry32(Math.floor(this.lot.seed * 1000) * 31 + k * 977);
     const R = (a, b) => a + (b - a) * rnd();
     const cc = (x0, z0, x1, z1, y0, y1, tag = 'int') => { const b = col.addBox(x0, z0, x1, z1, y1, tag, y0); fl.boxes.push(b); return b; };

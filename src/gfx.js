@@ -131,6 +131,21 @@ const _bp = new Float32Array(108), _bn = new Float32Array(108), _bc = new THREE.
 const PART_KEYS = ['decor', 'emit', 'glass', 'steel'];
 
 const ICO = new Map();
+// Buffers of building floors come from a pool and go back to it when the floor is dropped (its geometries are disposed). Floors are built
+// and dropped all the time while walking around; fresh buffers for each were nearly all of the game's ArrayBuffer churn - the "global
+// allocation limit" that kept starting full garbage collections (10-30 ms pauses). Power-of-two size classes; every element is rewritten.
+const POOL = new Map();
+export function takeF32(n) {
+  let c = 4096; while (c < n) c *= 2;
+  const L = POOL.get(c), buf = L && L.length ? L.pop() : new ArrayBuffer(c * 4);
+  return new Float32Array(buf, 0, n);
+}
+export function giveF32(a) {
+  const c = a.buffer.byteLength / 4; let L = POOL.get(c); if (!L) POOL.set(c, L = []);
+  if (L.length < 8) L.push(a.buffer);
+}
+// the arrays go back when the geometry is disposed (once, however often dispose is called)
+export function poolOnDispose(geo, arrays) { let given = false; geo.addEventListener('dispose', () => { if (given) return; given = true; for (const a of arrays) giveF32(a); }); }
 export class Builder {
   constructor() { this.acc = {}; this.surf = 0; }
   // append n vertices (or the vertices picked by index) with one flat colour; decor also gets world-metre pattern coordinates projected
@@ -192,11 +207,13 @@ export class Builder {
       const A = this.acc[k]; if (!A) continue;
       delete this.acc[k];
       if (!A.n) { giveAcc(A); continue; }
-      const n = A.n, geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(A.pos.slice(0, n * 3), 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(A.nor.slice(0, n * 3), 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(A.col.slice(0, n * 3), 3));
-      if (A.decor) { geo.setAttribute('aSUv', new THREE.BufferAttribute(A.suv.slice(0, n * 2), 2)); geo.setAttribute('aSurf', new THREE.BufferAttribute(A.surf.slice(0, n), 1)); }
+      const n = A.n, geo = new THREE.BufferGeometry(), pool = this.pooled, used = [];
+      const cp = (src, len) => { if (!pool) return src.slice(0, len); const a = takeF32(len); a.set(src.subarray(0, len)); used.push(a); return a; };
+      geo.setAttribute('position', new THREE.BufferAttribute(cp(A.pos, n * 3), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(cp(A.nor, n * 3), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(cp(A.col, n * 3), 3));
+      if (A.decor) { geo.setAttribute('aSUv', new THREE.BufferAttribute(cp(A.suv, n * 2), 2)); geo.setAttribute('aSurf', new THREE.BufferAttribute(cp(A.surf, n), 1)); }
+      if (pool) poolOnDispose(geo, used);
       giveAcc(A);
       const mesh = new THREE.Mesh(geo, k === 'decor' ? m.decor : k === 'emit' ? m.emit : k === 'glass' ? m.glass : m.steel);
       mesh.frustumCulled = true; mesh.receiveShadow = k !== 'emit'; if (k === 'glass') mesh.renderOrder = 3;
