@@ -358,10 +358,12 @@ static bool studentMode(int argc, char** argv) {
 
   if (mode == "vgen" && argc >= 7) {
     vector<Deck> D = readDecks(argv[2]); int games = atoi(argv[3]); TEACH = atoi(argv[4]); string out = argv[5]; uint64_t seed0 = atoll(argv[6]);
+    const float* vn = nullptr;
+    if (const char* e = getenv("CR_VNET")) { VNETS[e] = loadVec(e, VNPAR); vn = VNETS[e].data(); }
     chunkedRun<VSample>(out, games, 100, [&](int gi, vector<VSample>& buf) {
       Rng r(seed0 + gi * 7919ULL + 41); const Deck& a = D[r.below((int)D.size())]; const Deck& b = D[r.below((int)D.size())];
       uint64_t seed = seed0 * 53 + gi * 1000003ULL + 9;
-      Seat t = seatOf(TEACH); Seat o = r.uni() < 0.6 ? t : seatOf(r.below(3));
+      Seat t = seatOf(TEACH); t.vnet = vn; Seat o = r.uni() < 0.6 ? t : seatOf(r.below(3));
       playSeats(a, b, t, o, seed, nullptr, &buf);
     });
     return true;
