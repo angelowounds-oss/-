@@ -614,6 +614,6 @@ int main(int argc, char** argv) {
       double wr = 0.5 + (imb > 0 ? (rand() & 1 ? imb : -imb) : 0);  // approximate
       printf("%3d   %4d     %.4f      %.1f%%\n", r+1, idx+1, imb, (0.5 - imb)*100);
     }
-  } else if (!studentMode(argc, argv) && !esMode(argc, argv)) printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");
+  } else if (!studentMode(argc, argv) && !esMode(argc, argv) && !deckMatrixMode(argc, argv)) printf("modes: profile <cards..> | game A B [seed pa pb] | bench A B n | meta <file> <g>\n");
   return 0;
 }

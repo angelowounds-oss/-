@@ -10,3 +10,4 @@ results/student/*.progress
 results/student/data/
 results/student/stage*.log
 results/student/*.log
+results/student/balance_*.err
