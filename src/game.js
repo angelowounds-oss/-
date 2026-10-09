@@ -1182,9 +1182,10 @@ export class Game {
     v.setRoute(lane.i, lane.j, lane.di, lane.dj, lane.frac);
   }
   vehicleVsHumans() {
-    const all = [...this.humans];
+    let all = null;   // copy of the list only once a vehicle is actually moving (the copy is every frame otherwise)
     for (const v of this.vehicles) {
       if (!v.group.visible || v.speed < 3) continue;
+      if (!all) all = [...this.humans];
       const s = Math.sin(v.h), c = Math.cos(v.h), spd = v.speed;
       for (const h of all) {
         if (h.dead && h.knock === 0 && h.deadT > 1) continue;

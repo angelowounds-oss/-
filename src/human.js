@@ -179,7 +179,9 @@ export class Human {
     if (r.hit && this.team === 'civ' && this.state !== 'flee') { if (Math.random() < 0.05) this.chooseNext(); }
     this.speed = Math.hypot(this.vx, this.vz);
     // vehicles block
-    for (const v of G.vehicles) {
+    const vls = G.vehicles;
+    for (let vi = 0; vi < vls.length; vi++) {
+      const v = vls[vi];
       if (!v.group.visible) continue;
       const dx = this.x - v.x, dz = this.z - v.z;
       if (Math.abs(dx) > 4 || Math.abs(dz) > 4) continue;

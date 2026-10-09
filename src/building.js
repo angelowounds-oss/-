@@ -1087,6 +1087,11 @@ export class Buildings {
       b.tick(dt);
     }
   }
+  // loading screen: open the buildings around the start and finish their floors now, so the first minutes of play do not pay for it
+  warm(fx, fz, py) {
+    for (let i = 0; i < 12; i++) { this.t = 0; this.update(0.25, fx, fz, py); }
+    for (const b of this.active) { let n = 0; while ((b.pending.length || b.job) && n++ < 400) b.tick(0); }
+  }
   cabOf(pl) { for (const b of this.active) if (b.elev && b.elev.riding(pl)) return b.elev; return null; }
   ridingElevator(pl) { for (const b of this.active) if (b.elev && b.elev.state === 'moving' && b.elev.riding(pl)) return true; return false; }
   current(x, z, y) { const b = this.at(x, z); return b && b.open ? b : null; }

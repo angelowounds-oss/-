@@ -52,6 +52,7 @@ const ACCENTS = [
 export const accentColor = (i) => ACCENTS[((i % 6) + 6) % 6];
 
 // ---------- Collision world ----------
+const RESOLVE_TMP = [];   // scratch list for resolve(): it used to allocate a new array on every call (per person, per frame)
 export class Colliders {
   constructor() {
     this.boxes = [];
@@ -94,24 +95,27 @@ export class Colliders {
     this._add(c, x - r, z - r, x + r, z + r);
     return c;
   }
-  near(x, z, rad, out = []) {
-    out.length = 0;
+  near(x, z, rad, out = []) { out.length = this.nearN(x, z, rad, out); return out; }
+  // same query, written into a reusable array that is never truncated (no re-growing); returns how many entries are valid
+  nearN(x, z, rad, out) {
     // de-duplicate with a per-query stamp on the items instead of a Set (same result, no hashing)
     const c = this.cell, st = this._st = ((this._st | 0) + 1) | 0, grid = this.grid;
     const cx1 = Math.floor((x + rad) / c), cz1 = Math.floor((z + rad) / c), cz0 = Math.floor((z - rad) / c);
+    let n = 0;
     for (let cx = Math.floor((x - rad) / c); cx <= cx1; cx++)
       for (let cz = cz0; cz <= cz1; cz++) {
         const a = grid.get(this._key(cx, cz));
         if (!a) continue;
-        for (let i = 0; i < a.length; i++) { const it = a[i]; if (it._s !== st) { it._s = st; out.push(it); } }
+        for (let i = 0; i < a.length; i++) { const it = a[i]; if (it._s !== st) { it._s = st; out[n++] = it; } }
       }
-    return out;
+    return n;
   }
   // Push circle out of statics. Returns {x,z,nx,nz,hit,depth}
-  resolve(x, z, r, y = 0, tmp = []) {
+  resolve(x, z, r, y = 0, tmp = RESOLVE_TMP) {
     let hit = false, nxs = 0, nzs = 0, depth = 0;
-    const list = this.near(x, z, r + 2, tmp);
-    for (const b of list) {
+    const list = tmp, ln = this.nearN(x, z, r + 2, tmp);
+    for (let li = 0; li < ln; li++) {
+      const b = list[li];
       if (y > b.h - 0.05 || y + 1.7 < b.y0) continue;
       if (b.kind === 0) {
         const cx = clamp(x, b.x0, b.x1), cz = clamp(z, b.z0, b.z1);

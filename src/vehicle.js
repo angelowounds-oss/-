@@ -321,7 +321,9 @@ export class Vehicle {
     }
     // obstacle ahead
     const look = 10 + Math.max(vf, 0) * 0.9;
-    for (const o of G.vehicles) {
+    const vl = G.vehicles;
+    for (let vi = 0; vi < vl.length; vi++) {
+      const o = vl[vi];
       if (o === this || !o.group.visible) continue;
       const dx = o.x - this.x, dz = o.z - this.z;
       const along = dx * sH + dz * cH;
@@ -329,7 +331,9 @@ export class Vehicle {
       const lat = Math.abs(dx * cH - dz * sH);
       if (lat < (this.W + o.W) * 0.5 + 0.5) { target = Math.min(target, Math.max(0, (along - o.L * 0.5 - this.L * 0.5 - 2.5) * 1.1, o.speed * 0.7)); if (along < 6 && ai.honk <= 0 && Math.random() < 0.01) { ai.honk = 4; G.audio.horn?.(); } }
     }
-    for (const h of G.humans) {
+    const hl = G.humans;
+    for (let hi = 0; hi < hl.length; hi++) {
+      const h = hl[hi];
       if (h.dead || h.hidden) continue;
       const dx = h.x - this.x, dz = h.z - this.z;
       const along = dx * sH + dz * cH;

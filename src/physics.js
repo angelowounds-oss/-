@@ -15,6 +15,15 @@ export class Physics {
     this.R = R;
     this.world = new R.World({ x: 0, y: PHYS.gravity, z: 0 });
     this.world.timestep = PHYS.dt;
+    // rapier-compat's World.step() ends with mapNewSoftBodies(), which walks EVERY body and collider (thousands of JS callbacks, a fresh array
+    // of all collider objects, a wasm call per collider) after each step - about a third of a MB of garbage and ~1.5 ms per step here. Everything this
+    // game creates or removes goes through createCollider / createRigidBody / removeCollider / removeRigidBody, which keep the JS-side maps up to
+    // date themselves, so the scan finds nothing: the step runs the physics pipeline only.
+    const W = this.world, pipelineStep = W.step.bind(W);
+    W.stepFull = pipelineStep;
+    W.step = function (eventQueue, hooks) {
+      this.physicsPipeline.step(this.gravity, this.integrationParameters, this.islands, this.broadPhase, this.narrowPhase, this.bodies, this.colliders, this.softBodies, this.impulseJoints, this.multibodyJoints, this.ccdSolver, eventQueue, hooks);
+    };
     this.acc = 0;
     this.bodies = new Map();
     this.colRef = new Map();
