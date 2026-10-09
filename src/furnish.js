@@ -56,9 +56,10 @@ export class FloorDecor {
   put(id, x, z, ry = 0, o = {}) {
     const m = furnitureInfo(id); if (!m) return null;
     const s = o.s ?? 1, lift = o.lift ?? 0;
-    const g = m.geo.clone(); const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry);
-    g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, this.y0 + lift, z), q, new THREE.Vector3(s, s, s)));
-    this.geos.push(g); this.count++;
+    // only the placement is recorded here; the vertices are transformed once, straight into the merged buffers, in finish()
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry);
+    const mat = new THREE.Matrix4().compose(new THREE.Vector3(x, this.y0 + lift, z), q, new THREE.Vector3(s, s, s));
+    this.geos.push({ m, e: mat.elements.slice(), ne: new THREE.Matrix3().getNormalMatrix(mat).elements.slice() }); this.count++;
     const c = Math.abs(Math.cos(ry)), n = Math.abs(Math.sin(ry)), hx = (c * m.w + n * m.d) * s / 2, hz = (c * m.d + n * m.w) * s / 2;
     const rec = { x, z, hx, hz, h: m.h * s, id };
     if (o.solid ?? (lift < 0.2 && m.h * s > 0.3)) { rec.box = this.fl.cc(x - hx, z - hz, x + hx, z + hz, this.y0 + lift, this.y0 + lift + m.h * s, o.tag || 'furniture'); }
@@ -68,7 +69,22 @@ export class FloorDecor {
   size(id, s = 1) { const m = furnitureInfo(id); return m ? { w: m.w * s, h: m.h * s, d: m.d * s } : null; }
   finish(group) {
     if (!this.geos.length || !material) return null;
-    const merged = mergeGeometries(this.geos, false); if (!merged) return null;
+    let nv = 0; for (const it of this.geos) nv += it.m.geo.attributes.position.count;
+    const P = new Float32Array(nv * 3), Nn = new Float32Array(nv * 3), U = new Float32Array(nv * 2);
+    let o = 0;
+    for (const { m, e, ne } of this.geos) {
+      const ga = m.geo.attributes, p = ga.position.array, n = ga.normal.array, c = ga.position.count;
+      U.set(ga.uv.array, o * 2);
+      for (let i = 0; i < c; i++, o++) {
+        const x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2], w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+        P[o * 3] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w; P[o * 3 + 1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w; P[o * 3 + 2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
+        const nx = n[i * 3], ny = n[i * 3 + 1], nz = n[i * 3 + 2];
+        let ax = ne[0] * nx + ne[3] * ny + ne[6] * nz, ay = ne[1] * nx + ne[4] * ny + ne[7] * nz, az = ne[2] * nx + ne[5] * ny + ne[8] * nz;
+        const l = Math.sqrt(ax * ax + ay * ay + az * az) || 1; const il = 1 / l; Nn[o * 3] = ax * il; Nn[o * 3 + 1] = ay * il; Nn[o * 3 + 2] = az * il;
+      }
+    }
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(P, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(Nn, 3)); merged.setAttribute('uv', new THREE.BufferAttribute(U, 2));
     const mesh = new THREE.Mesh(merged, material); mesh.castShadow = false; mesh.receiveShadow = true; mesh.frustumCulled = true;
     group.add(mesh); this.mesh = mesh; return mesh;
   }

@@ -71,6 +71,28 @@ export function mats() {
   return M;
 }
 
+
+// 36 non-indexed box vertices in BoxGeometry(2,2,2) order: sign of each coordinate and the face normal
+let _bt = null; const _m4 = new THREE.Matrix4(), _m3 = new THREE.Matrix3();
+function boxTemplate() {
+  if (_bt) return _bt;
+  const g = new THREE.BoxGeometry(2, 2, 2).toNonIndexed(), p = g.attributes.position, nr = g.attributes.normal, n = p.count;
+  _bt = { sx: new Float64Array(n), sy: new Float64Array(n), sz: new Float64Array(n), nx: new Float32Array(n), ny: new Float32Array(n), nz: new Float32Array(n) };
+  for (let i = 0; i < n; i++) { _bt.sx[i] = Math.sign(p.getX(i)); _bt.sy[i] = Math.sign(p.getY(i)); _bt.sz[i] = Math.sign(p.getZ(i)); _bt.nx[i] = nr.getX(i); _bt.ny[i] = nr.getY(i); _bt.nz[i] = nr.getZ(i); }
+  return _bt;
+}
+// BufferAttribute.applyMatrix4 / applyNormalMatrix on raw arrays (position keeps float32 rounding per pass)
+function rotAttr(pos, nor, m4) {
+  const e = m4.elements, f = Math.fround, ne = _m3.getNormalMatrix(m4).elements;
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = pos[i], y = pos[i + 1], z = pos[i + 2], w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+    pos[i] = f((e[0] * x + e[4] * y + e[8] * z + e[12]) * w); pos[i + 1] = f((e[1] * x + e[5] * y + e[9] * z + e[13]) * w); pos[i + 2] = f((e[2] * x + e[6] * y + e[10] * z + e[14]) * w);
+    const nx = nor[i], ny = nor[i + 1], nz = nor[i + 2];
+    const ax = ne[0] * nx + ne[3] * ny + ne[6] * nz, ay = ne[1] * nx + ne[4] * ny + ne[7] * nz, az = ne[2] * nx + ne[5] * ny + ne[8] * nz, l = Math.sqrt(ax * ax + ay * ay + az * az) || 1;
+    const il = 1 / l; nor[i] = f(ax * il); nor[i + 1] = f(ay * il); nor[i + 2] = f(az * il);
+  }
+}
+
 export class Builder {
   constructor() { this.parts = { decor: [], emit: [], glass: [], steel: [] }; this.surf = 0; }
   _push(key, g, col, em = 1) {
@@ -90,10 +112,22 @@ export class Builder {
     }
     this.parts[key].push(g.index ? g.toNonIndexed() : g);
   }
-  // center-based box in world coords (x,z center; y base)
+  // center-based box in world coords (x,z center; y base).
+  // Built straight into typed arrays, repeating the float32 steps of the old BoxGeometry -> translate -> rotateX -> rotateY -> translate -> toNonIndexed
+  // chain (same vertices, same normals, same triangle order), without the temporary geometry and the four passes over its attributes.
   box(key, x, y, z, w, h, d, col, ry = 0, em = 1, rx = 0) {
-    const g = new THREE.BoxGeometry(w, h, d); g.translate(0, h / 2, 0);
-    if (rx) g.rotateX(rx); if (ry) g.rotateY(ry); g.translate(x, y, z); this._push(key, g, col, em);
+    const T = boxTemplate(), n = 36, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), hw = w / 2, hh = h / 2, hd = d / 2, f = Math.fround;
+    for (let i = 0; i < n; i++) {
+      pos[i * 3] = T.sx[i] * hw; pos[i * 3 + 1] = T.sy[i] * hh; pos[i * 3 + 2] = T.sz[i] * hd;      // float32 of +-half extent, as BoxGeometry stored it
+      nor[i * 3] = T.nx[i]; nor[i * 3 + 1] = T.ny[i]; nor[i * 3 + 2] = T.nz[i];
+    }
+    for (let i = 0; i < n; i++) pos[i * 3 + 1] = f(pos[i * 3 + 1] + h / 2);                          // translate(0, h/2, 0)
+    if (rx) rotAttr(pos, nor, _m4.makeRotationX(rx));
+    if (ry) rotAttr(pos, nor, _m4.makeRotationY(ry));
+    if (rx || ry) for (let i = 0; i < nor.length; i += 3) { const l = Math.sqrt(nor[i] * nor[i] + nor[i + 1] * nor[i + 1] + nor[i + 2] * nor[i + 2]) || 1, il = 1 / l; nor[i] = f(nor[i] * il); nor[i + 1] = f(nor[i + 1] * il); nor[i + 2] = f(nor[i + 2] * il); }   // the final translate() normalised again
+    for (let i = 0; i < n; i++) { pos[i * 3] = f(pos[i * 3] + x); pos[i * 3 + 1] = f(pos[i * 3 + 1] + y); pos[i * 3 + 2] = f(pos[i * 3 + 2] + z); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    this._push(key, g, col, em);
   }
   // min/max extents box
   ext(key, x0, y0, z0, x1, y1, z1, col, em = 1) { this.box(key, (x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, col, 0, em); }

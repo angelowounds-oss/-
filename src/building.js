@@ -62,7 +62,8 @@ export class Building {
     this.built = new Set(); this.pending = [];
     this.elev = new Elevator(this);
     this.solidTower = null;
-    this.ensureRange(0, Math.min(3, this.levels.length - 1), false);
+    this.full = false;
+    this.ensureRange(0, 0, false);
     this.buildFloor(0); this.pending = this.pending.filter((k) => k !== 0);
     this.updateSolid();
   }
@@ -81,7 +82,7 @@ export class Building {
   ensureRange(a, b, now = false) {
     const keep = new Set();
     // podium + level0 always present while open
-    for (let k = 0; k < this.levels.length; k++) if (this.levels[k].tier === 'podium') keep.add(k);
+    if (this.full) for (let k = 0; k < this.levels.length; k++) if (this.levels[k].tier === 'podium') keep.add(k);   // the upper podium floors only exist once someone is at the building (see Buildings.update)
     for (let k = Math.max(0, a); k <= Math.min(this.levels.length - 1, b); k++) keep.add(k);
     for (const k of [...this.floors.keys()]) if (!keep.has(k)) this.dropFloor(k);
     for (const k of keep) if (!this.floors.has(k) && !this.pending.includes(k)) { if (now) this.buildFloor(k); else this.pending.push(k); }
@@ -1020,7 +1021,7 @@ export class Buildings {
   update(dt, fx, fz, py) {
     this.t -= dt;
     if (this.t <= 0) {
-      this.t = 0.4;
+      this.t = 0.2;
       const dist = (b) => Math.hypot(b.cx - fx, b.cz - fz) - Math.max(b.lot.x1 - b.lot.x0, b.lot.z1 - b.lot.z0) * 0.5;
       const near = [];
       for (const b of this.list) {
@@ -1030,7 +1031,7 @@ export class Buildings {
       }
       // nearest first; a full pool gives up its farthest building so the one the player stands at is never left without doors
       near.sort((a, c) => a[0] - c[0]);
-      for (const [d, b] of near) {
+      for (const [d, b] of near.slice(0, 1)) {   // one building per tick: opening one is ~25 ms of work, several in one frame is a visible hitch
         if (this.active.size >= MAX_ACTIVE) {
           let far = null, fd = -1;
           for (const o of this.active) { const od = dist(o); if (od > fd) { fd = od; far = o; } }
@@ -1042,7 +1043,11 @@ export class Buildings {
     }
     this.updateLights(dt, this.G.player);
     for (const b of this.active) {
-      const inside = fx >= b.lot.x0 - 3 && fx <= b.lot.x1 + 3 && fz >= b.lot.z0 - 3 && fz <= b.lot.z1 + 3;
+      // floors above the ground are built only for someone who is actually in the building or at its door; walking past along the pavement
+      // used to build four floors (~25 ms each) of every building passed
+      const at = fx >= b.lot.x0 && fx <= b.lot.x1 && fz >= b.lot.z0 && fz <= b.lot.z1, atDoor = Math.hypot(fx - b.door.px, fz - b.door.pz) < 9;
+      const inside = at || atDoor;
+      if (inside) b.full = true;
       if (inside && !(b.elev && b.elev.state === 'moving')) { const k = b.levelAt(py); b.ensureRange(k - 2, k + 3); b.curLevel = k; }
       b.tick(dt);
     }

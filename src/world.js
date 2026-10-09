@@ -398,7 +398,7 @@ function createFacadeMaterial() {
         // parapet glow
         vec2 e=abs(vLoc.xz)*2.;float edge=max(e.x*(1.-step(.5,0.))*0.+e.x,e.y);
         float dedge=(.5-max(abs(vLoc.x),abs(vLoc.z)))*min(vSz.x,vSz.z);
-        if(dedge<.35&&style>.5)fEmit+=acc*1.2*step(.5,h11(seed*7.));
+        if(style>.5){float dew=fwidth(dedge)*.75+1e-4;fEmit+=acc*1.2*step(.5,h11(seed*7.))*(1.-smoothstep(.35-dew,.35+dew,dedge));}
       } else if(N.y<-.5){alb*=.2;}
       else{
         float horiz=abs(N.x)>.5?vWP.z:vWP.x;float y=vWP.y;
@@ -417,7 +417,7 @@ function createFacadeMaterial() {
         alb*=grime*(1.-smoothstep(0.,40.,y)*.0)*(.65+.55*smoothstep(0.,6.,y));
         float streak=vnoise(vec2(horiz*2.3,y*.03+seed));alb*=1.-smoothstep(.6,.95,streak)*.35;
         // wall panel lines
-        float line=smoothstep(.0,.02,min(f.y,1.-f.y));
+        float lwy=fwidth(y/sy);float line=mix(smoothstep(.0,.02,min(f.y,1.-f.y)),.9,smoothstep(.04,.25,lwy));   // panel lines fade to their average once thinner than a pixel
         alb*=mix(.7,1.,line);
         float wm=0.;
         if(style<.5){wm=step(.2,f.x)*step(f.x,.8)*step(.22,f.y)*step(f.y,.82);}
@@ -442,7 +442,7 @@ function createFacadeMaterial() {
           wm=sm*step(.9,cornerD);float sr=h21(vec2(floor(horiz/5.5),seed*17.));
           wc=(sr<.4?acc:(sr<.7?vec3(1.,.8,.55):vec3(.6,.85,1.)))*.55;
           lit=1.;
-          float stripe=smoothstep(.0,.02,abs(y-4.35))*0.+step(abs(y-4.25),.12);
+          float stw=fwidth(y)*.75+1e-4;float stripe=1.-smoothstep(.12-stw,.12+stw,abs(y-4.25));
           fEmit+=acc*stripe*2.4*step(.9,cornerD);
           alb*=.8;
           // interior luminance gradient
@@ -464,17 +464,17 @@ function createFacadeMaterial() {
         if(style>2.5){
           // LED vertical strips + horizontal bands
           float v=smoothstep(.0,.08,abs(fract(horiz/6.)-.5)*0.+abs(f.x-.5)-.46)*0.;
-          float strip=step(abs(fract(horiz/14.)-.5),.03);
+          float stpw=fwidth(horiz/14.)*.75+1e-4;float strip=1.-smoothstep(.03-stpw,.03+stpw,abs(fract(horiz/14.)-.5));
           fEmit+=acc*strip*(.9+.5*sin(uTime*1.3+horiz*.2+y*.15))*step(.45,h11(seed*5.3));
         }
         if(style>.5&&style<1.5){
-          float band=step(abs(fract(y/18.)-.5),.012);
+          float bdw=fwidth(y/18.)*.75+1e-4;float band=1.-smoothstep(.012-bdw,.012+bdw,abs(fract(y/18.)-.5));
           fEmit+=acc*band*1.6;
         }
         // vertical corner light strip
-        if(cornerD<.22&&style>.5&&h11(seed*3.1)>.4)fEmit+=acc*1.6;
+        if(style>.5&&h11(seed*3.1)>.4){float cdw=fwidth(cornerD)*.75+1e-4;fEmit+=acc*1.6*(1.-smoothstep(.22-cdw,.22+cdw,cornerD));}
         // crown glow
-        if(fromTop<.55&&style>.5&&mod(vInfo.w,2.)<.5)fEmit+=acc*2.6;
+        if(style>.5&&mod(vInfo.w,2.)<.5){float ftw=fwidth(fromTop)*.75+1e-4;fEmit+=acc*2.6*(1.-smoothstep(.55-ftw,.55+ftw,fromTop));}
         if(uHasTex>.5){
           // real facade texture sets: tile = (floors per tile + optional ground-floor shop slot) x 4 m so the window rows line up with the generated floors
           float setf=floor(vInfo.w*.5);bool pod=mod(vInfo.w,2.)>.5;
