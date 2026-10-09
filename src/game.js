@@ -288,8 +288,9 @@ export class Game {
     u('vol').oninput = (e) => { this.audio.setVolume(+e.target.value); keep('vol', +e.target.value); };
     u('musicOn').onchange = (e) => { this.audio.setMusic(e.target.checked); keep('music', e.target.checked); };
     u('sens').oninput = (e) => { this.input.sens = +e.target.value; keep('sens', +e.target.value); };
-    u('fpsOn').onchange = (e) => { this.ui.fps.style.display = e.target.checked ? 'block' : 'none'; keep('fps', e.target.checked); };
-    this.ui.fps.style.display = u('fpsOn').checked ? 'block' : 'none';
+    const setFps = (on) => { this.ui.fps.style.display = on ? 'block' : 'none'; this.diag = on ? { list: [], n: 0, frames: 0, last: 0 } : null; };
+    u('fpsOn').onchange = (e) => { setFps(e.target.checked); keep('fps', e.target.checked); };
+    setFps(u('fpsOn').checked);
     this.input.onLockChange = (locked) => { if (!locked && this.running && !this.paused && !this.input.touch && !this.uiModal) this.setPaused(true); };
   }
   setPaused(p) {
@@ -335,9 +336,13 @@ export class Game {
     this.inp = inp;
     const slow = this.player.dead ? 0.35 : 1;
     const sdt = dt * slow;
+    const dg = this.diag, pn = dg ? performance.now() : 0;   // frame diagnostics (settings: FPS counter): where the time of a slow frame went
     this.updatePlayer(sdt, inp);
+    const d1 = dg ? performance.now() : 0;
     this.updateVehicles(sdt);
+    const d2 = dg ? performance.now() : 0;
     this.updateHumans(sdt);
+    const d3 = dg ? performance.now() : 0;
     this.updatePolice(sdt);
     this.updateMission(sdt);
     this.updateTimed(sdt);
@@ -354,9 +359,21 @@ export class Game {
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
     this.fxUpdate(sdt);
+    const d4 = dg ? performance.now() : 0;
     this.updateHUD(dt);
     this.audioUpdate(dt);
+    const d5 = dg ? performance.now() : 0;
     this.renderFrame(dt, false);
+    if (dg) this.frameDiag(pn, d1, d2, d3, d4, d5, performance.now());
+  }
+  // slow-frame log under the FPS counter: real time between frames (what the player sees) and the biggest section of that frame
+  frameDiag(t0, d1, d2, d3, d4, d5, t6) {
+    const dg = this.diag, gap = dg.last ? t0 - dg.last : 0; dg.last = t6;
+    const sec = [['플레이어', d1 - t0], ['차량·물리', d2 - d1], ['사람', d3 - d2], ['건물·기타', d4 - d3], ['HUD·소리', d5 - d4], ['렌더', t6 - d5]];
+    sec.sort((a, b) => b[1] - a[1]);
+    const frame = gap > 0 && gap < 1000 ? gap : t6 - t0;
+    if (frame > 33) { dg.list.unshift(`${frame.toFixed(0)}ms · ${sec[0][0]} ${sec[0][1].toFixed(0)}ms${this.buildings && [...this.buildings.active].some((b) => b.job) ? ' · 건물 생성 중' : ''}`); if (dg.list.length > 5) dg.list.pop(); dg.n++; }
+    dg.frames++;
   }
 
   renderFrame(dt, still) {
@@ -1595,7 +1612,7 @@ export class Game {
     const bearing = ((Math.PI - this.cam.yaw) * 180 / Math.PI % 360 + 360) % 360;
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; this.setText('dir', ui.dir, dirs[Math.round(bearing / 45) % 8] + ' · ' + (bearing | 0) + '°');
     this.drawMinimap(); this.updateNeedsHUD();
-    if (this.ui.fps.style.display !== 'none') { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc > 0.5) { ui.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.eng.q.name} ×${this.eng.scale.toFixed(1)}`; this.fpsAcc = this.fpsN = 0; } }
+    if (this.ui.fps.style.display !== 'none') { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc > 0.5) { ui.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.eng.q.name} ×${this.eng.scale.toFixed(1)}` + (this.diag ? `\n끊김(33ms↑) ${this.diag.n}/${this.diag.frames}` + (this.diag.list.length ? '\n' + this.diag.list.join('\n') : '') : ''); this.fpsAcc = this.fpsN = 0; } }
     this.autoQuality(dt);
     if (this.input.touch) this.input.audioUnlock = true;
   }
