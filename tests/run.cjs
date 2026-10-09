@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Regression runner. Usage:
 //   node tests/run.cjs                 # all suites (~35-45 min on a 4-core container)
-//   node tests/run.cjs quick           # unit + smoke + the render identity checks (~8 min)
+//   node tests/run.cjs quick           # unit + smoke + the render identity checks (~4 min)
 //   node tests/run.cjs render gameplay # chosen suites
 //   node tests/run.cjs --only breach   # one test by name
 // Tests run one after another (each opens its own headless browser; running them in parallel distorts the timing tests).

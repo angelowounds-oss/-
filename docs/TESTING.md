@@ -11,7 +11,7 @@ node build/build.mjs                # 테스트는 빌드 산출물을 연다
 node tests/run.cjs quick            # 단위 + 부팅 + 컬링·조명 동일성 (약 5분)
 node tests/run.cjs render gameplay  # 스위트 지정
 node tests/run.cjs --only breach    # 테스트 하나
-node tests/run.cjs                  # 전체 (약 30~40분, 4코어 컨테이너 기준)
+node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 기준 · 2026-10-09 18/18 통과)
 ```
 
 - Playwright: `require('playwright')`가 안 되면 `PLAYWRIGHT` 환경변수 경로(기본 `/opt/node22/lib/node_modules/playwright`)를 쓴다. 다른 빌드 파일은 `GAME_HTML=/path/to.html`.

@@ -14,7 +14,7 @@
 cd build && npm i && cd ..       # 의존성 (build/node_modules)
 node build/build.mjs             # 빌드 → neon_city_v9.html (DEV=1 이면 비압축, 프로파일링용)
 node tests/run.cjs quick         # 커밋 전 최소 확인 (약 5분)
-node tests/run.cjs all           # 렌더링·성능·월드를 건드렸으면 (약 30~40분)
+node tests/run.cjs all           # 렌더링·성능·월드를 건드렸으면 (약 16분, 2026-10-09 컨테이너 기준)
 node tests/run.cjs --only <이름> # 테스트 하나
 ```
 
