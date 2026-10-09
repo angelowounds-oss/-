@@ -118,6 +118,7 @@ struct Rng { uint64_t s; explicit Rng(uint64_t x = 1) : s(x * 268582165773633871
 
 struct Player {
   int team; Policy pol; Rng rng; int nextThink = 0; int atkLane = 0; const vector<float>* net = nullptr; const float* ew = nullptr;  // ew: learned search weights (nullptr = hand-made evaluation)
+  const float* vnet = nullptr;  // learned win-probability net used at search leaves (nullptr = off)
   Player(int t, const Policy& p, uint64_t seed) : team(t), pol(p), rng(seed) { nextThink = 3 + rng.below(4); }
   float oy(float y) const { return team == 0 ? y : ArenaLayout::mirrorY(y); }  // own-frame y (own side is low y)
   float wy(float y) const { return team == 0 ? y : ArenaLayout::mirrorY(y); }
@@ -263,6 +264,8 @@ static double evalStateW(const GameManager& g, int team, const float* w) {
 }
 
 static void rolloutAct(GameManager& c, Player& P);
+static double learnedLeaf(GameManager& c, Player& P);
+static float VMARGIN = 0.01f;
 static bool searchChoose(GameManager& g, Player& P, int& slotOut, float& xOut, float& yOut) {
   int team = P.team, en = 1 - team; const auto& hand = g.getHand(team); float el = g.getElixir(team); int H = P.pol.lookahead;
   const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); const float maxOwnY = g.getOwnHalfMaxY();
@@ -315,11 +318,11 @@ static bool searchChoose(GameManager& g, Player& P, int& slotOut, float& xOut, f
       if (P.ew) { op.react = P.ew[15]; op.attackElixir = P.ew[16]; mp.react = P.ew[17]; mp.attackElixir = P.ew[18]; }
       Player opp(en, op, 77 + c.currentTick + d), me(team, mp, 91 + c.currentTick + d);
       for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { rolloutAct(c, opp); } if (P.pol.cont && k % 6 == 2) rolloutAct(c, me); }
-      tot += P.ew ? evalStateW(c, team, P.ew) : evalState(c, team, P.pol.pos);
+      tot += P.vnet ? learnedLeaf(c, P) : (P.ew ? evalStateW(c, team, P.ew) : evalState(c, team, P.pol.pos));
     }
     return tot / K;
   };
-  double base = rollout(-1); double bestV = base + (P.ew ? P.ew[14] : 0.6); int bi = -1;
+  double base = rollout(-1); double bestV = base + (P.vnet ? VMARGIN : (P.ew ? P.ew[14] : 0.6)); int bi = -1;
   for (int i = 0; i < (int)cands.size(); i++) { double v = rollout(i); if (v > bestV) { bestV = v; bi = i; } }
   if (bi < 0) return false;
   slotOut = cands[bi].slot; xOut = cands[bi].x; yOut = cands[bi].y;

@@ -22,7 +22,7 @@ static const int OB1 = NINS * SH, OE = OB1 + SH, OW2 = OE + NCARD * SH, OB2 = OW
 
 struct Dec { int slot = -1; float x = 0, y = 0; };
 struct Sample { float f[NINS]; int hand[4]; int mask; int slot; int place; };
-struct Seat { int kind = 0; int pol = 1; const float* th = nullptr; bool rec = false; float eps = 0; };  // kind: 0 rule, 1 lookahead teacher, 2 student
+struct Seat { int kind = 0; int pol = 1; const float* th = nullptr; bool rec = false; float eps = 0; const float* vnet = nullptr; };  // kind: 0 rule, 1 lookahead teacher, 2 student
 
 static Seat seatOf(int p) { Seat s; s.kind = POL[p].lookahead > 0 ? 1 : 0; s.pol = p; return s; }
 
@@ -116,11 +116,73 @@ static Result resultOf(GameManager& g) {
   return r;
 }
 
-static Result playSeats(const Deck& a, const Deck& b, const Seat& s0, const Seat& s1, uint64_t seed, vector<Sample>* out) {
+// ---- learned value: a net over the student's features gives the win probability for the player to move
+static const int VH = 64, VNPAR = NINS * VH + 2 * VH + 1;
+struct VSample { float f[NINS]; float y; int team; };
+static float valueFwd(const float* vth, const float* f, float* h) {
+  const float* b1 = vth + NINS * VH; const float* w2 = b1 + VH; const float b2 = w2[VH];
+  for (int j = 0; j < VH; j++) h[j] = b1[j];
+  for (int i = 0; i < NINS; i++) { float x = f[i]; const float* w = vth + i * VH; for (int j = 0; j < VH; j++) h[j] += x * w[j]; }
+  float z = b2;
+  for (int j = 0; j < VH; j++) { h[j] = tanhf(h[j]); z += w2[j] * h[j]; }
+  return 1.0f / (1.0f + expf(-z));
+}
+static double learnedLeaf(GameManager& c, Player& P) { float f[NINS], h[VH]; sfeatures(c, P, f); return valueFwd(P.vnet, f, h); }
+static vector<float> loadVec(const string& f, size_t n) {
+  vector<float> v(n); FILE* fp = fopen(f.c_str(), "rb"); if (!fp) { fprintf(stderr, "cannot open %s\n", f.c_str()); exit(1); }
+  size_t got = fread(v.data(), sizeof(float), n, fp); fclose(fp); if (got != n) { fprintf(stderr, "bad file %s\n", f.c_str()); exit(1); } return v;
+}
+static void saveVec(const vector<float>& v, const string& f) { FILE* fp = fopen(f.c_str(), "wb"); fwrite(v.data(), sizeof(float), v.size(), fp); fclose(fp); }
+template <class T> static vector<T> loadRecords(const string& f) {
+  FILE* fp = fopen(f.c_str(), "rb"); if (!fp) { fprintf(stderr, "cannot open %s\n", f.c_str()); exit(1); }
+  fseek(fp, 0, SEEK_END); long long bytes = ftell(fp); fseek(fp, 0, SEEK_SET);
+  vector<T> v(bytes / sizeof(T)); size_t got = fread(v.data(), sizeof(T), v.size(), fp); fclose(fp); v.resize(got); return v;
+}
+static vector<float> randomValue(uint64_t seed) {
+  Rng r(seed); vector<float> v(VNPAR, 0.0f);
+  for (int k = 0; k < NINS * VH; k++) v[k] = sqrtf(6.0f / (NINS + VH)) * (2 * r.uni() - 1);
+  for (int j = 0; j < VH; j++) v[NINS * VH + VH + j] = sqrtf(6.0f / (VH + 1)) * (2 * r.uni() - 1);
+  return v;
+}
+static void trainValue(vector<float>& vth, const vector<VSample>& D, int epochs, float lr, uint64_t seed) {
+  Rng rng(seed); vector<uint32_t> idx(D.size());
+  for (size_t i = 0; i < idx.size(); i++) idx[i] = (uint32_t)i;
+  for (size_t i = idx.size() - 1; i > 0; i--) swap(idx[i], idx[rng.below((int)i + 1)]);
+  size_t nVal = max<size_t>(1, idx.size() / 50);
+  vector<uint32_t> order(idx.begin() + nVal, idx.end()), val(idx.begin(), idx.begin() + nVal);
+  vector<float> gr(VNPAR), m(VNPAR, 0.0f), v(VNPAR, 0.0f); long long step = 0; const size_t B = 256;
+  const float* w2 = nullptr; (void)w2;
+  for (int ep = 0; ep < epochs; ep++) {
+    for (size_t i = order.size() - 1; i > 0; i--) swap(order[i], order[rng.below((int)i + 1)]);
+    double tl = 0;
+    for (size_t b0 = 0; b0 < order.size(); b0 += B) {
+      size_t b1 = min(order.size(), b0 + B);
+      fill(gr.begin(), gr.end(), 0.0f);
+      for (size_t t = b0; t < b1; t++) {
+        const VSample& s = D[order[t]]; float h[VH]; float p = valueFwd(vth.data(), s.f, h);
+        tl += -(s.y * log(max(1e-7f, p)) + (1 - s.y) * log(max(1e-7f, 1 - p)));
+        const float dz = p - s.y; const float* ww = vth.data() + NINS * VH + VH;
+        float ga[VH];
+        gr[NINS * VH + 2 * VH] += dz;
+        for (int j = 0; j < VH; j++) { gr[NINS * VH + VH + j] += dz * h[j]; ga[j] = dz * ww[j] * (1 - h[j] * h[j]); gr[NINS * VH + j] += ga[j]; }
+        for (int i = 0; i < NINS; i++) { float x = s.f[i]; float* g1 = gr.data() + i * VH; for (int j = 0; j < VH; j++) g1[j] += x * ga[j]; }
+      }
+      step++; float bc1 = 1 - powf(0.9f, (float)step), bc2 = 1 - powf(0.999f, (float)step), sc = 1.0f / (float)(b1 - b0);
+      for (int k = 0; k < VNPAR; k++) { float gk = gr[k] * sc; m[k] = 0.9f * m[k] + 0.1f * gk; v[k] = 0.999f * v[k] + 0.001f * gk * gk; vth[k] -= lr * (m[k] / bc1) / (sqrtf(v[k] / bc2) + 1e-8f); }
+    }
+    double vl = 0; size_t vc = 0, vn = 0;
+    for (uint32_t k : val) { float h[VH]; float p = valueFwd(vth.data(), D[k].f, h); vl += -(D[k].y * log(max(1e-7f, p)) + (1 - D[k].y) * log(max(1e-7f, 1 - p))); if (D[k].y != 0.5f) { vn++; vc += ((p > 0.5f) == (D[k].y > 0.5f)); } }
+    printf("epoch %d  train loss %.4f  val loss %.4f  val acc %.3f\n", ep + 1, tl / max<size_t>(1, order.size()), vl / max<size_t>(1, val.size()), (double)vc / max<size_t>(1, vn));
+    fflush(stdout);
+  }
+}
+
+static Result playSeats(const Deck& a, const Deck& b, const Seat& s0, const Seat& s1, uint64_t seed, vector<Sample>* out, vector<VSample>* vout = nullptr) {
   GameManager g(vector<int>(a.begin(), a.end()), vector<int>(b.begin(), b.end()));
   g.seed((unsigned)(seed * 2654435761ULL + 7)); g.reset();
   const Seat* seat[2] = {&s0, &s1};
   Player P[2] = {Player(0, POL[s0.pol], seed * 3 + 1), Player(1, POL[s1.pol], seed * 7 + 2)};
+  P[0].vnet = s0.vnet; P[1].vnet = s1.vnet; vector<VSample> recs;
   int nextT[2] = {0, 0}; Rng er(seed ^ 0x9e3779b97f4a7c15ULL);
   const int MAXT = 3600;
   while (!g.isGameOver() && g.currentTick < MAXT) {
@@ -128,6 +190,7 @@ static Result playSeats(const Deck& a, const Deck& b, const Seat& s0, const Seat
     for (int t = 0; t < 2; t++) {
       if (g.currentTick < nextT[t]) continue;
       useAbilities(g, t);
+      if (vout) { VSample v; sfeatures(g, P[t], v.f); v.y = 0; v.team = t; recs.push_back(v); }
       const Seat& S = *seat[t]; Player& Pt = P[t];
       if (S.kind == 0) think(g, Pt);
       else if (S.kind == 1) { Dec d = teacherDec(g, Pt); if (S.rec && out) out->push_back(makeSample(g, Pt, d)); playDec(g, t, d); }
@@ -139,7 +202,9 @@ static Result playSeats(const Deck& a, const Deck& b, const Seat& s0, const Seat
       nextT[t] = g.currentTick + (S.kind == 0 ? 4 : 6) + Pt.rng.below(4);
     }
   }
-  return resultOf(g);
+  Result res = resultOf(g);
+  if (vout) for (auto& v : recs) { v.y = res.winner < 0 ? 0.5f : (res.winner == v.team ? 1.0f : 0.0f); vout->push_back(v); }
+  return res;
 }
 
 // ---- learning
@@ -222,17 +287,17 @@ static vector<float> randomTheta(uint64_t seed) {
 }
 
 // ---- resumable data generation: each chunk of games is appended once complete; progress file records bytes written
-static void chunkedRun(const string& out, int games, int chunk, const function<void(int, vector<Sample>&)>& one) {
+template <class T> static void chunkedRun(const string& out, int games, int chunk, const function<void(int, vector<T>&)>& one) {
   long long done = 0, bytes = 0; { ifstream pf(out + ".progress"); if (pf) pf >> done >> bytes; }
   { FILE* f = fopen(out.c_str(), "ab"); if (f) fclose(f); }
   if (truncate(out.c_str(), bytes) != 0) { fprintf(stderr, "truncate failed for %s\n", out.c_str()); exit(1); }
   FILE* f = fopen(out.c_str(), "ab"); if (!f) { fprintf(stderr, "cannot open %s\n", out.c_str()); exit(1); }
   int nChunks = (games + chunk - 1) / chunk;
   for (int c = (int)done; c < nChunks; c++) {
-    int cnt = min(chunk, games - c * chunk); vector<vector<Sample>> buf(cnt);
+    int cnt = min(chunk, games - c * chunk); vector<vector<T>> buf(cnt);
     parFor(cnt, [&](int k) { one(c * chunk + k, buf[k]); });
     size_t ns = 0;
-    for (auto& b : buf) { if (!b.empty()) fwrite(b.data(), sizeof(Sample), b.size(), f); ns += b.size(); }
+    for (auto& b : buf) { if (!b.empty()) fwrite(b.data(), sizeof(T), b.size(), f); ns += b.size(); }
     fflush(f); bytes = ftell(f);
     { ofstream pf(out + ".progress", ios::trunc); pf << (c + 1) << " " << bytes; }
     printf("chunk %d/%d games %d samples %zu bytes %lld\n", c + 1, nChunks, cnt, ns, bytes); fflush(stdout);
@@ -242,7 +307,7 @@ static void chunkedRun(const string& out, int games, int chunk, const function<v
 
 static vector<int> parseIntList(const string& s) { vector<int> v; stringstream ss(s); string t; while (getline(ss, t, ',')) v.push_back(atoi(t.c_str())); return v; }
 
-static map<string, vector<float>> NETS;
+static map<string, vector<float>> NETS, VNETS;
 static Seat parseSeat(const string& s) {
   Seat x; x.pol = TEACH;
   if (s[0] == 'p') { int p = atoi(s.c_str() + 1); x = seatOf(p); }
@@ -250,6 +315,9 @@ static Seat parseSeat(const string& s) {
     size_t at = s.find('@'); string file = s.substr(1, at == string::npos ? string::npos : at - 1);
     if (!NETS.count(file)) NETS[file] = loadTheta(file);
     x.kind = 2; x.th = NETS[file].data(); x.pol = TEACH; x.eps = at == string::npos ? 0.0f : (float)atof(s.c_str() + at + 1);
+  } else if (s[0] == 'v') {
+    string file = s.substr(1); if (!VNETS.count(file)) VNETS[file] = loadVec(file, VNPAR);
+    x.kind = 1; x.pol = TEACH; x.vnet = VNETS[file].data();
   } else { fprintf(stderr, "bad spec %s\n", s.c_str()); exit(1); }
   return x;
 }
@@ -262,6 +330,7 @@ static bool studentMode(int argc, char** argv) {
   if (const char* e = getenv("CR_TEACH")) TEACH = atoi(e);
   if (const char* e = getenv("CR_TAU")) TAU = (float)atof(e);
   if (const char* e = getenv("CR_WPLAY")) WPLAY = (float)atof(e);
+  if (const char* e = getenv("CR_VMARGIN")) VMARGIN = (float)atof(e);
   if (const char* e = getenv("CR_ROLLNET")) { NETS[e] = loadTheta(e); ROLL_NET = NETS[e].data(); }
 
   if (mode == "strength" && argc >= 6) {
@@ -287,9 +356,29 @@ static bool studentMode(int argc, char** argv) {
     return true;
   }
 
+  if (mode == "vgen" && argc >= 7) {
+    vector<Deck> D = readDecks(argv[2]); int games = atoi(argv[3]); TEACH = atoi(argv[4]); string out = argv[5]; uint64_t seed0 = atoll(argv[6]);
+    chunkedRun<VSample>(out, games, 100, [&](int gi, vector<VSample>& buf) {
+      Rng r(seed0 + gi * 7919ULL + 41); const Deck& a = D[r.below((int)D.size())]; const Deck& b = D[r.below((int)D.size())];
+      uint64_t seed = seed0 * 53 + gi * 1000003ULL + 9;
+      Seat t = seatOf(TEACH); Seat o = r.uni() < 0.6 ? t : seatOf(r.below(3));
+      playSeats(a, b, t, o, seed, nullptr, &buf);
+    });
+    return true;
+  }
+
+  if (mode == "vtrain" && argc >= 7) {
+    int epochs = atoi(argv[3]); float lr = (float)atof(argv[4]); string init = argv[5];
+    vector<VSample> D; for (int i = 6; i < argc; i++) { vector<VSample> part = loadRecords<VSample>(argv[i]); D.insert(D.end(), part.begin(), part.end()); }
+    printf("records %zu\n", D.size()); fflush(stdout);
+    vector<float> vth = init == "-" ? randomValue(7) : loadVec(init, VNPAR);
+    trainValue(vth, D, epochs, lr, 4321); saveVec(vth, argv[2]); printf("saved %s\n", argv[2]);
+    return true;
+  }
+
   if (mode == "gen" && argc >= 7) {
     vector<Deck> D = readDecks(argv[2]); int games = atoi(argv[3]); TEACH = atoi(argv[4]); string out = argv[5]; uint64_t seed0 = atoll(argv[6]);
-    chunkedRun(out, games, 100, [&](int gi, vector<Sample>& buf) {
+    chunkedRun<Sample>(out, games, 100, [&](int gi, vector<Sample>& buf) {
       Rng r(seed0 + gi * 7919ULL + 17); const Deck& a = D[r.below((int)D.size())]; const Deck& b = D[r.below((int)D.size())];
       uint64_t seed = seed0 * 31 + gi * 1000003ULL + 5;
       Seat t = seatOf(TEACH); t.rec = true;
@@ -303,7 +392,7 @@ static bool studentMode(int argc, char** argv) {
   if (mode == "gennet" && argc >= 8) {
     vector<Deck> D = readDecks(argv[3]); int games = atoi(argv[4]); TEACH = atoi(argv[5]); string out = argv[6]; uint64_t seed0 = atoll(argv[7]);
     vector<float> th = loadTheta(argv[2]); float eps = getenv("CR_EPS") ? (float)atof(getenv("CR_EPS")) : 0.0f;
-    chunkedRun(out, games, 50, [&](int gi, vector<Sample>& buf) {
+    chunkedRun<Sample>(out, games, 50, [&](int gi, vector<Sample>& buf) {
       Rng r(seed0 + gi * 7919ULL + 29); const Deck& a = D[r.below((int)D.size())]; const Deck& b = D[r.below((int)D.size())];
       uint64_t seed = seed0 * 37 + gi * 1000003ULL + 11;
       Seat s; s.kind = 2; s.th = th.data(); s.pol = TEACH; s.rec = true; s.eps = eps;
