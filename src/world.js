@@ -71,7 +71,7 @@ export class Colliders {
       }
   }
   addBox(x0, z0, x1, z1, h, tag, y0 = 0) {
-    const b = { x0, z0, x1, z1, h, y0, tag, kind: 0 };
+    const b = { x0, z0, x1, z1, h, y0, tag, kind: 0, _s: 0 };
     this.boxes.push(b);
     this._add(b, x0, z0, x1, z1);
     if (this.sink) this.sink.addBox(b);
@@ -89,21 +89,21 @@ export class Colliders {
     if (this.sink) this.sink.removeBox(b);
   }
   addCircle(x, z, r, h, tag) {
-    const c = { x, z, r, h, tag, kind: 1 };
+    const c = { x, z, r, h, tag, kind: 1, _s: 0 };
     this.circles.push(c);
     this._add(c, x - r, z - r, x + r, z + r);
     return c;
   }
   near(x, z, rad, out = []) {
     out.length = 0;
-    const c = this.cell;
-    const seen = this._seen || (this._seen = new Set());
-    seen.clear();
-    for (let cx = Math.floor((x - rad) / c); cx <= Math.floor((x + rad) / c); cx++)
-      for (let cz = Math.floor((z - rad) / c); cz <= Math.floor((z + rad) / c); cz++) {
-        const a = this.grid.get(this._key(cx, cz));
+    // de-duplicate with a per-query stamp on the items instead of a Set (same result, no hashing)
+    const c = this.cell, st = this._st = ((this._st | 0) + 1) | 0, grid = this.grid;
+    const cx1 = Math.floor((x + rad) / c), cz1 = Math.floor((z + rad) / c), cz0 = Math.floor((z - rad) / c);
+    for (let cx = Math.floor((x - rad) / c); cx <= cx1; cx++)
+      for (let cz = cz0; cz <= cz1; cz++) {
+        const a = grid.get(this._key(cx, cz));
         if (!a) continue;
-        for (const it of a) if (!seen.has(it)) { seen.add(it); out.push(it); }
+        for (let i = 0; i < a.length; i++) { const it = a[i]; if (it._s !== st) { it._s = st; out.push(it); } }
       }
     return out;
   }
@@ -1363,15 +1363,16 @@ export function doorSpec(l) {
 }
 const NAME_A = ['NEXUS', 'ORCHID', 'HELIX', 'KAIROS', 'AURORA', 'VERTEX', 'NOVA', 'SYNAPSE', 'ONYX', 'LOTUS', 'ARCADIA', 'ZENITH', 'CRIMSON', 'ECHO', 'PRISM', 'ATLAS', 'VORTEX', 'HALCYON'];
 const NAME_B = ['TOWER', 'HOTEL', 'CORP', 'PLAZA', 'SUITES', 'LABS', 'RESIDENCE', 'FINANCIAL', 'CENTER', 'APARTMENTS'];
-function nameTexture(name, color) {
-  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 112;
-  const g = cv.getContext('2d');
+// the entrance name board artwork (512 x 112), drawn on a cleared canvas with a fresh context state
+const SIGN_W = 512, SIGN_H = 112;
+function drawSign(g, name, color) {
+  g.save(); g.clearRect(0, 0, SIGN_W, SIGN_H);
   g.fillStyle = 'rgba(3,4,10,.92)'; g.fillRect(0, 0, 512, 112);
   const c = `rgb(${color.map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`;
   g.strokeStyle = c; g.lineWidth = 5; g.shadowColor = c; g.shadowBlur = 14; g.strokeRect(8, 8, 496, 96);
   g.font = '900 46px "Pretendard","Noto Sans KR",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = '#fff'; g.shadowBlur = 16; g.fillText(name, 256, 60);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  g.restore();
 }
 function buildEntrances(world, scene) {
   const lots = world.lots.filter((l) => l.model || l.far || l.ring || (Math.min(l.x1 - l.x0, l.z1 - l.z0) >= 17 && l.h >= 20));
@@ -1394,17 +1395,63 @@ function buildEntrances(world, scene) {
     for (const sx of [-1.4, 1.4]) for (const lz of [3.0, 6.5]) { bx(sx, 0, lz, 0.14, 0.9, 0.14, new THREE.Color(0.05, 0.06, 0.09), 'decor'); bx(sx, 0.9, lz, 0.18, 0.1, 0.18, em); }
     bx(0, 3.35, 1.5, 3.2, 0.04, 2.0, new THREE.Color(1, 0.86, 0.62).multiplyScalar(2.2));
     const sc = new THREE.Color(...accent);
-    let sg = signs.get(name); if (!sg) { sg = { tex: nameTexture(name, accent), list: [] }; signs.set(name, sg); }
+    let sg = signs.get(name); if (!sg) { sg = { name, accent, list: [] }; signs.set(name, sg); }
     const [sx, sz] = W(0, 0.14); sg.list.push({ x: sx, y: 5.0, z: sz, th });
     world.fakeLights.push({ x: d.px + d.nx * 2.5, y: 0, z: d.pz + d.nz * 2.5, c: accent.map((v) => v * 1.2), rad: 12 });
     world.enterables.push({ id, name, x: d.px + d.nx * 2.2, z: d.pz + d.nz * 2.2, nx: d.nx, nz: d.nz, lot: l, accent, door: d });
   });
   B.finish(scene);
-  for (const sg of signs.values()) {
-    const geos = sg.list.map((p) => { const g = new THREE.PlaneGeometry(6.2, 1.35); g.rotateY(p.th); g.translate(p.x, p.y, p.z); return g; });
-    const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ map: sg.tex, toneMapped: false, transparent: true }));
-    m.frustumCulled = false; scene.add(m);
+  // All name boards in ONE draw call. They used to be one transparent mesh per name, all with world-space geometry, so they all sorted at the
+  // origin and drew in creation order; one merged mesh in that same order rasterises the boards in the same sequence. Each board samples
+  // its own layer of a texture array; uploadSigns() fills the layers straight from the same canvases, with the same upload settings as the
+  // old canvas textures (flipY, no premultiply, no colour conversion), so the texels are the same.
+  if (signs.size) {
+    const list = [...signs.values()], n = list.length, geos = [];
+    list.forEach((sg, k) => {
+      for (const p of sg.list) {
+        const g = new THREE.PlaneGeometry(6.2, 1.35); g.rotateY(p.th); g.translate(p.x, p.y, p.z);
+        g.setAttribute('aLayer', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(k), 1));
+        geos.push(g);
+      }
+    });
+    const tex = new THREE.DataArrayTexture(null, SIGN_W, SIGN_H, n);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = 4;
+    tex.source.dataReady = false; tex.needsUpdate = true;          // storage only; the layers come from uploadSigns()
+    const mat = new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true });
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uSignArr = { value: tex };
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aLayer;varying float vLayer;varying vec2 vSignUv;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLayer=aLayer;vSignUv=(mat3(1.)*vec3(uv,1)).xy;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2DArray uSignArr;varying float vLayer;varying vec2 vSignUv;')
+        .replace('#include <map_fragment>', 'diffuseColor*=texture(uSignArr,vec3(vSignUv,vLayer));');
+    };
+    mat.customProgramCacheKey = () => 'entrance-signs';
+    const m = new THREE.Mesh(mergeGeometries(geos), mat); m.userData.signs = list; m.userData.signTex = tex; scene.add(m);
+    world.signMesh = m;
   }
+}
+// fill the name-board texture array (needs the renderer, so it runs once after the world is built)
+export function uploadSigns(world, renderer) {
+  const m = world.signMesh; if (!m || m.userData.uploaded) return;
+  const tex = m.userData.signTex, list = m.userData.signs, gl = renderer.getContext(), st = renderer.state;
+  renderer.initTexture(tex);
+  const arr = renderer.properties.get(tex).__webglTexture, t2 = gl.createTexture(), fb = gl.createFramebuffer();
+  // each board goes through a plain 2D texture first, uploaded exactly like the old CanvasTexture (texStorage2D + texSubImage2D from the
+  // canvas, flipY, no premultiply, no colour conversion), then is copied texel for texel into its layer on the GPU
+  st.activeTexture(gl.TEXTURE0); st.bindTexture(gl.TEXTURE_2D, t2);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.SRGB8_ALPHA8, SIGN_W, SIGN_H);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+  st.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t2, 0);
+  const cv = document.createElement('canvas'); cv.width = SIGN_W; cv.height = SIGN_H; const g = cv.getContext('2d');
+  list.forEach((sg, k) => {
+    drawSign(g, sg.name, sg.accent);
+    st.bindTexture(gl.TEXTURE_2D, t2); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+    st.bindTexture(gl.TEXTURE_2D_ARRAY, arr); gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, 0, 0, SIGN_W, SIGN_H);
+  });
+  st.bindTexture(gl.TEXTURE_2D_ARRAY, arr); gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+  st.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); gl.deleteTexture(t2); st.unbindTexture();
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  m.userData.uploaded = true;
 }
 
 // Water: layered noise-bump surface, Fresnel sky reflection (glass IOR 1.3), teal absorption/emission body, shoreline foam and

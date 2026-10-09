@@ -183,7 +183,7 @@ export class Building {
     const geo = new THREE.BoxGeometry(1, 1, 1), im = new THREE.InstancedMesh(geo, mats().glass, fl.glass.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
     fl.glass.forEach((gb, i) => { const e = gb.pane.ex; p.set((e[0] + e[3]) / 2, (e[1] + e[4]) / 2, (e[2] + e[5]) / 2); sc.set(e[3] - e[0], e[4] - e[1], e[5] - e[2]); m.compose(p, q, sc); im.setMatrixAt(i, m); gb.pane.idx = i; });
-    im.frustumCulled = false; im.renderOrder = 3; fl.group.add(im); fl.glassMesh = im;
+    im.frustumCulled = true; im.renderOrder = 3; fl.group.add(im); fl.glassMesh = im;
   }
   breakPane(box, by) {
     const pn = box.pane; if (!pn || pn.broken) return false;
@@ -315,7 +315,7 @@ export class Building {
         for (let j = 0; j < uv.count; j++) uv.setX(j, (+txt[q] + uv.getX(j)) / 10);
         g.translate(smid + (q - (txt.length - 1) / 2) * 0.27, y + 2.95, zc + 0.06); gs.push(g);
       }
-      const m = new THREE.Mesh(mergeGeometries(gs), digitMaterial()); m.frustumCulled = false; fl.group.add(m);
+      const m = new THREE.Mesh(mergeGeometries(gs), digitMaterial()); m.frustumCulled = true; fl.group.add(m);
     }
     // stairs
     const rise = L.h / 2, run = CORE_D - 1.6, ang = Math.atan2(rise, run);
@@ -572,7 +572,7 @@ export class Building {
       const dr = new Door(this, fl, { axis: 'x', wallC: d.c, from: d.u - 0.5, to: d.u + 0.5, y, h: 2.12, thick: 0.05, kind: 'wood', hingeAt: 'from', swing: 1, name: '방 문', lock: true });
       void dr;
     }
-    if (numGeos.length) { const m = new THREE.Mesh(mergeGeometries(numGeos), digitMaterial()); m.frustumCulled = false; fl.group.add(m); }
+    if (numGeos.length) { const m = new THREE.Mesh(mergeGeometries(numGeos), digitMaterial()); m.frustumCulled = true; fl.group.add(m); }
     // furnish
     rooms.forEach((rm, i) => this.furnishRoom(fl, L, rm, i));
     this.addLivingSets(fl, y);
@@ -703,7 +703,7 @@ export class Building {
     for (const part of set) {
       const im = new THREE.InstancedMesh(part.geo, part.mat, list.length);
       list.forEach((p, i) => { q.setFromAxisAngle(ax, p.ry); pv.set(p.x, y, p.z); m4.compose(pv, q, one); im.setMatrixAt(i, m4); });
-      im.castShadow = false; im.receiveShadow = true; im.frustumCulled = false; fl.group.add(im);
+      im.castShadow = false; im.receiveShadow = true; im.frustumCulled = true; fl.group.add(im);
     }
     for (const p of list) {
       const f = Math.cos(p.ry) < 0 ? -1 : 1;

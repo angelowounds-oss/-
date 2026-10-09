@@ -105,7 +105,7 @@ export class Builder {
       if (!arr.length) continue;
       const geo = mergeGeometries(arr, false); if (!geo) continue;
       const mesh = new THREE.Mesh(geo, k === 'decor' ? m.decor : k === 'emit' ? m.emit : k === 'glass' ? m.glass : m.steel);
-      mesh.frustumCulled = false; mesh.receiveShadow = k !== 'emit'; if (k === 'glass') mesh.renderOrder = 3;
+      mesh.frustumCulled = true; mesh.receiveShadow = k !== 'emit'; if (k === 'glass') mesh.renderOrder = 3;
       parent.add(mesh); out.push(mesh);
     }
     return out;

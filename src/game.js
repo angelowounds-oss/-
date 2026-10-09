@@ -6,7 +6,7 @@ import { Breach } from './breach.js';
 import { CarRider, MOUNT_MAX } from './carrider.js';
 import { Sandbox } from './sandbox.js';
 import { effective, attOf, refreshVisuals, attach, detach } from './attachments.js';
-import { buildWorld, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
+import { buildWorld, uploadSigns, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
@@ -79,7 +79,7 @@ export class Game {
     await loadAssets();
     progress(0.1, '도시 생성 중…');
     await new Promise((r) => setTimeout(r, 30));
-    this.world = buildWorld(this.scene, eng.q);
+    this.world = buildWorld(this.scene, eng.q); uploadSigns(this.world, eng.renderer);
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
@@ -297,7 +297,7 @@ export class Game {
     if (p) this.input.unlock(); else this.input.lock();
   }
   attract(dt) {
-    this.time += dt; timeUniform.value = this.time;
+    this.time += dt; timeUniform.value = this.time; this.frameNo = (this.frameNo || 0) + 1;
     const pz = this.world.plaza, c = this.camera;
     this.attractA = (this.attractA || 0) + dt * 0.07;
     const a = this.attractA, r = 85;
@@ -373,6 +373,7 @@ export class Game {
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
     this.daynight.update(dt, focus);
+    this.cullSkins();
     if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); this.signs?.update(camera.position); }
     this.rain.material.uniforms.uCam.value.copy(camera.position);
     doorCamU.value.set(this.player.x, this.player.y, this.player.z);
@@ -381,6 +382,13 @@ export class Game {
     g.uDamage.value = damp(g.uDamage.value, 0, 2.2, dt);
     if (this.dmgPulse) { g.uDamage.value = Math.max(g.uDamage.value, this.dmgPulse); this.dmgPulse = 0; }
     eng.render(dt);
+  }
+
+  // skinned bodies are frustum culled with a fixed sphere; while a ragdoll drives the bones away from the (frozen) group, culling is off
+  cullSkins() {
+    const f = (h) => { const m = h.m, c = !h.rag; if (m && m.skinMeshes && m.cullOn !== c) { m.cullOn = c; for (const o of m.skinMeshes) o.frustumCulled = c; } };
+    for (const h of this.humans) f(h);
+    f(this.player);
   }
 
   // ====================================================================
@@ -1214,6 +1222,13 @@ export class Game {
         if (h.node && !h.knock) { const [tx, tz] = h.nodePos(h.node); const dx = tx - h.x, dz = tz - h.z, dd = Math.hypot(dx, dz); if (dd < 1.4) h.chooseNext(); else { h.x += dx / dd * 1.5 * dt; h.z += dz / dd * 1.5 * dt; } }
         continue;
       }
+      // calm civilians beyond the body draw distance (75 m, see Human.animateSkinned) think at a third of the rate (dt accumulated), staggered
+      if (d > 78 && h.team === 'civ' && !h.dead && !h.rag && !h.knock && h.state !== 'flee') {
+        h.lodAcc = (h.lodAcc || 0) + dt;
+        if ((this.frameNo + h.id) % 3) continue;
+        const a = h.lodAcc; h.lodAcc = 0; h.update(a); continue;
+      }
+      h.lodAcc = 0;
       h.update(dt);
     }
   }

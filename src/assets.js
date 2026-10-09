@@ -91,6 +91,9 @@ export function buildSoldier(look = {}, gunParts) {
   // weapon mount on right hand
   const hand = bones.RightHand;
   root.updateWorldMatrix(true, true);
+  // frustum culling for the skinned body: a fixed sphere (2.6 m around the hips, given in each mesh's own space) holds every animated pose,
+  // so people outside the view are no longer skinned and drawn; ragdolls (bones far from the frozen group) switch it off, see Game.cullSkins
+  for (const o of skinMeshes) { const inv = o.matrixWorld.clone().invert(); o.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.95, 0).applyMatrix4(inv), 2.6 / o.matrixWorld.getMaxScaleOnAxis()); o.frustumCulled = true; }
   const ws = new THREE.Vector3(); hand.getWorldScale(ws);
   const mount = new THREE.Group(); mount.scale.setScalar(1 / ws.x); mount.rotation.set(-Math.PI / 2, 0, Math.PI / 2); mount.position.set(0, 0.06 / ws.x, 0.0);
   hand.add(mount);

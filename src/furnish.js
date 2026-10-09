@@ -69,7 +69,7 @@ export class FloorDecor {
   finish(group) {
     if (!this.geos.length || !material) return null;
     const merged = mergeGeometries(this.geos, false); if (!merged) return null;
-    const mesh = new THREE.Mesh(merged, material); mesh.castShadow = false; mesh.receiveShadow = true; mesh.frustumCulled = false;
+    const mesh = new THREE.Mesh(merged, material); mesh.castShadow = false; mesh.receiveShadow = true; mesh.frustumCulled = true;
     group.add(mesh); this.mesh = mesh; return mesh;
   }
 }
