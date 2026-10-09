@@ -3465,5 +3465,560 @@
   "click": null,
   "name": "guide-bmr-f155",
   "read": null
+ },
+ {
+  "slug": "overtime",
+  "inputs": {
+   "h": "12000",
+   "ot": "10",
+   "nt": "5",
+   "h1": "8",
+   "h2": "2"
+  },
+  "expect": [
+   "연장 180,000원",
+   "야간 가산 30,000원",
+   "휴일 192,000원",
+   "합계 402,000원"
+  ],
+  "click": null,
+  "name": "guide3-overtime",
+  "read": null
+ },
+ {
+  "slug": "overtime",
+  "inputs": {
+   "h": "10320",
+   "ot": "10",
+   "nt": "0",
+   "h1": "0",
+   "h2": "0"
+  },
+  "expect": [
+   "연장 154,800원"
+  ],
+  "click": null,
+  "name": "guide3-overtime-min",
+  "read": null
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "fwd",
+   "j": "300000000",
+   "dep": "50000000",
+   "mo": "0",
+   "rate": "5"
+  },
+  "expect": [
+   "월세 1,041,667원"
+  ],
+  "click": null,
+  "name": "guide3-jeonse-5",
+  "read": null
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "fwd",
+   "j": "300000000",
+   "dep": "50000000",
+   "mo": "0",
+   "rate": "2.5"
+  },
+  "expect": [
+   "월세 520,833원"
+  ],
+  "click": null,
+  "name": "guide3-jeonse-25",
+  "read": null
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "fwd",
+   "j": "100000000",
+   "dep": "0",
+   "mo": "0",
+   "rate": "2.5"
+  },
+  "expect": [
+   "월세 208,333원"
+  ],
+  "click": null,
+  "name": "guide3-jeonse-1eok",
+  "read": null
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "rev",
+   "j": "0",
+   "dep": "50000000",
+   "mo": "800000",
+   "rate": "4"
+  },
+  "expect": [
+   "전세금 290,000,000원"
+  ],
+  "click": null,
+  "name": "guide3-jeonse-rev4",
+  "read": null
+ },
+ {
+  "slug": "jeonse",
+  "inputs": {
+   "mode": "rev",
+   "j": "0",
+   "dep": "50000000",
+   "mo": "800000",
+   "rate": "2.5"
+  },
+  "expect": [
+   "전세금 434,000,000원"
+  ],
+  "click": null,
+  "name": "guide3-jeonse-rev25",
+  "read": null
+ },
+ {
+  "slug": "splitbill",
+  "inputs": {
+   "t": "187000",
+   "n": "6",
+   "tip": "0"
+  },
+  "expect": [
+   "1인당 31,167원",
+   "100원 단위 올림 31,200원 (총 187,200원)"
+  ],
+  "click": null,
+  "name": "guide3-split",
+  "read": null
+ },
+ {
+  "slug": "splitbill",
+  "inputs": {
+   "t": "100000",
+   "n": "3",
+   "tip": "0"
+  },
+  "expect": [
+   "100원 단위 올림 33,400원 (총 100,200원)"
+  ],
+  "click": null,
+  "name": "guide3-split3",
+  "read": null
+ },
+ {
+  "slug": "splitbill",
+  "inputs": {
+   "t": "187000",
+   "n": "6",
+   "tip": "10"
+  },
+  "expect": [
+   "1인당 34,283원",
+   "100원 단위 올림 34,300원 (총 205,800원)"
+  ],
+  "click": null,
+  "name": "guide3-split-tip",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-09",
+   "dir": "1",
+   "n": "30",
+   "u": "d"
+  },
+  "expect": [
+   "2026.11.8 (일요일)"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-30",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-09",
+   "dir": "1",
+   "n": "90",
+   "u": "d"
+  },
+  "expect": [
+   "2027.1.7 (목요일)"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-90",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-09",
+   "dir": "1",
+   "n": "180",
+   "u": "d"
+  },
+  "expect": [
+   "2027.4.7 (수요일)"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-180",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-09",
+   "dir": "1",
+   "n": "100",
+   "u": "d"
+  },
+  "expect": [
+   "2027.1.17 (일요일)"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-100",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-09",
+   "dir": "1",
+   "n": "6",
+   "u": "m"
+  },
+  "expect": [
+   "2027.4.9"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-6m",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-10-09",
+   "dir": "-1",
+   "n": "3",
+   "u": "m"
+  },
+  "expect": [
+   "2026.7.9"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-minus3m",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2026-01-31",
+   "dir": "1",
+   "n": "1",
+   "u": "m"
+  },
+  "expect": [
+   "2026.2.28"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-eom",
+  "read": null
+ },
+ {
+  "slug": "dateadd",
+  "inputs": {
+   "b": "2028-02-29",
+   "dir": "1",
+   "n": "1",
+   "u": "y"
+  },
+  "expect": [
+   "2029.2.28"
+  ],
+  "click": null,
+  "name": "guide3-dateadd-leap",
+  "read": null
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-09",
+   "b": "2026-11-08"
+  },
+  "expect": [
+   "영업일 21일",
+   "전체 31일 · 주말 10일"
+  ],
+  "click": null,
+  "name": "guide3-biz",
+  "read": null
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-01",
+   "b": "2026-10-31"
+  },
+  "expect": [
+   "영업일 22일",
+   "주말 9일"
+  ],
+  "click": null,
+  "name": "guide3-biz-oct",
+  "read": null
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-01-01",
+   "b": "2026-12-31"
+  },
+  "expect": [
+   "영업일 261일",
+   "전체 365일 · 주말 104일"
+  ],
+  "click": null,
+  "name": "guide3-biz-year",
+  "read": null
+ },
+ {
+  "slug": "bizdays",
+  "inputs": {
+   "a": "2026-10-09",
+   "b": "2026-10-09"
+  },
+  "expect": [
+   "영업일 1일",
+   "전체 1일"
+  ],
+  "click": null,
+  "name": "guide3-biz-one",
+  "read": null
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "10000000",
+   "b": "15000000",
+   "y": "5"
+  },
+  "expect": [
+   "총 수익률 50%",
+   "연평균 수익률(CAGR) 8.45%"
+  ],
+  "click": null,
+  "name": "guide3-cagr-5-15000000",
+  "read": null
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "10000000",
+   "b": "20000000",
+   "y": "3"
+  },
+  "expect": [
+   "총 수익률 100%",
+   "연평균 수익률(CAGR) 25.99%"
+  ],
+  "click": null,
+  "name": "guide3-cagr-3-20000000",
+  "read": null
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "10000000",
+   "b": "20000000",
+   "y": "10"
+  },
+  "expect": [
+   "총 수익률 100%",
+   "연평균 수익률(CAGR) 7.18%"
+  ],
+  "click": null,
+  "name": "guide3-cagr-10-20000000",
+  "read": null
+ },
+ {
+  "slug": "cagr",
+  "inputs": {
+   "a": "10000000",
+   "b": "8000000",
+   "y": "2"
+  },
+  "expect": [
+   "총 수익률 -20%",
+   "연평균 수익률(CAGR) -10.56%"
+  ],
+  "click": null,
+  "name": "guide3-cagr-2-8000000",
+  "read": null
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "100000000",
+   "c": "10000000",
+   "m": "1000000",
+   "rate": "3"
+  },
+  "expect": [
+   "약 80개월 (6년 8개월)"
+  ],
+  "click": null,
+  "name": "guide3-savegoal-100000000-3",
+  "read": null
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "100000000",
+   "c": "10000000",
+   "m": "1000000",
+   "rate": "0"
+  },
+  "expect": [
+   "약 90개월 (7년 6개월)"
+  ],
+  "click": null,
+  "name": "guide3-savegoal-100000000-0",
+  "read": null
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "50000000",
+   "c": "0",
+   "m": "500000",
+   "rate": "3"
+  },
+  "expect": [
+   "약 90개월 (7년 6개월)"
+  ],
+  "click": null,
+  "name": "guide3-savegoal-50000000-3",
+  "read": null
+ },
+ {
+  "slug": "savegoal",
+  "inputs": {
+   "t": "30000000",
+   "c": "0",
+   "m": "1000000",
+   "rate": "4"
+  },
+  "expect": [
+   "약 29개월 (2년 5개월)"
+  ],
+  "click": null,
+  "name": "guide3-savegoal-30000000-4",
+  "read": null
+ },
+ {
+  "slug": "duedate",
+  "inputs": {
+   "l": "2026-03-01"
+  },
+  "expect": [
+   "출산예정일 2026.12.6 (일요일)",
+   "현재 31주 3일"
+  ],
+  "click": null,
+  "name": "guide3-due",
+  "read": null
+ },
+ {
+  "slug": "duedate",
+  "inputs": {
+   "l": "2026-01-10"
+  },
+  "expect": [
+   "출산예정일 2026.10.17"
+  ],
+  "click": null,
+  "name": "guide3-due2",
+  "read": null
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "3.3",
+   "a": "1000000"
+  },
+  "expect": [
+   "소득세 30,000원 + 지방소득세 3,000원",
+   "실수령 967,000원"
+  ],
+  "click": null,
+  "name": "guide3-wh-3.3-1000000",
+  "read": null
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "8.8",
+   "a": "1000000"
+  },
+  "expect": [
+   "소득세 80,000원 + 지방소득세 8,000원",
+   "실수령 912,000원"
+  ],
+  "click": null,
+  "name": "guide3-wh-8.8-1000000",
+  "read": null
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "15.4",
+   "a": "1000000"
+  },
+  "expect": [
+   "소득세 140,000원 + 지방소득세 14,000원",
+   "실수령 846,000원"
+  ],
+  "click": null,
+  "name": "guide3-wh-15.4-1000000",
+  "read": null
+ },
+ {
+  "slug": "withholding",
+  "inputs": {
+   "k": "15.4",
+   "a": "5000000"
+  },
+  "expect": [
+   "소득세 700,000원 + 지방소득세 70,000원",
+   "실수령 4,230,000원"
+  ],
+  "click": null,
+  "name": "guide3-wh-15.4-5000000",
+  "read": null
+ },
+ {
+  "slug": "stock",
+  "inputs": {
+   "b": "50000",
+   "s": "56000",
+   "q": "100",
+   "fee": "0.015",
+   "tx": "0.15"
+  },
+  "expect": [
+   "실현 손익 590,010원",
+   "(11.8%)",
+   "수수료 1,590원 · 거래세 8,400원",
+   "매수금액 5,000,000원 · 매도금액 5,600,000원"
+  ],
+  "click": null,
+  "name": "guide3-stock",
+  "read": null
  }
 ]
