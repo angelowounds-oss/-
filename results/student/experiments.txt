@@ -6,3 +6,7 @@ Extended lane features, behaviour cloning, 2.5M samples:       vs p4 1.75% (tau=
 Play-weighted loss (weight 6), 2.5M samples:                    vs p4 6.50% (tau=0), 3.50% (tau=-1)
 Wider student (192 hidden), play-weighted, 6 epochs:            vs p4 6.25% (tau=0)
 Training cross-entropy plateaus near 0.30 for both widths; capacity is not the limit.
+Evolution-strategies fine-tuning from the 22% round-5 net (widened to 86 inputs, behaviour identical):
+  sigma 0.03, step 0.02, 40 generations: held-out win vs p4 fell 16% -> 5.5%; perturbations were too large.
+  sigma 0.01, step 0.0002, 40 generations: held-out win vs p4 stayed 26-35% (baseline ~30% in the same non-mirror setting).
+  No clear improvement; 200-game estimates carry about +/-3 points of noise.
