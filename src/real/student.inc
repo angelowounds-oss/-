@@ -13,7 +13,10 @@
 // spec: p<idx> (policy index) or n<file>[@eps] (student net file, optional random-action rate).
 
 static int TEACH = 6;
-static const int SH = 64, SSLOT = NSLOT, SPL = NPLACE, SOUT = NSLOT + 4 * NPLACE, NCARD = CARD_ID_COUNT;
+#ifndef SH_HIDDEN
+#define SH_HIDDEN 64
+#endif
+static const int SH = SH_HIDDEN, SSLOT = NSLOT, SPL = NPLACE, SOUT = NSLOT + 4 * NPLACE, NCARD = CARD_ID_COUNT;
 static const int NINS = NIN + 16;
 static const int OB1 = NINS * SH, OE = OB1 + SH, OW2 = OE + NCARD * SH, OB2 = OW2 + SH * SOUT, NPAR = OB2 + SOUT;
 
