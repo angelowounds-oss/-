@@ -1,0 +1,23 @@
+{
+ "method": "proj",
+ "Nd": 40,
+ "h": 0.0025,
+ "grid": [
+  880,
+  164
+ ],
+ "dt": 0.002777777777777778,
+ "simT": 6.75,
+ "converged": false,
+ "stoppedBy": "2 h background time limit (wall ~2 h)",
+ "note": "not converged by the 1e-6 test; Cd changed < 1e-5 relative and dp < 1e-5 over the last 1.5 s (6 D/U); last logged line kept as the result",
+ "Cd": 5.317,
+ "Cl": 0.01221,
+ "dp": 0.10734,
+ "meanCg": 490,
+ "err": {
+  "Cd": -0.04704722645398336,
+  "Cl": 0.1518867924528302,
+  "dp": -0.08646808510638289
+ }
+}
