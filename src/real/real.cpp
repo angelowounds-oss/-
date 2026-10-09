@@ -262,6 +262,7 @@ static double evalStateW(const GameManager& g, int team, const float* w) {
   return v;
 }
 
+static void rolloutAct(GameManager& c, Player& P);
 static bool searchChoose(GameManager& g, Player& P, int& slotOut, float& xOut, float& yOut) {
   int team = P.team, en = 1 - team; const auto& hand = g.getHand(team); float el = g.getElixir(team); int H = P.pol.lookahead;
   const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities(); const float maxOwnY = g.getOwnHalfMaxY();
@@ -313,7 +314,7 @@ static bool searchChoose(GameManager& g, Player& P, int& slotOut, float& xOut, f
       int oppPolIdx = P.pol.det > 0 ? (d % 3) : 1; Policy op = POL[oppPolIdx], mp = POL[1];
       if (P.ew) { op.react = P.ew[15]; op.attackElixir = P.ew[16]; mp.react = P.ew[17]; mp.attackElixir = P.ew[18]; }
       Player opp(en, op, 77 + c.currentTick + d), me(team, mp, 91 + c.currentTick + d);
-      for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { think(c, opp); } if (P.pol.cont && k % 6 == 2) think(c, me); }
+      for (int k = 0; k < H; k++) { c.step(); if (k % 6 == 5) { rolloutAct(c, opp); } if (P.pol.cont && k % 6 == 2) rolloutAct(c, me); }
       tot += P.ew ? evalStateW(c, team, P.ew) : evalState(c, team, P.pol.pos);
     }
     return tot / K;

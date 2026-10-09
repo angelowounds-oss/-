@@ -14,10 +14,11 @@
 
 static int TEACH = 6;
 static const int SH = 64, SSLOT = NSLOT, SPL = NPLACE, SOUT = NSLOT + 4 * NPLACE, NCARD = CARD_ID_COUNT;
-static const int OB1 = NIN * SH, OE = OB1 + SH, OW2 = OE + NCARD * SH, OB2 = OW2 + SH * SOUT, NPAR = OB2 + SOUT;
+static const int NINS = NIN + 16;
+static const int OB1 = NINS * SH, OE = OB1 + SH, OW2 = OE + NCARD * SH, OB2 = OW2 + SH * SOUT, NPAR = OB2 + SOUT;
 
 struct Dec { int slot = -1; float x = 0, y = 0; };
-struct Sample { float f[NIN]; int hand[4]; int mask; int slot; int place; };
+struct Sample { float f[NINS]; int hand[4]; int mask; int slot; int place; };
 struct Seat { int kind = 0; int pol = 1; const float* th = nullptr; bool rec = false; float eps = 0; };  // kind: 0 rule, 1 lookahead teacher, 2 student
 
 static Seat seatOf(int p) { Seat s; s.kind = POL[p].lookahead > 0 ? 1 : 0; s.pol = p; return s; }
@@ -32,7 +33,7 @@ static void handIds(GameManager& g, int team, int* hc) { const auto& hand = g.ge
 static void fwd(const float* th, const float* in, const int* hc, float* h, float* o) {
   float a[SH];
   for (int j = 0; j < SH; j++) a[j] = th[OB1 + j];
-  for (int i = 0; i < NIN; i++) { float x = in[i]; const float* w = th + i * SH; for (int j = 0; j < SH; j++) a[j] += x * w[j]; }
+  for (int i = 0; i < NINS; i++) { float x = in[i]; const float* w = th + i * SH; for (int j = 0; j < SH; j++) a[j] += x * w[j]; }
   for (int s = 0; s < 4; s++) if (hc[s] >= 0) { const float* e = th + OE + hc[s] * SH; for (int j = 0; j < SH; j++) a[j] += e[j]; }
   for (int j = 0; j < SH; j++) h[j] = tanhf(a[j]);
   for (int q = 0; q < SOUT; q++) o[q] = th[OB2 + q];
@@ -40,8 +41,28 @@ static void fwd(const float* th, const float* in, const int* hc, float* h, float
 }
 
 static float TAU = 0.0f;
+// base features plus, per lane and side, the most advanced troop's presence, depth and x offset and the troop count
+static void sfeatures(GameManager& g, Player& P, float* f) {
+  features(g, P, f);
+  int team = P.team; const Board& bd = g.getBoard(); auto& ents = const_cast<Board&>(bd).getEntities();
+  const float C = ArenaLayout::CENTER_X, lx[2] = {ArenaLayout::LEFT_LANE_X, ArenaLayout::RIGHT_LANE_X};
+  float depth[2][2] = {{0, 0}, {0, 0}}; float dx[2][2] = {{0, 0}, {0, 0}}; int present[2][2] = {{0, 0}, {0, 0}}, cnt[2][2] = {{0, 0}, {0, 0}};
+  for (auto& ep : ents) {
+    const Entity* e = ep.get(); if (!e->isAlive() || e->isTower() || e->isBuilding() || !e->isTargetable() || !dynamic_cast<const Troop*>(e)) continue;
+    int l = e->position.x < C ? 0 : 1, side = e->team == team ? 0 : 1; float oy = P.oy(e->position.y);
+    cnt[l][side]++;
+    bool better = !present[l][side] || (side == 0 ? oy > depth[l][side] : oy < depth[l][side]);
+    if (better) { present[l][side] = 1; depth[l][side] = oy; dx[l][side] = (e->position.x - lx[l]) / 9.0f; }
+  }
+  int k = NIN;
+  for (int l = 0; l < 2; l++) for (int side = 0; side < 2; side++) {
+    f[k++] = (float)present[l][side]; f[k++] = present[l][side] ? depth[l][side] / 34.0f : 0.0f;
+    f[k++] = present[l][side] ? dx[l][side] : 0.0f; f[k++] = min(1.0f, cnt[l][side] / 6.0f);
+  }
+}
+
 static Dec netDecide(GameManager& g, Player& P, const float* th) {
-  float in[NIN], h[SH], o[SOUT]; int hc[4]; features(g, P, in); handIds(g, P.team, hc); fwd(th, in, hc, h, o);
+  float in[NINS], h[SH], o[SOUT]; int hc[4]; sfeatures(g, P, in); handIds(g, P.team, hc); fwd(th, in, hc, h, o);
   int m = maskOf(g, P.team); int bs = SSLOT - 1; float bv = o[SSLOT - 1] + TAU;
   for (int s = 0; s < SSLOT - 1; s++) if (((m >> s) & 1) && o[s] > bv) { bv = o[s]; bs = s; }
   Dec d; if (bs == SSLOT - 1) return d;
@@ -64,17 +85,25 @@ static Dec randomDec(GameManager& g, Player& P, Rng& er) {
   d.slot = s; d.x = pl[p].first; d.y = pl[p].second; return d;
 }
 
+static double MAP_ERR_SUM = 0, MAP_ERR_N = 0, MAP_ERR_FAR = 0;
 static Sample makeSample(GameManager& g, Player& P, const Dec& d) {
-  Sample s{}; features(g, P, s.f); handIds(g, P.team, s.hand); s.mask = maskOf(g, P.team);
+  Sample s{}; sfeatures(g, P, s.f); handIds(g, P.team, s.hand); s.mask = maskOf(g, P.team);
   s.slot = d.slot < 0 ? SSLOT - 1 : d.slot; s.place = 0;
   if (d.slot >= 0) {
     vector<pair<float, float>> pl; placements(g, P, d.slot, pl); float best = 1e30f;
     for (int p = 0; p < SPL; p++) { float dx = pl[p].first - d.x, dy = pl[p].second - d.y, dd = dx * dx + dy * dy; if (dd < best) { best = dd; s.place = p; } }
+    MAP_ERR_SUM += sqrt(best); MAP_ERR_N += 1; MAP_ERR_FAR += sqrt(best) > 2.0 ? 1 : 0;
   }
   return s;
 }
 
 static void playDec(GameManager& g, int t, const Dec& d) { if (d.slot >= 0) { int cid = g.getHand(t)[d.slot]; g.playCard(t, cid, d.x, d.y); } }
+
+static const float* ROLL_NET = nullptr;  // when set, the lookahead's rollouts play with this net instead of the rule policy
+static void rolloutAct(GameManager& c, Player& P) {
+  if (ROLL_NET) playDec(c, P.team, netDecide(c, P, ROLL_NET));
+  else think(c, P);
+}
 
 static Result resultOf(GameManager& g) {
   Result r{-1, 3 - towersAlive(g, 1), 3 - towersAlive(g, 0), g.currentTick};
@@ -113,8 +142,8 @@ static Result playSeats(const Deck& a, const Deck& b, const Seat& s0, const Seat
 // ---- learning
 
 static void sampleLoss(const float* th, const Sample& s, float* gr, double& ls, double& lp, bool& okS, bool& okP) {
-  float in[NIN], h[SH], o[SOUT], go[SOUT]; int hc[4];
-  for (int i = 0; i < NIN; i++) in[i] = s.f[i];
+  float in[NINS], h[SH], o[SOUT], go[SOUT]; int hc[4];
+  for (int i = 0; i < NINS; i++) in[i] = s.f[i];
   for (int k = 0; k < 4; k++) hc[k] = s.hand[k];
   fwd(th, in, hc, h, o);
   for (int q = 0; q < SOUT; q++) go[q] = 0;
@@ -139,7 +168,7 @@ static void sampleLoss(const float* th, const Sample& s, float* gr, double& ls, 
   for (int q = 0; q < SOUT; q++) gr[OB2 + q] += go[q];
   for (int j = 0; j < SH; j++) { float hj = h[j]; float* g2 = gr + OW2 + j * SOUT; for (int q = 0; q < SOUT; q++) g2[q] += hj * go[q]; }
   for (int j = 0; j < SH; j++) gr[OB1 + j] += ga[j];
-  for (int i = 0; i < NIN; i++) { float x = in[i]; float* g1 = gr + i * SH; for (int j = 0; j < SH; j++) g1[j] += x * ga[j]; }
+  for (int i = 0; i < NINS; i++) { float x = in[i]; float* g1 = gr + i * SH; for (int j = 0; j < SH; j++) g1[j] += x * ga[j]; }
   for (int k = 0; k < 4; k++) if (hc[k] >= 0) { float* ge = gr + OE + hc[k] * SH; for (int j = 0; j < SH; j++) ge[j] += ga[j]; }
 }
 
@@ -183,7 +212,7 @@ static vector<float> loadTheta(const string& f) {
 static vector<float> randomTheta(uint64_t seed) {
   Rng r(seed); vector<float> th(NPAR, 0.0f);
   auto fill = [&](int from, int to, float sc) { for (int k = from; k < to; k++) th[k] = sc * (2 * r.uni() - 1); };
-  fill(0, OB1, sqrtf(6.0f / (NIN + SH))); fill(OE, OW2, 0.1f); fill(OW2, OB2, sqrtf(6.0f / (SH + SOUT)));
+  fill(0, OB1, sqrtf(6.0f / (NINS + SH))); fill(OE, OW2, 0.1f); fill(OW2, OB2, sqrtf(6.0f / (SH + SOUT)));
   return th;
 }
 
@@ -227,6 +256,7 @@ static bool studentMode(int argc, char** argv) {
   string mode = argv[1];
   if (const char* e = getenv("CR_TEACH")) TEACH = atoi(e);
   if (const char* e = getenv("CR_TAU")) TAU = (float)atof(e);
+  if (const char* e = getenv("CR_ROLLNET")) { NETS[e] = loadTheta(e); ROLL_NET = NETS[e].data(); }
 
   if (mode == "strength" && argc >= 6) {
     vector<Deck> D = readDecks(argv[2]); int nd = atoi(argv[3]), seeds = atoi(argv[4]); vector<int> ps = parseIntList(argv[5]); int np = ps.size();
@@ -260,6 +290,7 @@ static bool studentMode(int argc, char** argv) {
       if (r.uni() < 0.6) playSeats(a, b, t, t, seed, &buf);
       else playSeats(a, b, t, seatOf(r.below(3)), seed, &buf);
     });
+    printf("placement mapping error: mean %.2f tiles, over 2 tiles %.1f%% (n=%.0f)\n", MAP_ERR_SUM / max(1.0, MAP_ERR_N), 100 * MAP_ERR_FAR / max(1.0, MAP_ERR_N), MAP_ERR_N);
     return true;
   }
 
