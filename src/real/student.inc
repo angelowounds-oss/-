@@ -522,3 +522,30 @@ static bool esMode(int argc, char** argv) {
   }
   return true;
 }
+
+// ---- deckmatrix: each deck vs a fixed opponent set under one AI (both seats); reports how balanced it is
+static bool deckMatrixMode(int argc, char** argv) {
+  if (string(argv[1]) != "deckmatrix" || argc < 7) return false;
+  Seat A = parseSeat(argv[2]); vector<Deck> D = readDecks(argv[3]); vector<Deck> O = readDecks(argv[4]); int games = atoi(argv[5]); uint64_t seed = atoll(argv[6]);
+  int n = D.size(), m = O.size();
+  vector<array<double, 6>> out(n);  // mean win, std over opponents, mean |win-0.5|, min, max, worst opponent
+  parFor(n, [&](int i) {
+    vector<double> wr(m, 0.0);
+    for (int j = 0; j < m; j++) {
+      double w = 0;
+      for (int q = 0; q < games; q++) {
+        uint64_t sd = seed + (uint64_t)i * 1000003ULL + (uint64_t)j * 7919ULL + q;
+        Result r = (q & 1) ? playSeats(O[j], D[i], A, A, sd, nullptr) : playSeats(D[i], O[j], A, A, sd, nullptr);
+        int me = (q & 1) ? 1 : 0;
+        w += r.winner < 0 ? 0.5 : (r.winner == me ? 1.0 : 0.0);
+      }
+      wr[j] = w / max(1, games);
+    }
+    double mu = 0, dev = 0, mn = 1, mx = 0; int worst = 0;
+    for (int j = 0; j < m; j++) { mu += wr[j]; dev += fabs(wr[j] - 0.5); mn = min(mn, wr[j]); mx = max(mx, wr[j]); if (fabs(wr[j] - 0.5) > fabs(wr[worst] - 0.5)) worst = j; }
+    mu /= m; dev /= m; double var = 0; for (int j = 0; j < m; j++) var += (wr[j] - mu) * (wr[j] - mu);
+    out[i] = {mu, sqrt(var / m), dev, mn, mx, (double)worst};
+  });
+  for (int i = 0; i < n; i++) printf("%d %.4f %.4f %.4f %.4f %.4f %.0f %.3f\n", i + 1, out[i][0], out[i][1], out[i][2], out[i][3], out[i][4], out[i][5], deckCost(D[i]));
+  return true;
+}
