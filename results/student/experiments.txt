@@ -10,3 +10,8 @@ Evolution-strategies fine-tuning from the 22% round-5 net (widened to 86 inputs,
   sigma 0.03, step 0.02, 40 generations: held-out win vs p4 fell 16% -> 5.5%; perturbations were too large.
   sigma 0.01, step 0.0002, 40 generations: held-out win vs p4 stayed 26-35% (baseline ~30% in the same non-mirror setting).
   No clear improvement; 200-game estimates carry about +/-3 points of noise.
+Learned value net (win probability over the 86 student features) at search leaves, vs policy 4, 400 mirror games:
+  vnet1 (trained on 3.3M outcome-labelled states from policy-4 self-play), leaf margin 0.00: 19.6%
+    margin 0.01: 21.6%, 0.03: 25.3%, 0.06: 26.5%, 0.10: 31.3%, 0.20: 32.6%
+  vnet2 (retrained on 3.4M states from value-guided self-play, margin 0.20): 28.75%
+  Iterating the value net on its own games did not improve it; the plateau is about 30-33%.
