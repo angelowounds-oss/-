@@ -12,7 +12,26 @@
 <div class="card"><h2 style="margin-top:0">A에서 B로 변화율</h2>
 <div class="grid"><input type="number" id="a3" placeholder="A (이전)" min="0"><input type="number" id="b3" placeholder="B (이후)" min="0"></div><div class="result" id="r3"></div></div>
 <h2>활용 예시</h2><p>할인가 계산(정가 × (100 - 할인율)%), 급여 인상률, 주식 수익률, 시험 점수 비율 등에 쓸 수 있습니다.</p>
-<div class="faq-block"><h2>자주 묻는 질문</h2><h3>할인율은 어떻게 계산하나요?</h3><p>(정가 - 할인가) ÷ 정가 × 100으로 계산합니다. 변화율 계산기에 정가와 할인가를 넣으면 -%로 표시됩니다.</p><h3>증가율 공식은 무엇인가요?</h3><p>(나중 값 - 처음 값) ÷ 처음 값 × 100입니다.</p></div>
+<!--guide--><section class="guide">
+<h2>퍼센트 계산은 이 세 가지면 충분해요</h2>
+<ol>
+<li><b>A의 B%</b> = A × B ÷ 100. 50,000원의 15%는 7,500원이에요.</li>
+<li><b>A는 B의 몇 %</b> = A ÷ B × 100. 40문제 중 32문제를 맞혔다면 정답률 80%예요.</li>
+<li><b>A에서 B로 변화율</b> = (B − A) ÷ A × 100. 120에서 150이 되면 +25%예요.</li>
+</ol>
+<h2>자주 틀리는 계산</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>상황</th><th>계산</th><th>결과</th></tr></thead><tbody><tr><td>30% 할인가가 26,900원일 때 원래 가격</td><td>26,900 ÷ (1 − 0.3)</td><td>약 38,429원</td></tr><tr><td>50% 오른 뒤 50% 내리면</td><td>100 × 1.5 × 0.5</td><td>75 (처음보다 25% 낮음)</td></tr><tr><td>20% 할인 후 10% 추가 할인</td><td>0.8 × 0.9 = 0.72</td><td>총 28% 할인 (30% 아님)</td></tr><tr><td>금리 3%가 3.5%로 오르면</td><td>3.5 − 3</td><td>0.5%p 상승 (변화율로는 약 16.7% 상승)</td></tr></tbody></table></div>
+<p>할인 전 가격을 구할 때 할인가에 할인율을 다시 더하면 틀려요. 26,900원에 30%를 더하면 34,970원이지만 실제 정가는 38,429원이에요. 원래 가격은 항상 <b>할인가 ÷ (1 − 할인율)</b>로 구하세요. 여러 할인이 겹치는 경우는 <a href="discount.html">중복 할인 계산기</a>가 편해요.</p>
+<h2>%와 %p(퍼센트포인트)는 달라요</h2>
+<p>퍼센트끼리의 차이는 %p로 써요. 지지율이 40%에서 44%가 되면 "4%p 올랐다"가 맞고, 변화율로 말하면 10% 오른 거예요. 금리, 실업률, 시험 합격률처럼 원래 값이 퍼센트인 숫자를 비교할 때 특히 헷갈리기 쉬워요.</p>
+<h2>계산기 사용 팁</h2>
+<ul>
+<li>결과는 소수 둘째 자리에서 반올림해요.</li>
+<li>변화율은 이전 값이 0이면 계산할 수 없어요. 0에서 늘어난 경우는 "몇 배"나 증가량으로 표현하세요.</li>
+<li>주식 수익률처럼 기간이 다른 값을 비교할 땐 <a href="cagr.html">연평균 수익률(CAGR) 계산기</a>를 쓰세요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>할인율은 어떻게 계산하나요?</h3><p>(정가 - 할인가) ÷ 정가 × 100으로 계산합니다. 변화율 계산기에 정가와 할인가를 넣으면 -%로 표시됩니다.</p><h3>증가율 공식은 무엇인가요?</h3><p>(나중 값 - 처음 값) ÷ 처음 값 × 100입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <!--fb--><div class="fb" data-slug="percent"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="char-count.html">글자수 세기</a><a href="unit.html">단위 변환기</a><a href="average.html">평균 계산기</a><a href="gpa.html">학점 계산기</a></div>
 </main>

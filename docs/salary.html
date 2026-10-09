@@ -5,7 +5,27 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/salary.html" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>연봉 환산 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="a">연봉 (원, 세전)</label><input type="number" id="a" value="36000000" step="any" min="0"><label for="h">월 소정근로시간 (주 40시간 기준 209)</label><input type="number" id="h" value="209" step="any" min="0"><div class="result" id="res"></div></div><h2>실수령액과 다른 이유</h2><p>이 계산기는 세전 금액만 나눈 값입니다. 실제 통장에 들어오는 금액은 국민연금, 건강보험, 장기요양보험, 고용보험, 소득세, 지방소득세가 빠진 값이라 더 적습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>월 209시간은 무엇인가요?</h3><p>주 40시간 근무에 주휴 8시간을 더해 월 평균 주 수를 곱한 값(약 209시간)입니다.</p><h3>퇴직금은 연봉에 포함되나요?</h3><p>계약에 따라 다릅니다. 연봉에 포함하는 방식은 퇴직금 별도 지급과 구분해 확인하세요.</p></div><!--fb--><div class="fb" data-slug="salary"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="severance.html">퇴직금 계산기</a></div>
+<div class="card"><label for="a">연봉 (원, 세전)</label><input type="number" id="a" value="36000000" step="any" min="0"><label for="h">월 소정근로시간 (주 40시간 기준 209)</label><input type="number" id="h" value="209" step="any" min="0"><div class="result" id="res"></div></div><h2>실수령액과 다른 이유</h2><p>이 계산기는 세전 금액만 나눈 값입니다. 실제 통장에 들어오는 금액은 국민연금, 건강보험, 장기요양보험, 고용보험, 소득세, 지방소득세가 빠진 값이라 더 적습니다.</p><!--guide--><section class="guide">
+<h2>계산 방식</h2>
+<ul>
+<li><b>월급</b> = 연봉 ÷ 12</li>
+<li><b>주급</b> = 연봉 ÷ 52</li>
+<li><b>일급</b> = 월급 ÷ 30</li>
+<li><b>시급</b> = 월급 ÷ 월 소정근로시간(주 40시간 기준 209시간)</li>
+</ul>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>연봉(세전)</th><th>월급</th><th>주급</th><th>시급(209시간)</th></tr></thead><tbody><tr><td>3,000만 원</td><td>2,500,000원</td><td>576,923원</td><td>11,962원</td></tr><tr><td>3,600만 원</td><td>3,000,000원</td><td>692,308원</td><td>14,354원</td></tr><tr><td>4,000만 원</td><td>3,333,333원</td><td>769,231원</td><td>15,949원</td></tr><tr><td>5,000만 원</td><td>4,166,667원</td><td>961,538원</td><td>19,936원</td></tr></tbody></table></div>
+<h2>209시간은 어디서 나오나요</h2>
+<p>주 40시간에 유급 주휴 8시간을 더한 48시간을 한 달 평균 주 수(365 ÷ 7 ÷ 12 ≈ 4.345주)로 곱하면 약 208.6시간이고, 이를 209시간으로 맞춰 써요. 주 40시간보다 적게 일하는 계약이라면 월 소정근로시간을 바꿔 넣으세요.</p>
+<h2>최저임금보다 낮은지 확인하려면</h2>
+<p>2026년 최저시급은 10,320원이에요. 시급 결과가 이보다 낮으면 확인이 필요해요. 다만 최저임금 계산에는 매달 정기적으로 주는 상여금·식비 같은 일부 수당이 포함되고 연장근로수당은 빠지는 등 범위가 정해져 있어서, 연봉을 단순히 나눈 값과 다를 수 있어요. 정확한 판단은 고용노동부의 최저임금 모의계산기를 이용하세요.</p>
+<h2>연봉 계약서에서 꼭 볼 것</h2>
+<ul>
+<li><b>퇴직금 포함 여부</b>: "연봉을 13으로 나눠 매달 지급"처럼 퇴직금을 미리 나눠 주는 방식은 퇴직금 관련 법령상 문제가 될 수 있어 분쟁이 잦아요. 계약서를 확인하고 의문이 있으면 고용노동부 상담센터(1350)에 문의하세요.</li>
+<li><b>고정 연장수당 포함 여부</b>: 연봉에 일정 시간의 연장근로수당이 미리 들어 있는 계약도 있어요. 실제 시급은 포함된 시간까지 넣어 계산해야 정확해요.</li>
+<li>이 계산은 세전이에요. 통장에 들어오는 금액은 <a href="netpay.html">연봉 실수령액 계산기</a>에서 확인하세요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>월 209시간은 무엇인가요?</h3><p>주 40시간 근무에 주휴 8시간을 더해 월 평균 주 수를 곱한 값(약 209시간)입니다.</p><h3>퇴직금은 연봉에 포함되나요?</h3><p>계약에 따라 다릅니다. 연봉에 포함하는 방식은 퇴직금 별도 지급과 구분해 확인하세요.</p></div><!--fb--><div class="fb" data-slug="salary"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="severance.html">퇴직금 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>

@@ -5,7 +5,30 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/bmr.html" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>기초대사량 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="sex">성별</label><select id="sex"><option value="m">남성</option><option value="f">여성</option></select><label for="age">나이</label><input type="number" id="age" value="30" step="1" min="0"><label for="h">키 (cm)</label><input type="number" id="h" value="172" step="any" min="0"><label for="w">몸무게 (kg)</label><input type="number" id="w" value="68" step="any" min="0"><label for="act">활동량</label><select id="act"><option value="1.2">거의 앉아서 생활</option><option value="1.375">가벼운 운동 주 1~3회</option><option value="1.55">보통 운동 주 3~5회</option><option value="1.725">강한 운동 주 6~7회</option><option value="1.9">매우 활동적</option></select><div class="result" id="res"></div></div><h2>기초대사량이란?</h2><p>가만히 있어도 생명 유지에 쓰이는 하루 최소 에너지입니다. 여기에 활동 계수를 곱하면 하루 총 소비 칼로리의 추정치가 됩니다. 개인차가 크고 의학적 처방이 아닙니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>하루 500kcal를 줄이면 얼마나 빠지나요?</h3><p>대략 일주일에 0.5kg 정도라고 알려져 있지만 개인차가 큽니다.</p><h3>계수는 어떻게 고르나요?</h3><p>한 주 평균 운동 빈도로 고르되 헷갈리면 낮은 쪽을 선택하세요.</p></div><!--fb--><div class="fb" data-slug="bmr"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a><a href="sleep.html">수면 사이클 계산기</a></div>
+<div class="card"><label for="sex">성별</label><select id="sex"><option value="m">남성</option><option value="f">여성</option></select><label for="age">나이</label><input type="number" id="age" value="30" step="1" min="0"><label for="h">키 (cm)</label><input type="number" id="h" value="172" step="any" min="0"><label for="w">몸무게 (kg)</label><input type="number" id="w" value="68" step="any" min="0"><label for="act">활동량</label><select id="act"><option value="1.2">거의 앉아서 생활</option><option value="1.375">가벼운 운동 주 1~3회</option><option value="1.55">보통 운동 주 3~5회</option><option value="1.725">강한 운동 주 6~7회</option><option value="1.9">매우 활동적</option></select><div class="result" id="res"></div></div><h2>기초대사량이란?</h2><p>가만히 있어도 생명 유지에 쓰이는 하루 최소 에너지입니다. 여기에 활동 계수를 곱하면 하루 총 소비 칼로리의 추정치가 됩니다. 개인차가 크고 의학적 처방이 아닙니다.</p><!--guide--><section class="guide">
+<h2>계산 공식 (Mifflin-St Jeor)</h2>
+<ul>
+<li><b>남성</b> 기초대사량 = 10 × 체중(kg) + 6.25 × 키(cm) − 5 × 나이 + 5</li>
+<li><b>여성</b> 기초대사량 = 10 × 체중(kg) + 6.25 × 키(cm) − 5 × 나이 − 161</li>
+<li><b>하루 소비 칼로리</b> = 기초대사량 × 활동계수 (1.2 ~ 1.9)</li>
+</ul>
+<p>기초대사량은 하루 종일 누워만 있어도 숨 쉬고 체온을 유지하는 데 쓰는 에너지예요. 여기에 걷고 일하고 운동하는 몫을 활동계수로 곱해 하루 소비량을 어림해요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>조건</th><th>기초대사량</th><th>×1.2 (거의 앉아서)</th><th>×1.375 (주 1~3회 운동)</th><th>×1.55 (주 3~5회)</th></tr></thead><tbody><tr><td>남성 30세 · 172cm · 68kg</td><td>1,610kcal</td><td>1,932kcal</td><td>2,214kcal</td><td>2,496kcal</td></tr><tr><td>여성 30세 · 160cm · 55kg</td><td>1,239kcal</td><td>1,487kcal</td><td>1,704kcal</td><td>1,920kcal</td></tr></tbody></table></div>
+<h2>숫자를 이렇게 활용하세요</h2>
+<ul>
+<li>체중을 유지하려면 하루 소비 칼로리 정도를 먹으면 돼요.</li>
+<li>감량할 때는 하루 약 500kcal를 덜 먹는 걸 흔한 출발점으로 써요. 지방 1kg을 약 7,700kcal로 보는 어림으로 계산하면 일주일에 0.5kg 정도예요. 실제 속도는 사람마다 달라요.</li>
+<li>기초대사량보다 훨씬 적게 먹는 극단적인 식단은 오래 유지하기 어렵고 건강에 좋지 않을 수 있어요. 질환이 있거나 임신 중이라면 전문가와 상담하세요.</li>
+</ul>
+<h2>정확도의 한계</h2>
+<ul>
+<li>공식은 평균적인 사람을 기준으로 한 추정치라 개인에 따라 10% 안팎의 차이가 날 수 있어요.</li>
+<li>근육량이 많으면 실제 대사량이 공식보다 높고, 체성분 측정 기기 결과와도 다를 수 있어요.</li>
+<li>활동계수는 실제보다 높게 고르기 쉬워요. 애매하면 한 단계 낮게 잡는 편이 안전해요.</li>
+<li>체중 상태는 <a href="bmi.html">BMI 계산기</a>, 운동으로 쓰는 열량은 <a href="calories.html">운동 칼로리 소모 계산기</a>에서 함께 보세요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 건강 상담이나 진단을 대신하지 않아요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>하루 500kcal를 줄이면 얼마나 빠지나요?</h3><p>대략 일주일에 0.5kg 정도라고 알려져 있지만 개인차가 큽니다.</p><h3>계수는 어떻게 고르나요?</h3><p>한 주 평균 운동 빈도로 고르되 헷갈리면 낮은 쪽을 선택하세요.</p></div><!--fb--><div class="fb" data-slug="bmr"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="bmi.html">BMI 계산기</a><a href="idealweight.html">적정체중 계산기</a><a href="calories.html">운동 칼로리 소모 계산기</a><a href="sleep.html">수면 사이클 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>

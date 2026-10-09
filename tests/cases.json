@@ -16,7 +16,8 @@
    "135,000,000원"
   ],
   "click": "button",
-  "name": "loan"
+  "name": "loan",
+  "read": null
  },
  {
   "slug": "loan",
@@ -29,7 +30,8 @@
    "500,000원"
   ],
   "click": "button",
-  "name": "loan-0rate"
+  "name": "loan-0rate",
+  "read": null
  },
  {
   "slug": "vat",
@@ -42,7 +44,8 @@
    "부가세 10,000원"
   ],
   "click": null,
-  "name": "vat"
+  "name": "vat",
+  "read": null
  },
  {
   "slug": "vat",
@@ -55,7 +58,8 @@
    "부가세 10,000원"
   ],
   "click": null,
-  "name": "vat-ex"
+  "name": "vat-ex",
+  "read": null
  },
  {
   "slug": "wage",
@@ -70,7 +74,8 @@
    "월급(세전) 2,152,457원"
   ],
   "click": null,
-  "name": "wage"
+  "name": "wage",
+  "read": null
  },
  {
   "slug": "wage",
@@ -85,7 +90,8 @@
    "월급(세전) 807,171원"
   ],
   "click": null,
-  "name": "wage-15h"
+  "name": "wage-15h",
+  "read": null
  },
  {
   "slug": "wage",
@@ -99,7 +105,8 @@
    "주휴수당 0원"
   ],
   "click": null,
-  "name": "wage-under15"
+  "name": "wage-under15",
+  "read": null
  },
  {
   "slug": "freelance",
@@ -113,7 +120,8 @@
    "지방소득세 3,000원"
   ],
   "click": null,
-  "name": "freelance"
+  "name": "freelance",
+  "read": null
  },
  {
   "slug": "freelance",
@@ -125,7 +133,8 @@
    "약 1,000,000원"
   ],
   "click": null,
-  "name": "freelance-rev"
+  "name": "freelance-rev",
+  "read": null
  },
  {
   "slug": "dday",
@@ -138,7 +147,8 @@
    "79일 (11주 2일)"
   ],
   "click": "button",
-  "name": "dday"
+  "name": "dday",
+  "read": null
  },
  {
   "slug": "dday",
@@ -150,7 +160,8 @@
    "D-Day"
   ],
   "click": "button",
-  "name": "dday-zero"
+  "name": "dday-zero",
+  "read": null
  },
  {
   "slug": "dday",
@@ -162,7 +173,8 @@
    "D+7"
   ],
   "click": "button",
-  "name": "dday-past"
+  "name": "dday-past",
+  "read": null
  },
  {
   "slug": "age",
@@ -175,7 +187,8 @@
    "용띠"
   ],
   "click": "button",
-  "name": "age"
+  "name": "age",
+  "read": null
  },
  {
   "slug": "age",
@@ -188,7 +201,8 @@
    "연 나이 26세"
   ],
   "click": "button",
-  "name": "age-before-bday"
+  "name": "age-before-bday",
+  "read": null
  },
  {
   "slug": "age",
@@ -201,7 +215,8 @@
    "다음 생일까지 0일"
   ],
   "click": "button",
-  "name": "age-on-bday"
+  "name": "age-on-bday",
+  "read": null
  },
  {
   "slug": "bmi",
@@ -214,7 +229,8 @@
    "정상"
   ],
   "click": "button",
-  "name": "bmi"
+  "name": "bmi",
+  "read": null
  },
  {
   "slug": "bmi",
@@ -227,7 +243,8 @@
    "1단계 비만"
   ],
   "click": "button",
-  "name": "bmi-obese"
+  "name": "bmi-obese",
+  "read": null
  },
  {
   "slug": "pyeong",
@@ -238,7 +255,8 @@
    "105.79"
   ],
   "click": null,
-  "name": "pyeong-p"
+  "name": "pyeong-p",
+  "read": null
  },
  {
   "slug": "percent",
@@ -253,7 +271,8 @@
    "+20%"
   ],
   "click": null,
-  "name": "percent"
+  "name": "percent",
+  "read": null
  },
  {
   "slug": "deposit",
@@ -270,7 +289,8 @@
    "세후 이자 296,100원"
   ],
   "click": null,
-  "name": "deposit"
+  "name": "deposit",
+  "read": null
  },
  {
   "slug": "deposit",
@@ -287,7 +307,8 @@
    "만기 수령 12,192,465원"
   ],
   "click": null,
-  "name": "deposit-sav"
+  "name": "deposit-sav",
+  "read": null
  },
  {
   "slug": "deposit",
@@ -302,7 +323,8 @@
    "세후 이자 350,000원"
   ],
   "click": null,
-  "name": "deposit-taxfree"
+  "name": "deposit-taxfree",
+  "read": null
  },
  {
   "slug": "compound",
@@ -317,7 +339,8 @@
    "총 원금 70,000,000원"
   ],
   "click": null,
-  "name": "compound"
+  "name": "compound",
+  "read": null
  },
  {
   "slug": "compound",
@@ -331,7 +354,8 @@
    "만기 금액 3,400,000원"
   ],
   "click": null,
-  "name": "compound-0rate"
+  "name": "compound-0rate",
+  "read": null
  },
  {
   "slug": "cagr",
@@ -346,7 +370,8 @@
    "5,000,000원"
   ],
   "click": null,
-  "name": "cagr"
+  "name": "cagr",
+  "read": null
  },
  {
   "slug": "avgprice",
@@ -363,7 +388,8 @@
    "총 투자금 1,800,000원"
   ],
   "click": null,
-  "name": "avgprice"
+  "name": "avgprice",
+  "read": null
  },
  {
   "slug": "avgprice",
@@ -379,7 +405,8 @@
    "40,000원"
   ],
   "click": null,
-  "name": "avgprice-2"
+  "name": "avgprice-2",
+  "read": null
  },
  {
   "slug": "stock",
@@ -396,7 +423,8 @@
    "거래세 8,400원"
   ],
   "click": null,
-  "name": "stock"
+  "name": "stock",
+  "read": null
  },
  {
   "slug": "savegoal",
@@ -411,7 +439,8 @@
    "6년 8개월"
   ],
   "click": null,
-  "name": "savegoal"
+  "name": "savegoal",
+  "read": null
  },
  {
   "slug": "savegoal",
@@ -426,7 +455,8 @@
    "7년 6개월"
   ],
   "click": null,
-  "name": "savegoal-0rate"
+  "name": "savegoal-0rate",
+  "read": null
  },
  {
   "slug": "inflation",
@@ -440,7 +470,8 @@
    "7,811,984원"
   ],
   "click": null,
-  "name": "inflation"
+  "name": "inflation",
+  "read": null
  },
  {
   "slug": "apy",
@@ -452,7 +483,8 @@
    "4.074%"
   ],
   "click": null,
-  "name": "apy"
+  "name": "apy",
+  "read": null
  },
  {
   "slug": "dividend",
@@ -468,7 +500,8 @@
    "211,500원"
   ],
   "click": null,
-  "name": "dividend"
+  "name": "dividend",
+  "read": null
  },
  {
   "slug": "exchange",
@@ -482,7 +515,8 @@
    "137,900원"
   ],
   "click": null,
-  "name": "exchange"
+  "name": "exchange",
+  "read": null
  },
  {
   "slug": "exchange",
@@ -496,7 +530,8 @@
    "985"
   ],
   "click": null,
-  "name": "exchange-k2f"
+  "name": "exchange-k2f",
+  "read": null
  },
  {
   "slug": "payoff",
@@ -510,7 +545,8 @@
    "3,116,130원"
   ],
   "click": null,
-  "name": "payoff"
+  "name": "payoff",
+  "read": null
  },
  {
   "slug": "payoff",
@@ -523,7 +559,8 @@
    "갚을 수 없습니다"
   ],
   "click": null,
-  "name": "payoff-never"
+  "name": "payoff-never",
+  "read": null
  },
  {
   "slug": "prepay",
@@ -537,7 +574,8 @@
    "493,151원"
   ],
   "click": null,
-  "name": "prepay"
+  "name": "prepay",
+  "read": null
  },
  {
   "slug": "fire",
@@ -553,7 +591,8 @@
    "22년 7개월"
   ],
   "click": null,
-  "name": "fire"
+  "name": "fire",
+  "read": null
  },
  {
   "slug": "fire",
@@ -568,7 +607,8 @@
    "이미 달성"
   ],
   "click": null,
-  "name": "fire-done"
+  "name": "fire-done",
+  "read": null
  },
  {
   "slug": "recover",
@@ -579,7 +619,8 @@
    "42.9%"
   ],
   "click": null,
-  "name": "recover"
+  "name": "recover",
+  "read": null
  },
  {
   "slug": "recover",
@@ -590,7 +631,8 @@
    "100%"
   ],
   "click": null,
-  "name": "recover-50"
+  "name": "recover-50",
+  "read": null
  },
  {
   "slug": "studentloan",
@@ -605,7 +647,8 @@
    "거치 중 월 이자 14,167원"
   ],
   "click": null,
-  "name": "studentloan"
+  "name": "studentloan",
+  "read": null
  },
  {
   "slug": "youthsave",
@@ -620,7 +663,8 @@
    "26,843,355원"
   ],
   "click": null,
-  "name": "youthsave"
+  "name": "youthsave",
+  "read": null
  },
  {
   "slug": "youthsave",
@@ -635,7 +679,8 @@
    "만기 수령 약 1,320,000원"
   ],
   "click": null,
-  "name": "youthsave-subsidy"
+  "name": "youthsave-subsidy",
+  "read": null
  },
  {
   "slug": "latestart",
@@ -651,7 +696,8 @@
    "346,496,981원"
   ],
   "click": null,
-  "name": "latestart"
+  "name": "latestart",
+  "read": null
  },
  {
   "slug": "nospend",
@@ -666,7 +712,8 @@
    "69,877,026원"
   ],
   "click": null,
-  "name": "nospend"
+  "name": "nospend",
+  "read": null
  },
  {
   "slug": "ltv",
@@ -681,7 +728,8 @@
    "DSR 30%"
   ],
   "click": null,
-  "name": "ltv"
+  "name": "ltv",
+  "read": null
  },
  {
   "slug": "salary",
@@ -696,7 +744,8 @@
    "시급 14,354원"
   ],
   "click": null,
-  "name": "salary"
+  "name": "salary",
+  "read": null
  },
  {
   "slug": "severance",
@@ -712,7 +761,8 @@
    "8,812,388원"
   ],
   "click": null,
-  "name": "severance"
+  "name": "severance",
+  "read": null
  },
  {
   "slug": "severance",
@@ -727,7 +777,8 @@
    "대상이 아닙니다"
   ],
   "click": null,
-  "name": "severance-under1y"
+  "name": "severance-under1y",
+  "read": null
  },
  {
   "slug": "annualleave",
@@ -739,7 +790,8 @@
    "발생 연차 16일"
   ],
   "click": null,
-  "name": "al-3y"
+  "name": "al-3y",
+  "read": null
  },
  {
   "slug": "annualleave",
@@ -751,7 +803,8 @@
    "발생 연차 15일"
   ],
   "click": null,
-  "name": "al-exact1y"
+  "name": "al-exact1y",
+  "read": null
  },
  {
   "slug": "annualleave",
@@ -763,7 +816,8 @@
    "발생 연차 11일"
   ],
   "click": null,
-  "name": "al-11m"
+  "name": "al-11m",
+  "read": null
  },
  {
   "slug": "annualleave",
@@ -775,7 +829,8 @@
    "발생 연차 25일"
   ],
   "click": null,
-  "name": "al-cap"
+  "name": "al-cap",
+  "read": null
  },
  {
   "slug": "annualleave",
@@ -787,7 +842,8 @@
    "발생 연차 0일"
   ],
   "click": null,
-  "name": "al-day0"
+  "name": "al-day0",
+  "read": null
  },
  {
   "slug": "annualleave",
@@ -799,7 +855,8 @@
    "기준일이 입사일보다"
   ],
   "click": null,
-  "name": "al-future"
+  "name": "al-future",
+  "read": null
  },
  {
   "slug": "overtime",
@@ -817,7 +874,8 @@
    "합계 402,000원"
   ],
   "click": null,
-  "name": "overtime"
+  "name": "overtime",
+  "read": null
  },
  {
   "slug": "minwage",
@@ -827,10 +885,12 @@
   },
   "expect": [
    "월 환산 208.6시간",
-   "월급 2,152,457원"
+   "월급 2,152,457원",
+   "반올림한 기준(209시간): 2,156,880원"
   ],
   "click": null,
-  "name": "minwage"
+  "name": "minwage",
+  "read": null
  },
  {
   "slug": "minwage",
@@ -842,7 +902,8 @@
    "448,429원"
   ],
   "click": null,
-  "name": "minwage-10h"
+  "name": "minwage-10h",
+  "read": null
  },
  {
   "slug": "dismissal",
@@ -856,7 +917,8 @@
    "30일분"
   ],
   "click": null,
-  "name": "dismissal"
+  "name": "dismissal",
+  "read": null
  },
  {
   "slug": "dismissal",
@@ -869,7 +931,8 @@
    "0원"
   ],
   "click": null,
-  "name": "dismissal-notified"
+  "name": "dismissal-notified",
+  "read": null
  },
  {
   "slug": "withholding",
@@ -883,7 +946,8 @@
    "967,000원"
   ],
   "click": null,
-  "name": "withholding-3.3"
+  "name": "withholding-3.3",
+  "read": null
  },
  {
   "slug": "withholding",
@@ -897,7 +961,8 @@
    "912,000원"
   ],
   "click": null,
-  "name": "withholding-8.8"
+  "name": "withholding-8.8",
+  "read": null
  },
  {
   "slug": "withholding",
@@ -911,7 +976,8 @@
    "846,000원"
   ],
   "click": null,
-  "name": "withholding-15.4"
+  "name": "withholding-15.4",
+  "read": null
  },
  {
   "slug": "raise",
@@ -926,7 +992,8 @@
    "월 333,333원"
   ],
   "click": null,
-  "name": "raise"
+  "name": "raise",
+  "read": null
  },
  {
   "slug": "raise",
@@ -940,7 +1007,8 @@
    "새 연봉 42,000,000원"
   ],
   "click": null,
-  "name": "raise-b"
+  "name": "raise-b",
+  "read": null
  },
  {
   "slug": "breakeven",
@@ -954,7 +1022,8 @@
    "4,800,000원"
   ],
   "click": null,
-  "name": "breakeven"
+  "name": "breakeven",
+  "read": null
  },
  {
   "slug": "breakeven",
@@ -967,7 +1036,8 @@
    "변동비보다 커야"
   ],
   "click": null,
-  "name": "breakeven-loss"
+  "name": "breakeven-loss",
+  "read": null
  },
  {
   "slug": "roas",
@@ -984,7 +1054,8 @@
    "130,000원"
   ],
   "click": null,
-  "name": "roas"
+  "name": "roas",
+  "read": null
  },
  {
   "slug": "costrate",
@@ -998,7 +1069,8 @@
    "6,000원"
   ],
   "click": null,
-  "name": "costrate"
+  "name": "costrate",
+  "read": null
  },
  {
   "slug": "freerate",
@@ -1013,7 +1085,8 @@
    "청구 시급 52,083원"
   ],
   "click": null,
-  "name": "freerate"
+  "name": "freerate",
+  "read": null
  },
  {
   "slug": "ytrev",
@@ -1028,7 +1101,8 @@
    "18,750원"
   ],
   "click": null,
-  "name": "ytrev"
+  "name": "ytrev",
+  "read": null
  },
  {
   "slug": "jeonse",
@@ -1043,7 +1117,8 @@
    "월세 1,041,667원"
   ],
   "click": null,
-  "name": "jeonse"
+  "name": "jeonse",
+  "read": null
  },
  {
   "slug": "jeonse",
@@ -1058,7 +1133,8 @@
    "전세금 242,000,000원"
   ],
   "click": null,
-  "name": "jeonse-rev"
+  "name": "jeonse-rev",
+  "read": null
  },
  {
   "slug": "fuel",
@@ -1073,7 +1149,8 @@
    "km당 142원"
   ],
   "click": null,
-  "name": "fuel"
+  "name": "fuel",
+  "read": null
  },
  {
   "slug": "splitbill",
@@ -1088,7 +1165,8 @@
    "총 187,200원"
   ],
   "click": null,
-  "name": "splitbill"
+  "name": "splitbill",
+  "read": null
  },
  {
   "slug": "splitbill",
@@ -1102,7 +1180,8 @@
    "34,300원"
   ],
   "click": null,
-  "name": "splitbill-tip"
+  "name": "splitbill-tip",
+  "read": null
  },
  {
   "slug": "discount",
@@ -1118,7 +1197,8 @@
    "실제 할인율 34%"
   ],
   "click": null,
-  "name": "discount"
+  "name": "discount",
+  "read": null
  },
  {
   "slug": "discount",
@@ -1132,7 +1212,8 @@
    "최종 가격 0원"
   ],
   "click": null,
-  "name": "discount-over"
+  "name": "discount-over",
+  "read": null
  },
  {
   "slug": "unitprice",
@@ -1149,7 +1230,8 @@
    "A가 12.2% 저렴"
   ],
   "click": null,
-  "name": "unitprice"
+  "name": "unitprice",
+  "read": null
  },
  {
   "slug": "roommate",
@@ -1162,7 +1244,8 @@
    "서준 20,000원"
   ],
   "click": null,
-  "name": "roommate"
+  "name": "roommate",
+  "read": null
  },
  {
   "slug": "cookvsdeliver",
@@ -1180,7 +1263,8 @@
    "134,521원"
   ],
   "click": null,
-  "name": "cookvsdeliver"
+  "name": "cookvsdeliver",
+  "read": null
  },
  {
   "slug": "giftbudget",
@@ -1198,7 +1282,8 @@
    "총 11건"
   ],
   "click": null,
-  "name": "giftbudget"
+  "name": "giftbudget",
+  "read": null
  },
  {
   "slug": "tripsplit",
@@ -1215,7 +1300,8 @@
    "서준 → 지영 11,250원"
   ],
   "click": null,
-  "name": "tripsplit"
+  "name": "tripsplit",
+  "read": null
  },
  {
   "slug": "tripbudget",
@@ -1232,7 +1318,8 @@
    "162,000원"
   ],
   "click": null,
-  "name": "tripbudget"
+  "name": "tripbudget",
+  "read": null
  },
  {
   "slug": "tripbudget",
@@ -1247,7 +1334,8 @@
    "총 예산을 넘었어요"
   ],
   "click": null,
-  "name": "tripbudget-over"
+  "name": "tripbudget-over",
+  "read": null
  },
  {
   "slug": "reading",
@@ -1262,7 +1350,8 @@
    "진행률 22%"
   ],
   "click": null,
-  "name": "reading"
+  "name": "reading",
+  "read": null
  },
  {
   "slug": "realhourly",
@@ -1281,7 +1370,8 @@
    "하루 11.3시간"
   ],
   "click": null,
-  "name": "realhourly"
+  "name": "realhourly",
+  "read": null
  },
  {
   "slug": "freetime",
@@ -1297,7 +1387,8 @@
    "하루 3시간 50분"
   ],
   "click": null,
-  "name": "freetime"
+  "name": "freetime",
+  "read": null
  },
  {
   "slug": "freetime",
@@ -1313,7 +1404,8 @@
    "하루 7시간 50분"
   ],
   "click": null,
-  "name": "freetime-night"
+  "name": "freetime-night",
+  "read": null
  },
  {
   "slug": "rentratio",
@@ -1327,7 +1419,8 @@
    "일반적인 수준"
   ],
   "click": null,
-  "name": "rentratio"
+  "name": "rentratio",
+  "read": null
  },
  {
   "slug": "caffeine",
@@ -1342,7 +1435,8 @@
    "한도까지 약 35mg"
   ],
   "click": null,
-  "name": "caffeine"
+  "name": "caffeine",
+  "read": null
  },
  {
   "slug": "alcohol",
@@ -1356,7 +1450,8 @@
    "341kcal"
   ],
   "click": null,
-  "name": "alcohol"
+  "name": "alcohol",
+  "read": null
  },
  {
   "slug": "petage",
@@ -1368,7 +1463,8 @@
    "약 57세"
   ],
   "click": null,
-  "name": "petage"
+  "name": "petage",
+  "read": null
  },
  {
   "slug": "petage",
@@ -1380,7 +1476,8 @@
    "약 36세"
   ],
   "click": null,
-  "name": "petage-cat"
+  "name": "petage-cat",
+  "read": null
  },
  {
   "slug": "petage",
@@ -1392,7 +1489,8 @@
    "1살 이상만"
   ],
   "click": null,
-  "name": "petage-puppy"
+  "name": "petage-puppy",
+  "read": null
  },
  {
   "slug": "daybudget",
@@ -1407,7 +1505,8 @@
    "일주일 350,000원"
   ],
   "click": null,
-  "name": "daybudget"
+  "name": "daybudget",
+  "read": null
  },
  {
   "slug": "daybudget",
@@ -1420,7 +1519,8 @@
    "이후여야"
   ],
   "click": null,
-  "name": "daybudget-today"
+  "name": "daybudget-today",
+  "read": null
  },
  {
   "slug": "bizdays",
@@ -1434,7 +1534,8 @@
    "주말 2일"
   ],
   "click": null,
-  "name": "bizdays"
+  "name": "bizdays",
+  "read": null
  },
  {
   "slug": "bizdays",
@@ -1446,7 +1547,8 @@
    "종료일이 시작일보다"
   ],
   "click": null,
-  "name": "bizdays-reversed"
+  "name": "bizdays-reversed",
+  "read": null
  },
  {
   "slug": "dateadd",
@@ -1460,7 +1562,8 @@
    "2026.2.28 (토요일)"
   ],
   "click": null,
-  "name": "dateadd"
+  "name": "dateadd",
+  "read": null
  },
  {
   "slug": "dateadd",
@@ -1474,7 +1577,8 @@
    "2025.2.28 (금요일)"
   ],
   "click": null,
-  "name": "dateadd-leap"
+  "name": "dateadd-leap",
+  "read": null
  },
  {
   "slug": "dateadd",
@@ -1488,7 +1592,8 @@
    "2027.1.15 (금요일)"
   ],
   "click": null,
-  "name": "dateadd-100d"
+  "name": "dateadd-100d",
+  "read": null
  },
  {
   "slug": "dateadd",
@@ -1502,7 +1607,8 @@
    "2026.2.28 (토요일)"
   ],
   "click": null,
-  "name": "dateadd-sub-month"
+  "name": "dateadd-sub-month",
+  "read": null
  },
  {
   "slug": "dateadd",
@@ -1516,7 +1622,8 @@
    "2026.10.21 (수요일)"
   ],
   "click": null,
-  "name": "dateadd-weeks"
+  "name": "dateadd-weeks",
+  "read": null
  },
  {
   "slug": "datediff",
@@ -1529,7 +1636,8 @@
    "총 2,411일"
   ],
   "click": null,
-  "name": "datediff-2020-03-01-2026-10-07"
+  "name": "datediff-2020-03-01-2026-10-07",
+  "read": null
  },
  {
   "slug": "datediff",
@@ -1542,7 +1650,8 @@
    "총 30일"
   ],
   "click": null,
-  "name": "datediff-2024-01-31-2024-03-01"
+  "name": "datediff-2024-01-31-2024-03-01",
+  "read": null
  },
  {
   "slug": "datediff",
@@ -1555,7 +1664,8 @@
    "총 30일"
   ],
   "click": null,
-  "name": "datediff-2023-05-31-2023-06-30"
+  "name": "datediff-2023-05-31-2023-06-30",
+  "read": null
  },
  {
   "slug": "datediff",
@@ -1568,7 +1678,8 @@
    "총 365일"
   ],
   "click": null,
-  "name": "datediff-2024-02-29-2025-02-28"
+  "name": "datediff-2024-02-29-2025-02-28",
+  "read": null
  },
  {
   "slug": "datediff",
@@ -1581,7 +1692,8 @@
    "총 0일"
   ],
   "click": null,
-  "name": "datediff-2026-10-07-2026-10-07"
+  "name": "datediff-2026-10-07-2026-10-07",
+  "read": null
  },
  {
   "slug": "datediff",
@@ -1594,7 +1706,8 @@
    "총 1일"
   ],
   "click": null,
-  "name": "datediff-2025-12-31-2026-01-01"
+  "name": "datediff-2025-12-31-2026-01-01",
+  "read": null
  },
  {
   "slug": "weekday",
@@ -1607,7 +1720,8 @@
    "평년"
   ],
   "click": null,
-  "name": "weekday"
+  "name": "weekday",
+  "read": null
  },
  {
   "slug": "weekday",
@@ -1620,7 +1734,8 @@
    "윤년"
   ],
   "click": null,
-  "name": "weekday-leap"
+  "name": "weekday-leap",
+  "read": null
  },
  {
   "slug": "weekday",
@@ -1632,7 +1747,8 @@
    "평년"
   ],
   "click": null,
-  "name": "weekday-1900"
+  "name": "weekday-1900",
+  "read": null
  },
  {
   "slug": "weeknum",
@@ -1643,7 +1759,8 @@
    "2026년 1주차"
   ],
   "click": null,
-  "name": "weeknum-2026-01-01"
+  "name": "weeknum-2026-01-01",
+  "read": null
  },
  {
   "slug": "weeknum",
@@ -1654,7 +1771,8 @@
    "2026년 53주차"
   ],
   "click": null,
-  "name": "weeknum-2027-01-01"
+  "name": "weeknum-2027-01-01",
+  "read": null
  },
  {
   "slug": "weeknum",
@@ -1665,7 +1783,8 @@
    "2025년 1주차"
   ],
   "click": null,
-  "name": "weeknum-2024-12-30"
+  "name": "weeknum-2024-12-30",
+  "read": null
  },
  {
   "slug": "weeknum",
@@ -1676,7 +1795,8 @@
    "2020년 53주차"
   ],
   "click": null,
-  "name": "weeknum-2021-01-03"
+  "name": "weeknum-2021-01-03",
+  "read": null
  },
  {
   "slug": "weeknum",
@@ -1687,7 +1807,8 @@
    "2026년 53주차"
   ],
   "click": null,
-  "name": "weeknum-2026-12-28"
+  "name": "weeknum-2026-12-28",
+  "read": null
  },
  {
   "slug": "military",
@@ -1700,7 +1821,8 @@
    "복무 549일"
   ],
   "click": null,
-  "name": "military"
+  "name": "military",
+  "read": null
  },
  {
   "slug": "military",
@@ -1712,7 +1834,8 @@
    "전역일 2027.2.28"
   ],
   "click": null,
-  "name": "military-month-end"
+  "name": "military-month-end",
+  "read": null
  },
  {
   "slug": "military",
@@ -1724,7 +1847,8 @@
    "전역일 2025.8.28"
   ],
   "click": null,
-  "name": "military-leap"
+  "name": "military-leap",
+  "read": null
  },
  {
   "slug": "military",
@@ -1736,7 +1860,8 @@
    "전역일 2027.9.14"
   ],
   "click": null,
-  "name": "military-21"
+  "name": "military-21",
+  "read": null
  },
  {
   "slug": "timediff",
@@ -1750,7 +1875,8 @@
    "소수 표기 8시간"
   ],
   "click": null,
-  "name": "timediff"
+  "name": "timediff",
+  "read": null
  },
  {
   "slug": "timediff",
@@ -1764,7 +1890,8 @@
    "7.5시간"
   ],
   "click": null,
-  "name": "timediff-night"
+  "name": "timediff-night",
+  "read": null
  },
  {
   "slug": "timediff",
@@ -1777,7 +1904,8 @@
    "휴게시간이 근무시간보다 깁니다"
   ],
   "click": null,
-  "name": "timediff-negative"
+  "name": "timediff-negative",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1788,7 +1916,8 @@
    "물고기자리"
   ],
   "click": null,
-  "name": "zodiac-2000-03-20"
+  "name": "zodiac-2000-03-20",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1799,7 +1928,8 @@
    "양자리"
   ],
   "click": null,
-  "name": "zodiac-2000-03-21"
+  "name": "zodiac-2000-03-21",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1810,7 +1940,8 @@
    "염소자리"
   ],
   "click": null,
-  "name": "zodiac-1995-01-19"
+  "name": "zodiac-1995-01-19",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1821,7 +1952,8 @@
    "물병자리"
   ],
   "click": null,
-  "name": "zodiac-1995-01-20"
+  "name": "zodiac-1995-01-20",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1832,7 +1964,8 @@
    "사수자리"
   ],
   "click": null,
-  "name": "zodiac-1995-12-21"
+  "name": "zodiac-1995-12-21",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1843,7 +1976,8 @@
    "염소자리"
   ],
   "click": null,
-  "name": "zodiac-1995-12-22"
+  "name": "zodiac-1995-12-22",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1854,7 +1988,8 @@
    "물고기자리"
   ],
   "click": null,
-  "name": "zodiac-2000-02-29"
+  "name": "zodiac-2000-02-29",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1865,7 +2000,8 @@
    "용띠"
   ],
   "click": null,
-  "name": "zodiac-dragon"
+  "name": "zodiac-dragon",
+  "read": null
  },
  {
   "slug": "zodiac",
@@ -1876,7 +2012,8 @@
    "쥐띠"
   ],
   "click": null,
-  "name": "zodiac-rat"
+  "name": "zodiac-rat",
+  "read": null
  },
  {
   "slug": "duedate",
@@ -1888,7 +2025,8 @@
    "현재 14주 0일"
   ],
   "click": null,
-  "name": "duedate"
+  "name": "duedate",
+  "read": null
  },
  {
   "slug": "birthday",
@@ -1901,7 +2039,8 @@
    "만 27세"
   ],
   "click": null,
-  "name": "birthday"
+  "name": "birthday",
+  "read": null
  },
  {
   "slug": "birthday",
@@ -1912,7 +2051,8 @@
    "오늘이 생일"
   ],
   "click": null,
-  "name": "birthday"
+  "name": "birthday",
+  "read": null
  },
  {
   "slug": "secconv",
@@ -1928,7 +2068,8 @@
    "01:02:05"
   ],
   "click": null,
-  "name": "secconv"
+  "name": "secconv",
+  "read": null
  },
  {
   "slug": "secconv",
@@ -1943,7 +2084,8 @@
    "3,725초"
   ],
   "click": null,
-  "name": "secconv-b"
+  "name": "secconv-b",
+  "read": null
  },
  {
   "slug": "timesum",
@@ -1955,7 +2097,8 @@
    "5.33시간"
   ],
   "click": null,
-  "name": "timesum"
+  "name": "timesum",
+  "read": null
  },
  {
   "slug": "timezone",
@@ -1969,7 +2112,8 @@
    "10월 6일 화요일 오후 8:00"
   ],
   "click": null,
-  "name": "tz-Asia/Seoul-America/New_York"
+  "name": "tz-Asia/Seoul-America/New_York",
+  "read": null
  },
  {
   "slug": "timezone",
@@ -1983,7 +2127,8 @@
    "10월 6일 화요일 오후 5:00"
   ],
   "click": null,
-  "name": "tz-Asia/Seoul-America/Los_Angeles"
+  "name": "tz-Asia/Seoul-America/Los_Angeles",
+  "read": null
  },
  {
   "slug": "timezone",
@@ -1997,7 +2142,8 @@
    "10월 7일 수요일 오전 12:00"
   ],
   "click": null,
-  "name": "tz-Asia/Seoul-UTC"
+  "name": "tz-Asia/Seoul-UTC",
+  "read": null
  },
  {
   "slug": "timezone",
@@ -2011,7 +2157,8 @@
    "10월 7일 수요일 오후 6:00"
   ],
   "click": null,
-  "name": "tz-UTC-Asia/Seoul"
+  "name": "tz-UTC-Asia/Seoul",
+  "read": null
  },
  {
   "slug": "timezone",
@@ -2025,7 +2172,8 @@
    "1월 14일 수요일 오후 4:00"
   ],
   "click": null,
-  "name": "tz-winter-la"
+  "name": "tz-winter-la",
+  "read": null
  },
  {
   "slug": "bmr",
@@ -2041,7 +2189,8 @@
    "하루 소비 1,932 kcal"
   ],
   "click": null,
-  "name": "bmr"
+  "name": "bmr",
+  "read": null
  },
  {
   "slug": "bmr",
@@ -2057,7 +2206,8 @@
    "1,662"
   ],
   "click": null,
-  "name": "bmr-f"
+  "name": "bmr-f",
+  "read": null
  },
  {
   "slug": "idealweight",
@@ -2071,7 +2221,8 @@
    "6.4kg 많습니다"
   ],
   "click": null,
-  "name": "idealweight"
+  "name": "idealweight",
+  "read": null
  },
  {
   "slug": "calories",
@@ -2084,7 +2235,8 @@
    "약 333 kcal"
   ],
   "click": null,
-  "name": "calories"
+  "name": "calories",
+  "read": null
  },
  {
   "slug": "sleep",
@@ -2098,7 +2250,8 @@
    "00:45 취침"
   ],
   "click": null,
-  "name": "sleep"
+  "name": "sleep",
+  "read": null
  },
  {
   "slug": "sleep",
@@ -2112,7 +2265,8 @@
    "17:55 취침"
   ],
   "click": null,
-  "name": "sleep-wrap"
+  "name": "sleep-wrap",
+  "read": null
  },
  {
   "slug": "pace",
@@ -2128,7 +2282,8 @@
    "10km 57분 0초"
   ],
   "click": null,
-  "name": "pace"
+  "name": "pace",
+  "read": null
  },
  {
   "slug": "bodyfat",
@@ -2143,7 +2298,8 @@
    "14.5%"
   ],
   "click": null,
-  "name": "bodyfat"
+  "name": "bodyfat",
+  "read": null
  },
  {
   "slug": "bodyfat",
@@ -2158,7 +2314,8 @@
    "허리둘레가 목둘레보다"
   ],
   "click": null,
-  "name": "bodyfat-invalid"
+  "name": "bodyfat-invalid",
+  "read": null
  },
  {
   "slug": "protein",
@@ -2170,7 +2327,8 @@
    "하루 112 ~ 154g"
   ],
   "click": null,
-  "name": "protein"
+  "name": "protein",
+  "read": null
  },
  {
   "slug": "heartrate",
@@ -2183,7 +2341,8 @@
    "125 ~ 138bpm"
   ],
   "click": null,
-  "name": "heartrate"
+  "name": "heartrate",
+  "read": null
  },
  {
   "slug": "onerm",
@@ -2196,7 +2355,8 @@
    "68.4kg"
   ],
   "click": null,
-  "name": "onerm"
+  "name": "onerm",
+  "read": null
  },
  {
   "slug": "heightpred",
@@ -2209,7 +2369,8 @@
    "예상 키 약 175cm"
   ],
   "click": null,
-  "name": "heightpred"
+  "name": "heightpred",
+  "read": null
  },
  {
   "slug": "heightpred",
@@ -2222,7 +2383,8 @@
    "예상 키 약 162cm"
   ],
   "click": null,
-  "name": "heightpred-f"
+  "name": "heightpred-f",
+  "read": null
  },
  {
   "slug": "dietplan",
@@ -2236,7 +2398,8 @@
    "약 550kcal"
   ],
   "click": null,
-  "name": "dietplan"
+  "name": "dietplan",
+  "read": null
  },
  {
   "slug": "dietplan",
@@ -2249,7 +2412,8 @@
    "낮게 입력"
   ],
   "click": null,
-  "name": "dietplan-wrong"
+  "name": "dietplan-wrong",
+  "read": null
  },
  {
   "slug": "water",
@@ -2261,7 +2425,8 @@
    "운동 30분 추가 약 350ml"
   ],
   "click": null,
-  "name": "water"
+  "name": "water",
+  "read": null
  },
  {
   "slug": "average",
@@ -2276,7 +2441,8 @@
    "최소 66"
   ],
   "click": null,
-  "name": "average"
+  "name": "average",
+  "read": null
  },
  {
   "slug": "average",
@@ -2288,7 +2454,8 @@
    "중앙값 2.5"
   ],
   "click": null,
-  "name": "average-even"
+  "name": "average-even",
+  "read": null
  },
  {
   "slug": "gpa",
@@ -2301,7 +2468,8 @@
    "이수 학점 12"
   ],
   "click": null,
-  "name": "gpa"
+  "name": "gpa",
+  "read": null
  },
  {
   "slug": "gpa",
@@ -2313,7 +2481,8 @@
    "평균평점 3.67 / 4.3"
   ],
   "click": null,
-  "name": "gpa-43"
+  "name": "gpa-43",
+  "read": null
  },
  {
   "slug": "gpa",
@@ -2326,7 +2495,8 @@
    "취득 학점 3"
   ],
   "click": null,
-  "name": "gpa-F"
+  "name": "gpa-F",
+  "read": null
  },
  {
   "slug": "ratio",
@@ -2340,7 +2510,8 @@
    "1280 × 720"
   ],
   "click": null,
-  "name": "ratio"
+  "name": "ratio",
+  "read": null
  },
  {
   "slug": "ratio",
@@ -2354,7 +2525,8 @@
    "800 × 600"
   ],
   "click": null,
-  "name": "ratio-43"
+  "name": "ratio-43",
+  "read": null
  },
  {
   "slug": "base",
@@ -2368,7 +2540,8 @@
    "FF"
   ],
   "click": null,
-  "name": "base"
+  "name": "base",
+  "read": null
  },
  {
   "slug": "base",
@@ -2380,7 +2553,8 @@
    "10진수 255"
   ],
   "click": null,
-  "name": "base-hex"
+  "name": "base-hex",
+  "read": null
  },
  {
   "slug": "base",
@@ -2392,7 +2566,8 @@
    "맞지 않는 숫자"
   ],
   "click": null,
-  "name": "base-invalid"
+  "name": "base-invalid",
+  "read": null
  },
  {
   "slug": "roman",
@@ -2403,7 +2578,8 @@
    "MMXXVI"
   ],
   "click": null,
-  "name": "roman"
+  "name": "roman",
+  "read": null
  },
  {
   "slug": "roman",
@@ -2414,7 +2590,8 @@
    "1994"
   ],
   "click": null,
-  "name": "roman-rev"
+  "name": "roman-rev",
+  "read": null
  },
  {
   "slug": "roman",
@@ -2425,7 +2602,8 @@
    "MMMCMXCIX"
   ],
   "click": null,
-  "name": "roman-max"
+  "name": "roman-max",
+  "read": null
  },
  {
   "slug": "roman",
@@ -2436,7 +2614,8 @@
    "1~3999"
   ],
   "click": null,
-  "name": "roman-over"
+  "name": "roman-over",
+  "read": null
  },
  {
   "slug": "roman",
@@ -2447,7 +2626,8 @@
    "올바른 로마 숫자가 아닙니다"
   ],
   "click": null,
-  "name": "roman-bad"
+  "name": "roman-bad",
+  "read": null
  },
  {
   "slug": "primes",
@@ -2459,7 +2639,8 @@
    "합성수입니다"
   ],
   "click": null,
-  "name": "primes"
+  "name": "primes",
+  "read": null
  },
  {
   "slug": "primes",
@@ -2470,7 +2651,8 @@
    "소수입니다"
   ],
   "click": null,
-  "name": "primes-97"
+  "name": "primes-97",
+  "read": null
  },
  {
   "slug": "primes",
@@ -2481,7 +2663,8 @@
    "2 이상"
   ],
   "click": null,
-  "name": "primes-1"
+  "name": "primes-1",
+  "read": null
  },
  {
   "slug": "gcdlcm",
@@ -2495,7 +2678,8 @@
    "최소공배수 72"
   ],
   "click": null,
-  "name": "gcdlcm"
+  "name": "gcdlcm",
+  "read": null
  },
  {
   "slug": "gcdlcm",
@@ -2509,7 +2693,8 @@
    "최소공배수 180"
   ],
   "click": null,
-  "name": "gcdlcm-3"
+  "name": "gcdlcm-3",
+  "read": null
  },
  {
   "slug": "proportion",
@@ -2522,7 +2707,8 @@
    "3 : 5 = 12 : 20"
   ],
   "click": null,
-  "name": "proportion"
+  "name": "proportion",
+  "read": null
  },
  {
   "slug": "koreanmoney",
@@ -2534,7 +2720,8 @@
    "일금 일백이십삼만사천오백육십칠원정"
   ],
   "click": null,
-  "name": "koreanmoney"
+  "name": "koreanmoney",
+  "read": null
  },
  {
   "slug": "koreanmoney",
@@ -2546,7 +2733,8 @@
    "일금 일백원정"
   ],
   "click": null,
-  "name": "koreanmoney-100"
+  "name": "koreanmoney-100",
+  "read": null
  },
  {
   "slug": "koreanmoney",
@@ -2557,7 +2745,8 @@
    "일만원"
   ],
   "click": null,
-  "name": "koreanmoney-10000"
+  "name": "koreanmoney-10000",
+  "read": null
  },
  {
   "slug": "koreanmoney",
@@ -2568,7 +2757,8 @@
    "일억원"
   ],
   "click": null,
-  "name": "koreanmoney-1e8"
+  "name": "koreanmoney-1e8",
+  "read": null
  },
  {
   "slug": "sms",
@@ -2580,7 +2770,8 @@
    "단문(SMS)"
   ],
   "click": null,
-  "name": "sms"
+  "name": "sms",
+  "read": null
  },
  {
   "slug": "sms",
@@ -2592,7 +2783,8 @@
    "장문(LMS)"
   ],
   "click": null,
-  "name": "sms-lms"
+  "name": "sms-lms",
+  "read": null
  },
  {
   "slug": "colorconv",
@@ -2605,7 +2797,8 @@
    "HSL 29, 100%, 56%"
   ],
   "click": null,
-  "name": "colorconv"
+  "name": "colorconv",
+  "read": null
  },
  {
   "slug": "colorconv",
@@ -2616,7 +2809,8 @@
    "HEX #FF8A1F"
   ],
   "click": null,
-  "name": "colorconv-rgb"
+  "name": "colorconv-rgb",
+  "read": null
  },
  {
   "slug": "colorconv",
@@ -2627,7 +2821,8 @@
    "RGB 255, 136, 0"
   ],
   "click": null,
-  "name": "colorconv-short"
+  "name": "colorconv-short",
+  "read": null
  },
  {
   "slug": "colorconv",
@@ -2638,7 +2833,8 @@
    "HSL 0, 0%, 0%"
   ],
   "click": null,
-  "name": "colorconv-black"
+  "name": "colorconv-black",
+  "read": null
  },
  {
   "slug": "colorconv",
@@ -2649,7 +2845,8 @@
    "0~255"
   ],
   "click": null,
-  "name": "colorconv-over"
+  "name": "colorconv-over",
+  "read": null
  },
  {
   "slug": "datasize",
@@ -2663,7 +2860,8 @@
    "1,024 MB"
   ],
   "click": null,
-  "name": "datasize"
+  "name": "datasize",
+  "read": null
  },
  {
   "slug": "datasize",
@@ -2676,7 +2874,8 @@
    "1,000,000,000 B"
   ],
   "click": null,
-  "name": "datasize-1000"
+  "name": "datasize-1000",
+  "read": null
  },
  {
   "slug": "dltime",
@@ -2690,7 +2889,8 @@
    "62.5MB/s"
   ],
   "click": null,
-  "name": "dltime"
+  "name": "dltime",
+  "read": null
  },
  {
   "slug": "textcase",
@@ -2703,7 +2903,8 @@
    "Hello World"
   ],
   "click": null,
-  "name": "textcase"
+  "name": "textcase",
+  "read": null
  },
  {
   "slug": "netpay",
@@ -2715,7 +2916,8 @@
    "4대보험 223,500원"
   ],
   "click": null,
-  "name": "netpay-3000"
+  "name": "netpay-3000",
+  "read": null
  },
  {
   "slug": "netpay",
@@ -2727,7 +2929,8 @@
    "4대보험 385,456원"
   ],
   "click": null,
-  "name": "netpay-5000"
+  "name": "netpay-5000",
+  "read": null
  },
  {
   "slug": "netpay",
@@ -2739,7 +2942,8 @@
    "4대보험 790,347원"
   ],
   "click": null,
-  "name": "netpay-10000"
+  "name": "netpay-10000",
+  "read": null
  },
  {
   "slug": "netpay",
@@ -2751,6 +2955,515 @@
    "월 실수령 약 3,606,890원"
   ],
   "click": null,
-  "name": "netpay-dep3"
+  "name": "netpay-dep3",
+  "read": null
+ },
+ {
+  "slug": "percent",
+  "inputs": {
+   "a1": "50000",
+   "b1": "15",
+   "a2": "32",
+   "b2": "40",
+   "a3": "120",
+   "b3": "150"
+  },
+  "expect": [
+   "7500",
+   "80%",
+   "+25%"
+  ],
+  "click": null,
+  "name": "guide-percent",
+  "read": null
+ },
+ {
+  "slug": "pyeong",
+  "inputs": {
+   "m": "84"
+  },
+  "expect": [
+   "25.41"
+  ],
+  "click": null,
+  "name": "guide-pyeong-84",
+  "read": null
+ },
+ {
+  "slug": "pyeong",
+  "inputs": {
+   "m": "59"
+  },
+  "expect": [
+   "17.85"
+  ],
+  "click": null,
+  "name": "guide-pyeong-59",
+  "read": null
+ },
+ {
+  "slug": "pyeong",
+  "inputs": {
+   "m": "101"
+  },
+  "expect": [
+   "30.55"
+  ],
+  "click": null,
+  "name": "guide-pyeong-101",
+  "read": null
+ },
+ {
+  "slug": "pyeong",
+  "inputs": {
+   "p": "34"
+  },
+  "expect": [
+   "112.4"
+  ],
+  "click": null,
+  "name": "guide-pyeong-34",
+  "read": null
+ },
+ {
+  "slug": "pyeong",
+  "inputs": {
+   "p": "10"
+  },
+  "expect": [
+   "33.06"
+  ],
+  "click": null,
+  "name": "guide-pyeong-10",
+  "read": null
+ },
+ {
+  "slug": "dday",
+  "inputs": {
+   "d1": "2026-10-09",
+   "d2": "2026-12-25"
+  },
+  "expect": [
+   "D-77",
+   "77일 (11주 0일)"
+  ],
+  "click": "button",
+  "name": "guide-dday",
+  "read": null
+ },
+ {
+  "slug": "dday",
+  "inputs": {
+   "d1": "2026-10-09",
+   "d2": "2027-01-01"
+  },
+  "expect": [
+   "D-84",
+   "84일 (12주 0일)"
+  ],
+  "click": "button",
+  "name": "guide-dday-2",
+  "read": null
+ },
+ {
+  "slug": "dday",
+  "inputs": {
+   "s": "2026-03-01"
+  },
+  "expect": [
+   "100일: 2026.6.8",
+   "200일: 2026.9.16",
+   "300일: 2026.12.25",
+   "365일: 2027.2.28",
+   "500일: 2027.7.13",
+   "1000일: 2028.11.24"
+  ],
+  "click": "button[onclick=\"ann()\"]",
+  "name": "guide-dday-ann",
+  "read": "#a"
+ },
+ {
+  "slug": "vat",
+  "inputs": {
+   "x": "55000",
+   "m": "in"
+  },
+  "expect": [
+   "공급가액 50,000원",
+   "부가세 5,000원"
+  ],
+  "click": null,
+  "name": "guide-vat-55",
+  "read": null
+ },
+ {
+  "slug": "vat",
+  "inputs": {
+   "x": "1000000",
+   "m": "in"
+  },
+  "expect": [
+   "공급가액 909,091원",
+   "부가세 90,909원"
+  ],
+  "click": null,
+  "name": "guide-vat-1m",
+  "read": null
+ },
+ {
+  "slug": "vat",
+  "inputs": {
+   "x": "350000",
+   "m": "ex"
+  },
+  "expect": [
+   "합계 385,000원",
+   "부가세 35,000원"
+  ],
+  "click": null,
+  "name": "guide-vat-ex",
+  "read": null
+ },
+ {
+  "slug": "freelance",
+  "inputs": {
+   "m": "fwd",
+   "x": "500000"
+  },
+  "expect": [
+   "실수령액 483,500원",
+   "소득세 15,000원",
+   "지방소득세 1,500원"
+  ],
+  "click": null,
+  "name": "guide-fl-500k",
+  "read": null
+ },
+ {
+  "slug": "freelance",
+  "inputs": {
+   "m": "fwd",
+   "x": "3000000"
+  },
+  "expect": [
+   "실수령액 2,901,000원",
+   "소득세 90,000원",
+   "지방소득세 9,000원"
+  ],
+  "click": null,
+  "name": "guide-fl-3m",
+  "read": null
+ },
+ {
+  "slug": "freelance",
+  "inputs": {
+   "m": "rev",
+   "x": "1000000"
+  },
+  "expect": [
+   "약 1,034,126원"
+  ],
+  "click": null,
+  "name": "guide-fl-rev1",
+  "read": null
+ },
+ {
+  "slug": "freelance",
+  "inputs": {
+   "m": "rev",
+   "x": "2000000"
+  },
+  "expect": [
+   "약 2,068,252원",
+   "원천징수 약 68,252원"
+  ],
+  "click": null,
+  "name": "guide-fl-rev2",
+  "read": null
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2025-03-04",
+   "t": "20"
+  },
+  "expect": [
+   "전역일 2026.11.3 (화요일)",
+   "복무 610일"
+  ],
+  "click": null,
+  "name": "guide-mil-navy",
+  "read": null
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2025-03-04",
+   "t": "21"
+  },
+  "expect": [
+   "전역일 2026.12.3 (목요일)",
+   "복무 640일"
+  ],
+  "click": null,
+  "name": "guide-mil-air",
+  "read": null
+ },
+ {
+  "slug": "military",
+  "inputs": {
+   "s": "2025-08-31",
+   "t": "18"
+  },
+  "expect": [
+   "전역일 2027.2.28 (일요일)",
+   "복무 547일"
+  ],
+  "click": null,
+  "name": "guide-mil-31",
+  "read": null
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "0",
+   "m": "300000",
+   "rate": "5",
+   "y": "20"
+  },
+  "expect": [
+   "만기 금액 123,310,101원",
+   "총 원금 72,000,000원"
+  ],
+  "click": null,
+  "name": "guide-comp-monthly",
+  "read": null
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "10000000",
+   "m": "0",
+   "rate": "6",
+   "y": "10"
+  },
+  "expect": [
+   "만기 금액 18,193,967원"
+  ],
+  "click": null,
+  "name": "guide-comp-lump",
+  "read": null
+ },
+ {
+  "slug": "compound",
+  "inputs": {
+   "p": "10000000",
+   "m": "0",
+   "rate": "6",
+   "y": "12"
+  },
+  "expect": [
+   "만기 금액 20,507,508원"
+  ],
+  "click": null,
+  "name": "guide-comp-72",
+  "read": null
+ },
+ {
+  "slug": "salary",
+  "inputs": {
+   "a": "30000000",
+   "h": "209"
+  },
+  "expect": [
+   "월급 2,500,000원",
+   "주급 576,923원",
+   "시급 11,962원"
+  ],
+  "click": null,
+  "name": "guide-salary-3000",
+  "read": null
+ },
+ {
+  "slug": "salary",
+  "inputs": {
+   "a": "40000000",
+   "h": "209"
+  },
+  "expect": [
+   "월급 3,333,333원",
+   "주급 769,231원",
+   "시급 15,949원"
+  ],
+  "click": null,
+  "name": "guide-salary-4000",
+  "read": null
+ },
+ {
+  "slug": "salary",
+  "inputs": {
+   "a": "50000000",
+   "h": "209"
+  },
+  "expect": [
+   "월급 4,166,667원",
+   "주급 961,538원",
+   "시급 19,936원"
+  ],
+  "click": null,
+  "name": "guide-salary-5000",
+  "read": null
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "40"
+  },
+  "expect": [
+   "월급 2,152,457원",
+   "반올림한 기준(209시간): 2,156,880원"
+  ],
+  "click": null,
+  "name": "guide-minwage-40",
+  "read": null
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "30"
+  },
+  "expect": [
+   "월급 1,614,343원",
+   "반올림한 기준(156시간): 1,609,920원"
+  ],
+  "click": null,
+  "name": "guide-minwage-30",
+  "read": null
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "20"
+  },
+  "expect": [
+   "월급 1,076,229원",
+   "반올림한 기준(104시간): 1,073,280원"
+  ],
+  "click": null,
+  "name": "guide-minwage-20",
+  "read": null
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "15"
+  },
+  "expect": [
+   "월급 807,171원",
+   "반올림한 기준(78시간): 804,960원"
+  ],
+  "click": null,
+  "name": "guide-minwage-15",
+  "read": null
+ },
+ {
+  "slug": "minwage",
+  "inputs": {
+   "h": "10320",
+   "w": "14"
+  },
+  "expect": [
+   "월급 627,800원",
+   "반올림한 기준(61시간): 629,520원"
+  ],
+  "click": null,
+  "name": "guide-minwage-14",
+  "read": null
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "m",
+   "age": "30",
+   "h": "172",
+   "w": "68",
+   "act": "1.375"
+  },
+  "expect": [
+   "기초대사량 1,610 kcal",
+   "하루 소비 2,214 kcal"
+  ],
+  "click": null,
+  "name": "guide-bmr-m",
+  "read": null
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "m",
+   "age": "30",
+   "h": "172",
+   "w": "68",
+   "act": "1.55"
+  },
+  "expect": [
+   "하루 소비 2,496 kcal"
+  ],
+  "click": null,
+  "name": "guide-bmr-m155",
+  "read": null
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "f",
+   "age": "30",
+   "h": "160",
+   "w": "55",
+   "act": "1.2"
+  },
+  "expect": [
+   "기초대사량 1,239 kcal",
+   "하루 소비 1,487 kcal"
+  ],
+  "click": null,
+  "name": "guide-bmr-f",
+  "read": null
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "f",
+   "age": "30",
+   "h": "160",
+   "w": "55",
+   "act": "1.375"
+  },
+  "expect": [
+   "하루 소비 1,704 kcal"
+  ],
+  "click": null,
+  "name": "guide-bmr-f1375",
+  "read": null
+ },
+ {
+  "slug": "bmr",
+  "inputs": {
+   "sex": "f",
+   "age": "30",
+   "h": "160",
+   "w": "55",
+   "act": "1.55"
+  },
+  "expect": [
+   "하루 소비 1,920 kcal"
+  ],
+  "click": null,
+  "name": "guide-bmr-f155",
+  "read": null
  }
 ]

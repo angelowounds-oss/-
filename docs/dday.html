@@ -9,7 +9,23 @@
 <label for="d2">목표일</label><input type="date" id="d2"><button onclick="go()">계산하기</button>
 <div class="result" id="r"></div></div>
 <h2>기념일 날짜 계산</h2><div class="card"><label for="s">처음 만난 날(시작일)</label><input type="date" id="s"><button onclick="ann()">기념일 보기</button><div id="a"></div></div>
-<div class="faq-block"><h2>자주 묻는 질문</h2><h3>D-day는 오늘을 포함해서 세나요?</h3><p>목표일까지 남은 일수는 오늘을 제외하고 계산합니다. 기념일(100일 등)은 시작일을 1일로 칩니다.</p><h3>100일 기념일은 어떻게 계산하나요?</h3><p>시작일을 1일로 보고 99일 뒤가 100일째 되는 날입니다.</p></div>
+<!--guide--><section class="guide">
+<h2>D-day는 이렇게 세요</h2>
+<p>남은 날은 <b>오늘을 빼고</b> 세요. 목표일 하루 전이 D-1, 당일이 D-Day, 하루 지나면 D+1이에요. 계산기에 시작일을 비워 두면 오늘 기준으로 계산해요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="D-day 예시 표"><table><thead><tr><th>시작일</th><th>목표일</th><th>결과</th></tr></thead><tbody><tr><td>2026.10.9</td><td>2026.12.25</td><td>D-77 (11주 0일)</td></tr><tr><td>2026.10.9</td><td>2027.1.1</td><td>D-84 (12주 0일)</td></tr></tbody></table></div>
+<h2>기념일은 첫날을 1일로 세요</h2>
+<p>연애·결혼 기념일, 아기 출생 후 날수는 시작한 날을 1일째로 세는 게 일반적이에요. 그래서 100일은 시작일에서 99일 뒤예요. 아래는 2026년 3월 1일에 시작한 경우예요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="기념일 예시 표"><table><thead><tr><th>기념일</th><th>날짜</th></tr></thead><tbody><tr><td>100일</td><td>2026.6.8</td></tr><tr><td>200일</td><td>2026.9.16</td></tr><tr><td>300일</td><td>2026.12.25</td></tr><tr><td>365일</td><td>2027.2.28</td></tr><tr><td>500일</td><td>2027.7.13</td></tr><tr><td>1000일</td><td>2028.11.24</td></tr></tbody></table></div>
+<p>1주년(2027년 3월 1일)과 365일째(2027년 2월 28일)는 하루 차이가 나요. 첫날을 1일로 세기 때문이에요. 둘 중 무엇을 기념할지 미리 정해 두면 헷갈리지 않아요.</p>
+<h2>이럴 때 다른 계산기가 더 맞아요</h2>
+<ul>
+<li>주말을 빼고 근무일만 세려면 <a href="bizdays.html">영업일 계산기</a>를 쓰세요.</li>
+<li>"오늘부터 90일 뒤"처럼 날짜를 더하거나 빼려면 <a href="dateadd.html">날짜 더하기 빼기 계산기</a>가 편해요.</li>
+<li>두 날짜 사이를 "몇 년 몇 개월 며칠"로 보려면 <a href="datediff.html">날짜 간격 계산기</a>를 쓰세요.</li>
+<li>전역일은 <a href="military.html">전역일 계산기</a>, 출산 예정일은 <a href="duedate.html">출산예정일 계산기</a>에서 바로 볼 수 있어요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>D-day는 오늘을 포함해서 세나요?</h3><p>목표일까지 남은 일수는 오늘을 제외하고 계산합니다. 기념일(100일 등)은 시작일을 1일로 칩니다.</p><h3>100일 기념일은 어떻게 계산하나요?</h3><p>시작일을 1일로 보고 99일 뒤가 100일째 되는 날입니다.</p></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 <!--fb--><div class="fb" data-slug="dday"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a><a href="weekday.html">요일 계산기</a></div>
 </main>

@@ -5,7 +5,23 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/compound.html" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>복리 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="p">초기 투자금 (원)</label><input type="number" id="p" value="10000000" step="any" min="0"><label for="m">매월 적립액 (원)</label><input type="number" id="m" value="500000" step="any" min="0"><label for="rate">연 수익률 (%)</label><input type="number" id="rate" value="6" step="0.01" min="0"><label for="y">투자 기간 (년)</label><input type="number" id="y" value="10" step="any" min="0"><div class="result" id="res"></div></div><h2>복리란?</h2><p>이자에 다시 이자가 붙는 방식입니다. 이 계산기는 연 수익률을 12로 나눠 매월 복리로 적용하고, 적립은 매월 말에 한다고 가정합니다. 실제 투자 수익은 매년 달라지며 원금 손실이 날 수 있습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>72의 법칙은 무엇인가요?</h3><p>72를 연 수익률로 나누면 원금이 두 배가 되는 대략의 햇수입니다. 연 6%면 약 12년입니다.</p><h3>세금은 반영되나요?</h3><p>아니요. 세전 기준입니다.</p></div><!--fb--><div class="fb" data-slug="compound"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
+<div class="card"><label for="p">초기 투자금 (원)</label><input type="number" id="p" value="10000000" step="any" min="0"><label for="m">매월 적립액 (원)</label><input type="number" id="m" value="500000" step="any" min="0"><label for="rate">연 수익률 (%)</label><input type="number" id="rate" value="6" step="0.01" min="0"><label for="y">투자 기간 (년)</label><input type="number" id="y" value="10" step="any" min="0"><div class="result" id="res"></div></div><h2>복리란?</h2><p>이자에 다시 이자가 붙는 방식입니다. 이 계산기는 연 수익률을 12로 나눠 매월 복리로 적용하고, 적립은 매월 말에 한다고 가정합니다. 실제 투자 수익은 매년 달라지며 원금 손실이 날 수 있습니다.</p><!--guide--><section class="guide">
+<h2>이 계산기의 복리 방식</h2>
+<p>연 수익률을 12로 나눠 <b>매월 복리</b>로 적용하고, 매월 적립금은 그 달 말에 넣는다고 가정해요. 공식은 만기 금액 = 초기 투자금 × (1 + r)<sup>n</sup> + 월 적립액 × ((1 + r)<sup>n</sup> − 1) ÷ r 이에요. 여기서 r은 월 수익률, n은 개월 수예요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>조건</th><th>총 원금</th><th>만기 금액</th><th>수익</th></tr></thead><tbody><tr><td>1,000만 원 + 월 50만 원, 연 6%, 10년</td><td>70,000,000원</td><td>100,133,641원</td><td>30,133,641원</td></tr><tr><td>월 30만 원만, 연 5%, 20년</td><td>72,000,000원</td><td>123,310,101원</td><td>51,310,101원</td></tr><tr><td>1,000만 원 한 번, 연 6%, 10년</td><td>10,000,000원</td><td>18,193,967원</td><td>8,193,967원</td></tr></tbody></table></div>
+<h2>단리와 복리는 시간이 갈수록 벌어져요</h2>
+<p>1,000만 원을 연 6%로 10년 두면 단리는 1,600만 원, 월복리는 약 1,819만 원이에요. 차이가 약 219만 원인데, 기간이 길어질수록 이 차이가 빠르게 커져요. 은행 예적금은 대부분 단리라 <a href="deposit.html">예적금 이자 계산기</a>로 따로 계산하는 게 맞아요.</p>
+<h2>72의 법칙</h2>
+<p>72를 연 수익률(%)로 나누면 돈이 두 배가 되는 대략의 햇수예요. 연 6%면 약 12년이에요. 실제로 이 계산기에 1,000만 원, 연 6%, 12년을 넣으면 약 2,051만 원이 나와요.</p>
+<h2>현실과 다른 점</h2>
+<ul>
+<li>세전 금액이에요. 일반 예금·적금 이자에는 이자소득세 15.4%가 붙고, 절세 계좌는 조건이 달라요.</li>
+<li>투자 수익률은 해마다 달라지고 원금 손실이 날 수 있어요. 수수료도 빠져 있어요.</li>
+<li>물가가 오르면 같은 금액의 가치가 줄어요. <a href="inflation.html">물가상승 가치 계산기</a>로 미래 금액의 실제 가치를 확인해 보세요.</li>
+<li>투자를 늦게 시작하면 얼마나 손해인지는 <a href="latestart.html">늦게 시작한 대가 계산기</a>에서 볼 수 있어요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 투자 판단은 본인 책임이며 원금 손실 가능성이 있어요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>72의 법칙은 무엇인가요?</h3><p>72를 연 수익률로 나누면 원금이 두 배가 되는 대략의 햇수입니다. 연 6%면 약 12년입니다.</p><h3>세금은 반영되나요?</h3><p>아니요. 세전 기준입니다.</p></div><!--fb--><div class="fb" data-slug="compound"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="loan.html">대출 이자 계산기</a><a href="deposit.html">예적금 이자 계산기</a><a href="cagr.html">수익률·CAGR 계산기</a><a href="avgprice.html">평균단가 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
