@@ -49,6 +49,7 @@ const DRIVE = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftArm', '
 
 const q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), q3 = new THREE.Quaternion(), q4 = new THREE.Quaternion(), q5 = new THREE.Quaternion(), q6 = new THREE.Quaternion();
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
+const qP = new THREE.Quaternion(), vP = new THREE.Vector3();
 const m4 = new THREE.Matrix4();
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -182,6 +183,7 @@ export class Ragdoll {
   // before every physics step: joint limits, muscles, buoyancy
   preStep(dt) {
     if (this.state === 'BAKED' || this.state === 'GETUP') return;
+    this.keepPose();
     this.t += dt;
     if (!this.collOn && this.t > RAG_TUNE.selfCollideDelay) {   // limbs and torso start colliding with each other
       this.collOn = true;
@@ -290,18 +292,40 @@ export class Ragdoll {
     }
   }
 
-  // bodies -> skeleton
+  // render interpolation (see Physics.alpha): every body's pose before the coming step; the skeleton is drawn between it and the pose after
+  keepPose() {
+    const n = this.bodies.length, P = this.prev && this.prev.length === n * 7 ? this.prev : (this.prev = new Float64Array(n * 7));
+    for (let i = 0; i < n; i++) {
+      const b = this.bodies[i], t = b.translation(), r = b.rotation(), o = i * 7;
+      P[o] = t.x; P[o + 1] = t.y; P[o + 2] = t.z; P[o + 3] = r.x; P[o + 4] = r.y; P[o + 5] = r.z; P[o + 6] = r.w;
+    }
+    this.prevNo = this.G.phys.stepNo + 1;
+  }
+  drawQ(i, out) {
+    const r = this.bodies[i].rotation(); out.set(r.x, r.y, r.z, r.w);
+    const ph = this.G.phys;
+    if (this.prevNo === ph.stepNo) { const P = this.prev, o = i * 7; out.copy(qP.set(P[o + 3], P[o + 4], P[o + 5], P[o + 6]).slerp(out, ph.alpha)); }
+    return out;
+  }
+  drawT(i, out) {
+    const t = this.bodies[i].translation(); out.set(t.x, t.y, t.z);
+    const ph = this.G.phys;
+    if (this.prevNo === ph.stepNo) { const P = this.prev, o = i * 7, a = ph.alpha; out.set(P[o] + (t.x - P[o]) * a, P[o + 1] + (t.y - P[o + 1]) * a, P[o + 2] + (t.z - P[o + 2]) * a); }
+    return out;
+  }
+
+  // bodies -> skeleton (as drawn this frame: between the last two physics steps)
   sync() {
     if (this.state === 'BAKED' || this.state === 'GETUP') return;
     const m = this.m, B = m.bones, geo = BIND.geo;
-    const wq = (i, out) => { const r = this.bodies[i].rotation(); return out.set(r.x, r.y, r.z, r.w); };
+    const wq = (i, out) => this.drawQ(i, out);
     const boneW = (id, out) => wq(SEG_BY_ID[id].i, out).multiply(geo[id].qOff);
     const qPelvis = boneW('pelvis', new THREE.Quaternion()), qAbd = boneW('abdomen', new THREE.Quaternion()), qChest = boneW('chest', new THREE.Quaternion()), qHead = boneW('head', new THREE.Quaternion());
     const qSp1 = new THREE.Quaternion().copy(qAbd).slerp(qChest, 0.5), qNeck = new THREE.Quaternion().copy(qChest).slerp(qHead, 0.5);
     const set = (name, qWorld, qParentW) => { const b = B[name]; q1.copy(qParentW).invert().multiply(qWorld); b.quaternion.copy(q1); };
     // hips: position from the pelvis body
-    const pb = this.bodies[0], pt = pb.translation(), pq = pb.rotation();
-    v1.copy(geo.pelvis.pOff).applyQuaternion(q2.set(pq.x, pq.y, pq.z, pq.w)).add(v2.set(pt.x, pt.y, pt.z));
+    const pt = this.drawT(0, vP);
+    v1.copy(geo.pelvis.pOff).applyQuaternion(this.drawQ(0, q2)).add(v2.copy(pt));
     B.Hips.position.copy(v1).applyMatrix4(this.parentInv);
     set('Hips', qPelvis, this.rootQ);
     set('Spine', qAbd, qPelvis);

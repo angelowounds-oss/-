@@ -25,6 +25,9 @@ export class Physics {
       this.physicsPipeline.step(this.gravity, this.integrationParameters, this.islands, this.broadPhase, this.narrowPhase, this.bodies, this.colliders, this.softBodies, this.impulseJoints, this.multibodyJoints, this.ccdSolver, eventQueue, hooks);
     };
     this.acc = 0;
+    // render interpolation: steps run at a fixed 60 Hz, screens at 50..240 Hz. Moving bodies are drawn between their pose before and after the
+    // last step (alpha = how far the clock is into the next one), so they glide instead of moving 0, 1 or 2 steps per displayed frame.
+    this.stepNo = 0; this.alpha = 0;
     this.bodies = new Map();
     this.colRef = new Map();
     this.events = new R.EventQueue(true);
@@ -109,13 +112,16 @@ export class Physics {
     this.acc = Math.min(this.acc + dt, PHYS.dt * PHYS.maxSub);
     let n = 0;
     while (this.acc >= PHYS.dt) {
+      for (const v of list) keepPose(v, this.stepNo + 1);
       pre?.(PHYS.dt);
       for (const v of list) v.ctrl?.updateVehicle(PHYS.dt, undefined, grp(GR.VEH, GR.STATIC | GR.PROP | GR.OBJ));
       this.world.step(this.events);
+      this.stepNo++;
       this.drainEvents();
       for (const v of list) stabilize(v);
       this.acc -= PHYS.dt; n++;
     }
+    this.alpha = this.acc / PHYS.dt;
     return n;
   }
   // Knockable street props (instanced bins): dynamic bodies synced to an InstancedMesh
@@ -207,6 +213,12 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
 }
 
 // Arcade stabiliser: bleed roll/pitch angular velocity so cars tip over only after violent hits
+// pose of a body before the step numbered `no` (pv.prev: x y z qx qy qz qw); drawPose blends it with the current one
+function keepPose(pv, no) {
+  const t = pv.body.translation(), r = pv.body.rotation(), p = pv.prev || (pv.prev = new Float64Array(7));
+  p[0] = t.x; p[1] = t.y; p[2] = t.z; p[3] = r.x; p[4] = r.y; p[5] = r.z; p[6] = r.w; pv.prevNo = no;
+}
+export { keepPose };
 function stabilize(v) {
   if (v.spec.craft) return;
   const b = v.body, q = b.rotation(), w = b.angvel();

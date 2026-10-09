@@ -104,6 +104,17 @@ export class CarRider {
       break;
     }
   }
+  // the car model is drawn between two physics steps (Physics.alpha) while the rider is carried with the simulated pose: draw the rider at the
+  // same spot on the roof as drawn this frame (camera follows `drawn`), or the person would shuffle on the roof at speed
+  draw() {
+    const r = this.roof, pl = this.G.player;
+    this.drawn = null;
+    if (!r || pl.rag || r.v.rh === undefined) return;
+    const v = r.v, s = Math.sin(v.rh), c = Math.cos(v.rh), d = this.drawnP || (this.drawnP = { x: 0, y: 0, z: 0 });
+    d.x = v.rx + c * r.lx + s * r.lz; d.z = v.rz - s * r.lx + c * r.lz; d.y = v.rby + 0.54;
+    pl.group.position.set(d.x, pl.group.position.y + d.y - pl.y, d.z);
+    this.drawn = d;
+  }
   leave() {
     const G = this.G, pl = G.player, r = this.roof; if (!r) return;
     this.roof = null; pl.body3.rideHandle = null;

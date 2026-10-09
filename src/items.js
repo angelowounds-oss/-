@@ -66,6 +66,7 @@ export const ITEM_IDS = Object.keys(ITEMS);
 const SMALL = 2.5;
 
 const geoCache = new Map(), matCache = new Map(), modelCache = new Map();
+const QP = new THREE.Quaternion();
 // glTF-backed items: one baked geometry per material, scaled so the longest axis matches the physics box
 function modelFor(id) {
   let g = modelCache.get(id); if (g !== undefined) return g;
@@ -112,16 +113,30 @@ export class Prop {
     this.sync();
   }
   get x() { return this.body.translation().x; } get y() { return this.body.translation().y; } get z() { return this.body.translation().z; }
-  sync() { const t = this.body.translation(), q = this.body.rotation(); this.mesh.position.set(t.x, t.y, t.z); this.mesh.quaternion.set(q.x, q.y, q.z, q.w); }
+  // drawn between its pose before and after the last physics step (Physics.alpha): a carried or thrown item glides at any refresh rate
+  keepPose(no) {
+    if (this.gone) return;
+    const t = this.body.translation(), r = this.body.rotation(), p = this.prev || (this.prev = new Float64Array(7));
+    p[0] = t.x; p[1] = t.y; p[2] = t.z; p[3] = r.x; p[4] = r.y; p[5] = r.z; p[6] = r.w; this.prevNo = no;
+  }
+  sync() {
+    const t = this.body.translation(), q = this.body.rotation(), m = this.mesh, ph = this.W.G.phys;
+    m.position.set(t.x, t.y, t.z); m.quaternion.set(q.x, q.y, q.z, q.w);
+    if (this.prevNo === ph.stepNo) {
+      const p = this.prev, a = ph.alpha;
+      m.position.set(p[0] + (t.x - p[0]) * a, p[1] + (t.y - p[1]) * a, p[2] + (t.z - p[2]) * a);
+      m.quaternion.copy(QP.set(p[3], p[4], p[5], p[6]).slerp(m.quaternion, a));
+    }
+  }
   hit(dx, dy, dz, dmg) { this.body.applyImpulse({ x: dx * dmg * 0.04, y: dy * dmg * 0.04 + 0.1, z: dz * dmg * 0.04 }, true); this.body.wakeUp(); if (this.def.fragile && dmg > 5) this.shatter(); }
   shatter() { const G = this.W.G; G.audio.glass?.(0); const p = this.body.translation(); G.sparksP.emit(p.x, p.y, p.z, 0, 2, 0, 0.5, 0.1, 1.5, 2, 1.5, 1, -12, 0.3); this.W.remove(this, true); }
   record() { const t = this.body.translation(), q = this.body.rotation(); Object.assign(this.rec, { x: t.x, y: t.y, z: t.z, q: { x: q.x, y: q.y, z: q.z, w: q.w } }); return this.rec; }
-  dispose() { const G = this.W.G; G.phys.colRef.delete(this.col.handle); G.phys.world.removeRigidBody(this.body); G.scene.remove(this.mesh); }
+  dispose() { const G = this.W.G; this.gone = true; G.phys.colRef.delete(this.col.handle); G.phys.world.removeRigidBody(this.body); G.scene.remove(this.mesh); }
 }
 
 export class ItemWorld {
   constructor(G) {
-    this.G = G; this.recs = new Map(); this.props = new Map();
+    this.G = G; this.recs = new Map(); this.props = new Map(); this.moving = [];
     this.nextId = 1; this.t = 0; this.carry = null; this.carryDist = 1.7;
     this.inv = G.state.inv || (G.state.inv = { items: {}, unpaid: {}, equipped: null });
     if (!G.state.gear1) { G.state.gear1 = 1; this.add('grapple'); this.add('parachute', 2); this.add('breach', 2); }   // starter movement gear (also for older saves)
@@ -175,9 +190,11 @@ export class ItemWorld {
         else if (p && d2 > R2 * 2.2 && !p.carried) { p.record(); if (!r.dropped) (G.state.moved[k] = { x: r.x, y: r.y, z: r.z, q: r.q }); this.props.delete(k); p.dispose(); }
       }
     }
-    for (const p of this.props.values()) { if (!p.body.isSleeping() || p.carried) p.sync(); if (p.fuse !== undefined) { p.fuse -= dt; if (p.fuse <= 0) { const t = p.body.translation(); const pos = { x: t.x, y: t.y, z: t.z }; this.remove(p, true); G.explosion(pos.x, pos.y, pos.z, 11, 140, G.player); } } }
+    const mv = this.moving; mv.length = 0;   // awake items: their pose is kept before each physics step (keepPoses)
+    for (const p of this.props.values()) { if (!p.body.isSleeping() || p.carried) { p.sync(); mv.push(p); } if (p.fuse !== undefined) { p.fuse -= dt; if (p.fuse <= 0) { const t = p.body.translation(); const pos = { x: t.x, y: t.y, z: t.z }; this.remove(p, true); G.explosion(pos.x, pos.y, pos.z, 11, 140, G.player); } } }
     this.updateCarry(dt);
   }
+  keepPoses(no) { for (const p of this.moving) p.keepPose(no); }
   // ---------- carrying ----------
   grab(p) {
     if (this.carry) return;

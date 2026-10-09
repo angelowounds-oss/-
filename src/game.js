@@ -349,6 +349,7 @@ export class Game {
     this.updatePlayer(sdt, inp);
     const d1 = dg ? performance.now() : 0;
     this.updateVehicles(sdt);
+    this.carRider.draw();
     const d2 = dg ? performance.now() : 0;
     this.updateHumans(sdt);
     const d3 = dg ? performance.now() : 0;
@@ -1214,7 +1215,7 @@ export class Game {
       active.push(v);
     }
     for (const v of active) v.control(dt);
-    this.phys.step(dt, (sdt) => { for (const v of active) v.applyDrive(); this.ragdolls.preStep(sdt); }, active.map((v) => v.pv));
+    this.phys.step(dt, (sdt) => { for (const v of active) v.applyDrive(); this.ragdolls.preStep(sdt); this.items.keepPoses(this.phys.stepNo + 1); }, active.map((v) => v.pv));
     this.ragdolls.postStep(dt); this.ragdolls.syncBones();
     for (const v of active) v.post(dt);
     this.phys.syncProps(THREE);
@@ -1520,12 +1521,13 @@ export class Game {
     const cam = this.cam, c = this.camera, pl = this.player;
     this.setFirstPerson(true); pl.m.pistol.visible = pl.m.rifle.visible = false;   // the viewmodel replaces the hand-held gun
     const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
-    const eye = pl.y + (pl.prone ? 0.55 : pl.crouching ? 1.25 : 1.68) + (pl.speed > 0.5 ? Math.sin(performance.now() * 0.011) * 0.012 * Math.min(1, pl.speed / 5) : 0);
+    const dr = this.carRider.drawn, px = dr ? dr.x : pl.x, pz = dr ? dr.z : pl.z;   // on a car roof: the rider as drawn this frame
+    const eye = (dr ? dr.y : pl.y) + (pl.prone ? 0.55 : pl.crouching ? 1.25 : 1.68) + (pl.speed > 0.5 ? Math.sin(performance.now() * 0.011) * 0.012 * Math.min(1, pl.speed / 5) : 0);
     const w = aim && pl.cur !== 9 ? this.pw(pl.cur) : null, zoom = w ? w.zoom || 1 : 1;
     cam.fov = damp(cam.fov, aim ? 2 * Math.atan(Math.tan(36 * Math.PI / 180) / zoom) * 180 / Math.PI : (pl.speed > 6 ? 78 : 72), 10, dt);
     if (w && w.scope === 'sniper') { const t = performance.now() * 0.001; cam.yaw += Math.sin(t * 1.3) * 0.00022; cam.pitch += Math.cos(t * 1.7) * 0.00018; }
-    c.position.set(pl.x + L.x * 0.12, eye, pl.z + L.z * 0.12);
-    c.lookAt(pl.x + L.x * 20, eye + L.y * 20, pl.z + L.z * 20);
+    c.position.set(px + L.x * 0.12, eye, pz + L.z * 0.12);
+    c.lookAt(px + L.x * 20, eye + L.y * 20, pz + L.z * 20);
     if (!this.vm) { this.vm = new THREE.Group(); c.add(this.vm); this.vmGun = {}; }
     const kind = pl.armed ? pl.weapon.short : null;
     for (const k of ['pistol', 'rifle']) {
@@ -1552,7 +1554,8 @@ export class Game {
       const aim = pl.aiming && !pl.dead;
       cam.dist = damp(cam.dist, aim ? 1.9 : 3.9, 9, dt); cam.shoulder = damp(cam.shoulder, aim ? 0.62 : 0.4, 9, dt);
       cam.fov = damp(cam.fov, aim ? 52 : (pl.speed > 6 ? 72 : 66), 6, dt);
-      ax = pl.x; ay = pl.y + 1.55 - (pl.dead ? 0.8 : 0) - (pl.prone ? 1.0 : pl.crouching ? 0.35 : 0); az = pl.z;
+      const dr = this.carRider.drawn;   // on a car roof: the rider as drawn this frame
+      ax = dr ? dr.x : pl.x; ay = (dr ? dr.y : pl.y) + 1.55 - (pl.dead ? 0.8 : 0) - (pl.prone ? 1.0 : pl.crouching ? 0.35 : 0); az = dr ? dr.z : pl.z;
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
       const rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
       let tx = ax - L.x * cam.dist + rX * cam.shoulder, ty = ay - L.y * cam.dist + 0.25, tz = az - L.z * cam.dist + rZ * cam.shoulder;
@@ -1578,11 +1581,11 @@ export class Game {
       const big = v.spec.craft ? (v.spec.craft === 'heli' ? 15 : 10) : 0;
       const dist = (cam.mode === 0 ? 6.4 + big : cam.mode === 1 ? 9.5 + big : 0.1) + sp * 0.03;
       cam.fov = damp(cam.fov, 66 + clamp(sp * 0.55, 0, 22), 4, dt);
-      ax = v.x; ay = 1.5 + (cam.mode === 2 ? 0.1 : 0); az = v.z;
+      ax = v.rx ?? v.x; ay = 1.5 + (cam.mode === 2 ? 0.1 : 0); az = v.rz ?? v.z;   // the car as drawn this frame (between physics steps)
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
       let tx, ty, tz;
       if (cam.mode === 2) { // hood cam
-        const s = Math.sin(v.h), cc = Math.cos(v.h), lat = this.passenger ? 0.5 : 0; tx = v.x + s * 0.7 + cc * lat; ty = 1.35; tz = v.z + cc * 0.7 - s * lat;
+        const vh = v.rh ?? v.h, s = Math.sin(vh), cc = Math.cos(vh), lat = this.passenger ? 0.5 : 0; tx = ax + s * 0.7 + cc * lat; ty = 1.35; tz = az + cc * 0.7 - s * lat;
         c.position.set(tx, ty, tz); c.lookAt(tx + Math.sin(cam.yaw) * 10, 1.1 + Math.sin(cam.pitch) * 10, tz + Math.cos(cam.yaw) * 10);
       } else {
         tx = ax - L.x * dist; ty = ay - L.y * dist + 1.0; tz = az - L.z * dist;
@@ -1628,9 +1631,9 @@ export class Game {
   }
   updateHeadlight() {
     if (!this.head) { this.head = new THREE.SpotLight(0xfff0d0, 0, 80, 0.5, 0.6, 1.6); this.scene.add(this.head, this.head.target); }
-    const v = this.vehicle, s = Math.sin(v.h), c = Math.cos(v.h);
-    this.head.position.set(v.x + s * v.L * 0.4, 0.9, v.z + c * v.L * 0.4);
-    this.head.target.position.set(v.x + s * 30, 0, v.z + c * 30);
+    const v = this.vehicle, h = v.rh ?? v.h, x = v.rx ?? v.x, z = v.rz ?? v.z, s = Math.sin(h), c = Math.cos(h);
+    this.head.position.set(x + s * v.L * 0.4, 0.9, z + c * v.L * 0.4);
+    this.head.target.position.set(x + s * 30, 0, z + c * 30);
     this.head.intensity = 520; this.head.angle = 0.5; this.head.penumbra = 0.7;
   }
 

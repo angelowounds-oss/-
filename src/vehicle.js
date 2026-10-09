@@ -4,6 +4,7 @@ import { N, P, R, LANE, HALF, roadC, roadIdx, hasEdge } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
+const QB = new THREE.Quaternion();
 
 export const CAR_COLORS = [0x1a2433, 0x7a1020, 0xc9ced8, 0x0d3b66, 0x2b2f38, 0xe0b020, 0x14654b, 0x5a1f7a, 0xd8d8d0, 0x111418, 0x8a2a10, 0x1c6fa8];
 const GLOWS = [[0.2, 0.9, 1], [1, 0.2, 0.8], [0.6, 0.3, 1], [0.2, 1, 0.5], [1, 0.5, 0.15], [1, 0.15, 0.2]];
@@ -80,12 +81,24 @@ export class Vehicle {
     out[0] = [this.x + s * o, this.z + c * o, r]; out[1] = [this.x, this.z, r]; out[2] = [this.x - s * o, this.z - c * o, r];
     return out;
   }
+  // the model is drawn between the body's pose before and after the last physics step (see Physics.alpha): x / z / h stay the simulated
+  // state for the game logic, rx / rz / rh / rby are where the car is on screen this frame (camera, headlights, a rider on the roof)
   syncMesh() {
-    const g = this.group;
-    if (this.pv && this.q) {
-      g.position.set(this.x, this.by - (this.spec.cy ?? PHYS.bodyY), this.z);
-      g.quaternion.set(this.q.x, this.q.y, this.q.z, this.q.w);
-    } else { g.position.set(this.x, 0, this.z); g.rotation.set(0, this.h, 0); }
+    const g = this.group, pv = this.pv;
+    if (pv && this.q) {
+      const q = this.q, cy = this.spec.cy ?? PHYS.bodyY;
+      if (pv.prevNo === this.phys.stepNo) {
+        const a = this.phys.alpha, p = pv.prev;
+        g.position.set(p[0] + (this.x - p[0]) * a, p[1] + (this.by - p[1]) * a - cy, p[2] + (this.z - p[2]) * a);
+        g.quaternion.set(p[3], p[4], p[5], p[6]).slerp(QB.set(q.x, q.y, q.z, q.w), a);
+      } else {
+        g.position.set(this.x, this.by - cy, this.z);
+        g.quaternion.set(q.x, q.y, q.z, q.w);
+      }
+      const r = g.quaternion;
+      this.rx = g.position.x; this.rz = g.position.z; this.rby = g.position.y + cy;
+      this.rh = Math.atan2(2 * (r.x * r.z + r.w * r.y), 1 - 2 * (r.x * r.x + r.y * r.y));
+    } else { g.position.set(this.x, 0, this.z); g.rotation.set(0, this.h, 0); this.rx = this.x; this.rz = this.z; this.rh = this.h; this.rby = this.by; }
     if (this.model.syncWheels) this.model.syncWheels(this.wheelSpin, -this.steerA);
     else { this.model.front.rotation.y = -this.steerA; this.model.fa.rotation.x = this.wheelSpin; this.model.ra.rotation.x = this.wheelSpin; }
   }
@@ -128,7 +141,7 @@ export class Vehicle {
     b.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true);
     b.setLinvel({ x: this.vx, y: 0, z: this.vz }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     if (sleep) b.sleep();
-    this.flipT = 0;
+    this.flipT = 0; this.pv.prevNo = -1;   // teleported: drawn where it is, not swept from the old place
   }
   setVel(vx, vz) { const lv = this.pv.body.linvel(); this.pv.body.setLinvel({ x: vx, y: lv.y, z: vz }, true); this.vx = vx; this.vz = vz; }
   addImpulse(ix, iy, iz) { this.pv.body.applyImpulse({ x: ix * this.pv.mass, y: iy * this.pv.mass, z: iz * this.pv.mass }, true); }
@@ -189,7 +202,7 @@ export class Vehicle {
     // flipped & stuck -> right the car
     if (this.q) {
       const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);
-      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); this.pv.body.setTranslation({ x: this.x, y: 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; } } else this.flipT = 0;
+      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); this.pv.body.setTranslation({ x: this.x, y: 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; } } else this.flipT = 0;
     }
     this.wheelSpin += (vf * dt) / this.model.wheelR;
     const hasDriver = this.driver && !this.dead;
