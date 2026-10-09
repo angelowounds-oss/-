@@ -28,14 +28,14 @@ try {
   check('깨진 JSON·1 MB 초과·라벨 없는 파일은 불러오기 실패 + 사유 표시, 활성 결과 없음', R.badJson === false && /JSON/.test(R.badJsonErr) && R.tooBig === false && /1 MB/.test(R.tooBigErr) && R.noLabelLoad === false && /label/.test(R.noLabelErr), { e1: R.badJsonErr, e2: R.tooBigErr, e3: R.noLabelErr });
   check('올바른 파일은 불러와져 활성화(파일 모드)', R.loaded === true && R.mode === 'file' && R.activeCd === 0.31, { mode: R.mode, cd: R.activeCd });
   check('라벨 줄에 방법·격자·조건·날짜·출처가 모두 있고 "실시간 아님" 표시', /실시간 아님/.test(R.line) && /external CFD/.test(R.line) && /2\.0 cm/.test(R.line) && /5 m\/s/.test(R.line) && /2026-10-08/.test(R.line) && /unit test/.test(R.line), R.line);
-  await sleep(4500);
+  await page.waitForFunction(() => /test fixture/.test(document.getElementById('refStat')?.textContent || ''), null, { timeout: 120000, polling: 1000 }).catch(() => null);
   const ui = await page.evaluate(() => ({ stat: document.getElementById('refStat')?.textContent, sel: document.getElementById('refMode')?.value, draws: __DISP.draws, err: __DISP.err || null }));
   check('카드에 라벨 + Cd + 한계 문구 표시', /실시간 아님/.test(ui.stat) && /Cd 0\.310/.test(ui.stat) && /test fixture/.test(ui.stat) && ui.sel === 'file', ui.stat?.slice(0, 200));
   check('벽면 디스플레이는 오류 없이 갱신됨(기준 결과 줄 포함해 그림)', ui.err === null && ui.draws >= 2, ui);
-  const off = await page.evaluate(() => { __REF.setMode('off'); return { active: __REF.active, mode: __REF.mode }; }); await sleep(4500);
+  const off = await page.evaluate(() => { __REF.setMode('off'); return { active: __REF.active, mode: __REF.mode }; }); await page.waitForFunction(() => /꺼져/.test(document.getElementById('refStat')?.textContent || ''), null, { timeout: 120000, polling: 1000 }).catch(() => null);
   const offUi = await page.evaluate(() => document.getElementById('refStat')?.textContent);
   check('끄기: 활성 결과 없음, 카드에 "꺼져 있습니다"', off.active === null && off.mode === 'off' && /꺼져/.test(offUi), { off, offUi });
-  const b = await page.evaluate(() => { __REF.setMode('builtin'); return { n: __REF.builtin().length, active: __REF.active ? __REF.active.label.title : null }; }); await sleep(4500);
+  const b = await page.evaluate(() => { __REF.setMode('builtin'); return { n: __REF.builtin().length, active: __REF.active ? __REF.active.label.title : null }; }); await page.waitForFunction(() => !/꺼져/.test(document.getElementById('refStat')?.textContent || '꺼져'), null, { timeout: 120000, polling: 1000 }).catch(() => null);
   const bUi = await page.evaluate(() => document.getElementById('refStat')?.textContent);
   check('내장 모드: 내장 결과가 있으면 라벨과 함께, 없으면 없다고 표시(만들어 내지 않음)', (b.n === 0 && /없습니다/.test(bUi) && b.active === null) || (b.n > 0 && /실시간 아님|오프라인/.test(bUi)), { b, bUi: bUi?.slice(0, 160) });
 } catch (e) { check('reference test completed', false, String(e).slice(0, 300)); }
