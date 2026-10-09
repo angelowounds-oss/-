@@ -141,6 +141,7 @@ static Result playSeats(const Deck& a, const Deck& b, const Seat& s0, const Seat
 
 // ---- learning
 
+static float WPLAY = 1.0f;  // extra weight on samples where the teacher plays a card (its wait labels dominate ~89%)
 static void sampleLoss(const float* th, const Sample& s, float* gr, double& ls, double& lp, bool& okS, bool& okP) {
   float in[NINS], h[SH], o[SOUT], go[SOUT]; int hc[4];
   for (int i = 0; i < NINS; i++) in[i] = s.f[i];
@@ -151,7 +152,8 @@ static void sampleLoss(const float* th, const Sample& s, float* gr, double& ls, 
   for (int q = 0; q < SSLOT; q++) if ((s.mask >> q) & 1) { if (am < 0 || o[q] > o[am]) am = q; mx = max(mx, o[q]); }
   float p[SSLOT]; double z = 0;
   for (int q = 0; q < SSLOT; q++) { p[q] = ((s.mask >> q) & 1) ? expf(o[q] - mx) : 0.0f; z += p[q]; }
-  for (int q = 0; q < SSLOT; q++) { p[q] = (float)(p[q] / z); go[q] = p[q] - (q == s.slot ? 1.0f : 0.0f); }
+  const float wp = s.slot < SSLOT - 1 ? WPLAY : 1.0f;
+  for (int q = 0; q < SSLOT; q++) { p[q] = (float)(p[q] / z); go[q] = wp * (p[q] - (q == s.slot ? 1.0f : 0.0f)); }
   ls = -log(max(1e-12, (double)p[s.slot])); okS = am == s.slot;
   lp = 0; okP = true;
   if (s.slot < SSLOT - 1) {
@@ -256,6 +258,7 @@ static bool studentMode(int argc, char** argv) {
   string mode = argv[1];
   if (const char* e = getenv("CR_TEACH")) TEACH = atoi(e);
   if (const char* e = getenv("CR_TAU")) TAU = (float)atof(e);
+  if (const char* e = getenv("CR_WPLAY")) WPLAY = (float)atof(e);
   if (const char* e = getenv("CR_ROLLNET")) { NETS[e] = loadTheta(e); ROLL_NET = NETS[e].data(); }
 
   if (mode == "strength" && argc >= 6) {
