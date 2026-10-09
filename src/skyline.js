@@ -55,10 +55,10 @@ function haze(m) {
     sh.uniforms.uDoorCam = doorCamU; sh.uniforms.uBlack = blackU;
     // entrance face: open the glazed ground-floor bays (between 0.7 m pillars) so the lobby is visible, same rule as the city facades
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec4 aDoor;varying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;')
+      .replace('#include <common>', '#include <common>\nattribute vec4 aDoor;flat varying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDoorS=aDoor;vWPs=(modelMatrix*vec4(transformed,1.)).xyz;vWNs=normalize(mat3(modelMatrix)*objectNormal);');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;uniform vec3 uDoorCam;uniform float uBlack[5];' + ZONE_GLSL)
+      .replace('#include <common>', '#include <common>\nflat varying vec4 vDoorS;varying vec3 vWPs;varying vec3 vWNs;uniform vec3 uDoorCam;uniform float uBlack[5];' + ZONE_GLSL)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance*=1.-uBlack[zoneOf(vWPs.xz)]*.96;')
       .replace('#include <color_fragment>', `#include <color_fragment>
       if(vDoorS.w>.5&&vWPs.y>.3&&vWPs.y<3.1&&distance(vWPs.xz,uDoorCam.xz)<58.){

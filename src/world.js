@@ -368,7 +368,7 @@ function createFacadeMaterial() {
   const uniforms = { uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
-    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;',
+    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
     vertexMain: `
       vec4 mw=vec4(transformed,1.);vec3 nn=objectNormal;
       #ifdef USE_INSTANCING
@@ -379,7 +379,7 @@ function createFacadeMaterial() {
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;`,
     fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
-      varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;varying vec3 vSz;varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -566,13 +566,13 @@ function createSignMaterial0(atlas) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uMap: { value: atlas }, uTime: timeUniform, uNight: nightU }]),
-    vertexShader: `attribute vec4 aCell;varying vec2 vUv;varying vec4 vCell;
+    vertexShader: `attribute vec4 aCell;varying vec2 vUv;flat varying vec4 vCell;
       #include <fog_pars_vertex>
       void main(){vUv=(uv+aCell.xy)*vec2(.25,.25);vCell=aCell;
         vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform sampler2D uMap;uniform float uTime,uNight;varying vec2 vUv;varying vec4 vCell;
+    fragmentShader: `uniform sampler2D uMap;uniform float uTime,uNight;varying vec2 vUv;flat varying vec4 vCell;
       #include <fog_pars_fragment>
       void main(){vec4 t=texture2D(uMap,vUv);float s=vCell.z;
         float fl=1.;float ph=fract(s*7.31);
@@ -590,12 +590,12 @@ function createHoloMaterial0() {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU }]),
-    vertexShader: `attribute vec4 aHolo;varying vec2 vUv;varying vec4 vH;
+    vertexShader: `attribute vec4 aHolo;varying vec2 vUv;flat varying vec4 vH;
       #include <fog_pars_vertex>
       void main(){vUv=uv;vH=aHolo;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
       #include <fog_vertex>
       }`,
-    fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;varying vec2 vUv;varying vec4 vH;
+    fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;varying vec2 vUv;flat varying vec4 vH;
       #include <fog_pars_fragment>
       vec3 pal(float k){k=mod(k,3.);return k<1.?vec3(1.,.15,.8):(k<2.?vec3(.1,.85,1.):vec3(1.,.6,.15));}
       void main(){
