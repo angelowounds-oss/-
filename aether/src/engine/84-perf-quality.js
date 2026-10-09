@@ -6,7 +6,7 @@
    Knobs whose feature is not implemented report available()=false and are skipped by the controller. */
 /* v2 tunnel: grid counts follow the (much larger) domain at a target cell size per tier; legacy room keeps the hand-tuned counts */
 const SIM_V2_H={LITE:.34,LOW:.24,MID:.185,HIGH:.145,ULTRA:.11};
-const simGridFor=(tier,legacy)=>{if(!TUNNEL_V2_ON)return legacy;const d=TUNNEL_SPEC.derived.domainSize,h=SIM_V2_H[tier];return d.map(v=>Math.max(8,Math.round(v/h)))};
+const simGridFor=(tier,legacy)=>{if(!TUNNEL_V2_ON)return legacy;const d=TUNNEL_SPEC.derived.domainSize,h=SIM_V2_H[tier],m8=/n8=1/.test(location.hash);return d.map(v=>m8?Math.max(8,Math.round(v/h/8)*8):Math.max(8,Math.round(v/h)))};/* #n8=1: every axis a multiple of 8 (four multigrid levels stay even); experimental, see KNOWN_LIMITATIONS L36 */
 const QUALITY={
  tiers:['LITE','LOW','MID','HIGH','ULTRA'],
  sim:{LITE:{grid:simGridFor('LITE',[80,26,38]),sub:1,vc:.25},LOW:{grid:simGridFor('LOW',[112,36,52]),sub:2,vc:.25},MID:{grid:simGridFor('MID',[144,46,66]),sub:2,vc:0},HIGH:{grid:simGridFor('HIGH',[176,56,80]),sub:2,vc:0},ULTRA:{grid:simGridFor('ULTRA',[224,72,100]),sub:2,vc:0}},
