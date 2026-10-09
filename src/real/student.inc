@@ -356,3 +356,78 @@ static bool studentMode(int argc, char** argv) {
   }
   return false;
 }
+
+// ---- widen: a net trained on the 70 base features gets zero weights for the 16 lane features (identical behaviour)
+static vector<float> widenTheta(const vector<float>& old) {
+  const int NOLD = NIN;
+  const size_t oldN = (size_t)NOLD * SH + SH + NCARD * SH + SH * SOUT + SOUT;
+  if (old.size() != oldN) { fprintf(stderr, "unexpected net size %zu, want %zu\n", old.size(), oldN); exit(1); }
+  vector<float> th(NPAR, 0.0f); const float* o = old.data();
+  for (int k = 0; k < NOLD * SH; k++) th[k] = o[k];
+  const int ob1 = NOLD * SH, oE = ob1 + SH, oW2 = oE + NCARD * SH, oB2 = oW2 + SH * SOUT;
+  for (int j = 0; j < SH; j++) th[OB1 + j] = o[ob1 + j];
+  for (int k = 0; k < NCARD * SH; k++) th[OE + k] = o[oE + k];
+  for (int k = 0; k < SH * SOUT; k++) th[OW2 + k] = o[oW2 + k];
+  for (int q = 0; q < SOUT; q++) th[OB2 + q] = o[oB2 + q];
+  return th;
+}
+
+// ---- evolution strategies: maximise the student's win rate against one policy directly
+static double playWin(const float* th, const Deck& me, const Deck& op, bool meSeat0, int opp, uint64_t seed) {
+  Seat cs; cs.kind = 2; cs.th = th; cs.pol = TEACH; Seat os = seatOf(opp);
+  Result r = meSeat0 ? playSeats(me, op, cs, os, seed, nullptr) : playSeats(op, me, os, cs, seed, nullptr);
+  if (r.winner < 0) return 0.5;
+  return r.winner == (meSeat0 ? 0 : 1) ? 1.0 : 0.0;
+}
+
+static double evalWin(const float* th, int opp, const vector<Deck>& D, int n, uint64_t seed) {
+  vector<double> w(n);
+  parFor(n, [&](int q) {
+    Rng r(seed + q * 7919ULL); const Deck& a = D[r.below((int)D.size())]; const Deck& b = D[r.below((int)D.size())];
+    w[q] = playWin(th, a, b, (q & 1) == 0, opp, seed * 31 + q);
+  });
+  double s = 0; for (double x : w) s += x; return s / max(1, n);
+}
+
+static bool esMode(int argc, char** argv) {
+  string mode = argv[1];
+  if (mode == "widen" && argc >= 4) {
+    FILE* fp = fopen(argv[2], "rb"); if (!fp) { fprintf(stderr, "cannot open %s\n", argv[2]); exit(1); }
+    fseek(fp, 0, SEEK_END); long n = ftell(fp) / (long)sizeof(float); fseek(fp, 0, SEEK_SET);
+    vector<float> old(n); size_t got = fread(old.data(), sizeof(float), n, fp); fclose(fp); (void)got;
+    saveTheta(widenTheta(old), argv[3]); printf("widened %s (%ld floats) -> %s\n", argv[2], n, argv[3]); return true;
+  }
+  if (mode != "es" || argc < 9) return false;
+  vector<float> th = loadTheta(argv[2]); string out = argv[3];
+  int gens = atoi(argv[4]), pop = atoi(argv[5]), games = atoi(argv[6]); float sigma = (float)atof(argv[7]), lr = (float)atof(argv[8]);
+  uint64_t seed = argc > 9 ? atoll(argv[9]) : 1;
+  int opp = getenv("CR_OPP") ? atoi(getenv("CR_OPP")) : 4;
+  vector<Deck> D = readDecks("results/random_decks_valid.txt");
+  Rng rng(seed); const int H = pop / 2;
+  for (int g = 0; g < gens; g++) {
+    vector<vector<float>> eps(H);
+    for (int i = 0; i < H; i++) eps[i] = gauss(rng, NPAR);
+    vector<vector<float>> cand(pop, vector<float>(NPAR));
+    for (int i = 0; i < H; i++) for (int k = 0; k < NPAR; k++) { cand[2 * i][k] = th[k] + sigma * eps[i][k]; cand[2 * i + 1][k] = th[k] - sigma * eps[i][k]; }
+    vector<pair<int, int>> pairs(games / 2);
+    for (auto& pr : pairs) pr = {rng.below((int)D.size()), rng.below((int)D.size())};
+    const uint64_t gseed = seed * 1000003ULL + g * 7919ULL;
+    vector<double> fit(pop, 0.0);
+    parFor(pop, [&](int c) {
+      double w = 0;
+      for (int q = 0; q < games; q++) { const auto& pr = pairs[q / 2]; w += playWin(cand[c].data(), D[pr.first], D[pr.second], (q & 1) == 0, opp, gseed + q * 131ULL); }
+      fit[c] = w / games;
+    });
+    vector<int> order(pop); for (int i = 0; i < pop; i++) order[i] = i;
+    sort(order.begin(), order.end(), [&](int a, int b) { return fit[a] < fit[b]; });
+    vector<double> u(pop); for (int r = 0; r < pop; r++) u[order[r]] = (double)r / (pop - 1) - 0.5;
+    vector<float> grad(NPAR, 0.0f);
+    for (int i = 0; i < H; i++) { float d = (float)(u[2 * i] - u[2 * i + 1]); for (int k = 0; k < NPAR; k++) grad[k] += d * eps[i][k]; }
+    for (int k = 0; k < NPAR; k++) th[k] += lr * grad[k] / (H * sigma);
+    double mean = 0, mx = 0; for (double f : fit) { mean += f; mx = max(mx, f); } mean /= pop;
+    printf("gen %d  mean fitness %.3f  max %.3f\n", g + 1, mean, mx);
+    if ((g + 1) % 5 == 0 || g + 1 == gens) printf("  theta vs p%d (200 games, held-out seeds): %.2f%%\n", opp, 100 * evalWin(th.data(), opp, D, 200, seed * 77 + g));
+    saveTheta(th, out); fflush(stdout);
+  }
+  return true;
+}
