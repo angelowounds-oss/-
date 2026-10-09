@@ -6,6 +6,15 @@
 - 조작: WASD 이동 · Shift 달리기 · 좌/우클릭 사격/조준 · R 재장전 · F 탑승/하차 · Space 점프/핸드브레이크 · C 카메라 · L 라이트 · Esc 일시정지
 - 모바일 터치/게임패드 지원, 품질 4단계 + 자동 저하(`?q=0..3`)
 - 물리: Rapier(WASM 내장) 고정 60Hz — 레이캐스트 서스펜션 강체 차량, 정적 도시 콜라이더, 충돌로 밀리는 쓰레기통. 튜닝 테스트: `node build/phys_test.mjs`
+- 테스트: `node tests/run.cjs quick` (빌드 후, 상세는 [docs/TESTING.md](docs/TESTING.md))
+
+## 문서 (개발 진행)
+- [CLAUDE.md](CLAUDE.md) — 작업 방법, 명령, 규칙 (사람·Claude 공통 시작점)
+- [docs/REVIEW-2026-10.md](docs/REVIEW-2026-10.md) — 파트별 비판적 총평, 성숙도·정체/취약 구분
+- [docs/ROADMAP.md](docs/ROADMAP.md) — 마일스톤(M0 기반 → M1 실측 → M2 핵심 루프 → M3 폴리시), 작업 방식
+- [docs/backlog/](docs/backlog/README.md) — 파트별 티켓(완료 기준·검증 방법)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 모듈 지도, 프레임 순서, 불변 조건
+- [docs/adr/](docs/adr/README.md) — 결정 기록 · [docs/PERF-BASELINE.md](docs/PERF-BASELINE.md) — 성능 기준선
 
 ## Credits
 - Soldier.glb — three.js examples (Mixamo rig)
