@@ -5,6 +5,7 @@
 // node tools/solver2/bench/schaefer2d.mjs <lbm|proj> <D/h> [U0 lattice max velocity for LBM]
 import fs from 'node:fs'; import path from 'node:path';
 import { createLBM2D } from '../lbm2d.mjs';
+import { createProj2D } from '../proj2d.mjs';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
 const [method, ndArg, u0Arg, maxTArg] = process.argv.slice(2), Nd = +ndArg;
 const H = .41, L = 2.2, D = .1, R = D / 2, CX = .2, CY = .2, Um = .3, NU = 1e-3, Ubar = 2 * Um / 3;
@@ -34,7 +35,23 @@ if (method === 'lbm') {
   }
   let mass = 0; for (let n = 0; n < S.N; n++) if (!S.isSolid[n]) mass += S.macro(n)[0];
   res = { method, Nd, h, grid: [nx, ny], U0, tau: S.tau, nuL, steps: S.step, converged: conv, ...last, links: S.links.length, meanRho: mass / (S.N - S.isSolid.reduce((a, b) => a + b, 0)), hist: hist.filter((_, i) => i % 10 === 0) };
-} else throw Error('method not implemented yet: ' + method);
+} else if (method === 'proj') {
+  const inside = (x, y) => (x - CX) ** 2 + (y - CY) ** 2 < R * R;
+  const wallDist = (x, y, di, dj) => { const ox = x - CX, oy = y - CY, bq = 2 * (di * ox + dj * oy), c = ox * ox + oy * oy - R * R, disc = bq * bq - 4 * c; return Math.max(1e-9, (-bq - Math.sqrt(Math.max(disc, 0))) / 2); };
+  const S = createProj2D({ nx, ny, h, nu: NU, inside, wallDist, inletU: y => 4 * Um * y * (H - y) / (H * H) });
+  const dt = +(u0Arg || .5) * h / .45, T = D / Ubar, maxT = +(maxTArg || 60) * T, every = Math.max(20, Math.round(.5 * T / dt));
+  const i0 = Math.round(.1 / h), i1 = Math.round(.3 / h), j0 = Math.round(.1 / h), j1 = Math.round(.3 / h);
+  const surfP = (xs, dir) => { const yj = .2 / h - .5, jj = Math.floor(yj), ty = yj - jj, col = i => (S.cellSolid(i, jj) || S.cellSolid(i, jj + 1)) ? null : (1 - ty) * S.P[i + nx * jj] + ty * S.P[i + nx * (jj + 1)];
+    let i = Math.floor(xs / h - .5) + (dir > 0 ? 1 : 0), pts = []; while (pts.length < 2 && Math.abs(i - xs / h) < 10) { const r = col(i); if (r !== null) pts.push([(i + .5) * h, r]); i += dir; }
+    const [[x1, r1], [x2, r2]] = pts; return r1 + (r2 - r1) * (xs - x1) / (x2 - x1); };
+  const coef = () => { const [fx, fy] = S.boxForce(i0, i1, j0, j1); return { Cd: 2 * fx / (Ubar * Ubar * D), Cl: 2 * fy / (Ubar * Ubar * D), dp: surfP(.15, -1) - surfP(.25, 1) }; };
+  let last = null, hist = [], conv = false, cgSum = 0;
+  while (S.t < maxT) {
+    S.step1(dt); cgSum += S.cgIt;
+    if (S.step % every === 0 && S.t > 2 * T) { const c = coef(); hist.push({ step: S.step, t: S.t, cg: S.cgIt, ...c }); if (last && Math.abs(c.Cd - last.Cd) < 1e-6 * Math.abs(c.Cd) && Math.abs(c.dp - last.dp) < 1e-6 * Math.abs(c.dp)) { conv = true; last = c; break; } last = c; process.stdout.write(`t ${S.t.toFixed(2)} Cd ${c.Cd.toFixed(5)} Cl ${c.Cl.toFixed(5)} dp ${c.dp.toFixed(5)} cg ${S.cgIt}\r`); }
+  }
+  res = { method, Nd, h, grid: [nx, ny], dt, steps: S.step, simT: S.t, converged: conv, ...last, meanCg: cgSum / S.step, forcing: [S.uF.length, S.vF.length], hist: hist.filter((_, i) => i % 5 === 0) };
+} else throw Error('unknown method: ' + method);
 res.wallS = (Date.now() - t0) / 1000; res.cellUpdates = res.grid[0] * res.grid[1] * res.steps;
 res.err = { Cd: (res.Cd - REF.Cd) / REF.Cd, Cl: (res.Cl - REF.Cl) / REF.Cl, dp: (res.dp - REF.dp) / REF.dp };
 res.inRange = { Cd: res.Cd >= REF.range.Cd[0] && res.Cd <= REF.range.Cd[1], Cl: res.Cl >= REF.range.Cl[0] && res.Cl <= REF.range.Cl[1], dp: res.dp >= REF.range.dp[0] && res.dp <= REF.range.dp[1] };
