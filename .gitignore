@@ -9,3 +9,4 @@ results/student/*.bin
 results/student/*.progress
 results/student/data/
 results/student/stage*.log
+results/student/*.log

@@ -39,9 +39,10 @@ static void fwd(const float* th, const float* in, const int* hc, float* h, float
   for (int j = 0; j < SH; j++) { const float* w = th + OW2 + j * SOUT; float hj = h[j]; for (int q = 0; q < SOUT; q++) o[q] += hj * w[q]; }
 }
 
+static float TAU = 0.0f;
 static Dec netDecide(GameManager& g, Player& P, const float* th) {
   float in[NIN], h[SH], o[SOUT]; int hc[4]; features(g, P, in); handIds(g, P.team, hc); fwd(th, in, hc, h, o);
-  int m = maskOf(g, P.team); int bs = SSLOT - 1; float bv = o[SSLOT - 1];
+  int m = maskOf(g, P.team); int bs = SSLOT - 1; float bv = o[SSLOT - 1] + TAU;
   for (int s = 0; s < SSLOT - 1; s++) if (((m >> s) & 1) && o[s] > bv) { bv = o[s]; bs = s; }
   Dec d; if (bs == SSLOT - 1) return d;
   vector<pair<float, float>> pl; placements(g, P, bs, pl); int base = SSLOT + bs * SPL, bp = 0;
@@ -225,6 +226,7 @@ static bool studentMode(int argc, char** argv) {
   if (argc < 2) return false;
   string mode = argv[1];
   if (const char* e = getenv("CR_TEACH")) TEACH = atoi(e);
+  if (const char* e = getenv("CR_TAU")) TAU = (float)atof(e);
 
   if (mode == "strength" && argc >= 6) {
     vector<Deck> D = readDecks(argv[2]); int nd = atoi(argv[3]), seeds = atoi(argv[4]); vector<int> ps = parseIntList(argv[5]); int np = ps.size();
