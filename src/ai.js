@@ -52,7 +52,11 @@ export function hear(h, x, z, r, kind) {
   if (h.state === 'attack' || h.state === 'cover' || h.state === 'retreat') return;
   const d = Math.hypot(x - h.x, z - h.z); if (d > r) return;
   if (h.team === 'cop' && !h.G.wanted) { if (kind === 'shot' || kind === 'boom') { h.alert = 1; } else return; }
-  h.state = 'investigate'; h.invT = rand(9, 14); h.invLook = 0;
+  // more noise from about the same place (a burst of fire) keeps the current walk there instead of re-planning the route every shot
+  const same = h.state === 'investigate' && h.tgt && Math.hypot(h.tgt.x - x, h.tgt.z - z) < 6;
+  h.state = 'investigate'; h.invT = rand(9, 14);
+  if (same) return;
+  h.invLook = 0;
   h.tgt = { x: x + rand(-3, 3), z: z + rand(-3, 3) };
   h.path = null;
 }
