@@ -15,3 +15,11 @@ Learned value net (win probability over the 86 student features) at search leave
     margin 0.01: 21.6%, 0.03: 25.3%, 0.06: 26.5%, 0.10: 31.3%, 0.20: 32.6%
   vnet2 (retrained on 3.4M states from value-guided self-play, margin 0.20): 28.75%
   Iterating the value net on its own games did not improve it; the plateau is about 30-33%.
+
+Deck balance search (student-evaluated, then teacher-checked):
+  Stage A: all 2,551 valid decks vs 140 opponents, 4 games per matchup. Top deck mean-deviation 0.241.
+  Stage B: top 200 re-evaluated with 40 games per matchup. Best mean-deviation 0.203 (deck 98).
+    Even the most balanced decks still have matchups from about 0-3% to 100%.
+  Stage C: top 15 re-evaluated with the teacher (policy 4), 20 games per matchup.
+    Mean-deviation 0.261 (deck 15), 0.262 (deck 7), 0.269 (deck 6); the student's ranking does not transfer.
+    No deck has no bad matchup, so no deck meets the balance goal.
