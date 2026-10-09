@@ -70,5 +70,14 @@ export function createLBM3D({ nx, ny, nz, nu, solid, linkQ, U, lambda = 3 / 16 }
     st.force = [fx, fy, fz];
     f.set(g); st.step++;
   };
+  // diagnostics: [mean density over fluid, mean ux on plane i = 1, mean ux on plane i = nx - 2]
+  st.mass = () => {
+    let m = 0, c = 0; const pl = [0, 0], pc = [0, 0];
+    for (let n = 0; n < N; n++) {
+      if (isSolid[n]) continue; let r = 0, ux = 0; for (let q = 0; q < Q; q++) { const v = f[q * N + n]; r += v; ux += v * C[q][0]; } m += r; c++;
+      const i = n % nx, p = i === 1 ? 0 : (i === nx - 2 ? 1 : -1); if (p >= 0) { pl[p] += ux / r; pc[p]++; }
+    }
+    return [m / c, pl[0] / pc[0], pl[1] / pc[1]];
+  };
   return st;
 }

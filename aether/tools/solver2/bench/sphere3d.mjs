@@ -14,11 +14,11 @@ const pos = (i, j, k) => [i + .5 - cx, j + .5 - cy, k + .5 - cz];
 const solid = (i, j, k) => { const [x, y, z] = pos(i, j, k); return x * x + y * y + z * z < R * R; };
 const linkQ = (i, j, k, q) => { const [x, y, z] = pos(i, j, k), [dx, dy, dz] = Cd3[q], a = dx * dx + dy * dy + dz * dz, b = 2 * (dx * x + dy * y + dz * z), c = x * x + y * y + z * z - R * R, disc = b * b - 4 * a * c; return Math.min(1, Math.max(1e-6, (-b - Math.sqrt(Math.max(disc, 0))) / (2 * a))); };
 const t0 = Date.now(), S = createLBM3D({ nx, ny, nz, nu, solid, linkQ, U });
-const stepsPerT = Nd / U, ramp = Math.round(2 * stepsPerT), maxSteps = Math.round(+(maxTArg || 60) * stepsPerT), every = Math.round(stepsPerT / 2), A = Math.PI * R * R;
+const stepsPerT = Nd / U, ramp = Math.round(2 * stepsPerT) /* start-up transient excluded from the convergence test */, maxSteps = Math.round(+(maxTArg || 60) * stepsPerT), every = Math.round(stepsPerT / 2), A = Math.PI * R * R;
 const coef = () => 2 * S.force[0] / (U * U * A);
 let last = null, hist = [], conv = false;
 while (S.step < maxSteps) {
-  S.step1(S.step < ramp ? Math.sin(Math.PI / 2 * S.step / ramp) : 1);
+  S.step1(1); // the field starts at the free-stream velocity: no inlet ramp (a ramp against a moving interior launches a long-lived pressure wave; measured Cd < 0 at 22 D/U)
   if (S.step % every === 0 && S.step > ramp) {
     const Cd = coef(), side = Math.hypot(S.force[1], S.force[2]) * 2 / (U * U * A); hist.push({ step: S.step, tD: S.step / stepsPerT, Cd, side });
     process.stdout.write(`t ${(S.step / stepsPerT).toFixed(1)} D/U Cd ${Cd.toFixed(5)} side ${side.toExponential(2)} ${((Date.now() - t0) / 1000).toFixed(0)} s\r`);
