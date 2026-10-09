@@ -1,0 +1,8 @@
+Student experiments, each evaluated vs policy 4 in mirror matches (400 games, 100 pairs x 4), tau=0 unless noted.
+Behaviour cloning, 64 hidden, 4 epochs, 6.3M samples:          A win 3.50% (vs p6), 2.50% (vs p4); tau=-2: 7.75%
+DAgger rounds (64 hidden, tau=0):  r1 12.00%  r2 17.75%  r3 21.75%  r4 20.62%  r5 22.00%  r6 17.75%
+Expert iteration (teacher rollouts use r5 net), 1.3M samples:  vs p4 19.12%, vs p6 23.25%
+Extended lane features, behaviour cloning, 2.5M samples:       vs p4 1.75% (tau=0), 6.75% (tau=-2)
+Play-weighted loss (weight 6), 2.5M samples:                    vs p4 6.50% (tau=0), 3.50% (tau=-1)
+Wider student (192 hidden), play-weighted, 6 epochs:            vs p4 6.25% (tau=0)
+Training cross-entropy plateaus near 0.30 for both widths; capacity is not the limit.
