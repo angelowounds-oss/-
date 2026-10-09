@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createEngine, QUALITY } from './engine.js';
-import { furnitureIds, furnitureInfo, furnitureMaterial } from './furnish.js';
+import { furnitureIds, furnitureInfo, furnitureMaterial, furnitureReady } from './furnish.js';
 import { Game } from './game.js';
 import { el } from './util.js';
 import * as V from './vehicle.js';
@@ -26,6 +26,7 @@ function fatal(e) {
     window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM;
     const bar = el('loadBar').firstElementChild, txt = el('loadTxt');
     await game.init((p, t) => { bar.style.width = p * 100 + '%'; txt.textContent = t; });
+    furnitureReady();   // prepare the furniture models during loading, not in the middle of the first building that opens
   } catch (e) { fatal(e); return; }
   const go = el('go');
   go.classList.add('rdy');

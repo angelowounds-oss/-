@@ -82,9 +82,9 @@ export function buildSoldier(look = {}, gunParts) {
   });
   const mixer = new THREE.AnimationMixer(root);
   const act = {};
-  // base clips run permanently at weight 0; the retargeted UAL clips (U_*) are created on first use so idle actors do not pay for them
+  // base clips (idle / walk / run) run permanently at weight 0; the retargeted UAL clips (U_*) and the pistol upper-body clips (UB_*) are created on first use so idle and unarmed actors do not pay for them
   const clipBy = new Map(A.soldier.animations.map((c) => [c.name, c]));
-  for (const c of A.soldier.animations) if (c.name !== 'TPose' && !c.name.startsWith('U_')) { act[c.name] = mixer.clipAction(c); act[c.name].play(); act[c.name].weight = 0; }
+  for (const c of A.soldier.animations) if (c.name !== 'TPose' && !c.name.startsWith('U_') && !c.name.startsWith('UB_')) { act[c.name] = mixer.clipAction(c); act[c.name].play(); act[c.name].weight = 0; }
   const clip = (name) => { if (act[name]) return act[name]; const c = clipBy.get(name); if (!c) return null; const a = (act[name] = mixer.clipAction(c)); a.play(); a.weight = 0; return a; };
   act.Idle.weight = 1;
   mixer.update(Math.random() * 2);

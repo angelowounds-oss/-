@@ -64,11 +64,14 @@ export class Building {
     this.solidTower = null;
     this.full = false;
     this.ensureRange(0, 0, false);
-    this.buildFloor(0); this.pending = this.pending.filter((k) => k !== 0);
+    // the ground floor is built right away only for someone standing next to the building; otherwise it is queued like the other floors
+    // (one floor per frame), so opening a building never costs a single long frame
+    const pl = this.G.player, l = this.lot, near = pl.x > l.x0 - 14 && pl.x < l.x1 + 14 && pl.z > l.z0 - 14 && pl.z < l.z1 + 14;
+    if (near) { this.buildFloor(0); this.pending = this.pending.filter((k) => k !== 0); }
     this.updateSolid();
   }
   deactivate() {
-    if (!this.open) return; this.open = false;
+    if (!this.open) return; this.finishJob(); this.open = false;
     const col = this.G.world.colliders;
     for (const k of [...this.floors.keys()]) this.dropFloor(k);
     this.elev?.destroy(); this.elev = null;
@@ -85,7 +88,13 @@ export class Building {
     if (this.full) for (let k = 0; k < this.levels.length; k++) if (this.levels[k].tier === 'podium') keep.add(k);   // the upper podium floors only exist once someone is at the building (see Buildings.update)
     for (let k = Math.max(0, a); k <= Math.min(this.levels.length - 1, b); k++) keep.add(k);
     for (const k of [...this.floors.keys()]) if (!keep.has(k)) this.dropFloor(k);
-    for (const k of keep) if (!this.floors.has(k) && !this.pending.includes(k)) { if (now) this.buildFloor(k); else this.pending.push(k); }
+    let solidDirty = false;
+    for (const k of keep) {
+      if (this.floors.has(k)) continue;
+      if (now) { const i = this.pending.indexOf(k); if (i >= 0) this.pending.splice(i, 1); this.buildFloor(k); if (this.levels[k].tier !== 'podium') solidDirty = true; }   // needed right now (buildFloor finishes a background build of that floor)
+      else if (!this.pending.includes(k) && !(this.job && this.job.k === k)) this.pending.push(k);
+    }
+    if (solidDirty && !(this.elev && this.elev.state === 'moving')) this.updateSolid();   // floors built on the spot replace the solid block that stood in for them
   }
   // solid box(es) covering the unbuilt tower volume, so bullets/cars/camera still see a building
   updateSolid() {
@@ -105,14 +114,26 @@ export class Building {
     // everything above the roof level is the crown/air; nothing else
   }
   tick(dt) {
-    if (this.pending.length) { const k = this.pending.shift(); if (!this.floors.has(k)) { this.buildFloor(k); if (this.levels[k].tier !== 'podium' && !(this.elev && this.elev.state === 'moving')) this.updateSolid(); } }
+    if (!this.job && this.pending.length) {   // the floor nearest the player first
+      const cl = this.curLevel ?? 0; let bi = 0; for (let i = 1; i < this.pending.length; i++) if (Math.abs(this.pending[i] - cl) < Math.abs(this.pending[bi] - cl)) bi = i;
+      const k = this.pending.splice(bi, 1)[0]; if (!this.floors.has(k)) this.job = { k, gen: this.buildFloorGen(k) };
+    }
+    if (this.job) {   // advance the floor being built by whole steps until ~3 ms are spent
+      const t0 = performance.now(); let done = false;
+      do done = this.job.gen.next().done; while (!done && performance.now() - t0 < 3);
+      if (done) { const k = this.job.k; this.job = null; if (this.levels[k].tier !== 'podium' && !(this.elev && this.elev.state === 'moving')) this.updateSolid(); }
+    }
     this.elev?.update(dt);
     for (const d of this.doors) d.update(dt);
   }
   // ====================================================================
   // floor construction
   // ====================================================================
-  buildFloor(k) {
+  // synchronous build (a floor that is needed right now); a background build in progress is finished first
+  buildFloor(k) { this.finishJob(); if (this.floors.has(k)) return; const g = this.buildFloorGen(k); while (!g.next().done); }
+  finishJob() { const j = this.job; if (!j) return; while (!j.gen.next().done); this.job = null; if (this.levels[j.k].tier !== 'podium' && !(this.elev && this.elev.state === 'moving')) this.updateSolid(); }
+  // a floor is built in a few steps (generator), spread over frames when it is not urgent: see tick()
+  *buildFloorGen(k) {
     const G = this.G, col = G.world.colliders, L = this.levels[k], r = L.rect;
     const fl = { k, boxes: [], bodies: [], doors: [], fixtures: [], interact: [], group: new THREE.Group(), glass: [], props: [] };
     this.group.add(fl.group);
@@ -141,20 +162,25 @@ export class Building {
     if (!isRoof) this.perimeter(fl, B, cc, L, r, y, L.h, wallC);
     else this.parapet(fl, B, cc, r, y, wallC);
     if (L.tier === 'tower' && L.k === this.levels.findIndex((l) => l.tier === 'tower')) this.parapet(fl, B, cc, this.pod, y, wallC, 1.0);
+    yield;
     // ---- core ----
     this.buildCore(fl, B, cc, L, y, wallC, isRoof);
     if (k === 0) { this.addLadder(fl, B, 'base'); this.addLadder(fl, B, 'base', -7, '배수관'); } else if (L.tier === 'tower' && L.slab === this.pod && L.k === this.levels.findIndex((l) => l.tier === 'tower')) { this.addLadder(fl, B, 'top'); this.addLadder(fl, B, 'top', -7, '배수관'); }
+    yield;
     // ---- ceiling lights / fixtures ----
     if (!isRoof) this.lighting(fl, B, L, r, y, top, acc);
+    yield;
     // ---- contents ----
     fl.deco = furnitureReady() ? new FloorDecor(fl, y) : null;
     if (L.type === 'lobby') this.furnishLobby(fl, L);
     else if (L.type === 'retail') this.furnishOpen(fl, L, 'retail');
     else if (L.type === 'roof') this.furnishRoof(fl, L);
-    else this.furnishRooms(fl, L);
+    else yield* this.furnishRooms(fl, L);
+    yield;
     fl.deco?.finish(fl.group);
     // ---- finish meshes ----
     B.finish(fl.group);
+    yield;
     this.buildGlassMesh(fl);
     this.G.breach?.applyFloor(this, fl, k);   // walls breached earlier stay open
     this.floors.set(k, fl);
@@ -487,7 +513,7 @@ export class Building {
     fl.fixtures.push([cx, this.roofY + 4, cz, [0.8, 0.9, 1]]);
     this.M.populateFloor?.(this, fl, L);
   }
-  furnishRooms(fl, L) {
+  *furnishRooms(fl, L) {
     const { B, solid, cc, R, rnd } = fl, r = L.rect, c = this.core, zc = c.zc;
     const ix0 = r.x0 + WALL, ix1 = r.x1 - WALL, iz0 = r.z0 + WALL, iz1 = r.z1 - WALL, y = L.y, h = L.h - SLAB;
     const wallC = fl.wallC, rooms = [];
@@ -575,7 +601,8 @@ export class Building {
     }
     if (numGeos.length) { const m = new THREE.Mesh(mergeGeometries(numGeos), digitMaterial()); m.frustumCulled = true; fl.group.add(m); }
     // furnish
-    rooms.forEach((rm, i) => this.furnishRoom(fl, L, rm, i));
+    yield;
+    for (let i = 0; i < rooms.length; i++) { this.furnishRoom(fl, L, rooms[i], i); if (i % 2 === 1) yield; }   // two rooms per step
     this.addLivingSets(fl, y);
     // open spaces: corridor decor
     this.plant(fl, ix0 + 0.6, corrZ1 - 0.6);
@@ -599,6 +626,7 @@ export class Building {
       // vending machine at the end of the corridor
       { const vx = ix1 - 1.1, vz = corrZ1 - 0.5; fl.solid('decor', vx - 0.45, y, vz - 0.4, vx + 0.45, y + 1.85, vz + 0.4, 0x2a3a5a); B.ext('emit', vx - 0.38, y + 0.9, vz - 0.405, vx + 0.38, y + 1.7, vz - 0.395, new THREE.Color(0.35, 0.75, 1).multiplyScalar(1.5)); B.ext('emit', vx - 0.38, y + 0.3, vz - 0.405, vx + 0.38, y + 0.38, vz - 0.395, new THREE.Color(1, 0.5, 0.2).multiplyScalar(1.3)); }
     }
+    yield;
     this.M.populateFloor?.(this, fl, L, rooms);
     fl.rooms = rooms;
   }
@@ -926,7 +954,7 @@ class Elevator {
       if (ride) { pl.body3.shift(0, dy, 0); pl.y += dy; if (pl.group) pl.group.position.y += dy; }
       this.vy = dy / Math.max(dt, 1e-4);
       const lvNow = b.levelAt(this.y + 0.3);
-      if (lvNow !== this.level) { this.level = lvNow; b.ensureRange(lvNow - 1 + (dir > 0 ? 0 : -2), lvNow + 1 + (dir > 0 ? 2 : 0)); }
+      if (lvNow !== this.level) { this.level = lvNow; b.curLevel = lvNow; b.ensureRange(lvNow - 1 + (dir > 0 ? 0 : -2), lvNow + 1 + (dir > 0 ? 2 : 0)); }
       if (Math.abs(dist) < 0.01) { this.y = ty; this.level = this.target; this.queue.shift(); this.state = 'opening'; this.G.audio.ding?.(); b.updateSolid(); if (ride) pl.body3.shift(0, 0.06, 0); }
     }
     this.syncCab();
@@ -1048,7 +1076,7 @@ export class Buildings {
       const at = fx >= b.lot.x0 && fx <= b.lot.x1 && fz >= b.lot.z0 && fz <= b.lot.z1, atDoor = Math.hypot(fx - b.door.px, fz - b.door.pz) < 9;
       const inside = at || atDoor;
       if (inside) b.full = true;
-      if (inside && !(b.elev && b.elev.state === 'moving')) { const k = b.levelAt(py); b.ensureRange(k - 2, k + 3); b.curLevel = k; }
+      if (inside && !(b.elev && b.elev.state === 'moving')) { const k = b.levelAt(py); b.ensureRange(k - 2, k + 3); b.curLevel = k; if (at && !b.floors.has(k)) b.buildFloor(k); }   // never leave the floor someone stands on unbuilt
       b.tick(dt);
     }
   }

@@ -16,7 +16,7 @@ function loadArray(url, size, layers, srgb) {
       const px = g.getImageData(0, 0, size, size * layers).data;
       const t = new THREE.DataArrayTexture(new Uint8Array(px.buffer), size, size, layers);
       t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType; t.generateMipmaps = true;
-      t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+      t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
       t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.needsUpdate = true;
       resolve(t);
     };

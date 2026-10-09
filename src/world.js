@@ -1279,9 +1279,10 @@ export function buildWorld(scene, quality) {
     sorted.length = 0;
     for (let i = 0; i < arr.length; i++) {
       const a = arr[i];
+      const dx = a.x - fx, dz = a.z - fz, d2 = dx * dx + dz * dz;
+      if (d2 > 170 * 170) continue;   // beyond the lights' range they were dropped after the sort anyway; sorting only the nearby ones is the same result
       if (world.zoneOff[world.zoneOf(a.x, a.z)]) continue;
-      const dx = a.x - fx, dz = a.z - fz;
-      sorted.push([dx * dx + dz * dz, a]);
+      sorted.push([d2, a]);
     }
     sorted.sort((a, b) => a[0] - b[0]);
     const u = ground.userData.uniforms;
