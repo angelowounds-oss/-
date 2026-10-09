@@ -397,7 +397,7 @@ static bool esMode(int argc, char** argv) {
     vector<float> old(n); size_t got = fread(old.data(), sizeof(float), n, fp); fclose(fp); (void)got;
     saveTheta(widenTheta(old), argv[3]); printf("widened %s (%ld floats) -> %s\n", argv[2], n, argv[3]); return true;
   }
-  if (mode != "es" || argc < 9) return false;
+  if (mode != "esfine" || argc < 9) return false;
   vector<float> th = loadTheta(argv[2]); string out = argv[3];
   int gens = atoi(argv[4]), pop = atoi(argv[5]), games = atoi(argv[6]); float sigma = (float)atof(argv[7]), lr = (float)atof(argv[8]);
   uint64_t seed = argc > 9 ? atoll(argv[9]) : 1;
