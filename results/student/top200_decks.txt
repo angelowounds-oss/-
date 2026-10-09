@@ -1,0 +1,200 @@
+Random_0001|Elixir Collector,Balloon,Rocket,Goblin Drill,Dart Goblin,Minion Horde,Dart Goblin,Battle Healer
+Random_0004|P.E.K.K.A.,Goblin Cage,Hog Rider,Void,Hunter,Electro Dragon,Mortar,Prince
+Random_0027|Royal Ghost,Bowler,Goblin Cage,X-Bow,Elite Barbarians,Hog Rider,Barbarian Barrel,Electro Giant
+Random_0064|Lightning,Archers,Royal Hogs,Ice Wizard,Miner,Bats,X-Bow,Sparky
+Random_0085|Ronin,Goblinstein,Mighty Miner,Graveyard,Hunter,Rage,Cannon,Royal Hogs
+Random_0100|Void,Wall Breakers,Mini PEKKA,Guards,Goblin Demolisher,Goblin Gang,Battle Healer,Inferno Tower
+Random_0113|Inferno Tower,Suspicious Bush,Elite Barbarians,Barbarian Hut,Princess,Royal Delivery,Battle Healer,Night Witch
+Random_0123|Zap,Ice Spirit,Rascals,Skeletons,Tornado,Sparky,Tesla,Wall Breakers
+Random_0155|Mortar,Freeze,Rune Giant,Magic Archer,Lava Hound,Sparky,Mini PEKKA,Lightning
+Random_0226|Barbarian Hut,Valkyrie,Mega Knight,Dart Goblin,Poison,Miner,Royal Recruits,Lumberjack
+Random_0232|Baby Dragon,Dark Prince,Monk,Tornado,Vines,Bowler,Bomber,Tesla
+Random_0236|Electro Spirit,Lightning,Mortar,Elite Barbarians,Hog Rider,Flying Machine,Berserker,Skeleton Army
+Random_0237|Ronin,Valkyrie,Goblin Curse,Cannon,Fireball,Witch,Archers,Skeletons
+Random_0240|Ram Rider,Valkyrie,Bats,Battle Healer,Minions,Rocket,Cannon,Ice Golem
+Random_0293|Goblins,Minion Horde,Ronin,Goblin Hut,Elixir Golem,Battle Healer,Cannon,Fireball
+Random_0312|Barbarian Hut,Minions,Mother Witch,Golem,Executioner,Zap,Goblin Drill,Musketeer
+Random_0353|Baby Dragon,Skeleton King,Goblin Hut,Hunter,Zap,Skeleton Dragons,Electro Giant,Cannon
+Random_0355|Inferno Dragon,Elixir Collector,Suspicious Bush,Elixir Golem,Ice Spirit,Rascals,Goblin Drill,Rage
+Random_0386|Ronin,Balloon,Tornado,Knight,Skeletons,X-Bow,Mother Witch,Giant Snowball
+Random_0418|Goblin Hut,Electro Spirit,Poison,Mini PEKKA,Bats,Night Witch,Vines,Wall Breakers
+Random_0421|Skeleton Dragons,Poison,Goblin Cage,Skeletons,Princess,Freeze,Battle Healer,Sparky
+Random_0429|Royal Ghost,Battle Ram,Rascals,Goblin Drill,Lightning,Skeleton Army,Hog Rider,Zap
+Random_0441|Balloon,Freeze,Furnace,Giant Skeleton,Dart Goblin,Rocket,Tombstone,Mini PEKKA
+Random_0546|Poison,Tesla,Rage,Valkyrie,Guards,Goblin Gang,Firecracker,Giant Skeleton
+Random_0547|Witch,Ram Rider,Goblin Hut,Firecracker,Dark Prince,Arrows,Bomb Tower,Wizard
+Random_0548|Cannon Cart,Bats,Guards,Zap,Skeleton Dragons,Tombstone,Zappies,Electro Spirit
+Random_0567|Firecracker,Mini PEKKA,Heal Spirit,Bats,Musketeer,Mother Witch,Goblin Barrel,Barbarian Hut
+Random_0576|Ice Wizard,Tesla,Goblin Curse,Firecracker,P.E.K.K.A.,Ice Spirit,Cannon,Skeleton Army
+Random_0583|Void,Little Prince,Suspicious Bush,Mini PEKKA,Bomb Tower,Bats,Ronin,Mortar
+Random_0590|Flying Machine,Furnace,Cannon,Minions,Firecracker,Dart Goblin,Bandit,Poison
+Random_0603|Flying Machine,Mortar,Goblin Hut,Elite Barbarians,Ice Spirit,Wizard,Arrows,Golem
+Random_0643|P.E.K.K.A.,Ice Golem,Miner,Dark Prince,Baby Dragon,Goblin Drill,Freeze,Poison
+Random_0654|Zap,Rocket,Dark Prince,Elixir Golem,Mother Witch,Dart Goblin,Tombstone,Bats
+Random_0690|Goblin Gang,Suspicious Bush,Goblin Barrel,Tesla,Elite Barbarians,Ice Spirit,Fireball,Hog Rider
+Random_0727|Barbarian Barrel,Goblin Drill,Archers,Furnace,Minion Horde,Princess,Executioner,Arrows
+Random_0818|Mortar,Goblinstein,Electro Giant,Firecracker,Mother Witch,Giant,Electro Dragon,Rage
+Random_0838|Firecracker,Cannon,Baby Dragon,Royal Delivery,Wizard,P.E.K.K.A.,Tesla,Skeletons
+Random_0885|Sparky,Wizard,Barbarian Hut,Arrows,Balloon,Lumberjack,Goblin Cage,Skeleton Army
+Random_0905|P.E.K.K.A.,Little Prince,Night Witch,Freeze,Fire Spirit,Goblin Hut,Magic Archer,Goblin Drill
+Random_0911|Mortar,Little Prince,Goblin Gang,Goblin Drill,Goblin Giant,Archers,Wizard,Lightning
+Random_0919|Electro Giant,Ice Spirit,Minion Horde,Elite Barbarians,Tesla,Hunter,Rage,Giant Skeleton
+Random_0938|Void,Earthquake,Barbarian Hut,Prince,Miner,Archers,Battle Healer,Flying Machine
+Random_0969|Rune Giant,Vines,Mighty Miner,Tornado,Tesla,Wall Breakers,Electro Wizard,Fire Spirit
+Random_0977|Hog Rider,Vines,Goblins,Tesla,Heal Spirit,Cannon,Bats,Furnace
+Random_0989|Sparky,Earthquake,Rune Giant,Wall Breakers,Wizard,Bomb Tower,Goblin Demolisher,Goblin Drill
+Random_1004|Lava Hound,Earthquake,Wall Breakers,Cannon,Night Witch,Mini PEKKA,Barbarian Barrel,Goblins
+Random_1055|Ronin,Archer Queen,Royal Recruits,Earthquake,Wall Breakers,Freeze,Baby Dragon,Elixir Collector
+Random_1122|Goblin Barrel,Sparky,Skeleton Dragons,Freeze,Musketeer,Barbarian Hut,Firecracker,Archers
+Random_1140|Bats,Goblinstein,Fisherman,Electro Dragon,Suspicious Bush,Goblin Hut,Zap,Battle Healer
+Random_1149|Furnace,Bats,Rascals,Inferno Tower,Hog Rider,Battle Healer,Bomb Tower,Zap
+Random_1159|Royal Hogs,Lightning,Lava Hound,Prince,Tombstone,Goblins,Electro Wizard,Fireball
+Random_1177|Tombstone,Wall Breakers,Rocket,Mega Minion,Elite Barbarians,Prince,Golem,Ice Spirit
+Random_1186|Balloon,Prince,Inferno Tower,Guards,Archers,Bomber,Goblin Giant,Rage
+Random_1219|Wizard,The Log,Royal Recruits,Goblin Cage,Ronin,Ice Golem,Goblin Drill,Bomber
+Random_1252|Zappies,Executioner,Goblin Barrel,Barbarian Barrel,Skeletons,Sparky,Dark Prince,Cannon
+Random_1294|Goblin Gang,Fireball,Rascals,Cannon,Knight,Hog Rider,Wizard,Goblins
+Random_1312|Goblin Hut,Balloon,Dark Prince,Skeleton Army,Wall Breakers,P.E.K.K.A.,Zap,Rocket
+Random_1357|Void,Mini PEKKA,Golem,Elixir Golem,Ice Golem,Tesla,Wizard,Goblin Curse
+Random_1371|Lumberjack,Suspicious Bush,Minion Horde,Fire Spirit,Rocket,Elixir Collector,Balloon,Bowler
+Random_1379|Royal Recruits,Lava Hound,Bandit,Mortar,Barbarian Hut,Wall Breakers,Fireball,Minion Horde
+Random_1408|Musketeer,Heal Spirit,Hog Rider,Tombstone,Vines,Tesla,Electro Spirit,Sparky
+Random_1425|Royal Hogs,Zap,Elixir Golem,Royal Giant,P.E.K.K.A.,Cannon,Goblin Gang,Dark Prince
+Random_1456|Hog Rider,Prince,P.E.K.K.A.,Freeze,Bomber,Lumberjack,Elixir Golem,Tombstone
+Random_1462|Barbarian Hut,Firecracker,Electro Spirit,Goblins,Bomb Tower,Royal Delivery,Battle Ram,Electro Dragon
+Random_1582|Earthquake,Electro Spirit,Balloon,Barbarian Hut,Mega Minion,Poison,Ram Rider,Mega Knight
+Random_1592|Graveyard,Vines,Golden Knight,Bandit,Skeletons,Goblin Gang,Inferno Tower,Hunter
+Random_1719|Goblin Barrel,Wall Breakers,Minions,Vines,Mega Minion,Cannon,Royal Giant,Ram Rider
+Random_1734|Phoenix,Fireball,Electro Wizard,Royal Recruits,Cannon,Electro Giant,Rage,Witch
+Random_1756|Spear Goblins,Freeze,Archers,Hog Rider,Bomb Tower,Balloon,Royal Delivery,Prince
+Random_1767|Witch,Mega Minion,Monk,Royal Delivery,Miner,Bomber,Tombstone,Barbarian Hut
+Random_1769|Bomber,Bomb Tower,Fireball,Bowler,Mega Minion,Poison,Royal Hogs,Sparky
+Random_1781|Hog Rider,Skeleton Barrel,Dark Prince,Bomb Tower,Rascals,Phoenix,Goblin Cage,Void
+Random_1798|Witch,Goblin Demolisher,Bowler,Goblin Gang,Zap,Clone,Goblin Cage,Skeleton Barrel
+Random_1841|Elixir Golem,Goblin Hut,Inferno Tower,Earthquake,Royal Hogs,Barbarians,Electro Giant,Elite Barbarians
+Random_1857|Goblin Drill,Prince,Hunter,Vines,Berserker,Elite Barbarians,Giant Snowball,Night Witch
+Random_1890|Barbarian Barrel,Mega Knight,Wall Breakers,Tornado,Goblin Hut,Battle Healer,Zappies,Mega Minion
+Random_1908|Ice Wizard,Minion Horde,Lava Hound,Fire Spirit,Fireball,Barbarian Hut,Bomber,X-Bow
+Random_1929|Arrows,Flying Machine,Fire Spirit,Elixir Collector,Hog Rider,Mother Witch,Tombstone,Elite Barbarians
+Random_1943|Mother Witch,Royal Giant,Rage,Bats,Guards,Inferno Tower,Goblin Giant,Ronin
+Random_1956|X-Bow,Elixir Golem,Void,Earthquake,Bats,Bats,Royal Recruits,Fire Spirit
+Random_1991|Royal Hogs,Lightning,Rascals,Giant Skeleton,Ice Wizard,Bomb Tower,Princess,X-Bow
+Random_1999|Royal Recruits,P.E.K.K.A.,Goblin Cage,Zappies,Clone,Furnace,Electro Giant,Giant
+Random_2009|Barbarian Barrel,Tornado,Bats,Furnace,Goblin Cage,Mini PEKKA,Mega Minion,Balloon
+Random_2092|Lava Hound,Minions,Rage,Inferno Tower,Wall Breakers,Bats,Executioner,Lumberjack
+Random_2104|Musketeer,Archers,Skeleton Dragons,Goblin Barrel,Balloon,Bats,Goblin Drill,Executioner
+Random_2166|Vines,Elite Barbarians,Electro Wizard,Tornado,Suspicious Bush,Executioner,Bats,Goblin Hut
+Random_2190|Phoenix,Freeze,Barbarians,Balloon,Goblin Giant,Firecracker,Cannon Cart,Goblin Drill
+Random_2209|Flying Machine,Graveyard,Royal Giant,Elixir Collector,Battle Ram,Cannon,Skeleton Dragons,Suspicious Bush
+Random_2213|Royal Hogs,Mighty Miner,Lightning,Miner,Elixir Collector,Ronin,Goblin Hut,Ice Spirit
+Random_2220|Wall Breakers,Goblin Giant,Tombstone,Elixir Golem,Goblin Gang,Goblin Barrel,Bats,Barbarian Barrel
+Random_2222|Ice Spirit,Witch,Golden Knight,P.E.K.K.A.,Cannon,Lightning,Barbarian Hut,Archers
+Random_2230|Goblins,Cannon,Baby Dragon,Golem,Graveyard,Battle Ram,Elixir Golem,Fire Spirit
+Random_2249|Mortar,Skeleton King,Royal Delivery,Electro Wizard,Bomber,Giant,Knight,Goblin Drill
+Random_2266|Rocket,Cannon,Skeletons,Ram Rider,Battle Healer,Princess,Bandit,Bats
+Random_2271|Rune Giant,Bats,Bomber,Wall Breakers,Mega Knight,Tesla,Skeletons,Earthquake
+Random_2273|Wall Breakers,Goblin Drill,Mother Witch,Ice Golem,Dark Prince,Minions,Magic Archer,Freeze
+Random_2320|Freeze,Goblins,Cannon,Wizard,Royal Giant,Berserker,Bats,Rocket
+Random_2332|Wall Breakers,Cannon Cart,Mortar,Electro Dragon,Elixir Golem,Royal Hogs,Fireball,Firecracker
+Random_2341|Wall Breakers,Skeletons,Dart Goblin,Flying Machine,Bomb Tower,Rage,Mini PEKKA,Ice Spirit
+Random_2352|Arrows,Boss Bandit,Rune Giant,Dart Goblin,Rage,Goblin Hut,Zappies,Witch
+Random_2368|Minions,Goblin Drill,Ice Golem,Goblin Curse,Knight,Firecracker,Royal Recruits,Mother Witch
+Random_2373|Rocket,Goblin Hut,Poison,Electro Wizard,Elixir Golem,Lumberjack,Bats,Ram Rider
+Random_2375|Barbarian Hut,P.E.K.K.A.,Witch,Royal Delivery,Royal Hogs,Elite Barbarians,Cannon,Giant
+Random_2444|Elixir Collector,Royal Hogs,Fireball,Cannon,Ram Rider,Fisherman,Electro Giant,P.E.K.K.A.
+Random_2447|Bomber,Mini PEKKA,Executioner,Arrows,Goblin Curse,Minion Horde,Fisherman,Goblin Hut
+Random_2472|Goblin Machine,Goblin Cage,Battle Healer,Electro Giant,Minion Horde,Electro Spirit,Zap,Barbarian Barrel
+Random_2487|Zap,Giant,Elixir Collector,Electro Spirit,Suspicious Bush,Royal Delivery,Electro Dragon,Goblin Gang
+Random_2530|P.E.K.K.A.,Goblin Cage,Dark Prince,Mega Minion,Wall Breakers,Graveyard,Firecracker,Zap
+Random_2547|Balloon,Mortar,Electro Spirit,Clone,P.E.K.K.A.,Wizard,Mini PEKKA,Elixir Collector
+Random_2569|Bandit,Skeletons,Electro Spirit,Vines,Skeleton Dragons,Elixir Collector,Flying Machine,Golem
+Random_2577|Royal Delivery,Dart Goblin,Inferno Tower,Goblin Cage,Mega Knight,Cannon Cart,Furnace,Sparky
+Random_2584|Bomb Tower,Skeleton Army,Wizard,Firecracker,Electro Dragon,Fisherman,Clone,Royal Delivery
+Random_2609|Balloon,Golem,Minion Horde,Skeletons,Mortar,Mini PEKKA,Goblin Curse,Cannon
+Random_2623|Skeletons,Cannon,Mega Minion,Witch,Night Witch,Graveyard,Valkyrie,Zap
+Random_2663|Berserker,Suspicious Bush,Sparky,Poison,Firecracker,Cannon,Inferno Tower,Spear Goblins
+Random_2669|Barbarian Hut,Bomb Tower,Royal Hogs,Dark Prince,Rascals,Lightning,Miner,Wall Breakers
+Random_2673|Cannon,Prince,Firecracker,Goblin Hut,Cannon Cart,Royal Ghost,Royal Delivery,Magic Archer
+Random_2689|Minion Horde,Goblin Drill,Goblinstein,Three Musketeers,Guards,Minions,Goblin Barrel,Wall Breakers
+Random_2700|Skeleton Barrel,Electro Dragon,Lava Hound,Mortar,Tombstone,Goblin Giant,Lightning,Goblin Demolisher
+Random_2764|Graveyard,Hog Rider,Mighty Miner,Wizard,Elixir Collector,Golem,Ice Golem,Cannon
+Random_2770|Bomb Tower,Cannon,Bandit,Mini PEKKA,Royal Hogs,Earthquake,Wall Breakers,Witch
+Random_2778|Electro Spirit,Goblin Drill,Royal Hogs,Suspicious Bush,Tornado,Royal Delivery,Valkyrie,Sparky
+Random_2787|Zappies,Clone,Ice Spirit,Wizard,Hunter,Barbarian Hut,Ronin,Sparky
+Random_2800|Skeleton Barrel,P.E.K.K.A.,Berserker,Bomb Tower,Graveyard,Cannon,Fisherman,Musketeer
+Random_2844|Archers,Berserker,Little Prince,Goblin Drill,Graveyard,Royal Recruits,Electro Spirit,Elixir Collector
+Random_2889|Tesla,Three Musketeers,Skeleton Barrel,Executioner,Arrows,Electro Spirit,Cannon,Electro Dragon
+Random_2892|Lumberjack,Elixir Golem,Bats,Elixir Collector,Graveyard,Ice Golem,Goblin Gang,Poison
+Random_2943|Wizard,Inferno Tower,Ram Rider,Balloon,Royal Recruits,Giant Skeleton,Rascals,Rocket
+Random_2948|Royal Recruits,Dark Prince,Zap,Rascals,Spear Goblins,X-Bow,Goblin Cage,Goblin Demolisher
+Random_2955|Goblin Demolisher,Mother Witch,Electro Dragon,Zappies,Electro Giant,Skeleton Barrel,Goblin Drill,Graveyard
+Random_2966|Goblin Hut,Mighty Miner,Goblin Giant,Vines,Cannon Cart,Ice Golem,Goblin Curse,Giant Skeleton
+Random_2975|Goblin Cage,Dark Prince,Sparky,Tombstone,Fire Spirit,Guards,Zap,Elixir Golem
+Random_2977|Battle Ram,Zap,Royal Recruits,Mini PEKKA,Ice Spirit,Royal Hogs,Ice Golem,X-Bow
+Random_3029|Tornado,Mini PEKKA,Minion Horde,Princess,X-Bow,Skeletons,Fire Spirit,Rocket
+Random_3047|Archers,Barbarian Hut,Giant Snowball,Firecracker,Executioner,Bandit,Inferno Tower,Sparky
+Random_3070|Witch,Cannon,Ram Rider,Berserker,Poison,Mega Minion,Princess,Royal Giant
+Random_3093|X-Bow,Spear Goblins,Goblins,Cannon,Freeze,Hog Rider,Royal Giant,Bats
+Random_3118|Earthquake,Cannon Cart,Barbarians,Royal Delivery,Firecracker,Baby Dragon,X-Bow,Spear Goblins
+Random_3162|Arrows,Mother Witch,Fisherman,Barbarian Hut,Cannon Cart,Goblin Cage,Barbarians,Bandit
+Random_3172|Golem,Bomber,Bats,Goblin Hut,Royal Hogs,Cannon,Poison,Lava Hound
+Random_3180|Dart Goblin,Three Musketeers,Poison,Skeleton Army,Electro Dragon,Fisherman,Fireball,Goblin Drill
+Random_3188|X-Bow,Barbarian Barrel,Lumberjack,Skeleton Dragons,Hog Rider,Magic Archer,The Log,Guards
+Random_3243|Executioner,Zap,Royal Delivery,Bats,Bomb Tower,Minions,Heal Spirit,Witch
+Random_3259|Goblin Cage,Goblin Curse,Golden Knight,Mini PEKKA,Lava Hound,Barbarian Hut,P.E.K.K.A.,Princess
+Random_3362|Giant Snowball,Rune Giant,Dark Prince,Lightning,Skeleton Army,Mother Witch,Cannon,Firecracker
+Random_3395|Royal Recruits,Royal Delivery,Balloon,Goblin Cage,Bandit,Giant Snowball,Skeleton Dragons,Firecracker
+Random_3416|Dart Goblin,Sparky,Miner,Barbarian Barrel,Cannon,Rascals,Balloon,Mortar
+Random_3547|Bats,Dart Goblin,P.E.K.K.A.,Hog Rider,Cannon,Zap,Void,Ice Golem
+Random_3548|Ronin,Goblin Giant,Mighty Miner,Spear Goblins,Electro Spirit,Graveyard,Elixir Golem,Barbarian Hut
+Random_3575|Freeze,Battle Healer,Barbarian Hut,Zappies,Minion Horde,Ice Spirit,Mortar,Bats
+Random_3584|Goblin Gang,Vines,Lightning,Mortar,Mega Minion,Wall Breakers,Electro Wizard,Bats
+Random_3624|Knight,Tombstone,Vines,Electro Spirit,Graveyard,Electro Dragon,Princess,Lumberjack
+Random_3630|Graveyard,Inferno Tower,Ice Golem,Electro Giant,Miner,Electro Dragon,Balloon,Musketeer
+Random_3695|Clone,Tombstone,Wall Breakers,Cannon,Witch,Wizard,Mega Knight,Miner
+Random_3764|Royal Hogs,Royal Recruits,Goblin Cage,Dark Prince,Vines,Electro Spirit,Bats,Guards
+Random_3778|Miner,Hog Rider,Rocket,Graveyard,Barbarian Hut,Suspicious Bush,Elite Barbarians,Royal Recruits
+Random_3806|Skeleton Army,Electro Giant,Furnace,Rage,P.E.K.K.A.,Goblin Drill,Fire Spirit,Goblin Barrel
+Random_3828|Tornado,Little Prince,Goblins,Wall Breakers,Barbarian Hut,Valkyrie,Bats,Elixir Collector
+Random_3871|Zap,Rune Giant,Barbarian Barrel,Hog Rider,Tesla,Three Musketeers,Sparky,Miner
+Random_3900|Arrows,Bats,Dark Prince,Cannon,Electro Wizard,Mega Minion,Skeletons,Witch
+Random_3973|Rune Giant,Bomb Tower,Fireball,Royal Giant,Electro Dragon,Battle Ram,Void,Royal Hogs
+Random_3985|Graveyard,Magic Archer,Bats,Wall Breakers,Goblin Drill,Furnace,Ram Rider,Tesla
+Random_4014|Goblin Barrel,Inferno Tower,Skeleton Barrel,Knight,Goblin Gang,Hog Rider,Rage,Fire Spirit
+Random_4089|Hog Rider,Goblin Drill,Lightning,Heal Spirit,Electro Dragon,Dart Goblin,Battle Ram,Skeleton Army
+Random_4103|Rocket,Goblin Hut,Berserker,Skeletons,Royal Ghost,Guards,Lumberjack,Tornado
+Random_4104|Rascals,Lightning,Bandit,Goblin Cage,Miner,Goblin Drill,Goblin Demolisher,Royal Recruits
+Random_4113|Barbarian Hut,Little Prince,Freeze,Ice Wizard,Wall Breakers,Royal Giant,Balloon,Minion Horde
+Random_4139|Cannon,Arrows,Mega Knight,Skeletons,Mother Witch,Elixir Golem,Electro Giant,Wall Breakers
+Random_4191|Mortar,Skeleton Barrel,Spear Goblins,Electro Dragon,Fisherman,Lightning,Electro Wizard,X-Bow
+Random_4218|Fireball,Barbarian Hut,Royal Ghost,Ice Golem,Goblin Gang,Executioner,Rocket,Princess
+Random_4252|Firecracker,Dark Prince,Minion Horde,Bomber,Miner,Giant Snowball,Inferno Tower,Freeze
+Random_4269|Witch,Elixir Golem,Archer Queen,Mother Witch,Goblin Barrel,Giant Snowball,Golem,Goblin Drill
+Random_4301|Fisherman,Firecracker,Earthquake,Mini PEKKA,Elixir Collector,Goblins,Goblin Drill,Knight
+Random_4307|Graveyard,Ice Wizard,Elixir Collector,Cannon Cart,Fisherman,Night Witch,Zap,Minion Horde
+Random_4368|Flying Machine,Battle Healer,Skeletons,Elite Barbarians,Vines,Elixir Collector,Bomber,Hog Rider
+Random_4397|Bats,Lumberjack,Lightning,Fire Spirit,Heal Spirit,Tesla,Poison,Mega Knight
+Random_4408|Flying Machine,Void,Clone,Electro Spirit,Knight,Skeletons,Inferno Tower,Royal Ghost
+Random_4415|Bats,Mega Knight,Giant Snowball,Wall Breakers,Fireball,Firecracker,Mega Minion,Goblin Cage
+Random_4520|Barbarians,Arrows,Furnace,Bowler,Hunter,Mega Minion,Cannon,Mortar
+Random_4571|Fire Spirit,Vines,Elite Barbarians,Wizard,Phoenix,Mortar,Wall Breakers,Electro Giant
+Random_4662|Hog Rider,Battle Healer,Royal Hogs,Night Witch,Magic Archer,Battle Ram,Tesla,Clone
+Random_4666|Valkyrie,Freeze,Mega Knight,Elixir Collector,Fisherman,Goblin Barrel,Goblin Gang,Goblins
+Random_4672|Goblin Gang,Boss Bandit,Mortar,Void,Rascals,Night Witch,Goblin Barrel,Skeleton Army
+Random_4695|Barbarians,Mini PEKKA,Graveyard,Electro Giant,Bomber,Musketeer,Goblin Cage,Void
+Random_4709|Goblin Gang,Battle Healer,Sparky,Tesla,Prince,Hunter,Tornado,Goblin Drill
+Random_4781|Flying Machine,Freeze,Spear Goblins,Zappies,Goblins,Electro Wizard,Goblin Cage,Goblin Barrel
+Random_4798|Balloon,Vines,Golden Knight,Skeleton Barrel,Tombstone,Electro Dragon,Bomb Tower,Princess
+Random_4822|Cannon,Goblin Cage,Electro Giant,Guards,Witch,Phoenix,Mini PEKKA,Clone
+Random_4824|Cannon,Lava Hound,Ram Rider,Valkyrie,Goblin Barrel,Elite Barbarians,Elixir Golem,The Log
+Random_4840|Bomb Tower,Royal Recruits,Void,Spear Goblins,Barbarian Hut,Firecracker,Princess,Witch
+Random_4874|X-Bow,Fire Spirit,Fisherman,Royal Hogs,Mother Witch,Tornado,Spear Goblins,Dark Prince
+Random_4890|Zappies,Mighty Miner,Goblin Barrel,Skeleton Dragons,Dart Goblin,Battle Ram,Firecracker,Mortar
+Random_4892|P.E.K.K.A.,Mother Witch,Monk,Zap,Earthquake,Barbarian Hut,Lava Hound,Dark Prince
+Random_4910|Hunter,Wall Breakers,Goblin Giant,Elite Barbarians,Tombstone,Giant Skeleton,Royal Ghost,Lightning
+Random_4931|Minion Horde,Goblin Drill,Rune Giant,Bandit,Fire Spirit,Zap,Battle Healer,Baby Dragon
+Random_4935|Fisherman,Dart Goblin,Goblin Curse,Goblin Cage,Night Witch,Minion Horde,Bandit,Tesla
+Random_4942|Bats,Mortar,Dark Prince,P.E.K.K.A.,Berserker,Tornado,Electro Spirit,Battle Healer
+Random_4955|Goblin Barrel,Elite Barbarians,Ice Wizard,Royal Hogs,Mother Witch,Inferno Tower,Goblin Drill,Baby Dragon
+Random_4962|Goblin Hut,Skeleton King,Three Musketeers,Skeletons,Goblin Drill,Zap,Cannon Cart,Bandit
+Random_4975|Mini PEKKA,Tombstone,Mega Minion,Skeletons,Ice Wizard,Goblin Curse,Cannon,Cannon Cart
