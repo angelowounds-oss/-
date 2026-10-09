@@ -16,16 +16,23 @@ const linkQ = (i, j, k, q) => { const [x, y, z] = pos(i, j, k), [dx, dy, dz] = C
 const t0 = Date.now(), S = createLBM3D({ nx, ny, nz, nu, solid, linkQ, U });
 const stepsPerT = Nd / U, ramp = Math.round(2 * stepsPerT) /* start-up transient excluded from the convergence test */, maxSteps = Math.round(+(maxTArg || 60) * stepsPerT), every = Math.round(stepsPerT / 2), A = Math.PI * R * R;
 const coef = () => 2 * S.force[0] / (U * U * A);
-let last = null, hist = [], conv = false;
+// checkpoint every 10 min so a killed job resumes (AETHER_CKPT = directory, default /tmp/solver2-ckpt)
+const ckDir = process.env.AETHER_CKPT || '/tmp/solver2-ckpt', ck = path.join(ckDir, `sphere3d_${method}_${Nd}`); fs.mkdirSync(ckDir, { recursive: true });
+let last = null, hist = [], conv = false, lastSave = Date.now(), wallPrev = 0;
+if (S.load(ck + '.bin')) { const m = JSON.parse(fs.readFileSync(ck + '.json', 'utf8')); hist = m.hist; wallPrev = m.wallS; console.log(`resumed at step ${S.step}`); }
+// convergence: the slow pressure oscillation (reflecting inlet and outlet) defeats a step-to-step test, so require the last 10 D/U (20 samples) to stay within 0.5 % and report their mean
+const WIN = 20;
 while (S.step < maxSteps) {
   S.step1(1); // the field starts at the free-stream velocity: no inlet ramp (a ramp against a moving interior launches a long-lived pressure wave; measured Cd < 0 at 22 D/U)
   if (S.step % every === 0 && S.step > ramp) {
     const Cd = coef(), side = Math.hypot(S.force[1], S.force[2]) * 2 / (U * U * A); hist.push({ step: S.step, tD: S.step / stepsPerT, Cd, side });
-    process.stdout.write(`t ${(S.step / stepsPerT).toFixed(1)} D/U Cd ${Cd.toFixed(5)} side ${side.toExponential(2)} ${((Date.now() - t0) / 1000).toFixed(0)} s\r`);
-    if (last !== null && Math.abs(Cd - last) < 2e-5 * Cd) { conv = true; last = Cd; break; } last = Cd;
+    process.stdout.write(`t ${(S.step / stepsPerT).toFixed(1)} D/U Cd ${Cd.toFixed(5)} side ${side.toExponential(2)} ${(wallPrev + (Date.now() - t0) / 1000).toFixed(0)} s\r`);
+    const w = hist.slice(-WIN).map(h => h.Cd), mean = w.reduce((a, b) => a + b, 0) / w.length; last = mean;
+    if (S.step / stepsPerT > 30 && w.length === WIN && Math.max(...w) - Math.min(...w) < .005 * mean) { conv = true; break; }
+    if (Date.now() - lastSave > 6e5) { S.save(ck + '.bin'); fs.writeFileSync(ck + '.json', JSON.stringify({ hist, wallS: wallPrev + (Date.now() - t0) / 1000 })); lastSave = Date.now(); }
   }
 }
-const res = { method, Nd, grid: [nx, ny, nz], U, nu, tau: S.tau, Re, steps: S.step, converged: conv, Cd: last, ref: REF, err: (last - REF) / REF, blockage: Math.PI / 4 / (LyD * LyD), links: S.links, wallS: (Date.now() - t0) / 1000, hist };
+const res = { method, Nd, grid: [nx, ny, nz], U, nu, tau: S.tau, Re, steps: S.step, converged: conv, Cd: last, ref: REF, err: (last - REF) / REF, blockage: Math.PI / 4 / (LyD * LyD), links: S.links, wallS: wallPrev + (Date.now() - t0) / 1000, window: `mean of the last ${WIN} samples (${WIN / 2} D/U)`, hist };
 res.cellUpdates = nx * ny * nz * res.steps; res.mlups = res.cellUpdates / res.wallS / 1e6;
 const out = path.join(root, 'tools/solver2/out'); fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, `sphere3d_${method}_${Nd}.json`), JSON.stringify(res, null, 1));

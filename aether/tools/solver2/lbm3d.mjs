@@ -1,6 +1,7 @@
 // Solver V2 prototype A (3D): D3Q19 lattice Boltzmann, CPU reference implementation. Same numerics as lbm2d.mjs:
 // TRT collision (magic 3/16), Bouzidi linear interpolated bounce-back on curved bodies, inlet x = 0 moving-wall bounce-back (uniform velocity, ramped),
 // outlet x = nx-1 fixed density by non-equilibrium extrapolation, periodic in y and z. Momentum-exchange force. Float32 storage, Float64 arithmetic.
+import fs from 'node:fs';
 const C = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0], [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1], [0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1]];
 const W = C.map((c, k) => k === 0 ? 1 / 3 : (Math.abs(c[0]) + Math.abs(c[1]) + Math.abs(c[2]) === 1 ? 1 / 18 : 1 / 36));
 const OPP = C.map(c => C.findIndex(d => d[0] === -c[0] && d[1] === -c[1] && d[2] === -c[2]));
@@ -70,6 +71,9 @@ export function createLBM3D({ nx, ny, nz, nu, solid, linkQ, U, lambda = 3 / 16 }
     st.force = [fx, fy, fz];
     f.set(g); st.step++;
   };
+  // checkpoint: populations + step counter (resume after a killed job)
+  st.save = file => { fs.writeFileSync(file + '.tmp', Buffer.concat([Buffer.from(new Float64Array([st.step]).buffer), Buffer.from(f.buffer)])); fs.renameSync(file + '.tmp', file); };
+  st.load = file => { if (!fs.existsSync(file)) return false; const b = fs.readFileSync(file); if (b.length !== 8 + f.byteLength) return false; st.step = new Float64Array(b.buffer.slice(b.byteOffset, b.byteOffset + 8))[0]; f.set(new Float32Array(b.buffer.slice(b.byteOffset + 8, b.byteOffset + b.length))); return true; };
   // diagnostics: [mean density over fluid, mean ux on plane i = 1, mean ux on plane i = nx - 2]
   st.mass = () => {
     let m = 0, c = 0; const pl = [0, 0], pc = [0, 0];
