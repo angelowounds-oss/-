@@ -176,7 +176,9 @@ export class Citizens {
   }
 
   // ---------- residents and workers placed in their rooms when a floor is built ----------
-  populateFloor(b, fl, L, rooms) {
+  populateFloor(b, fl, L, rooms) { for (const _ of this.populateFloorGen(b, fl, L, rooms)); }
+  // a generator so a floor build can spend one frame per person (each person is a full skinned character)
+  *populateFloorGen(b, fl, L, rooms) {
     if (!rooms || !rooms.length) return;
     const G = this.G, life = G.life, now = G.clock.t, hour = G.clock.hour, y = L.y;
     const put = (c, rm, sleeping) => {
@@ -191,11 +193,11 @@ export class Citizens {
     };
     for (const c of this.byHome.get(b.id + ':' + fl.k) || []) {
       const L2 = this.locate(c, now); if (L2.where !== 'home') continue;
-      put(c, rooms[c.home.ri % rooms.length], hour >= 23 || hour < 6.2);
+      put(c, rooms[c.home.ri % rooms.length], hour >= 23 || hour < 6.2); yield;
     }
     for (const c of this.byWork.get(b.id + ':' + fl.k) || []) {
       const L2 = this.locate(c, now); if (L2.where !== 'work') continue;
-      put(c, rooms[(c.id * 7) % rooms.length], false);
+      put(c, rooms[(c.id * 7) % rooms.length], false); yield;
     }
   }
   floorDropped(fl) { for (const c of fl.citizens || []) c.indoor = null; }

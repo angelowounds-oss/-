@@ -157,9 +157,10 @@ export class Building {
       // ceiling light strips under this slab (visual belongs to floor below, added there)
     }
     if (k === 0) B.ext('decor', r.x0, 0.0, r.z0, r.x1, 0.03, r.z1, slabC);
+    yield;
     // ---- perimeter ----
     const ceilY = isRoof ? y : top;
-    if (!isRoof) this.perimeter(fl, B, cc, L, r, y, L.h, wallC);
+    if (!isRoof) yield* this.perimeter(fl, B, cc, L, r, y, L.h, wallC);
     else this.parapet(fl, B, cc, r, y, wallC);
     if (L.tier === 'tower' && L.k === this.levels.findIndex((l) => l.tier === 'tower')) this.parapet(fl, B, cc, this.pod, y, wallC, 1.0);
     yield;
@@ -178,9 +179,9 @@ export class Building {
     else yield* this.furnishRooms(fl, L);
     yield;
     fl.deco?.finish(fl.group);
-    // ---- finish meshes ----
-    B.finish(fl.group);
     yield;
+    // ---- finish meshes ----
+    yield* B.finishGen(fl.group);
     this.buildGlassMesh(fl);
     this.G.breach?.applyFloor(this, fl, k);   // walls breached earlier stay open
     this.floors.set(k, fl);
@@ -240,7 +241,7 @@ export class Building {
   }
 
   // ---------- exterior wall with windows ----------
-  perimeter(fl, B, cc, L, r, y, h, wallC) {
+  *perimeter(fl, B, cc, L, r, y, h, wallC) {
     const sides = [
       { s: 'n', x0: r.x0, x1: r.x1, z: r.z0, d: 1, ax: 'x' },
       { s: 's', x0: r.x0, x1: r.x1, z: r.z1, d: -1, ax: 'x' },
@@ -291,6 +292,7 @@ export class Building {
           gb.pane = { key: gkey, fl, ex: gex, b: this }; fl.glass.push(gb);
         }
       }
+      yield;   // one wall per step
     }
   }
   parapet(fl, B, cc, r, y, wallC, hh = 0.95) {
@@ -602,7 +604,7 @@ export class Building {
     if (numGeos.length) { const m = new THREE.Mesh(mergeGeometries(numGeos), digitMaterial()); m.frustumCulled = true; fl.group.add(m); }
     // furnish
     yield;
-    for (let i = 0; i < rooms.length; i++) { this.furnishRoom(fl, L, rooms[i], i); if (i % 2 === 1) yield; }   // two rooms per step
+    for (let i = 0; i < rooms.length; i++) { this.furnishRoom(fl, L, rooms[i], i); yield; }   // one room per step
     this.addLivingSets(fl, y);
     // open spaces: corridor decor
     this.plant(fl, ix0 + 0.6, corrZ1 - 0.6);
@@ -627,7 +629,9 @@ export class Building {
       { const vx = ix1 - 1.1, vz = corrZ1 - 0.5; fl.solid('decor', vx - 0.45, y, vz - 0.4, vx + 0.45, y + 1.85, vz + 0.4, 0x2a3a5a); B.ext('emit', vx - 0.38, y + 0.9, vz - 0.405, vx + 0.38, y + 1.7, vz - 0.395, new THREE.Color(0.35, 0.75, 1).multiplyScalar(1.5)); B.ext('emit', vx - 0.38, y + 0.3, vz - 0.405, vx + 0.38, y + 0.38, vz - 0.395, new THREE.Color(1, 0.5, 0.2).multiplyScalar(1.3)); }
     }
     yield;
-    this.M.populateFloor?.(this, fl, L, rooms);
+    this.M.populateLife?.(this, fl, L, rooms);
+    yield;
+    yield* this.M.populateCitizensGen(this, fl, L, rooms);
     fl.rooms = rooms;
   }
   furnishRoom(fl, L, rm, i) {
@@ -1027,7 +1031,10 @@ export class Buildings {
     this.lights = Array.from({ length: 6 }, () => { const l = new THREE.PointLight(0xffe2b0, 0, 17, 1.6); G.scene.add(l); return l; });
     this.lt = 0;
   }
-  populateFloor(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); this.G.citizens?.populateFloor(b, fl, L, rooms); }
+  populateFloor(b, fl, L, rooms) { this.populateLife(b, fl, L, rooms); this.populateCitizens(b, fl, L, rooms); }
+  populateLife(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); }
+  populateCitizens(b, fl, L, rooms) { this.G.citizens?.populateFloor(b, fl, L, rooms); }
+  *populateCitizensGen(b, fl, L, rooms) { if (this.G.citizens) yield* this.G.citizens.populateFloorGen(b, fl, L, rooms); }
   onFloorDropped(b, fl) { this.G.citizens?.floorDropped(fl); this.G.life.dropFloor(b, fl); }
   // nearest ceiling fixtures around the player become real lights
   updateLights(dt, pl) {

@@ -93,6 +93,25 @@ function rotAttr(pos, nor, m4) {
   }
 }
 
+// mergeGeometries() for the case that matters here (all parts non-indexed with identical float attributes): the same buffers, copied straight
+// into one array per attribute without the per-geometry validation of the general routine
+export function fastMerge(geos) {
+  if (!geos.length) return null;
+  const names = Object.keys(geos[0].attributes), out = new THREE.BufferGeometry();
+  for (const g of geos) {   // anything unusual: fall back to the general routine
+    if (g.index || Object.keys(g.attributes).length !== names.length) return mergeGeometries(geos, false);
+    for (const n of names) { const a = g.attributes[n]; if (!a || a.array.constructor !== Float32Array || a.normalized || a.isInterleavedBufferAttribute) return mergeGeometries(geos, false); }
+  }
+  for (const n of names) {
+    const a0 = geos[0].attributes[n], size = a0.itemSize; let len = 0;
+    for (const g of geos) { if (g.attributes[n].itemSize !== size) return mergeGeometries(geos, false); len += g.attributes[n].array.length; }
+    const arr = new Float32Array(len); let o = 0;
+    for (const g of geos) { arr.set(g.attributes[n].array, o); o += g.attributes[n].array.length; }
+    out.setAttribute(n, new THREE.BufferAttribute(arr, size));
+  }
+  return out;
+}
+
 export class Builder {
   constructor() { this.parts = { decor: [], emit: [], glass: [], steel: [] }; this.surf = 0; }
   _push(key, g, col, em = 1) {
@@ -133,14 +152,17 @@ export class Builder {
   ext(key, x0, y0, z0, x1, y1, z1, col, em = 1) { this.box(key, (x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, col, 0, em); }
   cyl(key, x, y, z, r, h, col, seg = 14, em = 1) { const g = new THREE.CylinderGeometry(r, r, h, seg); g.translate(x, y + h / 2, z); this._push(key, g, col, em); }
   ico(key, x, y, z, r, col, sy = 1) { const g = new THREE.IcosahedronGeometry(r, 1); g.scale(1, sy, 1); g.translate(x, y, z); this._push(key, g, col); }
-  finish(parent) {
-    const m = mats(), out = [];
+  finish(parent) { const out = []; for (const m of this.finishGen(parent, out)); return out; }
+  // one merged mesh per material class; a generator so a floor build can pause between them
+  *finishGen(parent, out = []) {
+    const m = mats();
     for (const [k, arr] of Object.entries(this.parts)) {
       if (!arr.length) continue;
-      const geo = mergeGeometries(arr, false); if (!geo) continue;
+      const geo = fastMerge(arr); if (!geo) continue;
       const mesh = new THREE.Mesh(geo, k === 'decor' ? m.decor : k === 'emit' ? m.emit : k === 'glass' ? m.glass : m.steel);
       mesh.frustumCulled = true; mesh.receiveShadow = k !== 'emit'; if (k === 'glass') mesh.renderOrder = 3;
       parent.add(mesh); out.push(mesh);
+      yield;
     }
     return out;
   }
