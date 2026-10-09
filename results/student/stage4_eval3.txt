@@ -1,0 +1,1 @@
+A=nresults/student/net_r3.bin B=p4  A win 21.75%  se 2.06  games 400  ms/game 96.0
