@@ -951,7 +951,7 @@ export class Game {
   }
   hasLOS(x1, y1, z1, x2, y2, z2) {
     const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = Math.hypot(dx, dy, dz) || 1;
-    return this.world.colliders.raycast(x1, y1, z1, dx / d, dy / d, dz / d, d) < 0;
+    return this.world.colliders.raycastT(x1, y1, z1, dx / d, dy / d, dz / d, d) < 0;
   }
   noise(x, z, r, kind = 'shot') { for (const h of this.humans) { if (h.dead) continue; if (h.team !== 'civ') { if (h.rag === undefined || !h.rag) AI.hear(h, x, z, r * 0.8, kind); continue; } if (h.team === 'civ' && Math.hypot(h.x - x, h.z - z) < r * 0.6 && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(5, 9); h.threat = { x, z }; } } }
   alertCivs(x, z, r) { this.noise(x, z, r * 1.6); }

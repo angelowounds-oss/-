@@ -52,7 +52,7 @@ const ACCENTS = [
 export const accentColor = (i) => ACCENTS[((i % 6) + 6) % 6];
 
 // ---------- Collision world ----------
-const RESOLVE_TMP = [];   // scratch list for resolve(): it used to allocate a new array on every call (per person, per frame)
+const RESOLVE_TMP = [], RESOLVE_OUT = { x: 0, z: 0, nx: 0, nz: 0, hit: false, depth: 0 };   // scratch list for resolve(): it used to allocate a new array on every call (per person, per frame)
 export class Colliders {
   constructor() {
     this.boxes = [];
@@ -147,10 +147,16 @@ export class Colliders {
         nxs += dx; nzs += dz; depth = Math.max(depth, pen); hit = true;
       }
     }
-    const l = Math.hypot(nxs, nzs) || 1;
-    return { x, z, nx: nxs / l, nz: nzs / l, hit, depth };
+    const l = Math.hypot(nxs, nzs) || 1, o = RESOLVE_OUT;
+    o.x = x; o.z = z; o.nx = nxs / l; o.nz = nzs / l; o.hit = hit; o.depth = depth;
+    return o;   // shared: read it before the next resolve() call (every caller does)
   }
   // 3D ray vs static world (boxes + circles as vertical cylinders). returns t or -1
+  // hit distance only (no normal, no lastRef / lastHit): line-of-sight tests
+  raycastT(ox, oy, oz, dx, dy, dz, maxT, mask) {
+    if (this.sink) return this.sink.rayT(ox, oy, oz, dx, dy, dz, maxT, mask);
+    return this.raycastGrid(ox, oy, oz, dx, dy, dz, maxT);
+  }
   raycast(ox, oy, oz, dx, dy, dz, maxT, mask) {
     if (this.sink) { const h = this.sink.ray(ox, oy, oz, dx, dy, dz, maxT, mask); this.lastRef = h ? h.ref : null; this.lastHit = h; return h ? h.t : -1; }
     return this.raycastGrid(ox, oy, oz, dx, dy, dz, maxT);

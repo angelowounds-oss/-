@@ -79,8 +79,18 @@ export class Physics {
   }
   removeBox(b) { if (b.col) { this.colRef.delete(b.col.handle); this.world.removeCollider(b.col, false); b.col = null; } }
   // Ray against the Rapier world. mask: GR bits to hit. Returns {t, ref, nx,ny,nz} or null
+  // one Ray object reused for every query (it is only read during the call)
+  _rayOf(ox, oy, oz, dx, dy, dz) {
+    const r = this._ray || (this._ray = new this.R.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 })), o = r.origin, d = r.dir;
+    o.x = ox; o.y = oy; o.z = oz; d.x = dx; d.y = dy; d.z = dz; return r;
+  }
+  // distance to the first hit or -1, without the normal or a result object (line-of-sight checks)
+  rayT(ox, oy, oz, dx, dy, dz, max, mask = RAY_DEFAULT) {
+    const h = this.world.castRay(this._rayOf(ox, oy, oz, dx, dy, dz), max, true, undefined, grp(0xffff, mask));
+    return h ? h.timeOfImpact : -1;
+  }
   ray(ox, oy, oz, dx, dy, dz, max, mask = RAY_DEFAULT) {
-    const r = new this.R.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz });
+    const r = this._rayOf(ox, oy, oz, dx, dy, dz);
     const h = this.world.castRayAndGetNormal(r, max, true, undefined, grp(0xffff, mask));
     if (!h) return null;
     return { t: h.timeOfImpact, ref: this.colRef.get(h.collider.handle) || null, collider: h.collider, nx: h.normal.x, ny: h.normal.y, nz: h.normal.z };
