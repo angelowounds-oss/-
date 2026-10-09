@@ -22,13 +22,14 @@ const norm = s => s.replace(/\s+/g, ' ').trim();
     }
     if (c.click) await p.locator('main .card ' + c.click).first().click();
     await new Promise(r => setTimeout(r, 40));
-    let text = await p.evaluate(() => {
+    let text = await p.evaluate((sel) => {
+      if (sel) { const e = document.querySelector(sel); return e ? e.innerText : ''; }
       const r = document.getElementById('res') || document.getElementById('r') || document.getElementById('out');
       if (r) return r.innerText;
       const rs = [...document.querySelectorAll('.result')];
       if (rs.length) return rs.map(e => e.innerText).join(' ');
       return [...document.querySelectorAll('main input')].map(e => e.value).join(' ');
-    });
+    }, c.read || null);
     text = norm(text);
     const miss = c.expect.filter(e => e && !text.includes(norm(e)));
     if (miss.length || errs.length) { fail++; console.log('FAIL', c.name, '\n   missing:', JSON.stringify(miss), errs.length ? ' errors: ' + errs.join('|') : '', '\n   actual :', text.slice(0, 220)); }

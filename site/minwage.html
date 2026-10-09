@@ -5,7 +5,26 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>최저임금 월급 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="h">시급 (원, 해당 연도 최저시급을 입력)</label><input type="number" id="h" value="10320" step="any" min="0"><label for="w">주 근무시간</label><input type="number" id="w" value="40" step="any" min="0"><div class="result" id="res"></div></div><h2>최저임금 확인</h2><p>최저시급은 매년 고시되므로 기본값은 예시입니다. 고용노동부·최저임금위원회 고시를 확인해 입력하세요. 월 환산시간은 (주 근로시간 + 주휴시간) × 365 ÷ 7 ÷ 12입니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>수습 기간은 감액되나요?</h3><p>일정 조건에서는 감액 적용이 가능합니다. 고용노동부 안내를 확인하세요.</p><h3>식대는 포함되나요?</h3><p>일부 수당은 최저임금 산입 범위가 정해져 있습니다.</p></div><!--fb--><div class="fb" data-slug="minwage"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
+<div class="card"><label for="h">시급 (원, 해당 연도 최저시급을 입력)</label><input type="number" id="h" value="10320" step="any" min="0"><label for="w">주 근무시간</label><input type="number" id="w" value="40" step="any" min="0"><div class="result" id="res"></div></div><h2>최저임금 확인</h2><p>최저시급은 매년 고시되므로 기본값은 예시입니다. 고용노동부·최저임금위원회 고시를 확인해 입력하세요. 월 환산시간은 (주 근로시간 + 주휴시간) × 365 ÷ 7 ÷ 12입니다.</p><!--guide--><section class="guide">
+<h2>2026년 최저임금</h2>
+<p>2026년 최저임금은 <b>시간당 10,320원</b>으로, 2025년보다 290원(2.9%) 올랐어요. 고용노동부 고시 기준 일급은 82,560원(8시간), 월급은 <b>2,156,880원</b>(주 40시간, 유급 주휴 포함 월 209시간)이에요. 업종과 사업장 규모에 상관없이 똑같이 적용돼요.</p>
+<h2>근무시간별 월급 (시급 10,320원 기준)</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>주 근무시간</th><th>주휴시간</th><th>월 환산(정밀)</th><th>월급(정밀)</th><th>월급(시간 반올림)</th></tr></thead><tbody><tr><td>40시간</td><td>8시간</td><td>208.6시간</td><td>2,152,457원</td><td>2,156,880원 (209시간)</td></tr><tr><td>30시간</td><td>6시간</td><td>156.4시간</td><td>1,614,343원</td><td>1,609,920원 (156시간)</td></tr><tr><td>20시간</td><td>4시간</td><td>104.3시간</td><td>1,076,229원</td><td>1,073,280원 (104시간)</td></tr><tr><td>15시간</td><td>3시간</td><td>78.2시간</td><td>807,171원</td><td>804,960원 (78시간)</td></tr><tr><td>14시간</td><td>없음</td><td>60.8시간</td><td>627,800원</td><td>629,520원 (61시간)</td></tr></tbody></table></div>
+<p>월급을 두 가지로 보여주는 이유는 계산 관행이 둘이라서예요. 정밀 계산은 한 달을 4.345주로 보고 그대로 곱하고, 정부 발표처럼 월 환산시간을 정수로 맞추면 주 40시간 기준 209시간이 돼요. 몇천 원 차이라 어느 쪽이 맞다기보다, 고용노동부 발표액과 비교할 땐 반올림한 값을 보세요.</p>
+<h2>주휴수당 조건</h2>
+<p>1주 소정근로시간이 15시간 이상이고 그 주에 정해진 날을 모두 일했다면 하루치 유급 주휴가 생겨요. 주휴시간은 주 근로시간 ÷ 40 × 8시간(최대 8시간)으로 계산해요. 주 15시간 미만이면 주휴수당이 없어요.</p>
+<h2>수습이라 90%만 준다고 할 때</h2>
+<p>최저임금의 90%(2026년 9,288원)까지 줄일 수 있는 경우는 다음 조건을 모두 갖췄을 때뿐이에요.</p>
+<ul>
+<li>근로계약 기간이 1년 이상이에요.</li>
+<li>수습을 시작한 날부터 3개월 이내예요.</li>
+<li>근로계약서에 감액 내용이 적혀 있어요.</li>
+<li>편의점·음식점 서빙·청소 같은 단순노무 직종이 아니에요. 단순노무 직종은 수습이어도 100%를 줘야 해요.</li>
+</ul>
+<h2>최저임금 위반이 의심되면</h2>
+<p>최저임금 계산에는 매달 정기적으로 주는 상여금·식비 같은 일부 수당이 포함되고 연장근로수당 등은 빠져요. 정확한 판단은 고용노동부 최저임금 모의계산기로 확인하고, 상담은 고용노동부 상담센터(국번 없이 1350)에서 받을 수 있어요. 최저임금보다 적게 주면 3년 이하 징역 또는 2천만 원 이하 벌금 대상이에요.</p>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 최저임금액은 고용노동부 2026년 고시 기준이에요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>수습 기간은 감액되나요?</h3><p>일정 조건에서는 감액 적용이 가능합니다. 고용노동부 안내를 확인하세요.</p><h3>식대는 포함되나요?</h3><p>일부 수당은 최저임금 산입 범위가 정해져 있습니다.</p></div><!--fb--><div class="fb" data-slug="minwage"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
@@ -21,7 +40,8 @@ const pad=n=>String(n).padStart(2,'0');
 const _t=new Date();const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
 const IDS=["h", "w"];
 function compute(v){const ju=v.w>=15?Math.min(v.w/5,8):0,hrs=(v.w+ju)*365/7/12;
-return '월 환산 '+N2(hrs,1)+'시간<br><b>월급 '+W(v.h*hrs)+'</b> (세전)<br><small>주휴수당 포함 · 주급 '+W(v.h*(v.w+ju))+'</small>';}
+const rh=Math.round(hrs);
+return '월 환산 '+N2(hrs,1)+'시간<br><b>월급 '+W(v.h*hrs)+'</b> (세전)<br>월 환산시간을 반올림한 기준('+rh+'시간): '+W(v.h*rh)+'<br><small>주휴수당 포함 · 주급 '+W(v.h*(v.w+ju))+' · 고용노동부 발표액은 반올림 기준이에요</small>';}
 function run(){const v={};IDS.forEach(i=>{const e=document.getElementById(i);v[i]=e.type==='number'?(e.value===''?NaN:+e.value):e.value});
 if(IDS.some(i=>{const e=document.getElementById(i);return (typeof v[i]==='number'&&isNaN(v[i]))||((e.type==='date'||e.type==='time')&&e.value==='')})){document.getElementById('res').innerHTML='<small>빈칸을 채워 주세요</small>';return}
 if(IDS.some(i=>typeof v[i]==='number'&&v[i]<0)){document.getElementById('res').innerHTML='<small>0 이상의 값을 입력해 주세요</small>';return}

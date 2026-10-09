@@ -17,8 +17,8 @@ def N(x, d=2):
     return t.rstrip("0").rstrip(".") if "." in t else t
 
 cases = []
-def case(slug, inputs, *expect, click=None, name=None):
-    cases.append(dict(slug=slug, inputs=inputs, expect=list(expect), click=click, name=name or slug))
+def case(slug, inputs, *expect, click=None, name=None, read=None):
+    cases.append(dict(slug=slug, inputs=inputs, expect=list(expect), click=click, name=name or slug, read=read))
 
 # ---- hand-written pages ----
 case("loan", {"P": "100000000", "R": "4.5", "N": "360"}, W(506684.69), "82,406,712원", "652,778원", "278,819원", "67,687,500원", "375,000원", "135,000,000원", click="button")
@@ -84,7 +84,7 @@ for j, b, exp, nm in [("2023-04-10", "2026-10-07", "발생 연차 16일", "al-3y
                        ("2000-01-01", "2026-10-07", "발생 연차 25일", "al-cap"), ("2026-10-07", "2026-10-07", "발생 연차 0일", "al-day0"), ("2026-10-08", "2026-10-07", "기준일이 입사일보다", "al-future")]:
     case("annualleave", {"j": j, "b": b}, exp, name=nm)
 case("overtime", {"h": "12000", "ot": "10", "nt": "5", "h1": "8", "h2": "2"}, "연장 180,000원", "야간 가산 30,000원", "휴일 192,000원", "합계 402,000원")
-case("minwage", {"h": "10320", "w": "40"}, "월 환산 208.6시간", "월급 2,152,457원")
+case("minwage", {"h": "10320", "w": "40"}, "월 환산 208.6시간", "월급 2,152,457원", "반올림한 기준(209시간): 2,156,880원")
 case("minwage", {"h": "10320", "w": "10"}, W(10 * 10320 * 365 / 7 / 12), name="minwage-10h")
 case("dismissal", {"h": "11000", "d": "0", "hd": "8"}, "2,640,000원", "30일분")
 case("dismissal", {"h": "11000", "d": "30", "hd": "8"}, "0원", name="dismissal-notified")
@@ -257,6 +257,43 @@ for sal in (30000000, 50000000, 100000000):
     i, t, n = netpay(sal)
     case("netpay", {"sal": str(sal)}, "월 실수령 약 " + W(n), "4대보험 " + W(i), name=f"netpay-{sal // 10000}")
 case("netpay", {"sal": "50000000", "dep": "3"}, "월 실수령 약 " + W(netpay(50000000, dep=3)[2]), name="netpay-dep3")
+
+# ---- 2026-10 guide examples: every number quoted in the new guides is checked against the live page ----
+case("percent", {"a1": "50000", "b1": "15", "a2": "32", "b2": "40", "a3": "120", "b3": "150"}, "7500", "80%", "+25%", name="guide-percent")
+case("pyeong", {"m": "84"}, "25.41", name="guide-pyeong-84")
+case("pyeong", {"m": "59"}, "17.85", name="guide-pyeong-59")
+case("pyeong", {"m": "101"}, "30.55", name="guide-pyeong-101")
+case("pyeong", {"p": "34"}, "112.4", name="guide-pyeong-34")
+case("pyeong", {"p": "10"}, "33.06", name="guide-pyeong-10")
+case("dday", {"d1": "2026-10-09", "d2": "2026-12-25"}, "D-77", "77일 (11주 0일)", click="button", name="guide-dday")
+case("dday", {"d1": "2026-10-09", "d2": "2027-01-01"}, "D-84", "84일 (12주 0일)", click="button", name="guide-dday-2")
+case("dday", {"s": "2026-03-01"}, "100일: 2026.6.8", "200일: 2026.9.16", "300일: 2026.12.25", "365일: 2027.2.28", "500일: 2027.7.13", "1000일: 2028.11.24", click='button[onclick="ann()"]', read="#a", name="guide-dday-ann")
+case("vat", {"x": "55000", "m": "in"}, "공급가액 50,000원", "부가세 5,000원", name="guide-vat-55")
+case("vat", {"x": "1000000", "m": "in"}, "공급가액 909,091원", "부가세 90,909원", name="guide-vat-1m")
+case("vat", {"x": "350000", "m": "ex"}, "합계 385,000원", "부가세 35,000원", name="guide-vat-ex")
+case("freelance", {"m": "fwd", "x": "500000"}, "실수령액 483,500원", "소득세 15,000원", "지방소득세 1,500원", name="guide-fl-500k")
+case("freelance", {"m": "fwd", "x": "3000000"}, "실수령액 2,901,000원", "소득세 90,000원", "지방소득세 9,000원", name="guide-fl-3m")
+case("freelance", {"m": "rev", "x": "1000000"}, "약 1,034,126원", name="guide-fl-rev1")
+case("freelance", {"m": "rev", "x": "2000000"}, "약 2,068,252원", "원천징수 약 68,252원", name="guide-fl-rev2")
+case("military", {"s": "2025-03-04", "t": "20"}, "전역일 2026.11.3 (화요일)", "복무 610일", name="guide-mil-navy")
+case("military", {"s": "2025-03-04", "t": "21"}, "전역일 2026.12.3 (목요일)", "복무 640일", name="guide-mil-air")
+case("military", {"s": "2025-08-31", "t": "18"}, "전역일 2027.2.28 (일요일)", "복무 547일", name="guide-mil-31")
+def _fv(p, m, r, y):
+    i = r / 1200; n = y * 12; g = (1 + i) ** n
+    return p * g + (m * (g - 1) / i if i else m * n)
+case("compound", {"p": "0", "m": "300000", "rate": "5", "y": "20"}, "만기 금액 " + W(_fv(0, 300000, 5, 20)), "총 원금 72,000,000원", name="guide-comp-monthly")
+case("compound", {"p": "10000000", "m": "0", "rate": "6", "y": "10"}, "만기 금액 " + W(_fv(1e7, 0, 6, 10)), name="guide-comp-lump")
+case("compound", {"p": "10000000", "m": "0", "rate": "6", "y": "12"}, "만기 금액 " + W(_fv(1e7, 0, 6, 12)), name="guide-comp-72")
+for _a in (30000000, 40000000, 50000000):
+    case("salary", {"a": str(_a), "h": "209"}, "월급 " + W(_a / 12), "주급 " + W(_a / 52), "시급 " + W(_a / 12 / 209), name=f"guide-salary-{_a // 10000}")
+for _w in (40, 30, 20, 15, 14):
+    _ju = min(_w / 5, 8) if _w >= 15 else 0; _h = (_w + _ju) * 365 / 7 / 12; _rh = half_up(_h)
+    case("minwage", {"h": "10320", "w": str(_w)}, "월급 " + W(10320 * _h), f"반올림한 기준({_rh}시간): " + W(10320 * _rh), name=f"guide-minwage-{_w}")
+case("bmr", {"sex": "m", "age": "30", "h": "172", "w": "68", "act": "1.375"}, "기초대사량 1,610 kcal", "하루 소비 2,214 kcal", name="guide-bmr-m")
+case("bmr", {"sex": "m", "age": "30", "h": "172", "w": "68", "act": "1.55"}, "하루 소비 2,496 kcal", name="guide-bmr-m155")
+case("bmr", {"sex": "f", "age": "30", "h": "160", "w": "55", "act": "1.2"}, "기초대사량 1,239 kcal", "하루 소비 1,487 kcal", name="guide-bmr-f")
+case("bmr", {"sex": "f", "age": "30", "h": "160", "w": "55", "act": "1.375"}, "하루 소비 1,704 kcal", name="guide-bmr-f1375")
+case("bmr", {"sex": "f", "age": "30", "h": "160", "w": "55", "act": "1.55"}, "하루 소비 1,920 kcal", name="guide-bmr-f155")
 
 if __name__ == "__main__":
     json.dump(cases, open("tests/cases.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)

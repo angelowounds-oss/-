@@ -5,7 +5,27 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>전역일 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="s">입대일</label><input type="date" id="s" value="2025-03-04"><label for="t">복무 구분</label><select id="t"><option value="18">육군·해병대 (18개월)</option><option value="20">해군 (20개월)</option><option value="21">공군·사회복무요원 (21개월)</option></select><div class="result" id="res"></div></div><h2>복무기간 기준</h2><p>현재 복무기간은 육군·해병대 18개월, 해군 20개월, 공군 21개월입니다. 사회복무요원 등 대체복무 기간은 제도 변경이 있을 수 있으니 병무청 안내를 확인하세요. 계산은 입대일부터 복무기간 후 하루 전까지로 했으며 휴가·영외 일정은 반영하지 않습니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정확한 전역일은 어떻게 확인하나요?</h3><p>병무청 또는 소속 부대의 공식 전역 예정일을 따르세요. 이 계산기는 참고용입니다.</p><h3>전역 전 휴가는 반영되나요?</h3><p>아니요.</p></div><!--fb--><div class="fb" data-slug="military"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
+<div class="card"><label for="s">입대일</label><input type="date" id="s" value="2025-03-04"><label for="t">복무 구분</label><select id="t"><option value="18">육군·해병대 (18개월)</option><option value="20">해군 (20개월)</option><option value="21">공군·사회복무요원 (21개월)</option></select><div class="result" id="res"></div></div><h2>복무기간 기준</h2><p>현재 복무기간은 육군·해병대 18개월, 해군 20개월, 공군 21개월입니다. 사회복무요원 등 대체복무 기간은 제도 변경이 있을 수 있으니 병무청 안내를 확인하세요. 계산은 입대일부터 복무기간 후 하루 전까지로 했으며 휴가·영외 일정은 반영하지 않습니다.</p><!--guide--><section class="guide">
+<h2>전역일은 이렇게 계산해요</h2>
+<p>입대일(입영일)을 첫날로 세고, 복무 개월 수만큼 지난 날의 <b>전날</b>이 전역일이에요. 2025년 3월 4일에 육군으로 입대하면 18개월 뒤인 2026년 9월 4일의 전날, 9월 3일이 전역일이에요. 입대일이 31일인데 끝나는 달에 31일이 없으면 그 달 말일이 전역일이 돼요. 민법의 기간 계산 방식과 같아요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>입대일</th><th>복무 구분</th><th>전역일</th><th>총 복무일</th></tr></thead><tbody><tr><td>2025.3.4</td><td>육군·해병대 18개월</td><td>2026.9.3 (목)</td><td>549일</td></tr><tr><td>2025.3.4</td><td>해군 20개월</td><td>2026.11.3 (화)</td><td>610일</td></tr><tr><td>2025.3.4</td><td>공군 21개월</td><td>2026.12.3 (목)</td><td>640일</td></tr><tr><td>2025.8.31</td><td>육군·해병대 18개월</td><td>2027.2.28 (일)</td><td>547일</td></tr></tbody></table></div>
+<h2>군별 복무기간 (병무청 안내 기준)</h2>
+<ul>
+<li>육군·해병대 18개월, 해군 20개월, 공군 21개월이에요.</li>
+<li>상근예비역은 18개월, 사회복무요원은 21개월이에요. 상근예비역은 계산기에서 18개월을 고르면 돼요.</li>
+<li>지금의 기간은 2018년부터 단계적으로 3개월씩 줄인 결과로, 2021년 12월 전역자까지 단축이 끝났어요.</li>
+</ul>
+<h2>실제 전역일이 다를 수 있는 경우</h2>
+<ul>
+<li>휴가를 쓰거나 말년 휴가를 붙여도 전역일 자체는 바뀌지 않아요.</li>
+<li>징계 등으로 복무기간에 넣지 않는 기간이 생기면 전역이 늦어질 수 있어요.</li>
+<li>산업기능요원, 전문연구요원 같은 대체복무는 기간이 달라 이 계산기로는 맞지 않아요.</li>
+<li>공식 전역일은 소속 부대나 병무청 안내를 따르세요.</li>
+</ul>
+<h2>결과 화면 읽는 법</h2>
+<p>복무일수, 오늘까지 지난 날, 남은 날, 진행률을 함께 보여줘요. 결과를 이미지 카드로 만들면 가족이나 친구에게 남은 날을 공유하기 좋아요.</p>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 복무기간은 병무청 안내를 기준으로 했어요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>정확한 전역일은 어떻게 확인하나요?</h3><p>병무청 또는 소속 부대의 공식 전역 예정일을 따르세요. 이 계산기는 참고용입니다.</p><h3>전역 전 휴가는 반영되나요?</h3><p>아니요.</p></div><!--fb--><div class="fb" data-slug="military"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="age.html">만 나이 계산기</a><a href="dday.html">D-day 계산기</a><a href="bizdays.html">영업일 계산기</a><a href="dateadd.html">날짜 더하기 빼기 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
