@@ -12,6 +12,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);c
 canvas{display:block}
 #game{position:fixed;inset:0}
 .glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 36px rgba(0,0,0,.35)}
+/* panels that stay on screen over the live 3D view: a backdrop blur there is re-rendered by the compositor every frame, so they get a denser tint instead */
+#status.glass,#mission.glass,#weapon.glass,#hint.glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,12,20,.74)}
 #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .6s}
 #hud.on{opacity:1}
 #hud.scoped{opacity:.0}
@@ -90,7 +92,7 @@ body.touch #mobile{display:block}
 #stick{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);opacity:0;pointer-events:none}
 #stick.on{opacity:1}
 #stick i{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px;border-radius:50%;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.35)}
-.mb{position:fixed;z-index:5;border:1px solid rgba(255,255,255,.2);background:rgba(8,12,20,.6);color:#fff;border-radius:50%;font:800 10px/1 inherit;letter-spacing:.06em;touch-action:none;backdrop-filter:blur(10px);pointer-events:auto}
+.mb{position:fixed;z-index:5;border:1px solid rgba(255,255,255,.2);background:rgba(8,12,20,.7);color:#fff;border-radius:50%;font:800 10px/1 inherit;letter-spacing:.06em;touch-action:none;pointer-events:auto}
 .mb:active,.mb.dn{background:rgba(255,255,255,.28);transform:scale(.93)}
 body.touch.onfoot .car,body.touch.incar .foot{display:none}
 #bFire{right:24px;bottom:150px;width:78px;height:78px;background:rgba(170,26,50,.7)}

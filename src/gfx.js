@@ -130,6 +130,7 @@ const giveAcc = (a) => { (a.decor ? ACC_POOL.decor : ACC_POOL.plain).push(a); };
 const _bp = new Float32Array(108), _bn = new Float32Array(108), _bc = new THREE.Color();
 const PART_KEYS = ['decor', 'emit', 'glass', 'steel'];
 
+const ICO = new Map();
 export class Builder {
   constructor() { this.acc = {}; this.surf = 0; }
   // append n vertices (or the vertices picked by index) with one flat colour; decor also gets world-metre pattern coordinates projected
@@ -177,7 +178,12 @@ export class Builder {
   // min/max extents box
   ext(key, x0, y0, z0, x1, y1, z1, col, em = 1) { this.box(key, (x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, col, 0, em); }
   cyl(key, x, y, z, r, h, col, seg = 14, em = 1) { const g = new THREE.CylinderGeometry(r, r, h, seg); g.translate(x, y + h / 2, z); this._push(key, g, col, em); }
-  ico(key, x, y, z, r, col, sy = 1) { const g = new THREE.IcosahedronGeometry(r, 1); g.scale(1, sy, 1); g.translate(x, y, z); this._push(key, g, col); }
+  // icosahedra per radius are built once (subdivision + uv generation cost more than the rest of a potted plant); copies get the same scale /
+  // translate as before, so the vertices are identical
+  ico(key, x, y, z, r, col, sy = 1) {
+    let b = ICO.get(r); if (!b) { b = new THREE.IcosahedronGeometry(r, 1); b.deleteAttribute('uv'); ICO.set(r, b); }
+    const g = b.clone(); g.scale(1, sy, 1); g.translate(x, y, z); this._push(key, g, col);
+  }
   finish(parent) { const out = []; for (const m of this.finishGen(parent, out)); return out; }
   // one mesh per material class (exact-length copies of the buffers, which go back to the pool); a generator so a floor build can pause
   *finishGen(parent, out = []) {

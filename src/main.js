@@ -34,7 +34,8 @@ function fatal(e) {
   go.classList.add('rdy');
   const begin = () => {
     if (game.running) return;
-    el('title').classList.add('off');
+    const t = el('title'); t.classList.add('off');
+    setTimeout(() => { t.style.display = 'none'; }, 1300);   // after the fade: no full-screen layer and no title animations ticking over the game
     game.start();
   };
   go.addEventListener('click', begin);

@@ -173,12 +173,12 @@ export class Building {
     yield;
     // ---- contents ----
     fl.deco = furnitureReady() ? new FloorDecor(fl, y) : null;
-    if (L.type === 'lobby') this.furnishLobby(fl, L);
-    else if (L.type === 'retail') this.furnishOpen(fl, L, 'retail');
-    else if (L.type === 'roof') this.furnishRoof(fl, L);
+    if (L.type === 'lobby') yield* this.furnishLobby(fl, L);
+    else if (L.type === 'retail') yield* this.furnishOpen(fl, L, 'retail');
+    else if (L.type === 'roof') yield* this.furnishRoof(fl, L);
     else yield* this.furnishRooms(fl, L);
     yield;
-    fl.deco?.finish(fl.group);
+    if (fl.deco) yield* fl.deco.finishGen(fl.group);   // merging a floor's furniture: ~20 ms at once for a lobby, in steps here
     yield;
     // ---- finish meshes ----
     yield* B.finishGen(fl.group);
@@ -387,7 +387,13 @@ export class Building {
   floorFinish(fl, x0, z0, x1, z1, y, surf, col) {
     const B = fl.B; B.surf = surf; B.ext('decor', x0, y + 0.004, z0, x1, y + 0.014, z1, col); B.surf = 0;
   }
-  furnishLobby(fl, L) {
+  // residents / staff of a floor: the same as Buildings.populateFloor, with the citizens placed one per step
+  *populate(fl, L) {
+    const M = this.M; if (!M.populateFloor) return;
+    if (M.populateLifeGen && M.populateCitizensGen) { yield* M.populateLifeGen(this, fl, L); yield; yield* M.populateCitizensGen(this, fl, L); }
+    else M.populateFloor(this, fl, L);
+  }
+  *furnishLobby(fl, L) {
     this.floorFinish(fl, L.rect.x0 + WALL, L.rect.z0 + WALL, L.rect.x1 - WALL, L.rect.z1 - WALL, L.y, SURF.tile, 0xc8ccd6);
     const { B, solid, R } = fl, r = L.rect, acc = fl.acc, c = this.core;
     const em = acc.clone().multiplyScalar(2.4);
@@ -402,6 +408,7 @@ export class Building {
       B.ext('emit', rx - dx / 2, 1.1, rz - dz / 2, rx + dx / 2, 1.16, rz + dz / 2, em);
       fl.reception = { x: rx + d.nx * 1.2, z: rz + d.nz * 1.2 };
       this.M.spawnNPC?.(this, fl, 'reception', rx - d.nx * 0.9, rz - d.nz * 0.9);
+      yield;   // a character model is a big piece of work
     }
     const D = fl.deco;
     if (D) {
@@ -425,6 +432,7 @@ export class Building {
         const pm = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.69), new THREE.MeshBasicMaterial({ map: tx, toneMapped: false }));
         pm.rotation.y = fry; pm.position.set(kx + d.nx * 0.06, 1.62, kz + d.nz * 0.06); if (kok) fl.group.add(pm);
       }
+      yield;
       for (let i = 0; i < 3; i++) D.put(i === 1 ? 'painted_wooden_sofa' : 'sofa_02', r.x1 - 2.4, r.z1 - 3 - i * 3.4, -Math.PI / 2);
       D.put('coffee_table_round_01', r.x1 - 4.4, r.z1 - 4.7, 0);
       // lounge groups: two lounge chairs around a low table, plus plants and sconces along the walls
@@ -445,9 +453,9 @@ export class Building {
     if (!D) { this.plant(fl, r.x0 + 1.4, r.z1 - 1.4); this.plant(fl, r.x1 - 1.4, r.z0 + 1.4); this.plant(fl, r.x1 - 1.4, r.z1 - 1.4); }
     // logo wall
     B.ext('emit', c.x0 + CORE_W + 0.3, 1.6, c.zc - 0.4, c.x0 + CORE_W + 2.4, 2.0, c.zc - 0.34, acc.clone().multiplyScalar(1.4));
-    this.M.populateFloor?.(this, fl, L);
+    yield* this.populate(fl, L);
   }
-  furnishOpen(fl, L, kind) {
+  *furnishOpen(fl, L, kind) {
     this.floorFinish(fl, L.rect.x0 + WALL, L.rect.z0 + WALL, L.rect.x1 - WALL, L.rect.z1 - WALL, L.y, SURF.tile, 0xb4b8c4);
     const { B, solid, R } = fl, r = L.rect, c = this.core;
     const free = (x0, z0, x1, z1) => !(x1 > c.x0 - 1.2 && x0 < c.x0 + CORE_W + 1.2 && z1 > c.z0 - 1.2 && z0 < c.zc + 3.2);
@@ -481,9 +489,9 @@ export class Building {
       D.put('potted_plant_02', r.x0 + 1.2, r.z0 + 1.2, 0); D.put('potted_plant_02', r.x1 - 1.2, r.z0 + 1.2, 1.5);
       D.put('security_camera_01', r.x1 - 0.5, r.z1 - 0.5, -Math.PI * 0.75, { lift: L.h - 0.7, solid: false, s: 0.8 });
     }
-    this.M.populateFloor?.(this, fl, L);
+    yield* this.populate(fl, L);
   }
-  furnishRoof(fl, L) {
+  *furnishRoof(fl, L) {
     const { B, solid, cc, R } = fl, tow = this.tow;
     // heliport + AC units + water tank for parkour
     const cx = (tow.x0 + tow.x1) / 2 + 2, cz = (tow.z0 + tow.z1) / 2 + 2;
@@ -515,7 +523,7 @@ export class Building {
       for (let k = 1; k <= 3; k++) B.ext('decor', mx - 0.7, ry + 2 + k * 2, mz - 0.03, mx + 0.7, ry + 2.06 + k * 2, mz + 0.03, 0x2a2e38);
     }
     fl.fixtures.push([cx, this.roofY + 4, cz, [0.8, 0.9, 1]]);
-    this.M.populateFloor?.(this, fl, L);
+    yield* this.populate(fl, L);
   }
   *furnishRooms(fl, L) {
     const { B, solid, cc, R, rnd } = fl, r = L.rect, c = this.core, zc = c.zc;
@@ -631,7 +639,7 @@ export class Building {
       { const vx = ix1 - 1.1, vz = corrZ1 - 0.5; fl.solid('decor', vx - 0.45, y, vz - 0.4, vx + 0.45, y + 1.85, vz + 0.4, 0x2a3a5a); B.ext('emit', vx - 0.38, y + 0.9, vz - 0.405, vx + 0.38, y + 1.7, vz - 0.395, new THREE.Color(0.35, 0.75, 1).multiplyScalar(1.5)); B.ext('emit', vx - 0.38, y + 0.3, vz - 0.405, vx + 0.38, y + 0.38, vz - 0.395, new THREE.Color(1, 0.5, 0.2).multiplyScalar(1.3)); }
     }
     yield;
-    this.M.populateLife?.(this, fl, L, rooms);
+    if (this.M.populateLifeGen) yield* this.M.populateLifeGen(this, fl, L, rooms); else this.M.populateLife?.(this, fl, L, rooms);
     yield;
     yield* this.M.populateCitizensGen(this, fl, L, rooms);
     fl.rooms = rooms;
@@ -1035,6 +1043,7 @@ export class Buildings {
   }
   populateFloor(b, fl, L, rooms) { this.populateLife(b, fl, L, rooms); this.populateCitizens(b, fl, L, rooms); }
   populateLife(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); }
+  *populateLifeGen(b, fl, L, rooms) { yield* this.G.life.populateGen(b, fl, L, rooms); }
   populateCitizens(b, fl, L, rooms) { this.G.citizens?.populateFloor(b, fl, L, rooms); }
   *populateCitizensGen(b, fl, L, rooms) { if (this.G.citizens) yield* this.G.citizens.populateFloorGen(b, fl, L, rooms); }
   onFloorDropped(b, fl) { this.G.citizens?.floorDropped(fl); this.G.life.dropFloor(b, fl); }

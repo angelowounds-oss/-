@@ -74,10 +74,12 @@ export class Particles {
     this.p[i * 3] = x; this.p[i * 3 + 1] = y; this.p[i * 3 + 2] = z;
     this.v[i * 3] = vx; this.v[i * 3 + 1] = vy; this.v[i * 3 + 2] = vz;
     this.life[i] = life; this.maxLife[i] = life; this.size[i] = size; this.grav[i] = grav; this.drag[i] = drag;
-    this.col.set([r, g, b, a], i * 4);
+    const c = this.col; c[i * 4] = r; c[i * 4 + 1] = g; c[i * 4 + 2] = b; c[i * 4 + 3] = a;
     this.n = Math.min(this.n + 1, this.max);
+    this.idle = false;
   }
   update(dt) {
+    if (this.idle) return;   // nothing alive since the last frame that drew any: no loop over the pool, no buffer uploads
     const { p, v, life, maxLife, size, grav, col, drag } = this;
     const pa = this.posAttr.array, ca = this.colAttr.array, sa = this.sizeAttr.array;
     let live = 0;
@@ -95,8 +97,10 @@ export class Particles {
       sa[i] = size[i] * (this.additive ? (0.4 + 0.6 * t) : (1.6 - t * 0.9));
       live = i + 1;
     }
-    this.posAttr.needsUpdate = this.colAttr.needsUpdate = this.sizeAttr.needsUpdate = true;
+    // only the drawn range [0, live) goes to the GPU
+    for (const [at, k] of [[this.posAttr, 3], [this.colAttr, 4], [this.sizeAttr, 1]]) { at.clearUpdateRanges(); if (live) { at.addUpdateRange(0, live * k); at.needsUpdate = true; } }
     this.points.geometry.setDrawRange(0, Math.max(live, 0));
+    if (!live) this.idle = true;
   }
 }
 
@@ -117,8 +121,10 @@ export class Tracers {
     this.list.push({ ax: a.x, ay: a.y, az: a.z, bx: b.x, by: b.y, bz: b.z, t: 0, life: 0.09, c: color });
   }
   update(dt) {
+    if (!this.list.length && !this.drawn) return;   // nothing in flight and nothing left on screen
     const pa = this.pos.array, ca = this.col.array;
     this.list = this.list.filter((l) => (l.t += dt) < l.life);
+    this.drawn = this.list.length;
     let i = 0;
     for (const l of this.list) {
       const k = 1 - l.t / l.life;

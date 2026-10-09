@@ -10,6 +10,7 @@ import asphN from '../assets/tex/asphalt_04_n.jpg';
 import paveA from '../assets/tex/concrete_pavers_a.jpg';
 import paveN from '../assets/tex/concrete_pavers_n.jpg';
 import causticUrl from '../assets/tex/water_caustic.jpg';
+import { instCull } from './instcull.js';
 
 // ---------- City layout constants ----------
 export const N = 9;          // blocks per side (inside the outer ring)
@@ -961,7 +962,7 @@ export function buildWorld(scene, quality) {
       const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.05, 2.8, 6).translate(0, 1.4, 0), new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.6, roughness: 0.4 }), world.busStops.length);
       const sign = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.5, 0.42).translate(0.05, 2.55, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 0.6, 1).multiplyScalar(1.8), toneMapped: false }), world.busStops.length);
       const m4 = new THREE.Matrix4(); world.busStops.forEach((b, k) => { m4.makeTranslation(b.x, 0, b.z); pole.setMatrixAt(k, m4); sign.setMatrixAt(k, m4); });
-      pole.frustumCulled = sign.frustumCulled = false; scene.add(pole, sign);
+      pole.frustumCulled = sign.frustumCulled = false; scene.add(pole, sign); instCull.add(pole, sign);
     }
     // station canopies: glass roof on posts, a dark stair well and a glowing line sign
     if (world.metro?.length) {
@@ -983,7 +984,7 @@ export function buildWorld(scene, quality) {
       const g = mergeGeometries([new THREE.CylinderGeometry(0.13, 0.15, 0.95, 8).translate(0, 0.475, 0), new THREE.CylinderGeometry(0.15, 0.15, 0.06, 8).translate(0, 0.98, 0)].map((x) => x.toNonIndexed()));
       const bm = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0x2a2d36, roughness: 0.5, metalness: 0.6, emissive: 0xffb060, emissiveIntensity: 0.25 }), bol.length);
       const m4 = new THREE.Matrix4(); bol.forEach((q, k) => { m4.makeTranslation(q.x, 0, q.z); bm.setMatrixAt(k, m4); });
-      bm.castShadow = false; bm.receiveShadow = true; scene.add(bm);
+      bm.castShadow = false; bm.receiveShadow = true; scene.add(bm); instCull.add(bm);
     }
   }
 
@@ -1016,8 +1017,9 @@ export function buildWorld(scene, quality) {
   world.setZonePower = (zn, on) => {
     world.zoneOff[zn] = !on;
     const H = world.lampHeads, c = new THREE.Color();
-    if (H) world.lamps.forEach((l, k) => { if (world.zoneOf(l.x, l.z) === zn) H.setColorAt(k, on ? c.setRGB(l.c[0] * 3, l.c[1] * 3, l.c[2] * 3) : c.setRGB(0.05, 0.05, 0.06)); });
-    if (H && H.instanceColor) H.instanceColor.needsUpdate = true;
+    const pk = H?.userData.packed;   // distance-packed (instcull.js): colours go by original index through it
+    if (H) world.lamps.forEach((l, k) => { if (world.zoneOf(l.x, l.z) === zn) { const col = on ? c.setRGB(l.c[0] * 3, l.c[1] * 3, l.c[2] * 3) : c.setRGB(0.05, 0.05, 0.06); if (pk) pk.setColor(k, col); else H.setColorAt(k, col); } });
+    if (pk) pk.flushColor(); else if (H && H.instanceColor) H.instanceColor.needsUpdate = true;
     const G2 = world.glare; if (G2) { const a = G2.colAttr; for (let i = 0; i < world.tlGlareStart; i++) { const d = G2.data[i]; if (world.zoneOf(d.x, d.z) === zn) a.setW(i, on ? d.size : 0); } a.needsUpdate = true; }
   };
 
@@ -1057,7 +1059,7 @@ export function buildWorld(scene, quality) {
       mat4.compose(pos, q, s); m.setMatrixAt(k, mat4); m.setColorAt(k, c.set(p.color));
     });
     m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-    scene.add(m);
+    scene.add(m); instCull.add(m);
   }
 
   // Signs
@@ -1075,7 +1077,7 @@ export function buildWorld(scene, quality) {
     geo.setAttribute('aCell', new THREE.InstancedBufferAttribute(cells, 4));
     m.frustumCulled = false;
     m.renderOrder = 2;
-    scene.add(m);
+    scene.add(m); instCull.add(m);
     world.signMesh = m;
   }
 
@@ -1091,7 +1093,7 @@ export function buildWorld(scene, quality) {
     });
     geo.setAttribute('aHolo', new THREE.InstancedBufferAttribute(attr, 4));
     m.frustumCulled = false; m.renderOrder = 3;
-    scene.add(m);
+    scene.add(m); instCull.add(m);
   }
 
   // ---- Street lamps along sidewalks ----
@@ -1132,7 +1134,8 @@ export function buildWorld(scene, quality) {
       world.colliders.addCircle(l.x, l.z, 0.25, 9, 'lamp');
     });
     poles.castShadow = true; poles.frustumCulled = false; heads.frustumCulled = false; (world.dayMats = world.dayMats || []).push(heads.material);
-    scene.add(poles, heads);
+    scene.add(poles, heads); instCull.add(poles, heads);
+    instCull.region = { half: HALF + R + SW, maxY: 20 };
   }
 
   // ---- Traffic lights at intersections ----
@@ -1163,7 +1166,7 @@ export function buildWorld(scene, quality) {
     const m4 = new THREE.Matrix4();
     tlLamps.forEach((t, k) => { m4.makeTranslation(t.x, 0, t.z); a.setMatrixAt(k, m4); b.setMatrixAt(k, m4); });
     a.frustumCulled = false; b.frustumCulled = false; b.castShadow = true;
-    scene.add(a, b);
+    scene.add(a, b); instCull.add(a, b);
   }
 
   // ---- Trees ----
@@ -1183,7 +1186,7 @@ export function buildWorld(scene, quality) {
     });
     trunkM.castShadow = leafM.castShadow = true; trunkM.receiveShadow = leafM.receiveShadow = true;
     trunkM.frustumCulled = leafM.frustumCulled = false;
-    scene.add(trunkM, leafM);
+    scene.add(trunkM, leafM); instCull.add(trunkM, leafM);
   }
   // benches
   if (benches.length) {
@@ -1191,7 +1194,7 @@ export function buildWorld(scene, quality) {
     const bm = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0x3a2e28, roughness: 0.8 }), benches.length);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
     benches.forEach((b, k) => { e.set(0, b.ry, 0); q.setFromEuler(e); p.set(b.x, 0, b.z); m4.compose(p, q, one); bm.setMatrixAt(k, m4); });
-    bm.castShadow = true; scene.add(bm);
+    bm.castShadow = true; scene.add(bm); instCull.add(bm);
   }
 
   // ---- Plaza landmark: holographic tower ----
@@ -1246,7 +1249,7 @@ export function buildWorld(scene, quality) {
     const vmesh = new THREE.InstancedMesh(vg, new THREE.MeshBasicMaterial({ color: 0xffffff }), vm.length);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), c = new THREE.Color();
     vm.forEach((v, k) => { e.set(0, v.ry, 0); q.setFromEuler(e); p.set(v.x, 0, v.z); m4.compose(p, q, one); vmesh.setMatrixAt(k, m4); const a = accentColor(v.ci); vmesh.setColorAt(k, c.setRGB(a[0] * 0.38 + 0.03, a[1] * 0.38 + 0.03, a[2] * 0.38 + 0.03)); world.colliders.addCircle(v.x, v.z, 0.5, 2, 'vm'); addGlare(v.x, 1.2, v.z, a.map((x) => x * 0.35), 9); });
-    vmesh.castShadow = true; vmesh.frustumCulled = false; scene.add(vmesh);
+    vmesh.castShadow = true; vmesh.frustumCulled = false; scene.add(vmesh); instCull.add(vmesh);
     const bg = new THREE.CylinderGeometry(0.32, 0.28, 0.9, 10); bg.translate(0, 0.45, 0);
     const bmesh = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ color: 0x2c3340, roughness: 0.5, metalness: 0.6 }), bins.length);
     bins.forEach((b, k) => { p.set(b.x, 0, b.z); m4.compose(p, new THREE.Quaternion(), one); bmesh.setMatrixAt(k, m4); });

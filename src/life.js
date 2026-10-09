@@ -53,7 +53,9 @@ export class Life {
   }
 
   // ---------- floor population ----------
-  populate(b, fl, L, rooms) {
+  populate(b, fl, L, rooms) { const g = this.populateGen(b, fl, L, rooms); while (!g.next().done); }
+  // the same in steps: a character model is the biggest single piece of work in building a floor, so each one gets a step of its own
+  *populateGen(b, fl, L, rooms) {
     const G = this.G, rnd = mulberry32(b.id * 7919 + fl.k * 131 + 3), R = (a, c) => a + (c - a) * rnd();
     const y = L.y; let n = 0;
     fl.ctr = 0;
@@ -65,10 +67,12 @@ export class Life {
           { key: 'F', label: () => '대화', run: () => G.talk?.(h, b) },
           { key: 'G', label: () => '문의: 이 건물', run: () => G.toast(b.name, `${b.levels.length - 1}층 · ${b.kind === 'office' ? '오피스' : b.kind === 'hotel' ? '호텔' : '레지던스'}`) },
         ]);
+        yield;
       }
       if (G.hospital && G.hospital.lot === b.lot) {
         const n = this.npc(b, fl, b.cx + 3, y, b.cz + 3, { role: 'nurse', look: { top: 0xdfe8f0, pants: 0x9ab0c0, hair: 0x2a1a10 } });
         this.fix(fl, n.x, y + 1, n.z + 1, 2.6, '응급실 접수', [{ key: 'F', label: () => '응급 치료 $120', run: () => G.hospitalVisit() }]);
+        yield;
       }
       // ATM near the entrance
       const d = b.door, ax = b.pod.x0 + 2.2, az = b.pod.z1 - 2.2;
@@ -92,13 +96,14 @@ export class Life {
         const cam = { x: cx, y: cy, z: cz, alive: true, t: 0 }; const bx = fl.cc(cx - 0.2, cz - 0.2, cx + 0.2, cz + 0.2, cy - 0.05, cy + 0.3, 'cctv'); bx.onShot = () => { if (!cam.alive) return; cam.alive = false; G.fx.sparks(cx, cy, cz, 6, [1, 0.8, 0.4], 10); G.audio.impact?.(0.6, 0); G.toast('CCTV 파괴'); }; (fl.cctv = fl.cctv || []).push(cam); }
       // lobby chairs and a plant as physical props
       for (let i = 0; i < 3; i++) this.item(b, fl, n++, 'chair', b.pod.x1 - 2.5 - i * 1.2, y + 0.5, b.pod.z0 + 2.5, {});
+      yield;
       if (rnd() < 0.7) { const gh = this.npc(b, fl, b.cx + R(-4, 4), y, b.cz + R(-4, 4), { guard: true, weapon: 1, look: { top: 0x1a1d29, pants: 0x0d0f16, cap: 0x0d0f16, trim: [1, 0.8, 0.2] }, ry: 0 }); void gh; }
       G.items.register?.call(G.items, `f${b.id}:${fl.k}:t`, 'brick', b.cx, y + 0.3, b.cz + 2);
-    } else if (L.type === 'retail') this.shop(b, fl, L, rnd, R);
+    } else if (L.type === 'retail') { yield; this.shop(b, fl, L, rnd, R); }
     else if (L.type === 'roof') {
       for (let i = 0; i < 4; i++) this.item(b, fl, n++, ['brick', 'can', 'bottle', 'cigarette'][i], b.tow.x1 - 4 - i * 0.6, b.roofY + 0.2, b.tow.z1 - 4 - R(0, 3));
       if (rnd() < 0.5) this.item(b, fl, n++, 'cashroll', b.tow.x1 - 3, b.roofY + 0.2, b.tow.z1 - 3);
-    } else if (rooms) rooms.forEach((rm, i) => this.room(b, fl, L, rm, i, rnd, R));
+    } else if (rooms) for (let i = 0; i < rooms.length; i++) { this.room(b, fl, L, rooms[i], i, rnd, R); yield; }
   }
 
   shop(b, fl, L, rnd, R) {

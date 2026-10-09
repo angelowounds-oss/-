@@ -67,25 +67,29 @@ export class FloorDecor {
     return rec;
   }
   size(id, s = 1) { const m = furnitureInfo(id); return m ? { w: m.w * s, h: m.h * s, d: m.d * s } : null; }
-  finish(group) {
-    if (!this.geos.length || !material) return null;
+  finish(group) { const g = this.finishGen(group); while (!g.next().done); return this.mesh || null; }
+  // the same merge in steps of ~25k vertices (a furnished lobby is well over 100k: one step was ~20 ms)
+  *finishGen(group) {
+    if (!this.geos.length || !material) return;
     let nv = 0; for (const it of this.geos) nv += it.m.geo.attributes.position.count;
     const P = new Float32Array(nv * 3), Nn = new Float32Array(nv * 3), U = new Float32Array(nv * 2);
-    let o = 0;
+    let o = 0, budget = 0;
     for (const { m, e, ne } of this.geos) {
       const ga = m.geo.attributes, p = ga.position.array, n = ga.normal.array, c = ga.position.count;
       U.set(ga.uv.array, o * 2);
+      const affine = e[3] === 0 && e[7] === 0 && e[11] === 0 && e[15] === 1;   // then w is exactly 1: the divide is skipped, the result is the same
       for (let i = 0; i < c; i++, o++) {
-        const x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2], w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+        const x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2], w = affine ? 1 : 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
         P[o * 3] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w; P[o * 3 + 1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w; P[o * 3 + 2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
         const nx = n[i * 3], ny = n[i * 3 + 1], nz = n[i * 3 + 2];
         let ax = ne[0] * nx + ne[3] * ny + ne[6] * nz, ay = ne[1] * nx + ne[4] * ny + ne[7] * nz, az = ne[2] * nx + ne[5] * ny + ne[8] * nz;
         const l = Math.sqrt(ax * ax + ay * ay + az * az) || 1; const il = 1 / l; Nn[o * 3] = ax * il; Nn[o * 3 + 1] = ay * il; Nn[o * 3 + 2] = az * il;
       }
+      if ((budget += c) > 25000) { budget = 0; yield; }
     }
     const merged = new THREE.BufferGeometry();
     merged.setAttribute('position', new THREE.BufferAttribute(P, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(Nn, 3)); merged.setAttribute('uv', new THREE.BufferAttribute(U, 2));
     const mesh = new THREE.Mesh(merged, material); mesh.castShadow = false; mesh.receiveShadow = true; mesh.frustumCulled = true;
-    group.add(mesh); this.mesh = mesh; return mesh;
+    group.add(mesh); this.mesh = mesh;
   }
 }

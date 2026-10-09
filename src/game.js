@@ -42,6 +42,7 @@ import { Society, ZONES } from './society.js';
 import { Character } from './character.js';
 import * as AI from './ai.js';
 import { Military } from './military.js';
+import { instCull } from './instcull.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -335,6 +336,7 @@ export class Game {
   // ====================================================================
   // Main update
   update(rawDt) {
+    const w0 = performance.now();
     const input = this.input;
     if (input.edge('pause') && this.running) this.setPaused(!this.paused);
     const dt = Math.min(rawDt, 0.05);
@@ -374,6 +376,7 @@ export class Game {
     this.audioUpdate(dt);
     const d5 = dg ? performance.now() : 0;
     this.renderFrame(dt, false);
+    this.workMs = performance.now() - w0;   // what this frame cost the main thread (autoQuality's headroom)
     if (dg) this.frameDiag(pn, d1, d2, d3, d4, d5, performance.now());
   }
   // slow-frame log under the FPS counter: real time between frames (what the player sees) and the biggest section of that frame
@@ -400,6 +403,7 @@ export class Game {
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
     this.daynight.update(dt, focus);
+    instCull.update(camera, this.scene.fog);   // static instanced meshes: only instances short of the fog wall are drawn
     this.cullSkins();
     if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); this.signs?.update(camera.position); }
     this.rain.material.uniforms.uCam.value.copy(camera.position);
@@ -1679,18 +1683,25 @@ export class Game {
     }
   }
   autoQuality(dt) {
-    // frame-time driven dynamic resolution; tier drop only when already at minimum scale
-    const a = this.aq = this.aq || { ema: 1 / 60, cool: 4, slow: 0, fast: 0, last: performance.now() };
+    // frame-time driven dynamic resolution; tier drop only when already at minimum scale.
+    // With vsync the interval sits at the refresh period however light the frame is, so "fast frames" never show on a 60 Hz screen and the
+    // resolution would never come back after one bad moment. Headroom is therefore also read from the work a frame takes (update + render
+    // submission): when that stays well under the interval, the scale steps up again; if the step does not hold (slow again within a few
+    // seconds) it steps back and the next try waits twice as long (up to a minute).
+    const a = this.aq = this.aq || { ema: 1 / 60, work: 0.008, cool: 4, slow: 0, fast: 0, last: performance.now(), wait: 6, probe: 0 };
     const now = performance.now(); dt = Math.min((now - a.last) / 1000, 1); a.last = now;
-    a.cool -= dt; a.ema += (dt - a.ema) * 0.08;
+    a.cool -= dt; a.ema += (dt - a.ema) * 0.08; a.work += ((this.workMs || 0) / 1000 - a.work) * 0.08;
+    if (a.probe > 0) a.probe -= dt;
     if (a.cool > 0) return;
     const eng = this.eng, target = 1 / 58;
-    if (a.ema > target * 1.08) { a.slow += dt; a.fast = 0; } else if (a.ema < target * 0.8) { a.fast += dt; a.slow = 0; } else a.slow = a.fast = 0;
+    const roomy = a.ema < target * 0.8 || (a.ema < target * 1.08 && a.work < a.ema * 0.55);
+    if (a.ema > target * 1.08) { a.slow += dt; a.fast = 0; } else if (roomy) { a.fast += dt; a.slow = 0; } else a.slow = a.fast = 0;
     if (a.slow > 0.6) {
       a.slow = 0; a.cool = 1.2;
+      if (a.probe > 0) a.wait = Math.min(60, a.wait * 2);
       if (eng.scale > 0.7) eng.setScale(eng.scale - 0.1);
       else if (eng.qIndex > 0) { this.dropQualityTier(); a.cool = 6; }
-    } else if (a.fast > 6 && eng.scale < 1) { a.fast = 0; a.cool = 3; eng.setScale(eng.scale + 0.1); }
+    } else if (a.fast > a.wait && eng.scale < 1) { a.fast = 0; a.cool = 3; a.probe = 5; eng.setScale(eng.scale + 0.1); }
   }
   // Automatic tier drop: resolution, shadow map size, bloom and AO go down, the light caps stay. The number of lights is part of every
   // shader, so lowering it would recompile all of them right when the game is already struggling (and the shadow pass's depth shaders

@@ -65,6 +65,7 @@ export class Audio {
     if (fEnd) fl.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur);
     const g = ctx.createGain(); g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     s.connect(fl).connect(g).connect(dest || this.sfx); s.start(t0); s.stop(t0 + dur + 0.05);
+    s.onended = () => g.disconnect();   // drop the finished chain from the graph (some browsers keep connected nodes alive)
   }
   tone(freq, dur, type, gain, endFreq, dest, delay = 0) {
     const ctx = this.ctx; if (!ctx) return;
@@ -72,8 +73,15 @@ export class Audio {
     if (endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t0 + dur);
     const g = ctx.createGain(); g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     o.connect(g).connect(dest || this.sfx); o.start(t0); o.stop(t0 + dur + 0.05);
+    o.onended = () => g.disconnect();
   }
-  pan(p) { const s = this.ctx.createStereoPanner?.(); if (s) { s.pan.value = Math.max(-1, Math.min(1, p)); s.connect(this.sfx); return s; } return this.sfx; }
+  // one shared panner per 1/8 step of pan (a new one per shot piled up in the graph)
+  pan(p) {
+    const k = Math.round(Math.max(-1, Math.min(1, p || 0)) * 8);   // (centre too: a panner at 0 still applies the equal-power -3 dB)
+    const P = this.panners || (this.panners = {});
+    if (!P[k]) { const s = this.ctx.createStereoPanner?.(); if (!s) return this.sfx; s.pan.value = k / 8; s.connect(this.sfx); P[k] = s; }
+    return P[k];
+  }
   gun(kind, vol = 1, pan = 0, sup = false) {
     if (!this.ctx) return; if (sup) { vol *= 0.34; this.tone(190, 0.07, 'sine', 0.22 * vol, 90); this.noiseShot(0.05, 'bandpass', 1500, 0.2 * vol, 1); }
     const d = this.pan(pan); if (vol > 0.5 && !sup) this.duckFor(0.9);
@@ -146,6 +154,7 @@ export class Audio {
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 * Math.sqrt(pitch); bp.Q.value = 2.5;
     const g = ctx.createGain(); g.gain.setValueAtTime(0.001, t0); g.gain.linearRampToValueAtTime(0.2 * vol, t0 + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     o.connect(bp).connect(g).connect(d); o.start(t0); lfo.start(t0); o.stop(t0 + dur + 0.05); lfo.stop(t0 + dur + 0.05);
+    o.onended = () => g.disconnect();
   }
   scream(pan = 0, vol = 1, pitch = 1) { this.voice('scream', pan, vol, pitch); }
   duckFor(sec) { this.duckT = Math.max(this.duckT || 0, sec); }

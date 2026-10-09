@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GR, grp } from './physics.js';
 import { mulberry32, TAU } from './util.js';
+import { instCull } from './instcull.js';
 
 // Hill rim around the flat city (Busan-style hillside districts: a mountain road that winds along the slope at changing altitude).
 // The city grid inside r < R0 is untouched. Outside it the ground rises into ridges; a winding "mountain road" loop and four
@@ -155,7 +156,7 @@ export function buildTerrain(scene) {
     const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.1, 0.14, 7, 5).translate(0, 3.5, 0), new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 0.7 }), lamps.length);
     const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.14, 0.7).translate(0, 7.1, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.78, 0.45).multiplyScalar(2.2), toneMapped: false }), lamps.length);
     const m = new THREE.Matrix4(); lamps.forEach((l, i) => { m.makeTranslation(l[0], l[1], l[2]); post.setMatrixAt(i, m); head.setMatrixAt(i, m); });
-    post.frustumCulled = false; head.frustumCulled = false; group.add(post, head);
+    post.frustumCulled = false; head.frustumCulled = false; group.add(post, head); instCull.add(post, head);
   }
   // trees on the slopes (one instanced mesh)
   // pine: trunk + 8 drooping, slightly twisted skirts of needles (~70 triangles, vertex-coloured), thousands of them in sectors so the frustum culls them
@@ -182,7 +183,7 @@ export function buildTerrain(scene) {
     const list = spots.filter((s) => Math.floor(((s[4] % TAU) / TAU) * SECT) === sct); if (!list.length) continue;
     const im = new THREE.InstancedMesh(tg, tm, list.length);
     list.forEach((s, i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rr() * TAU); sc.set(s[3], s[3] * (0.9 + rr() * 0.45), s[3]); m4.compose(pos.set(s[0], s[1] - 0.2, s[2]), q, sc); im.setMatrixAt(i, m4); });
-    im.castShadow = false; im.computeBoundingSphere(); group.add(im);
+    im.castShadow = false; im.computeBoundingSphere(); group.add(im); instCull.add(im);
   }
   scene.add(group);
   return { group, trees: spots.length };

@@ -3,13 +3,22 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { el, LIGHT_CAP } from './util.js';
 import hdriPlaza from '../assets/env/hansaplatz.rgbe';
 import hdriSuite from '../assets/env/interior_suite.rgbe';
 import hdriDay from '../assets/env/day_street.rgbe';
+
+// Point / spot lights stay in the scene at intensity 0 when unused (the light count is part of every lit shader; changing it recompiles them
+// all), and three.js evaluates the full BRDF for each of them on every lit pixel. Skip a light's BRDF where it contributes nothing:
+// directLight.visible is false exactly when its colour there is 0 (off, outside its cone or beyond its range), so the sum is bit-identical.
+{
+  const C = THREE.ShaderChunk, call = 'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
+  const n = C.lights_fragment_begin.split(call).length - 1;
+  if (n >= 2) C.lights_fragment_begin = C.lights_fragment_begin.replaceAll(call, 'if ( directLight.visible ) ' + call);
+  else console.warn('light skip patch: chunk layout changed');
+}
 
 export const QUALITY = [
   { name: 'LOW', ragdolls: 3, ragDist: 35, shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
@@ -103,9 +112,19 @@ export function createEngine(parent, qIndex) {
   let gtao = null;
   const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.4, 1.15);
   composer.addPass(bloom);
-  const grade = new ShaderPass(GradeShader);
+  // the colour grade runs inside the output pass (tone mapping + sRGB): one full-screen pass less, and no half-float round trip in between
+  const grade = new OutputPass();
+  for (const k in GradeShader.uniforms) if (k !== 'tDiffuse') grade.uniforms[k] = { value: GradeShader.uniforms[k].value };
+  {
+    const src = GradeShader.fragmentShader;
+    const decl = src.slice(0, src.indexOf('void main(){')).replace('uniform sampler2D tDiffuse;', '').replace('varying vec2 vUv;', '');
+    const body = src.slice(src.indexOf('void main(){') + 'void main(){'.length, src.lastIndexOf('gl_FragColor=vec4(max(col,0.),1.);'));
+    const fs = grade.material.fragmentShader;
+    grade.material.fragmentShader = fs.replace('varying vec2 vUv;', 'varying vec2 vUv;\n' + decl + '\nvec3 gradeColor(){' + body + 'return max(col,0.);}')
+      .replace('gl_FragColor = texture2D( tDiffuse, vUv );', 'gl_FragColor = vec4( gradeColor(), 1.0 );');
+    if (grade.material.fragmentShader === fs) throw new Error('grade/output merge failed');
+  }
   composer.addPass(grade);
-  composer.addPass(new OutputPass());
   let smaa = null;
 
   const eng = {

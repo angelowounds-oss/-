@@ -6,6 +6,7 @@ import { buildCar } from './models.js';
 //  - bullet holes and blast scorches stay where they hit (saved), wrecks stay where cars burned out
 //  - every witnessed crime goes into an event log that turns into Korean news headlines (car radio with speech, apartment TV, phone)
 //  - witnesses tell neighbours and colleagues; residents who know the player's face react when they see them
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const MAX_HOLES = 700, MAX_SCORCH = 60, MAX_WRECKS = 12, MAX_EVENTS = 200;
 
 export class Memory {
@@ -23,24 +24,30 @@ export class Memory {
     this.scorch = new THREE.InstancedMesh(sg, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), MAX_SCORCH);
     this.scorch.count = 0; this.scorch.frustumCulled = false; this.scorch.renderOrder = 1; G.scene.add(this.scorch);
     this.wreckGroup = new THREE.Group(); G.scene.add(this.wreckGroup); this.wreckCols = [];
-    this.m4 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.n = new THREE.Vector3(); this.one = new THREE.Vector3(1, 1, 1);
+    this.m4 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.n = new THREE.Vector3(); this.one = new THREE.Vector3(1, 1, 1); this.sc = new THREE.Vector3(); this.ring = 0;
     this.rebuild();
     this.newsT = 40; this.rumorT = 0; this.seenT = 0;
   }
   zone(x, z) { return ZONES[this.G.society.zoneAt(x, z)]?.name || '도심'; }
 
   // ---------- marks ----------
+  // the instance slots are a ring: once full, a new hole takes the slot of the oldest one (only that slot is rewritten and uploaded)
   addHole(x, y, z, nx, ny, nz) {
-    const h = this.st.holes; h.push([+x.toFixed(2), +y.toFixed(2), +z.toFixed(2), nx, ny, nz]); if (h.length > MAX_HOLES) h.shift();
-    this.placeHole(h.length - 1 < MAX_HOLES ? h.length - 1 : MAX_HOLES - 1, h[h.length - 1]); this.holes.count = Math.min(MAX_HOLES, h.length);
-    if (h.length >= MAX_HOLES) this.rebuildHoles();
+    const h = this.st.holes, r = [+x.toFixed(2), +y.toFixed(2), +z.toFixed(2), nx, ny, nz]; h.push(r);
+    let slot = h.length - 1;
+    if (h.length > MAX_HOLES) { h.shift(); slot = this.ring; this.ring = (this.ring + 1) % MAX_HOLES; }
+    this.placeHole(slot, r); this.holes.count = Math.min(MAX_HOLES, h.length);
+    const im = this.holes.instanceMatrix; im.addUpdateRange(slot * 16, 16); im.needsUpdate = true;
   }
   placeHole(i, r) {
-    this.n.set(r[3], r[4], r[5]); this.q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.n);
+    this.n.set(r[3], r[4], r[5]); this.q.setFromUnitVectors(Z_AXIS, this.n);
     this.v.set(r[0] + r[3] * 0.01, r[1] + r[4] * 0.01, r[2] + r[5] * 0.01); const s = 0.7 + ((i * 0.618) % 1) * 0.6;
-    this.m4.compose(this.v, this.q, new THREE.Vector3(s, s, s)); this.holes.setMatrixAt(i, this.m4); this.holes.instanceMatrix.needsUpdate = true;
+    this.m4.compose(this.v, this.q, this.sc.set(s, s, s)); this.holes.setMatrixAt(i, this.m4);
   }
-  rebuildHoles() { this.st.holes.forEach((r, i) => this.placeHole(i, r)); this.holes.count = this.st.holes.length; }
+  rebuildHoles() {
+    this.st.holes.forEach((r, i) => this.placeHole(i, r)); this.holes.count = this.st.holes.length; this.ring = 0;
+    const im = this.holes.instanceMatrix; im.clearUpdateRanges(); im.needsUpdate = true;
+  }
   // a world hit: find the face of the box that was struck so the hole lies on it
   // a hit on the world with the surface normal from the physics ray
   markHit(x, y, z, n) {
