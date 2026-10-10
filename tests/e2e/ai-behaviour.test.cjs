@@ -11,7 +11,14 @@ run('ai-behaviour', { q: 0 }, async ({ page }) => {
     const h = mk('gang', pl.x + 18, pl.z, Math.PI / 2);
     step(h, 60); o.unseenBehind = h.state;
     const d0 = Math.hypot(h.x - pl.x, h.z - pl.z);
-    g.noise(pl.x, pl.z, 60, 'shot'); o.afterNoise = h.state; step(h, 150); o.movedToward = +(d0 - Math.hypot(h.x - pl.x, h.z - pl.z)).toFixed(1);
+    // the route to the noise is found by A* and the walk can be blocked by whatever random traffic stands there: fresh members at four spots
+    o.afterNoise = null; o.movedToward = 0; o.tries = 0;
+    for (const [dx, dz] of [[0, 0], [0, 18], [-18, 0], [0, -18], [18, 18]]) {
+      const m = dx === 0 && dz === 0 ? h : mk('gang', pl.x + dx, pl.z + dz, Math.PI / 2); if (m !== h) { step(m, 60); m.ry = Math.atan2(-dx, -dz) + Math.PI; }
+      const dd0 = Math.hypot(m.x - pl.x, m.z - pl.z); o.tries++;
+      g.noise(pl.x, pl.z, 60, 'shot'); if (o.afterNoise === null) o.afterNoise = m.state; step(m, 150);
+      o.movedToward = +(dd0 - Math.hypot(m.x - pl.x, m.z - pl.z)).toFixed(1); if (o.movedToward > 0.5) break;
+    }
     const h2 = mk('gang', pl.x - 15, pl.z + 0.1, -Math.PI / 2); h2.ry = Math.atan2(pl.x - h2.x, pl.z - h2.z);
     step(h2, 40); o.facing = h2.state;
     h2.hurt(10, { x: pl.x, z: pl.z }, false, pl); step(h2, 5); o.afterHurt = h2.state;

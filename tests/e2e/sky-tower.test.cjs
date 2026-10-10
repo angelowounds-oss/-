@@ -3,7 +3,7 @@
 // through the unbuilt volume (rider stays in the cab), floors are not streamed while passing, the roof floor exists at arrival and the
 // doors open there. And the player at the foot of it sees its top, not fog: a render looking up differs from a pure-fog frame.
 const { run, freeze, result } = require('../lib.cjs');
-run('sky-tower', { q: 0, width: 480, height: 270 }, async ({ page }) => {
+run('sky-tower', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
   const o = await page.evaluate(() => {
     const g = window.__game, W = g.world, l = W.skyTower, pl = g.player, o = {}; const R = g.eng.render; g.eng.render = () => {};
