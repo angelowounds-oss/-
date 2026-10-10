@@ -14,7 +14,7 @@ base64/data URL로 내장해 `neon_city_v9.html` 한 파일로 만든다(ADR-000
 | 건물 | `building.js`, `rooms.js`, `furnish.js`, `livingset.js`, `gfx.js`, `breach.js` | 건물 활성화·층 스트리밍(생성기), 방 배치·가구, 층 지오메트리 Builder(풀 버퍼), 벽 파괴 |
 | 물리 | `physics.js`, `character.js`, `vehicle.js`, `craft.js`, `carrider.js`, `ragdoll.js` | Rapier 월드(고정 60 Hz + 보간), 캐릭터 컨트롤러, 차량/비행체, 차 지붕·탈출, 랙돌 |
 | 사람 | `human.js`, `ai.js`, `assets.js`, `attachments.js` | 인물(애니메이션·IK·피격), 전투/시민 AI, 캐릭터 모델 로딩, 무기 부착물 |
-| 사회 | `society.js`, `citizens.js`, `life.js`, `memory.js`, `power.js`, `military.js`, `jobs.js`, `needs.js` | 일과·목격·체포, 주민 2,000명, 층별 직원/주민 배치, 탄흔·뉴스·소문, 정전 구역, 군 투입, 일자리, 시계·욕구 |
+| 사회 | `society.js`, `citizens.js`, `life.js`, `memory.js`, `power.js`, `military.js`, `fire.js`, `jobs.js`, `needs.js` | 일과·목격·체포, 주민 2,000명, 층별 직원/주민 배치, 탄흔·뉴스·소문, 정전 구역, 군 투입, 일자리, 시계·욕구 |
 | 상호작용·UI | `interact.js`, `items.js`, `panels.js`, `phone.js`, `input.js`, `mobility.js`, `sandbox.js`, `template.html` | 동사(F/G/T), 소품·인벤토리, 상점/ATM 패널, 휴대폰, 입력(키보드·마우스·터치·패드), 이동 장비, 샌드박스, HUD 마크업 |
 | 기타 | `fx.js`, `audio.js`, `daynight.js`, `nav.js`, `models.js`, `modelinfo.js`, `util.js` | 비·파티클·트레이서·라이트 풀, 합성 오디오, 낮밤·안개, 격자 A*, 차량 모델, 공용 헬퍼 |
 

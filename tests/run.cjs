@@ -14,7 +14,7 @@ const SUITES = {
   unit: ['unit/builder-bitexact.test.mjs'],
   smoke: ['e2e/boot.test.cjs'],
   render: ['e2e/cull-identity.test.cjs', 'e2e/pack-identity.test.cjs', 'e2e/light-skip-identity.test.cjs', 'e2e/sign-ctx-restore.test.cjs', 'e2e/no-runtime-compile.test.cjs'],
-  gameplay: ['e2e/entrance-holes.test.cjs', 'e2e/breach.test.cjs', 'e2e/floor-population.test.cjs', 'e2e/ai-behaviour.test.cjs', 'e2e/military.test.cjs', 'e2e/pool-integrity.test.cjs', 'e2e/shop-robbery.test.cjs'],
+  gameplay: ['e2e/entrance-holes.test.cjs', 'e2e/breach.test.cjs', 'e2e/floor-population.test.cjs', 'e2e/ai-behaviour.test.cjs', 'e2e/military.test.cjs', 'e2e/pool-integrity.test.cjs', 'e2e/shop-robbery.test.cjs', 'e2e/fire-spread.test.cjs'],
   perf: ['e2e/frame-time.test.cjs', 'e2e/physics-interp.test.cjs', 'e2e/gunfire-load.test.cjs', 'e2e/nav-perf.test.cjs', 'e2e/autoquality.test.cjs'],
 };
 SUITES.quick = [...SUITES.unit, ...SUITES.smoke, 'e2e/cull-identity.test.cjs', 'e2e/light-skip-identity.test.cjs'];

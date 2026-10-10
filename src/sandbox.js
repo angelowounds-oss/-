@@ -52,7 +52,7 @@ export class Sandbox {
     add('돈 +$100,000', () => { G.cash += 100000; G.toast('+$100,000'); });
     add('낮 12시', () => this.setHour(12)); add('밤 0시', () => this.setHour(0));
     add('맑음', () => this.setWeather('clear')); add('비', () => this.setWeather('rain'));
-    add('전방 폭발', () => this.blast()); add('NPC 6명 소환', () => this.spawnPeople(6));
+    add('전방 폭발', () => this.blast()); add('전방 화재', () => { const a = this.ahead(10); this.G.fire.ignite(a.x, a.z, { fuel: 25, r: 2, src: this.G.player }); }); add('NPC 6명 소환', () => this.spawnPeople(6));
     add('주변 NPC 사살(랙돌)', () => this.dropPeople(true)); add('주변 NPC 넘어뜨리기', () => this.dropPeople(false));
     add('차량 소환', () => this.spawnCar()); add('체력·상태 회복', () => this.heal());
   }

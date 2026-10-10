@@ -29,6 +29,7 @@ import resWall from '../assets/res/res_wall.jpg';
 import { Physics } from './physics.js';
 import { Buildings } from './building.js';
 import { Interact } from './interact.js';
+import { Fire } from './fire.js';
 import { ItemWorld } from './items.js';
 import { Panels } from './panels.js';
 import { Life } from './life.js';
@@ -102,7 +103,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
-    this.breach = new Breach(this); this.military = new Military(this);
+    this.breach = new Breach(this); this.military = new Military(this); this.fire = new Fire(this);
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
@@ -366,7 +367,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.sandbox.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.fire.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -583,7 +584,7 @@ export class Game {
       } else if (!pl.fireHeld) { this.audio.empty(); pl.fireCd = 0.3; }
     }
     }
-    if (this.input.edge('nade') && this.items.take('grenade')) this.throwGrenade();
+    if (this.input.edge('nade')) { if (this.items.take('grenade')) this.throwGrenade(); else if (this.items.take('molotov')) this.throwMolotov(); }
     if (pl.bleed) { pl.bleedT = (pl.bleedT || 0) + dt; if (pl.bleedT > 1) { pl.bleedT = 0; this.hurtPlayer(1.2, null, 'bleed'); } }
     pl.fireHeld = inp.fire;
     // interactions: vehicles, building doors, interior objects
@@ -889,6 +890,12 @@ export class Game {
     if (p) { p.fuse = 2.3; p.body.setAngularDamping(1); this.audio.tone?.(300, 0.1, 'sine', 0.06, 160); }
     this.lastShotT = this.time; this.noise(pl.x, pl.z, 20);
   }
+  throwMolotov() {
+    const pl = this.player, cam = this.camera, dir = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const p = this.items.drop('molotov', pl.x + dir.x * 0.6, pl.y + 1.5, pl.z + dir.z * 0.6, { x: dir.x * 14, y: dir.y * 14 + 4, z: dir.z * 14 });
+    if (p) { p.molotovT = 0; p.sp0 = 0; this.audio.tone?.(260, 0.1, 'sine', 0.06, 140); }
+    this.lastShotT = this.time; this.noise(pl.x, pl.z, 14);
+  }
   blastWorld(x, y, z, r) {
     for (const b of this.buildings.active) for (const [, fl] of b.floors) for (const gb of [...fl.glass]) { const e = gb.pane.ex; if (Math.hypot((e[0] + e[3]) / 2 - x, (e[2] + e[5]) / 2 - z, (e[1] + e[4]) / 2 - y) < r * 1.4) b.breakPane(gb, this.player); }
     for (const p of this.items.props.values()) { const t = p.body.translation(), dx = t.x - x, dz = t.z - z, dy = t.y - y, d = Math.hypot(dx, dy, dz); if (d < r * 1.6) { const k = (1 - d / (r * 1.6)) * p.def.mass * 9; p.body.applyImpulse({ x: dx / (d || 1) * k, y: k * 0.8, z: dz / (d || 1) * k }, true); p.body.wakeUp(); } }
@@ -1135,6 +1142,7 @@ export class Game {
       const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.addImpulse(nx * 14 * k, 5 * k, nz * 14 * k);
     }
     this.military?.blast(x, y, z, radius, dmg, src);
+    if (y < 3 && radius >= 6) this.fire.ignite(x, z, { fuel: 6 + radius * 0.6, r: radius * 0.28, src: src === this.player || src?.driver === 'player' ? this.player : null });
     this.addHeat(6);
   }
 

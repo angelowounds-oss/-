@@ -29,6 +29,7 @@ export const ITEMS = {
   flashlight: { name: '손전등', shape: ['cyl', 0.03, 0.18], color: 0x303040, mass: 0.3, price: 18, tool: 'flashlight' },
   parcel: { name: '소포', shape: ['box', 0.3, 0.2, 0.25], color: 0xb89868, mass: 1.5, price: 0 },
   jerrycan: { name: '연료통', shape: ['cyl', 0.1, 0.3], color: 0xc02818, mass: 2.4, price: 12, fuelCan: true },
+  molotov: { name: '화염병', shape: ['cyl', 0.04, 0.13], color: 0x4a7a3a, mass: 0.5, price: 35, molotov: true },
   grenade: { name: '수류탄', shape: ['ball', 0.045], color: 0x405030, mass: 0.4, price: 90, grenade: true },
   mag_pistol: { name: '권총 탄창', shape: ['box', 0.03, 0.1, 0.07], color: 0x303038, mass: 0.2, price: 12, ammo: [0, 12] },
   mag_smg: { name: 'SMG 탄창', shape: ['box', 0.03, 0.14, 0.07], color: 0x303038, mass: 0.2, price: 16, ammo: [2, 25] },
@@ -191,7 +192,7 @@ export class ItemWorld {
       }
     }
     const mv = this.moving; mv.length = 0;   // awake items: their pose is kept before each physics step (keepPoses)
-    for (const p of this.props.values()) { if (!p.body.isSleeping() || p.carried) { p.sync(); mv.push(p); } if (p.fuse !== undefined) { p.fuse -= dt; if (p.fuse <= 0) { const t = p.body.translation(); const pos = { x: t.x, y: t.y, z: t.z }; this.remove(p, true); G.explosion(pos.x, pos.y, pos.z, 11, 140, G.player); } } }
+    for (const p of this.props.values()) { if (!p.body.isSleeping() || p.carried) { p.sync(); mv.push(p); } if (p.molotovT !== undefined) { p.molotovT += dt; const v = p.body.linvel(), sp = Math.hypot(v.x, v.y, v.z); if (p.molotovT > 0.12 && ((p.sp0 > 5 && sp < p.sp0 * 0.5) || p.molotovT > 6)) { const t = p.body.translation(); this.remove(p, true); G.fire.splash(t.x, Math.max(0.15, t.y), t.z, G.player); continue; } p.sp0 = sp; } if (p.fuse !== undefined) { p.fuse -= dt; if (p.fuse <= 0) { const t = p.body.translation(); const pos = { x: t.x, y: t.y, z: t.z }; this.remove(p, true); G.explosion(pos.x, pos.y, pos.z, 11, 140, G.player); } } }
     this.updateCarry(dt);
   }
   keepPoses(no) { for (const p of this.moving) p.keepPose(no); }
@@ -243,7 +244,7 @@ export class ItemWorld {
     if (!d || !this.take(id)) return false;
     if (d.heal) { pl.hpv = Math.min(100, pl.hpv + d.heal); G.toast('치료', `+${d.heal} HP`); }
     if (d.eat) G.needs?.apply(d.eat);
-    if (d.fuelCan) { const v = G.lastVehicle; if (v && Math.hypot(v.x - pl.x, v.z - pl.z) < 8) { v.fuel = Math.min(100, v.fuel + 55); G.toast('주유', '+55%'); } else { this.add(id); G.toast('차량 근처에서 사용'); return false; } }
+    if (d.fuelCan) { const v = G.lastVehicle; if (v && Math.hypot(v.x - pl.x, v.z - pl.z) < 8) { v.fuel = Math.min(100, v.fuel + 55); G.toast('주유', '+55%'); } else { const f = G.camera.getWorldDirection(G.tmpV); G.fire.pour(pl.x + f.x * 1.6, pl.z + f.z * 1.6, pl); G.toast('연료를 쏟았다', '불씨가 닿으면 번진다'); } }
     if (d.cash) { G.cash += d.cash; G.toast(`+$${d.cash}`); G.audio.cash(); }
     if (d.ammo) { pl.ammo[d.ammo[0]].reserve += d.ammo[1]; G.toast('탄약 +' + d.ammo[1]); }
     if (d.gun !== undefined) { pl.owned[d.gun] = true; pl.ammo[d.gun].reserve += d.gun === 3 ? 12 : 30; G.toast('무기 획득', d.name); G.switchWeapon(d.gun); }
