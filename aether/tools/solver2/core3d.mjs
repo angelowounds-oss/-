@@ -25,7 +25,11 @@ export function createLBM3DMT(o) {
   const linkBuf = sab(4 * Math.max(links.length, 4)); new Int32Array(linkBuf).set(links);
   const ctlBuf = sab(16), barBuf = sab(8), parBuf = sab(64), forceBuf = sab(8 * 3 * T);
   const sh = { nx, ny, nz, nu, lambda, model, cs, T, U, sponge, fBuf, postBuf, solidBuf, linkBuf, nL: links.length / 4, ctlBuf, barBuf, parBuf, forceBuf };
-  for (let n = 0; n < N; n++) { const ux = isSolid[n] ? 0 : U; for (let q = 0; q < Q; q++) { const cu = C[q][0] * ux; f[q * N + n] = (q === 0 ? 1 / 3 : (Math.abs(C[q][0]) + Math.abs(C[q][1]) + Math.abs(C[q][2]) === 1 ? 1 / 18 : 1 / 36)) * (1 + 3 * cu + 4.5 * cu * cu - 1.5 * ux * ux); } }
+  // initial state: equilibrium with the free-stream velocity (default) or o.init(i, j, k) -> [rho, ux, uy, uz]
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const n = id(i, j, k), [r, ux, uy, uz] = isSolid[n] ? [1, 0, 0, 0] : (o.init ? o.init(i, j, k) : [1, U, 0, 0]), uu = 1.5 * (ux * ux + uy * uy + uz * uz);
+    for (let q = 0; q < Q; q++) { const cu = C[q][0] * ux + C[q][1] * uy + C[q][2] * uz; f[q * N + n] = (q === 0 ? 1 / 3 : (Math.abs(C[q][0]) + Math.abs(C[q][1]) + Math.abs(C[q][2]) === 1 ? 1 / 18 : 1 / 36)) * r * (1 + 3 * cu + 4.5 * cu * cu - uu); }
+  }
   const ctx = createCtx(sh, 0), workers = [];
   for (let r = 1; r < T; r++) workers.push(new Worker(new URL('./core3d-worker.mjs', import.meta.url), { workerData: { sh, rank: r } }));
   const st = { nx, ny, nz, N, T, isSolid, f, step: 0, links: sh.nL, tau: .5 + 3 * nu, model };
