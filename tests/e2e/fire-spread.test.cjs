@@ -12,7 +12,8 @@ run('fire-spread', { q: 0 }, async ({ page }) => {
     g.sandbox.spawnCar(); const car = g.vehicles[g.vehicles.length - 1];
     const cx = car.x, cz = car.z, hp0 = car.hp;
     F.ignite(cx + 2.2, cz, { fuel: 40, r: 1.8, src: pl });
-    upd(14); o.carHpLoss = Math.round(hp0 - car.hp); o.carBurning = car.burn > 0.2 || car.dead; o.carNode = !!car.fireNode || car.dead;
+    for (let t = 0; t < 70 && !(car.dead || car.burn > 0.2); t += 2) upd(2);   // a random car type: the heavier ones take longer to catch
+    o.carHpLoss = Math.round(hp0 - car.hp); o.carBurning = car.burn > 0.2 || car.dead; o.carNode = !!car.fireNode || car.dead;
     clearNodes();
     // --- fuel pool + flame
     const px = pl.x + 20, pz = pl.z + 20; F.pour(px, pz, pl); o.poolsBefore = F.pools.length; const n0 = F.nodes.length;

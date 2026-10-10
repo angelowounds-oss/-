@@ -4,7 +4,9 @@ const { run, freeze, shot, pixelDiff, result } = require('../lib.cjs');
 run('pack-identity', { q: 1, width: 480, height: 360 }, async ({ page }) => {
   await freeze(page);
   await page.evaluate(() => {
-    const g = window.__game, items = []; g.scene.traverse((o) => { if (o.userData && o.userData.packed) items.push(o.userData.packed); }); window.__items = items;
+    const g = window.__game, items = []; g.scene.traverse((o) => { if (o.userData && o.userData.packed) items.push(o.userData.packed); });
+    // the facade relief (relief.js) has its own, deliberately shorter reach (a visual detail, not a lossless cull): left out of this check
+    for (const p of items.filter((q) => q.maxCut)) p.mesh.visible = false; items.splice(0, items.length, ...items.filter((q) => !q.maxCut)); window.__items = items;
     window.__setPack = (on) => {
       const cam = g.camera, fog = g.scene.fog;
       for (const pk of items) {

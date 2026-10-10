@@ -27,6 +27,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | render | `cull-identity` | 프러스텀 컬링이 픽셀을 바꾸지 않음(거리·실내, 두 방향) | 바이트 차이 0 |
 | render | `pack-identity` | 원경 인스턴스 패킹이 도시 안에서 픽셀 동일(가장자리 바깥 보기 포함) | 바이트 차이 0 |
 | render | `light-skip-identity` | 조명 루프 패치가 three.js 원본 청크와 동일(조명 꺼짐/켜짐) | 바이트 차이 0 |
+| render | `facade-relief` | 외벽 장식 인스턴스가 있고 전부 유한·비퇴화 상자, 실제 프레임이 검지 않음, 붕괴 시 해당 건물 장식 숨김·재건 시 정확히 복원 | 위 항목 전부 |
 | render | `sign-ctx-restore` | WebGL 컨텍스트 복구 후 간판 텍스처 배열 재업로드 | 레이어 해시 동일 |
 | render | `no-runtime-compile` | 걷기·폭발·랙돌·5성·손전등·밤/비/낮·사격·수류탄·벽 파괴·운전·수영·실내·옥상에서 새 셰이더 0 | 새 프로그램 0 |
 | gameplay | `entrance-holes` | 로비가 없는 건물의 출입구가 열려 보이지 않음(걷기·운전) | 구멍 프레임 0 |
