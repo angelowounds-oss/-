@@ -28,7 +28,8 @@ export function createLBM3D({ nx, ny, nz, nu, solid, linkQ, U, lambda = 3 / 16 }
   const L = new Int32Array(links), nL = L.length / 4;
   const PAIRS = []; for (let q = 1; q < Q; q++) if (OPP[q] > q) PAIRS.push(q, OPP[q]);
   for (let n = 0; n < N; n++) { const ux = isSolid[n] ? 0 : U; for (let q = 0; q < Q; q++) { const cu = C[q][0] * ux; f[q * N + n] = W[q] * (1 + 3 * cu + 4.5 * cu * cu - 1.5 * ux * ux); } }
-  const st = { nx, ny, nz, N, isSolid, tau, step: 0, force: [0, 0, 0], links: nL };
+  const st = { nx, ny, nz, N, f, isSolid, tau, step: 0, force: [0, 0, 0], links: nL };
+  st.advance = (n, ramp = 1) => { for (let s = 0; s < n; s++) st.step1(ramp); };
   st.step1 = (ramp = 1) => {
     for (let n = 0; n < N; n++) {
       if (isSolid[n]) continue;
