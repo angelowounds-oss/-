@@ -30,6 +30,7 @@ import { Physics } from './physics.js';
 import { Buildings } from './building.js';
 import { Interact } from './interact.js';
 import { Fire } from './fire.js';
+import { Blaze } from './blaze.js';
 import { ItemWorld } from './items.js';
 import { Panels } from './panels.js';
 import { Life } from './life.js';
@@ -103,7 +104,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
-    this.breach = new Breach(this); this.military = new Military(this); this.fire = new Fire(this);
+    this.breach = new Breach(this); this.military = new Military(this); this.fire = new Fire(this); this.blaze = new Blaze(this);
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
@@ -367,7 +368,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.fire.update(sdt); this.sandbox.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -403,7 +404,7 @@ export class Game {
       const ph = Math.floor(this.time * 2);
       if (ph !== this.lastPh) { this.lastPh = ph; this.world.updateTrafficLights(this.time); }
     }
-    this.daynight.update(dt, focus);
+    this.daynight.update(dt, focus); this.blaze.lateUpdate();
     instCull.update(camera, this.scene.fog);   // static instanced meshes: only instances short of the fog wall are drawn
     this.cullSkins();
     if ((this.vlodT = (this.vlodT || 0) - dt) <= 0) { this.vlodT = 0.25; this.vehicleLOD(camera.position); this.dressing?.update(camera.position); this.signs?.update(camera.position); }
@@ -1142,6 +1143,7 @@ export class Game {
       const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.addImpulse(nx * 14 * k, 5 * k, nz * 14 * k);
     }
     this.military?.blast(x, y, z, radius, dmg, src);
+    this.blaze.blast(x, y, z, radius, src === this.player || src?.driver === 'player' ? this.player : null);
     if (y < 3 && radius >= 6) this.fire.ignite(x, z, { fuel: 6 + radius * 0.6, r: radius * 0.28, src: src === this.player || src?.driver === 'player' ? this.player : null });
     this.addHeat(6);
   }

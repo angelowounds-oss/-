@@ -12,3 +12,4 @@
 | [0005](0005-lossless-optimizations-only.md) | 손실 없는 최적화 원칙, 인스턴스 패킹 적용 범위 | 채택 |
 | [0006](0006-pooled-floor-buffers.md) | 층 지오메트리 버퍼 풀링 | 채택 |
 | [0007](0007-test-strategy-swiftshader.md) | 테스트 전략: SwiftShader 동일성·로직 + 실기기 GPU | 채택 |
+| [0008](0008-destructible-buildings-via-instances.md) | 건물 파괴는 외관 인스턴스·병합 메시 조작으로 | 채택 |

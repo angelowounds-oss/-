@@ -99,6 +99,8 @@ export class Memory {
       case 'carjack': return day('carjack') >= 2 ? `${Z}서 차량 강탈 잇따라… 운전자들 "밤길 무섭다"` : `${Z}에서 무장 차량 강탈 사건 발생`;
       case 'explosion': return `${Z} 도심 차량 폭발… 인근 상가 유리창 파손`;
       case 'arson': return day('arson') >= 2 ? `${Z} 연쇄 방화 의심… 소방당국 "같은 수법"` : `${Z}에서 방화로 추정되는 화재 발생`;
+      case 'blaze': return `[속보] ${Z} 건물 대형 화재… 불길 위층으로 번져, 소방 당국 진화 총력`;
+      case 'collapse': return `[속보] ${Z} 화재 건물 붕괴… 일대 먼지구름, 인명 피해 우려`;
       case 'assault': return `${Z} 길거리 폭행 신고 접수… 목격자 "순식간이었다"`;
       case 'theft': return `${Z} 상점가 절도 기승… 상인회 대책 호소`;
       case 'shots': return `${Z}에서 총성 수십 발… 주민들 대피`;

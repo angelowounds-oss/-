@@ -164,7 +164,8 @@ export function combat(h, dt) {
       if (sees) { raise(h, 'sight'); break; }
       h.searchT -= dt;
       if (h.searchT <= 0 && !(isCop && G.wanted > 0)) { h.state = 'idle'; h.path = null; return; }
-      const m = h.mem, arrived = goTo(h, dt, m.x, m.z, 4.4);
+      const m = h.mem; if (!m) { h.state = 'idle'; h.path = null; return; }   // hurt by something with no position to search (a fall)
+      const arrived = goTo(h, dt, m.x, m.z, 4.4);
       h.aimT = 0.6;
       if (arrived) {   // pick another place near it
         h.scanT = (h.scanT || 0) - dt;

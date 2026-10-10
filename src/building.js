@@ -1073,7 +1073,7 @@ export class Buildings {
       for (const b of this.list) {
         const d = dist(b);
         if (b.open) { if (d > DROP_R) { b.deactivate(); this.active.delete(b); } }
-        else if (d < ACT_R) near.push([d, b]);
+        else if (d < ACT_R && !b.ruined) near.push([d, b]);
       }
       // nearest first; a full pool gives up its farthest building so the one the player stands at is never left without doors
       near.sort((a, c) => a[0] - c[0]);

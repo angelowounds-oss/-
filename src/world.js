@@ -379,7 +379,7 @@ function createFacadeMaterial() {
   const uniforms = { uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
-    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
+    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;attribute vec4 aBurn;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
     vertexMain: `
       vec4 mw=vec4(transformed,1.);vec3 nn=objectNormal;
       #ifdef USE_INSTANCING
@@ -388,9 +388,9 @@ function createFacadeMaterial() {
       #else
         vSz=vec3(1.);
       #endif
-      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;`,
+      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;vBurn=aBurn;`,
     fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
-      flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -512,6 +512,27 @@ function createFacadeMaterial() {
       fEmit*=mix(.14,1.,uNight);
       float bk=uBlack[zoneOf(vWP.xz)];
       fEmit*=1.-bk*.96;
+      // building fire (blaze.js): vBurn = (fire band bottom, fire band top, heat, charred below this height); zero = untouched
+      if(vBurn.z>0.||vBurn.w>0.){
+        float by=vWP.y;float bh=abs(N.x)>.5?vWP.z:vWP.x;
+        float ch=(1.-smoothstep(vBurn.w-2.,vBurn.w+1.5,by))*(.8+.2*vnoise(vWP.xz*.5+by*.4));
+        float soot=vBurn.z>0.?(1.-smoothstep(vBurn.y,vBurn.y+16.,by))*step(vBurn.x,by)*.65*(.6+.4*vnoise(vec2(bh*.3,by*.08))):0.;
+        alb=mix(alb,vec3(.022,.02,.019),max(ch,soot));fEmit*=1.-ch;fRough=mix(fRough,.95,ch);fMetal*=1.-max(ch,soot);
+        if(vBurn.z>0.&&abs(N.y)<.5){
+          float band=smoothstep(vBurn.x-.5,vBurn.x+.5,by)*(1.-smoothstep(vBurn.y-.5,vBurn.y+.5,by));
+          fEmit*=1.-band;   // the ordinary window lights are out where it burns
+          vec2 bc=vec2(floor(bh/3.1),floor(by/3.6)),bf=vec2(fract(bh/3.1),fract(by/3.6));
+          float br=h21(bc+vInfo.x*3.1);
+          float win=step(.14,bf.x)*step(bf.x,.86)*step(.18,bf.y)*step(bf.y,.82)*step(.2,br);
+          float fl=vnoise(vec2(bh*.8,by*.55-uTime*3.))*.6+vnoise(vec2(bh*2.1,by*1.5-uTime*5.5))*.5;
+          float flick=.55+.45*sin(uTime*(5.+br*7.)+br*40.);
+          // tongues of flame licking out over the window head into the wall above (and above the top burning floor)
+          float tg=step(.14,bf.x)*step(bf.x,.86)*(step(.78,bf.y)+step(bf.y,.4))*smoothstep(.5,.85,fl);
+          float bandT=smoothstep(vBurn.x-.5,vBurn.x+.5,by)*(1.-smoothstep(vBurn.y,vBurn.y+3.,by));
+          vec3 fc=mix(vec3(1.,.16,.02),vec3(1.,.62,.16),clamp(fl,0.,1.));
+          fEmit+=fc*vBurn.z*(band*win*(1.6+3.5*fl)*flick+bandT*tg*3.+band*.25*fl);
+        }
+      }
       diffuseColor.rgb=alb*(1.-bk*.72*uNight);
     `,
   });
@@ -1039,6 +1060,7 @@ export function buildWorld(scene, quality) {
     m.geometry = boxGeo.clone();
     m.geometry.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4));
     m.geometry.setAttribute('aDoor', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
+    m.geometry.setAttribute('aBurn', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
     m.castShadow = true; m.receiveShadow = true;
     m.frustumCulled = false;
     return m;
@@ -1426,7 +1448,7 @@ function buildEntrances(world, scene) {
     world.fakeLights.push({ x: d.px + d.nx * 2.5, y: 0, z: d.pz + d.nz * 2.5, c: accent.map((v) => v * 1.2), rad: 12 });
     world.enterables.push({ id, name, x: d.px + d.nx * 2.2, z: d.pz + d.nz * 2.2, nx: d.nx, nz: d.nz, lot: l, accent, door: d });
   });
-  B.finish(scene);
+  world.entranceMeshes = B.finish(scene);
   // All name boards in ONE draw call. They used to be one transparent mesh per name, all with world-space geometry, so they all sorted at the
   // origin and drew in creation order; one merged mesh in that same order rasterises the boards in the same sequence. Each board samples
   // its own layer of a texture array; uploadSigns() fills the layers straight from the same canvases, with the same upload settings as the

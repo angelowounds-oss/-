@@ -52,7 +52,8 @@ export class Sandbox {
     add('돈 +$100,000', () => { G.cash += 100000; G.toast('+$100,000'); });
     add('낮 12시', () => this.setHour(12)); add('밤 0시', () => this.setHour(0));
     add('맑음', () => this.setWeather('clear')); add('비', () => this.setWeather('rain'));
-    add('전방 폭발', () => this.blast()); add('전방 화재', () => { const a = this.ahead(10); this.G.fire.ignite(a.x, a.z, { fuel: 25, r: 2, src: this.G.player }); }); add('NPC 6명 소환', () => this.spawnPeople(6));
+    add('전방 폭발', () => this.blast()); add('가까운 건물에 불', () => this.burnNearest(false)); add('가까운 건물 붕괴', () => this.burnNearest(true)); add('무너진 건물 복구', () => { this.G.blaze.rebuildAll(); this.G.toast('건물 복구'); });
+    add('전방 화재', () => { const a = this.ahead(10); this.G.fire.ignite(a.x, a.z, { fuel: 25, r: 2, src: this.G.player }); }); add('NPC 6명 소환', () => this.spawnPeople(6));
     add('주변 NPC 사살(랙돌)', () => this.dropPeople(true)); add('주변 NPC 넘어뜨리기', () => this.dropPeople(false));
     add('차량 소환', () => this.spawnCar()); add('체력·상태 회복', () => this.heal());
   }
@@ -84,6 +85,13 @@ export class Sandbox {
   heal() { const G = this.G, pl = G.player; pl.hpv = 100; pl.armor = 100; pl.bleed = 0; if (G.needs?.s) { const n = G.needs.s; n.food = n.water = n.energy = 100; } G.toast('회복'); }
   setHour(h) { this.G.clock.t = h * 60; this.G.toast(h === 12 ? '낮 12시' : '밤 0시'); }
   setWeather(type) { const G = this.G; G.state.weather = { type, until: G.clock.t + 6000 }; G.toast(type === 'clear' ? '맑음' : '비'); }
+  // nearest standing building to the player (the one in front preferred): set it alight at street level, or bring it down now
+  burnNearest(now) {
+    const G = this.G, pl = G.player, B = G.blaze; let best = null, bd = 1e9;
+    for (const l of B.lots) { if (B.ruins.has(l)) continue; const d = Math.max(l.x0 - pl.x, pl.x - l.x1, 0) + Math.max(l.z0 - pl.z, pl.z - l.z1, 0); if (d < bd) { bd = d; best = l; } }
+    if (!best || bd > 60) return G.toast('근처에 건물이 없다');
+    if (now) B.collapseNow(best, pl); else B.igniteLot(best, pl);
+  }
   blast() { const a = this.ahead(14); this.G.explosion(a.x, Math.max(0.5, a.y - 0.6), a.z, 9, 60, this.G.player); }
   spawnPeople(n) {
     const G = this.G, a = this.ahead(10);

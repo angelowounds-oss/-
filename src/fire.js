@@ -77,6 +77,7 @@ export class Fire {
   // damage and spreading around one fire, every TICK seconds
   spread(n) {
     const G = this.G, reach = n.r + 0.8, pl = G.player;
+    G.blaze?.exposure(n);   // flames against a wall or inside heat the building (blaze.js)
     for (const v of G.vehicles) {
       if (v === n.ref) continue;
       const d = Math.hypot(v.x - n.x, v.z - n.z);
@@ -86,10 +87,10 @@ export class Fire {
       if (h.dead) continue;
       const d = Math.hypot(h.x - n.x, h.z - n.z);
       if (d < reach) {
-        h.burnT = 3.5; h.hurt(8 * TICK, null, false, n.src);
+        h.burnT = 3.5; h.hurt(8 * TICK, { x: n.x, z: n.z }, false, n.src);
         if (!h.dead && h.team === 'civ') { h.state = 'flee'; h.fleeT = 6; h.threat = { x: n.x, z: n.z }; }
       } else if (h.burnT > 0 && d < 1.2) h.burnT = 3.5;
-      if (h.burnT > 0) { h.burnT -= TICK; if (!h.dead) { h.hurt(5 * TICK, null, false, n.src); this.ignite(h.x, h.z, { y: 0.1, fuel: 2.5, r: 0.8, kind: 'human', src: n.src }); } }
+      if (h.burnT > 0) { h.burnT -= TICK; if (!h.dead) { h.hurt(5 * TICK, { x: n.x, z: n.z }, false, n.src); this.ignite(h.x, h.z, { y: 0.1, fuel: 2.5, r: 0.8, kind: 'human', src: n.src }); } }
     }
     if (!pl.dead && !G.vehicle && Math.hypot(pl.x - n.x, pl.z - n.z) < reach && Math.abs(pl.y - n.y) < 2.5) G.hurtPlayer(7 * TICK, null, 'fire');
     for (const p of G.items.props.values()) {

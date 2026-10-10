@@ -75,6 +75,14 @@ class Packed {
     t.src[i * 3] = col.r; t.src[i * 3 + 1] = col.g; t.src[i * 3 + 2] = col.b;
     const j = this.slot[i]; if (j >= 0 || this.shown < 0) { const d = t.a.array, o = (this.shown < 0 ? i : j) * 3; d[o] = col.r; d[o + 1] = col.g; d[o + 2] = col.b; }
   }
+  // overwrite one instance's matrix by original index (a building collapse hides its signs and rooftop clutter): kept in the full list and,
+  // when it is currently drawn, in its packed slot too - no re-pack needed
+  setMatrix(i, m16) {
+    const t = this.attrs[0], o = i * 16; for (let c = 0; c < 16; c++) t.src[o + c] = m16[c];
+    const j = this.shown < 0 ? i : this.slot[i]; if (j < 0) return;
+    const d = t.a.array; for (let c = 0; c < 16; c++) d[j * 16 + c] = m16[c];
+    t.a.clearUpdateRanges(); t.a.needsUpdate = true;
+  }
   flushColor() { const c = this.mesh.instanceColor; if (c) { c.clearUpdateRanges(); c.needsUpdate = true; } }
 }
 
