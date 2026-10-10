@@ -42,6 +42,7 @@ class Packed {
     if (!this.ready) this.prepare();
     const P = this.pos, slot = this.slot;
     let k = 0, same = true;
+    if (this.maxCut) cut = Math.min(cut, this.maxCut);   // detail meshes (facade relief) stop earlier than the fog does
     for (let i = 0; i < this.n; i++) {
       const dx = P[i * 4] - x, dy = P[i * 4 + 1] - y, dz = P[i * 4 + 2] - z, lim = cut + P[i * 4 + 3];
       const on = dx * dx + dy * dy + dz * dz < lim * lim;

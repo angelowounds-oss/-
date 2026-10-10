@@ -222,6 +222,7 @@ export class Blaze {
       M.compose(P, Q, S); M.toArray(a, i * 16);
     }
     this.fac.instanceMatrix.needsUpdate = true;
+    this.w.relief?.sink(l, e2, rubH * 0.6);   // ledges, piers and cornices sink with the facade
     // the top of what is still standing sheds dust; the base throws a dust wall outwards
     const topNow = l.topY * (1 - e2) + rubH * e2, perim = (l.x1 - l.x0 + l.z1 - l.z0) * 2;
     const dcam = Math.hypot(cx - G.camera.position.x, cz - G.camera.position.z), k = dcam < 250 ? 1 : 0.4;
@@ -261,6 +262,7 @@ export class Blaze {
     M.fromArray(this.mat0, ids[0] * 16); M.decompose(P, Q, S); S.y = rubH; S.x *= 0.98; S.z *= 0.98; M.compose(P, Q, S); M.toArray(a, ids[0] * 16);
     for (let j = 1; j < ids.length; j++) a.set(ZERO16, ids[j] * 16);
     this.fac.instanceMatrix.needsUpdate = true;
+    this.w.relief?.hide(lot);
     this.door.array[ids[0] * 4 + 3] = 0; this.door.needsUpdate = true;
     this.writeBurn(lot, 0, 0, 0, 1e4);
     if (lot.solid) col.removeBox(lot.solid);
@@ -284,6 +286,7 @@ export class Blaze {
     const ids = this.tiers(lot), a = this.fac.instanceMatrix.array;
     for (const i of ids) for (let c = 0; c < 16; c++) a[i * 16 + c] = this.mat0[i * 16 + c];
     this.fac.instanceMatrix.needsUpdate = true;
+    this.w.relief?.show(lot);
     this.writeBurn(lot, 0, 0, 0, 0);
     this.showDecor(r.decor);
     for (const slot of r.chunks) this.rubble.setMatrixAt(slot, M.makeScale(0, 0, 0));

@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
+import { buildRelief } from './relief.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
 import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
@@ -376,10 +377,10 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.35 }, ...facadeUniforms() };
+  const uniforms = { uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.8 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
-    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;attribute vec4 aBurn;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
+    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;attribute vec4 aBurn;attribute float aFloor;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
     vertexMain: `
       vec4 mw=vec4(transformed,1.);vec3 nn=objectNormal;
       #ifdef USE_INSTANCING
@@ -388,9 +389,9 @@ function createFacadeMaterial() {
       #else
         vSz=vec3(1.);
       #endif
-      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;vBurn=aBurn;`,
+      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;vBurn=aBurn;vFl=aFloor;`,
     fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
-      flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -508,6 +509,15 @@ function createFacadeMaterial() {
           vec3 tw3=abs(N.x)>.5?vec3(0.,0.,1.):vec3(1.,0.,0.);
           fBump=tw3*((tn.r*2.-1.)*mir)+vec3(0.,1.,0.)*(tn.g*2.-1.);
         }
+      }
+      // depth cues that need no geometry: the street canyon is darker towards the ground, and every floor line (where relief.js puts a
+      // projecting ledge) has a soft occlusion band under it and a lit edge on top
+      if(abs(N.y)<.5){
+        float yy=vLoc.y*vSz.y;
+        float cany=mix(.58,1.,smoothstep(0.,26.,vWP.y));
+        float fao=1.;
+        if(vFl>.5){float fy=fract(yy*vFl/vSz.y);fao=1.-.42*smoothstep(.74,.985,fy)+.12*smoothstep(.06,.0,fy);}
+        alb*=cany*fao;fEmit*=mix(1.,fao,.6);
       }
       fEmit*=mix(.14,1.,uNight);
       float bk=uBlack[zoneOf(vWP.xz)];
@@ -719,7 +729,7 @@ export function buildWorld(scene, quality) {
       const i2 = Math.min(R_(3, 7), Math.min(tw, td) * 0.22);
       const ch = R_(10, 32);
       const sx = R_(-1, 1) * i2 * 0.5, sz = R_(-1, 1) * i2 * 0.5;
-      tiers.push({ x: cx + sx, z: cz + sz, w: tw - i2 * 2, d: td - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, tex, color: col.clone().multiplyScalar(0.8) });
+      tiers.push({ x: cx + sx, z: cz + sz, w: tw - i2 * 2, d: td - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, crown: 1, tex, color: col.clone().multiplyScalar(0.8) });
       lotTiers.crown = { x0: cx + sx - (tw - i2 * 2) / 2, z0: cz + sz - (td - i2 * 2) / 2, x1: cx + sx + (tw - i2 * 2) / 2, z1: cz + sz + (td - i2 * 2) / 2, y0: topY, y1: topY + ch };
       topY += ch; topW = tw - i2 * 2; topD = td - i2 * 2;
       if (rnd() < 0.5 && ch > 14) { // spire
@@ -1045,7 +1055,7 @@ export function buildWorld(scene, quality) {
   };
 
   // ---- Build instanced facade mesh ----
-  function makeFacadeMesh(list, fog = true) {
+  function makeFacadeMesh(list, fog = true, relief = true) {
     const m = new THREE.InstancedMesh(boxGeo, facadeMat, list.length);
     const info = new Float32Array(list.length * 4);
     const mat4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), pos = new THREE.Vector3();
@@ -1061,13 +1071,17 @@ export function buildWorld(scene, quality) {
     m.geometry.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4));
     m.geometry.setAttribute('aDoor', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
     m.geometry.setAttribute('aBurn', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
+    const FHT = 4.0, fl = new Float32Array(list.length);
+    if (relief) list.forEach((t, k) => { fl[k] = t.podium || t.crown ? Math.max(1, Math.round(t.h / FHT)) : Math.max(2, Math.floor(t.h / FHT)); });
+    m.geometry.setAttribute('aFloor', new THREE.InstancedBufferAttribute(fl, 1));
     m.castShadow = true; m.receiveShadow = true;
     m.frustumCulled = false;
     return m;
   }
   const facade = makeFacadeMesh(tiers);
   scene.add(facade);
-  const farMesh = makeFacadeMesh(farInst);
+  buildRelief(world, scene, instCull, tiers);
+  const farMesh = makeFacadeMesh(farInst, true, false);
   farMesh.castShadow = false; farMesh.receiveShadow = false;
   scene.add(farMesh);
 
