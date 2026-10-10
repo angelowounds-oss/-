@@ -358,7 +358,7 @@ export class Game {
     this.updatePolice(sdt);
     this.updateMission(sdt);
     this.updateTimed(sdt);
-    this.theftT = (this.theftT || 0) - sdt; if (this.theftT <= 0) { this.theftT = 0.5; this.life.checkTheft(this.player); }
+    this.theftT = (this.theftT || 0) - sdt; if (this.theftT <= 0) { this.theftT = 0.5; this.life.checkTheft(this.player); } this.life.shopAlarms(sdt);
     this.clock.update(sdt); this.needs.update(sdt); this.society.update(sdt); this.items.update(sdt); this.updateFlashlight();
     if (this.input.edge('inv')) this.openInventory();
     if (this.input.edge('sur') && this.playerOnFoot) this.surrender();

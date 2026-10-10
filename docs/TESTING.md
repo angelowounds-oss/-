@@ -35,6 +35,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | gameplay | `ai-behaviour` | 등 돌린 적 미인지, 총성 조사·접근, 피격 시 엄폐/교전, 시민 공포 전파 | 상태 전이 일치 |
 | gameplay | `military` | 5성 헬기·탱크 투입, 폭발 피해, 수배 해제 시 철수 | 모두 충족 |
 | gameplay | `pool-integrity` | 4,000프레임 보행 후 살아 있는 지오메트리끼리 버퍼 공유 없음 | 시작 시 공유 수와 동일 |
+| gameplay | `shop-robbery` | 총을 겨눈 채 점원 위협 → $300~1500 획득, 가게를 떠나도 무음 경보로 열 상승, 같은 계산대 재강도 불가, 비무장이면 동사 없음 | 위 항목 전부 |
 | perf | `frame-time` | 보행·주행 1,500프레임 JS 시간(렌더 제외) | 중앙값 < 8 ms, p99 < 30 ms, 33 ms 초과 ≤ 8 |
 | perf | `physics-interp` | 144 Hz에서 차량이 매 프레임 고르게 이동 | 정지 프레임 ≤ 0.5%, 중앙 이동 1±0.05 |
 | perf | `gunfire-load` | 연사 중·후 NPC 갱신 비용 | 사람 갱신 < 3 ms/프레임, p90 < 12 ms |

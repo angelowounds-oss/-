@@ -126,7 +126,7 @@ export class Life {
       fl.shop.cashier = h;
       const sale = () => Object.entries(G.items.inv.unpaid);
       this.fix(fl, cx, y + 1, c.z1 + 0.2, 3.0, fl.shop.name, [
-        { key: 'F', label: () => { const t = this.unpaidTotal(); return t > 0 ? `계산 $${t}` : '인사'; }, run: () => this.checkout(fl) },
+        { key: 'F', label: () => { if (this.canRob()) return '강도! (총을 겨눈 채 위협)'; const t = this.unpaidTotal(); return t > 0 ? `계산 $${t}` : '인사'; }, run: () => (this.canRob() ? this.robStore(fl) : this.checkout(fl)) },
         { key: 'G', label: () => (def.clothes ? '옷 갈아입기' : '상점 이용'), run: () => { if (def.clothes) this.outfitMenu(); else G.panels.show('shop', { name: fl.shop.name, stock: def.stock.map(([id, p]) => [id, Math.round(p * 1.25)]), mult: 1 }); } },
         { key: 'T', label: () => '물건 팔기', run: () => G.panels.show('sell', { name: fl.shop.name, rate: def.buys || 0.4 }) },
       ]);
@@ -142,6 +142,34 @@ export class Life {
     if (t <= 0) { G.toast('점원', '어서 오세요'); return; }
     if (G.cash < t) { G.toast('돈이 부족합니다', `$${t} 필요`); return; }
     G.cash -= t; G.items.inv.unpaid = {}; G.items.inv.unpaidCost = 0; G.audio.cash(); G.toast('결제 완료', `-$${t}`);
+  }
+  // robbery: gun drawn at the cashier -> a few seconds of intimidation -> till money; a silent alarm calls the police shortly after
+  canRob() { const pl = this.G.player; return !!(pl.armed && pl.weaponDrawn && !pl.dead && !this.G.timed); }
+  robStore(fl) {
+    const G = this.G, sh = fl.shop, h = sh.cashier; if (!h || h.dead) return G.toast('점원이 없다');
+    if (sh.robbedAt != null && G.time - sh.robbedAt < 600) return G.toast('계산대가 비어 있다', '이미 털린 가게');
+    if (sh.def.stock.length === 0 && !sh.def.buys) return G.toast('현금이 없다');
+    if (h.weapon) { h.team = 'gang'; h.state = 'attack'; h.alert = 1; h.threat = G.player; return G.toast('점원이 총을 꺼냈다!'); }
+    if (!(sh.alarmT > 0)) { sh.alarmT = 9; (this.alarming || (this.alarming = [])).push(sh); }
+    h.state = 'stand'; h.scared = true;
+    G.toast('점원', '제발 쏘지 마세요!');
+    G.beginTimed('점원을 위협하는 중…', 3.5, () => {
+      const pl = G.player;
+      if (h.dead) return G.toast('실패', '점원이 쓰러졌다');
+      if (!(pl.armed && pl.weaponDrawn)) return G.toast('실패', '총을 내렸다');
+      const amt = Math.round(rand(300, 900) * (sh.kind === 'arms' || sh.kind === 'pawn' ? 1.6 : 1));
+      sh.robbedAt = G.time; G.cash += amt; G.audio.cash(); G.toast('강도 성공', `+$${amt}`); G.feed?.('가게 강도', '#ff8a5c');
+      G.society.crime('robbery', 25, h.x, h.z); G.memory?.log('theft', h.x, h.z);
+    }, 7);
+  }
+  // silent alarm: ticks while a robbed shop's countdown runs, then the police are told whether or not anyone saw the player
+  shopAlarms(dt) {
+    const G = this.G, a = this.alarming; if (!a || !a.length) return;
+    for (let i = a.length - 1; i >= 0; i--) {
+      const sh = a[i]; sh.alarmT -= dt; if (sh.alarmT > 0) continue;
+      sh.alarmT = 0; a.splice(i, 1); if (sh.cashier?.dead) continue;
+      G.addHeat(30); G.toast('무음 경보!', '점원이 경찰을 불렀다');
+    }
   }
   // leaving a shop with unpaid goods = shoplifting
   checkTheft(pl) {
