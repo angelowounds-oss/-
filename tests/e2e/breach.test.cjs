@@ -10,7 +10,14 @@ run('breach', { q: 0 }, async ({ page }) => {
     for (let i = 0; i < 600 && !bd.open; i++) window.__upd(1 / 60);
     const k = bd.levels.findIndex((l) => l.tier === 'tower'); bd.ensureRange(k - 1, k + 1, true); for (let i = 0; i < 400; i++) window.__upd(1 / 60);
     const fl = bd.floors.get(k), L = bd.levels[k], r = L.rect, o = {};
+    // the interior layout decides what stands in front of a wall (furniture, windows): probe several spots along the wall, take the first that finds it
     const tryWall = (px, pz, yaw) => {
+      const along = Math.abs(Math.sin(yaw)) > 0.5 ? [0, 1] : [1, 0];   // wall runs along z for east/west looks, along x for north/south
+      let last = null;
+      for (const off of [0, 2, -2, 4, -4, 6, -6, 8, -8, 10, -10]) { last = tryWall1(px + along[0] * off, pz + along[1] * off, yaw); if (last.found) return last; }
+      return last;
+    };
+    const tryWall1 = (px, pz, yaw) => {
       pl.body3.teleport(px, L.y, pz); pl.x = px; pl.y = L.y + 0.06; pl.z = pz; pl.vx = pl.vz = 0; g.cam.yaw = yaw; g.phys.world.step();
       const wa = g.breach.wallAhead(pl); if (!wa) return { found: false };
       const nh = g.breach.holes.length; g.items.add('breach'); g.breach.plant(wa);
