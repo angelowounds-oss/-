@@ -23,7 +23,8 @@ export function createCtx(sh, rank) {
     sig[i] = sMax * s; tauI[i] = tau0 + dMax * s; wpI[i] = 1 / tauI[i]; wmI[i] = 1 / (lambda / (tauI[i] - .5) + .5);
   }
   return {
-    rank, T, nx, ny, nz, N, U: sh.U, model, cs, tau0, sig, tauI, wpI, wmI, hasSponge: sMax > 0 || dMax > 0,
+    rank, T, nx, ny, nz, N, U: sh.U, model, cs, tau0, sig, tauI, wpI, wmI, hasSponge: sMax > 0 || dMax > 0, spFull: !!sp.full,
+    eqT: Float64Array.from(C, (c, q) => W[q] * (1 + 3 * c[0] * sh.U + 4.5 * (c[0] * sh.U) ** 2 - 1.5 * sh.U * sh.U)), // equilibrium of the free stream (rho = 1, u = (U, 0, 0))
     f: new Float32Array(sh.fBuf), post: new Float32Array(sh.postBuf), isSolid: new Uint8Array(sh.solidBuf), L: new Int32Array(sh.linkBuf), nL: sh.nL,
     ctl: new Int32Array(sh.ctlBuf), bar: new Int32Array(sh.barBuf), par: new Float64Array(sh.parBuf), forces: new Float64Array(sh.forceBuf), feq: new Float64Array(Q),
   };
@@ -68,8 +69,9 @@ function collide(ctx) {
         post[q * N + n] = feq[q] + om1 * 4.5 * W[q] * qp;
       }
     }
-    // absorbing layer: relax the density towards 1 at fixed velocity (damps acoustic waves, leaves the velocity field alone)
-    if (sig[i] > 0) {
+    // absorbing layer. full: relax the whole state towards the free stream (rho = 1, u = (U, 0, 0)); otherwise only the density towards 1 at the local velocity
+    if (sig[i] > 0 && ctx.spFull) { const s = sig[i], eqT = ctx.eqT; for (let q = 0; q < Q; q++) post[q * N + n] += s * (eqT[q] - post[q * N + n]); }
+    else if (sig[i] > 0) {
       const a = sig[i] * (1 - r);
       for (let q = 0; q < Q; q++) { const cu = CX[q] * ux + CY[q] * uy + CZ[q] * uz; post[q * N + n] += a * W[q] * (1 + 3 * cu + 4.5 * cu * cu - uu); }
     }
