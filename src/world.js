@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder , holeCU, holeHU } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky } from './shaders.js';
+import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky, setTowerFog } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { buildRelief } from './relief.js';
@@ -1054,6 +1054,31 @@ export function buildWorld(scene, quality) {
     const G2 = world.glare; if (G2) { const a = G2.colAttr; for (let i = 0; i < world.tlGlareStart; i++) { const d = G2.data[i]; if (world.zoneOf(d.x, d.z) === zn) a.setW(i, on ? d.size : 0); } a.needsUpdate = true; }
   };
 
+  // ---- The sky tower: the one 1000 m building. Picked after all lots exist (the largest lot of the outer ring without a crown, so no
+  // random number is drawn here and no other building moves); its tiers, rooftop clutter, glare lights and collider are re-made to the new
+  // height. Roof level 975 m (the express lift's top stop), a 25 m spire above it.
+  const SKY_H = 1000, SKY_ROOF = 975;
+  {
+    const cand = world.lots.filter((l) => !l.far && !l.model && l.tierIdx != null && l.tiers && !l.tiers.crown && l.ring).sort((a, b) => ((b.x1 - b.x0) * (b.z1 - b.z0)) - ((a.x1 - a.x0) * (a.z1 - a.z0)) || a.x0 - b.x0 || a.z0 - b.z0)[0];
+    if (cand) {
+      const l = cand, oldTop = l.topY, dy = SKY_ROOF - oldTop, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2;
+      const tw = tiers[l.tierIdx + 1]; tw.h = SKY_ROOF - l.tiers.tower.y0; l.tiers.tower.y1 = SKY_ROOF;
+      const inLot = (o) => o.x > l.x0 - 1 && o.x < l.x1 + 1 && o.z > l.z0 - 1 && o.z < l.z1 + 1 && o.y >= oldTop - 0.01;
+      for (const p of props) if (inLot(p)) p.y += dy;
+      for (const g of glares) if (inLot(g)) g.y += dy;
+      for (const h of holoInst) if (inLot(h)) h.y += dy;
+      l.h = SKY_H; l.topY = SKY_ROOF; l.landmark = 'SKY APEX 1000'; l.express = true;
+      world.colliders.removeBox(l.solid); l.solid = world.colliders.addBox(l.x0, l.z0, l.x1, l.z1, SKY_H + 5, 'building');
+      // spire and aircraft warning lights: red, blinking, on the four corners every 100 m and at the very top
+      props.push({ x: cx, y: SKY_ROOF, z: cz, w: 1.8, h: SKY_H - SKY_ROOF, d: 1.8, color: 0x1a1c24 });
+      addGlare(cx, SKY_H, cz, [2.2, 0.1, 0.1], 11, 1.2, 0);
+      const t = l.tiers.tower;
+      for (let y = 100; y < SKY_ROOF; y += 100) for (const [gx, gz] of [[t.x0, t.z0], [t.x1, t.z0], [t.x0, t.z1], [t.x1, t.z1]]) addGlare(gx, y, gz, [1.6, 0.08, 0.1], 7, 1.4, (y / 100 + gx) % 6);
+      world.skyTower = l;
+      // from the street the top is always ~1000 m away: this column of air is much clearer than the city's fog
+      setTowerFog(l.x0 - 3, l.z0 - 3, l.x1 + 3, l.z1 + 3, 0.1);
+    }
+  }
   // ---- Build instanced facade mesh ----
   function makeFacadeMesh(list, fog = true, relief = true) {
     const m = new THREE.InstancedMesh(boxGeo, facadeMat, list.length);
@@ -1445,7 +1470,7 @@ function buildEntrances(world, scene) {
     const d = doorSpec(l); if (!d) return;
     const accent = accentColor(l.accent), th = Math.atan2(d.nx, d.nz), cs = Math.cos(th), sn = Math.sin(th);
     const W = (lx, lz) => [d.px + lx * cs + lz * sn, d.pz - lx * sn + lz * cs];
-    const name = NAME_A[(id * 5 + Math.floor(l.seed)) % NAME_A.length] + ' ' + NAME_B[(id * 3 + Math.floor(l.seed * 3)) % NAME_B.length];
+    const name = l.landmark || (NAME_A[(id * 5 + Math.floor(l.seed)) % NAME_A.length] + ' ' + NAME_B[(id * 3 + Math.floor(l.seed * 3)) % NAME_B.length]);
     l.name = name; l.id = id; l.door = d;
     const em = new THREE.Color(...accent).multiplyScalar(2.8);
     const bx = (lx, y, lz, w, h, dd, col, key = 'emit') => { const [wx, wz] = W(lx, lz); B.box(key, wx, y, wz, w, h, dd, col, th); };

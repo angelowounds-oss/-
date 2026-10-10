@@ -101,6 +101,7 @@ export class Building {
     const col = this.G.world.colliders;
     if (this.solidTower) for (const b of this.solidTower) col.removeBox(b);
     this.solidTower = [];
+    if (this.expressRide) return;   // the express lift runs through the unbuilt volume: nothing solid in its way until it has stopped
     const tow = this.tow, L = this.levels;
     let run = null;
     const flush = (yEnd) => { if (run != null && yEnd > run) this.solidTower.push(col.addBox(tow.x0, tow.z0, tow.x1, tow.z1, yEnd, 'building', run)); run = null; };
@@ -891,6 +892,8 @@ class Elevator {
     this.b = b; this.G = b.G; b.plan();
     const sh = b.shaft; this.cx = (sh.x0 + sh.x1) / 2; this.cz = (sh.z0 + sh.z1) / 2 - 0.1;
     this.level = 0; this.target = 0; this.y = 0; this.vy = 0; this.state = 'idle'; this.doorOpen = 0; this.queue = []; this.wait = 0;
+    // the sky tower's lift: 42 m/s (151 km/h) after a 6.5 m/s^2 ramp, floors are not streamed while it passes them (see update)
+    this.express = !!b.lot.express; this.vmax = this.express ? 42 : 5.2; this.acc = this.express ? 6.5 : 1.6; this.v = 0; this.pre = false;
     const R = this.G.RAPIER, w = this.G.phys.world;
     // dynamic-but-locked: Rapier's character controller stalls on kinematic floors
     this.body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(this.cx, 0, this.cz).setGravityScale(0).lockTranslations().lockRotations().setCanSleep(false));
@@ -925,7 +928,7 @@ class Elevator {
     const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.35), new THREE.MeshBasicMaterial({ map: t, toneMapped: false }));
     mesh.rotation.y = Math.PI; mesh.position.z = -1.2;
-    const draw = (txt) => { const g = cv.getContext('2d'); g.fillStyle = '#04060c'; g.fillRect(0, 0, 128, 64); g.fillStyle = '#47ffa8'; g.font = 'bold 40px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 64, 34); t.needsUpdate = true; };
+    const draw = (txt, sub) => { const g = cv.getContext('2d'); g.fillStyle = '#04060c'; g.fillRect(0, 0, 128, 64); g.fillStyle = '#47ffa8'; g.textAlign = 'center'; g.textBaseline = 'middle'; if (sub) { g.font = 'bold 34px monospace'; g.fillText(txt, 64, 24); g.fillStyle = '#7fd8ff'; g.font = 'bold 18px monospace'; g.fillText(sub, 64, 50); } else { g.font = 'bold 40px monospace'; g.fillText(txt, 64, 34); } t.needsUpdate = true; };
     draw('1F'); return { mesh, draw };
   }
   floorLabel(k) { const L = this.b.levels[k]; if (L.tier === 'roof') return 'R'; const n = this.floorNumber(k); return n + 'F'; }
@@ -958,23 +961,34 @@ class Elevator {
       this.wait -= dt;
       if (this.queue.length && (this.wait <= 0 || this.queue[0] === this.level)) { if (this.queue[0] === this.level) { this.queue.shift(); this.G.audio.ding?.(); this.wait = 3.5; } else { this.state = 'closing'; } }
     }
-    if (this.state === 'closing' && this.doorOpen <= 0) { this.target = this.queue[0]; this.state = 'moving'; this.G.audio.elevator?.(clamp(Math.abs(this.levelY(this.target) - this.y) / 4, 1.5, 6)); this.target > this.level ? b.ensureRange(this.level - 1, this.level + 4) : b.ensureRange(this.level - 4, this.level + 1); }
+    if (this.state === 'closing' && this.doorOpen <= 0) { this.target = this.queue[0]; this.state = 'moving'; if (this.express) { this.v = 0; this.pre = false; b.expressRide = true; b.updateSolid(); } if (this.express) this.G.audio.expressLift?.(Math.abs(this.levelY(this.target) - this.y) / this.vmax + this.vmax / this.acc); else this.G.audio.elevator?.(clamp(Math.abs(this.levelY(this.target) - this.y) / 4, 1.5, 6)); this.target > this.level ? b.ensureRange(this.level - 1, this.level + 4) : b.ensureRange(this.level - 4, this.level + 1); }
     if (this.state === 'moving') {
       const ty = this.levelY(this.target), dist = ty - this.y, dir = Math.sign(dist);
-      const v = Math.min(5.2, Math.max(0.6, Math.sqrt(2 * 1.6 * Math.abs(dist))));
+      let v = Math.min(this.vmax, Math.max(0.6, Math.sqrt(2 * this.acc * Math.abs(dist))));
+      if (this.express) { this.v = Math.min(v, this.v + this.acc * dt); v = Math.max(0.6, this.v); }   // ramp up; slowing down is already limited by the remaining distance
+      this.speed = v;
       const ride = this.riding(pl);
       const dy = dir * Math.min(Math.abs(dist), v * dt);
       this.y += dy;
       if (ride) { pl.body3.shift(0, dy, 0); pl.y += dy; if (pl.group) pl.group.position.y += dy; }
       this.vy = dy / Math.max(dt, 1e-4);
       const lvNow = b.levelAt(this.y + 0.3);
-      if (lvNow !== this.level) { this.level = lvNow; b.curLevel = lvNow; b.ensureRange(lvNow - 1 + (dir > 0 ? 0 : -2), lvNow + 1 + (dir > 0 ? 2 : 0)); }
-      if (Math.abs(dist) < 0.01) { this.y = ty; this.level = this.target; this.queue.shift(); this.state = 'opening'; this.G.audio.ding?.(); b.updateSolid(); if (ride) pl.body3.shift(0, 0.06, 0); }
+      if (lvNow !== this.level) {
+        this.level = lvNow;
+        if (!this.express) { b.curLevel = lvNow; b.ensureRange(lvNow - 1 + (dir > 0 ? 0 : -2), lvNow + 1 + (dir > 0 ? 2 : 0)); }
+      }
+      // express: no floors are built while passing (12 floors a second); the ones around the stop are queued when the cab is ~3.5 s away
+      if (this.express) {
+        if (!this.pre && Math.abs(dist) < 150) { this.pre = true; b.curLevel = this.target; b.ensureRange(this.target - 1, this.target + 3); }
+        if (ride) { G.shake(0.012 * Math.min(1, v / 20)); }
+      }
+      if (Math.abs(dist) < 0.01) { if (this.express) { b.expressRide = false; this.v = 0; this.pre = false; if (!b.floors.has(this.target)) b.buildFloor(this.target); } this.y = ty; this.level = this.target; this.queue.shift(); this.state = 'opening'; this.G.audio.ding?.(); b.updateSolid(); if (ride) pl.body3.shift(0, 0.06, 0); }
     }
     this.syncCab();
     this.shaftDoorsUpdate();
     const lv = this.state === 'moving' ? b.levelAt(this.y + 0.3) : this.level;
-    const txt = this.floorLabel(lv) + (this.state === 'moving' ? (this.levelY(this.target) > this.y ? '▲' : '▼') : ''); if (txt !== this.lampTxt) { this.lampTxt = txt; this.lamp.draw(txt); }
+    const sub = this.express && this.state === 'moving' ? Math.round((this.speed || 0) * 3.6) + 'km/h' : '';
+    const txt = this.floorLabel(lv) + (this.state === 'moving' ? (this.levelY(this.target) > this.y ? '▲' : '▼') : '') + sub; if (txt !== this.lampTxt) { this.lampTxt = txt; this.lamp.draw(this.floorLabel(lv) + (this.state === 'moving' ? (this.levelY(this.target) > this.y ? '▲' : '▼') : ''), sub); }
     this.nearK = b.levelAt(pl.y);
   }
   syncCab(force) {

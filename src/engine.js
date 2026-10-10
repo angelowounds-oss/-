@@ -82,7 +82,7 @@ export function createEngine(parent, qIndex) {
   scene.background = new THREE.Color(0x070816);
   scene.fog = new THREE.FogExp2(0x0b0c22, 0.0105);
 
-  const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.12, 900);
+  const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.12, 2600);
   scene.add(camera);
 
   // Lights

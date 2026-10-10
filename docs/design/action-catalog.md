@@ -8,6 +8,7 @@
 |---|---|---|---|
 | 이동 | 걷기·달리기·점프·웅크리기, 그래플링 훅, 낙하산 | ● | `mobility.js` |
 | 이동 | 차량 승차·강탈(carjack), 오토바이·보트·헬기 조종 | ● | `vehicle.js`, `craft.js`, `game.js:756` |
+| 이동 | 1000 m 타워 초고속 엘리베이터(42 m/s), 옥상에서 낙하산 강하 | ● (2026-10-10) | `building.js Elevator.express` · `e2e/sky-tower` |
 | 이동 | 지붕 타기, 차량 탈출 | ◐ WIP(PHY-03) | `carrider.js` |
 | 전투 | 권총·SMG·샷건·저격·카빈, 부착물, 수류탄, 근접(단검·방망이·빠루) | ● | `items.js`, `attachments.js` |
 | 전투 | 투척 잡동사니(벽돌·병·캔), 소화기, 집어 던지기 | ● | `items.js` |

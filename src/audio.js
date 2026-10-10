@@ -55,6 +55,13 @@ export class Audio {
   setIndoor(on) { if (!this.ctx) return; const t = this.ctx.currentTime; this.indoor = on; this.lp.frequency.setTargetAtTime(on ? 2600 : 20000, t, 0.12); (this.rainG || []).forEach((g, i) => g.gain.setTargetAtTime(on ? [0.07, 0.035, 0.22][i] * 0.12 : [0.07, 0.035, 0.22][i], t, 0.15)); }
   ding() { this.tone(1320, 0.7, 'sine', 0.16); this.tone(1760, 0.9, 'sine', 0.12, 0, null, 0.18); }
   elevator(dur) { if (!this.ctx) return; this.noiseShot(dur, 'lowpass', 140, 0.35, 0.5); this.tone(70, dur, 'sine', 0.2, 62); this.tone(990, 0.25, 'sine', 0.08, 0, null, 0.1); }
+  // the sky tower's express lift: a low rumble that climbs with the speed, a rising air hiss, and the pressure 'pop' on arrival
+  expressLift(dur) {
+    if (!this.ctx) return; dur = Math.max(3, dur);
+    this.noiseShot(dur, 'lowpass', 90, 0.4, 0.7); this.tone(48, dur, 'sine', 0.22, 70);
+    this.noiseShot(dur * 0.9, 'bandpass', 700, 0.12, 0.8, undefined, dur * 0.1, 2400);
+    this.tone(180, 0.35, 'sine', 0.1, 120, null, dur - 0.1);
+  }
   setVolume(v) { this.vol = v; if (this.master) this.master.gain.value = v; }
   setMusic(on) { this.musicOn = on; if (this.music) this.music.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.2); }
   noiseShot(dur, type, f, gain, q = 1, dest, delay = 0, fEnd = 0) {

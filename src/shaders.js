@@ -9,6 +9,21 @@ float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
 float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*vnoise(p);p=p*2.03+17.1;a*=.5;}return s;}
 `;
 
+
+// Fog exemption for one landmark (the 1000 m tower): FogExp2 hides everything beyond ~300 m, and the top of a 1000 m tower is always
+// 1000 m away. Fragments whose world position lies inside the tower's footprint column get their fog depth scaled by k. The box is baked
+// into the fog chunks as constants, so this must run before the first program compiles (the world is built before the first frame).
+const FOG0 = { pv: THREE.ShaderChunk.fog_pars_vertex, v: THREE.ShaderChunk.fog_vertex, pf: THREE.ShaderChunk.fog_pars_fragment, f: THREE.ShaderChunk.fog_fragment };
+export function setTowerFog(x0, z0, x1, z1, k) {
+  const C = THREE.ShaderChunk, f = (n) => n.toFixed(3);
+  C.fog_pars_vertex = FOG0.pv.replace('varying float vFogDepth;', 'varying float vFogDepth;\n\tvarying vec2 vFogW;');
+  C.fog_vertex = FOG0.v.replace('vFogDepth = - mvPosition.z;', 'vFogDepth = - mvPosition.z;\n\tvFogW = cameraPosition.xz + vec2(dot(mat3(viewMatrix)[0], mvPosition.xyz), dot(mat3(viewMatrix)[2], mvPosition.xyz));');
+  C.fog_pars_fragment = FOG0.pf.replace('varying float vFogDepth;', 'varying float vFogDepth;\n\tvarying vec2 vFogW;');
+  const box = `vFogW.x > ${f(x0)} && vFogW.x < ${f(x1)} && vFogW.y > ${f(z0)} && vFogW.y < ${f(z1)}`;
+  C.fog_fragment = FOG0.f.replace('#ifdef FOG_EXP2', `float fogD = vFogDepth * ((${box}) ? ${f(k)} : 1.0);\n\t#ifdef FOG_EXP2`)
+    .replace('fogDensity * fogDensity * vFogDepth * vFogDepth', 'fogDensity * fogDensity * fogD * fogD').replace('smoothstep( fogNear, fogFar, vFogDepth )', 'smoothstep( fogNear, fogFar, fogD )');
+}
+
 export const timeUniform = { value: 0 };
 // player position: entrance apertures only open where building.js has a lobby to look into
 export const doorCamU = { value: new THREE.Vector3() };

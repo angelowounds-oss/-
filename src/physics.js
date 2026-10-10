@@ -53,7 +53,7 @@ export class Physics {
   }
   addBox(b) {
     const R = this.R, w = this.world;
-    const y0 = b.y0 || 0, hh = (Math.min(b.h, 400) - y0) / 2;
+    const y0 = b.y0 || 0, hh = (Math.min(b.h, 1100) - y0) / 2;
     if (hh <= 0) return;
     b.col = w.createCollider(R.ColliderDesc.cuboid((b.x1 - b.x0) / 2, hh, (b.z1 - b.z0) / 2).setTranslation((b.x0 + b.x1) / 2, y0 + hh, (b.z0 + b.z1) / 2).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(b.tag === 'glass' ? GR.GLASS : b.tag === 'elev' ? GR.OBJ : GR.STATIC, ALL)).setActiveEvents(b.tag === 'glass' ? R.ActiveEvents.COLLISION_EVENTS : 0));
     this.colRef.set(b.col.handle, b);
