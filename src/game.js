@@ -105,6 +105,7 @@ export class Game {
     this.memory = new Memory(this);
     this.power = new Power(this);
     this.breach = new Breach(this); this.military = new Military(this); this.fire = new Fire(this); this.blaze = new Blaze(this);
+    this.eng.onTier = (q) => this.world.setSimple?.(!!q.simple); this.eng.onTier(this.eng.q);   // the tier's detail switches (LOW: simple facades)
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
     if (this.world.bins) this.phys.addProps(this.world.bins.mesh, this.world.bins.list);
@@ -436,8 +437,9 @@ export class Game {
     this.scene.add(warm);
     const undoFloors = this.buildings.prewarmFloors?.();
     const prev = R.getRenderTarget();
-    R.setRenderTarget(eng.composer.readBuffer); R.compile(this.scene, cam); R.setRenderTarget(prev);   // the scene is drawn into the composer's target
-    R.shadowMap.needsUpdate = true; eng.composer.render(0);
+    const direct = eng.q.post === false;   // LOW draws to the screen: programs for the screen target (tone mapping in the shader) are the ones to compile
+    R.setRenderTarget(direct ? null : eng.composer.readBuffer); R.compile(this.scene, cam); R.setRenderTarget(prev);   // otherwise the scene is drawn into the composer's target
+    R.shadowMap.needsUpdate = true; if (direct) R.render(this.scene, cam); else eng.composer.render(0);
     // and upload every texture the scene uses: a texture is otherwise sent to the GPU the first time something with it is drawn
     // (the 2048 furniture atlas, facade arrays, model skins... tens of ms each, mid-game)
     const texs = new Set(), take = (v) => { if (v && v.isTexture && !v.isRenderTargetTexture) texs.add(v); };
@@ -1704,6 +1706,7 @@ export class Game {
     if (a.probe > 0) a.probe -= dt;
     if (a.cool > 0) return;
     const eng = this.eng, target = 1 / 58;
+    if (eng.q.noScale) return;   // LOW is already at its floor (45 %): no further scaling, no further tiers
     const roomy = a.ema < target * 0.8 || (a.ema < target * 1.08 && a.work < a.ema * 0.55);
     if (a.ema > target * 1.08) { a.slow += dt; a.fast = 0; } else if (roomy) { a.fast += dt; a.slow = 0; } else a.slow = a.fast = 0;
     if (a.slow > 0.6) {

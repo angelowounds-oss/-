@@ -112,6 +112,7 @@ export class Blaze {
   // after the day/night pass set the fog: smoke inside a burning building closes in
   lateUpdate() {
     const fog = this.G.scene.fog; if (!fog) return;
+    fog.density *= this.G.eng.q.fogK || 1;   // LOW: a shorter view distance, a little more fog
     if (this.smoke > 0.01) fog.density *= 1 + this.smoke * 7;
     // high above the city (tall roofs, a helicopter, the sky tower) the haze is thin: the fog hugs the streets
     const cy = this.G.camera.position.y; if (cy > 80) { const k = Math.min(1, (cy - 80) / 370); fog.density *= 1 - 0.85 * k * k * (3 - 2 * k); }

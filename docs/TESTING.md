@@ -11,6 +11,7 @@ node build/build.mjs                # 테스트는 빌드 산출물을 연다
 node tests/run.cjs quick            # 단위 + 부팅 + 컬링·조명 동일성 (약 5분)
 node tests/run.cjs render gameplay  # 스위트 지정
 node tests/run.cjs --only breach    # 테스트 하나
+# 주의: 테스트의 `q` 옵션이 0이면 이제 '극단 저사양'(후처리·원경·외벽 장식 없음)이다. 화질에 의존하는 테스트는 q:1 이상을 쓴다.
 node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 기준 · 2026-10-09 18/18 통과)
 ```
 
@@ -28,6 +29,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | render | `pack-identity` | 원경 인스턴스 패킹이 도시 안에서 픽셀 동일(가장자리 바깥 보기 포함) | 바이트 차이 0 |
 | render | `light-skip-identity` | 조명 루프 패치가 three.js 원본 청크와 동일(조명 꺼짐/켜짐) | 바이트 차이 0 |
 | render | `facade-relief` | 외벽 장식 인스턴스가 있고 전부 유한·비퇴화 상자, 실제 프레임이 검지 않음, 붕괴 시 해당 건물 장식 숨김·재건 시 정확히 복원 | 위 항목 전부 |
+| render | `low-tier` | 낮음 단계: 해상도 45%, 후처리 없음, 먼 거리 520 m, 외벽 장식 숨김, 자동 해상도 조정 없음, 네온 밝은 화소 있음, 플레이 중 셰이더 컴파일 0, 보통으로 바꾸면 전부 복원 | 위 항목 전부 |
 | render | `sign-ctx-restore` | WebGL 컨텍스트 복구 후 간판 텍스처 배열 재업로드 | 레이어 해시 동일 |
 | render | `no-runtime-compile` | 걷기·폭발·랙돌·5성·손전등·밤/비/낮·사격·수류탄·벽 파괴·운전·수영·실내·옥상에서 새 셰이더 0 | 새 프로그램 0 |
 | gameplay | `entrance-holes` | 로비가 없는 건물의 출입구가 열려 보이지 않음(걷기·운전) | 구멍 프레임 0 |

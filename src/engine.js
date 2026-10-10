@@ -21,7 +21,10 @@ import hdriDay from '../assets/env/day_street.rgbe';
 }
 
 export const QUALITY = [
-  { name: 'LOW', ragdolls: 3, ragDist: 35, shadowEvery: 1, lights: [2, 2], dpr: 0.85, shadow: 1024, bloom: 0.28, ao: false, smaa: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
+  // LOW is the extreme tier for weak devices: 45 % render resolution (the HUD is DOM and stays sharp), no post-processing at all (the scene is drawn
+  // straight to the screen), simplified facades (no photo textures / weathering / relief), short view distance with a little more fog.
+  // Neon look kept: window lights, signs, lamps and glare sprites are untouched; shadows, lights and population as before.
+  { name: 'LOW', ragdolls: 3, ragDist: 35, shadowEvery: 1, lights: [2, 2], dpr: 0.45, shadow: 1024, bloom: 0, ao: false, smaa: false, post: false, simple: true, camFar: 520, fogK: 1.4, noScale: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
   { name: 'MEDIUM', ragdolls: 5, ragDist: 50, shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 80, parked: 28, rain: 3000, far: 1 },
   { name: 'HIGH', ragdolls: 8, ragDist: 60, shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 120, parked: 40, rain: 4500, far: 1 },
   { name: 'ULTRA', ragdolls: 10, ragDist: 70, shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 160, parked: 52, rain: 6000, far: 1 },
@@ -154,6 +157,7 @@ export function createEngine(parent, qIndex) {
       moon.shadow.mapSize.set(q.shadow, q.shadow);
       if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; }
       bloom.strength = q.bloom;
+      camera.far = q.camFar || 2600; camera.updateProjectionMatrix();
       if (gtao) { composer.removePass(gtao); gtao.dispose?.(); gtao = null; }
       if (q.ao) {
         try {
@@ -173,7 +177,7 @@ export function createEngine(parent, qIndex) {
           composer.addPass(smaa);
         }
       }
-      eng.onQuality?.(q);
+      eng.onQuality?.(q); eng.onTier?.(q);
     },
     resize() {
       camera.aspect = innerWidth / innerHeight;
@@ -188,6 +192,7 @@ export function createEngine(parent, qIndex) {
       // shadow map is the biggest fixed cost on integrated GPUs: refresh it less often on low tiers
       renderer.shadowMap.autoUpdate = false;
       if (eng.frame++ % eng.q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
+      if (eng.q.post === false) { renderer.render(scene, camera); return; }   // LOW: no post-processing, straight to the screen (ACES tone mapping from the renderer)
       composer.render(dt);
     },
   };

@@ -377,7 +377,7 @@ function createGround(fakeLights) {
 // ---------- Facade material (windows, neon strips, shopfronts) ----------
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
-  const uniforms = { uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.8 }, ...facadeUniforms() };
+  const uniforms = { uSimple: { value: 0 }, uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.8 }, ...facadeUniforms() };
   patchStandard(mat, 'facade-v9', {
     uniforms,
     vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;attribute vec4 aBurn;attribute float aFloor;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
@@ -391,7 +391,7 @@ function createFacadeMaterial() {
       #endif
       vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;vBurn=aBurn;vFl=aFloor;`,
     fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
-      flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      uniform float uSimple;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
       float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
@@ -425,9 +425,9 @@ function createFacadeMaterial() {
         vec2 cell=vec2(floor(horiz/sx),floor(y/sy));vec2 f=vec2(fract(horiz/sx),fract(y/sy));
         float rnd=h21(cell+seed*37.1);float flr=h21(vec2(cell.y,seed*13.7));
         // wall weathering
-        float grime=fbm(vec2(horiz*.35,y*.08)+seed*9.)*.6+.4;
+        float grime=uSimple>.5?.8:fbm(vec2(horiz*.35,y*.08)+seed*9.)*.6+.4;
         alb*=grime*(1.-smoothstep(0.,40.,y)*.0)*(.65+.55*smoothstep(0.,6.,y));
-        float streak=vnoise(vec2(horiz*2.3,y*.03+seed));alb*=1.-smoothstep(.6,.95,streak)*.35;
+        if(uSimple<.5){float streak=vnoise(vec2(horiz*2.3,y*.03+seed));alb*=1.-smoothstep(.6,.95,streak)*.35;}
         // wall panel lines
         float lwy=fwidth(y/sy);float line=mix(smoothstep(.0,.02,min(f.y,1.-f.y)),.9,smoothstep(.04,.25,lwy));   // panel lines fade to their average once thinner than a pixel
         alb*=mix(.7,1.,line);
@@ -462,7 +462,7 @@ function createFacadeMaterial() {
           wc*=.55+.6*smoothstep(0.,4.,y);
         }
         float fw=max(fwidth(horiz/sx),fwidth(y/sy));float farF=smoothstep(.1,.38,fw);
-        if(uHasTex<.5&&wm>.5){
+        if((uHasTex<.5||uSimple>.5)&&wm>.5){
           if(lit>.5||tvf>.01){
             float k=lit>.5?1.:0.;vec3 em=wc*(.7+h21(cell+4.)*.8);
             em=mix(em,vec3(.35,.5,1.)*2.,tvf*(1.-k)*.0+tvf*.7);
@@ -487,7 +487,7 @@ function createFacadeMaterial() {
         if(style>.5&&h11(seed*3.1)>.4){float cdw=fwidth(cornerD)*.75+1e-4;fEmit+=acc*1.6*(1.-smoothstep(.22-cdw,.22+cdw,cornerD));}
         // crown glow
         if(style>.5&&mod(vInfo.w,2.)<.5){float ftw=fwidth(fromTop)*.75+1e-4;fEmit+=acc*2.6*(1.-smoothstep(.55-ftw,.55+ftw,fromTop));}
-        if(uHasTex>.5){
+        if(uHasTex>.5&&uSimple<.5){
           // real facade texture sets: tile = (floors per tile + optional ground-floor shop slot) x 4 m so the window rows line up with the generated floors
           float setf=floor(vInfo.w*.5);bool pod=mod(vInfo.w,2.)>.5;
           float tw=setf<1.5?24.:(setf<2.5?8.:12.);
@@ -550,7 +550,7 @@ function createFacadeMaterial() {
   mat.onBeforeCompile = (sh) => {
     origCompile(sh);
     sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-      if(uHasTex>.5)normal=normalize(normal+(viewMatrix*vec4(fBump*uBumpK,0.)).xyz);`);
+      if(uHasTex>.5&&uSimple<.5)normal=normalize(normal+(viewMatrix*vec4(fBump*uBumpK,0.)).xyz);`);
   };
   mat.userData.uniforms = uniforms;
   return mat;
@@ -1109,6 +1109,8 @@ export function buildWorld(scene, quality) {
   const farMesh = makeFacadeMesh(farInst, true, false);
   farMesh.castShadow = false; farMesh.receiveShadow = false;
   scene.add(farMesh);
+  // LOW tier (engine QUALITY.simple): flat facades without photo textures / weathering / bump, no relief, no skyline blocks behind the rim
+  world.setSimple = (on) => { facadeMat.userData.uniforms.uSimple.value = on ? 1 : 0; if (world.relief) world.relief.mesh.visible = !on; farMesh.visible = !on; };
 
   // Rooftop props (dark, flat)
   {
