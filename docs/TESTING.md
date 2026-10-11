@@ -24,6 +24,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | 스위트 | 테스트 | 무엇을 지키는가 | 합격 기준 |
 |---|---|---|---|
 | unit | `builder-bitexact` | 층 Builder 출력이 기준 구현(`tests/fixtures/gfx_ref.js`)과 비트 동일(풀 버퍼 재사용 포함) | 차이 0 |
+| smoke | `loading-screen` | 로딩 화면: 40칸 막대, 100%에서 시작 안내 문구, 글꼴 포함(Anton·Space Mono), 가로 1280×720·세로 720×1280 무대, 시작하면 숨김, 외부 요청 0, 오류 0 | 위 항목 전부 |
 | smoke | `boot` | 로딩·시작·첫 프레임, 페이지 오류 없음 | 오류 0, 화면 40% 이상 내용 |
 | render | `cull-identity` | 프러스텀 컬링이 픽셀을 바꾸지 않음(거리·실내, 두 방향) | 바이트 차이 0 |
 | render | `pack-identity` | 원경 인스턴스 패킹이 도시 안에서 픽셀 동일(가장자리 바깥 보기 포함) | 바이트 차이 0 |

@@ -110,22 +110,52 @@ body.touch.onfoot .car,body.touch.incar .foot{display:none}
 #bG{right:196px;bottom:268px;width:44px;height:44px;background:rgba(40,100,140,.7)}#bT{right:246px;bottom:240px;width:44px;height:44px;background:rgba(120,90,40,.7)}#bInv{right:16px;top:280px;width:42px;height:42px}#bCrouch{left:24px;bottom:calc(30% + 80px);width:50px;height:50px}#bPhone{right:16px;top:326px;width:42px;height:42px}#bNade{right:196px;bottom:200px;width:42px;height:42px}
 #bPause{right:16px;top:230px;width:38px;height:38px;font-size:15px}
 /* screens */
-#title{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#000;transition:opacity 1.2s}
+/* loading screen: the "Purge Day" design (1280x720 stage, scaled to fit; a 720x1280 stage in portrait). Fonts are embedded by build.mjs. */
+/*__FONTS__*/
+#title{position:fixed;inset:0;z-index:20;overflow:hidden;background:#0a0a0a;color:#efe9dd;font-family:'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo','Noto Sans CJK KR',sans-serif;transition:opacity 1.2s;--pds:1}
 #title.off{opacity:0;pointer-events:none}
-#tc{width:min(640px,92vw);text-align:center;padding:30px 28px;font-family:"Courier New",monospace}
-.tl{opacity:0;font-size:clamp(12px,2.4vw,16px);letter-spacing:.28em;color:#b8b8b8;margin:0 0 14px;animation:tin 2.4s ease forwards}
-#t1{animation-delay:.6s}#t2{animation-delay:3s;color:#c8302a}
-@keyframes tin{to{opacity:1}}
-@keyframes tflick{0%,100%{opacity:1}46%{opacity:1}48%{opacity:.55}50%{opacity:1}93%{opacity:.8}95%{opacity:1}}
-#tc h1{margin:34px 0 26px;font-size:clamp(40px,10vw,92px);line-height:1;letter-spacing:.32em;font-weight:400;color:#d8d8d8;opacity:0;animation:tin 3s ease 5.5s forwards,tflick 7s linear 9s infinite}
-#tc h1 b{font-weight:400;color:#b0231d;letter-spacing:.32em}
-#loadBar{height:1px;background:rgba(255,255,255,.12);overflow:hidden;margin:26px auto 10px;width:min(320px,70%)}
-#loadBar i{display:block;height:100%;width:0%;background:#8a1d18;transition:width .2s}
-#loadTxt{font-size:10px;letter-spacing:.2em;color:#6a6a6a;height:16px}
-#go{margin-top:22px;padding:10px 18px;border:0;background:none;font:400 13px "Courier New",monospace;letter-spacing:.3em;color:#9a9a9a;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .6s}
-#go.rdy{opacity:1;pointer-events:auto;animation:tblink 2.2s ease-in-out infinite}
-@keyframes tblink{50%{opacity:.35}}
-#credit{margin-top:40px;font-size:9px;color:#3c3c3c;letter-spacing:.08em}
+#pdGlow{position:absolute;inset:0;background:radial-gradient(60vw 72vh at 8% 108%,rgba(255,59,47,.38),transparent 70%),radial-gradient(40vw 50vh at 100% -10%,rgba(255,59,47,.18),transparent 70%)}
+#pdHaz{position:absolute;left:0;right:0;top:0;height:calc(28px * var(--pds));overflow:hidden}
+#pdHaz i{position:absolute;left:0;top:0;bottom:0;width:calc(100% + 51px);background:repeating-linear-gradient(-45deg,#ff3b2f 0 18px,#0a0a0a 18px 36px);background-size:50.91px 100%;transform-origin:0 0;animation:pd-slide 1.2s linear infinite}
+#pdScan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px)}
+#pd{position:absolute;left:50%;top:50%;width:1280px;height:720px;margin:-360px 0 0 -640px;transform:scale(var(--pds));transform-origin:50% 50%}
+.pd-siren{animation:pd-pulse 1.6s ease-in-out infinite}
+@keyframes pd-slide{from{transform:translateX(-50.91px)}to{transform:translateX(0)}}
+@keyframes pd-pulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes pd-blink{0%,49%{opacity:1}50%,100%{opacity:.25}}
+.pd-bc{position:absolute;left:64px;top:64px;display:flex;gap:16px;align-items:center;font:15px 'Space Mono',monospace;letter-spacing:.2em}
+.pd-tag{background:#ff3b2f;color:#0a0a0a;font-weight:700;padding:6px 12px}
+.pd-logo{position:absolute;left:60px;top:112px;display:flex;flex-direction:column}
+.pd-logo h1,.pd-day{margin:0;font:400 210px/.92 'Anton',Impact,sans-serif;letter-spacing:.01em}
+.pd-logo h1{color:#efe9dd}
+.pd-day{color:#ff3b2f}
+.pd-row{display:flex;align-items:flex-end;gap:28px}
+.pd-ko{padding-bottom:22px;font-weight:900;font-size:44px;letter-spacing:.3em;color:#efe9dd}
+.pd-pct{position:absolute;right:64px;top:96px;display:flex;flex-direction:column;align-items:flex-end}
+.pd-num{font:400 300px/.95 'Anton',Impact,sans-serif;color:transparent;-webkit-text-stroke:3px #efe9dd}
+.pd-cd{margin-top:-6px;font:15px 'Space Mono',monospace;letter-spacing:.2em}
+.pd-st{position:absolute;left:64px;right:64px;bottom:112px;display:flex;justify-content:space-between;align-items:baseline;font:17px 'Space Mono',monospace;letter-spacing:.08em}
+.pd-stl{display:flex;gap:12px}
+.pd-cur{color:#ff3b2f;animation:pd-blink .8s steps(1,end) infinite}
+#loadBar{position:absolute;left:64px;right:64px;bottom:56px;height:36px;display:grid;grid-template-columns:repeat(40,minmax(0,1fr));gap:4px}
+#loadBar div{background:#26221f}
+#loadBar div.on{background:#ff3b2f}
+#credit{position:absolute;left:64px;right:64px;bottom:20px;font:10px 'Space Mono',monospace;color:#5a554f;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#go{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;background:none;cursor:pointer;opacity:0;pointer-events:none}
+#go.rdy{pointer-events:auto}
+@media (orientation:portrait){
+  #pd{width:720px;height:1280px;margin:-640px 0 0 -360px}
+  .pd-bc{left:40px;top:60px;font-size:13px;flex-direction:column;align-items:flex-start;gap:10px}
+  .pd-logo{left:36px;top:150px}
+  .pd-logo h1,.pd-day{font-size:178px}
+  .pd-ko{font-size:34px;padding-bottom:18px}
+  .pd-pct{left:40px;right:40px;top:640px;align-items:flex-start}
+  .pd-num{font-size:250px}
+  .pd-st{left:40px;right:40px;bottom:130px;font-size:15px}
+  #loadBar{left:40px;right:40px;bottom:76px;height:30px;gap:3px}
+  #credit{left:40px;right:40px;bottom:34px;font-size:9px}
+}
+@media (prefers-reduced-motion:reduce){#pdHaz i,.pd-siren,.pd-cur{animation:none}}
 #helpov{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82)}
 #helpov.on{display:flex}
 #helpbox{width:min(720px,94vw);padding:24px 28px;border:1px solid #333;background:#050505;font-family:"Courier New",monospace}
@@ -250,14 +280,20 @@ body.touch #helpov{display:none!important}
   <button id="resume" class="pbtn p" type="button">계속하기</button>
   <button id="reset" class="pbtn" type="button">진행 초기화</button>
 </div></div>
-<div id="title"><div id="tc">
-  <div id="t1" class="tl">이것은 훈련이 아닙니다.</div>
-  <div id="t2" class="tl">오늘 밤 12시간, 모든 범죄가 합법입니다.</div>
-  <h1>PURGE <b>DAY</b></h1>
-  <div id="loadBar"><i></i></div><div id="loadTxt">초기화 중…</div>
-  <button id="go" type="button">아무 키나 눌러 시작</button>
-  <div id="credit">Models: Soldier (three.js examples) · Ferrari 458 by vicent091036, CC-BY 4.0 · Three.js (MIT)</div>
-</div></div>
+<div id="title" role="status" aria-live="polite">
+  <div id="pdGlow" class="pd-siren" aria-hidden="true"></div>
+  <div id="pdHaz" aria-hidden="true"><i></i></div>
+  <div id="pd">
+    <div class="pd-bc"><span class="pd-tag">긴급 방송</span><span id="pdMsg">이것은 훈련이 아닙니다. 오늘 밤 12시간, 모든 범죄가 합법입니다.</span></div>
+    <div class="pd-logo"><h1>PURGE</h1><div class="pd-row"><span class="pd-day">DAY</span><span class="pd-ko">퍼지데이</span></div></div>
+    <div class="pd-pct"><div id="pdP" class="pd-num">0</div><div class="pd-cd">개시까지 &nbsp;T-<span id="pdCd">00:60</span></div></div>
+    <div class="pd-st"><span class="pd-stl"><span class="pd-cur">■</span><span id="loadTxt">초기화 중…</span></span><span><span id="pdP2">0</span> / 100</span></div>
+    <div id="loadBar" role="progressbar" aria-label="로딩 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+    <div id="credit">Models: Soldier (three.js examples) · Ferrari 458 by vicent091036, CC-BY 4.0 · Three.js (MIT) · Fonts: Anton, Space Mono (SIL OFL)</div>
+  </div>
+  <div id="pdScan" aria-hidden="true"></div>
+  <button id="go" type="button" aria-label="시작"></button>
+</div>
 <div id="helpov"><div id="helpbox"><h2>조작법 <small>K 키로 닫기</small></h2><div id="keys">
   <span>이동 <b>W A S D</b></span><span>달리기 <b>Shift</b></span>
   <span>점프 / 핸드브레이크 <b>Space</b></span><span>웅크리기 <b>Z</b></span>

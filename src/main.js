@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { initLoading } from './loading.js';
 import { createEngine, QUALITY } from './engine.js';
 import { furnitureIds, furnitureInfo, furnitureMaterial, furnitureReady } from './furnish.js';
 import { Game } from './game.js';
@@ -19,19 +20,19 @@ function fatal(e) {
 
 (async () => {
   let eng, game;
+  const loading = initLoading();
   try {
     eng = createEngine(el('game'), q);
     await RAPIER.init();
     game = new Game(eng); game.RAPIER = RAPIER;
     window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM;
-    const bar = el('loadBar').firstElementChild, txt = el('loadTxt');
-    await game.init((p, t) => { bar.style.width = p * 100 + '%'; txt.textContent = t; });
+    await game.init((p, t) => loading.set(p, t));
     furnitureReady();   // prepare the furniture models during loading, not in the middle of the first building that opens
     game.buildings.warm(game.player.x, game.player.z, game.player.y || 0);
     game.prewarmShaders();
   } catch (e) { fatal(e); return; }
   const go = el('go');
-  go.classList.add('rdy');
+  go.classList.add('rdy'); loading.ready();
   const begin = () => {
     if (game.running) return;
     const t = el('title'); t.classList.add('off');

@@ -32,5 +32,5 @@
 | AI | | AI-01, AI-02 | AI-03, AI-04 |
 | CHR | | CHR-01 | CHR-02, CHR-03 |
 | PHY | | PHY-03 | PHY-01, PHY-02 |
-| UX | | UX-01, UX-02, UX-04 | UX-03, UX-05 |
+| UX | | UX-01, UX-02, UX-04 | UX-03, UX-05, UX-06(완료) |
 | AUD | | AUD-00 | AUD-01, AUD-02 |
