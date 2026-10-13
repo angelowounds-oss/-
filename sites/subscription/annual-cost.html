@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>구독 연간 비용·가격 인상 계산기</title><meta name="description" content="구독료가 해마다 오를 때 1년, 3년, 5년 동안 총 얼마를 내는지 계산합니다.">
+<link rel="canonical" href="https://YOUR-DOMAIN.example/subscription/annual-cost.html">
+<meta property="og:title" content="구독 연간 비용·가격 인상 계산기"><meta property="og:description" content="구독료가 해마다 오를 때 1년, 3년, 5년 동안 총 얼마를 내는지 계산합니다.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap"><link rel="stylesheet" href="style.css"></head>
+<body><header><a href="index.html" class="logo">구독료 계산기</a><nav><a href="index.html">구독 합계</a><a href="annual-cost.html">연간 비용·인상</a><a href="annual-vs-monthly.html">연간 vs 월간</a><a href="shared-split.html">나눠 내기</a><a href="about.html">소개</a></nav></header>
+<main><h1>구독 연간 비용·인상 계산</h1>
+<div class="ad"><!-- ad slot --></div>
+
+<div class="card">
+  <label for="p">월 결제 금액 (원, 또는 연 결제라면 1년 금액)</label><input type="number" id="p" min="0" value="10900" aria-label="결제 금액">
+  <label for="c">결제 주기</label><select id="c" aria-label="결제 주기"><option>월</option><option>연</option><option>주</option></select>
+  <label for="h">해마다 오르는 비율 (%)</label><input type="number" id="h" min="0" step="0.1" value="0" aria-label="연간 인상률">
+  <label for="y">기간 (년)</label><input type="number" id="y" min="1" max="30" value="3" aria-label="기간">
+  <div class="result" id="res" aria-live="polite"></div>
+</div>
+<h2>이렇게 써요</h2>
+<p>구독 하나가 1년, 3년, 5년 동안 얼마를 가져가는지 봐요. 인상률을 넣으면 해마다 올라간 요금을 계산해서, 처음 금액을 그대로 쓸 때와 얼마나 차이가 나는지 보여줘요. 기준 금액이 연 결제라면 주기를 "연"으로 고르세요.</p>
+<h2>인상 계산 방식</h2>
+<p>첫해는 처음 금액의 12개월치입니다. 둘째 해부터는 직전 해 요금에 인상률을 곱한 금액으로 12개월을 내는 것으로 봐요. 이렇게 복리처럼 쌓이기 때문에 인상률이 같아도 기간이 길수록 차이가 커져요. 실제 인상 시기와 폭은 서비스마다 달라요.</p>
+<h2>예시</h2>
+<p>월 10,000원짜리 구독이 해마다 5%씩 오르면, 3년 동안 내는 금액은 인상 없이 낼 때보다 약 18,300원 많아요. 기간을 5년으로 늘리면 차이는 약 6만 3천 원 가까이 돼요.</p>
+
+<div class="faq-block"><h2>자주 묻는 질문</h2><h3>인상률은 어떻게 정하나요?</h3><p>서비스 공지나 과거 인상 이력을 참고해 직접 넣으세요. 실제 인상은 시기와 폭이 다를 수 있어요.</p><h3>연 결제 금액도 넣을 수 있나요?</h3><p>네. 주기를 '연'으로 고르고 1년 금액을 넣으면 1년치 기준으로 계산해요.</p></div>
+<h2>관련 계산기</h2><div class="tools"><a href="index.html">구독 합계</a><a href="annual-vs-monthly.html">연간 vs 월간</a><a href="shared-split.html">나눠 내기</a></div>
+<div class="ad"><!-- ad slot --></div>
+</main><footer><span class="note">계산은 입력한 금액을 기준으로 한 참고용이에요. 실제 요금은 서비스 화면에서 확인하세요. 입력값은 서버로 보내지 않아요.</span><span class="fl"><a href="about.html">소개</a><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a></span></footer>
+<script>var W=function(n){return Math.round(n).toLocaleString('ko-KR')+'원'};
+var X=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var F={'월':1,'연':1/12,'주':52/12};
+var num=function(id){var v=document.getElementById(id).value;return v===''?NaN:+v};
+(function(){
+function calc(){var p=num('p'),c=document.getElementById('c').value,h=num('h')/100,y=num('y'),res=document.getElementById('res');
+if(!(p>0)||!(y>=1)||isNaN(h)||h<0){res.innerHTML='<small>금액과 기간(1년 이상)을 입력해 주세요</small>';return}
+var mm=p*F[c],yr=Math.min(Math.floor(y),30),flat=mm*12*yr,hike=0,cur=mm*12;
+for(var k=0;k<yr;k++){hike+=cur;cur*=(1+h);}
+var extra=hike-flat;
+var h2='<b>1년차 '+W(mm*12)+' (월 '+W(mm)+')</b><br>'+yr+'년 동안 총 '+W(hike);
+if(h>0)h2+='<br>인상 없이 냈을 때보다 <b>'+W(extra)+'</b> 더 내요';
+else h2+='<br><small>인상률을 넣으면 해마다 오른 요금을 계산해요</small>';
+res.innerHTML=h2;}
+['p','c','h','y'].forEach(function(id){var el=document.getElementById(id);el.addEventListener('input',calc);el.addEventListener('change',calc)});
+calc();})();</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "인상률은 어떻게 정하나요?", "acceptedAnswer": {"@type": "Answer", "text": "서비스 공지나 과거 인상 이력을 참고해 직접 넣으세요. 실제 인상은 시기와 폭이 다를 수 있어요."}}, {"@type": "Question", "name": "연 결제 금액도 넣을 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "네. 주기를 '연'으로 고르고 1년 금액을 넣으면 1년치 기준으로 계산해요."}}]}</script>
+<script src="common.js"></script>
+</body></html>

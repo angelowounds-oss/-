@@ -1,0 +1,6 @@
+.subrows{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.subrow{display:grid;grid-template-columns:2fr 1.2fr 0.8fr auto auto;gap:8px;align-items:center}
+.subrow .chk{margin:0;font-weight:500;font-size:14px;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.subrow .chk input{width:auto}
+.subrow .rm{margin:0;padding:6px 10px;font-size:13px}
+@media(max-width:640px){.subrow{grid-template-columns:1fr 1fr}.subrow .nm{grid-column:1/-1}.subrow .chk{grid-column:1/-1}}
