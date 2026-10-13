@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import soldierB64 from '../assets/Soldier.glb';
+import characterB64 from '../assets/character_game.glb';
 import ferrariB64 from '../assets/ferrari.glb';
 import hydrantB64 from '../assets/props/fire_hydrant.glb';
 import trashB64 from '../assets/props/metal_trash_can.glb';
@@ -25,15 +25,96 @@ import res08B64 from '../assets/res/res_08.glb';
 import res09B64 from '../assets/res/res_09.glb';
 import res10B64 from '../assets/res/res_10.glb';
 
-// Embedded CC assets: Soldier (three.js examples, Mixamo rig) and Ferrari 458 (CC-BY 4.0, vicent091036).
+// Embedded CC assets: the player character (assets/Character.glb, rig adapted below) and Ferrari 458 (CC-BY 4.0, vicent091036).
+// assets/Soldier.glb (three.js examples, Mixamo rig) is kept in the repo but is no longer embedded.
+
+// Character rig: source bone name -> the Mixamo-style name the game code uses (the 'mixamorig' prefix is stripped at lookup).
+const RIG = {
+  root: 'Root', pelvis: 'Hips', spine_01: 'Spine', spine_02: 'Spine1', spine_03: 'Spine2', neck_01: 'Neck', head: 'Head',
+  clavicle_l: 'LeftShoulder', upperarm_l: 'LeftArm', lowerarm_l: 'LeftForeArm', hand_l: 'LeftHand',
+  clavicle_r: 'RightShoulder', upperarm_r: 'RightArm', lowerarm_r: 'RightForeArm', hand_r: 'RightHand',
+  thigh_l: 'LeftUpLeg', calf_l: 'LeftLeg', foot_l: 'LeftFoot', ball_l: 'LeftToeBase',
+  thigh_r: 'RightUpLeg', calf_r: 'RightLeg', foot_r: 'RightFoot', ball_r: 'RightToeBase',
+};
+// Game clip name -> clip in the character file (the UAL-style names the game plays)
+const CLIPS = {
+  Idle: 'Idle_A', Walk: 'Walk', Run: 'Jog', TPose: 'Rest_Pose',
+  U_Idle: 'Idle_A', U_Idle_Talking: 'Idle_Talking', U_Walk: 'Walk', U_Jog_Fwd: 'Jog', U_Sprint: 'Sprint', U_Dance: 'Dance_Simple',
+  U_Crouch_Idle: 'Crouch_Idle', U_Crouch_Fwd: 'Crouch_Walk', U_Jump_Start: 'Jump_Start', U_Jump: 'Jump_air', U_Jump_Land: 'Jump_Land', U_Roll: 'Roll',
+  U_Swim_Idle: 'Swim_Idle', U_Swim_Fwd: 'Swim_Fwd', U_Sitting_Enter: 'Sitting_Enter', U_Sitting_Idle: 'Sitting_Idle', U_Sitting_Exit: 'Sitting_Exit',
+  U_Driving: 'Driving', U_Push: 'Push', U_PickUp_Table: 'PickUp_Table', U_Interact: 'Interact',
+  U_Pistol_Idle: 'Pistol_Idle', U_Pistol_Aim_Up: 'Pistol_Aim_Up', U_Pistol_Aim_Neutral: 'Pistol_Aim_Neutral', U_Pistol_Aim_Down: 'Pistol_Aim_Down',
+  U_Pistol_Shoot: 'Pistol_Shoot', U_Pistol_Reload: 'Pistol_Reload', U_Punch_Jab: 'Punch_Jab', U_Punch_Cross: 'Punch_Cross',
+  U_Hit_Chest: 'Hit_Chest', U_Hit_Head: 'Hit_Head', U_Death01: 'Death_A',
+};
+// upper-body masks: the pistol UB_* clips are the U_* aim/shoot/reload clips without the legs and root
+const LOWER = /^(root|pelvis|thigh_|calf_|foot_|ball_)/;
+
+// Soldier.glb rest-pose world rotations (x, y, z, w) of the bones the game code uses. The character file's bones point their
+// local axes elsewhere (150-180 deg apart at rest), so every bone frame is re-expressed to these before the game code touches it.
+const SOLDIER_REST = {
+  Hips: [0, 1, 0, 0], Spine: [0, 1, 0, 0], Spine1: [0, 1, 0, 0], Spine2: [0, 1, 0, 0], Neck: [0, 1, 0, 0], Head: [0, 1, 0, 0],
+  LeftShoulder: [0, 0, -0.707107, -0.707107], LeftArm: [0, 0, -0.707107, -0.707107], LeftForeArm: [0, 0, -0.707107, -0.707107], LeftHand: [0, 0, -0.707107, -0.707107],
+  RightShoulder: [0.707107, 0.707107, 0, 0], RightArm: [0.707107, 0.707107, 0, 0], RightForeArm: [0.707107, 0.707107, 0, 0], RightHand: [0.707107, 0.707107, 0, 0],
+  LeftUpLeg: [0, 0, -1, 0], LeftLeg: [0, 0, -1, 0], LeftFoot: [0, 0.707107, -0.707107, 0], LeftToeBase: [0, 0.707107, -0.707107, 0],
+  RightUpLeg: [0, 0, -1, 0], RightLeg: [0, 0, -1, 0], RightFoot: [0, 0.707107, -0.707107, 0], RightToeBase: [0, 0.707107, -0.707107, 0],
+};
+const IDENT = new THREE.Quaternion();
+
+// Renames the rig to RIG, re-expresses its bone frames to SOLDIER_REST (positions unchanged, so the skin is unchanged too), rewrites
+// the clips to match, and keeps only the clips above under their game names (UB_* made as upper-body masks of the U_* clips).
+function adaptCharacter(gltf) {
+  const scene = gltf.scene; scene.updateMatrixWorld(true);
+  const K = new Map(), parentOf = new Map(), w = new THREE.Quaternion();
+  scene.traverse((o) => {
+    if (o === scene) return;
+    if (o.parent && o.parent !== scene) parentOf.set(o.name, o.parent.name);
+    const want = RIG[o.name] && SOLDIER_REST[RIG[o.name]];
+    if (!want) return;
+    o.getWorldQuaternion(w);
+    K.set(o.name, w.clone().invert().multiply(new THREE.Quaternion().fromArray(want)));
+  });
+  const kOf = (n) => K.get(n) || IDENT, kParent = (n) => (parentOf.has(n) ? kOf(parentOf.get(n)) : IDENT);
+  scene.traverse((o) => {
+    if (o === scene) return;
+    const kn = kOf(o.name), kp = kParent(o.name).clone().invert();
+    o.quaternion.premultiply(kp).multiply(kn);
+    o.position.applyQuaternion(kp);
+  });
+  // the bind matrices keep their world positions and only change frame: inverse' = R(K)^-1 * inverse, so the skin is unchanged
+  scene.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    o.skeleton.bones.forEach((b, i) => { if (K.has(b.name)) o.skeleton.boneInverses[i].premultiply(new THREE.Matrix4().makeRotationFromQuaternion(K.get(b.name).clone().invert())); });
+  });
+  scene.traverse((o) => { if (RIG[o.name]) o.name = RIG[o.name]; });
+  const byName = new Map(gltf.animations.map((c) => [c.name, c]));
+  const make = (name, src, upper) => {
+    const tracks = [];
+    for (const t of src.tracks) {
+      const k = t.name.lastIndexOf('.'), node = t.name.slice(0, k), prop = t.name.slice(k + 1);
+      if (upper && LOWER.test(node)) continue;
+      const nt = t.clone(), kp = kParent(node).clone().invert(), kn = kOf(node), v = nt.values;
+      if (prop === 'quaternion') { for (let i = 0; i < v.length; i += 4) { w.fromArray(v, i).premultiply(kp).multiply(kn).toArray(v, i); } }
+      else if (prop === 'position') { for (let i = 0; i < v.length; i += 3) { const p = new THREE.Vector3().fromArray(v, i).applyQuaternion(kp); p.toArray(v, i); } }
+      nt.name = (RIG[node] || node) + '.' + prop; tracks.push(nt);
+    }
+    return new THREE.AnimationClip(name, src.duration, tracks);
+  };
+  const out = [];
+  for (const [game, file] of Object.entries(CLIPS)) { const c = byName.get(file); if (c) out.push(make(game, c, false)); }
+  for (const game of Object.keys(CLIPS)) if (game.startsWith('U_Pistol_')) { const c = byName.get(CLIPS[game]); if (c) out.push(make('UB_' + game.slice(2), c, true)); }
+  gltf.animations = out;
+  return gltf;
+}
+
 const b64ToBuf = (s) => { const bin = atob(s), n = bin.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
 export const A = { soldier: null, ferrari: null, props: null, res: null, ok: false };
 
 export async function loadAssets() {
   const loader = new GLTFLoader();
   try {
-    const [s, f] = await Promise.all([loader.parseAsync(b64ToBuf(soldierB64), ''), loader.parseAsync(b64ToBuf(ferrariB64), '')]);
-    A.soldier = s; A.ferrari = f;
+    const [s, f] = await Promise.all([loader.parseAsync(b64ToBuf(characterB64), ''), loader.parseAsync(b64ToBuf(ferrariB64), '')]);
+    A.soldier = adaptCharacter(s); A.ferrari = f;
     // CC0 Poly Haven street props (decimated, 256px textures); a failure here must not take the characters down with it
     try {
       const src = { fire_hydrant: hydrantB64, metal_trash_can: trashB64, utility_box_01: boxB64, trashbag: bagB64, potted_plant_01: plantB64, sniper_mag: sniperMagB64, living_set: livingB64, street_props: streetPropsB64, street_signs: streetSignsB64, furniture: furnitureB64, pistol: pistolB64 };
@@ -46,7 +127,7 @@ export async function loadAssets() {
       await Promise.all(rs.map(async (b, k) => { out[k + 1] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
       A.res = out;
     } catch (e) { console.warn('skyline load failed', e); }
-    const box = new THREE.Box3().setFromObject(s.scene);
+    const box = new THREE.Box3().setFromObject(A.soldier.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     A.ok = true;
   } catch (e) { console.warn('asset load failed, procedural fallback', e); }
