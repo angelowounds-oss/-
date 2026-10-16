@@ -12,7 +12,7 @@ void main(){ivec2 t=ivec2(gl_FragCoord.xy);if(t.y>=uEmN){o=vec4(0);return;}
  o=vec4(uMin+Pn*uH,1.+clamp(length(v2)/max(uU,.1)*.5,0.,1.));}`;
 window.__STREAK=STREAK;
 /* flow-visualisation extras (display of the same solver field, not a second flow model): wake vortex glow (Q criterion). Off with #vortex=0 and on the lowest tier. */
-const VIZ={vortex:!/[#&]vortex=0/.test(location.hash),k:1.6,q0:.12,q1:.6};
+const VIZ={vortex:!/[#&]vortex=0/.test(location.hash),k:.9,q0:.16,q1:.75};
 window.__VIZ=VIZ;
 /* diagnostics (tests/viz-stats.mjs): statistics of the Q field stored in the volume alpha */
 VIZ.stats=()=>{try{const D=MAC.D,N=D.N,f=gl.createFramebuffer(),buf=new Float32Array(N[0]*N[1]*4);gl.bindFramebuffer(gl.FRAMEBUFFER,f);let mx=0,over=0,tot=0,sol=0,sum=0;const H=[.05,.1,.2,.4,.8,1.2].map(t=>[t,0]);

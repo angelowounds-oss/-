@@ -49,7 +49,7 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 n=uv*2.-1.;vec4 a=uInv*vec4(n,-1,1
  for(int i=0;i<256;i++){if(i>=NS||acc.a>.99)break;float t=tn+(float(i)+j)*dt;vec3 p=ro+rd*t,uvw=(p-uBMin)/ext;
   vec4 c=textureLod(uVol,uvw,2.);
   /* wake vortex glow: emission where the Q criterion (alpha) is high, away from solids; independent of the smoke density */
-  if(uVortK>0.&&c.a>uQ.x*.12&&c.g<.03){vec4 s0=textureLod(uVol,uvw,0.);if(s0.g<.02&&s0.a>uQ.x){float qv=smoothstep(uQ.x,uQ.y,s0.a);vec3 ec=mix(vec3(.12,.5,1.),vec3(1.,.72,.38),smoothstep(uQ.y,uQ.y*2.6,s0.a));float ae=1.-exp(-qv*dt*uVortK*5.);acc.rgb+=(1.-acc.a)*ae*ec*2.2;acc.a+=(1.-acc.a)*ae*.35;}}
+  if(uVortK>0.&&c.a>uQ.x*.12&&c.g<.03){vec4 s0=textureLod(uVol,uvw,0.);if(s0.g<.02&&s0.a>uQ.x){float qv=smoothstep(uQ.x,uQ.y,s0.a);vec3 ec=mix(vec3(.07,.34,1.),vec3(1.,.62,.22),smoothstep(uQ.y,uQ.y*2.6,s0.a));float ae=1.-exp(-qv*dt*uVortK*5.);acc.rgb+=(1.-acc.a)*ae*ec*1.5;acc.a+=(1.-acc.a)*ae*.3;}}
   if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);vec3 e3=min(uvw,1.-uvw)*ext;float d=smk(vis(s.r,p))*uDens*smoothstep(.15,.7,t)*smoothstep(0.,.4,min(min(e3.x,e3.z),(1.-uvw.y)*ext.y));if(d<.002)continue;
   float od=0.;for(int k=1;k<=6;k++){if(k>uTaps)break;od+=smk(textureLod(uVol,uvw+uLD/ext*(.12*float(k*k)),0.).r)*.12*float(2*k-1);}
   float T=exp(-od*uDens*2.2);vec3 alb=mix(vec3(.82,.86,.92),lin(turbo(clamp(.5+(s.b-1.)*1.25,0.,1.))),uCMode);
