@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { open, sleep } from './lib.mjs';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), steps = +(process.argv[2] || 200);
-const { browser, page, log } = await open('file://' + path.join(root, 'dist/aether.html') + '#q=LOW', { width: 1280, height: 720 });
+const { browser, page, log } = await open('file://' + path.join(root, 'dist/aether.html') + '#q=' + (process.env.VIZ_Q || 'LOW'), { width: 1280, height: 720 });
 try {
   await page.waitForSelector('#scGo.rdy', { timeout: 300000 }); await page.evaluate(() => { document.getElementById('scGo').click(); }); await sleep(1500);
   await page.waitForFunction(() => window.__LIVE && __LIVE.ok && window.__PERF?.cal?.done, null, { timeout: 300000 });
