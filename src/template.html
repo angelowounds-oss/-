@@ -157,6 +157,9 @@ body.touch.onfoot .car,body.touch.incar .foot{display:none}
 #credit{position:absolute;left:64px;right:64px;bottom:20px;font:10px 'Space Mono',monospace;color:#5a554f;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #go{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;background:none;cursor:pointer;opacity:0;pointer-events:none}
 #go.rdy{pointer-events:auto}
+#detail{position:absolute;left:12px;bottom:10px;z-index:5;gap:8px;align-items:center;font:12px 'Space Mono',monospace;color:#cfd6e6;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:6px}
+#detail select,#detail button{font:inherit;color:inherit;background:#1a2133;border:1px solid #3a4560;border-radius:4px;padding:2px 6px}
+#detail span{white-space:nowrap}#detail .dmsg{opacity:.75}
 @media (orientation:portrait){
   #pd{width:720px;height:1280px;margin:-640px 0 0 -360px}
   .pd-bc{left:40px;top:60px;font-size:13px;flex-direction:column;align-items:flex-start;gap:10px}
@@ -307,6 +310,7 @@ body.touch #helpov{display:none!important}
     <div id="credit">Models: Ferrari 458 by vicent091036, CC-BY 4.0 · Three.js (MIT) · Fonts: Anton, Space Mono (SIL OFL)</div>
   </div>
   <div id="pdScan" aria-hidden="true"></div>
+  <div id="detail" style="display:none"><span>월드 화질</span><select aria-label="월드 화질"><option value="auto">자동</option><option value="laptop">노트북</option><option value="high">고사양</option></select><button type="button" class="pbtn">고화질 팩 연결</button><span class="dmsg"></span></div>
   <button id="go" type="button" aria-label="시작"></button>
 </div>
 <div id="helpov"><div id="helpbox"><h2>조작법 <small>K 키로 닫기</small></h2><div id="keys">

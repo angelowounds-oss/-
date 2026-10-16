@@ -2,15 +2,25 @@
 // (typed arrays element by element, shared objects still shared).
 import zlib from 'node:zlib';
 import { bake } from '../../build/bake.mjs';
-import { unpack } from '../../src/bakefmt.js';
+import { openContainer, decodeChunk, hash53, buildContainer, encodeChunk } from '../../src/bakefmt.js';
 import { world } from '../../src/worldmap.js';
 import { net } from '../../src/roadnet.js';
 import { layouts } from '../../src/citylayout.js';
 
-const bad = [], a = await bake(), b = await bake();
-if (a.manifest.data !== b.manifest.data) bad.push(['not deterministic']);
-const raw = zlib.inflateRawSync(a.data), jl = raw.readUInt32LE(0), bl = raw.readUInt32LE(4);
-const U = unpack(raw.subarray(8, 8 + jl).toString('utf8'), new Uint8Array(raw.subarray(8 + jl, 8 + jl + bl)));
+const bad = [], a = await bake({ cache: false }), b = await bake();
+if (a.manifest.data !== b.manifest.data) bad.push(['not deterministic (or the cache differs from a fresh bake)']);
+const mem = (u) => async (o, n) => u.subarray(o, o + n), C = await openContainer(mem(a.embedded)), e = C.chunks.core;
+const zc = a.embedded.subarray(C.start + e.o, C.start + e.o + e.z);
+if (hash53(zc) !== e.h) bad.push(['chunk hash']);
+const U = decodeChunk(new Uint8Array(zlib.inflateRawSync(zc)));
+// a damaged byte must change the hash, and a container of several chunks gives each one back
+{ const z2 = Uint8Array.from(zc); z2[5] ^= 1; if (hash53(z2) === e.h) bad.push(['hash blind to damage']); }
+{ const objs = { 'a/1': { v: new Float32Array([1, 2, 3]) }, 'b': { m: new Map([[1, { x: 1 }]]) } };
+  const ents = Object.entries(objs).map(([key, o]) => { const raw = encodeChunk(o); return { key, z: new Uint8Array(zlib.deflateRawSync(raw)), r: raw.length }; });
+  const K = buildContainer(ents), KC = await openContainer(mem(K));
+  if (Object.keys(KC.chunks).join() !== 'a/1,b') bad.push(['container keys']);
+  const g = (k) => decodeChunk(new Uint8Array(zlib.inflateRawSync(K.subarray(KC.start + KC.chunks[k].o, KC.start + KC.chunks[k].o + KC.chunks[k].z))));
+  if (g('a/1').v[2] !== 3 || g('b').m.get(1).x !== 1) bad.push(['container roundtrip']); }
 const eq = (x, y, p) => {
   if (x === y) return;
   if (ArrayBuffer.isView(x)) { if (x.length !== y.length) { bad.push([p, 'length']); return; } for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) { bad.push([p, i]); return; } return; }
@@ -20,6 +30,6 @@ const eq = (x, y, p) => {
 };
 eq(world(), U.world, 'world'); eq(net(), U.net, 'net'); eq(layouts(), U.layouts, 'layouts');
 if (U.net.rings.get('neon').roads[0] !== U.net.roads[0]) bad.push(['shared road lost']);
-const mb = a.data.length / 1048576;
-console.log('RESULT ' + JSON.stringify({ test: 'bake', pass: bad.length === 0, metrics: { MB: +mb.toFixed(2), rawMB: +(a.manifest.rawBytes / 1048576).toFixed(2), ms: a.manifest.ms, hash: a.manifest.data.slice(0, 8) }, note: bad.slice(0, 5).join(' | ') }));
+const mb = a.embedded.length / 1048576;
+console.log('RESULT ' + JSON.stringify({ test: 'bake', pass: bad.length === 0, metrics: { MB: +mb.toFixed(2), rawMB: +(e.r / 1048576).toFixed(2), ms: a.manifest.ms, hash: a.manifest.data.slice(0, 8) }, note: bad.slice(0, 5).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

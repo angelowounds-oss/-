@@ -8,6 +8,7 @@ import * as V from './vehicle.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { AIM } from './assets.js';
 import { loadBaked } from './bakedload.js';
+import { initDetail, initDetailUI } from './detail.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -26,6 +27,7 @@ function fatal(e) {
     eng = createEngine(el('game'), q);
     await RAPIER.init();
     await loadBaked();   // the baked world must be in place before the first terrain/road query
+    await initDetail();   // reconnect the optional high-detail pack when the browser allows it without asking
     game = new Game(eng); game.RAPIER = RAPIER;
     window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM;
     await game.init((p, t) => loading.set(p, t));
@@ -34,6 +36,7 @@ function fatal(e) {
     game.prewarmShaders();
   } catch (e) { fatal(e); return; }
   const go = el('go');
+  initDetailUI(() => location.reload());   // a change of world detail rebuilds the world: only offered here, before the game starts
   go.classList.add('rdy'); loading.ready();
   const begin = () => {
     if (game.running) return;

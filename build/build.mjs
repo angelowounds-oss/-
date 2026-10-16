@@ -12,6 +12,6 @@ const font = (file, family, weight) => `@font-face{font-family:'${family}';font-
 const fonts = [font('Anton-400.woff2', 'Anton', 400), font('SpaceMono-400.woff2', 'Space Mono', 400), font('SpaceMono-700.woff2', 'Space Mono', 700)].join('\n');
 const tpl = fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts);
 // WORLD=small skips the bake: the page generates the world itself (slower to start, no big data; for quick tests and development)
-const baked = process.env.WORLD === 'small' ? '' : `<script type="application/octet-stream" id="baked">${(await bake()).data.toString('base64')}</script>`;
+const baked = process.env.WORLD === 'small' ? '' : `<script type="application/octet-stream" id="baked">${Buffer.from((await bake()).embedded).toString('base64')}</script>`;
 fs.writeFileSync(process.env.OUT || 'neon_city_v9.html', tpl.replace('/*__BAKED__*/', () => baked).replace('/*__BUNDLE__*/', () => js));
 console.log('built', (fs.statSync(process.env.OUT || 'neon_city_v9.html').size/1024|0)+' KB');
