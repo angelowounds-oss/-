@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { farHeight, surfaceColor, cities, SEA, WORLD_HALF } from './worldmap.js';
 import { baseHeight, EXTENT } from './terrain.js';
+import { carve } from './roadnet.js';
 import { patchStandard } from './shaders.js';
 import { GR, grp } from './physics.js';
 
@@ -20,8 +21,12 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
 // world height outside the city: the city's own hills near the origin, the world's landscape from ~9 km on
 export function landHeight(x, z, cell = 0) {
   const r = Math.hypot(x, z), w = smooth(NEAR_BLEND0, NEAR_BLEND1, r), f = farHeight(x, z, cell);
-  if (w >= 1) return f;
-  return baseHeight(x, z) * (1 - w) + f * w;
+  return carve(x, z, w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w, false);
+}
+// the same for physics: bridges and tunnels are filled so a vehicle has ground on the deck / the road in the tunnel
+export function physHeight(x, z, cell = 0) {
+  const r = Math.hypot(x, z), w = smooth(NEAR_BLEND0, NEAR_BLEND1, r), f = farHeight(x, z, cell);
+  return carve(x, z, w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w, true);
 }
 
 function ringIndex(skipHole) {
@@ -131,14 +136,14 @@ export class FarGround {
   update(x, z, y = 0) {
     const P = this.phys; if (!P) return;
     const near = Math.abs(x) < EXTENT - HFHALF && Math.abs(z) < EXTENT - HFHALF;   // the whole patch would lie under the city's own ground
-    if (near || y - landHeight(x, z, 64) > 250) { this.clear(); return; }   // high above the ground nothing needs it
+    if (near || y - physHeight(x, z, 64) > 250) { this.clear(); return; }   // high above the ground nothing needs it
     if (this.col && Math.hypot(x - this.cx, z - this.cz) < 160) return;
     this.clear();
     const cx = Math.round(x / HFC) * HFC, cz = Math.round(z / HFC) * HFC, R = P.R, hs = this.heights;
     // Rapier heightfield: nrows x ncols samples, column-major along z then x; scale = full extent
     for (let j = 0; j <= HF; j++) for (let i = 0; i <= HF; i++) {
       const wx = cx - HFHALF + i * HFC, wz = cz - HFHALF + j * HFC;
-      hs[i * (HF + 1) + j] = (Math.abs(wx) < EXTENT + 8 && Math.abs(wz) < EXTENT + 8) ? -100 : landHeight(wx, wz, HFC);
+      hs[i * (HF + 1) + j] = (Math.abs(wx) < EXTENT + 8 && Math.abs(wz) < EXTENT + 8) ? -100 : physHeight(wx, wz, HFC);
     }
     const desc = R.ColliderDesc.heightfield(HF, HF, hs, { x: HF * HFC, y: 1, z: HF * HFC }).setTranslation(cx, 0, cz).setFriction(1.0).setRestitution(0).setCollisionGroups(grp(GR.STATIC, 0xffff));
     this.col = P.world.createCollider(desc); this.cx = cx; this.cz = cz;
@@ -146,6 +151,6 @@ export class FarGround {
   clear() { if (this.col) { this.phys.world.removeCollider(this.col, false); this.col = null; this.cx = this.cz = NaN; } }
   dispose() { this.clear(); }
   // the ground height under (x, z) outside the city, for things that do not use the physics world (aircraft that crash into hills)
-  static at(x, z) { return landHeight(x, z, 8); }
+  static at(x, z) { return physHeight(x, z, 8); }
 }
 export { WORLD_HALF };
