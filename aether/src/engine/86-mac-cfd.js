@@ -210,9 +210,13 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 w=uMin+(vec3(c)+.5)
  if(all(greaterThanEqual(w,uBA))&&all(lessThanEqual(w,uBB)))for(int e=0;e<40;e++){if(e>=uEmN)break;vec3 d=w-uEm[e].xyz;float rr=uEm[e].w,q=dot(d,d)/(rr*rr);if(q<16.)r=max(r,uEmS*exp(-q));}
  o=vec4(max(r,0.),0,0,0);}`,
 /* volume texture for rendering (dye resolution): r dye, g solid (1 car/.6 fan), b speed/U */
-vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;
+vcopy:`uniform sampler2D uVel,uDye,uSol;uniform int uLayer;uniform float uVort;layout(location=1) out vec4 o1;layout(location=2) out vec4 o2;layout(location=3) out vec4 o3;
+/* Q criterion (positive where rotation beats strain) of the solver velocity, normalised by (U/0.5 m)^2; stored in alpha for the vortex glow. Skipped in the undisturbed stream. */
+float qcrit(vec3 P,float sr){if(abs(sr-1.)<.05)return 0.;vec3 gx=(VEL(uVel,P+vec3(1,0,0),uN2,uTX2)-VEL(uVel,P-vec3(1,0,0),uN2,uTX2))*.5,gy=(VEL(uVel,P+vec3(0,1,0),uN2,uTX2)-VEL(uVel,P-vec3(0,1,0),uN2,uTX2))*.5,gz=(VEL(uVel,P+vec3(0,0,1),uN2,uTX2)-VEL(uVel,P-vec3(0,0,1),uN2,uTX2))*.5;
+ mat3 G=mat3(gx,gy,gz);float s2=0.,o2=0.;for(int i=0;i<3;i++)for(int j=0;j<3;j++){float a=G[j][i],b=G[i][j];s2+=.25*(a+b)*(a+b);o2+=.25*(a-b)*(a-b);}
+ return max(.5*(o2-s2)/(uH2.x*uH2.x),0.)*.25/(max(uU,.1)*max(uU,.1));}
 vec4 lay(int k){if(k>=uN.z)return vec4(0.);ivec3 c=ivec3(ivec2(gl_FragCoord.xy),k);vec3 w=uMin+(vec3(c)+.5)*uH;vec3 P=(w-uMin)/uH2;float id,ph=PHIT(uSol,P-.5,uN2,uTX2,id);
- float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);return vec4(g>0.?0.:F(uDye,c).x,g,length(VEL(uVel,P,uN2,uTX2))/max(uU,.1),1.);}
+ float g=(ph>.5&&id==1.)?1.:((ph>.5&&id==2.)?.6:0.);float sr=length(VEL(uVel,P,uN2,uTX2))/max(uU,.1);return vec4(g>0.?0.:F(uDye,c).x,g,sr,(uVort>.5&&g==0.)?qcrit(P,sr):0.);}
 void main(){o=lay(uLayer);o1=lay(uLayer+1);o2=lay(uLayer+2);o3=lay(uLayer+3);}`,
 init:`void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}o=vec4(uIn<.999?0.:uU,0.,0.,0.);}`,
 clear:`void main(){o=vec4(0.);}`};
@@ -389,7 +393,7 @@ function macStepBody(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.
  MAC.step++;MAC.time+=dt;MAC.lastDt=dt}
 MAC.copyVolume=()=>macCopyVolume();/* test hook: the volume is normally filled by the render loop */
 function macCopyVolume(){const p=MAC.prog.vcopy,D=MAC.D,Nd=D.N,T=MAC.t;gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,MAC.volFbo);gl.viewport(0,0,Nd[0],Nd[1]);
- gl.uniform3i(liveU(p,'uN'),...Nd);gl.uniform1i(liveU(p,'uTX'),D.tx);gl.uniform3f(liveU(p,'uH'),...MAC.hd);gl.uniform3i(liveU(p,'uN2'),...MAC.N);gl.uniform1i(liveU(p,'uTX2'),MAC.G.tx);gl.uniform3f(liveU(p,'uH2'),...MAC.h);gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);
+ gl.uniform3i(liveU(p,'uN'),...Nd);gl.uniform1i(liveU(p,'uTX'),D.tx);gl.uniform3f(liveU(p,'uH'),...MAC.hd);gl.uniform3i(liveU(p,'uN2'),...MAC.N);gl.uniform1i(liveU(p,'uTX2'),MAC.G.tx);gl.uniform3f(liveU(p,'uH2'),...MAC.h);gl.uniform3f(liveU(p,'uMin'),...MAC.min);gl.uniform1f(liveU(p,'uU'),MAC.U);gl.uniform1f(liveU(p,'uVort'),vizVortexOn()?1:0);
  const bind=(u,n,t)=>{gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(liveU(p,n),u)};bind(8,'uVel',T.velA.t);bind(9,'uDye',T.dyeA.t);bind(10,'uSol',T.sol.t);
  /* four consecutive layers per draw: one colour attachment per layer of the same 3D texture */
  const AT=[gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1,gl.COLOR_ATTACHMENT2,gl.COLOR_ATTACHMENT3];

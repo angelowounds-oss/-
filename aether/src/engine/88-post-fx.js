@@ -30,7 +30,7 @@ aoblur:`uniform sampler2D uAO;uniform vec2 uDir;out vec4 o;
 void main(){vec2 uv=gl_FragCoord.xy/uRes;vec4 c=texture(uAO,uv);float s=c.r,w=1.;for(int i=-3;i<=3;i++){if(i==0)continue;vec4 t=texture(uAO,uv+uDir*float(i)/uRes);float k=exp(-abs(t.g-c.g)/(.05*c.g+.01))*exp(-float(i*i)*.12);s+=t.r*k;w+=k;}o=vec4(s/w,c.g,0.,1.);}`,
 /* ---- volumetric smoke (low res). MRT: 0 premultiplied colour, 1 aux (x: alpha-weighted ray distance, y: scene view depth of this texel) ---- */
 vol:`uniform sampler3D uVol;uniform sampler2D uDepth,uBlue;uniform mat4 uInv;uniform vec3 uEye,uBMin,uBMax,uLD,uFwd;uniform float uDens,uCMode,uStepScale,uG,uFrame;uniform int uTaps;uniform vec4 uTF;float smk(float r){return uTF.y*pow(max(r-uTF.z,0.),uTF.x);}
-uniform vec3 uFD;uniform vec2 uWT;
+uniform vec3 uFD;uniform vec2 uWT;uniform float uVortK;uniform vec2 uQ;
 float h31(vec3 p){p=fract(p*.1031);p+=dot(p,p.zyx+31.32);return fract((p.x+p.y)*p.z);}
 float vn(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x),mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x),mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y),f.z);}
 float fbm3(vec3 p){return .55*vn(p)+.3*vn(p*2.1)+.15*vn(p*4.3);}
@@ -47,7 +47,10 @@ void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 n=uv*2.-1.;vec4 a=uInv*vec4(n,-1,1
  float j=fract(texelFetch(uBlue,ivec2(gl_FragCoord.xy)&63,0).r+uFrame*.618034);vec3 ext=uBMax-uBMin;vec4 acc=vec4(0.);float wt=0.,wd=0.;
  float mu=dot(rd,uLD),hg=(1.-uG*uG)/(4.*3.14159*pow(1.+uG*uG-2.*uG*mu,1.5));
  for(int i=0;i<256;i++){if(i>=NS||acc.a>.99)break;float t=tn+(float(i)+j)*dt;vec3 p=ro+rd*t,uvw=(p-uBMin)/ext;
-  vec4 c=textureLod(uVol,uvw,2.);if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);vec3 e3=min(uvw,1.-uvw)*ext;float d=smk(vis(s.r,p))*uDens*smoothstep(.15,.7,t)*smoothstep(0.,.4,min(min(e3.x,e3.z),(1.-uvw.y)*ext.y));if(d<.002)continue;
+  vec4 c=textureLod(uVol,uvw,2.);
+  /* wake vortex glow: emission where the Q criterion (alpha) is high, away from solids; independent of the smoke density */
+  if(uVortK>0.&&c.a>uQ.x*.12&&c.g<.03){vec4 s0=textureLod(uVol,uvw,0.);if(s0.g<.02&&s0.a>uQ.x){float qv=smoothstep(uQ.x,uQ.y,s0.a);vec3 ec=mix(vec3(.12,.5,1.),vec3(1.,.72,.38),smoothstep(uQ.y,uQ.y*2.6,s0.a));float ae=1.-exp(-qv*dt*uVortK*5.);acc.rgb+=(1.-acc.a)*ae*ec*2.2;acc.a+=(1.-acc.a)*ae*.35;}}
+  if(c.r*uDens<.0015)continue;vec4 s=textureLod(uVol,uvw,0.);vec3 e3=min(uvw,1.-uvw)*ext;float d=smk(vis(s.r,p))*uDens*smoothstep(.15,.7,t)*smoothstep(0.,.4,min(min(e3.x,e3.z),(1.-uvw.y)*ext.y));if(d<.002)continue;
   float od=0.;for(int k=1;k<=6;k++){if(k>uTaps)break;od+=smk(textureLod(uVol,uvw+uLD/ext*(.12*float(k*k)),0.).r)*.12*float(2*k-1);}
   float T=exp(-od*uDens*2.2);vec3 alb=mix(vec3(.82,.86,.92),lin(turbo(clamp(.5+(s.b-1.)*1.25,0.,1.))),uCMode);
   vec3 col=alb*(vec3(1.,.96,.9)*3.2*T*hg*12.566*.35+vec3(.55,.62,.72)*.55)*uTF.w;
@@ -175,7 +178,7 @@ function fxAfterOpaque(){const T=FX.t,M=FX.m=fxMatrices(),rw=FX.rw,rh=FX.rh;gl.b
   fxPass('aoblur',T.aoF[1],FX.aw,FX.ah,{uAO:T.ao[0]},{uDir:[1,0]});fxPass('aoblur',T.aoF[0],FX.aw,FX.ah,{uAO:T.ao[1]},{uDir:[0,1]})}
  /* volumetric smoke */
  const smokeOn=LIVE.enabled&&LIVE.ok&&!!LIVE.vol&&STREAK.mode!=='streak';if(smokeOn){const fwd=norm(sub(camera.target,camera.eye));
-  fxPass('vol',T.smF,FX.vw,FX.vh,{uVol:{__3d:true,t:LIVE.vol},uDepth:T.depth,uBlue:FX.blue},{uInv:M.inv,uEye:[...camera.eye],uBMin:[...LIVE.min],uBMax:[...LIVE.max],uLD:[.24,.95,.18],uFwd:fwd,uDens:LIVE.dens,uTF:[...LIVE.tf],uFD:[LIVE.tipX-.08,LIVE.wand?0:.22,LIVE.wisp],uWT:[LIVE.t,LIVE.U],uCMode:LIVE.colorMode?1:0,uStepScale:LIVE.stepScale||1,uG:FX.g,uFrame:FX.frame%64,uTaps:{int:2+2*(LIVE.rq|0)}});
+  fxPass('vol',T.smF,FX.vw,FX.vh,{uVol:{__3d:true,t:LIVE.vol},uDepth:T.depth,uBlue:FX.blue},{uInv:M.inv,uEye:[...camera.eye],uBMin:[...LIVE.min],uBMax:[...LIVE.max],uLD:[.24,.95,.18],uFwd:fwd,uDens:LIVE.dens,uTF:[...LIVE.tf],uFD:[LIVE.tipX-.08,LIVE.wand?0:.22,LIVE.wisp],uWT:[LIVE.t,LIVE.U],uCMode:LIVE.colorMode?1:0,uStepScale:LIVE.stepScale||1,uG:FX.g,uFrame:FX.frame%64,uTaps:{int:2+2*(LIVE.rq|0)},uVortK:vizVortexOn()?VIZ.k:0,uQ:[VIZ.q0,VIZ.q1]});
   gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_3D,null);
   const cur=FX.shist,nxt=1-cur;fxPass('vtemp',T.shF[nxt],FX.vw,FX.vh,{uCur:T.sm,uAux:T.sa,uHist:T.sh[cur]},{uInv:M.inv,uPrevVP:FX.prevVP||M.vp,uEye:[...camera.eye],uBlend:FX.reset?0:.8});FX.shist=nxt}
  fxPass('comp',T.compF,rw,rh,{uScene:T.color,uAmb:T.amb,uDepth:T.depth,uAO:T.ao[0],uSmoke:T.sh[FX.shist],uSAux:T.sa},{uLo:[FX.vw,FX.vh],uAOOn:aoOn?1:0,uAOK:FX.aoStrength,uSmokeOn:smokeOn?1:0,uSSR:PERF.set.ssr|0,uProj:projP,uP:fxProj(),...showHaze()});
