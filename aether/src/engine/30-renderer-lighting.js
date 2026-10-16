@@ -109,7 +109,7 @@ void main(){
  vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white*pk+ambD;
  if(u_look>.5&&u_hq>.5&&u_capture<.5)hdr+=tubeLights(n,v,nv,albedo,rough,metal,F0,u_vatlas);
  vec3 envF=u_hq>.5?envBRDF(F0,rough,nv):F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
- vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF;hdr+=ambS;
+ vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF*pk;hdr+=ambS;
  if(ccW>.05&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
   float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);Fv*=ccW;Fc*=ccW;hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white*pk+prefReflection(reflect(-v,n),cr)*Fv;}
  if(u_vatlas>.5&&u_hq>.5&&u_capture<.5){hdr+=rimLight(normalize(vec3(.55,.35,-.75)),vec3(.35,1.05,1.5)*2.4,n,v,nv,albedo,rough,metal,F0)+rimLight(normalize(vec3(-.6,.25,.6)),vec3(1.5,.82,.42)*1.7,n,v,nv,albedo,rough,metal,F0);}
