@@ -67,6 +67,7 @@ $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('�
  {const S=stk();if(S)$('stkMode').textContent='표현: '+SM.find(m=>m[0]===S.mode)[1]}
  $('cpMode').onclick=()=>{const C=window.__CPMAP;if(!C)return;C.on=!C.on;C.err=null;$('cpMode').textContent='차체 압력: '+(C.on?'켬':'끔');$('cpLeg').hidden=!C.on};
  if(window.__CPMAP?.on){$('cpMode').textContent='차체 압력: 켬';$('cpLeg').hidden=false}
+ {const V=window.__VIZ,b=$('vtxMode');if(V&&b){const show=()=>{b.textContent='후류 소용돌이: '+(V.vortex?'켬':'끔')};b.onclick=()=>{V.vortex=!V.vortex;show()};show()}}
  $('nzMode').onclick=()=>{const l=L();if(!l)return;const on=l.api.setNozzle(!l.nozzleSolid);$('nzMode').textContent='노즐 계산 반영: '+(on?'켜짐':'꺼짐')+'(실험)';capFor(on?'노즐을 계산에 반영합니다':'노즐 계산 반영을 끕니다','흐름을 처음부터 다시 계산합니다')};
  if(L()?.nozzleSolid)$('nzMode').textContent='노즐 계산 반영: 켜짐(실험)';
  $('lvRake').onclick=()=>{const l=L();l.mode=RK[(RK.findIndex(r=>r[0]===l.mode)+1)%RK.length][0];refresh()};
