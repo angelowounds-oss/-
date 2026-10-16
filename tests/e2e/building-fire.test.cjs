@@ -34,8 +34,9 @@ run('building-fire', { q: 0 }, async ({ page }) => {
     o.secondsToCollapse = Math.round(t + 50); o.phase = s && s.phase;
     const solidH0 = lot.solid ? lot.solid.h : null;
     upd(3); draw(); o.prog1 = g.eng.renderer.info.programs.length;   // mid-collapse
-    upd(7);   // the rest of the collapse animation (8 s)
-    o.ruin = B.ruins.has(lot); o.civDead = c.dead; o.solidH = lot.solid ? +lot.solid.h.toFixed(1) : null; o.solidBefore = solidH0;
+    // the rest of the collapse animation (8 s); the person under it is checked every second, because a corpse can be cleared from the pool before the end
+    let died = c.dead; for (let i = 0; i < 7; i++) { upd(1); died = died || c.dead; }
+    o.ruin = B.ruins.has(lot); o.civDead = died || c.dead; o.civ = { dead: c.dead, hidden: c.hidden, hp: c.hp, state: c.state, dx: +(c.x - (lot.x0 + lot.x1) / 2).toFixed(1), dz: +(c.z - (lot.z0 + lot.z1) / 2).toFixed(1), inList: g.humans.includes(c), hitDone: !!(B.fires.get(lot) && B.fires.get(lot).hit) }; o.solidH = lot.solid ? +lot.solid.h.toFixed(1) : null; o.solidBefore = solidH0;
     const m = g.world.facade.instanceMatrix.array; o.towerScale = +Math.hypot(m[(ti + 1) * 16 + 4], m[(ti + 1) * 16 + 5], m[(ti + 1) * 16 + 6]).toFixed(3);
     o.decorHidden = B.ruins.get(lot)?.decor.inst.length || 0;
     o.saved = g.state.ruins[g.world.lots.indexOf(lot)] != null;
