@@ -107,7 +107,7 @@ void main(){
  vec3 ambD=albedo*(1.-metal)*hemi*.85*white*pk;
  if(u_hq>.5){vec3 irr=mix(shIrr(n,u_sh0),shIrr(n,u_sh1),smoothstep(u_pz.x,u_pz.y,v_world.z));ambD=albedo*(1.-metal)*max(irr,vec3(0.))*(u_ambK/3.14159265)*pk;}
  vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white*pk+ambD;
- if(u_look>.5&&u_hq>.5&&u_capture<.5)hdr+=tubeLights(n,v,nv,albedo,rough,metal,F0,u_vatlas);
+ if(u_look>.5&&u_hq>.5&&u_capture<.5)hdr+=tubeLights(n,v,nv,albedo,rough,metal,F0,u_vatlas)*pk;
  vec3 envF=u_hq>.5?envBRDF(F0,rough,nv):F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
  vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF*pk;hdr+=ambS;
  if(ccW>.05&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
