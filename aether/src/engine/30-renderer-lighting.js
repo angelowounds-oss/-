@@ -6,6 +6,7 @@ in vec3 v_normal;in vec2 v_uv;in vec3 v_world;layout(location=0) out vec4 outCol
 uniform samplerCube u_env0,u_env1;uniform highp sampler2D u_shadowMap;
 uniform mat4 u_lightVP;uniform float u_capture,u_shadowEnabled,u_exposure,u_hdrOut;
 uniform samplerCube u_pref0,u_pref1;uniform highp sampler2D u_csmMap;uniform mat4 u_csmVP[3];uniform vec3 u_csmSplit,u_csmTexel,u_camFwd,u_sh0[9],u_sh1[9];uniform vec2 u_pz;uniform float u_hq,u_csmOn,u_pcss,u_clearcoat,u_prefLod,u_ambK,u_vatlas,u_vdebug,u_paintR;uniform vec4 u_paint;
+uniform float u_look;uniform vec4 u_pool;uniform vec2 u_pool2;uniform int u_nT;uniform vec3 u_tA[6],u_tB[6],u_tC[6];uniform float u_tR[6];uniform vec3 u_car,u_carR;
 /* vehicle texture atlas: 5x4 tiles of 512 px (row 0 = top of the source image). Per tile: roughness, metalness, clear coat, glass.
    Assigned by inspecting the atlas and verified on the model with #vtile=1 (body = tile (4,0) black paint, wing = carbon (4,3), rims = (2,0)). */
 const vec4 VT[20]=vec4[20](
@@ -56,6 +57,26 @@ float shadowVisibility(vec3 n,vec3 l){
  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)sum+=step(q.z-bias,texture(u_shadowMap,q.xy+vec2(x,y)*texel).r);
  return sum/9.;
 }
+/* showroom look: the lit pool around the turntable (1 inside r0, falling to the floor value beyond r1); u_look 0 = classic bright lab */
+float poolK(vec3 p){vec3 d=(p-u_pool.xyz)*vec3(1.,.75,1.);float s=1.-smoothstep(u_pool.w,u_pool2.x,length(d));return mix(1.,u_pool2.y+(1.-u_pool2.y)*s,u_look);}
+/* tube (capsule) studio lights, analytic: closest-point-on-segment diffuse, representative-point GGX specular with source-size energy normalisation (Karis, UE4 'Real Shading').
+   No shadow map; floor points are occluded by an analytic ellipsoid standing for the car so the floor keeps a dark contact area. */
+vec3 tubeLights(vec3 n,vec3 v,float nv,vec3 albedo,float rough,float metal,vec3 F0,float onCar){
+ vec3 acc=vec3(0.),R=reflect(-v,n);float a=max(rough*rough,.003);
+ for(int i=0;i<6;i++){if(i>=u_nT)break;
+  vec3 L0=u_tA[i]-v_world,Ld=u_tB[i]-u_tA[i];float dl2=max(dot(Ld,Ld),1e-4),RoL0=dot(R,L0),RoLd=dot(R,Ld),L0oLd=dot(L0,Ld);
+  float t=(RoL0*RoLd-L0oLd)/max(dl2-RoLd*RoLd,1e-4);vec3 cp=L0+Ld*clamp(t,0.,1.);
+  vec3 cr=dot(cp,R)*R-cp;cp+=cr*clamp(u_tR[i]/max(length(cr),1e-4),0.,1.);
+  float dist=max(length(cp),.08);vec3 Ls=cp/dist;vec3 h=normalize(Ls+v);float nl=max(dot(n,Ls),0.),nh=max(dot(n,h),0.),vh=max(dot(v,h),0.);
+  vec3 Ld0=L0+Ld*clamp(-L0oLd/dl2,0.,1.);float dd=max(length(Ld0),.08),nlD=max(dot(n,Ld0/dd),0.);
+  if(nl<=0.&&nlD<=0.)continue;
+  float sl=sqrt(dl2),nS=a/clamp(a+u_tR[i]/(2.*dist),0.,1.),nL=a/clamp(a+sl/(2.*dist),0.,1.);
+  float den=nh*nh*(a*a-1.)+1.,D=a*a/max(PI*den*den,1e-6)*nS*nS*nL;
+  float k=(rough+1.)*(rough+1.)/8.,G=(nv/(nv*(1.-k)+k))*(nl/max(nl*(1.-k)+k,1e-5));vec3 F=F0+(1.-F0)*pow(1.-vh,5.);
+  vec3 spec=D*G*F/max(4.*nv*max(nl,1e-3),1e-4)*nl,diff=(1.-F0)*(1.-metal)*albedo/PI*nlD*(dist/dd);
+  float vis=1.;if(onCar<.5){vec3 q0=(v_world-u_car)/u_carR,q1=(v_world+cp-u_car)/u_carR,sd=q1-q0;float tt=clamp(-dot(q0,sd)/max(dot(sd,sd),1e-4),0.,1.);vis=smoothstep(.45,1.3,length(q0+sd*tt));}
+  acc+=(diff+spec)*u_tC[i]*vis/(dist*dist+.6);}
+ return acc;}
 void main(){
  vec3 n=normalize(v_normal),v=normalize(u_eye.xyz-v_world);float nv=max(abs(dot(n,v)),.001);
  if(u_alpha<.99){
@@ -80,16 +101,17 @@ void main(){
  float k=(rough+1.)*(rough+1.)/8.;float G=(nv/(nv*(1.-k)+k))*(nl/max(nl*(1.-k)+k,.00001));
  vec3 F0=mix(vec3(.04),albedo,metal),F=F0+(1.-F0)*pow(1.-vh,5.);
  vec3 spec=D*G*F/max(4.*nv*nl,.0001);vec3 diffuse=(1.-F)*(1.-metal)*albedo/PI;
- float hemi=mix(.12,.40,n.y*.5+.5);
+ float hemi=mix(.12,.40,n.y*.5+.5);float pk=poolK(v_world);
  float visibility=u_csmOn>.5?csmVis(n,l):shadowVisibility(n,l);
  vec3 white=vec3(1.,.956,.895);
- vec3 ambD=albedo*(1.-metal)*hemi*.85*white;
- if(u_hq>.5){vec3 irr=mix(shIrr(n,u_sh0),shIrr(n,u_sh1),smoothstep(u_pz.x,u_pz.y,v_world.z));ambD=albedo*(1.-metal)*max(irr,vec3(0.))*(u_ambK/3.14159265);}
- vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white+ambD;
+ vec3 ambD=albedo*(1.-metal)*hemi*.85*white*pk;
+ if(u_hq>.5){vec3 irr=mix(shIrr(n,u_sh0),shIrr(n,u_sh1),smoothstep(u_pz.x,u_pz.y,v_world.z));ambD=albedo*(1.-metal)*max(irr,vec3(0.))*(u_ambK/3.14159265)*pk;}
+ vec3 hdr=(diffuse+spec)*nl*3.0*visibility*white*pk+ambD;
+ if(u_look>.5&&u_hq>.5&&u_capture<.5)hdr+=tubeLights(n,v,nv,albedo,rough,metal,F0,u_vatlas);
  vec3 envF=u_hq>.5?envBRDF(F0,rough,nv):F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);
  vec3 ambS=(u_hq>.5?prefReflection(reflect(-v,n),rough):roomReflection(reflect(-v,n),rough))*envF;hdr+=ambS;
  if(ccW>.05&&u_hq>.5){float cr=.06,ca=cr*cr,ca2=ca*ca,cd=nh*nh*(ca2-1.)+1.,Dc=ca2/max(PI*cd*cd,1e-6),kc=(cr+1.)*(cr+1.)/8.,Gc=(nv/(nv*(1.-kc)+kc))*(nl/max(nl*(1.-kc)+kc,1e-5));
-  float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);Fv*=ccW;Fc*=ccW;hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white+prefReflection(reflect(-v,n),cr)*Fv;}
+  float Fc=.04+.96*pow(1.-vh,5.),Fv=.04+.96*pow(1.-nv,5.);Fv*=ccW;Fc*=ccW;hdr=hdr*(1.-Fv)+Dc*Gc*Fc/max(4.*nv*nl,1e-4)*nl*3.*visibility*white*pk+prefReflection(reflect(-v,n),cr)*Fv;}
  if(u_vatlas>.5&&u_hq>.5&&u_capture<.5){hdr+=rimLight(normalize(vec3(.55,.35,-.75)),vec3(.35,1.05,1.5)*2.4,n,v,nv,albedo,rough,metal,F0)+rimLight(normalize(vec3(-.6,.25,.6)),vec3(1.5,.82,.42)*1.7,n,v,nv,albedo,rough,metal,F0);}
  hdr+=albedo*u_surface.z;
  outAmb=vec4((ambD+ambS)*u_exposure,rough);
@@ -188,7 +210,7 @@ function renderLightingShadow(force=false){
 }
 function bindLighting(capture=false){
  if(loc.pz===undefined)loc.pz=gl.getUniformLocation(program,'u_pz');if(loc.pz)gl.uniform2f(loc.pz,TUNNEL_V2.active?6.2:3.8,TUNNEL_V2.active?6.8:4.5);/* where the control-room probe takes over: its wall in the v2 tunnel is z = 6.5 */
- gl.uniform1f(loc.capture,capture?1:0);gl.uniform1f(loc.hdrOut,FX.active&&!capture?1:0);hqBind(capture);gl.uniform1f(loc.shadowEnabled,1);gl.uniform1f(loc.exposure,M10_SETTINGS.exposure);gl.uniformMatrix4fv(loc.lightVP,false,lighting.lightVP);
+ gl.uniform1f(loc.capture,capture?1:0);gl.uniform1f(loc.hdrOut,FX.active&&!capture?1:0);hqBind(capture);showBind();gl.uniform1f(loc.shadowEnabled,1);gl.uniform1f(loc.exposure,M10_SETTINGS.exposure);gl.uniformMatrix4fv(loc.lightVP,false,lighting.lightVP);
  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_CUBE_MAP,capture?lighting.dummy:lighting.probes[0]);gl.uniform1i(loc.env0,1);
  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,lighting.shadow);gl.uniform1i(loc.shadowMap,2);
  gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_CUBE_MAP,capture?lighting.dummy:lighting.probes[1]);gl.uniform1i(loc.env1,3);gl.activeTexture(gl.TEXTURE0);
