@@ -12,6 +12,8 @@ export const CRAFT_SPECS = {
   // war machines (see warcraft.js): armoured, armed, flown / driven with the camera as the aim
   tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 17, accel: 6.5, grip: 3, hp: 1800, cy: 1.05, fuelRate: 0.7, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
   gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 60, accel: 20, grip: 3, hp: 800, cy: 0.9, fuelRate: 1.3, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
+  // Darkstar: a black hypersonic aircraft, Mach 10 (3,430 m/s) at full throttle; same flight model as the jet with a bigger engine
+  darkstar: { L: 15, W: 7.2, mass: 1.2, maxSpeed: 3430, accel: 1500, grip: 3, hp: 600, cy: 1.0, fuelRate: 2.2, custom: 'darkstar', craft: 'jet', war: 'jet', armored: 0.35, hyper: true, title: '다크스타' },
   jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 150, accel: 30, grip: 3, hp: 450, cy: 1.1, fuelRate: 1.8, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
 };
 
@@ -97,6 +99,29 @@ export function buildCustom(type, color, opts = {}) {
     m.craftVisual = (v, dt) => {
       const thr = v.thrLvl || 0; jetFx.material.opacity = 0.4 + 0.6 * thr; jetFx.scale.setScalar(1.2 + thr * 3); gear.visible = (v.speed < 55) && (v.by < 14 || v.speed < 20);
       g.userData.bank = damp(g.userData.bank || 0, v.bank || 0, 5, dt);
+    };
+  } else if (type === 'darkstar') {
+    const blk = std(0x0b0d12, 0.28, 0.85), edge = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 0.9, 1).multiplyScalar(2.2), toneMapped: false });
+    m.paint = blk; m.hull = blk;
+    const sh = new THREE.Shape(); sh.moveTo(0, 8); sh.lineTo(3.7, -3.2); sh.lineTo(1.4, -3.9); sh.lineTo(0, -2.7); sh.lineTo(-1.4, -3.9); sh.lineTo(-3.7, -3.2); sh.closePath();
+    const wing = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.22, bevelEnabled: false }), blk); wing.rotation.x = Math.PI / 2; wing.position.y = 1.15; g.add(wing);
+    const fus = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.62, 12, 14), blk); fus.rotation.x = Math.PI / 2; fus.position.set(0, 1.25, 1.2); fus.scale.set(1, 1, 0.55); g.add(fus);
+    for (const sx of [-1, 1]) {
+      const fin = box(blk, 0.08, 1.5, 2.4, sx * 1.15, 1.9, -3.2, g); fin.rotation.z = sx * -0.35;
+      box(edge, 0.05, 0.04, 8.4, sx * 1.9, 1.2, 0.1, g).rotation.y = sx * -0.42;
+      box(blk, 0.55, 0.5, 3.2, sx * 0.7, 1.0, -2.2, g);
+    }
+    box(edge, 0.05, 0.04, 6.5, 0, 1.52, 2.6, g);
+    const nozzle = spr(0, 1.25, -4.7, 0xaadfff, 3.4); nozzle.scale.set(2.4, 2.4, 1); m.jetFx = nozzle;
+    const mz = new THREE.Object3D(); mz.position.set(0, 1.1, 7.3); g.add(mz); m.muzzle = mz;
+    m.headSprites = []; m.tailSprites = [spr(0, 1.3, -4.2, 0x66ddff, 0.7)]; m.wheelR = 0.3;
+    const gear = new THREE.Group(); g.add(gear); m.gear = gear;
+    for (const [gx, gz] of [[0, 4.2], [-1.2, -1.6], [1.2, -1.6]]) { box(M.metal, 0.08, 0.6, 0.08, gx, 0.55, gz, gear); cyl(M.rubber, 0.18, 0.16, gx, 0.2, gz, gear, [0, 0, Math.PI / 2]); }
+    m.craftVisual = (v, dt) => {
+      const thr = v.thrLvl || 0, mach = v.speed / 343; nozzle.material.opacity = 0.35 + 0.65 * thr; nozzle.scale.setScalar(1.4 + thr * (2 + Math.min(3, mach * 0.4)));
+      gear.visible = v.speed < 55 && (v.by < 14 || v.speed < 20);
+      // aerodynamic heating: the hull glows dull red -> orange -> white-hot with Mach
+      const h = clamp((mach - 1.5) / 7, 0, 1); blk.emissive.setRGB(h * 3.2, h * h * 1.6 + h * 0.2, h * h * h * 1.2); blk.emissiveIntensity = 1;
     };
   } else { // heli / gunship
     const gs = type === 'gunship';
@@ -204,12 +229,14 @@ const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
   const spec = veh.spec, G = veh.G, pilot = hasDriver && veh.fuel > 0;
   b.setGravityScale(pilot ? 0 : 22 / 9.81, true);
-  if (!pilot) { veh.thrLvl = Math.max(0, (veh.thrLvl || 0) - 0.3 * dt); return; }
+  if (!pilot) { veh.thrLvl = Math.max(0, (veh.thrLvl || 0) - 0.3 * dt); veh.cmdV = null; if (veh.fast) { veh.pv.col.setSensor(false); veh.fast = false; const h = veh.hv || lv, k = Math.min(1, 300 / (Math.hypot(h.x, h.y, h.z) || 1)); b.setLinvel({ x: h.x * k, y: h.y * k, z: h.z * k }, true); veh.hv = null; } veh.jetS = Math.hypot(lv.x, lv.y, lv.z); return; }
   veh.thrLvl = clamp((veh.thrLvl ?? 0) + (thr - brk) * 0.55 * dt, 0, 1);
   const hit = G.phys.ray(t.x, t.y, t.z, 0, -1, 0, 40, 1 | 16), agl = hit ? hit.t - spec.cy : 99;
   const onGround = agl < 0.5;
   let s = veh.jetS ?? 0;
-  const target = veh.thrLvl * spec.maxSpeed;
+  // the hypersonic one crosses the whole city in a second: past ~2.2 km from the centre it slows down and turns back by itself
+  if (spec.hyper) { const r = Math.hypot(t.x, t.z); veh.returning = r > 2200 ? true : r < 1700 ? false : !!veh.returning; }
+  const target = Math.min(veh.thrLvl * spec.maxSpeed, veh.returning ? 700 : 1e9);
   s += clamp(target - s, -spec.accel * 1.6 * dt, spec.accel * dt);
   if (onGround && brk > 0.1 && s > 0) s = Math.max(0, s - 28 * dt);
   veh.jetS = s;
@@ -224,7 +251,7 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
     veh.airborne = !!lift;
   } else {
     veh.airborne = true;
-    const dy = wrapPi((veh.aimYaw ?? yaw) - yaw), turn = 1.25 * clamp(s / 55, 0.5, 1);
+    const dy = wrapPi((veh.returning ? Math.atan2(-t.x, -t.z) : (veh.aimYaw ?? yaw)) - yaw), turn = (veh.returning ? 1.8 : 1.25) * clamp(s / 55, 0.5, 1);
     yaw += clamp(dy, -turn * dt, turn * dt);
     const lim = 0.95 - hover * 0.6, pt = clamp(veh.aimPitch ?? 0, -lim, lim);
     pitch = pitch + clamp(pt - pitch, -1.2 * dt, 1.2 * dt);
@@ -233,8 +260,23 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
   }
   const cp = Math.cos(pitch), vx = Math.sin(yaw) * cp * s, vz = Math.cos(yaw) * cp * s, vyy = Math.sin(pitch) * s * (1 - hover) + vy;
   const prevVy = lv.y;
-  b.setLinvel({ x: vx, y: onGround && !veh.airborne ? Math.min(0, lv.y) : vyy, z: vz }, true);
-  _E.set(-pitch, yaw, bank); _Q.setFromEuler(_E); b.setRotation({ x: _Q.x, y: _Q.y, z: _Q.z, w: _Q.w }, true);
+  const cy = onGround && !veh.airborne ? Math.min(0, lv.y) : vyy;
+  _E.set(-pitch, yaw, bank); _Q.setFromEuler(_E);
+  if (spec.hyper && s > 300 && veh.airborne) {
+    // Rapier caps body speed at 400 m/s: above that the body is moved by hand, as a sensor, and the path is swept with a ray so it still hits
+    // buildings and the ground (the impact destroys it)
+    if (!veh.fast) { veh.pv.col.setSensor(true); veh.fast = true; }
+    const len = s * dt, dx = vx / s, dy = cy / s, dz = vz / s, hit = G.phys.ray(t.x, t.y, t.z, dx, dy, dz, len + 4, 1 | 16);
+    let nx = t.x + vx * dt, ny = t.y + cy * dt, nz = t.z + vz * dt, crash = false;
+    if (hit && hit.t < len + 4) { const d = Math.max(0, hit.t - 3); nx = t.x + dx * d; ny = t.y + dy * d; nz = t.z + dz * d; crash = true; }
+    b.setTranslation({ x: nx, y: ny, z: nz }, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); b.setRotation({ x: _Q.x, y: _Q.y, z: _Q.z, w: _Q.w }, true);
+    veh.hv = { x: vx, y: cy, z: vz }; veh.cmdV = null; veh.pitchA = pitch; veh.bank = bank;
+    if (crash) { const sp0 = s; veh.jetS = 0; veh.thrLvl = 0; veh.onImpact(sp0, nx, nz, null); veh.damage(1e6, null); }
+    return;
+  }
+  if (veh.fast) { veh.pv.col.setSensor(false); veh.fast = false; veh.hv = null; }
+  b.setLinvel({ x: vx, y: cy, z: vz }, true); veh.cmdV = { x: vx, y: cy, z: vz };   // what the flight model asked for: an impact is the part of it the world took away
+  b.setRotation({ x: _Q.x, y: _Q.y, z: _Q.z, w: _Q.w }, true);
   veh.pitchA = pitch; veh.bank = bank;
   if (onGround && prevVy < -10 && !veh.landed) { veh.damage((-prevVy - 10) * 45, null); veh.landed = true; } else if (!onGround) veh.landed = false;
 }

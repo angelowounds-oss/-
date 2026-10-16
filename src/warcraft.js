@@ -33,6 +33,7 @@ const PADS = [
   { kind: 'tank', x: -24, z: 0, h: 0 },
   { kind: 'jet', x: 0, z: 10, h: 0 },
   { kind: 'gunship', x: 24, z: 10, h: Math.PI / 2 },
+  { kind: 'darkstar', x: 13, z: -4, h: 0 },
 ];
 const SUPPLY = { x: -9, z: -13, r: 7 };
 const GUARDS = [[-31, -9, 1.57], [-31, 9, 1.57], [31, -9, -1.57], [31, 9, -1.57], [-24, -4, 0], [24, -4, 0], [0, -17, 3.14], [-6, 20, 3.14]];
@@ -65,7 +66,7 @@ export class War {
     const W = (x0, z0, x1, z1, h, c, tag = 'base') => { B.ext('decor', cx + x0, 0, cz + z0, cx + x1, h, cz + z1, c); col.addBox(cx + x0, cz + z0, cx + x1, cz + z1, h, tag); };
     // concrete apron + painted pads
     B.ext('decor', cx - hx, 0, cz - hz, cx + hx, 0.03, cz + hz, 0x4a4d52);
-    for (const p of PADS) { const s = p.kind === 'jet' ? 8.6 : p.kind === 'tank' ? 6.2 : 7.2; B.ext('decor', cx + p.x - s, 0.03, cz + p.z - s, cx + p.x + s, 0.05, cz + p.z + s, 0x2e3136); B.ext('emit', cx + p.x - s, 0.05, cz + p.z - s, cx + p.x + s, 0.07, cz + p.z - s + 0.25, new THREE.Color(1, 0.8, 0.2), 1.2); B.ext('emit', cx + p.x - s, 0.05, cz + p.z + s - 0.25, cx + p.x + s, 0.07, cz + p.z + s, new THREE.Color(1, 0.8, 0.2), 1.2); }
+    for (const p of PADS) { const s = p.kind === 'jet' ? 8.6 : p.kind === 'darkstar' ? 8.4 : p.kind === 'tank' ? 6.2 : 7.2; B.ext('decor', cx + p.x - s, 0.03, cz + p.z - s, cx + p.x + s, 0.05, cz + p.z + s, 0x2e3136); B.ext('emit', cx + p.x - s, 0.05, cz + p.z - s, cx + p.x + s, 0.07, cz + p.z - s + 0.25, new THREE.Color(1, 0.8, 0.2), 1.2); B.ext('emit', cx + p.x - s, 0.05, cz + p.z + s - 0.25, cx + p.x + s, 0.07, cz + p.z + s, new THREE.Color(1, 0.8, 0.2), 1.2); }
     B.ext('decor', cx + SUPPLY.x - SUPPLY.r, 0.03, cz + SUPPLY.z - SUPPLY.r, cx + SUPPLY.x + SUPPLY.r, 0.06, cz + SUPPLY.z + SUPPLY.r, 0x1f5a3c);
     B.ext('emit', cx + SUPPLY.x - 0.2, 0.06, cz + SUPPLY.z - 3.2, cx + SUPPLY.x + 0.2, 0.08, cz + SUPPLY.z + 3.2, new THREE.Color(0.2, 1, 0.5), 1.6);
     B.ext('emit', cx + SUPPLY.x - 3.2, 0.06, cz + SUPPLY.z - 0.2, cx + SUPPLY.x + 3.2, 0.08, cz + SUPPLY.z + 0.2, new THREE.Color(0.2, 1, 0.5), 1.6);
@@ -89,8 +90,8 @@ export class War {
     this.guards(true);
   }
   stock(s) {
-    const G = this.G, v = new Vehicle(G, s.kind, s.kind === 'jet' ? 0x59606c : 0x4a5236, 'parked', { glow: [1, 0.3, 0.2] });
-    v.x = s.home.x; v.z = s.home.z; v.h = s.kind === 'gunship' ? 1.57 : s.kind === 'jet' ? 0 : -1.57; v.startY = v.spec.cy + 0.25; v.awake = false; v.base = true;
+    const G = this.G, v = new Vehicle(G, s.kind, s.kind === 'darkstar' ? 0x0b0d12 : s.kind === 'jet' ? 0x59606c : 0x4a5236, 'parked', { glow: [1, 0.3, 0.2] });
+    v.x = s.home.x; v.z = s.home.z; v.h = s.kind === 'gunship' ? 1.57 : s.kind === 'jet' || s.kind === 'darkstar' ? 0 : -1.57; v.startY = v.spec.cy + 0.25; v.awake = false; v.base = true;
     G.addVehicle(v); s.v = v; s.t = 0; this.kit(v);
   }
   guards(first) {
@@ -155,7 +156,7 @@ export class War {
   drive(v, dt) {
     const G = this.G, kit = this.kit(v), inp = G.inp || {}, war = v.spec.war;
     this.aimPoint(this.aim);
-    v.aimYaw = G.cam.yaw; v.aimPitch = clamp(G.cam.pitch + 0.1, -1, 1);
+    v.aimYaw = G.cam.yaw; v.aimPitch = clamp(G.cam.pitch, -1, 1);
     // turret / gun slew
     if (war === 'tank') {
       const hull = v.h, dx = this.aim.x - v.x, dz = this.aim.z - v.z, dist = Math.max(8, Math.hypot(dx, dz));
@@ -172,7 +173,26 @@ export class War {
     if (inp.aim) this.shoot(v, kit.w[1], dt);
     // tracks crush what they roll over
     if (war === 'tank' && v.speed > 1.5) this.crush(v, dt);
-    if (war === 'jet') { v.group.userData.bank = v.bank; }
+    if (war === 'jet') { v.group.userData.bank = v.bank; this.airEffects(v, dt); }
+  }
+  // supersonic show: a boom as it crosses Mach 1, vapour at the wing tips, a fire and plasma trail that grows with speed, shake
+  airEffects(v, dt) {
+    const G = this.G, m = v.speed / 343, pm = v.pm ?? 0; v.pm = m;
+    const fx = Math.sin(v.h), fz = Math.cos(v.h), cp = Math.cos(v.pitchA || 0), sp = Math.sin(v.pitchA || 0), L = v.spec.L / 2;
+    const px = v.x, py = v.by, pz = v.z;
+    if (m >= 1 && pm < 1) {
+      G.audio.tone?.(46, 0.9, 'sine', 0.55, 20); G.audio.explosion?.(0.35, 0); G.shake(0.9); G.toast?.('<span style="color:#9fe8ff">MACH 1</span>', '음속 돌파');
+      for (let k = 0; k < 28; k++) { const a = k / 28 * TAU; G.smokeP.emit(px + fx * L, py, pz + fz * L, Math.cos(a) * 14 * fz - Math.sin(a) * 0, Math.sin(a) * 14, -Math.cos(a) * 14 * fx, rand(0.6, 1.1), rand(3, 5), 0.9, 0.95, 1, 0.7, 0.2, 0.4); }
+    }
+    if (v.speed > 150) {
+      const thr = v.thrLvl || 0, n = 2 + Math.round(thr * 3 + Math.min(3, m * 0.5));
+      for (let k = 0; k < n; k++) G.fireP.emit(px - fx * cp * L + rand(-0.4, 0.4), py - sp * L + rand(-0.3, 0.3), pz - fz * cp * L + rand(-0.4, 0.4), -fx * 12, 0, -fz * 12, rand(0.25, 0.6), rand(1.2, 2.4) * (1 + Math.min(1.5, m * 0.2)), 1.2, 2.2, 3.5, 1, -1, 1.2);
+      if (m >= 1) { v.vapT = (v.vapT || 0) - dt; if (v.vapT <= 0) { v.vapT = 0.04; for (const sx of [-1, 1]) G.smokeP.emit(px - fx * 2 + fz * sx * 3.2, py, pz - fz * 2 - fx * sx * 3.2, -fx * 4, 0.4, -fz * 4, rand(0.7, 1.4), rand(1.5, 3), 0.9, 0.95, 1, 0.45, 0.2, 0.4); } }
+      if (m >= 3 && v.pPrev) G.tracers.add(tmpB.set(v.pPrev[0], v.pPrev[1], v.pPrev[2]), tmpC.set(px - fx * L, py, pz - fz * L), m > 6 ? [1, 0.95, 0.85] : [0.5, 0.85, 1]);
+      G.shake(clamp(m * 0.004, 0, 0.07));
+    }
+    v.pPrev = [px - fx * L, py, pz - fz * L];
+    const fxEl = G.ui.machFx; if (fxEl) { const o = clamp((m - 0.8) / 7, 0, 0.95); if (Math.abs((v._fxo ?? -1) - o) > 0.01) { v._fxo = o; fxEl.style.opacity = o; } }
   }
   // direction the weapon actually fires: the barrel for the tank; for the others the line to the aim point, limited to the gimbal cone
   fireDir(v, w, pos, dir) {
@@ -276,17 +296,17 @@ export class War {
       c.position.copy(base); c.lookAt(base.x + L.x * 30, base.y + L.y * 30, base.z + L.z * 30);
       cam.fov = damp(cam.fov, war === 'tank' ? 34 : 70, 6, dt);
     } else {
-      const dist = (mode === 0 ? big : big * 1.6) + v.speed * (war === 'jet' ? 0.05 : 0.02);
+      const dist = (mode === 0 ? big : big * 1.6) + (war === 'jet' ? Math.min(34, v.speed * 0.05) : v.speed * 0.02);
       let tx = ax - L.x * dist, ty = ay0 - L.y * dist + (war === 'jet' ? 2.5 : 3.2), tz = az - L.z * dist;
       const dx = tx - ax, dy = ty - ay0, dz = tz - az, d = Math.hypot(dx, dy, dz);
       const hit = G.world.colliders.raycast(ax, ay0, az, dx / d, dy / d, dz / d, d);
       let k = 1; if (hit >= 0) k = Math.max(0.2, (hit - 0.5) / d);
       tx = ax + dx * k; ty = Math.max(0.6, ay0 + dy * k); tz = az + dz * k;
-      cam.smoothPos.lerp(tmpB.set(tx, ty, tz), 1 - Math.exp(-(war === 'jet' ? 18 : 12) * dt));
+      cam.smoothPos.lerp(tmpB.set(tx, ty, tz), 1 - Math.exp(-(war === 'jet' ? (v.speed > 120 ? 260 : 18) : 12) * dt));
       if (cam.smoothPos.lengthSq() < 1) cam.smoothPos.set(tx, ty, tz);
       c.position.copy(cam.smoothPos);
       c.lookAt(ax + L.x * 30, ay0 + L.y * 30 + 1.5, az + L.z * 30);
-      cam.fov = damp(cam.fov, 62 + (war === 'jet' ? clamp(v.speed * 0.12, 0, 18) : 0), 4, dt);
+      cam.fov = damp(cam.fov, 62 + (war === 'jet' ? clamp(v.speed * 0.12, 0, 18) + clamp(v.speed / 343 - 1.5, 0, 8.5) * 4.5 : 0), 4, dt);
     }
   }
 
@@ -294,11 +314,11 @@ export class War {
   hud(ui) {
     const v = this.active, el = ui.war; if (!el) return;
     const on = !!v; if (this._on !== on) { this._on = on; el.classList.toggle('on', on); }
-    if (!on) return;
-    const kit = this.kit(v), war = v.spec.war;
+    if (!on) { if (ui.machFx && ui.machFx.style.opacity !== '0') ui.machFx.style.opacity = 0; return; }
+    const kit = this.kit(v), war = v.spec.war, nm = v.spec.title || NAMES[war];
     const rows = kit.w.map((w, i) => `<div class="wr"><b>${i ? 'RMB' : 'LMB'}</b> ${w.name}<span>${w.id === 'cannon' && w.cd > 0 ? '장전 중' : Math.floor(w.ammo)}</span></div>`).join('');
     const alt = Math.max(0, Math.round((v.by ?? 0) - v.spec.cy));
-    const info = `${NAMES[war]} · HP ${Math.max(0, Math.round(v.hp / v.maxHp * 100))}% · 연료 ${Math.round(v.fuel)}%` + (war === 'tank' ? '' : ` · 고도 ${alt}m`) + (war === 'jet' ? ` · 스로틀 ${Math.round((v.thrLvl || 0) * 100)}%` : '');
+    const info = `${nm} · HP ${Math.max(0, Math.round(v.hp / v.maxHp * 100))}% · 연료 ${Math.round(v.fuel)}%` + (war === 'tank' ? '' : ` · 고도 ${alt}m`) + (war === 'jet' ? ` · 스로틀 ${Math.round((v.thrLvl || 0) * 100)}%` + (v.speed > 100 ? ` · MACH ${(v.speed / 343).toFixed(1)}` : '') + (v.returning ? ' · 경계 이탈: 자동 선회' : '') : '');
     const key = rows + info; if (key !== this._key) { this._key = key; ui.warRows.innerHTML = rows; ui.warInfo.textContent = info; }
     // pipper
     const cam = this.G.camera, p = this.pip.clone().project(cam), ok = p.z < 1 && Math.abs(p.x) < 1.2 && Math.abs(p.y) < 1.2;
@@ -313,7 +333,7 @@ export class War {
       const armed = (this.crew || []).some((h) => !h.dead);
       v.base = false; G.addHeat?.(armed ? 120 : 70); G.feed?.('군 장비 탈취', '#ff4560'); G.toast('<span style="color:#ff5a4a">군 장비 탈취</span>', '군이 추적을 시작합니다');
     }
-    G.toast(`<span style="color:#47ffa8">${NAMES[v.spec.war]} 탑승</span>`, v.spec.war === 'tank' ? '좌클릭 주포 · 우클릭 기관총 · C 시점' : v.spec.war === 'gunship' ? '좌클릭 기관포 · 우클릭 로켓 · Space 상승' : '좌클릭 기관포 · 우클릭 미사일 · Space 수직 추력');
+    G.toast(`<span style="color:#47ffa8">${v.spec.title || NAMES[v.spec.war]} 탑승</span>`, v.spec.war === 'tank' ? '좌클릭 주포 · 우클릭 기관총 · C 시점' : v.spec.war === 'gunship' ? '좌클릭 기관포 · 우클릭 로켓 · Space 상승' : '좌클릭 기관포 · 우클릭 미사일 · Space 수직 추력');
   }
 }
 export { NAMES as WAR_NAMES, KITS as WAR_KITS };

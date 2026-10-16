@@ -52,7 +52,7 @@ export class Sandbox {
     add('돈 +$100,000', () => { G.cash += 100000; G.toast('+$100,000'); });
     add('낮 12시', () => this.setHour(12)); add('밤 0시', () => this.setHour(0));
     add('맑음', () => this.setWeather('clear')); add('비', () => this.setWeather('rain'));
-    add('전방 폭발', () => this.blast()); add('1000 m 타워 앞으로', () => this.toSkyTower()); add('군 기지로 이동', () => this.toBase()); add('전차 소환', () => this.spawnWar('tank')); add('전투기 소환', () => this.spawnWar('jet')); add('공격헬기 소환', () => this.spawnWar('gunship')); add('가까운 건물에 불', () => this.burnNearest(false)); add('가까운 건물 붕괴', () => this.burnNearest(true)); add('무너진 건물 복구', () => { this.G.blaze.rebuildAll(); this.G.toast('건물 복구'); });
+    add('전방 폭발', () => this.blast()); add('1000 m 타워 앞으로', () => this.toSkyTower()); add('군 기지로 이동', () => this.toBase()); add('전차 소환', () => this.spawnWar('tank')); add('로드스터 소환', () => this.spawnRoadster()); add('다크스타 소환', () => this.spawnWar('darkstar')); add('전투기 소환', () => this.spawnWar('jet')); add('공격헬기 소환', () => this.spawnWar('gunship')); add('가까운 건물에 불', () => this.burnNearest(false)); add('가까운 건물 붕괴', () => this.burnNearest(true)); add('무너진 건물 복구', () => { this.G.blaze.rebuildAll(); this.G.toast('건물 복구'); });
     add('전방 화재', () => { const a = this.ahead(10); this.G.fire.ignite(a.x, a.z, { fuel: 25, r: 2, src: this.G.player }); }); add('NPC 6명 소환', () => this.spawnPeople(6));
     add('주변 NPC 사살(랙돌)', () => this.dropPeople(true)); add('주변 NPC 넘어뜨리기', () => this.dropPeople(false));
     add('차량 소환', () => this.spawnCar()); add('체력·상태 회복', () => this.heal());
@@ -126,6 +126,10 @@ export class Sandbox {
   spawnWar(kind) {
     const G = this.G, a = this.ahead(kind === 'jet' ? 16 : 12), v = new Vehicle(G, kind, kind === 'jet' ? 0x59606c : 0x4a5236, 'parked', { glow: [1, 0.3, 0.2] });
     v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; v.startY = v.spec.cy + 0.25; v.awake = true; G.addVehicle(v); G.war.kit(v); G.toast(({ tank: '전차', jet: '전투기', gunship: '공격헬기' })[kind] + ' 소환');
+  }
+  spawnRoadster() {
+    const G = this.G, a = this.ahead(10), v = new Vehicle(G, 'roadster', 0x14d8ff, 'parked', { glow: [0.2, 0.9, 1] });
+    v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; v.awake = true; G.addVehicle(v); G.toast('로드스터 소환', '부스트: Shift');
   }
   spawnCar() {
     const G = this.G, a = this.ahead(10);

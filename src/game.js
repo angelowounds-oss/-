@@ -277,7 +277,7 @@ export class Game {
   // ====================================================================
   cacheUI() {
     const g = el;
-    this.ui = { hp: g('hpFill'), ar: g('arFill'), cash: g('cash'), stars: g('stars'), mText: g('mText'), mTitle: g('mTitle'), mDist: g('mDist'), wName: g('wName'), ammo: g('ammo'), speedo: g('speedo'), spd: g('spd'), carHp: g('carHpFill'), hint: g('hint'), toast: g('toast'), cross: g('cross'), dmg: g('dmg'), dir: g('dir'), feed: g('feed'), flash: g('flash'), hud: g('hud'), mini: g('minimap'), weapon: g('weapon'), fps: g('fps'), lt: g('letterT'), lb: g('letterB'), nFood: g('nFood'), nWater: g('nWater'), nEnergy: g('nEnergy'), war: g('warhud'), warRows: g('warRows'), warInfo: g('warInfo'), warPip: g('warPip'), warLock: g('warLock') };
+    this.ui = { hp: g('hpFill'), ar: g('arFill'), cash: g('cash'), stars: g('stars'), mText: g('mText'), mTitle: g('mTitle'), mDist: g('mDist'), wName: g('wName'), ammo: g('ammo'), speedo: g('speedo'), spd: g('spd'), carHp: g('carHpFill'), hint: g('hint'), toast: g('toast'), cross: g('cross'), dmg: g('dmg'), dir: g('dir'), feed: g('feed'), flash: g('flash'), hud: g('hud'), mini: g('minimap'), weapon: g('weapon'), fps: g('fps'), lt: g('letterT'), lb: g('letterB'), nFood: g('nFood'), nWater: g('nWater'), nEnergy: g('nEnergy'), war: g('warhud'), warRows: g('warRows'), warInfo: g('warInfo'), warPip: g('warPip'), warLock: g('warLock'), machFx: g('machFx') };
     this.minictx = this.ui.mini.getContext('2d');
     this._ui = {};
   }
@@ -807,7 +807,7 @@ export class Game {
     v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true;
     { const gy = heightAt(pl.x, pl.z), alt = (v.spec.craft === 'heli' || v.spec.craft === 'jet') ? (v.by || 0) - v.spec.cy - gy : 0;
       if (alt > 5) {   // leaving an aircraft in the air: ejection, the parachute opens by itself from 25 m
-        pl.y = gy + alt + 1; pl.vx = v.vx * 0.4; pl.vz = v.vz * 0.4; pl.vy = 3; pl.body3.teleport(pl.x, pl.y, pl.z);
+        pl.y = gy + alt + 1; pl.vx = clamp(v.vx * 0.4, -25, 25); pl.vz = clamp(v.vz * 0.4, -25, 25); pl.vy = 3; pl.body3.teleport(pl.x, pl.y, pl.z);
         if (!this.items.count('parachute')) this.items.add('parachute');
         if (alt > 25) this.mobility.deploy(); else this.toast('비상 탈출', '<kbd>Space</kbd> 낙하산');
       } else { pl.y = gy; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, gy, pl.z); } }
@@ -1684,7 +1684,7 @@ export class Game {
     ui.weapon.style.display = this.playerOnFoot ? '' : 'none';
     ui.cross.classList.toggle('hide', !this.playerOnFoot || pl.dead || !!this._scope);
     this.war.hud(ui);
-    if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; }
+    if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; const bb = el('boostBar'), bo = !!v.spec.boost; if (bb.style.display !== (bo ? 'block' : 'none')) bb.style.display = bo ? 'block' : 'none'; if (bo) el('boostFill').style.width = clamp(v.boostFuel ?? 100, 0, 100) + '%'; }
     // hint
     let hint = '';
     if (this.playerOnFoot && this.nearInteract && !pl.dead && !this.frozen()) hint = this.nearInteract.verbs.map((v) => `<kbd>${v.key}</kbd>${typeof v.label === 'function' ? v.label() : v.label}`).join('　') + '';

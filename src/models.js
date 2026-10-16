@@ -84,6 +84,9 @@ export const CAR_SPECS = {
   truck: { L: 6.3, W: 2.2, belt: 1.2, roof: 2.9, wb: 2.0, cab: [-0.2, -0.1, 2.1, 2.45], hood: 1.0, mass: 2.4, maxSpeed: 31, accel: 9, grip: 5.2, hp: 220, track: 0.95, boxy: true },
 };
 
+// absurdly fast electric roadster: the sport car's body with a rocket booster (boost: Shift, see Vehicle.applyDrive)
+CAR_SPECS.roadster = { ...CAR_SPECS.sport, mass: 0.85, maxSpeed: 300, accel: 62, grip: 14, hp: 140, boost: true, title: '로드스터' };
+
 function buildFerrari(color, opts) {
   const sp = CAR_SPECS.sport, { L, W } = sp, hl = L / 2;
   const group = new THREE.Group();
@@ -110,7 +113,7 @@ function buildFerrari(color, opts) {
 
 export function buildCar(type, color, opts = {}) {
   // the 190k-triangle glTF is reserved for the player's own car; ambient traffic uses the procedural model
-  if (type === 'sport' && A.ok && !opts.police && opts.hero) return buildFerrari(color, opts);
+  if ((type === 'sport' || type === 'roadster') && A.ok && !opts.police && opts.hero) return buildFerrari(color, opts);
   const sp = CAR_SPECS[type];
   const { L, W, belt, roof, hood } = sp;
   const hl = L / 2;

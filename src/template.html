@@ -54,6 +54,7 @@ canvas{display:block}
 #ammo.empty{color:var(--red)}
 #warhud{position:fixed;inset:0;pointer-events:none;z-index:6;display:none}
 #warhud.on{display:block}
+#machFx{position:absolute;inset:0;opacity:0;background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(255,255,255,0) 0 2.4deg,rgba(170,215,255,.34) 2.4deg 2.9deg),radial-gradient(circle at 50% 50%,rgba(0,0,0,0) 38%,rgba(120,190,255,.28) 100%);-webkit-mask-image:radial-gradient(circle at 50% 50%,transparent 26%,#000 86%);mask-image:radial-gradient(circle at 50% 50%,transparent 26%,#000 86%);mix-blend-mode:screen}
 #warRows{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(110px,env(safe-area-inset-bottom));text-align:right;font:600 15px 'Space Mono',monospace;letter-spacing:.04em;text-shadow:0 1px 4px #000}
 #warRows .wr{margin:3px 0;color:#d7e4ff}
 #warRows .wr b{color:#47ffa8;font-weight:700;margin-right:6px}
@@ -250,8 +251,8 @@ body.touch #helpov{display:none!important}
   <div id="feed"></div>
   <div id="dir">N</div>
   <div id="weapon" class="glass"><div id="wName">PISTOL</div><div id="ammo">12<small> / 96</small></div></div>
-  <div id="warhud"><div id="warInfo"></div><div id="warRows"></div><div id="warPip"></div><div id="warLock"></div></div>
-  <div id="speedo"><div id="spd">0</div><div id="spdU">KM/H</div><div class="bar" id="carHp"><i id="carHpFill" style="background:linear-gradient(90deg,#ffc94d,#ff8a5c)"></i></div><div class="bar" style="margin-top:3px"><i id="fuelFill" style="background:linear-gradient(90deg,#4de3ff,#9af0ff)"></i></div></div>
+  <div id="warhud"><div id="machFx"></div><div id="warInfo"></div><div id="warRows"></div><div id="warPip"></div><div id="warLock"></div></div>
+  <div id="speedo"><div id="spd">0</div><div id="spdU">KM/H</div><div class="bar" id="carHp"><i id="carHpFill" style="background:linear-gradient(90deg,#ffc94d,#ff8a5c)"></i></div><div class="bar" id="boostBar" style="margin-top:3px;display:none"><i id="boostFill" style="background:linear-gradient(90deg,#ff5a2a,#ffd24d)"></i></div><div class="bar" style="margin-top:3px"><i id="fuelFill" style="background:linear-gradient(90deg,#4de3ff,#9af0ff)"></i></div></div>
   <div id="scope"><i class="ret h"></i><i class="ret v"></i><i class="rdot"></i><i class="post"></i></div>
   <div id="cross"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><i class="dot"></i></div>
   <div id="hint" class="glass"></div>

@@ -80,6 +80,8 @@ export const garage = {
       v.x = t.x1 - 5.5; v.z = t.z1 - 6.5; v.h = 0.8; v.startY = t.y1 + 1.0; v.awake = false; G.addVehicle(v);
       l.heli = v;
     }
+    // the roadster: parked on the plaza, glowing
+    { const pz = G.world.plaza, v = new Vehicle(G, 'roadster', 0x14d8ff, 'parked', { glow: [0.2, 0.9, 1] }); v.x = pz.cx - 14; v.z = pz.cz + 36; v.h = 0; v.awake = false; G.addVehicle(v); }
     // a few motorbikes
     for (let k = 0; k < 6; k++) {
       const v = new Vehicle(G, 'moto', CAR_COLORS[k % CAR_COLORS.length], 'parked'); const pz = G.world.plaza;

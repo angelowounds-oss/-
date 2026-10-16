@@ -74,7 +74,7 @@ export class Vehicle {
   doorFx() { if (this.spec.craft || this.type === 'moto' || this.type === 'bus') return; this.doorT = 1.3; this.model.group.updateMatrixWorld(); if (!this.doorMesh) { const pv = new THREE.Group(); pv.position.set(this.W / 2, 0.8, 0.55); const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 1.1), new THREE.MeshStandardMaterial({ color: 0x2c3448, roughness: 0.3, metalness: 0.7 })); m.position.set(0.02, 0, -0.55); pv.add(m); this.group.add(pv); this.doorMesh = pv; } this.G.audio.door?.(); }
   animDoor(dt) { if (!this.doorMesh) return; if (this.doorT > 0) { this.doorT -= dt; const k = Math.sin(Math.min(1, (1.3 - this.doorT) / 0.35) * Math.PI / 2) * (this.doorT > 0.35 ? 1 : this.doorT / 0.35); this.doorMesh.rotation.y = k * 1.15; this.doorMesh.visible = true; } else this.doorMesh.visible = false; }
   place(x, z, h) { this.x = x; this.z = z; this.h = h; this.vx = this.vz = 0; this.yaw = 0; if (this.pv) { this.syncToBody(); this.readBody(0); } this.syncMesh(); }
-  get speed() { return Math.hypot(this.vx, this.vz); }
+  get speed() { return this.spec.craft === 'jet' && this.jetS != null ? this.jetS : Math.hypot(this.vx, this.vz); }
   get fwdSpeed() { return this.vx * Math.sin(this.h) + this.vz * Math.cos(this.h); }
   circles(out) {
     const s = Math.sin(this.h), c = Math.cos(this.h), r = this.W * 0.5 * 0.95, o = this.L * 0.3;
@@ -152,6 +152,7 @@ export class Vehicle {
     const fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
     this.h = Math.atan2(fx, fz);
     this.vx = lv.x; this.vz = lv.z; this.vy = lv.y;
+    if (this.hv) { this.vx = this.hv.x; this.vy = this.hv.y; this.vz = this.hv.z; }   // hypersonic craft are moved by hand, the body's own velocity is 0
     this.yaw = b.angvel().y;
     this.q = q;
   }
@@ -171,7 +172,7 @@ export class Vehicle {
     if (this.driver === 'ai' && !this.dead) this.driveAI(dt);
     if (this.fuel <= 0 && this.driver === 'player') this.throttle = 0;
     const aVf = Math.abs(this.fwdSpeed);
-    const maxSteer = lerp(0.52, 0.075, clamp(aVf / 34, 0, 1)) * (this.hand ? 1.25 : 1);
+    const maxSteer = lerp(0.52, 0.075, clamp(aVf / 34, 0, 1)) * (this.hand ? 1.25 : 1) * (this.spec.boost ? clamp(55 / Math.max(aVf, 55), 0.07, 1) : 1);   // the roadster's wheels hardly turn at 1,000 km/h
     this.steerA = damp(this.steerA, this.steer * maxSteer, 9, dt);
     this.maxSteerNow = maxSteer;
   }
@@ -179,12 +180,28 @@ export class Vehicle {
   applyDrive() {
     if (this.spec.craft) return driveCraft(this, 1 / 60);
     const hasDriver = this.driver && !this.dead;
+    if (this.spec.boost) this.boostStep(hasDriver, 1 / 60);
     driveVehicle(this.pv, {
       throttle: hasDriver ? this.throttle : 0, brake: hasDriver ? this.brake : (this.dead ? 0.4 : 0.15),
       steer: this.maxSteerNow ? this.steerA / this.maxSteerNow : 0, maxSteer: this.maxSteerNow || 0.3,
       hand: hasDriver && this.hand, speedFwd: this.fwdSpeed, dead: this.dead || !hasDriver, parked: !this.dead && this.kind === 'parked',
     });
     if (this.type === 'moto') motoAssist(this.pv.body);
+  }
+  // roadster: Shift fires the rocket booster (2.6x thrust, top speed +45%) while its tank lasts (7 s, refills in 20 s); aerodynamic downforce
+  // grows with speed squared so it stays on the road
+  boostStep(hasDriver, dt) {
+    const sp = this.spec, pvs = this.pv.spec; this.b0 = this.b0 || { a: sp.accel, m: sp.maxSpeed };
+    if (this.boostFuel == null) this.boostFuel = 100;
+    const on = hasDriver && !!this.down && this.boostFuel > 0;
+    if (on && !this.boosting) { this.G.audio.tone?.(70, 0.8, 'sawtooth', 0.35, 400); this.G.shake(0.5); }
+    this.boosting = on; this.boostFuel = clamp(this.boostFuel + (on ? -14 : 5) * dt, 0, 100);
+    pvs.accel = this.b0.a * (on ? 2.6 : 1); pvs.maxSpeed = this.b0.m * (on ? 1.45 : 1);
+    const v = this.speed; if (v > 25) this.pv.body.applyImpulse({ x: 0, y: -this.pv.mass * 0.00035 * v * v * dt, z: 0 }, true);
+    // on-rails grip: sideways speed is bled off so it follows its nose even when the wheels spin (the handbrake loosens it for drifting)
+    const b = this.pv.body, lv = b.linvel(), fx = Math.sin(this.h), fz = Math.cos(this.h), vl = lv.x * fz - lv.z * fx, k = Math.min(1, (this.hand ? 1.2 : 7) * dt);
+    b.setLinvel({ x: lv.x - fz * vl * k, y: lv.y, z: lv.z + fx * vl * k }, true);
+    if (hasDriver && Math.abs(this.steer) < 0.05) { const w = b.angvel(); b.setAngvel({ x: w.x, y: w.y * (1 - Math.min(1, 5 * dt)), z: w.z }, true); }
   }
   // After the physics step(s): sync fields, impact detection, visuals
   post(dt) {
@@ -194,8 +211,8 @@ export class Vehicle {
     const sH = Math.sin(this.h), cH = Math.cos(this.h);
     const vf = this.vx * sH + this.vz * cH, vl = this.vx * -cH + this.vz * sH;
     // impact = sudden planar velocity loss that engines/brakes cannot explain
-    const dv = Math.hypot(this.vx - pvx, this.vz - pvz);
-    if (dt > 0 && dv > 2.6 + this.spec.accel * dt * 0.6) {
+    const isJet = this.spec.craft === 'jet', jet = isJet && this.cmdV, dv = jet ? Math.hypot(this.vx - this.cmdV.x, this.vz - this.cmdV.z, (this.vy || 0) - this.cmdV.y) : isJet ? 0 : Math.hypot(this.vx - pvx, this.vz - pvz);   // aircraft: an impact is what the world took from the commanded velocity (hypersonic ones are swept by ray in stepJet)
+    if (dt > 0 && dv > (jet ? 8 : 2.6 + this.spec.accel * dt * 0.6)) {
       const ix = this.x + sH * this.L * 0.5 * Math.sign(vf || 1), iz = this.z + cH * this.L * 0.5 * Math.sign(vf || 1);
       this.onImpact(dv, ix, iz, null);
     }
@@ -217,6 +234,7 @@ export class Vehicle {
     this.lastSpeed = this.speed;
     if (this.driver === 'player' && !this.dead) this.fuel = Math.max(0, this.fuel - dt * (0.04 + Math.abs(this.throttle) * 0.09) * (this.spec.fuelRate || 1));
     this.model.craftVisual?.(this, dt); this.animDoor(dt);
+    if (this.boosting) { const fx = Math.sin(this.h), fz = Math.cos(this.h); for (let k = 0; k < 3; k++) G.fireP.emit(this.x - fx * 2.4 + rand(-0.4, 0.4), 0.55 + rand(0, 0.2), this.z - fz * 2.4 + rand(-0.4, 0.4), -fx * 10, 0.3, -fz * 10, rand(0.2, 0.45), rand(0.9, 1.7), 1.2, 2.2, 3.5, 1, -1, 1.2); }
     if (this.kind === 'parked' && !this.driver && !this.dead && this.speed < 0.15) { this.idleT = (this.idleT || 0) + dt; if (this.idleT > 1) { this.pv.body.sleep(); this.idleT = 0; } } else this.idleT = 0;
     this.syncMesh();
   }
