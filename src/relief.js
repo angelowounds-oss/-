@@ -24,7 +24,7 @@ export function buildRelief(world, scene, instCull, tiers) {
   let total = 0;
   // estimate the per-floor ledge count to pick the step (1 = every floor)
   let est = 0;
-  for (const l of lots) { const t = l.tiers; est += 4 * (Math.max(1, Math.round(t.podium.y1 / FH)) + Math.max(2, Math.floor((t.tower.y1 - t.tower.y0) / FH))); }
+  for (const l of lots) for (const st of l.stages) { if (st.kind === 'podium') est += 4 * Math.max(1, Math.round(st.y1 / FH)); else if (st.kind === 'tower') est += 4 * Math.max(2, Math.floor((st.y1 - st.y0) / FH)); }
   const step = est > CAP * 0.8 ? 2 : 1;
   const push = (x0, y0, z0, x1, y1, z1, c, k = 1) => {
     if (!(x1 - x0 > 0.01 && y1 - y0 > 0.01 && z1 - z0 > 0.01)) return;   // no degenerate boxes
@@ -33,7 +33,7 @@ export function buildRelief(world, scene, instCull, tiers) {
   };
   const base = new THREE.Color();
   for (const l of lots) {
-    const t = l.tiers, ti = tiers[l.tierIdx], tcol = ti ? ti.color : base.set(0x808080);
+    const ti = tiers[l.tierIdx], tcol = ti ? ti.color : base.set(0x808080);
     const start = M.length;
     const stone = new THREE.Color().copy(tcol).multiplyScalar(0.55).lerp(base.set(0x55524f), 0.45);
     const trim = new THREE.Color().copy(tcol).multiplyScalar(0.92).lerp(base.set(0xb8b2a8), 0.35);
@@ -52,44 +52,48 @@ export function buildRelief(world, scene, instCull, tiers) {
       push(r.x0, y, r.z0, r.x0 + tk, y + h, r.z1, c); push(r.x1 - tk, y, r.z0, r.x1, y + h, r.z1, c);
       push(r.x0 + tk, y, r.z0, r.x1 - tk, y + h, r.z0 + tk, c); push(r.x0 + tk, y, r.z1 - tk, r.x1 - tk, y + h, r.z1, c);
     };
-    const pod = t.podium, tow = t.tower, cr = t.crown;
-    // plinth (door side open, the entrance stands there)
-    ring(pod, 0, 0.9, 0.22, stone, doorSide);
-    // podium ledges
-    const np = Math.max(1, Math.round(pod.y1 / FH)), fhp = pod.y1 / np;
-    for (let k = 1; k < np; k += step) { ring(pod, k * fhp - 0.34, 0.34, 0.46, trim, k === 1 ? doorSide : ''); }
-    // podium top: heavy cornice + parapet
-    ring(pod, pod.y1 - 0.55, 0.55, 0.55, trim); wall(pod, pod.y1, 1.0, 0.3, stone);
-    // tower
-    const nt = Math.max(2, Math.floor((tow.y1 - tow.y0) / FH)), fht = (tow.y1 - tow.y0) / nt;
-    for (let k = 1; k < nt; k += step) { { ring(tow, tow.y0 + k * fht - 0.32, 0.32, 0.42, trim); } }
-    // corner piers: full height, standing proud of both walls
-    const ph = tow.y1 - tow.y0, pw = style === 3 ? 0.45 : 0.8, pp = 0.32;
-    for (const [cx, cz] of [[tow.x0, tow.z0], [tow.x1, tow.z0], [tow.x0, tow.z1], [tow.x1, tow.z1]]) {
-      const sx = cx === tow.x0 ? -1 : 1, sz = cz === tow.z0 ? -1 : 1, inn = pw - pp;
-      push(sx < 0 ? cx - pp : cx - inn, tow.y0, sz < 0 ? cz - pp : cz - inn, sx < 0 ? cx + inn : cx + pp, tow.y1, sz < 0 ? cz + inn : cz + pp, stone, 0.95);
-    }
-    // pilasters on some styles' wide faces
-    if (style === 0 || style === 2) {
-      const bay = 7.5;
-      for (const side of ['n', 's', 'w', 'e']) {
-        const alongX = side === 'n' || side === 's', len = alongX ? tow.x1 - tow.x0 : tow.z1 - tow.z0, n = Math.floor(len / bay);
-        if (n < 3) continue;
-        for (let i = 1; i < n; i++) {
-          const u = (alongX ? tow.x0 : tow.z0) + (i / n) * len, w = 0.4;
-          if (alongX) { const z = side === 'n' ? tow.z0 : tow.z1, o = side === 'n' ? -0.22 : 0.22; push(u - w / 2, tow.y0, Math.min(z, z + o), u + w / 2, tow.y1 - 0.4, Math.max(z, z + o), trim, 0.95); }
-          else { const x = side === 'w' ? tow.x0 : tow.x1, o = side === 'w' ? -0.22 : 0.22; push(Math.min(x, x + o), tow.y0, u - w / 2, Math.max(x, x + o), tow.y1 - 0.4, u + w / 2, trim, 0.95); }
+    for (const st of l.stages) {
+      if (st.kind === 'podium') {
+        const pod = st;
+        // plinth (door side open, the entrance stands there)
+        ring(pod, 0, 0.9, 0.22, stone, doorSide);
+        // podium ledges
+        const np = Math.max(1, Math.round(pod.y1 / FH)), fhp = pod.y1 / np;
+        for (let k = 1; k < np; k += step) { ring(pod, k * fhp - 0.34, 0.34, 0.46, trim, k === 1 ? doorSide : ''); }
+        // podium top: heavy cornice + parapet
+        ring(pod, pod.y1 - 0.55, 0.55, 0.55, trim); wall(pod, pod.y1, 1.0, 0.3, stone);
+      } else if (st.kind === 'tower') {
+        const tow = st;
+        const nt = Math.max(2, Math.floor((tow.y1 - tow.y0) / FH)), fht = (tow.y1 - tow.y0) / nt;
+        for (let k = 1; k < nt; k += step) { ring(tow, tow.y0 + k * fht - 0.32, 0.32, 0.42, trim); }
+        // corner piers: full height, standing proud of both walls
+        const pw = style === 3 ? 0.45 : 0.8, pp = 0.32;
+        for (const [cx, cz] of [[tow.x0, tow.z0], [tow.x1, tow.z0], [tow.x0, tow.z1], [tow.x1, tow.z1]]) {
+          const sx = cx === tow.x0 ? -1 : 1, sz = cz === tow.z0 ? -1 : 1, inn = pw - pp;
+          push(sx < 0 ? cx - pp : cx - inn, tow.y0, sz < 0 ? cz - pp : cz - inn, sx < 0 ? cx + inn : cx + pp, tow.y1, sz < 0 ? cz + inn : cz + pp, stone, 0.95);
         }
+        // pilasters on some styles' wide faces
+        if (style === 0 || style === 2) {
+          const bay = 7.5;
+          for (const side of ['n', 's', 'w', 'e']) {
+            const alongX = side === 'n' || side === 's', len = alongX ? tow.x1 - tow.x0 : tow.z1 - tow.z0, n = Math.floor(len / bay);
+            if (n < 3) continue;
+            for (let i = 1; i < n; i++) {
+              const u = (alongX ? tow.x0 : tow.z0) + (i / n) * len, w = 0.4;
+              if (alongX) { const z = side === 'n' ? tow.z0 : tow.z1, o = side === 'n' ? -0.22 : 0.22; push(u - w / 2, tow.y0, Math.min(z, z + o), u + w / 2, tow.y1 - 0.4, Math.max(z, z + o), trim, 0.95); }
+              else { const x = side === 'w' ? tow.x0 : tow.x1, o = side === 'w' ? -0.22 : 0.22; push(Math.min(x, x + o), tow.y0, u - w / 2, Math.max(x, x + o), tow.y1 - 0.4, u + w / 2, trim, 0.95); }
+            }
+          }
+        }
+        // the set-back between this stage and the one below: a thin ledge at its foot, and the cornice + parapet at its top
+        ring(tow, tow.y0, 0.35, 0.22, stone);
+        ring(tow, tow.y1 - 0.8, 0.8, 0.7, trim); wall(tow, tow.y1, 1.1, 0.3, stone);
+      } else {
+        const cr = st;   // crown block
+        const nc = Math.max(1, Math.round((cr.y1 - cr.y0) / FH)), fhc = (cr.y1 - cr.y0) / nc;
+        for (let k = 1; k < nc; k += step) { ring(cr, cr.y0 + k * fhc - 0.3, 0.3, 0.38, trim); }
+        ring(cr, cr.y1 - 0.7, 0.7, 0.55, trim); wall(cr, cr.y1, 0.9, 0.3, stone);
       }
-    }
-    // the set-back between podium and tower: a thin ledge at the foot of the tower and the cornice + parapet at the top
-    ring(tow, tow.y0, 0.35, 0.22, stone);
-    ring(tow, tow.y1 - 0.8, 0.8, 0.7, trim); wall(tow, tow.y1, 1.1, 0.3, stone);
-    // crown block
-    if (cr) {
-      const nc = Math.max(1, Math.round((cr.y1 - cr.y0) / FH)), fhc = (cr.y1 - cr.y0) / nc;
-      for (let k = 1; k < nc; k += step) { ring(cr, cr.y0 + k * fhc - 0.3, 0.3, 0.38, trim); }
-      ring(cr, cr.y1 - 0.7, 0.7, 0.55, trim); wall(cr, cr.y1, 0.9, 0.3, stone);
     }
     ranges.set(l, [start, M.length]);
     void rnd;

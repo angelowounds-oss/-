@@ -51,8 +51,8 @@ export class Blaze {
     for (const l of a) if (x > l.x0 - m && x < l.x1 + m && z > l.z0 - m && z < l.z1 + m) return l;
     return null;
   }
-  // the tiers of a lot in the facade mesh: podium, tower, crown
-  tiers(lot) { return lot.tiers.crown ? [lot.tierIdx, lot.tierIdx + 1, lot.tierIdx + 2] : [lot.tierIdx, lot.tierIdx + 1]; }
+  // the facade instances of a lot, from the ground up (podium first): one per stage
+  tiers(lot) { return lot.stages.map((s) => s.inst); }
   state(lot) {
     let s = this.fires.get(lot);
     if (!s) {
@@ -193,7 +193,7 @@ export class Blaze {
   }
   // a point on the outside of the building at height y (on the tier that is there), with its outward normal
   wallPoint(l, y) {
-    const t = l.tiers, r = t.crown && y >= t.crown.y0 ? t.crown : y >= t.tower.y0 ? t.tower : t.podium;
+    let r = l.stages[0]; for (const st of l.stages) if (y >= st.y0) r = st;   // the stage that is there
     const side = Math.floor(Math.random() * 4), u = Math.random();
     if (side === 0) return { x: r.x0 - 0.3, z: r.z0 + u * (r.z1 - r.z0), nx: -1, nz: 0 };
     if (side === 1) return { x: r.x1 + 0.3, z: r.z0 + u * (r.z1 - r.z0), nx: 1, nz: 0 };

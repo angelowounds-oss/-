@@ -72,10 +72,11 @@ export const garage = {
       v.pv.body.wakeUp();
     }
     // helicopters on rooftops
-    const tall = G.world.lots.filter((l) => l.name && !l.ring && !l.tiers.crown && l.tiers.tower.y1 > 60 && (l.tiers.tower.x1 - l.tiers.tower.x0) >= 17 && (l.tiers.tower.z1 - l.tiers.tower.z0) >= 17).slice(0, 40);
+    const roofOf = (l) => { const ts = l.stages.filter((s) => s.kind === 'tower'); return ts[ts.length - 1]; };   // the highest walkable stage
+    const tall = G.world.lots.filter((l) => { const t = l.name && !l.ring && !l.tiers.crown && roofOf(l); return t && t.y1 > 60 && (t.x1 - t.x0) >= 17 && (t.z1 - t.z0) >= 17; }).slice(0, 40);
     const picks = [tall[0], tall[Math.floor(tall.length / 3)], tall[Math.floor(tall.length * 2 / 3)]].filter(Boolean);
     for (const l of picks) {
-      const t = l.tiers.tower, v = new Vehicle(G, 'heli', 0x2a3550, 'parked', { glow: [1, 0.3, 0.8] });
+      const t = roofOf(l), v = new Vehicle(G, 'heli', 0x2a3550, 'parked', { glow: [1, 0.3, 0.8] });
       v.x = t.x1 - 5.5; v.z = t.z1 - 6.5; v.h = 0.8; v.startY = t.y1 + 1.0; v.awake = false; G.addVehicle(v);
       l.heli = v;
     }

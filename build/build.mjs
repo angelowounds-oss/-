@@ -10,5 +10,5 @@ const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const font = (file, family, weight) => `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;font-display:swap;src:url(data:font/woff2;base64,${fs.readFileSync('assets/fonts/' + file).toString('base64')}) format('woff2')}`;
 const fonts = [font('Anton-400.woff2', 'Anton', 400), font('SpaceMono-400.woff2', 'Space Mono', 400), font('SpaceMono-700.woff2', 'Space Mono', 700)].join('\n');
 const tpl = fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts);
-fs.writeFileSync('neon_city_v9.html', tpl.replace('/*__BUNDLE__*/', () => js));
-console.log('built', (fs.statSync('neon_city_v9.html').size/1024|0)+' KB');
+fs.writeFileSync(process.env.OUT || 'neon_city_v9.html', tpl.replace('/*__BUNDLE__*/', () => js));
+console.log('built', (fs.statSync(process.env.OUT || 'neon_city_v9.html').size/1024|0)+' KB');

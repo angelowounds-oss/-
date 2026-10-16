@@ -101,8 +101,8 @@ export class Life {
       G.items.register?.call(G.items, `f${b.id}:${fl.k}:t`, 'brick', b.cx, y + 0.3, b.cz + 2);
     } else if (L.type === 'retail') { yield; this.shop(b, fl, L, rnd, R); }
     else if (L.type === 'roof') {
-      for (let i = 0; i < 4; i++) this.item(b, fl, n++, ['brick', 'can', 'bottle', 'cigarette'][i], b.tow.x1 - 4 - i * 0.6, b.roofY + 0.2, b.tow.z1 - 4 - R(0, 3));
-      if (rnd() < 0.5) this.item(b, fl, n++, 'cashroll', b.tow.x1 - 3, b.roofY + 0.2, b.tow.z1 - 3);
+      for (let i = 0; i < 4; i++) this.item(b, fl, n++, ['brick', 'can', 'bottle', 'cigarette'][i], b.roofRect.x1 - 4 - i * 0.6, b.roofY + 0.2, b.roofRect.z1 - 4 - R(0, 3));
+      if (rnd() < 0.5) this.item(b, fl, n++, 'cashroll', b.roofRect.x1 - 3, b.roofY + 0.2, b.roofRect.z1 - 3);
     } else if (rooms) for (let i = 0; i < rooms.length; i++) { this.room(b, fl, L, rooms[i], i, rnd, R); yield; }
   }
 

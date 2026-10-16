@@ -31,21 +31,24 @@ export class Building {
   // ---------- plan ----------
   plan() {
     if (this.planned) return; this.planned = true;
-    const t = this.lot.tiers, pod = t.podium, tow = t.tower;
-    this.pod = pod; this.tow = tow;
+    // stages (WLD-06): the podium, then one or more walkable tower stages (each inside the one below, all containing the core), then the roof
+    const st = this.lot.stages, pod = st[0], towers = st.filter((s) => s.kind === 'tower'), tow = towers[0], top = towers[towers.length - 1];
+    this.pod = pod; this.tow = tow; this.roofRect = top;
     const np = Math.max(1, Math.round(pod.y1 / FH)), fhp = pod.y1 / np;
-    const nt = Math.max(2, Math.floor((tow.y1 - tow.y0) / FH)), fht = (tow.y1 - tow.y0) / nt;
     const L = [];
     for (let i = 0; i < np; i++) L.push({ y: i * fhp, h: fhp, tier: 'podium', rect: pod, slab: i === 0 ? null : pod, type: i === 0 ? 'lobby' : 'retail' });
-    for (let j = 0; j < nt; j++) L.push({ y: pod.y1 + j * fht, h: fht, tier: 'tower', rect: tow, slab: j === 0 ? pod : tow, type: this.kind });
-    L.push({ y: tow.y1, h: 3.4, tier: 'roof', rect: tow, slab: tow, type: 'roof' });
+    towers.forEach((s, si) => {
+      const nt = Math.max(2, Math.floor((s.y1 - s.y0) / FH)), fht = (s.y1 - s.y0) / nt, below = si === 0 ? pod : towers[si - 1];
+      for (let j = 0; j < nt; j++) L.push({ y: s.y0 + j * fht, h: fht, tier: 'tower', rect: s, slab: j === 0 ? below : s, type: this.kind, first: j === 0 });
+    });
+    L.push({ y: top.y1, h: 3.4, tier: 'roof', rect: top, slab: top, type: 'roof' });
     L.forEach((l, k) => { l.k = k; });
     this.levels = L;
     this.core = { x0: tow.x0 + WALL, z0: tow.z0 + WALL };
     this.core.zc = this.core.z0 + CORE_D;
     this.shaft = { x0: this.core.x0 + 3.6, x1: this.core.x0 + CORE_W - 0.2, z0: this.core.zc - 2.8, z1: this.core.zc };
     this.stairB = { x0: this.core.x0 + 1.8, x1: this.core.x0 + 3.4, z0: this.core.z0, z1: this.core.zc };
-    this.roofY = tow.y1;
+    this.roofY = top.y1;
   }
   levelAt(y) { const L = this.levels; let k = 0; for (let i = 0; i < L.length; i++) if (y >= L[i].y - 0.6) k = i; return k; }
 
@@ -56,8 +59,7 @@ export class Building {
     this.group = new THREE.Group(); G.scene.add(this.group);
     col.removeBox(lot.solid); lot.solid = null;
     // crown (non walkable) stays solid above the roof
-    const cr = lot.tiers.crown;
-    if (cr) this.crownBox = col.addBox(cr.x0, cr.z0, cr.x1, cr.z1, cr.y1 + 2, 'building', cr.y0);
+    this.crownBoxes = lot.stages.filter((x) => x.kind === 'crown').map((cr) => col.addBox(cr.x0, cr.z0, cr.x1, cr.z1, cr.y1 + (cr.y1 === lot.topY ? 2 : 0), 'building', cr.y0));
     this.boxes = [];
     this.built = new Set(); this.pending = [];
     this.elev = new Elevator(this);
@@ -77,7 +79,7 @@ export class Building {
     this.elev?.destroy(); this.elev = null;
     if (this.solidTower) for (const b of this.solidTower) col.removeBox(b);
     this.solidTower = null;
-    if (this.crownBox) { col.removeBox(this.crownBox); this.crownBox = null; }
+    if (this.crownBoxes) { for (const b of this.crownBoxes) col.removeBox(b); this.crownBoxes = null; }
     disposeGroup(this.group); this.group = null;
     this.lot.solid = col.addBox(this.lot.x0, this.lot.z0, this.lot.x1, this.lot.z1, this.lot.h + 5, 'building');
   }
@@ -102,13 +104,12 @@ export class Building {
     if (this.solidTower) for (const b of this.solidTower) col.removeBox(b);
     this.solidTower = [];
     if (this.expressRide) return;   // the express lift runs through the unbuilt volume: nothing solid in its way until it has stopped
-    const tow = this.tow, L = this.levels;
-    let run = null;
-    const flush = (yEnd) => { if (run != null && yEnd > run) this.solidTower.push(col.addBox(tow.x0, tow.z0, tow.x1, tow.z1, yEnd, 'building', run)); run = null; };
+    const L = this.levels;
+    let run = null, runRect = null;
+    const flush = (yEnd) => { if (run != null && yEnd > run) this.solidTower.push(col.addBox(runRect.x0, runRect.z0, runRect.x1, runRect.z1, yEnd, 'building', run)); run = null; };
     for (let k = 0; k < L.length - 1; k++) {
       const lv = L[k]; if (lv.tier !== 'tower') continue;
-      const top = lv.y + lv.h;
-      if (!this.floors.has(k)) { if (run == null) run = lv.y + 0.0; }
+      if (!this.floors.has(k)) { if (run != null && runRect !== lv.rect) flush(lv.y); if (run == null) { run = lv.y + 0.0; runRect = lv.rect; } }
       else flush(lv.y);
     }
     flush(this.levels[this.levels.length - 1].y + 0.0);
@@ -163,7 +164,7 @@ export class Building {
     const ceilY = isRoof ? y : top;
     if (!isRoof) yield* this.perimeter(fl, B, cc, L, r, y, L.h, wallC);
     else this.parapet(fl, B, cc, r, y, wallC);
-    if (L.tier === 'tower' && L.k === this.levels.findIndex((l) => l.tier === 'tower')) this.parapet(fl, B, cc, this.pod, y, wallC, 1.0);
+    if (L.first) this.parapet(fl, B, cc, L.slab, y, wallC, 1.0);   // the roof of the stage below, around the foot of this one
     yield;
     // ---- core ----
     this.buildCore(fl, B, cc, L, y, wallC, isRoof);
@@ -493,7 +494,7 @@ export class Building {
     yield* this.populate(fl, L);
   }
   *furnishRoof(fl, L) {
-    const { B, solid, cc, R } = fl, tow = this.tow;
+    const { B, solid, cc, R } = fl, tow = this.roofRect;
     // heliport + AC units + water tank for parkour
     const cx = (tow.x0 + tow.x1) / 2 + 2, cz = (tow.z0 + tow.z1) / 2 + 2;
     for (let i = 0; i < 24; i++) { const a = i / 24 * TAU; B.box('emit', cx + Math.cos(a) * 4, this.roofY + 0.02, cz + Math.sin(a) * 4, 0.5, 0.02, 0.18, new THREE.Color(1, 0.85, 0.3), -a, 1.4); }

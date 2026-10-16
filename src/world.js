@@ -1,3 +1,4 @@
+import { planTowerStages } from './shapes.js';
 import * as THREE from 'three';
 import { Builder , holeCU, holeHU } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -702,6 +703,7 @@ export function buildWorld(scene, quality) {
 
   const wallColors = [0x6c6f7d, 0x4a4f63, 0x7a6f6a, 0x57606f, 0x8b8f9c, 0x5b4a58, 0x3f4756, 0x70737c];
 
+  const zoneAt = (x, z) => (Math.hypot(x, z) < 90 ? 0 : Math.abs(x) > Math.abs(z) ? (x > 0 ? 2 : 3) : (z > 0 ? 1 : 4));
   function addLot(x0, z0, x1, z1, bi, bj, dcen, edges) {
     const w = x1 - x0, d = z1 - z0;
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
@@ -718,47 +720,69 @@ export function buildWorld(scene, quality) {
     const tierIdx = tiers.length; // this lot's podium instance in the facade mesh (door aperture is written there later)
     // podium (full lot, shopfront band)
     tiers.push({ x: cx, z: cz, w, d, h: podiumH, style: style === 3 ? 2 : style, accent, seed, podium: 1, tex, color: col });
-    // main tower
+    // main tower: one or more walkable stages (shapes.js), each one facade instance
     const ins = Math.min(R_(1.5, 5), Math.min(w, d) * 0.18);
     const tw = w - ins * 2, td = d - ins * 2;
     const th = Math.max(H - podiumH, 6);
-    tiers.push({ x: cx, z: cz, w: tw, d: td, h: th, y: podiumH, style, accent, seed: seed + 1, podium: 0, tex, color: col.clone().multiplyScalar(0.92) });
-    const lotTiers = { podium: { x0, z0, x1, z1, y0: 0, y1: podiumH }, tower: { x0: cx - tw / 2, z0: cz - td / 2, x1: cx + tw / 2, z1: cz + td / 2, y0: podiumH, y1: podiumH + th }, crown: null };
-    let topY = podiumH + th, topW = tw, topD = td;
-    if (H > 55 && rnd() < 0.8) {
-      const i2 = Math.min(R_(3, 7), Math.min(tw, td) * 0.22);
+    const hasCrown = H > 55 && rnd() < 0.8;   // drawn here, at the same place in the random stream as before
+    // the sky tower (picked below among ring lots without a crown) must stay one block, so those lots keep a single stage
+    const stageRects = world._ring && !hasCrown ? [{ x0: cx - tw / 2, z0: cz - td / 2, x1: cx + tw / 2, z1: cz + td / 2, y0: podiumH, y1: podiumH + th }] : planTowerStages({ x0: cx - tw / 2, z0: cz - td / 2, x1: cx + tw / 2, z1: cz + td / 2, y0: podiumH, y1: podiumH + th, seed, zone: zoneAt(cx, cz) });
+    const towerStages = stageRects.map((r, si) => {
+      tiers.push({ x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2, w: r.x1 - r.x0, d: r.z1 - r.z0, h: r.y1 - r.y0, y: r.y0, style, accent, seed: seed + 1 + si * 0.31, podium: 0, tex, color: col.clone().multiplyScalar(0.92 - 0.03 * si) });
+      return { kind: 'tower', inst: tiers.length - 1, ...r };
+    });
+    // stages (WLD-06): the volumes of a building from the ground up, each one facade instance (`inst`); 'tower' stages are walkable floors, 'crown' is not
+    const lotTiers = { podium: { kind: 'podium', inst: tierIdx, x0, z0, x1, z1, y0: 0, y1: podiumH }, tower: towerStages[0], crown: null };
+    const crowns = [];
+    const topSt = towerStages[towerStages.length - 1];
+    const tcx = (topSt.x0 + topSt.x1) / 2, tcz = (topSt.z0 + topSt.z1) / 2;
+    let topY = podiumH + th, topW = topSt.x1 - topSt.x0, topD = topSt.z1 - topSt.z0;
+    let refW = tw;   // the top width as the single-stage tower would have it: it gates a later random draw, which must not depend on the shape
+    if (hasCrown) {
+      const r37 = R_(3, 7), i2 = Math.min(r37, Math.min(topW, topD) * 0.22);
+      refW = tw - Math.min(r37, Math.min(tw, td) * 0.22) * 2;
       const ch = R_(10, 32);
       const sx = R_(-1, 1) * i2 * 0.5, sz = R_(-1, 1) * i2 * 0.5;
-      tiers.push({ x: cx + sx, z: cz + sz, w: tw - i2 * 2, d: td - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, crown: 1, tex, color: col.clone().multiplyScalar(0.8) });
-      lotTiers.crown = { x0: cx + sx - (tw - i2 * 2) / 2, z0: cz + sz - (td - i2 * 2) / 2, x1: cx + sx + (tw - i2 * 2) / 2, z1: cz + sz + (td - i2 * 2) / 2, y0: topY, y1: topY + ch };
-      topY += ch; topW = tw - i2 * 2; topD = td - i2 * 2;
+      tiers.push({ x: tcx + sx, z: tcz + sz, w: topW - i2 * 2, d: topD - i2 * 2, h: ch, y: topY, style: (style + 1) % 4, accent, seed: seed + 2, podium: 0, crown: 1, tex, color: col.clone().multiplyScalar(0.8) });
+      const cr = { kind: 'crown', inst: tiers.length - 1, x0: tcx + sx - (topW - i2 * 2) / 2, z0: tcz + sz - (topD - i2 * 2) / 2, x1: tcx + sx + (topW - i2 * 2) / 2, z1: tcz + sz + (topD - i2 * 2) / 2, y0: topY, y1: topY + ch };
+      lotTiers.crown = cr; crowns.push(cr);
+      topY += ch; topW = topW - i2 * 2; topD = topD - i2 * 2;
+      // a second, smaller crown block on top (stepped crown), from the building's own random stream
+      const sr = mulberry32(Math.floor(seed * 100003) + 104729);
+      if (ch > 16 && sr() < 0.4) {
+        const i3 = Math.min(2.5 + sr() * 1.5, Math.min(topW, topD) * 0.2), h3 = 6 + sr() * 8;
+        tiers.push({ x: tcx + sx, z: tcz + sz, w: topW - i3 * 2, d: topD - i3 * 2, h: h3, y: topY, style: (style + 2) % 4, accent, seed: seed + 3, podium: 0, crown: 1, tex, color: col.clone().multiplyScalar(0.72) });
+        const c2 = { kind: 'crown', inst: tiers.length - 1, x0: cr.x0 + i3, z0: cr.z0 + i3, x1: cr.x1 - i3, z1: cr.z1 - i3, y0: topY, y1: topY + h3 };
+        crowns.push(c2); topY += h3; topW -= i3 * 2; topD -= i3 * 2;
+      }
       if (rnd() < 0.5 && ch > 14) { // spire
         const sh = R_(14, 40);
-        props.push({ x: cx + sx, y: topY, z: cz + sz, w: 0.5, h: sh, d: 0.5, color: 0x1a1c24 });
-        addGlare(cx + sx, topY + sh, cz + sz, [1.4, 0.1, 0.12], 7, 2.1, R_(0, 6));
+        props.push({ x: tcx + sx, y: topY, z: tcz + sz, w: 0.5, h: sh, d: 0.5, color: 0x1a1c24 });
+        addGlare(tcx + sx, topY + sh, tcz + sz, [1.4, 0.1, 0.12], 7, 2.1, R_(0, 6));
       }
     }
     // rooftop clutter
     const nProps = 2 + Math.floor(R_(0, 5));
     for (let k = 0; k < nProps; k++) {
       const pw = R_(2, 5), pd = R_(2, 5), ph = R_(1.2, 3.5);
-      props.push({ x: cx + R_(-1, 1) * (topW / 2 - pw), y: topY, z: cz + R_(-1, 1) * (topD / 2 - pd), w: pw, h: ph, d: pd, color: pickR([0x2b2f3a, 0x353a46, 0x23262f]) });
+      props.push({ x: tcx + R_(-1, 1) * (topW / 2 - pw), y: topY, z: tcz + R_(-1, 1) * (topD / 2 - pd), w: pw, h: ph, d: pd, color: pickR([0x2b2f3a, 0x353a46, 0x23262f]) });
     }
     if (H > 28 && rnd() < 0.6) {
-      const ax = cx + R_(-1, 1) * topW * 0.3, az = cz + R_(-1, 1) * topD * 0.3, ah = R_(6, 18);
+      const ax = tcx + R_(-1, 1) * topW * 0.3, az = tcz + R_(-1, 1) * topD * 0.3, ah = R_(6, 18);
       props.push({ x: ax, y: topY, z: az, w: 0.35, h: ah, d: 0.35, color: 0x15171d });
       addGlare(ax, topY + ah, az, [1.5, 0.08, 0.1], 6, 1.6, R_(0, 6));
     }
     // billboard on tall buildings
-    if (H > 60 && rnd() < 0.55 && topW > 14) {
+    if (H > 60 && rnd() < 0.55 && refW > 14) {
       const face = rnd() < 0.5 ? 0 : 1;
       const bw = Math.min(topW * 0.8, R_(12, 22)), bh = bw * R_(0.45, 0.65);
       const by = topY + 4;
-      holoInst.push({ x: face ? cx : cx + (rnd() < 0.5 ? 1 : -1) * (topW / 2 + 0.3), y: by + bh / 2, z: face ? cz + (rnd() < 0.5 ? 1 : -1) * (topD / 2 + 0.3) : cz, w: bw, h: bh, rotY: face ? 0 : Math.PI / 2, seed: Math.floor(R_(0, 3)) + R_(0, 0.5) });
+      holoInst.push({ x: face ? tcx : tcx + (rnd() < 0.5 ? 1 : -1) * (topW / 2 + 0.3), y: by + bh / 2, z: face ? tcz + (rnd() < 0.5 ? 1 : -1) * (topD / 2 + 0.3) : tcz, w: bw, h: bh, rotY: face ? 0 : Math.PI / 2, seed: Math.floor(R_(0, 3)) + R_(0, 0.5) });
       addFake(cx, 0, cz, accentColor(accent), 40, 0.6);
     }
     const solid = world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
-    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, solid, topY, tierIdx });
+    const stages = [lotTiers.podium, ...towerStages, ...crowns];
+    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, stages, solid, topY, tierIdx });
 
     // signs on road-facing facades
     const ground = podiumH;
@@ -903,9 +927,10 @@ export function buildWorld(scene, quality) {
         const inward = { n: 's', s: 'n', w: 'e', e: 'w' }[side], podiumH = 4.0, seed = rr() * 50;
         const rect = { x0, z0, x1, z1 };
         const solid = world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
+        const mt = { podium: { kind: 'podium', inst: null, ...rect, y0: 0, y1: podiumH }, tower: { kind: 'tower', inst: null, ...rect, y0: podiumH, y1: H - 0.1 }, crown: null };
         world.lots.push({
           x0, z0, x1, z1, h: H, accent: Math.floor(rr() * 6), edges: { [inward]: true }, podium: podiumH, style: 0, ring: false, seed, solid, topY: H - 0.1,
-          tiers: { podium: { ...rect, y0: 0, y1: podiumH }, tower: { ...rect, y0: podiumH, y1: H - 0.1 }, crown: null },
+          tiers: mt, stages: [mt.podium, mt.tower],
           model: { variant, rot: alongX ? Math.PI / 2 : 0, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, side },
         });
         t += MODEL_D + 28 + rr() * 40;
@@ -929,14 +954,16 @@ export function buildWorld(scene, quality) {
       const x0 = f.x - f.w / 2, x1 = f.x + f.w / 2, z0 = f.z - f.d / 2, z1 = f.z + f.d / 2, podiumH = 6;
       const inward = Math.abs(f.x) > Math.abs(f.z) ? (f.x > 0 ? 'w' : 'e') : (f.z > 0 ? 'n' : 's');
       const rect = { x0, z0, x1, z1 };
+      const ft = { podium: { kind: 'podium', inst: null, ...rect, y0: 0, y1: podiumH }, tower: { kind: 'tower', inst: null, ...rect, y0: podiumH, y1: f.h - 0.1 }, crown: null };
       f.lot = { x0, z0, x1, z1, h: f.h, accent: f.accent, edges: { [inward]: true }, podium: podiumH, style: f.style, ring: false, far: true, seed: f.seed, solid: world.colliders.addBox(x0, z0, x1, z1, f.h + 5, 'building'), topY: f.h - 0.1,
-        tiers: { podium: { ...rect, y0: 0, y1: podiumH }, tower: { ...rect, y0: podiumH, y1: f.h - 0.1 }, crown: null } };
+        tiers: ft };
+      f.lot.stages = [ft.podium, ft.tower];
       world.lots.push(f.lot);
     }
     world.farCount = far.length;
     // facade instances: a 6 m podium (shop band + door aperture) and the tower above it
     for (const f of far) {
-      f.lot.tierIdx = farInst.length;
+      f.lot.tierIdx = farInst.length; f.lot.stages[0].inst = f.lot.tierIdx; f.lot.stages[1].inst = f.lot.tierIdx + 1;
       farInst.push({ ...f, h: 6, y: 0, podium: 1 });
       farInst.push({ ...f, h: f.h - 6, y: 6, podium: 0 });
     }
@@ -1020,7 +1047,7 @@ export function buildWorld(scene, quality) {
   }
 
   // ---- power grid: one fenced substation per zone (park corner, else the end of a pedestrian street) ----
-  world.zoneOf = (x, z) => (Math.hypot(x, z) < 90 ? 0 : Math.abs(x) > Math.abs(z) ? (x > 0 ? 2 : 3) : (z > 0 ? 1 : 4));
+  world.zoneOf = zoneAt;
   world.zoneOff = [false, false, false, false, false];
   world.substations = [];
   {
@@ -1059,7 +1086,7 @@ export function buildWorld(scene, quality) {
   // height. Roof level 975 m (the express lift's top stop), a 25 m spire above it.
   const SKY_H = 1000, SKY_ROOF = 975;
   {
-    const cand = world.lots.filter((l) => !l.far && !l.model && l.tierIdx != null && l.tiers && !l.tiers.crown && l.ring).sort((a, b) => ((b.x1 - b.x0) * (b.z1 - b.z0)) - ((a.x1 - a.x0) * (a.z1 - a.z0)) || a.x0 - b.x0 || a.z0 - b.z0)[0];
+    const cand = world.lots.filter((l) => !l.far && !l.model && l.tierIdx != null && l.tiers && !l.tiers.crown && l.stages.length === 2 && l.ring).sort((a, b) => ((b.x1 - b.x0) * (b.z1 - b.z0)) - ((a.x1 - a.x0) * (a.z1 - a.z0)) || a.x0 - b.x0 || a.z0 - b.z0)[0];
     if (cand) {
       const l = cand, oldTop = l.topY, dy = SKY_ROOF - oldTop, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2;
       const tw = tiers[l.tierIdx + 1]; tw.h = SKY_ROOF - l.tiers.tower.y0; l.tiers.tower.y1 = SKY_ROOF;
