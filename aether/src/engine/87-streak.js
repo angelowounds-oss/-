@@ -15,9 +15,9 @@ window.__STREAK=STREAK;
 const VIZ={vortex:!/[#&]vortex=0/.test(location.hash),k:1,q0:.55,q1:2.2};
 window.__VIZ=VIZ;
 /* diagnostics (tests/viz-stats.mjs): statistics of the Q field stored in the volume alpha */
-VIZ.stats=()=>{try{const D=MAC.D,N=D.N,f=gl.createFramebuffer(),buf=new Float32Array(N[0]*N[1]*4);gl.bindFramebuffer(gl.FRAMEBUFFER,f);let mx=0,over=0,tot=0,sol=0,sum=0;
- for(let k=0;k<N[2];k+=2){gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,LIVE.vol,0,k);gl.readPixels(0,0,N[0],N[1],gl.RGBA,gl.FLOAT,buf);for(let i=0;i<N[0]*N[1];i++){const a=buf[i*4+3],g=buf[i*4+1];tot++;if(g>.5)sol++;if(a>mx)mx=a;if(a>VIZ.q0)over++;sum+=a}}
- gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.deleteFramebuffer(f);return {N,max:mx,mean:sum/tot,overQ0:over,solidVoxels:sol,voxels:tot,on:vizVortexOn(),q0:VIZ.q0,q1:VIZ.q1}}catch(e){return {err:String(e)}}};
+VIZ.stats=()=>{try{const D=MAC.D,N=D.N,f=gl.createFramebuffer(),buf=new Float32Array(N[0]*N[1]*4);gl.bindFramebuffer(gl.FRAMEBUFFER,f);let mx=0,over=0,tot=0,sol=0,sum=0;const H=[.05,.1,.2,.4,.8,1.2].map(t=>[t,0]);
+ for(let k=0;k<N[2];k+=2){gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,LIVE.vol,0,k);gl.readPixels(0,0,N[0],N[1],gl.RGBA,gl.FLOAT,buf);for(let i=0;i<N[0]*N[1];i++){const a=buf[i*4+3],g=buf[i*4+1];tot++;if(g>.5)sol++;if(a>mx)mx=a;if(a>VIZ.q0)over++;sum+=a;for(const h of H)if(a>h[0])h[1]++}}
+ gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.deleteFramebuffer(f);return {N,hist:H,max:mx,mean:sum/tot,overQ0:over,solidVoxels:sol,voxels:tot,on:vizVortexOn(),q0:VIZ.q0,q1:VIZ.q1}}catch(e){return {err:String(e)}}};
 function vizVortexOn(){return VIZ.vortex&&!!PERF.set.bloom&&LIVE.impl==='MAC'}
 const STREAK_SUB=4;
 const STREAK_VS=`#version 300 es

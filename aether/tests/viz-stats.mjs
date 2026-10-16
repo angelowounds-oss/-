@@ -1,4 +1,4 @@
-/* global __LIVE __VIZ */
+/* global __VIZ */
 // Flow-visualisation diagnostics: Q-criterion statistics of the wake volume after a short run. node tests/viz-stats.mjs [steps = 200]
 import path from 'node:path';
 import { open, sleep } from './lib.mjs';
