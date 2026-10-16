@@ -27,6 +27,7 @@ try {
   await page.evaluate(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; __CINE.cancel('hero'); });
   await page.addStyleTag({ content: '.sc-cap,#lvStat,.hud,.sc-dock,.dock,.sc-bar,.wow-overlay,#scSkip,.fpv-help,.sc-vig{display:none!important}header.top{visibility:hidden!important}' });
   if (process.env.HERO_SET) await page.evaluate(s => { Object.assign(window.__PERF.set, JSON.parse(s)); }, process.env.HERO_SET);
+  if (process.env.HERO_EVAL) await page.evaluate(process.env.HERO_EVAL); // e.g. "__STREAK.mode='vol';__LIVE.dens=0" hides smoke and streaks for pure lighting shots
   const steps = +(process.env.HERO_STEPS || 120);
   if (steps > 0) await page.evaluate(n => { __LIVE.api.run(n, 0.02); }, steps);
   await page.evaluate(() => { __LIVE.freeze = true; });
