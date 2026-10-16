@@ -81,8 +81,8 @@ export class Game {
   save() { try { localStorage.setItem(this.slotKey(), JSON.stringify(this.snapshot())); } catch { /* ignore */ } }
 
   // ====================================================================
-  async init(progress) {
-    const { eng } = this;
+  async init(progress0) {
+    const { eng } = this; const T0 = performance.now(); const progress = (p, t) => { console.log('##boot ' + Math.round(performance.now() - T0) + 'ms ' + p + ' ' + t); progress0(p, t); };
     progress(0.05, '에셋 로딩 중…');
     await loadAssets();
     progress(0.1, '도시 생성 중…');
@@ -97,7 +97,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : new Farland(this.scene, { phys: this.phys }); this.highways = this.eng.q.simple ? null : new Highways(this.scene);
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; console.log('##boot pre-far ' + Math.round(performance.now())); this.farland = this.eng.q.simple ? null : new Farland(this.scene, { phys: this.phys }); console.log('##boot far ' + Math.round(performance.now())); this.highways = this.eng.q.simple ? null : new Highways(this.scene); console.log('##boot hw ' + Math.round(performance.now()));
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
