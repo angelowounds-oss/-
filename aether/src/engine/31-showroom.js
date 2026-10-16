@@ -17,6 +17,7 @@ const SHOW=(()=>{
   rig:null,rigGen:-1,loc:null};
  S.set=on=>{S.target=on?1:0;S.on=!!on};
  return S})();
+window.__SHOW=SHOW;
 /* run-time blend (the mode switch fades over about half a second) */
 function showStep(dt){if(Math.abs(SHOW.amt-SHOW.target)<.002){SHOW.amt=SHOW.target;return}SHOW.amt+=(SHOW.target-SHOW.amt)*Math.min(1,dt/.18)}
 function showBind(){
