@@ -35,7 +35,7 @@
 | NPC 이동 | Rapier를 쓰지 않는 2D 이동 + `floorY` | `src/human.js` |
 | 현재 "넉백" | 몸 전체를 한 덩어리로 날리는 `ragdoll(vx,vz,up)` → `stepKnock` | `human.js` |
 | 사망 | `die()` → `U_Death01` 클립 재생 | `human.js` |
-| 뼈대 | Mixamo 49개 뼈, 이름에서 `mixamorig` 접두사 제거 후 `m.bones[이름]`. **각 뼈의 로컬 +Y 축이 다음 뼈를 향한다**(예: `LeftForeArm` 이동값 (0, 23.16, 0)) | `assets.js` `buildSoldier` |
+| 뼈대 | (2026-10-16 이후 새 캐릭터 66개 뼈를 `adaptCharacter`가 Mixamo 이름·Soldier 프레임으로 맞춤, ADR-0009) Mixamo 49개 뼈, 이름에서 `mixamorig` 접두사 제거 후 `m.bones[이름]`. **각 뼈의 로컬 +Y 축이 다음 뼈를 향한다**(예: `LeftForeArm` 이동값 (0, 23.16, 0)) | `assets.js` `buildSoldier` |
 | 뼈대 단위 | 원본은 cm 단위(`Hips` y≈106). 래퍼에서 `A.soldierScale`로 키 1.82 m로 맞춤. **런타임 월드 좌표만 쓰고 길이를 하드코딩하지 않는다** | `assets.js` |
 | 애니메이션 | `AnimationMixer`, `playOnce/stopOnce`, `reactT`로 일회성 클립 보호 | `assets.js`, `human.js animate` |
 | 절차적 사람 | 에셋 로드 실패 시 `models.js` 박스형 사람 → **랙돌 미지원, 기존 `stepKnock` 유지** | `models.js buildHuman` |

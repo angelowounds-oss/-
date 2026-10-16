@@ -13,3 +13,4 @@
 | [0006](0006-pooled-floor-buffers.md) | 층 지오메트리 버퍼 풀링 | 채택 |
 | [0007](0007-test-strategy-swiftshader.md) | 테스트 전략: SwiftShader 동일성·로직 + 실기기 GPU | 채택 |
 | [0008](0008-destructible-buildings-via-instances.md) | 건물 파괴는 외관 인스턴스·병합 메시 조작으로 | 채택 |
+| [0009](0009-character-swap-frame-remap.md) | 캐릭터 교체: 뼈 프레임을 Soldier 규약에 맞춰 코드는 그대로 | 채택 |

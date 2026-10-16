@@ -60,6 +60,11 @@ const SOLDIER_REST = {
   RightUpLeg: [0, 0, -1, 0], RightLeg: [0, 0, -1, 0], RightFoot: [0, 0.707107, -0.707107, 0], RightToeBase: [0, 0.707107, -0.707107, 0],
 };
 const IDENT = new THREE.Quaternion();
+// The Soldier file faces -Z and the game turns it by PI to face +Z; the character file already faces +Z, so it needs no turn. Its bone
+// frames must therefore equal the Soldier's frames as they stand in the game, i.e. SOLDIER_REST turned by PI about Y.
+export const CHARACTER_YAW = 0;
+const CHARACTER_SHIFT_Z = 0.09;   // the character's feet centre sits ~0.09 m behind the Soldier's, which the sit / drive / crouch offsets were tuned for
+const FACE = new THREE.Quaternion(0, 1, 0, 0);
 
 // Renames the rig to RIG, re-expresses its bone frames to SOLDIER_REST (positions unchanged, so the skin is unchanged too), rewrites
 // the clips to match, and keeps only the clips above under their game names (UB_* made as upper-body masks of the U_* clips).
@@ -72,7 +77,7 @@ function adaptCharacter(gltf) {
     const want = RIG[o.name] && SOLDIER_REST[RIG[o.name]];
     if (!want) return;
     o.getWorldQuaternion(w);
-    K.set(o.name, w.clone().invert().multiply(new THREE.Quaternion().fromArray(want)));
+    K.set(o.name, w.clone().invert().multiply(FACE.clone().multiply(new THREE.Quaternion().fromArray(want))));
   });
   const kOf = (n) => K.get(n) || IDENT, kParent = (n) => (parentOf.has(n) ? kOf(parentOf.get(n)) : IDENT);
   scene.traverse((o) => {
@@ -141,7 +146,7 @@ export function buildSoldier(look = {}, gunParts) {
   const root = skClone(A.soldier.scene);
   const wrap = new THREE.Group(), body = new THREE.Group();
   root.scale.multiplyScalar(A.soldierScale);
-  root.rotation.y = Math.PI;
+  root.rotation.y = CHARACTER_YAW; root.position.z = CHARACTER_SHIFT_Z;
   body.add(root); wrap.add(body);
   const tint = new THREE.Color(look.top ?? 0x445566);
   const skinMats = [];
