@@ -21,10 +21,10 @@ const SHOTS = [
   ['top', [0.2, 7.0, 0.01], [0.2, 0, 0], 55]
 ];
 try {
-  await page.waitForSelector('#scGo.rdy', { timeout: 300000 });
+  await page.waitForSelector('#scGo.rdy', { timeout: +(process.env.HERO_BOOT_TIMEOUT || 300000) });
   await page.evaluate(() => { document.getElementById('scGo').click(); });
   await sleep(1500);
-  await page.waitForFunction(() => window.__LIVE && __LIVE.ok && window.__PERF?.cal?.done, null, { timeout: 300000 });
+  await page.waitForFunction(() => window.__LIVE && __LIVE.ok && window.__PERF?.cal?.done, null, { timeout: +(process.env.HERO_BOOT_TIMEOUT || 300000) });
   await page.evaluate(() => { const sp = document.getElementById('scSplash'); if (sp) sp.style.display = 'none'; __CINE.cancel('hero'); });
   await page.addStyleTag({ content: '.sc-cap,#lvStat,.hud,.sc-dock,.dock,.sc-bar,.wow-overlay,#scSkip,.fpv-help,.sc-vig{display:none!important}header.top{visibility:hidden!important}' });
   if (process.env.HERO_SET) await page.evaluate(s => { Object.assign(window.__PERF.set, JSON.parse(s)); }, process.env.HERO_SET);
