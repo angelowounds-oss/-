@@ -55,7 +55,7 @@ function buildRoads() {
   return { dense, G, CS };
 }
 let RD = null;
-function nearestRoad(x, z) {
+export function nearestRoad(x, z) {
   RD = RD || (RD = buildRoads());
   const { G, CS } = RD, cx = Math.floor(x / CS), cz = Math.floor(z / CS);
   let best = null, bd = 1e9;

@@ -23,7 +23,9 @@ async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = 
   page.on('console', (m) => { const t = m.text(); if (/GLSL|shader error|ERROR/i.test(t)) errors.push('console: ' + t.slice(0, 300)); else if (t.startsWith('##')) console.log(t.slice(2)); });
   const href = (url.startsWith('file:') || url.startsWith('http') ? url : 'file://' + url) + '?q=' + q + extra;
   await page.goto(href);
-  await page.waitForSelector('#go.rdy', { timeout: 240000 });
+  // a boot that threw never gets ready: fail at once with the error instead of after the timeout
+  const watch = setInterval(() => {}, 1000); let failed = null; const poll = setInterval(() => { if (errors.length && !failed) failed = errors[0]; }, 500);
+  try { await Promise.race([page.waitForSelector('#go.rdy', { timeout: 240000 }), new Promise((_, rej) => { const t = setInterval(() => { if (failed) { clearInterval(t); rej(new Error('boot failed: ' + failed)); } }, 500); })]); } finally { clearInterval(watch); clearInterval(poll); }
   await page.keyboard.press('KeyJ');
   await page.waitForFunction(() => window.__game && window.__game.running, null, { timeout: 30000 });
   await page.waitForTimeout(800);

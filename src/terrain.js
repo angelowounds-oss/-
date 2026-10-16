@@ -7,7 +7,7 @@ import { instCull } from './instcull.js';
 // Hill rim around the flat city (Busan-style hillside districts: a mountain road that winds along the slope at changing altitude).
 // The city grid inside r < R0 is untouched. Outside it the ground rises into ridges; a winding "mountain road" loop and four
 // access roads from the city edge are carved into the slope. Everything here is deterministic and shared by render + physics.
-import { R0, R_WALL, CELL, EXTENT, INNER, ROAD_W, hash, vnoise, smooth, baseHeight, heightAt, roadsData } from './terrainfn.js';
+import { R0, R_WALL, CELL, EXTENT, INNER, ROAD_W, hash, vnoise, smooth, baseHeight, heightAt, roadsData, nearestRoad } from './terrainfn.js';
 export { R0, R_WALL, CELL, EXTENT, INNER, baseHeight, heightAt, roadsData };
 
 // ---------- geometry: four strips around the inner square, shared by render and physics ----------
