@@ -11,7 +11,7 @@ const QUALITY={
  tiers:['LITE','LOW','MID','HIGH','ULTRA'],
  sim:{LITE:{grid:simGridFor('LITE',[80,26,38]),sub:1,vc:.25},LOW:{grid:simGridFor('LOW',[112,36,52]),sub:2,vc:.25},MID:{grid:simGridFor('MID',[144,46,66]),sub:2,vc:0},HIGH:{grid:simGridFor('HIGH',[176,56,80]),sub:2,vc:0},ULTRA:{grid:simGridFor('ULTRA',[224,72,100]),sub:2,vc:0}},
  vol:{LITE:{res:.4,steps:.6,taps:0},LOW:{res:.5,steps:.75,taps:0},MID:{res:.625,steps:1,taps:1},HIGH:{res:.75,steps:1,taps:2},ULTRA:{res:1,steps:1.25,taps:2}},
- ren:{LITE:{scale:.75,ao:0,shadow:1,aa:'FXAA',bloom:0,ssr:0},LOW:{scale:1,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:1},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:0},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
+ ren:{LITE:{scale:.75,ao:0,shadow:1,aa:'FXAA',bloom:0,ssr:0},LOW:{scale:1,ao:0,shadow:1,aa:'FXAA',bloom:1,ssr:1},MID:{scale:1,ao:1,shadow:2,aa:'TAA',bloom:1,ssr:1},HIGH:{scale:1,ao:2,shadow:3,aa:'TAA',bloom:1,ssr:1},ULTRA:{scale:1.25,ao:2,shadow:4,aa:'TAA',bloom:1,ssr:2}},
  budgetMs:{LITE:33.3,LOW:33.3,MID:16.7,HIGH:16.7,ULTRA:16.7},
  /* degrade order required by the spec; upgrade walks it backwards */
  ladder:[

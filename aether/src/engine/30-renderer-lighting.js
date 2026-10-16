@@ -96,6 +96,8 @@ void main(){
   if(u_vdebug>.5){albedo=vec3(float(tl.x)/4.,float(tl.y)/3.,fract(float(tl.y*5+tl.x)*.37));metal=0.;rough=.8;}
   if(u_vdebug<.5&&u_paint.r>=0.&&tl.x==4&&tl.y==0){albedo=linearize(u_paint.rgb)*(1.+.45*u_paint.a*fade*sin(v_world.x*770.+v_world.z*410.)*sin(v_world.y*690.+v_world.z*530.));metal=u_paint.a*.55;rough=u_paintR;ccW=u_paintR>.45?0.:1.;}
   if(glassT>.5)albedo*=.35;}
+ /* showroom: upward-facing surfaces at floor level (turntable, floor, belts) turn glossy-wet so the screen-space reflection pass mirrors the car and the LED lines */
+ float wet=u_look*smoothstep(.9,.97,n.y)*(1.-smoothstep(.03,.09,v_world.y))*(1.-step(.5,u_vatlas));rough=mix(rough,.055,wet*.9);
  vec3 l=normalize(vec3(-.2,1.,.12)),h=normalize(l+v);float nl=max(dot(n,l),0.),nh=max(dot(n,h),0.),vh=max(dot(v,h),0.);
  float a=rough*rough,a2=a*a,den=nh*nh*(a2-1.)+1.;float D=a2/max(PI*den*den,.000001);
  float k=(rough+1.)*(rough+1.)/8.;float G=(nv/(nv*(1.-k)+k))*(nl/max(nl*(1.-k)+k,.00001));
