@@ -10,6 +10,16 @@ export const RUN = {
     const [{ world }, { net }, { layouts }] = await Promise.all([imp('src/worldmap.js'), imp('src/roadnet.js'), imp('src/citylayout.js')]);
     return { world: world(), net: net(), layouts: layouts() };
   },
+  // one tile of baked ground (heightmap.js): the ground of landfn.js on the tile's grid; the physics layer only when it differs (bridges, tunnels)
+  async tile(j) {
+    const [{ landProc, physProc }, { encodeTile, N1, TILE }] = await Promise.all([imp('src/landfn.js'), imp('src/heightmap.js')]);
+    const size = j.g * TILE, x0 = -50000 + j.i * size, z0 = -50000 + j.j * size, land = new Float32Array(N1 * N1), phys = new Float32Array(N1 * N1); let diff = false;
+    for (let b = 0; b < N1; b++) for (let a = 0; a < N1; a++) {
+      const x = x0 + a * j.g, z = z0 + b * j.g, k = b * N1 + a; land[k] = landProc(x, z, j.g); phys[k] = physProc(x, z, j.g);
+      if (Math.abs(phys[k] - land[k]) > 0.05) diff = true;
+    }
+    return { land: encodeTile(land), phys: diff ? encodeTile(phys) : null };
+  },
   // only for the tests of the container, the cache and the pack: a small deterministic chunk
   async selftest(j) { return { id: j.key, a: new Float32Array([0.5, 1.5, 2.5]), m: new Map([['k', { v: 7 }]]) }; },
 };

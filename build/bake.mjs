@@ -18,11 +18,17 @@ const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 
 // A job makes one chunk: `src` lists the files whose content decides the result, `tier` says where it goes ('embed' = into the page, 'pack' = into
 // the high-detail pack), `run` (in jobs.mjs) returns the object to store. Later steps add the terrain tiles, city tiles, forests... here.
-export const JOBS = [
-  { key: 'core', tier: 'embed', src: ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs'] },
-];
+const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+export function jobsFor({ pack = false } = {}) {
+  const out = [{ key: 'core', tier: 'embed', src: ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs'] }];
+  const tiles = (g, key, tier) => { const n = Math.ceil(100000 / (g * 256)); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, src: TERRAIN_SRC }); };
+  tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
+  return out;
+}
 
-const jobHash = (j) => sha(JSON.stringify([FORMAT, j.key, j.gen || '', j.src.map((f) => sha(fs.readFileSync(path.join(root, f))))])).slice(0, 24);
+const fileHash = new Map();
+const hashOf = (f) => fileHash.get(f) || (fileHash.set(f, sha(fs.readFileSync(path.join(root, f)))), fileHash.get(f));
+const jobHash = (j) => sha(JSON.stringify([FORMAT, j.key, j.gen || '', j.g || 0, j.src.map(hashOf)])).slice(0, 24);
 
 async function runJob(j) {
   const { RUN } = await imp('build/jobs.mjs'), { encodeChunk } = await imp('src/bakefmt.js');
@@ -37,8 +43,8 @@ if (!isMainThread && workerData?.bakeWorker) {
 }
 
 // returns {embedded: Uint8Array (container), pack: Map(file -> Uint8Array) | null, manifest}
-export async function bake({ pack = false, jobs = JOBS, cache = true, threads = Math.max(1, Math.min(os.cpus().length, 4)) } = {}) {
-  const t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
+export async function bake({ pack = false, jobs: given = null, cache = true, threads = Math.max(1, Math.min(os.cpus().length, 4)) } = {}) {
+  const jobs = given || jobsFor(pack), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
   const todo = jobs.filter((j) => pack || j.tier === 'embed'), results = new Map(), miss = [];
   for (const j of todo) {
     const f = path.join(dir, j.key.replace(/[^\w.-]/g, '_') + '-' + jobHash(j) + '.json');

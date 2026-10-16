@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { farHeight, surfaceColor, cities, SEA, WORLD_HALF } from './worldmap.js';
-import { baseHeight, EXTENT } from './terrain.js';
-import { carve } from './roadnet.js';
+import { surfaceColor, cities, SEA, WORLD_HALF } from './worldmap.js';
+import { EXTENT } from './terrain.js';
+import { landHeight, physHeight } from './landfn.js';
+import { stream } from './heightmap.js';
 import { patchStandard } from './shaders.js';
 import { GR, grp } from './physics.js';
 
@@ -15,19 +16,8 @@ import { GR, grp } from './physics.js';
 // ADR-0012; the baked heightmap textures of phase 3 will take over the CPU work.
 export const LEVELS = 9, GRID = 64, CELL0 = 16;
 const cellOf = (k) => CELL0 * 2 ** k;
-const NEAR_BLEND0 = 1400, NEAR_BLEND1 = 9000;
-const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-// world height outside the city: the city's own hills near the origin, the world's landscape from ~9 km on
-export function landHeight(x, z, cell = 0) {
-  const r = Math.hypot(x, z), w = smooth(NEAR_BLEND0, NEAR_BLEND1, r), f = farHeight(x, z, cell);
-  return carve(x, z, w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w, false);
-}
-// the same for physics: bridges and tunnels are filled so a vehicle has ground on the deck / the road in the tunnel
-export function physHeight(x, z, cell = 0) {
-  const r = Math.hypot(x, z), w = smooth(NEAR_BLEND0, NEAR_BLEND1, r), f = farHeight(x, z, cell);
-  return carve(x, z, w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w, true);
-}
+export { landHeight, physHeight };
 
 function ringIndex(skipHole) {
   const N = GRID, idx = [];
@@ -125,6 +115,7 @@ export class Farland {
       if (!Number.isNaN(L.cx) && performance.now() - t0 > BUDGET_MS) break;
       this.regen(L, sx, sz);
     }
+    if (globalThis.__WORLD) stream(globalThis.__WORLD, focus.x, focus.z);   // high-detail ground tiles around what the player controls
     this.sea.position.x = Math.round(cx / 5000) * 5000; this.sea.position.z = Math.round(cz / 5000) * 5000;
     this.ground.update(focus.x, focus.z, focus.by ?? focus.y ?? 0);   // physics follows what the player controls, not the (smoothed, late) camera
     this.stats.ms = performance.now() - t0; this.stats.last = this.stats.ms;

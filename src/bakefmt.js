@@ -1,7 +1,7 @@
 // Binary container for baked world data: a JSON skeleton plus one blob holding every typed array. Typed arrays become {$t, o, n} references
 // into the blob and Maps become {$m: [[k, v], ...]}, so the data decodes with no per-element parsing of the big grids. Pure (no three.js).
-const TYPES = { f32: Float32Array, u8: Uint8Array, i32: Int32Array, u16: Uint16Array, f64: Float64Array };
-const NAME = new Map([[Float32Array, 'f32'], [Uint8Array, 'u8'], [Int32Array, 'i32'], [Uint16Array, 'u16'], [Float64Array, 'f64']]);
+const TYPES = { f32: Float32Array, u8: Uint8Array, i32: Int32Array, u16: Uint16Array, f64: Float64Array, i16: Int16Array };
+const NAME = new Map([[Float32Array, 'f32'], [Uint8Array, 'u8'], [Int32Array, 'i32'], [Uint16Array, 'u16'], [Float64Array, 'f64'], [Int16Array, 'i16']]);
 
 export function pack(root) {
   const parts = []; let off = 0;

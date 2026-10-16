@@ -7,7 +7,7 @@ import { world } from '../../src/worldmap.js';
 import { net } from '../../src/roadnet.js';
 import { layouts } from '../../src/citylayout.js';
 
-const bad = [], a = await bake({ cache: false }), b = await bake();
+const bad = [], jobs = [{ key: 'core', tier: 'embed', src: ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs'] }], a = await bake({ cache: false, jobs }), b = await bake({ jobs });
 if (a.manifest.data !== b.manifest.data) bad.push(['not deterministic (or the cache differs from a fresh bake)']);
 const mem = (u) => async (o, n) => u.subarray(o, o + n), C = await openContainer(mem(a.embedded)), e = C.chunks.core;
 const zc = a.embedded.subarray(C.start + e.o, C.start + e.o + e.z);
