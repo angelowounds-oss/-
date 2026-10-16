@@ -24,7 +24,7 @@ run('building-fire', { q: 0 }, async ({ page }) => {
     // the fire climbs: after 40 s several bands burn and the facade attribute shows it
     pl.body3.teleport(d.px + d.nx * 20, 0, d.pz + d.nz * 20); pl.x = d.px + d.nx * 20; pl.z = d.pz + d.nz * 20;
     upd(40);
-    const a = B.burn.array, ti = lot.tierIdx; o.bandsBurning = s ? Array.from(s.heat).filter((h) => h >= 0.35).length : 0; o.aBurn = [a[ti * 4], a[ti * 4 + 1], +a[ti * 4 + 2].toFixed(2)].map((v) => +(+v).toFixed(1));
+    const a = B.capF.burn.array, ti = lot.tierIdx; o.bandsBurning = s ? Array.from(s.heat).filter((h) => h >= 0.35).length : 0; o.aBurn = [a[ti * 4], a[ti * 4 + 1], +a[ti * 4 + 2].toFixed(2)].map((v) => +(+v).toFixed(1));
     o.interiorFires = g.fire.nodes.filter((n) => n.kind === 'ground' && n.x > lot.x0 && n.x < lot.x1 && n.z > lot.z0 && n.z < lot.z1 && n.y > 1).length;
     o.integMid = s ? +s.integ.toFixed(2) : null;
     // fast-forward the fire itself (the simulation, not the whole game) until it comes down

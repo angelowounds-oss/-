@@ -18,8 +18,8 @@ run('farland', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     o.flyAvgMs = +(sum / N).toFixed(2); o.flyWorstMs = +worst.toFixed(1);
     // the ground holds outside the city (Harbor Gate), and the city's own area is under the discard
     // the player stands on the far ground (Harbor Gate lies at ~43 m); without it he would fall through
-    const hx = -37348, hz = 10399; pl.body3.teleport(hx, 46, hz); pl.x = hx; pl.y = 46; pl.z = hz; pl.vy = 0; for (let i = 0; i < 240; i++) window.__upd(1 / 60);
-    o.landed = pl.y > 30 && pl.y < 46.5 &&  !pl.dead; o.groundTile = !!F.ground.col;
+    const hw = g.hwtraffic.N.roads.find((q) => q.kind === 'highway'), hp = hw.pts[Math.floor(hw.pts.length * 0.4)], hx = hp[0], hz = hp[1], hy = hw.y[Math.floor(hw.pts.length * 0.4)] + 3; pl.body3.teleport(hx, hy, hz); pl.x = hx; pl.y = hy; pl.z = hz; pl.vy = 0; for (let i = 0; i < 240; i++) window.__upd(1 / 60);
+    o.landed = Math.abs(pl.y - (hy - 3)) < 3 && !pl.dead; o.groundTile = !!F.ground.col;
     o.discardsCity = F.mat.onBeforeCompile.toString().length > 0;
     // Darkstar: the edge of the map and a mountain
     const D = g.war.slots.find((s) => s.kind === 'darkstar').v; pl.body3.teleport(D.x + 6, 0, D.z); pl.x = D.x + 6; pl.z = D.z; pl.y = 0; for (let i = 0; i < 20; i++) window.__upd(1 / 60); g.enterVehicle(D);
