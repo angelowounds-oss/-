@@ -115,14 +115,14 @@ export class Farland {
     L.mesh.updateMatrix(); this.stats.regen++;
   }
 
-  update(camera) {
+  update(camera, focus = camera.position) {
     const t0 = performance.now(), cx = camera.position.x, cz = camera.position.z;
     for (const L of this.levels) {
       const s = 2 * L.cell, sx = Math.round(cx / s) * s, sz = Math.round(cz / s) * s;
       if (sx !== L.cx || sz !== L.cz) this.regen(L, sx, sz);
     }
     this.sea.position.x = Math.round(cx / 5000) * 5000; this.sea.position.z = Math.round(cz / 5000) * 5000;
-    this.ground.update(cx, cz, camera.position.y);
+    this.ground.update(focus.x, focus.z, focus.by ?? focus.y ?? 0);   // physics follows what the player controls, not the (smoothed, late) camera
     this.stats.ms = performance.now() - t0; this.stats.last = this.stats.ms;
   }
   dispose() { this.scene.remove(this.group); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); this.ground.dispose(); }

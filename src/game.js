@@ -17,6 +17,7 @@ import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { War, WAR_NAMES } from './warcraft.js';
 import { Farland } from './farland.js';
 import { Highways } from './highways.js';
+import { HighwayTraffic } from './hwtraffic.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
@@ -108,7 +109,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
-    this.breach = new Breach(this); this.military = new Military(this); this.war = new War(this); this.fire = new Fire(this); this.blaze = new Blaze(this);
+    this.breach = new Breach(this); this.military = new Military(this); this.war = new War(this); this.hwtraffic = this.highways ? new HighwayTraffic(this) : null; this.fire = new Fire(this); this.blaze = new Blaze(this);
     this.eng.onTier = (q) => this.world.setSimple?.(!!q.simple); this.eng.onTier(this.eng.q);   // the tier's detail switches (LOW: simple facades)
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
@@ -329,7 +330,7 @@ export class Game {
     this.audio.init();
     const pl = this.player, sp = this.world.spawn;
     pl.x = sp.x; pl.z = sp.z; pl.ry = sp.ry; this.cam.yaw = sp.ry; pl.group.visible = true;
-    for (const v of this.vehicles) if (v.kind === 'traffic') this.recycleTraffic(v);
+    for (const v of this.vehicles) if (v.kind === 'traffic' && !v.hw) this.recycleTraffic(v);
     for (const h of this.humans) if (h.team === 'civ') { this.spawnCivilian(false, h); }
     this.running = true;
     this.ui.hud.classList.add('on');
@@ -373,7 +374,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -1237,7 +1238,7 @@ export class Game {
       const d = Math.hypot(v.x - cam.x, v.z - cam.z);
       const vis = d < (v.kind === 'parked' ? 170 : 230);
       v.group.visible = vis;
-      if (v.kind === 'traffic' && !v.dead && v.driver === 'ai' && v !== this.vehicle && !v.callTaxi && v !== this.passenger) {
+      if (v.kind === 'traffic' && !v.hw && !v.dead && v.driver === 'ai' && v !== this.vehicle && !v.callTaxi && v !== this.passenger) {
         const dd = Math.hypot(v.x - focus.x, v.z - focus.z);
         if (dd > 260) { this.recycleTraffic(v); }
       }
@@ -1259,7 +1260,7 @@ export class Game {
     this.popT = (this.popT || 0) - dt;
     if (this.popT <= 0) {
       this.popT = 0.3;
-      const tc = list.filter((v) => v.kind === 'traffic' && v.driver === 'ai').length;
+      const tc = list.filter((v) => v.kind === 'traffic' && v.driver === 'ai' && !v.hw).length;
       const pf = this.society.popFactor();
       if (tc < Math.round(this.eng.q.traffic * (0.4 + 0.6 * pf))) this.spawnTraffic(false);
       const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside);
@@ -1649,7 +1650,7 @@ export class Game {
     const fov = cam.fov + this.fallK * 16;
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
-    this.farland?.update(c); this.highways?.update(c);
+    this.farland?.update(c, this.focusPos()); this.highways?.update(c);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;
