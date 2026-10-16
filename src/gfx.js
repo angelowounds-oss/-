@@ -11,7 +11,8 @@ const tex = (a, b, seam, size = 256) => {
 // Interior surfaces: the decor material keeps its per-box vertex colour as a tint and multiplies a procedural pattern chosen by
 // a per-vertex surface id (0 plaster, 1 wood planks, 2 tile, 3 carpet, 4 concrete); ceilings (faces looking down) get a panel grid.
 // Pattern coordinates are world metres, so nothing needs UVs or texture memory.
-export const SURF = { plaster: 0, wood: 1, tile: 2, carpet: 3, concrete: 4 };
+// walls use the same ids by orientation: wood = vertical panelling, tile = wall tile, concrete, paper = striped wallpaper, brick = accent brick; ceiling = smooth painted ceiling
+export const SURF = { plaster: 0, wood: 1, tile: 2, carpet: 3, concrete: 4, ceiling: 5, paper: 6, brick: 7 };
 // breached wall openings (world-space boxes): interior surfaces inside one are not drawn. Filled by breach.js with the holes near the camera.
 export const HOLES = 16;
 export const holeCU = { value: Array.from({ length: HOLES }, () => new THREE.Vector4(0, -999, 0, 0)) };
@@ -33,8 +34,11 @@ function surfaceMaterial() {
         if(dm<jag+.07)diffuseColor.rgb*=.3;}                                 // scorched rim
       {
         vec2 u=vSUv;float k=1.;
-        if(vSNy<-.5){ // ceiling panels
-          vec2 f=abs(fract(u/.6)-.5);float seam=smoothstep(.46,.5,max(f.x,f.y));k=.92-seam*.4+sh1(floor(u/.6))*.05;
+        if(vSNy<-.5){
+          if(vSurf>4.5&&vSurf<5.5){k=.97+sn2(u*2.5)*.03;}                    // smooth painted ceiling
+          else{ // ceiling panels
+            vec2 f=abs(fract(u/.6)-.5);float seam=smoothstep(.46,.5,max(f.x,f.y));k=.92-seam*.4+sh1(floor(u/.6))*.05;
+          }
         }else if(vSNy>.5){
           if(vSurf<.5){k=.9+sn2(u*9.)*.1;}
           else if(vSurf<1.5){ // wood planks .14 m wide, 1.2 m long, staggered
@@ -45,7 +49,22 @@ function surfaceMaterial() {
             vec2 g=fract(u/.4);float gr=smoothstep(.0,.014,min(min(g.x,1.-g.x),min(g.y,1.-g.y)));float v=sh1(floor(u/.4));k=mix(.5,1.,gr)*(.9+v*.14);
           }else if(vSurf<3.5){k=.82+sh1(floor(u*70.))*.14+sn2(u*6.)*.08;}  // carpet
           else{k=.78+sn2(u*2.2)*.2+sn2(u*14.)*.06;}                        // concrete
-        }else{k=.93+sn2(u*8.)*.07;}                                        // wall plaster
+        }else{                                                              // walls: u = (along the wall, world height)
+          k=.93+sn2(u*8.)*.07;                                              // plaster
+          if(vSurf>.5&&vSurf<1.5){ // vertical wood panelling, boards .14 m
+            float x=u.x/.14;float fx=fract(x);float id=floor(x);float gap=smoothstep(.0,.07,min(fx,1.-fx));
+            k=(.8+sh1(vec2(id,1.))*.25)*(.88+sn2(vec2(u.x*40.,u.y*3.+id*5.))*.2)*mix(.55,1.,gap);
+          }else if(vSurf>1.5&&vSurf<2.5){ // wall tile .3 m with grout
+            vec2 g=fract(u/.3);float gr=smoothstep(.0,.02,min(min(g.x,1.-g.x),min(g.y,1.-g.y)));k=mix(.55,1.,gr)*(.92+sh1(floor(u/.3))*.12);
+          }else if(vSurf>3.5&&vSurf<4.5){k=.78+sn2(u*2.2)*.2+sn2(u*14.)*.06;}   // concrete
+          else if(vSurf>5.5&&vSurf<6.5){ // striped wallpaper, .12 m stripes
+            float st=step(.5,fract(u.x/.12));k=mix(.84,1.,st)*(.95+sn2(vec2(u.x*60.,u.y*2.))*.05);
+          }else if(vSurf>6.5){ // brick, running bond
+            float row=floor(u.y/.075);float off=mod(row,2.)*.11;vec2 b=vec2(fract((u.x+off)/.22),fract(u.y/.075));
+            float mo=smoothstep(.0,.06,b.x)*smoothstep(.0,.06,1.-b.x)*smoothstep(.0,.1,b.y)*smoothstep(.0,.1,1.-b.y);
+            k=mix(.5,1.,mo)*(.82+sh1(vec2(floor((u.x+off)/.22),row))*.32);
+          }
+        }
         diffuseColor.rgb*=k;
       }`);
   };

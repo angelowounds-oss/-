@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FloorDecor, furnitureReady } from './furnish.js';
+import { SURF } from './gfx.js';
 const THREE_C = THREE.Color;
 
 // Room templates for the packed furniture set. The interaction anchors in life.js (sofa/TV/bed/fridge/wardrobe/desk coordinates)
@@ -50,6 +51,40 @@ function pbox(F, deco, lx0, ld0, lx1, ld1, y0, y1, color, o = {}) {
   if (o.solid !== false) fl.cc(x0, z0, x1, z1, F.y + y0, F.y + y1, 'furniture');
   if (o.claim !== false && o.solid !== false) F.taken.push({ lx0: Math.min(lx0, lx1), lx1: Math.max(lx0, lx1), ld0: Math.min(ld0, ld1), ld1: Math.max(ld0, ld1) });
 }
+// the same box with a surface pattern (wall tile, wallpaper, carpet) from the interior shader
+function surfBox(F, deco, surf, ...a) { const B = deco.fl.B, s0 = B.surf; B.surf = surf; pbox(F, deco, ...a); B.surf = s0; }
+// where the en-suite bathroom (reserved at the back corner) ends along the room, so the bed can stand beside it instead of failing to fit
+function bathEdge(F) { let e = -F.W / 2; for (const t of F.taken) if (t.ld0 < 0.5 && t.ld1 > 1.5 && t.lx0 < -F.W / 2 + 0.8) e = Math.max(e, t.lx1); return e; }
+const HOTEL_ACCENT = [0x8f5a74, 0x4f7a8a, 0xa8744a, 0x5d6f9a, 0x7a8c5c];
+// a hotel room's bed end: striped headboard wall, upholstered headboard, bed with linens and duvet, bedside tables with lamps, bench, rug, desk with
+// chair and a wall TV. Everything is a merged box: the glTF beds do not suit a hotel and the old fit check failed next to the bathroom.
+function hotelBedroom(F, deco, L, cxBed) {
+  const idx = Math.floor(((F.rm.x0 * 7.1 + F.rm.z0 * 3.3) % 5 + 5) % 5), acc = HOTEL_ACCENT[idx], accC = new THREE_C(acc), pale = 0xf4f0e8;
+  const l0 = cxBed - 1.0, l1 = cxBed + 1.0, dark = accC.clone().multiplyScalar(0.55), light = accC.clone().lerp(new THREE_C(0xffffff), 0.45);
+  surfBox(F, deco, SURF.paper, cxBed - 1.5, 0.0, cxBed + 1.5, 0.04, 0.3, 2.05, acc, { solid: false, claim: false });         // headboard wall, striped paper
+  pbox(F, deco, l0 - 0.05, 0.05, l1 + 0.05, 2.1, 0, 0.3, 0x3b2f27);                                                       // bed base
+  pbox(F, deco, l0 - 0.1, 0.02, l1 + 0.1, 0.16, 0.3, 1.3, dark, { solid: false, claim: false });                          // headboard
+  pbox(F, deco, l0, 0.16, l1, 2.06, 0.3, 0.56, pale, { solid: false, claim: false });                                      // mattress and sheets
+  pbox(F, deco, l0 - 0.01, 0.8, l1 + 0.01, 2.08, 0.56, 0.63, acc, { solid: false, claim: false });                         // duvet
+  pbox(F, deco, l0 + 0.55, 1.5, l1 - 0.55, 2.12, 0.63, 0.66, light, { solid: false, claim: false });                      // folded runner at the foot
+  for (const s of [-1, 1]) pbox(F, deco, cxBed + s * 0.52 - 0.34, 0.2, cxBed + s * 0.52 + 0.34, 0.66, 0.56, 0.7, 0xffffff, { solid: false, claim: false });   // pillows
+  for (const s of [-1, 1]) {
+    const c = cxBed + s * 1.5;
+    pbox(F, deco, c - 0.25, 0.03, c + 0.25, 0.5, 0, 0.5, 0x4a3a30);                                                        // bedside table
+    pbox(F, deco, c - 0.04, 0.22, c + 0.04, 0.3, 0.5, 0.7, 0xb8a070, { solid: false, claim: false });                       // lamp base
+    pbox(F, deco, c - 0.13, 0.13, c + 0.13, 0.39, 0.7, 0.93, new THREE_C(1, 0.85, 0.55), { key: 'emit', em: 1.1, solid: false, claim: false });   // lamp shade
+  }
+  pbox(F, deco, cxBed - 0.8, 2.2, cxBed + 0.8, 2.62, 0, 0.44, 0x4a3e36);                                                   // bench at the foot
+  pbox(F, deco, cxBed - 0.78, 2.22, cxBed + 0.78, 2.6, 0.44, 0.52, light, { solid: false, claim: false });
+  surfBox(F, deco, SURF.carpet, cxBed - 1.7, 0.7, cxBed + 1.7, 3.3, 0.016, 0.03, accC.clone().lerp(new THREE_C(0xdad2c2), 0.55), { solid: false, claim: false });   // rug
+  const dx1 = F.W / 2 - 0.03, dx0 = dx1 - 0.6;                                                                                // desk, chair and TV on the right-hand wall
+  if (F.D > 4.8 && dx0 > cxBed + 2.1) {
+    pbox(F, deco, dx0, 3.3, dx1, 4.7, 0, 0.74, 0x6b5442);
+    pbox(F, deco, dx0 - 0.5, 3.7, dx0 - 0.1, 4.3, 0, 0.46, 0x2a2d36); pbox(F, deco, dx0 - 0.5, 3.7, dx0 - 0.44, 4.3, 0.46, 0.95, 0x2a2d36, { solid: false, claim: false });
+    pbox(F, deco, dx1 - 0.05, 3.45, dx1 - 0.01, 4.55, 1.15, 1.72, 0x0e0f13, { solid: false, claim: false });
+    pbox(F, deco, dx1 - 0.065, 3.5, dx1 - 0.05, 4.5, 1.19, 1.68, new THREE_C(0.1, 0.14, 0.22), { key: 'emit', em: 0.9, solid: false, claim: false });
+  }
+}
 // fitted kitchen along the back wall + island: cabinets, worktop, sink, hob with hood, fridge, upper cabinets
 function kitchenFixtures(F, deco, L) {
   const x0 = -F.W / 2 + 0.05, x1 = F.W / 2 - 0.05, cab = 0xe6e2da, top = 0x2b2e36, dep = 0.62;
@@ -60,6 +95,7 @@ function kitchenFixtures(F, deco, L) {
   const c0 = x0, cEnd = x1 - fr, mid = (c0 + cEnd) / 2;
   pbox(F, deco, c0, 0.04, cEnd, dep, 0, 0.86, cab);                                  // base cabinets
   pbox(F, deco, c0, 0.0, cEnd, dep + 0.03, 0.86, 0.92, top, { claim: false });        // worktop
+  surfBox(F, deco, SURF.tile, c0, 0.0, cEnd, 0.025, 0.92, 1.5, 0xe9ecf0, { solid: false, claim: false });   // tiled splashback under the wall cabinets
   // sink bay (left of centre): dark basin + tap
   pbox(F, deco, mid - 1.05, 0.12, mid - 0.3, dep - 0.1, 0.9, 0.93, 0x14161c, { solid: false, claim: false });
   pbox(F, deco, mid - 0.7, 0.05, mid - 0.64, 0.11, 0.92, 1.18, 0xb8bec8, { solid: false, claim: false });
@@ -100,6 +136,7 @@ function decorateRoomCore(F, deco, kind, L) {
   const art = (id, side, ld, lift = 1.35) => put(F, deco, id, wallSide(F, side) + (side === 'l' ? 0.04 : -0.04), ld, side === 'l' ? 'r' : 'l', { ghost: true, lift });
   const plant = (lx, ld) => put(F, deco, 'potted_plant_02', lx, ld, 'in', { turn: Math.random() * 6 });
   if (kind === 'living') {
+    surfBox(F, deco, SURF.carpet, -1.7, 0.9, 1.7, 3.0, 0.016, 0.03, [0x9a5a4a, 0x4f6a7a, 0x8a7a52, 0x6a5a7a][Math.floor(((F.rm.x0 * 3.1 + F.rm.z0 * 1.7) % 4 + 4) % 4)], { solid: false, claim: false });   // rug
     put(F, deco, 'sofa_03', 0, 0.58, 'in');
     put(F, deco, 'modern_coffee_table_01', 0, 2.0, 'in', { turn: PI / 2, margin: 0.02 });
     const stand = put(F, deco, 'CoffeeTable_01', 0, 3.2, 'back', { margin: 0.02 });
@@ -116,9 +153,15 @@ function decorateRoomCore(F, deco, kind, L) {
     pend('modern_ceiling_lamp_01', 0, 2.0);
   } else if (kind === 'bedroom') {
     const bw = F.W > 6.5 ? 'GothicBed_01' : 'old_bed_frame', b = deco.size(bw);
-    put(F, deco, bw, 0, b.d / 2 + 0.05, 'in', { margin: 0.02 });
-    for (const s of [-1, 1]) { const r = put(F, deco, 'painted_wooden_nightstand', s * (b.w / 2 + 0.38), 0.4, 'in'); if (r && s > 0) put(F, deco, 'desk_lamp_arm_01', s * (b.w / 2 + 0.38), 0.4, 'in', { ghost: true, lift: 0.62, s: 0.8 }); }
-    put(F, deco, 'vintage_lighter', -(deco.size(bw).w / 2 + 0.38), 0.3, 'in', { ghost: true, lift: 0.616, s: 1.4, turn: 1 });
+    // the bed stands beside the en-suite bathroom (reserved in the back corner), not centred where it used to fail to fit
+    const cxBed = Math.max(0, bathEdge(F) + 0.6 + (L.type === 'hotel' ? 1.5 : b.w / 2 + 0.38));
+    if (L.type === 'hotel') hotelBedroom(F, deco, L, Math.min(cxBed, F.W / 2 - 2.0));
+    else {
+      put(F, deco, bw, cxBed, b.d / 2 + 0.05, 'in', { margin: 0.02 });
+      for (const s of [-1, 1]) { const r = put(F, deco, 'painted_wooden_nightstand', cxBed + s * (b.w / 2 + 0.38), 0.4, 'in'); if (r && s > 0) put(F, deco, 'desk_lamp_arm_01', cxBed + s * (b.w / 2 + 0.38), 0.4, 'in', { ghost: true, lift: 0.62, s: 0.8 }); }
+      put(F, deco, 'vintage_lighter', cxBed - (b.w / 2 + 0.38), 0.3, 'in', { ghost: true, lift: 0.616, s: 1.4, turn: 1 });
+      surfBox(F, deco, SURF.carpet, cxBed - 1.5, 0.9, cxBed + 1.5, 3.0, 0.016, 0.03, [0x8a6a5a, 0x5a7a8a, 0x7a8a62][Math.floor(((F.rm.x0 * 2.3 + F.rm.z0) % 3 + 3) % 3)], { solid: false, claim: false });
+    }
     put(F, deco, 'vintage_cabinet_01', -F.W / 2 + 0.45, 0.5, 'r', { turn: 0 });
     put(F, deco, 'drawer_cabinet', wallSide(F, 'r') - 0.3, 2.4, 'l');
     put(F, deco, 'ornate_mirror_01', 0, 0, 'in', { ghost: true, lift: 1.0, ry: F.ry('l') + PI / 2 });

@@ -14,6 +14,10 @@ import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
 // ====================================================================
 const FH = 4.0, SLAB = 0.35, WALL = 0.5, ACT_R = 62, DROP_R = 96, MAX_ACTIVE = 6;
 const CORE_W = 6.6, CORE_D = 6.0, COR_W = 2.6;
+// interior paint: each flat / office suite gets its own light colour (partitions and the room-side faces), picked by a hash of the building, floor and unit
+const PAINT = [0xd2cbbf, 0xcdbfa6, 0xbec6b3, 0xb6c2cd, 0xd0bcb5, 0xc3bcb0, 0xc5c8cd, 0xd3c78e, 0xaab8b5, 0xc4af92];
+const PAINT_OFFICE = [0xcfd2d7, 0xc4cad1, 0xd1cfc9, 0xb7c4c6, 0xc8ccd3];
+const hash2 = (a, b) => { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0; };
 
 const hexc = (h) => new THREE.Color(h);
 const KINDS = ['apartment', 'office', 'hotel'];
@@ -145,8 +149,11 @@ export class Building {
     const cc = (x0, z0, x1, z1, y0, y1, tag = 'int') => { const b = col.addBox(x0, z0, x1, z1, y1, tag, y0); fl.boxes.push(b); return b; };
     const solid = (key, x0, y0, z0, x1, y1, z1, color, em = 1, tag) => { B.ext(key, x0, y0, z0, x1, y1, z1, color, em); return cc(x0, z0, x1, z1, y0, y1, tag); };
     const acc = new THREE.Color(...this.accent);
-    const wallC = { lobby: 0x6a7080, retail: 0x5f6475, apartment: 0x8a7f90, office: 0x777e92, hotel: 0x5a5470, roof: 0x4a4e5a }[L.type] || 0x6a7080;
-    const slabC = { lobby: 0x1a1d27, retail: 0x20232e, apartment: 0x3c3440, office: 0x252a3c, hotel: 0x2a2236, roof: 0x30343e }[L.type] || 0x20232e;
+    // paint and ceilings as an interior contractor would finish them: light, warm neutral walls; white painted ceilings in homes, hotels and the
+    // lobby, a tiled drop ceiling (the shader's panel grid) in offices and shops
+    const wallC = { lobby: 0xc9c4ba, retail: 0xc4beb4, apartment: 0xd8d0c2, office: 0xd0d4da, hotel: 0xcdc2b0, roof: 0x4a4e5a }[L.type] || 0xc4beb4;
+    const slabC = { lobby: 0xd8d6d0, retail: 0xcfccc4, apartment: 0xe2ded6, office: 0xd6d8dc, hotel: 0xddd8cd, roof: 0x30343e }[L.type] || 0xcfccc4;
+    const smoothCeil = L.type === 'apartment' || L.type === 'hotel' || L.type === 'lobby';
     fl.B = B; fl.solid = solid; fl.cc = cc; fl.rnd = rnd; fl.R = R; fl.wallC = wallC; fl.acc = acc;
     const y = L.y, top = y + L.h;
     const isRoof = L.tier === 'roof';
@@ -155,7 +162,9 @@ export class Building {
       const s = L.slab, holes = [this.shaft];
       if (L.tier !== 'podium' || L.k > 0) holes.push(this.stairB);
       // podium levels lie below the tower's core only if tower rect intersects them; core always inside podium rect
+      B.surf = smoothCeil ? SURF.ceiling : 0;
       for (const piece of rectMinusHoles(s.x0, s.z0, s.x1, s.z1, holes)) solid('decor', piece[0], y - SLAB, piece[1], piece[2], y, piece[3], slabC, 1, 'slab');
+      B.surf = 0;
       // ceiling light strips under this slab (visual belongs to floor below, added there)
     }
     if (k === 0) B.ext('decor', r.x0, 0.0, r.z0, r.x1, 0.03, r.z1, slabC);
@@ -532,8 +541,8 @@ export class Building {
     const ix0 = r.x0 + WALL, ix1 = r.x1 - WALL, iz0 = r.z0 + WALL, iz1 = r.z1 - WALL, y = L.y, h = L.h - SLAB;
     const wallC = fl.wallC, rooms = [];
     const t = 0.18;
-    const wallSeg = (x0, z0, x1, z1) => {
-      B.ext('decor', x0, y, z0, x1, y + h, z1, wallC); cc(x0, z0, x1, z1, y, y + h, 'part');
+    const wallSeg = (x0, z0, x1, z1, c = wallC) => {
+      B.ext('decor', x0, y, z0, x1, y + h, z1, c); cc(x0, z0, x1, z1, y, y + h, 'part');
       // baseboard and crown moulding on both faces
       B.ext('decor', x0 - 0.025, y, z0 - 0.025, x1 + 0.025, y + 0.13, z1 + 0.025, 0xded8cc);
       B.ext('decor', x0 - 0.02, y + h - 0.09, z0 - 0.02, x1 + 0.02, y + h, z1 + 0.02, 0xeae6dc);
@@ -548,16 +557,17 @@ export class Building {
       }
     };
     // wall along x at z with doorways [(u,w)] ; along z at x
-    const wallX = (z, xa, xb, gaps) => {
+    const wallX = (z, xa, xb, gaps, pc = wallC) => {
       let cur = xa; const g = [...gaps].sort((p, q) => p[0] - q[0]);
-      for (const [u, w] of g) { frame('x', z, u, w, z > zc ? -1 : 1); if (u - w / 2 > cur) wallSeg(cur, z - t / 2, u - w / 2, z + t / 2); B.ext('decor', u - w / 2, y + 2.15, z - t / 2, u + w / 2, y + h, z + t / 2, wallC); cc(u - w / 2, z - t / 2, u + w / 2, z + t / 2, y + 2.15, y + h, 'part'); cur = u + w / 2; }
-      if (xb > cur) wallSeg(cur, z - t / 2, xb, z + t / 2);
+      for (const [u, w] of g) { frame('x', z, u, w, z > zc ? -1 : 1); if (u - w / 2 > cur) wallSeg(cur, z - t / 2, u - w / 2, z + t / 2, pc); B.ext('decor', u - w / 2, y + 2.15, z - t / 2, u + w / 2, y + h, z + t / 2, pc); cc(u - w / 2, z - t / 2, u + w / 2, z + t / 2, y + 2.15, y + h, 'part'); cur = u + w / 2; }
+      if (xb > cur) wallSeg(cur, z - t / 2, xb, z + t / 2, pc);
     };
-    const wallZ = (x, za, zb, gaps) => {
+    const wallZ = (x, za, zb, gaps, pc = wallC) => {
       let cur = za; const g = [...gaps].sort((p, q) => p[0] - q[0]);
-      for (const [u, w] of g) { if (u - w / 2 > cur) wallSeg(x - t / 2, cur, x + t / 2, u - w / 2); B.ext('decor', x - t / 2, y + 2.15, u - w / 2, x + t / 2, y + h, u + w / 2, wallC); cc(x - t / 2, u - w / 2, x + t / 2, u + w / 2, y + 2.15, y + h, 'part'); cur = u + w / 2; }
-      if (zb > cur) wallSeg(x - t / 2, cur, x + t / 2, zb);
+      for (const [u, w] of g) { if (u - w / 2 > cur) wallSeg(x - t / 2, cur, x + t / 2, u - w / 2, pc); B.ext('decor', x - t / 2, y + 2.15, u - w / 2, x + t / 2, y + h, u + w / 2, pc); cc(x - t / 2, u - w / 2, x + t / 2, u + w / 2, y + 2.15, y + h, 'part'); cur = u + w / 2; }
+      if (zb > cur) wallSeg(x - t / 2, cur, x + t / 2, zb, pc);
     };
+    const pal = L.type === 'office' ? PAINT_OFFICE : PAINT, paintOf = (u) => pal[hash2(Math.floor(this.lot.seed * 1000) + fl.k * 31, u) % pal.length];
     const doors = [];
     const hasR1 = iz1 - (zc + COR_W) >= 4.2;
     const corrZ1 = hasR1 ? zc + COR_W : iz1;
@@ -572,9 +582,9 @@ export class Building {
         for (let q = 0; q < ns; q++) {
           const z0s = corrZ1 + q * sg, door = q === 0 ? dx : a + rw * 0.5 + (q % 2 ? 0.9 : -0.9);
           rooms.push({ x0: a, z0: z0s, x1: b, z1: z0s + sg, wall: 'n', dx: door, dz: z0s, sub: q, ns });
-          if (q > 0) wallX(z0s, a, b, [[door, 1.05]]);
+          if (q > 0) wallX(z0s, a, b, [[door, 1.05]], paintOf(i));
         }
-        if (i > 0) wallZ(a, corrZ1, iz1, []);
+        if (i > 0) wallZ(a, corrZ1, iz1, [], paintOf(i));
         doors.push({ axis: 'x', c: corrZ1, u: dx });
       }
       wallX(corrZ1, ix0, ix1, gaps);
@@ -590,9 +600,9 @@ export class Building {
         for (let q = 0; q < ns; q++) {
           const z1s = zc - q * sg, door = q === 0 ? dx : a + rw * 0.5 + (q % 2 ? 0.9 : -0.9);
           rooms.push({ x0: a, z0: z1s - sg, x1: b, z1: z1s, wall: 's', dx: door, dz: z1s, sub: q, ns });
-          if (q > 0) wallX(z1s, a, b, [[door, 1.05]]);
+          if (q > 0) wallX(z1s, a, b, [[door, 1.05]], paintOf(i + 50));
         }
-        if (i > 0) wallZ(a, iz0, zc, []);
+        if (i > 0) wallZ(a, iz0, zc, [], paintOf(i + 50));
         doors.push({ axis: 'x', c: zc, u: dx });
       }
       wallX(zc, r2x0, ix1, gaps);
@@ -662,6 +672,7 @@ export class Building {
     const back = south ? z1 : z0, dirIn = south ? 1 : -1; // direction from door wall into the room
     const col = (cx_, cz_, w, d, hgt, color, em) => solid('decor', cx_ - w / 2, y, cz_ - d / 2, cx_ + w / 2, y + hgt, cz_ + d / 2, color, em);
     const acc = fl.acc;
+    this.roomMEP(fl, L, rm, y, dirIn, cx, cz);
     if (rm.kind === 'bedroom' && rm.sub != null && fl.deco && (L.type === 'apartment' || L.type === 'hotel')) this.bathCell(fl, L, rm, y);
     if (fl.deco) {
       // rooms are ~8 x 20 m: split into zones of ~6.5 m from the back wall and furnish each as its own room-like area
@@ -717,6 +728,20 @@ export class Building {
       fl.fixtures.push([cx, y + 3.2, cz, [0.4, 0.7, 1]]);
     }
   }
+  // electrical and ceiling fittings of a room: light switch and sockets beside the door, a smoke detector, a sprinkler head, and a supply-air
+  // diffuser in offices and hotel rooms; all small merged boxes
+  roomMEP(fl, L, rm, y, dirIn, cx, cz) {
+    const { B } = fl, plate = 0xf0ece4, face = rm.dz + dirIn * 0.09, e = face + dirIn * 0.016, z0 = Math.min(face, e), z1 = Math.max(face, e), ceil = y + L.h - SLAB;
+    B.ext('decor', rm.dx + 0.84, y + 1.1, z0, rm.dx + 0.92, y + 1.22, z1, plate);                                   // light switch
+    for (const dx of [-0.9, 2.3]) B.ext('decor', rm.dx + dx, y + 0.3, z0, rm.dx + dx + 0.08, y + 0.4, z1, plate);   // sockets
+    if (rm.kind === 'living' || rm.kind === 'bedroom') B.ext('decor', rm.dx - 1.35, y + 1.35, z0, rm.dx - 1.27, y + 1.47, z1, 0xe6e3dc);   // thermostat
+    B.cyl('decor', cx + 1.4, ceil - 0.035, cz - 1.2, 0.06, 0.035, 0xf6f6f2, 12);                                    // smoke detector
+    B.cyl('decor', cx - 0.6, ceil - 0.03, cz + 1.0, 0.018, 0.03, 0xc8ccd2, 8);                                      // sprinkler head
+    if (L.type === 'office' || L.type === 'hotel') {
+      B.ext('decor', cx + 1.0, ceil - 0.02, cz + 0.2, cx + 1.5, ceil, cz + 0.7, 0xdcdde0);                          // air diffuser
+      for (let i = 0; i < 4; i++) B.ext('decor', cx + 1.04, ceil - 0.028, cz + 0.26 + i * 0.1, cx + 1.46, ceil - 0.02, cz + 0.3 + i * 0.1, 0x8a8e96);
+    }
+  }
   // en-suite bathroom in the back corner of a bedroom: walls with a doorway, tiled floor, toilet, basin with mirror, tub
   bathCell(fl, L, rm, y) {
     const { B, solid, cc } = fl, south = rm.wall === 'n', dirIn = south ? 1 : -1, back = south ? rm.z1 - 0.2 : rm.z0 + 0.2;
@@ -727,17 +752,29 @@ export class Building {
     solid('decor', xa, y, zf - t / 2, gap[0], y + h, zf + t / 2, wallC, 1, 'part');
     B.ext('decor', gap[0], y + 2.1, zf - t / 2, gap[1], y + h, zf + t / 2, wallC); cc(gap[0], zf - t / 2, gap[1], zf + t / 2, y + 2.1, y + h, 'part');
     solid('decor', xb - t / 2, y, zmin, xb + t / 2, y + h, zmax, wallC, 1, 'part');
-    this.floorFinish(fl, xa, zmin, xb, zmax, y, SURF.tile, 0xe6eaf0);
-    B.surf = SURF.tile; B.ext('decor', xa, y + 0.015, zmin, xa + 0.02, y + 1.5, zmax, 0xcfd6de); B.ext('decor', xb - 0.02, y + 0.015, zmin, xb, y + 1.5, zmax, 0xcfd6de); B.surf = 0; // tiled wainscot
+    this.floorFinish(fl, xa, zmin, xb, zmax, y + 0.012, SURF.tile, 0xe6eaf0);   // a hair above the bedroom's own floor finish, which covers the whole room
+    // wall tile up to 2.1 m on the side walls and the rear wall (the shader draws .3 m tiles with grout on vertical faces)
+    B.surf = SURF.tile;
+    B.ext('decor', xa, y + 0.015, zmin, xa + 0.02, y + 2.1, zmax, 0xdde4ea); B.ext('decor', xb - 0.02, y + 0.015, zmin, xb, y + 2.1, zmax, 0xdde4ea);
+    B.ext('decor', xa, y + 0.015, Math.min(back, back - dirIn * 0.02), xb, y + 2.1, Math.max(back, back - dirIn * 0.02), 0xdde4ea);
+    B.surf = 0;
     const bx = (x0, z0, x1, z1, y0, y1, col, key = 'decor', sol = true) => { const a = Math.min(x0, x1), b = Math.max(x0, x1), c = Math.min(z0, z1), d = Math.max(z0, z1); B.ext(key, a, y + y0, c, b, y + y1, d, col); if (sol) cc(a, c, b, d, y + y0, y + y1, 'furniture'); };
     const d1 = (k) => back - dirIn * k;
-    // tub along the back wall
+    const chrome = 0xb8bec8;
+    // tub along the back wall with a tap, a shower riser and head, a rod and a drawn curtain
     bx(xa + 0.05, d1(0.05), xa + 0.8, d1(1.75), 0, 0.55, 0xf2f4f8); bx(xa + 0.14, d1(0.14), xa + 0.71, d1(1.66), 0.5, 0.56, 0x9ecbe6, 'decor', false);
-    // toilet (bowl + tank) against the side wall
-    bx(xb - 0.5, d1(0.9), xb - 0.05, d1(1.4), 0, 0.42, 0xf4f6fa); bx(xb - 0.45, d1(0.82), xb - 0.08, d1(0.98), 0.42, 0.85, 0xf4f6fa);
-    // basin on a stand with a mirror above
+    bx(xa + 0.34, d1(0.06), xa + 0.46, d1(0.16), 0.62, 0.7, chrome, 'decor', false); bx(xa + 0.38, d1(0.04), xa + 0.42, d1(0.08), 0.7, 2.0, chrome, 'decor', false); bx(xa + 0.3, d1(0.04), xa + 0.5, d1(0.3), 1.96, 2.02, chrome, 'decor', false);
+    bx(xa + 0.8, d1(0.04), xa + 0.84, d1(1.76), 1.98, 2.02, chrome, 'decor', false); bx(xa + 0.79, d1(0.9), xa + 0.82, d1(1.74), 0.55, 1.98, 0xa8c8dc, 'decor', false);
+    // toilet: bowl, seat, tank with a flush button
+    bx(xb - 0.52, d1(0.9), xb - 0.05, d1(1.42), 0, 0.4, 0xf4f6fa); bx(xb - 0.5, d1(0.92), xb - 0.07, d1(1.4), 0.4, 0.43, 0xe4e8ee, 'decor', false);
+    bx(xb - 0.45, d1(0.82), xb - 0.08, d1(0.98), 0.43, 0.86, 0xf4f6fa); bx(xb - 0.3, d1(0.83), xb - 0.22, d1(0.89), 0.86, 0.885, chrome, 'decor', false);
+    // basin on a vanity with a tap and a framed mirror
     bx(xa + 1.0, d1(1.95), xa + 1.55, d1(2.25), 0, 0.84, 0xe9edf2); bx(xa + 1.02, d1(1.97), xa + 1.53, d1(2.23), 0.82, 0.86, 0x9aa4b0, 'decor', false);
+    bx(xa + 1.25, d1(2.2), xa + 1.31, d1(2.26), 0.86, 0.99, chrome, 'decor', false); bx(xa + 1.25, d1(2.1), xa + 1.31, d1(2.26), 0.97, 1.0, chrome, 'decor', false);
+    bx(xa + 0.95, d1(2.74), xa + 1.65, d1(2.715), 1.1, 1.96, 0x6b5a48, 'decor', false);
     bx(xa + 1.0, d1(2.72), xa + 1.6, d1(2.69), 1.15, 1.9, new THREE.Color(0.55, 0.7, 0.85).multiplyScalar(1.1), 'emit', false);
+    // towel rail with a towel on the side wall
+    bx(xb - 0.07, d1(1.75), xb - 0.03, d1(2.45), 1.14, 1.17, chrome, 'decor', false); bx(xb - 0.1, d1(1.9), xb - 0.04, d1(2.3), 0.72, 1.15, 0xdfe9f2, 'decor', false);
     fl.fixtures.push([(xa + xb) / 2, y + L.h - 0.5, (back + zf) / 2, [1, 1, 1]]);
     rm.reserved = [{ x0: xa - 0.1, x1: xb + 0.3, z0: zmin - 0.1, z1: zmax + 0.1 }];
   }
@@ -760,10 +797,27 @@ export class Building {
   }
   sofa(fl, x, z, ry, color, w = 2.6) {
     const { B, solid } = fl, y = this.levels[fl.k].y, e = Math.abs(Math.cos(ry)) > 0.7;
+    // local frame: l along the sofa, d towards the front (the side people face); the old sofa was one block 1 m deep with a 0.5 m high back
+    const sg = e ? (Math.cos(ry) > 0 ? 1 : -1) : (Math.sin(ry) > 0 ? 1 : -1);
     const hx = e ? w / 2 : 0.5, hz = e ? 0.5 : w / 2;
-    solid('decor', x - hx, y, z - hz, x + hx, y + 0.5, z + hz, color);
-    const bx = e ? 0 : Math.sin(ry) * -0.38, bz = e ? Math.cos(ry) * -0.38 : 0;
-    B.ext('decor', x - hx + bx, y + 0.5, z - hz + bz, x + hx + bx, y + 1.0, z + hz + bz, color);
+    solid('decor', x - hx, y, z - hz, x + hx, y + 0.45, z + hz, color);   // the collider and the seat base
+    const c = new THREE.Color(color), shade = (k) => c.clone().multiplyScalar(k);
+    const box = (l0, l1, d0, d1, y0, y1, col) => {
+      const a = e ? [x + l0, z + sg * d0, x + l1, z + sg * d1] : [x + sg * d0, z + l0, x + sg * d1, z + l1];
+      B.ext('decor', Math.min(a[0], a[2]), y + y0, Math.min(a[1], a[3]), Math.max(a[0], a[2]), y + y1, Math.max(a[1], a[3]), col);
+    };
+    const hw = w / 2, arm = 0.24;
+    box(-hw + 0.05, hw - 0.05, -0.46, 0.46, 0.0, 0.12, 0x1c1a1e);                         // plinth
+    box(-hw, -hw + arm, -0.5, 0.5, 0.12, 0.64, shade(0.9)); box(hw - arm, hw, -0.5, 0.5, 0.12, 0.64, shade(0.9));   // arms
+    box(-hw + arm, hw - arm, -0.5, -0.3, 0.44, 1.0, shade(0.95));                          // back frame
+    const n = w > 2.2 ? 3 : 2, cw = (w - 2 * arm) / n;
+    for (let i = 0; i < n; i++) {
+      const l0 = -hw + arm + i * cw + 0.015, l1 = -hw + arm + (i + 1) * cw - 0.015, k = 1.04 + (i % 2) * 0.04;
+      box(l0, l1, -0.3, 0.5, 0.44, 0.58, shade(k));                                        // seat cushion
+      box(l0, l1, -0.3, -0.12, 0.58, 0.96, shade(k - 0.02));                               // back cushion
+    }
+    const pil = fl.acc.clone().multiplyScalar(0.55).lerp(new THREE.Color(0xe8dccb), 0.35);
+    box(-hw + arm + 0.05, -hw + arm + 0.5, -0.12, 0.02, 0.58, 0.98, pil); box(hw - arm - 0.5, hw - arm - 0.05, -0.12, 0.02, 0.58, 0.98, shade(1.25));   // throw pillows
   }
   plant(fl, x, z) {
     const { B, solid } = fl, y = this.levels[fl.k].y;
