@@ -15,6 +15,7 @@ import { Input } from './input.js';
 import { glowSpriteMat, buildCar, CAR_SPECS } from './models.js';
 import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { War, WAR_NAMES } from './warcraft.js';
+import { Farland } from './farland.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
@@ -95,7 +96,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt;
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : new Farland(this.scene, { phys: this.phys });
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -1647,6 +1648,7 @@ export class Game {
     const fov = cam.fov + this.fallK * 16;
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
+    this.farland?.update(c);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;

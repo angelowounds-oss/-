@@ -16,3 +16,4 @@
 | [0009](0009-character-swap-frame-remap.md) | 캐릭터 교체: 뼈 프레임을 Soldier 규약에 맞춰 코드는 그대로 | 채택 |
 | [0010](0010-building-stages-and-shape-variation.md) | 건물 단계 목록과 모양 변주(건물별 난수, 코어 모서리 고정) | 채택 |
 | [0011](0011-war-craft.md) | 전차·공격헬기·전투기: 기존 차량 구조 위에 카메라=조준, 군 기지는 공원 블록 | 채택 |
+| [0012](0012-world-archipelago.md) | 100 km 도시 군도: 좌표·월드 설계 데이터·원경 지형 클립맵 | 채택 · 1단계 구현 |

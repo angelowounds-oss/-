@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { glowSpriteMat } from './models.js';
 import { GR, grp } from './physics.js';
 import { clamp, lerp, damp, TAU, rand } from './util.js';
+import { WORLD_HALF } from './worldmap.js';
+import { landHeight } from './farland.js';
 
 // Motorcycle, boat and helicopter: procedural models + physics drive models (Vehicle subclass-free hooks)
 export const CRAFT_SPECS = {
@@ -234,8 +236,8 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
   const hit = G.phys.ray(t.x, t.y, t.z, 0, -1, 0, 40, 1 | 16), agl = hit ? hit.t - spec.cy : 99;
   const onGround = agl < 0.5;
   let s = veh.jetS ?? 0;
-  // the hypersonic one crosses the whole city in a second: past ~2.2 km from the centre it slows down and turns back by itself
-  if (spec.hyper) { const r = Math.hypot(t.x, t.z); veh.returning = r > 2200 ? true : r < 1700 ? false : !!veh.returning; }
+  // the hypersonic one crosses the world in half a minute: near the edge of the map it slows down and turns back by itself
+  if (spec.hyper) { const r = Math.max(Math.abs(t.x), Math.abs(t.z)), lim = WORLD_HALF - 3500; veh.returning = r > lim ? true : r < lim - 8000 ? false : !!veh.returning; }
   const target = Math.min(veh.thrLvl * spec.maxSpeed, veh.returning ? 700 : 1e9);
   s += clamp(target - s, -spec.accel * 1.6 * dt, spec.accel * dt);
   if (onGround && brk > 0.1 && s > 0) s = Math.max(0, s - 28 * dt);
@@ -269,6 +271,9 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
     const len = s * dt, dx = vx / s, dy = cy / s, dz = vz / s, hit = G.phys.ray(t.x, t.y, t.z, dx, dy, dz, len + 4, 1 | 16);
     let nx = t.x + vx * dt, ny = t.y + cy * dt, nz = t.z + vz * dt, crash = false;
     if (hit && hit.t < len + 4) { const d = Math.max(0, hit.t - 3); nx = t.x + dx * d; ny = t.y + dy * d; nz = t.z + dz * d; crash = true; }
+    if (!crash && (Math.abs(nx) > 1400 || Math.abs(nz) > 1400 || Math.abs(t.x) > 1400 || Math.abs(t.z) > 1400)) {   // outside the city: the hills and mountains of the far land (no physics body that far)
+      for (let u = 1 / 3; u <= 1.001; u += 1 / 3) { const sx = t.x + (nx - t.x) * u, sy = t.y + (ny - t.y) * u, sz = t.z + (nz - t.z) * u; if (sy - spec.cy < landHeight(sx, sz, 32) + 0.5) { nx = sx; ny = Math.max(sy, landHeight(sx, sz, 32) + spec.cy); nz = sz; crash = true; break; } }
+    }
     b.setTranslation({ x: nx, y: ny, z: nz }, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); b.setRotation({ x: _Q.x, y: _Q.y, z: _Q.z, w: _Q.w }, true);
     veh.hv = { x: vx, y: cy, z: vz }; veh.cmdV = null; veh.pitchA = pitch; veh.bank = bank;
     if (crash) { const sp0 = s; veh.jetS = 0; veh.thrLvl = 0; veh.onImpact(sp0, nx, nz, null); veh.damage(1e6, null); }

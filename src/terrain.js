@@ -18,7 +18,7 @@ const vnoise = (x, y) => {
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // terrain without roads
-function baseHeight(x, z) {
+export function baseHeight(x, z) {
   const r = Math.hypot(x, z);
   const s = smooth(R0, R0 + 190, r), hi = smooth(1180, 1460, r);
   const ridge = 0.55 + 0.9 * vnoise(x * 0.0042 + 3.1, z * 0.0042 - 1.7), detail = vnoise(x * 0.013, z * 0.013);

@@ -116,6 +116,8 @@ export class Blaze {
     if (this.smoke > 0.01) fog.density *= 1 + this.smoke * 7;
     // high above the city (tall roofs, a helicopter, the sky tower) the haze is thin: the fog hugs the streets
     const cy = this.G.camera.position.y; if (cy > 80) { const k = Math.min(1, (cy - 80) / 370); fog.density *= 1 - 0.85 * k * k * (3 - 2 * k); }
+    // above ~450 m the air keeps clearing so the 100 km world beyond the city can be seen from an aircraft
+    if (cy > 450) fog.density = Math.max(2e-5, fog.density * Math.exp(-(cy - 450) / 420));   // 1 km: ~3 km of sight, 2 km: ~25 km, above that the world's 100 km
   }
 
   smokeAt(s) {

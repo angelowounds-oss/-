@@ -85,7 +85,7 @@ export function createEngine(parent, qIndex) {
   scene.background = new THREE.Color(0x070816);
   scene.fog = new THREE.FogExp2(0x0b0c22, 0.0105);
 
-  const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.12, 2600);
+  const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.12, 170000);   // far: the 100 km world (farland.js); depth precision is set by near, not far
   scene.add(camera);
 
   // Lights
@@ -157,7 +157,7 @@ export function createEngine(parent, qIndex) {
       moon.shadow.mapSize.set(q.shadow, q.shadow);
       if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; }
       bloom.strength = q.bloom;
-      camera.far = q.camFar || 2600; camera.updateProjectionMatrix();
+      camera.far = q.camFar || 170000; camera.updateProjectionMatrix();
       if (gtao) { composer.removePass(gtao); gtao.dispose?.(); gtao = null; }
       if (q.ao) {
         try {

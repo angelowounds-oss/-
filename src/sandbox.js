@@ -3,6 +3,8 @@ import { WEAPONS } from './human.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { ATT } from './attachments.js';
 import { el } from './util.js';
+import { cities } from './worldmap.js';
+import { landHeight } from './farland.js';
 
 // Sandbox / test mode (pause menu or F9): unlimited health, ammo, gear, no police, no hunger, indestructible cars,
 // plus quick tools to give everything, spawn people and cars, set the time and weather, blow things up and knock people down.
@@ -52,7 +54,7 @@ export class Sandbox {
     add('돈 +$100,000', () => { G.cash += 100000; G.toast('+$100,000'); });
     add('낮 12시', () => this.setHour(12)); add('밤 0시', () => this.setHour(0));
     add('맑음', () => this.setWeather('clear')); add('비', () => this.setWeather('rain'));
-    add('전방 폭발', () => this.blast()); add('1000 m 타워 앞으로', () => this.toSkyTower()); add('군 기지로 이동', () => this.toBase()); add('전차 소환', () => this.spawnWar('tank')); add('로드스터 소환', () => this.spawnRoadster()); add('다크스타 소환', () => this.spawnWar('darkstar')); add('전투기 소환', () => this.spawnWar('jet')); add('공격헬기 소환', () => this.spawnWar('gunship')); add('가까운 건물에 불', () => this.burnNearest(false)); add('가까운 건물 붕괴', () => this.burnNearest(true)); add('무너진 건물 복구', () => { this.G.blaze.rebuildAll(); this.G.toast('건물 복구'); });
+    add('전방 폭발', () => this.blast()); add('1000 m 타워 앞으로', () => this.toSkyTower()); add('군 기지로 이동', () => this.toBase()); for (const c of cities()) if (!c.fixed) add('→ ' + c.name, () => this.toCity(c)); add('전차 소환', () => this.spawnWar('tank')); add('로드스터 소환', () => this.spawnRoadster()); add('다크스타 소환', () => this.spawnWar('darkstar')); add('전투기 소환', () => this.spawnWar('jet')); add('공격헬기 소환', () => this.spawnWar('gunship')); add('가까운 건물에 불', () => this.burnNearest(false)); add('가까운 건물 붕괴', () => this.burnNearest(true)); add('무너진 건물 복구', () => { this.G.blaze.rebuildAll(); this.G.toast('건물 복구'); });
     add('전방 화재', () => { const a = this.ahead(10); this.G.fire.ignite(a.x, a.z, { fuel: 25, r: 2, src: this.G.player }); }); add('NPC 6명 소환', () => this.spawnPeople(6));
     add('주변 NPC 사살(랙돌)', () => this.dropPeople(true)); add('주변 NPC 넘어뜨리기', () => this.dropPeople(false));
     add('차량 소환', () => this.spawnCar()); add('체력·상태 회복', () => this.heal());
@@ -118,6 +120,10 @@ export class Sandbox {
       n++;
     }
     G.toast(kill ? `${n}명 사살` : `${n}명 넘어뜨림`);
+  }
+  toCity(c) {
+    const G = this.G, pl = G.player, y = landHeight(c.x, c.z, 8) + 1;
+    pl.body3.teleport(c.x, y, c.z); pl.x = c.x; pl.y = y; pl.z = c.z; pl.vx = pl.vz = 0; G.farland?.ground.update(c.x, c.z, y); G.toast(c.name, `${c.type} · ${Math.round(Math.hypot(c.x, c.z) / 1000)} km`);
   }
   toBase() {
     const G = this.G, b = G.war.base, pl = G.player; if (!b) return G.toast('군 기지 없음');
