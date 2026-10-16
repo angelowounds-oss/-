@@ -43,6 +43,6 @@ run('building-shapes', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     o.bad = o.bad.slice(0, 6);
     return o;
   });
-  const pass = o.lots > 300 && o.bad.length === 0 && o.tallStepped / Math.max(1, o.tall) >= 0.3 && o.wing > 0 && o.crowns2 > 0;
+  const pass = o.lots > 300 && o.bad.length === 0 && o.tallStepped / Math.max(1, o.tall) >= 0.4 && o.wing > 0 && o.crowns2 > 0;
   result('building-shapes', pass, o);
 });

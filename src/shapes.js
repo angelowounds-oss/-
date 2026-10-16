@@ -7,7 +7,7 @@ import { mulberry32 } from './util.js';
 // the city's shared stream, so no other building moves.
 export const CORE_MIN_X = 7.3, CORE_MIN_Z = 6.7;   // the core's footprint from the stage corner (WALL + CORE_W, WALL + CORE_D in building.js)
 export const MIN_SIDE = 14;                          // a stage side is never shorter (rooms and corridors need it)
-export const ZONE_MULTI = [0.75, 0.55, 0.5, 0.5, 0.55];   // chance of a multi-stage tower per zone (0 = central plaza)
+export const ZONE_MULTI = [0.9, 0.75, 0.7, 0.7, 0.75];   // chance of a multi-stage tower per zone (0 = central plaza)
 
 // input: the lowest tower stage (x0, z0, x1, z1, y0, y1), the building seed and the zone index; output: stages from the bottom up
 export function planTowerStages({ x0, z0, x1, z1, y0, y1, seed, zone = 1 }) {
@@ -16,7 +16,7 @@ export function planTowerStages({ x0, z0, x1, z1, y0, y1, seed, zone = 1 }) {
   const first = { x0, z0, x1, z1, y0, y1 };
   const roll = rnd(), threeRoll = rnd(), modeRoll = rnd(), wingRoll = rnd();
   const fr = [rnd(), rnd(), rnd(), rnd()], hf = [rnd(), rnd(), rnd()];
-  if (th < 26 || Math.min(w, d) < MIN_SIDE * 1.5 || roll >= (ZONE_MULTI[zone] ?? 0.5)) return [first];
+  if (th < 26 || Math.max(w, d) < MIN_SIDE * 1.4 || roll >= (ZONE_MULTI[zone] ?? 0.5)) return [first];
   const n = th >= 80 && threeRoll < 0.4 ? 3 : 2;
   const mode = modeRoll < 0.5 ? 'both' : modeRoll < 0.75 ? 'x' : 'z';
   const wing = wingRoll < 0.35;
@@ -29,8 +29,11 @@ export function planTowerStages({ x0, z0, x1, z1, y0, y1, seed, zone = 1 }) {
   for (let i = 1; i < n; i++) {
     const f0 = 0.62 + 0.23 * fr[(i - 1) * 2], f1 = 0.62 + 0.23 * fr[(i - 1) * 2 + 1];
     let nx1 = cur.x1, nz1 = cur.z1;
-    if (mode !== 'z' && (cur.x1 - cur.x0) * f0 >= MIN_SIDE) nx1 = cur.x0 + (cur.x1 - cur.x0) * f0;
-    if (mode !== 'x' && (cur.z1 - cur.z0) * f1 >= MIN_SIDE) nz1 = cur.z0 + (cur.z1 - cur.z0) * f1;
+    const canX = (cur.x1 - cur.x0) * f0 >= MIN_SIDE, canZ = (cur.z1 - cur.z0) * f1 >= MIN_SIDE;
+    // the chosen axis (or both); a short axis falls back to the other one so a narrow lot still steps back along its long side
+    const useX = canX && (mode !== 'z' || !canZ), useZ = canZ && (mode !== 'x' || !canX);
+    if (useX) nx1 = cur.x0 + (cur.x1 - cur.x0) * f0;
+    if (useZ) nz1 = cur.z0 + (cur.z1 - cur.z0) * f1;
     if (nx1 === cur.x1 && nz1 === cur.z1) break;   // no room to step back any more
     const yA = y0 + th * cut[i - 1], yB = i === n - 1 ? y1 : y0 + th * cut[i];
     out[i - 1] = { ...out[i - 1], y1: yA };
