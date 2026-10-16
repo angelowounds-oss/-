@@ -1,6 +1,5 @@
 import { net } from './roadnet.js';
 import { cities } from './worldmap.js';
-import { N as GN, HALF, R as GR_, roadC } from './world.js';
 
 // Route planning over the highway network and an autopilot for the player's car (ADR-0012 phase 5).
 // The graph is the road samples (30 m apart) of every highway, ring and connector: consecutive samples are joined, and samples of different roads
@@ -66,9 +65,6 @@ export const graph = () => GRAPH || (GRAPH = new RoadGraph());
 // the city whose disc contains (x, z) (margin m beyond it), or null
 export function cityAt(x, z, margin = 0) { for (const c of cities()) if (Math.hypot(x - c.x, z - c.z) < c.r + margin) return c; return null; }
 
-let CAP = null;
-// the capital's own grid as street lines
-function capitalLines() { if (CAP) return CAP; const set = []; for (let i = 0; i <= GN; i++) set.push({ c: roadC(i), a: -HALF, b: HALF, w: GR_ }); return (CAP = { v: set, h: set.map((l) => ({ ...l })) }); }
 // street lines of a city (relative to its centre), from the layout: the capital's grid is added by the caller (it has its own road grid)
 function manhattan(lines, c, x0, z0, x1, z1) {
   // from (x0, z0) to (x1, z1) through the city's street lines: onto the nearest line, along it, over a crossing line, to the target
@@ -126,7 +122,7 @@ export class Router {
 // Drives the player's ground vehicle along a route: pure pursuit on the polyline, speed by road class, braking for what is in the way and for
 // corners. Any steering/brake input from the player hands the car back.
 export class AutoNav {
-  constructor(G) { this.G = G; this.route = null; this.i = 0; this.active = false; this.goal = null; this.cancelT = 0; this.router = new Router((c) => { if (c.id === 'neon') return capitalLines(); const C = G.citysites?.cities.find((q) => q.c.id === c.id); return C && G.citylife.linesOf(C); }); }
+  constructor(G) { this.G = G; this.route = null; this.i = 0; this.active = false; this.goal = null; this.cancelT = 0; this.router = new Router((c) => { if (c.id === 'neon') return G.capitalLines(); const C = G.citysites?.cities.find((q) => q.c.id === c.id); return C && G.citylife.linesOf(C); }); }
   start(x, z) {
     const G = this.G, v = G.vehicle; if (!v || v.spec.craft) { G.toast('자동 주행 불가', '자동차에 타고 있어야 한다'); return false; }
     const f = G.focusPos(); this.route = this.router.route(f.x, f.z, x, z); this.goal = { x, z }; this.i = this.closest(f.x, f.z); this.active = true; this.cancelT = 0.6;

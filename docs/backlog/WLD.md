@@ -83,5 +83,6 @@
 - 2단계 고속도로 — **Done (2026-10-16, `src/roadnet.js`, `src/highways.js`, `src/hwtraffic.js`, `unit/roadnet`, `e2e/highways`)**: 도시 간 7개 노선 + 도시 순환로 + 인터체인지(스택·클로버·트럼펫·다이아몬드) 49개 램프, 교량·터널, 톨게이트 14·휴게소 6·표지판, 차선 교통과 도로변 직원
 - 3단계 사전 계산·로딩 — **Done (2026-10-16, `build/bake.mjs`, `src/bakefmt.js`, `src/bakedload.js`, `unit/bake`)**: 월드·도로·도시 배치를 한 컨테이너로 구워 deflate로 내장, 워커가 풀기, `WORLD=small`은 굽지 않음. 구역 로컬 원점은 하지 않기로 했다(ADR-0012 3·4단계: 모든 도시를 y=0에 두고 절대 좌표 유지, 지터는 40 km에서 1~2 px 이하)
 - 4단계 도시 상세 — **Done (2026-10-16, `src/citylayout.js`, `src/citysites.js`, `e2e/cities`)**: 도시 6곳 각자의 도로 패턴·블록·팔레트·간판 언어, 항만(컨테이너 야드·크레인·부두 만)·공항(활주로·터미널·격납고·관제탑)·공원·경기장·병원·학교, 3단 LOD(근거리 파사드 인스턴스 / 합쳐진 중거리 / 스카이라인), 건물 내부·화재·붕괴는 수도와 같은 코드(`Buildings.addLot`, `Blaze.addLot`)
-- 5단계 교통·항공·규칙(지하철·고속철도·여객기, 지도·내비 UI, 도시별 경찰·경제·미션, 통계 시뮬레이션, 타일 델타 세이브, 다크스타 보조) — Backlog
+- 5단계 교통·항공·규칙 — **Done (2026-10-16, `citylife`·`worldmapui`·`worldnav`·`transit`·`aviation`·`cityrules`, `e2e/worldnav`·`transit`·`cityrules`·`flightassist`·`world-small`·`world-perf`)**: 거리 생활, 세계 지도(J)·목적지·자동 주행, 지하철·고속철도·여객기·택시 빠른 이동, 도시별 경찰 관할·기후·시각·빛·경비·장거리 배달, 안 보는 도시의 통계 시뮬레이션과 사건, 타일 단위 델타 세이브, 고도 유지(U)·저고도 보조
+- 이월(WLD-15b): 중거리 합친 메시가 폐허를 모른다(타일이 근거리를 벗어나면 멀쩡히 보임), 도시 간 도로의 보행자·원경 AI, 철도 정거장 내부, 항구 선박, 실기기 성능 측정(PERF-01/02)
 

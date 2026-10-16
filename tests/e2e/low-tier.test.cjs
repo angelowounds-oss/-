@@ -1,6 +1,6 @@
 // render (RND-08): the LOW tier is the extreme low-end mode: 45 % render resolution, no post-processing (straight to the screen), simplified
 // facades, no relief / skyline blocks, view distance 520 m, no dynamic scaling. A real frame is not black and still carries the neon look
-// (lit windows, bright signs/lamps), and nothing compiles during play. MEDIUM is unchanged (full resolution, relief, far plane 2600).
+// (lit windows, bright signs/lamps), and nothing compiles during play. MEDIUM is unchanged (full resolution, relief, far plane 170000).
 const { run, freeze, result } = require('../lib.cjs');
 run('low-tier', { q: 0, width: 640, height: 360 }, async ({ page }) => {
   await freeze(page);
@@ -27,6 +27,6 @@ run('low-tier', { q: 0, width: 640, height: 360 }, async ({ page }) => {
     return o;
   });
   const pass = o.tier === 'LOW' && o.pixelRatio <= 0.46 && o.canvasW < o.cssW * 0.5 && o.far === 520 && !o.reliefVisible && o.noScale && o.post === false
-    && o.mean > 10 && o.brightPct > 0.05 && o.newPrograms === 0 && o.scaleKept && o.mediumFar === 2600 && o.mediumRelief && o.mediumPR === 1 && o.backToLow;
+    && o.mean > 10 && o.brightPct > 0.05 && o.newPrograms === 0 && o.scaleKept && o.mediumFar === 170000 && o.mediumRelief && o.mediumPR === 1 && o.backToLow;
   result('low-tier', pass, o);
 });

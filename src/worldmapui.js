@@ -54,7 +54,7 @@ export class WorldMapUI {
     });
     addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.open) { this.toggle(false); e.stopImmediatePropagation(); e.preventDefault(); return; }
-      if (e.code === 'KeyJ' && !e.repeat && !e.metaKey && !e.ctrlKey && G.running && (this.open || !G.uiModal)) { this.toggle(!this.open); e.preventDefault(); }
+      if (e.code === 'KeyJ' && !e.repeat && !e.metaKey && !e.ctrlKey && G.running && !G.riding && (this.open || !G.uiModal)) { this.toggle(!this.open); e.preventDefault(); }
     }, true);
     // the pillar that marks the waypoint in the world (made now so the load-time warm-up compiles it)
     this.pillar = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 3000, 10, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.9, 1).multiplyScalar(2), transparent: true, opacity: 0.35, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));
@@ -158,6 +158,8 @@ export class WorldMapUI {
       for (let i = 0; i < r.pts.length; i += L === 0 ? 4 : 1) { const p = r.pts[i]; if (!vis(p[0], p[1])) { on = false; continue; } const [px, py] = this.toScreen(p[0], p[1]); if (!on) { g.moveTo(px, py); on = true; } else g.lineTo(px, py); }
       g.stroke();
     }
+    // rail lines (beside the highways): thin dashed orange
+    if (G.transit) { g.strokeStyle = 'rgba(255,140,40,.9)'; g.lineWidth = Math.max(1.5, 7 * s); g.setLineDash([8, 6]); for (const Ln of G.transit.lines) { g.beginPath(); let on = false; for (let i = 0; i < Ln.pts.length; i += L === 0 ? 5 : 2) { const p = Ln.pts[i]; if (!vis(p[0], p[2])) { on = false; continue; } const [px, py] = this.toScreen(p[0], p[2]); if (!on) { g.moveTo(px, py); on = true; } else g.lineTo(px, py); } g.stroke(); } g.setLineDash([]); }
     // city streets at the closest level
     if (L >= 2) this.drawStreets(g, s);
     // cities
@@ -167,6 +169,13 @@ export class WorldMapUI {
       const r = c.r * s; g.fillStyle = 'rgba(255,120,220,.10)'; g.strokeStyle = 'rgba(255,140,230,.55)'; g.lineWidth = 1.5; g.beginPath(); g.arc(px, py, Math.max(r, 5), 0, 7); g.fill(); g.stroke();
       g.fillStyle = '#fff'; g.font = `${L === 0 ? 15 : 17}px "Space Mono",monospace`; g.textAlign = 'center'; g.fillText(c.name, px, py - Math.max(r, 5) - 6);
       g.font = '12px "Space Mono",monospace'; g.fillStyle = '#9ce'; g.fillText({ metropolis: '수도', port: '항만 ⚓', airport: '공항 ✈', town: '' }[c.type] || '', px, py + Math.max(r, 5) + 16);
+    }
+    // stations: metro entrances (street levels), rail stations and the airport gate (from the region level up)
+    for (const s of G.transit?.stations || []) {
+      if (s.kind === 0 && L < 2) continue; if (s.kind === 1 && L < 1) continue; const [px, py] = this.toScreen(s.x, s.z); if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+      g.fillStyle = ['#27d9ff', '#ff8c26', '#ffd633'][s.kind]; g.strokeStyle = '#041'; g.lineWidth = 2; g.beginPath(); g.arc(px, py, s.kind === 0 ? 6 : 9, 0, 7); g.fill(); g.stroke();
+      g.fillStyle = '#021'; g.font = 'bold 11px "Space Mono",monospace'; g.textAlign = 'center'; g.fillText(['M', 'R', '✈'][s.kind], px, py + 4);
+      if (L >= 3 && s.kind !== 0) { g.fillStyle = '#fff'; g.fillText(s.name, px, py - 14); }
     }
     // route and waypoint
     const route = G.autonav?.route; if (route && G.autonav.active) {

@@ -217,18 +217,25 @@ export class CitySites {
   // per-frame: tile visibility by distance to the camera, one L0 tile made per frame, colliders near the player
   update(camera, focus, dt) {
     const cx = camera.position.x, cz = camera.position.z; let near = 0, mid = 0;
+    // predictive load: the tile the player will be at in LOOK seconds counts as near too (up to 900 m ahead), so a fast car or a plane finds the buildings made
+    let lx = cx, lz = cz;
+    if (this.prev && dt > 0 && dt < 0.2) { const vx = (cx - this.prev[0]) / dt, vz = (cz - this.prev[1]) / dt, sp = Math.hypot(vx, vz), k = sp > 1 ? Math.min(3, 900 / sp) : 0; lx = cx + vx * k; lz = cz + vz * k; }
+    this.prev = [cx, cz];
     for (const C of this.cities) {
       const dxc = cx - C.c.x, dzc = cz - C.c.z, dc = Math.hypot(dxc, dzc), inReach = dc < C.L.R * 1.2 + MID;
       C.group.visible = dc < 170000;
       if (C.sky) C.sky.visible = dc > C.L.R * 0.6;
       if (C.signs) C.signs.visible = dc < C.L.R + 900;
       for (const t of C.tiles.values()) {
-        const d = inReach ? Math.hypot(cx - t.wx, cz - t.wz) - TILE * 0.7 : 1e9, wantNear = d < NEAR, keepNear = d < NEAR_OFF;
-        if (t.near && !keepNear) this.dropNear(t); else if (!t.near && wantNear && t.bld.length && !this.madeThisFrame && this.G?.buildings) { this.makeNear(C, t); this.madeThisFrame = true; }
+        const d = inReach ? Math.min(Math.hypot(cx - t.wx, cz - t.wz), Math.hypot(lx - t.wx, lz - t.wz)) - TILE * 0.7 : 1e9, wantNear = d < NEAR, keepNear = d < NEAR_OFF;
+        if (t.near && t.near.stale) {   // only the facade of a tile with ruins is kept (the merged mid mesh does not know about ruins): back near, make it whole again; far away, let it go
+          if (wantNear && !this.madeThisFrame) { this.dropNear(t, false); this.makeNear(C, t); this.madeThisFrame = true; } else if (d > MID) this.dropNear(t, false);
+        } else if (t.near && !keepNear) this.dropNear(t, t.near.lots.some((l) => this.G.state.rruins[l.id] != null));
+        else if (!t.near && wantNear && t.bld.length && !this.madeThisFrame && this.G?.buildings) { this.makeNear(C, t); this.madeThisFrame = true; }
         const vis = d < MID;
         if (t.gnd) t.gnd.visible = vis;
         if (t.mid) t.mid.visible = vis && !t.near;
-        if (t.near) near++; if (vis) mid++;
+        if (t.near && !t.near.stale) near++; if (vis) mid++;
       }
     }
     this.madeThisFrame = false; this.stats.near = near; this.stats.mid = mid;
@@ -273,15 +280,18 @@ export class CitySites {
     bx(-1.3, 0, 0.1, 0.14, 3.1, 0.22, em, -2); bx(1.3, 0, 0.1, 0.14, 3.1, 0.22, em, -2); bx(0, 3.1, 0.1, 2.74, 0.14, 0.22, em, -2);
     bx(0, 0.02, 5.4, 2.0, 0.04, 7.2, dim, -1); bx(0, 3.55, 1.35, 6.2, 0.18, 2.8, [0.04, 0.05, 0.08], 0); bx(0, 3.35, 1.5, 3.2, 0.04, 2.0, [2.2, 1.9, 1.4], -2);
   }
-  dropNear(t) {
+  // keepVisual: the tile holds ruins, so its facade mesh stays (hiding the merged mesh, which shows the building whole) while the lots and boxes go
+  dropNear(t, keepVisual) {
     const n = t.near; if (!n) return; const G = this.G, col = this.world.colliders;
     for (const lot of n.lots) { G.blaze?.removeLot(lot); G.buildings.removeLot(lot); if (lot.solid) col.removeBox(lot.solid); }
     for (const b of n.boxes) col.removeBox(b);
+    n.lots = []; n.boxes = [];
+    if (keepVisual) { n.stale = true; return; }
     for (const m of [n.mesh, n.ent]) if (m) { m.parent?.remove(m); m.geometry.dispose(); }
     t.near = null;
   }
 
   // the city whose disc contains (x, z), or null
   cityAt(x, z, margin = 0) { for (const C of this.cities) if (Math.hypot(x - C.c.x, z - C.c.z) < C.L.R + margin) return C.c; return null; }
-  dispose() { this.scene.remove(this.group); this.group.traverse((o) => { o.geometry?.dispose?.(); }); for (const C of this.cities) for (const t of C.tiles.values()) this.dropNear(t); }
+  dispose() { this.scene.remove(this.group); this.group.traverse((o) => { o.geometry?.dispose?.(); }); for (const C of this.cities) for (const t of C.tiles.values()) this.dropNear(t, false); }
 }

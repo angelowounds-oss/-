@@ -379,7 +379,7 @@ export class Game {
     this.clock.update(sdt); this.needs.update(sdt); this.society.update(sdt); this.items.update(sdt); this.updateFlashlight();
     if (this.input.edge('inv')) this.openInventory();
     if (this.input.edge('sur') && this.playerOnFoot) this.surrender();
-    if (this.input.edge('phone') && !this.uiModal && !this.player.dead) this.phone.show();
+    if (this.input.edge('phone') && !this.uiModal && !this.riding && !this.player.dead) this.phone.show();
     this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt); this.transit?.update(sdt); this.aviation?.update(sdt); this.rules?.update(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     if (!this.riding) { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }   // (not while riding: opening buildings along the way is wasted work)
@@ -709,6 +709,8 @@ export class Game {
   }
   waterAt(x, z) { for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w; return null; }
   focusPos() { return this.vehicle || this.player; }
+  // the capital's own road grid as street lines (the route planner treats it like the other cities' plans)
+  capitalLines() { if (!this._capL) { const set = []; for (let i = 0; i <= N; i++) set.push({ c: roadC(i), a: -HALF, b: HALF, w: R }); this._capL = { v: set, h: set.map((l) => ({ ...l })) }; } return this._capL; }
   // timed action with progress bar (lockpick, hacking, eating...)
   beginTimed(label, secs, done, cancelDist = 3) {
     if (this.timed) return;
