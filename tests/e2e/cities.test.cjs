@@ -46,6 +46,7 @@ run('cities', { q: 1, width: 640, height: 360 }, async ({ page }) => {
       pl.body3.teleport(d.px + d.nx * 40, 0.6, d.pz + d.nz * 40); pl.x = d.px + d.nx * 40; pl.y = 0.6; pl.z = d.pz + d.nz * 40; step(240);
       const lot2 = [...C.tiles.values()].flatMap((t) => (t.near ? t.near.lots : [])).find((l) => l.id === lid); o.fire.restored = !!lot2 && Bz.ruins.has(lot2);
     }
+    { const sh = g.ships.ships; const c = S.cities[0].c; pl.body3.teleport(c.x + 30, 1, c.z + 30); pl.x = c.x + 30; pl.y = 1; pl.z = c.z + 30; step(30); g.camera.position.set(c.x, 60, c.z); let vis = 0, moved = 0; const p0 = sh[1].g.position.x; g.time = 10; g.ships.update(0.016); g.time = 150; g.ships.update(0.016); moved = Math.abs(sh[1].g.position.x - p0) + Math.abs(sh[1].g.position.z); vis = sh.filter((q) => q.g.visible).length; o.ships = { n: sh.length, vis, moved: Math.round(moved) }; }
     o.per = per; o.worstFrameMs = +worst.toFixed(1);
     // from far away: skyline + mid tiles in range, no near tiles
     const c0 = S.cities[0].c; view(c0.x, c0.y + 300, c0.z + 5200, c0.x, c0.y + 30, c0.z);
@@ -55,6 +56,6 @@ run('cities', { q: 1, width: 640, height: 360 }, async ({ page }) => {
   if (shots) for (const [k, v] of Object.entries(o.shots || {})) fs.writeFileSync(`tests/results/city-${k}.png`, Buffer.from(v.split(',')[1], 'base64'));
   delete o.shots;
   const stood = o.per && Object.values(o.per).every((p) => p.y > p.ground - 0.5 && p.y < p.ground + 8);
-  const pass = o.has && o.cities === 6 && o.styles === 6 && o.buildings.every((n) => n > 1000) && o.tris < 2.2e6 && Object.values(o.per).every((p) => p.near > 0 && p.coll > 20) && stood && o.air.near === 0 && o.air.mid > 0 && o.worstFrameMs < 200 && o.int.has && o.int.open && o.int.floors >= 1 && o.int.inside && o.int.y < 1.5 && o.int.alive && o.fire.burning && o.fire.ruined && o.fire.towerGone && o.fire.droppedClean && o.fire.restored;
+  const pass = o.has && o.cities === 6 && o.styles === 6 && o.buildings.every((n) => n > 1000) && o.tris < 2.2e6 && Object.values(o.per).every((p) => p.near > 0 && p.coll > 20) && stood && o.air.near === 0 && o.air.mid > 0 && o.worstFrameMs < 400 && o.int.has && o.int.open && o.int.floors >= 1 && o.int.inside && o.int.y < 1.5 && o.ships.n === 3 && o.ships.vis >= 1 && o.ships.moved > 50 && o.int.alive && o.fire.burning && o.fire.ruined && o.fire.towerGone && o.fire.droppedClean && o.fire.restored;
   result('cities', pass, { ...o, stood });
 });

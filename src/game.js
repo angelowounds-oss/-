@@ -24,6 +24,7 @@ import { WorldMapUI } from './worldmapui.js';
 import { Transit } from './transit.js';
 import { Aviation } from './aviation.js';
 import { CityRules } from './cityrules.js';
+import { Ships } from './ships.js';
 import { HighwayTraffic } from './hwtraffic.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
@@ -145,7 +146,7 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
-    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? this.timed_('transit', () => new Transit(this)) : null; this.aviation = this.citysites ? this.timed_('aviation', () => new Aviation(this)) : null; this.rules = this.citysites ? new CityRules(this) : null;
+    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? this.timed_('transit', () => new Transit(this)) : null; this.aviation = this.citysites ? this.timed_('aviation', () => new Aviation(this)) : null; this.rules = this.citysites ? new CityRules(this) : null; this.ships = this.citysites ? new Ships(this) : null;
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
@@ -380,7 +381,7 @@ export class Game {
     if (this.input.edge('inv')) this.openInventory();
     if (this.input.edge('sur') && this.playerOnFoot) this.surrender();
     if (this.input.edge('phone') && !this.uiModal && !this.riding && !this.player.dead) this.phone.show();
-    this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt); this.transit?.update(sdt); this.aviation?.update(sdt); this.rules?.update(sdt);
+    this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt); this.transit?.update(sdt); this.aviation?.update(sdt); this.rules?.update(sdt); this.ships?.update(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     if (!this.riding) { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }   // (not while riding: opening buildings along the way is wasted work)
     this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); if (!this.riding) this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
