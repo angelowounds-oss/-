@@ -17,12 +17,12 @@ export class DayNight {
       const r = Math.random(); st.type = r < 0.45 ? 'rain' : r < 0.8 ? 'clear' : 'storm'; st.until = G.clock.t + 120 + Math.random() * 300;
       G.toast({ rain: '비가 내린다', clear: '비가 그쳤다', storm: '폭풍우 경보' }[st.type]);
     }
-    const target = { clear: 0, rain: 1, storm: 1.4 }[st.type];
+    const target = Math.max(0, { clear: 0, rain: 1, storm: 1.4 }[st.type] + (G.rules?.local?.wet || 0) * (st.type === 'clear' ? 0.5 : 1));   // the city's climate: rainier harbour, dry desert
     this.wet = (this.wet ?? target) + (target - (this.wet ?? target)) * Math.min(1, dt * 0.15);
     return st.type;
   }
   update(dt, focus) {
-    const G = this.G, e = G.eng, h = G.clock.hour;
+    const G = this.G, e = G.eng, L = G.rules?.local, h = (((G.clock.hour + (L?.hourOffset || 0)) % 24) + 24) % 24;   // local time: the east is ahead of the west
     const wtype = this.weather(dt), wet = this.wet;
     G.weatherType = wtype;
     if (G.rain) G.rain.visible = !G.indoor && wet > 0.25;
@@ -47,7 +47,9 @@ export class DayNight {
     const hemi = e.hemi, hb = lerp(0.22, 1.0, D);
     hemi.intensity = G.indoor ? Math.max(0.65, hb) : hb;
     hemi.color.copy(NIGHT.hemiS).lerp(DAY.hemiS, D); hemi.groundColor.copy(NIGHT.hemiG).lerp(DAY.hemiG, D);
+    if (L) { hemi.color.r *= L.tint[0]; hemi.color.g *= L.tint[1]; hemi.color.b *= L.tint[2]; }
     const fogC = this.tmp.copy(NIGHT.fog).lerp(DAY.fog, D).lerp(DUSK, twi * 0.18);
+    if (L) { fogC.r *= L.tint[0]; fogC.g *= L.tint[1]; fogC.b *= L.tint[2]; }   // the light of the place
     e.scene.fog.color.copy(fogC); e.scene.fog.density = lerp(0.0105, 0.0072, D) * (0.75 + 0.3 * clamp(wet, 0, 1.4));
     e.scene.background.copy(NIGHT.bg).lerp(DAY.bg, D); e.renderer.setClearColor(e.scene.background, 1);
     e.renderer.toneMappingExposure = lerp(1.05, 0.88, D);

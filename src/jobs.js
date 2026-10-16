@@ -9,7 +9,7 @@ export class Jobs {
   get active() { return this.cur; }
   deliveryPoint() {
     const J = this, G = this.G;
-    return { get x() { return J.cur?.type === 'delivery' ? J.cur.e.x : 1e9; }, get z() { return J.cur?.type === 'delivery' ? J.cur.e.z : 1e9; }, cy: 1, r: 3.4, name: '배달 도착지', verbs: [{ key: 'F', label: () => '배달 완료', enabled: () => J.cur?.type === 'delivery' && G.items.count('parcel') > 0, run: () => J.finish(true) }] };
+    return { get x() { return J.cur?.type === 'delivery' || J.cur?.type === 'courier' ? J.cur.e.x : 1e9; }, get z() { return J.cur?.type === 'delivery' || J.cur?.type === 'courier' ? J.cur.e.z : 1e9; }, cy: 1, r: 3.4, name: '배달 도착지', verbs: [{ key: 'F', label: () => '배달 완료', enabled: () => (J.cur?.type === 'delivery' || J.cur?.type === 'courier') && G.items.count('parcel') > 0, run: () => J.finish(true) }] };
   }
   start(type) {
     const G = this.G, pl = G.player;
@@ -21,6 +21,13 @@ export class Jobs {
       const e = pickE(120, 400); G.items.add('parcel');
       job = { type, title: '배달', text: `소포를 ${e.name}에 전달`, e, t: 420, reward: Math.floor(120 + far(e, pl) * 0.45) };
       G.setBeacon(e.x, e.z, 0x47ffa8);
+    } else if (type === 'courier') {
+      // a long-distance delivery: a parcel from the city the player is in to the central station of another one (the map waypoint is set for him)
+      const T = G.transit, f = G.focusPos(), from = G.rules?.cityAt(f.x, f.z, 1.6), opts = T ? T.stations.filter((s) => s.kind === 1 && s.city !== (from ? from.id : 'neon')) : [];
+      if (!opts.length) { G.toast('장거리 배달 없음'); return; }
+      const e = opts[Math.floor(Math.random() * opts.length)], d = Math.hypot(e.x - f.x, e.z - f.z), city = T.cityOf.get(e.city); G.items.add('parcel');
+      job = { type, title: '장거리 배달', text: `소포를 ${city.name} 중앙역 앞까지 (${(d / 1000).toFixed(0)} km)`, e: { x: e.x, z: e.z, name: e.name }, t: 1500 + d / 12, reward: Math.floor((300 + d * 0.06) * (G.rules?.local?.econ ?? 1)) };
+      G.wmap?.setWaypoint(e.x, e.z, e.name); G.setBeacon(e.x, e.z, 0xffb040);
     } else if (type === 'taxi') {
       const e = pickE(60, 200), npc = G.life.npc(null, { npcs: [], interact: [] }, e.x + e.nx * 2, 0, e.z + e.nz * 2, { role: 'passenger' });
       G.humans.includes(npc) || 0;
@@ -48,7 +55,7 @@ export class Jobs {
   finish(ok) {
     const G = this.G, j = this.cur; if (!j) return;
     this.cur = null; G.hideBeacon(); if (j.o) G.interact.remove(j.o);
-    if (j.type === 'delivery') G.items.take('parcel');
+    if (j.type === 'delivery' || j.type === 'courier') G.items.take('parcel');
     if (j.npc) { j.npc.remove = true; j.npc.hidden = true; }
     if (ok) { G.cash += j.reward; G.audio.complete(); G.toast('일 완료', `+$${j.reward}`); } else G.toast('일 실패', j.title);
   }
@@ -74,5 +81,6 @@ export class Jobs {
       j.hud = `수리 · ${Math.max(0, j.t | 0)}s`;
     } else j.hud = `${Math.max(0, j.t | 0)}s`;
     if (j.type === 'delivery') j.hud = `배달 · ${Math.max(0, j.t | 0)}s · $${j.reward}`;
+    else if (j.type === 'courier') j.hud = `${j.e.name} · ${(Math.hypot(j.e.x - pl.x, j.e.z - pl.z) / 1000).toFixed(1)} km · ${Math.max(0, (j.t / 60) | 0)}분 · $${j.reward}`;
   }
 }

@@ -15,7 +15,7 @@ import { doorSpec, accentColor } from './world.js';
 const TILE = 600, NEAR = 650, NEAR_OFF = 850, MID = 6500, COLL = 420, COLL_OFF = 640, TALL = 30;
 const lerp = (a, b, t) => a + (b - a) * t;
 
-class Acc {
+export class Acc {
   constructor() { this.n = 0; this.v = 0; this.p = new Float32Array(3000); this.nr = new Float32Array(3000); this.c = new Float32Array(3000); this.k = new Float32Array(1000); this.idx = new Uint32Array(4500); this.ni = 0; }
   grow(nv, ni) {
     if ((this.v + nv) * 3 > this.p.length) { const l = Math.max(this.p.length * 2, (this.v + nv) * 3); for (const key of ['p', 'nr', 'c']) { const a = new Float32Array(l); a.set(this[key]); this[key] = a; } const k = new Float32Array(l / 3); k.set(this.k); this.k = k; }

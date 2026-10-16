@@ -53,7 +53,9 @@ export class Blaze {
   // a building of another city whose tile just came near / went away
   addLot(lot) {
     this.lots.push(lot); this.cells(lot, (k) => { let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(lot); });
-    if (this.G.state.rruins[lot.id] != null) this.ruin(lot, true);
+    const t0 = this.G.state.rruins[lot.id];
+    if (t0 != null && this.G.clock.t - t0 > REBUILD_MIN) delete this.G.state.rruins[lot.id];   // the time away rebuilt it
+    else if (t0 != null) this.ruin(lot, true);
   }
   removeLot(lot) {
     const i = this.lots.indexOf(lot); if (i >= 0) this.lots.splice(i, 1);

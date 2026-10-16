@@ -135,11 +135,11 @@ export class Farland {
 // Physics ground that follows the focus: a static Rapier heightfield (129 x 129 samples, 8 m) centred on the focus and rebuilt when it has moved
 // 160 m. Under the city's own terrain the heights are -100 so it never competes with the city's colliders.
 const HF = 128, HFC = 8, HFHALF = (HF * HFC) / 2;
-if (typeof window !== 'undefined') window.__farHeights = { physHeight, landHeight };   // test hook
 export class FarGround {
   constructor(phys) { this.phys = phys; this.col = null; this.cx = NaN; this.cz = NaN; this.heights = new Float32Array((HF + 1) * (HF + 1)); }
   update(x, z, y = 0) {
     const P = this.phys; if (!P) return;
+    if (this.suspend) { this.clear(); return; }   // a ride (transit.js) moves faster than the tile can be rebuilt, and needs no ground
     const near = Math.abs(x) < EXTENT - HFHALF && Math.abs(z) < EXTENT - HFHALF;   // the whole patch would lie under the city's own ground
     if (near || y - physHeight(x, z, 64) > 250) { this.clear(); return; }   // high above the ground nothing needs it
     if (this.col && Math.hypot(x - this.cx, z - this.cz) < 160) return;
@@ -151,7 +151,7 @@ export class FarGround {
       hs[i * (HF + 1) + j] = (Math.abs(wx) < EXTENT + 8 && Math.abs(wz) < EXTENT + 8) ? -100 : physHeight(wx, wz, HFC);
     }
     const desc = R.ColliderDesc.heightfield(HF, HF, hs, { x: HF * HFC, y: 1, z: HF * HFC }).setTranslation(cx, 0, cz).setFriction(1.0).setRestitution(0).setCollisionGroups(grp(GR.STATIC, 0xffff));
-    this.col = P.world.createCollider(desc); this.cx = cx; this.cz = cz; (this.log || (this.log = [])).push([cx, cz, +hs[64 * (HF + 1) + 64].toFixed(1), +y.toFixed(1)]);
+    this.col = P.world.createCollider(desc); this.cx = cx; this.cz = cz;
   }
   clear() { if (this.col) { this.phys.world.removeCollider(this.col, false); this.col = null; this.cx = this.cz = NaN; } }
   dispose() { this.clear(); }

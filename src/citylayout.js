@@ -120,9 +120,20 @@ export function layoutCity(c, index) {
       }
     }
   });
+  // ---- transit points (relative to the centre): kind 0 metro entrance, 1 central rail station, 2 airport gate. They stand on the pavement corner of
+  // an avenue crossing: the most central crossing is the rail station, three more spread around are metro entrances.
+  const stations = [];
+  { const ax = xs.filter((_, i) => i % 4 === 0), az = zs.filter((_, i) => i % 4 === 0), cand = [];
+    for (const x of ax) for (const z of az) if (Math.hypot(x, z) < R * 0.62 && !inKeep(x, z, 14, 14) && !sea(x, z)) cand.push([x, z, Math.hypot(x, z)]);
+    cand.sort((a, b) => a[2] - b[2]);
+    const wa = S.roadW * 1.5, put = (c, kind) => stations.push([c[0] + wa / 2 + 2.5, c[1] + wa / 2 + 2.5, kind]);
+    if (cand.length) put(cand[0], 1);
+    const spread = []; for (const c of cand.slice(1)) { if (spread.length >= 3) break; if (stations.every((s) => Math.hypot(s[0] - c[0], s[1] - c[1]) > R * 0.28)) { spread.push(c); put(c, 0); } }
+    if (c.type === 'airport') stations.push([0, R * 0.28 - 350, 2]);
+  }
   const trim = bld.map((b) => { const o = b.slice(); while (o.length < 12) o.push(o.length === 11 ? 15 : 1.5); return o; });
   const q = (arr, stride) => { const f = new Float32Array(arr.length * stride); arr.forEach((a, i) => { for (let k = 0; k < stride; k++) f[i * stride + k] = a[k] ?? 0; }); return f; };
-  return { id: c.id, R, bld: q(trim, 12), roads: q(roads, 5), areas: q(areas, 6), props: q(props, 7), seaDir };
+  return { id: c.id, R, stations: q(stations, 3), bld: q(trim, 12), roads: q(roads, 5), areas: q(areas, 6), props: q(props, 7), seaDir };
 }
 
 export function layouts() {

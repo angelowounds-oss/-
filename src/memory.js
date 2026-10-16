@@ -28,7 +28,7 @@ export class Memory {
     this.rebuild();
     this.newsT = 40; this.rumorT = 0; this.seenT = 0;
   }
-  zone(x, z) { return ZONES[this.G.society.zoneAt(x, z)]?.name || '도심'; }
+  zone(x, z) { const c = this.G.citysites?.cityAt(x, z, 600); if (c) return c.name; return ZONES[this.G.society.zoneAt(x, z)]?.name || '도심'; }
 
   // ---------- marks ----------
   // the instance slots are a ring: once full, a new hole takes the slot of the oldest one (only that slot is rewritten and uploaded)
@@ -93,6 +93,7 @@ export class Memory {
     return e;
   }
   headline(e) {
+    if (e.text) return `[속보] ${e.text}`;   // incidents of the cities nobody was watching (cityrules.js)
     const Z = e.zone, day = (t) => this.st.events.filter((q) => q.type === t && q.zone === Z && this.G.clock.t - q.t < 1440).length;
     switch (e.type) {
       case 'murder': { const n = day('murder'); return n >= 3 ? `[속보] ${Z} 연쇄 총격… 하루 새 ${n}명 숨져, 경찰 비상` : `[속보] ${Z}에서 ${e.name || '시민'}${e.age ? `(${e.age})` : ''} 씨 피살… 경찰 "용의자 추적 중"`; }

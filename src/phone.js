@@ -72,7 +72,7 @@ export class Phone {
     } else if (this.tab === 'jobs') {
       const J = G.jobs, c = J.cur;
       if (c) this.row(c.title, c.text, [['포기', () => J.finish(false)]]);
-      for (const [t, n, d] of [['delivery', '배달 대행', '소포를 받아 제한 시간 내에 전달'], ['taxi', '택시 승객 운송', '내 차로 승객을 태워 목적지까지'], ['patrol', '경비 순찰', '빌딩 세 층의 계단 앞을 순찰'], ['repair', '노상 수리', '고장 난 차를 수리'], ['hack', '해킹 의뢰', '오피스 서버에서 데이터를 탈취']]) this.row(n, d, [['수락', () => { J.start(t); this.close(); }]]);
+      for (const [t, n, d] of [['delivery', '배달 대행', '소포를 받아 제한 시간 내에 전달'], ['taxi', '택시 승객 운송', '내 차로 승객을 태워 목적지까지'], ['patrol', '경비 순찰', '빌딩 세 층의 계단 앞을 순찰'], ['repair', '노상 수리', '고장 난 차를 수리'], ['hack', '해킹 의뢰', '오피스 서버에서 데이터를 탈취'], ['courier', '장거리 배달', '소포를 다른 도시 중앙역까지 (지도·고속도로·철도)']]) this.row(n, d, [['수락', () => { J.start(t); this.close(); }]]);
     } else if (this.tab === 'bank') {
       this.row('현금', `$${G.cash | 0}`, []); this.row('계좌 잔액', `$${G.state.bank | 0}`, [['전액 입금', () => { G.state.bank = (G.state.bank | 0) + Math.floor(G.cash); G.cash -= Math.floor(G.cash); }], ['$500 출금', () => { if ((G.state.bank | 0) >= 500) { G.state.bank -= 500; G.cash += 500; } }]]);
       this.row('소유 부동산', `${Object.keys(G.state.homes).length}채`, []);

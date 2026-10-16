@@ -21,6 +21,9 @@ import { CitySites } from './citysites.js';
 import { CityLife } from './citylife.js';
 import { AutoNav } from './worldnav.js';
 import { WorldMapUI } from './worldmapui.js';
+import { Transit } from './transit.js';
+import { Aviation } from './aviation.js';
+import { CityRules } from './cityrules.js';
 import { HighwayTraffic } from './hwtraffic.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
@@ -140,7 +143,7 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
-    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this);
+    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? new Transit(this) : null; this.aviation = this.citysites ? new Aviation(this) : null; this.rules = this.citysites ? new CityRules(this) : null;
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
@@ -375,10 +378,10 @@ export class Game {
     if (this.input.edge('inv')) this.openInventory();
     if (this.input.edge('sur') && this.playerOnFoot) this.surrender();
     if (this.input.edge('phone') && !this.uiModal && !this.player.dead) this.phone.show();
-    this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt);
+    this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt); this.transit?.update(sdt); this.aviation?.update(sdt); this.rules?.update(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
-    { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
+    if (!this.riding) { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }   // (not while riding: opening buildings along the way is wasted work)
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); if (!this.riding) this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -633,7 +636,7 @@ export class Game {
     }
   }
 
-  frozen() { return this.uiModal || !!this.timed; }
+  frozen() { return this.uiModal || !!this.timed || !!this.riding; }
   findInteract(pl) {
     const sel = this.interact.query(pl);
     return sel;
@@ -1532,7 +1535,7 @@ export class Game {
   // Ambient (lightning etc.)
   updateAmbient(dt) {
     this.nextLightning -= dt;
-    if (this.nextLightning <= 0) { const wt = this.weatherType; this.nextLightning = wt === 'storm' ? rand(5, 12) : rand(16, 40); if (wt !== 'clear') { this.bolt = 0.5; this.thunderT = rand(0.6, 3); } }
+    if (this.nextLightning <= 0) { const wt = this.weatherType; this.nextLightning = wt === 'storm' ? rand(5, 12) : rand(16, 40); if (wt !== 'clear' && (this.daynight?.wet ?? 1) > 0.5) { this.bolt = 0.5; this.thunderT = rand(0.6, 3); } }
     if (this.bolt > 0) {
       this.bolt -= dt; const f = Math.max(0, Math.sin(this.bolt * 38) * 0.5 + 0.5) * Math.min(1, this.bolt * 3);
       flashUniform.value = f * 2.2 * (1 - (this.dayK || 0) * 0.7); this.boltAdd = f;
@@ -1655,7 +1658,8 @@ export class Game {
     const fov = cam.fov + this.fallK * 16;
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
-    this.farland?.update(c, this.focusPos()); this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); this.citylife?.update(dt);
+    if (this.riding) this.transit.camera(c, dt);   // a ride (transit.js) places the camera itself
+    this.farland?.update(c, this.focusPos()); this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;

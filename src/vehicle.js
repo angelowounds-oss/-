@@ -335,6 +335,7 @@ export class Vehicle {
       let wp = ai.wp[0];
       while (wp && Math.hypot(wp.x - this.x, wp.z - this.z) < 5.5) { ai.wp.shift(); wp = ai.wp[0]; if (ai.wp.length < 3) this.planAhead(); }
       if (!wp) { this.planAhead(); wp = ai.wp[0]; }
+      if (!wp) wp = { x: this.x + sH * 20, z: this.z + cH * 20, speed: 0 };   // a planner with nothing to give (the end of a highway): stand still until it is recycled
       // look ahead further for smoother lane following
       const wp2 = ai.wp[1] || wp;
       const d1 = Math.hypot(wp.x - this.x, wp.z - this.z);
