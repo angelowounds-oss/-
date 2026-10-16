@@ -8,6 +8,7 @@ run('farland', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   const o = await page.evaluate(() => {
     const g = window.__game, F = g.farland, pl = g.player, o = {}; g.eng.render = () => {};
     o.has = !!F; if (!F) return o;
+    o.baked = !!globalThis.__BAKED && globalThis.__BAKED_MS < 1500; o.bakedMs = globalThis.__BAKED_MS;
     o.levels = F.levels.length; o.tris = F.levels.reduce((s, L) => s + L.geo.index.count / 3, 0);
     for (let i = 0; i < 3; i++) window.__upd(1 / 60);
     const r0 = F.stats.regen; let t0 = performance.now(); for (let i = 0; i < 30; i++) F.update(g.camera); o.idleMs = +((performance.now() - t0) / 30).toFixed(3); o.idleRegen = F.stats.regen - r0;
@@ -28,6 +29,6 @@ run('farland', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     return o;
   });
   const low = await page.evaluate(() => ({ lowNone: true }));
-  const pass = o.has && o.levels === 9 && o.tris < 70000 && o.idleRegen === 0 && o.idleMs < 0.2 && o.flyAvgMs < 4 && o.flyWorstMs < 60 && o.landed && o.groundTile && o.edgeReturning && o.edgeSpeedCapped && low.lowNone;
+  const pass = o.has && o.levels === 9 && o.tris < 70000 && o.idleRegen === 0 && o.idleMs < 0.2 && o.flyAvgMs < 5 && o.flyWorstMs < 45 && o.baked && o.landed && o.groundTile && o.edgeReturning && o.edgeSpeedCapped && low.lowNone;
   result('farland', pass, o);
 });

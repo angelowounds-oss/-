@@ -48,6 +48,7 @@ function ringIndex(skipHole) {
   return { idx: new Uint32Array(idx), skirt: edge };
 }
 
+const BUDGET_MS = 6;
 export class Farland {
   constructor(scene, opts = {}) {
     this.scene = scene; this.group = new THREE.Group(); this.group.name = 'farland'; this.levels = []; this.levelCount = opts.levels || LEVELS;
@@ -117,9 +118,12 @@ export class Farland {
 
   update(camera, focus = camera.position) {
     const t0 = performance.now(), cx = camera.position.x, cz = camera.position.z;
+    // hitch budget: after a jump (teleport, Mach 8) the levels catch up nearest first, a few ms per frame; the first fill is not budgeted
     for (const L of this.levels) {
       const s = 2 * L.cell, sx = Math.round(cx / s) * s, sz = Math.round(cz / s) * s;
-      if (sx !== L.cx || sz !== L.cz) this.regen(L, sx, sz);
+      if (sx === L.cx && sz === L.cz) continue;
+      if (!Number.isNaN(L.cx) && performance.now() - t0 > BUDGET_MS) break;
+      this.regen(L, sx, sz);
     }
     this.sea.position.x = Math.round(cx / 5000) * 5000; this.sea.position.z = Math.round(cz / 5000) * 5000;
     this.ground.update(focus.x, focus.z, focus.by ?? focus.y ?? 0);   // physics follows what the player controls, not the (smoothed, late) camera

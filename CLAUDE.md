@@ -12,7 +12,7 @@
 ## 명령
 ```bash
 cd build && npm i && cd ..       # 의존성 (build/node_modules)
-node build/build.mjs             # 빌드 → neon_city_v9.html (DEV=1 이면 비압축, 프로파일링용)
+node build/build.mjs             # 빌드 (월드 데이터를 구워 내장; WORLD=small 이면 굽지 않음) → neon_city_v9.html (DEV=1 이면 비압축, 프로파일링용)
 node tests/run.cjs quick         # 커밋 전 최소 확인 (약 5분)
 node tests/run.cjs all           # 렌더링·성능·월드를 건드렸으면 (약 16분, 2026-10-09 컨테이너 기준)
 node tests/run.cjs --only <이름> # 테스트 하나
@@ -27,4 +27,4 @@ node tests/run.cjs --only <이름> # 테스트 하나
 - 코드 스타일: 주변 코드에 맞춘다(주석은 영어, 이유 중심). 새로 쓰거나 크게 고치는 함수는 한 줄 한 문장. 기존 코드 대량 재포맷 금지.
 - 에셋을 추가하면 출처·라이선스를 `docs/ASSETS.md`(BLD-04)에 적는다. GPL·CC-BY 표기 의무에 주의.
 - 사용자와의 대화는 한국어. 디자인·라이선스·에셋 도입 같은 결정은 선택지와 권고안을 정리해 묻는다.
-- `neon_city_v9.html`(약 30 MB)의 커밋 여부는 BLD-02에서 정리 중이다. 정리 전까지는 기존 관행(빌드 후 함께 커밋)을 따른다.
+- 구운 데이터(`build/baked/`)는 커밋하지 않는다. `neon_city_v9.html`(약 30 MB)의 커밋 여부는 BLD-02에서 정리 중이다. 정리 전까지는 기존 관행(빌드 후 함께 커밋)을 따른다.

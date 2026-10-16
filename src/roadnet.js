@@ -14,7 +14,7 @@ const RING_R = { metropolis: 5600, port: 3700, airport: 4300, town: 2700 };
 const INTERCHANGE = { metropolis: 'stack', port: 'trumpet', airport: 'cloverleaf', town: 'diamond' };
 
 let NET = null;
-export const net = () => NET || (NET = build());
+export const net = () => NET || (NET = globalThis.__BAKED?.net || build());
 
 function resample(pts, ds) {
   const out = [pts[0].slice()]; let acc = 0, prev = pts[0];

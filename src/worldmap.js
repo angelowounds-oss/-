@@ -45,6 +45,7 @@ function rawHeight(x, z) {
 let COARSE = null;
 function build() {
   if (COARSE) return COARSE;
+  if (globalThis.__BAKED?.world) return (COARSE = globalThis.__BAKED.world);   // baked at build time (build/bake.mjs)
   const N1 = CG + 1, H = new Float32Array(N1 * N1), M = new Float32Array(N1 * N1);
   for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
     const x = -WORLD_HALF + i * CC, z = -WORLD_HALF + j * CC;

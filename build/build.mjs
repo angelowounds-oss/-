@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
 import fs from 'node:fs';
+import { bake } from './bake.mjs';
 const r = await build({
   entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife',
   write: false, loader: { '.glb': 'base64', '.jpg': 'dataurl', '.rgbe': 'base64' }, target: 'es2020', legalComments: 'none',
@@ -10,5 +11,7 @@ const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const font = (file, family, weight) => `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;font-display:swap;src:url(data:font/woff2;base64,${fs.readFileSync('assets/fonts/' + file).toString('base64')}) format('woff2')}`;
 const fonts = [font('Anton-400.woff2', 'Anton', 400), font('SpaceMono-400.woff2', 'Space Mono', 400), font('SpaceMono-700.woff2', 'Space Mono', 700)].join('\n');
 const tpl = fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts);
-fs.writeFileSync(process.env.OUT || 'neon_city_v9.html', tpl.replace('/*__BUNDLE__*/', () => js));
+// WORLD=small skips the bake: the page generates the world itself (slower to start, no big data; for quick tests and development)
+const baked = process.env.WORLD === 'small' ? '' : `<script type="application/octet-stream" id="baked">${(await bake()).data.toString('base64')}</script>`;
+fs.writeFileSync(process.env.OUT || 'neon_city_v9.html', tpl.replace('/*__BAKED__*/', () => baked).replace('/*__BUNDLE__*/', () => js));
 console.log('built', (fs.statSync(process.env.OUT || 'neon_city_v9.html').size/1024|0)+' KB');
