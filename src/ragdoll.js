@@ -444,11 +444,13 @@ export class RagdollSystem {
     if (best) { if (best.alive) best.state = 'SETTLED', best.settledT = 0.31; else best.bake(); this.stats.forced++; return this.count() < this.cap; }
     return false;
   }
+  nearSkyTower(x, z) { const l = this.G.world.skyTower; return !!l && x > l.x0 - 60 && x < l.x1 + 60 && z > l.z0 - 60 && z < l.z1 + 60; }
   // opt: { cause, alive, vel:{x,y,z}, hit:{seg, point, dir, j}, blast, carVel }
   spawn(h, opt = {}) {
     const G = this.G;
     if (h.rag) { this.apply(h.rag, opt); return h.rag; }
     if (!this.usable(h) || !this.G.phys) { this.stats.legacy++; return null; }
+    if (this.nearSkyTower(h.x, h.z)) { this.stats.legacy++; return null; }   // no physics bodies around the 1000 m tower (bodies thrown off it, or baked in mid-air, would hang in the sky)
     const cd = Math.hypot(h.x - G.camera.position.x, h.z - G.camera.position.z);
     if (cd > this.dist || !h.group.visible) { this.stats.legacy++; return null; }
     if (!this.makeRoom()) { this.stats.legacy++; return null; }
