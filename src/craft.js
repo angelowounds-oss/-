@@ -9,6 +9,10 @@ export const CRAFT_SPECS = {
   bus: { L: 11, W: 2.55, wb: 3.8, mass: 2.8, maxSpeed: 20, accel: 6, grip: 5, hp: 320, track: 0.95, custom: 'bus', fuelRate: 1 },
   boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 11, grip: 3, hp: 120, cy: 0.5, fuelRate: 1.2, custom: 'boat', craft: 'boat' },
   heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 48, accel: 16, grip: 3, hp: 130, cy: 0.9, fuelRate: 1.6, custom: 'heli', craft: 'heli' },
+  // war machines (see warcraft.js): armoured, armed, flown / driven with the camera as the aim
+  tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 17, accel: 6.5, grip: 3, hp: 1800, cy: 1.05, fuelRate: 0.7, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
+  gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 60, accel: 20, grip: 3, hp: 800, cy: 0.9, fuelRate: 1.3, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
+  jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 150, accel: 30, grip: 3, hp: 450, cy: 1.1, fuelRate: 1.8, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
 };
 
 const std = (c, r = 0.5, m = 0.3, e) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, emissive: e || 0x000000, emissiveIntensity: e ? 1.6 : 0 });
@@ -56,8 +60,48 @@ export function buildCustom(type, color, opts = {}) {
     box(M.dark, 0.35, 0.5, 0.4, 0, 0.7, -3.1, g); // outboard
     m.headSprites = [spr(0, 0.95, 3.3, 0xffffff, 1.4)]; m.tailSprites = [spr(0, 1.0, -3.0, 0xff2010, 0.6)];
     m.craftVisual = (v, dt) => { g.rotation.z = Math.sin(v.G.time * 1.3 + v.id) * 0.03; };
-  } else { // heli
-    const body = new THREE.Mesh(new THREE.SphereGeometry(1.3, 20, 14), paint); body.scale.set(1, 0.9, 1.7); body.position.y = 1.35; g.add(body);
+  } else if (type === 'tank') {
+    const olive = std(0x4a5236, 0.7, 0.3), dk = std(0x23271c, 0.8, 0.3); m.paint = olive;
+    box(olive, 2.9, 0.9, 6.6, 0, 1.2, 0, g); box(olive, 2.5, 0.5, 1.6, 0, 1.5, 3.1, g).rotation.x = 0.35; box(dk, 3.5, 0.9, 7.2, 0, 0.55, 0, g);
+    for (const sx of [-1, 1]) { box(dk, 0.7, 1.25, 7.6, sx * 1.4, 0.65, 0, g); for (let k = -3; k <= 3; k++) cyl(M.rubber, 0.42, 0.5, sx * 1.4, 0.45, k * 0.95, g, [0, 0, Math.PI / 2]); box(neon, 0.04, 0.05, 6.8, sx * 1.76, 1.0, 0, g); }
+    const tur = new THREE.Group(); tur.position.set(0, 1.9, -0.3); g.add(tur);
+    box(olive, 2.6, 0.95, 3.3, 0, 0.45, 0, tur); box(olive, 2.0, 0.4, 2.4, 0, 1.05, -0.3, tur);
+    const gp = new THREE.Group(); gp.position.set(0, 0.5, 1.5); tur.add(gp);
+    const barrel = cyl(dk, 0.14, 5.4, 0, 0, 2.7, gp, [Math.PI / 2, 0, 0]); barrel.scale.set(1, 1, 1);
+    cyl(dk, 0.2, 0.7, 0, 0, 5.2, gp, [Math.PI / 2, 0, 0]);
+    const mz = new THREE.Object3D(); mz.position.set(0, 0, 5.55); gp.add(mz);
+    const mg = new THREE.Object3D(); mg.position.set(0.55, 0.15, 1.7); gp.add(mg); cyl(dk, 0.04, 1.0, 0.55, 0.15, 2.0, gp, [Math.PI / 2, 0, 0]);
+    cyl(dk, 0.4, 0.2, -0.7, 1.15, -0.5, tur); box(dk, 0.12, 0.12, 0.9, 0.8, 1.3, -0.3, tur);
+    m.headSprites = [spr(-0.8, 1.7, 3.5, 0xfff0cc, 1.0), spr(0.8, 1.7, 3.5, 0xfff0cc, 1.0)]; m.tailSprites = [spr(-0.9, 1.5, -3.5, 0xff1a10, 0.6), spr(0.9, 1.5, -3.5, 0xff1a10, 0.6)];
+    m.turret = tur; m.gunPivot = gp; m.muzzle = mz; m.mgMuzzle = mg; m.wheelR = 0.45;
+    m.craftVisual = (v, dt) => { tur.rotation.y = v.turYaw || 0; gp.rotation.x = -(v.turPitch || 0); };
+  } else if (type === 'jet') {
+    const grey = std(0x59606c, 0.35, 0.6), dk = std(0x1d2028, 0.5, 0.6); m.paint = grey;
+    const fus = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.5, 9.5, 14), grey); fus.rotation.x = Math.PI / 2; fus.position.set(0, 1.3, 0); fus.scale.set(1, 1, 0.9); g.add(fus);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 3.2, 14), grey); nose.rotation.x = Math.PI / 2; nose.position.set(0, 1.3, 6.3); g.add(nose);
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 10), M.glass); canopy.scale.set(0.9, 0.8, 2.2); canopy.position.set(0, 1.85, 2.2); g.add(canopy);
+    for (const sx of [-1, 1]) {
+      const wing = box(grey, 3.9, 0.12, 4.2, sx * 2.5, 1.2, -1.0, g); wing.rotation.y = sx * 0.55; wing.geometry = wing.geometry.clone();
+      box(dk, 0.7, 0.07, 1.6, sx * 1.1, 1.75, -4.6, g).rotation.y = sx * 0.25;
+      const fin = box(grey, 0.1, 1.7, 1.8, sx * 0.8, 2.15, -4.4, g); fin.rotation.z = sx * -0.28;
+      box(dk, 0.8, 0.8, 2.6, sx * 0.95, 0.95, 1.2, g);
+      cyl(dk, 0.12, 2.0, sx * 3.0, 1.0, -0.3, g, [Math.PI / 2, 0, 0]);
+    }
+    const jetFx = spr(0, 1.3, -5.6, 0xff9a40, 3.0); jetFx.scale.set(2.2, 2.2, 1); m.jetFx = jetFx;
+    const mz = new THREE.Object3D(); mz.position.set(0.5, 1.15, 5.8); g.add(mz);
+    m.headSprites = [spr(0, 1.0, 6.2, 0xfff0cc, 1.0)]; m.tailSprites = [spr(-3.9, 1.2, -2.6, 0xff1a10, 0.6), spr(3.9, 1.2, -2.6, 0x30ff60, 0.6)];
+    m.muzzle = mz; m.wheelR = 0.3;
+    // landing gear: shown while slow and low
+    const gear = new THREE.Group(); g.add(gear); m.gear = gear;
+    for (const [gx, gz] of [[0, 3.6], [-1.1, -1.0], [1.1, -1.0]]) { box(M.metal, 0.08, 0.7, 0.08, gx, 0.45, gz, gear); cyl(M.rubber, 0.2, 0.18, gx, 0.2, gz, gear, [0, 0, Math.PI / 2]); }
+    m.craftVisual = (v, dt) => {
+      const thr = v.thrLvl || 0; jetFx.material.opacity = 0.4 + 0.6 * thr; jetFx.scale.setScalar(1.2 + thr * 3); gear.visible = (v.speed < 55) && (v.by < 14 || v.speed < 20);
+      g.userData.bank = damp(g.userData.bank || 0, v.bank || 0, 5, dt);
+    };
+  } else { // heli / gunship
+    const gs = type === 'gunship';
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.3, 20, 14), gs ? std(0x3b4430, 0.6, 0.4) : paint);
+    body.scale.set(1, 0.9, 1.7); body.position.y = 1.35; g.add(body); m.body = body;
     const glass = new THREE.Mesh(new THREE.SphereGeometry(1.0, 20, 14, 0, TAU, 0, Math.PI * 0.55), M.glass); glass.scale.set(1, 0.85, 1.25); glass.position.set(0, 1.55, 0.8); g.add(glass);
     box(paint, 0.35, 0.4, 4.2, 0, 1.55, -3.2, g); box(neon, 0.38, 0.05, 4.2, 0, 1.75, -3.2, g);
     box(paint, 0.12, 1.1, 0.9, 0, 2.05, -5.1, g);
@@ -67,6 +111,13 @@ export function buildCustom(type, color, opts = {}) {
     for (let i = 0; i < 4; i++) { const b = box(M.dark, 0.25, 0.04, 4.6, 0, 0, 2.3, new THREE.Group()); const pv = new THREE.Group(); pv.rotation.y = i * Math.PI / 2; pv.add(b); m.rotor.add(pv); }
     const disc = new THREE.Mesh(new THREE.CircleGeometry(4.7, 28), new THREE.MeshBasicMaterial({ color: 0x9aa4b8, transparent: true, opacity: 0.0, depthWrite: false, side: THREE.DoubleSide })); disc.rotation.x = -Math.PI / 2; m.rotor.add(disc); m.disc = disc;
     for (const s of [-1, 1]) { cyl(M.metal, 0.06, 3.0, s * 1.05, 0.12, 0.3, g, [Math.PI / 2, 0, 0]); box(M.metal, 0.06, 0.8, 0.06, s * 1.0, 0.55, 0.9, g); box(M.metal, 0.06, 0.8, 0.06, s * 1.0, 0.55, -0.3, g); }
+    if (gs) {
+      const dk2 = std(0x20241a, 0.7, 0.4);
+      for (const sx of [-1, 1]) { box(dk2, 2.1, 0.12, 1.1, sx * 1.9, 1.25, 0.2, g); const pod = box(dk2, 0.5, 0.5, 1.6, sx * 2.8, 1.05, 0.5, g); for (let r = 0; r < 4; r++) cyl(M.metal, 0.07, 0.3, sx * 2.8 + ((r % 2) - 0.5) * 0.22, 1.05 + (r < 2 ? 0.12 : -0.12), 1.35, g, [Math.PI / 2, 0, 0]); void pod; }
+      cyl(dk2, 0.09, 1.4, 0, 0.55, 2.2, g, [Math.PI / 2, 0, 0]);   // chin gun
+      const gm = new THREE.Object3D(); gm.position.set(0, 0.55, 2.95); g.add(gm); m.muzzle = gm;
+      const rl = new THREE.Object3D(); rl.position.set(-2.8, 1.05, 1.5); g.add(rl); const rr2 = new THREE.Object3D(); rr2.position.set(2.8, 1.05, 1.5); g.add(rr2); m.rocketL = rl; m.rocketR = rr2;
+    }
     m.headSprites = [spr(0, 1.1, 2.3, 0xfff2d0, 1.6)]; m.tailSprites = [spr(0, 1.8, -5.0, 0xff1010, 0.8), spr(0, 3.0, 0, 0x30ff60, 0.6)];
     m.beacon = m.tailSprites[0];
     m.craftVisual = (v, dt) => {
@@ -85,10 +136,11 @@ export function createCraftBody(phys, spec, x, y, z, heading) {
   const R = phys.R, w = phys.world, mass = 1300 * spec.mass;
   const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
   let desc = R.RigidBodyDesc.dynamic().setGravityScale(22 / 9.81).setTranslation(x, y, z).setRotation(q).setLinearDamping(spec.craft === 'heli' ? 0.5 : 0.05).setAngularDamping(spec.craft === 'heli' ? 3 : 2.5).setCanSleep(spec.craft !== 'boat').setCcdEnabled(true);
-  if (spec.craft === 'heli') desc = desc.enabledRotations(false, true, false);
+  if (spec.craft === 'heli' || spec.craft === 'tank') desc = desc.enabledRotations(false, true, false);
+  if (spec.craft === 'jet') desc = desc.enabledRotations(false, false, false);
   const body = w.createRigidBody(desc);
-  const hx = spec.W / 2, hz = spec.L / 2, hy = spec.craft === 'heli' ? 0.9 : 0.4;
-  const col = w.createCollider(R.ColliderDesc.cuboid(hx, hy, spec.craft === 'heli' ? 3.2 : hz).setTranslation(0, spec.craft === 'heli' ? 0.3 : 0.0, 0).setMass(mass).setFriction(0.3).setRestitution(0.12).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS | GR.RAG | GR.RAGL)), body);
+  const hx = spec.craft === 'jet' ? spec.W * 0.34 : spec.W / 2 * (spec.craft === 'tank' ? 0.97 : 1), hz = spec.L / 2, hy = spec.craft === 'heli' ? 0.9 : spec.craft === 'tank' ? 1.0 : spec.craft === 'jet' ? 0.7 : 0.4;
+  const col = w.createCollider(R.ColliderDesc.cuboid(hx, hy, spec.craft === 'heli' ? 3.2 : hz).setTranslation(0, spec.craft === 'heli' ? 0.3 : 0.0, 0).setMass(mass).setFriction(spec.craft === 'tank' || spec.craft === 'jet' ? 0 : 0.3).setFrictionCombineRule(spec.craft === 'tank' || spec.craft === 'jet' ? R.CoefficientCombineRule.Min : R.CoefficientCombineRule.Average).setRestitution(spec.craft === 'tank' ? 0 : 0.12).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS | GR.RAG | GR.RAGL)), body);
   const v = { body, col, ctrl: null, mass, spec };
   (phys.vehicles || (phys.vehicles = [])).push(v); phys.bodies.set(body.handle, v);
   return v;
@@ -132,7 +184,59 @@ export function driveCraft(veh, dt) {
     }
     const w = b.angvel(); b.setAngvel({ x: 0, y: lerp(w.y, -st * 1.5 * (sp > 0.85 ? 1 : 0.2), 1 - Math.exp(-4 * dt)), z: 0 }, true);
     veh.tiltFwd = damp(veh.tiltFwd || 0, f * 0.2, 3, dt); veh.tiltRoll = damp(veh.tiltRoll || 0, -st * 0.15, 3, dt);
+  } else if (spec.craft === 'tank') {
+    // tracked: speed follows the throttle, the hull pivots on the spot, sideways speed is killed (no drifting)
+    const vf = lv.x * fx + lv.z * fz, run = hasDriver && veh.fuel > 0;
+    const target = run ? (thr > 0 ? thr * spec.maxSpeed : brk > 0 ? -brk * spec.maxSpeed * 0.4 : 0) : 0;
+    const a = Math.abs(target) < Math.abs(vf) || target * vf < 0 ? spec.accel * 2.2 : spec.accel;
+    const nvf = vf + clamp(target - vf, -a * dt, a * dt);
+    b.setLinvel({ x: fx * nvf, y: lv.y, z: fz * nvf }, true);
+    const w = b.angvel(); b.setAngvel({ x: 0, y: lerp(w.y, run ? -st * (0.95 - Math.abs(nvf) / spec.maxSpeed * 0.35) : 0, 1 - Math.exp(-6 * dt)), z: 0 }, true);
+    veh.trackSpeed = nvf;
+  } else if (spec.craft === 'jet') {
+    stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt);
   }
+}
+const _E = new THREE.Euler(0, 0, 0, 'YXZ'), _Q = new THREE.Quaternion();
+const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+// Fighter with VTOL: the nose follows the camera (mouse aim), speed follows the throttle level; below stall speed it sinks unless
+// Space (vertical thrust) holds it up, which also lets it take off and land on a pad. No input = it keeps flying straight.
+function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
+  const spec = veh.spec, G = veh.G, pilot = hasDriver && veh.fuel > 0;
+  b.setGravityScale(pilot ? 0 : 22 / 9.81, true);
+  if (!pilot) { veh.thrLvl = Math.max(0, (veh.thrLvl || 0) - 0.3 * dt); return; }
+  veh.thrLvl = clamp((veh.thrLvl ?? 0) + (thr - brk) * 0.55 * dt, 0, 1);
+  const hit = G.phys.ray(t.x, t.y, t.z, 0, -1, 0, 40, 1 | 16), agl = hit ? hit.t - spec.cy : 99;
+  const onGround = agl < 0.5;
+  let s = veh.jetS ?? 0;
+  const target = veh.thrLvl * spec.maxSpeed;
+  s += clamp(target - s, -spec.accel * 1.6 * dt, spec.accel * dt);
+  if (onGround && brk > 0.1 && s > 0) s = Math.max(0, s - 28 * dt);
+  veh.jetS = s;
+  let yaw = veh.h, pitch = veh.pitchA || 0, bank = veh.bank || 0;
+  const vtol = veh.hand, down = veh.down;
+  let vy = 0;
+  const hover = clamp(1 - (s - 30) / 14, 0, 1);   // below ~30 m/s the thrust vectoring carries it, above ~44 the wings do
+  if (onGround) {
+    yaw += -st * 0.9 * clamp(s / 12, 0, 1) * dt; pitch = damp(pitch, 0, 6, dt); bank = damp(bank, 0, 6, dt);
+    const lift = s > 46 && (veh.aimPitch || 0) > 0.05 || vtol;
+    if (lift) vy = vtol ? 9 : 6;
+    veh.airborne = !!lift;
+  } else {
+    veh.airborne = true;
+    const dy = wrapPi((veh.aimYaw ?? yaw) - yaw), turn = 1.25 * clamp(s / 55, 0.5, 1);
+    yaw += clamp(dy, -turn * dt, turn * dt);
+    const lim = 0.95 - hover * 0.6, pt = clamp(veh.aimPitch ?? 0, -lim, lim);
+    pitch = pitch + clamp(pt - pitch, -1.2 * dt, 1.2 * dt);
+    bank = damp(bank, clamp(-dy * 1.3, -1.0, 1.0), 4, dt);
+    vy = (vtol ? 9 : down ? -9 : -2.5) * hover;
+  }
+  const cp = Math.cos(pitch), vx = Math.sin(yaw) * cp * s, vz = Math.cos(yaw) * cp * s, vyy = Math.sin(pitch) * s * (1 - hover) + vy;
+  const prevVy = lv.y;
+  b.setLinvel({ x: vx, y: onGround && !veh.airborne ? Math.min(0, lv.y) : vyy, z: vz }, true);
+  _E.set(-pitch, yaw, bank); _Q.setFromEuler(_E); b.setRotation({ x: _Q.x, y: _Q.y, z: _Q.z, w: _Q.w }, true);
+  veh.pitchA = pitch; veh.bank = bank;
+  if (onGround && prevVy < -10 && !veh.landed) { veh.damage((-prevVy - 10) * 45, null); veh.landed = true; } else if (!onGround) veh.landed = false;
 }
 function uprightAssist(b, k) {
   const q = b.rotation(); const sy = 2 * Math.atan2(q.y, q.w);

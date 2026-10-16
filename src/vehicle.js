@@ -104,6 +104,7 @@ export class Vehicle {
   }
   damage(amount, src) {
     if (this.dead) return;
+    if (this.spec.armored) amount *= 1 - this.spec.armored;   // war machines: plating takes part of every hit
     this.hp -= amount;
     if (this.hp <= 0) this.destroy(src);
     else if (this.hp < this.maxHp * 0.3) this.burn = Math.max(this.burn, 0.5);

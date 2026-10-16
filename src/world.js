@@ -861,14 +861,20 @@ export function buildWorld(scene, quality) {
         continue;
       }
       if (parkBlocks.has(`${i},${j}`)) {
-        world.parks.push({ x0: xa, z0: za, x1: xb, z1: zb });
+        // the park at block 5,6 is the army base (warcraft.js): its trees are still drawn from the random stream so the rest of the city is unchanged
+        const isBase = i === 5 && j === 6;
+        if (isBase) world.baseRect = { x0: xa, z0: za, x1: xb, z1: zb };
+        world.parks.push({ x0: xa, z0: za, x1: xb, z1: zb, base: isBase });
         const cx = (xa + xb) / 2, cz = (za + zb) / 2;
         for (let t = 0; t < 26; t++) {
           const tx = R_(xa + 3, xb - 3), tz = R_(za + 3, zb - 3);
           if (Math.hypot(tx - cx, tz - cz) < 8) continue;
-          trees.push({ x: tx, z: tz, s: R_(0.8, 1.5), hue: rnd() });
+          const tr = { x: tx, z: tz, s: R_(0.8, 1.5), hue: rnd() };
+          if (isBase) continue;
+          trees.push(tr);
           world.colliders.addCircle(tx, tz, 0.55, 12, 'tree');
         }
+        if (isBase) continue;
         for (let t = 0; t < 8; t++) {
           const a = (t / 8) * TAU;
           benches.push({ x: cx + Math.cos(a) * 11, z: cz + Math.sin(a) * 11, ry: -a + Math.PI / 2 });

@@ -14,6 +14,8 @@ import { Audio } from './audio.js';
 import { Input } from './input.js';
 import { glowSpriteMat, buildCar, CAR_SPECS } from './models.js';
 import { buildCustom, CRAFT_SPECS } from './craft.js';
+import { War, WAR_NAMES } from './warcraft.js';
+const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
 import { QUALITY } from './engine.js';
@@ -104,7 +106,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
-    this.breach = new Breach(this); this.military = new Military(this); this.fire = new Fire(this); this.blaze = new Blaze(this);
+    this.breach = new Breach(this); this.military = new Military(this); this.war = new War(this); this.fire = new Fire(this); this.blaze = new Blaze(this);
     this.eng.onTier = (q) => this.world.setSimple?.(!!q.simple); this.eng.onTier(this.eng.q);   // the tier's detail switches (LOW: simple facades)
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
@@ -133,7 +135,7 @@ export class Game {
     this.bindUI();
     this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this);
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
-    this.populate(); this.spawnCrafts();
+    this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
     this.startMission(this.missionIndex);
     progress(1, '준비 완료');
@@ -275,7 +277,7 @@ export class Game {
   // ====================================================================
   cacheUI() {
     const g = el;
-    this.ui = { hp: g('hpFill'), ar: g('arFill'), cash: g('cash'), stars: g('stars'), mText: g('mText'), mTitle: g('mTitle'), mDist: g('mDist'), wName: g('wName'), ammo: g('ammo'), speedo: g('speedo'), spd: g('spd'), carHp: g('carHpFill'), hint: g('hint'), toast: g('toast'), cross: g('cross'), dmg: g('dmg'), dir: g('dir'), feed: g('feed'), flash: g('flash'), hud: g('hud'), mini: g('minimap'), weapon: g('weapon'), fps: g('fps'), lt: g('letterT'), lb: g('letterB'), nFood: g('nFood'), nWater: g('nWater'), nEnergy: g('nEnergy') };
+    this.ui = { hp: g('hpFill'), ar: g('arFill'), cash: g('cash'), stars: g('stars'), mText: g('mText'), mTitle: g('mTitle'), mDist: g('mDist'), wName: g('wName'), ammo: g('ammo'), speedo: g('speedo'), spd: g('spd'), carHp: g('carHpFill'), hint: g('hint'), toast: g('toast'), cross: g('cross'), dmg: g('dmg'), dir: g('dir'), feed: g('feed'), flash: g('flash'), hud: g('hud'), mini: g('minimap'), weapon: g('weapon'), fps: g('fps'), lt: g('letterT'), lb: g('letterB'), nFood: g('nFood'), nWater: g('nWater'), nEnergy: g('nEnergy'), war: g('warhud'), warRows: g('warRows'), warInfo: g('warInfo'), warPip: g('warPip'), warLock: g('warLock') };
     this.minictx = this.ui.mini.getContext('2d');
     this._ui = {};
   }
@@ -369,7 +371,7 @@ export class Game {
     this.jobs.update(sdt); this.updateGPS(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
     this.updateCamera(dt, inp);
@@ -506,7 +508,7 @@ export class Game {
     if (this.player.rag) { const r = this.player; r.vx = r.vz = 0; r.speed = 0; r.update(dt); if (!r.rag) return; this.nearInteract = null; return; }
     const pl = this.player, cam = this.cam, melee = pl.cur === 9, w = melee ? null : this.pw(pl.cur), ammo = melee ? null : pl.ammo[pl.cur];
     pl.group.visible = true;
-    if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
+    if (pl.sitting) { pl.vx = pl.vz = 0; pl.speed = 0; pl.aiming = false; pl.scoped = false; this.nearInteract = this.findInteract(pl); pl.animate(dt, 0); if (this.input.edge('jump') || this.input.edge('use')) this.standUp(); return; }
     if (this.input.edge('crouch')) { if (this.mobility.chute) this.mobility.cutAway(); else if (pl.body3 && !pl.body3.grounded && !pl.swimming) pl.rollReq = this.time; else pl.stance = pl.stance === 1 ? 0 : 1; }   // in the air: crouch = roll on landing
     if (this.input.edge('prone')) pl.stance = pl.stance === 2 ? 0 : 2;
     pl.crouching = pl.stance >= 1; pl.prone = pl.stance === 2;
@@ -514,7 +516,11 @@ export class Game {
     const carry = this.items.carry;
     if (carry && inp.fire && !pl.fireHeld) { this.items.release(true); pl.fireHeld = true; inp = { ...inp, fire: false }; }
     else if (carry) inp = { ...inp, fire: false };
-    const aim = inp.aim; pl.aiming = aim;
+    // a sniper scope stays up after the click: RMB toggles it (it survives shots, bolt cycling, reloads and moving); touch keeps its own toggle
+    const latch = !melee && w && w.scope === 'sniper' && !this.input.touch;
+    if (latch) { if (inp.aim && !this._aimPrev) pl.scoped = !pl.scoped; } else pl.scoped = false;
+    this._aimPrev = inp.aim;
+    const aim = latch ? !!pl.scoped : inp.aim; pl.aiming = aim;
     const sprint = inp.sprint && !aim && !inp.fire && inp.my > 0.3 && !pl.crouching && (!this.needs.on || this.needs.canSprint !== false);
     const fwdX = Math.sin(cam.yaw), fwdZ = Math.cos(cam.yaw), rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
     let mx = inp.mx, my = inp.my; const mag = Math.min(1, Math.hypot(mx, my));
@@ -627,14 +633,14 @@ export class Game {
   }
   vehicleProvider(pl, out) {
     let best = null, bd = 3.6;
-    for (const v of this.vehicles) { if (!v.group.visible || v.dead) continue; const d = this.distToVehicle(pl.x, pl.z, v) - (v.spec.craft === 'heli' ? 1.5 : 0); if (d < bd && Math.abs((v.by || 0) - (pl.y || 0)) < 5) { bd = d; best = v; } }
+    for (const v of this.vehicles) { if (!v.group.visible || v.dead) continue; const d = this.distToVehicle(pl.x, pl.z, v) - (v.spec.craft === 'heli' || v.spec.craft === 'jet' ? 1.5 : 0); if (d < bd && Math.abs((v.by || 0) - (pl.y || 0)) < 5) { bd = d; best = v; } }
     if (!best) return;
     const v = best, verbs = [];
     if (v.type === 'bus') verbs.push({ key: 'F', label: () => '버스 탑승 $2', run: () => { if (this.cash < 2) return this.toast('돈이 부족합니다'); this.cash -= 2; this.boardTaxi(v, true); } });
     else if (v.callTaxi && v.arrived) verbs.push({ key: 'F', label: () => '택시 탑승', run: () => this.boardTaxi(v) });
-    else verbs.push({ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : v.spec.craft === 'heli' ? '헬기 탑승' : v.spec.craft === 'boat' ? '보트 탑승' : v.type === 'moto' ? '오토바이 탑승' : '차량 탑승'), run: () => this.enterVehicle(v) });
+    else verbs.push({ key: 'F', label: () => (v.driver === 'ai' ? '차량 강탈' : v.spec.war ? WAR_BOARD[v.spec.war] : v.spec.craft === 'heli' ? '헬기 탑승' : v.spec.craft === 'boat' ? '보트 탑승' : v.type === 'moto' ? '오토바이 탑승' : '차량 탑승'), run: () => this.enterVehicle(v) });
     if (v.driver !== 'ai' && !v.spec.craft && v.type !== 'bus') verbs.push({ key: 'T', label: () => '트렁크', run: () => this.openTrunk(v) });
-    out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: v.type === 'moto' ? '오토바이' : v.spec.craft === 'heli' ? '헬리콥터' : v.spec.craft === 'boat' ? '보트' : '차량', verbs });
+    out.push({ x: v.x, z: v.z, r: Math.max(v.L, v.W) / 2 + 3.7, name: v.type === 'moto' ? '오토바이' : v.spec.war ? WAR_NAMES[v.spec.war] : v.spec.craft === 'heli' ? '헬리콥터' : v.spec.craft === 'boat' ? '보트' : '차량', verbs });
   }
   // ledge climb / vault: probe forward at knee & chest height, find the top surface, glide over it
   tryMantle(inp) {
@@ -761,7 +767,7 @@ export class Game {
     }
     v.doorFx?.(); this.vehicle = v; v.driver = 'player'; v.kind = v.kind === 'police' ? 'police' : 'player'; v.awake = true; v.pv.body.wakeUp();
     v.setLights(true);
-    this.playerOnFoot = false; pl.group.visible = false;
+    this.playerOnFoot = false; pl.group.visible = false; pl.scoped = false; pl.aiming = false;
     this.setFirstPerson(false);
     if (v.type === 'moto' && v.model.frame) {
       // rider stays visible, seated on the bike and leaning with the frame
@@ -781,6 +787,7 @@ export class Game {
     this.audio.door();
     this.cam.mode = 0; this.cam.yaw = v.h; this.cam.pitch = -0.12;
     this.onEnterVehicle?.(v);
+    if (v.spec.war) this.war.onBoard(v);
   }
   exitVehicle(force = false) {
     const v = this.vehicle, pl = this.player; if (!v) return;
@@ -797,7 +804,13 @@ export class Game {
     v.driver = null; v.throttle = 0; v.brake = 0.5; v.steer = 0; v.hand = false;
     if (v.kind === 'player') v.kind = 'parked';
     if (this.rider) { this.scene.add(pl.group); pl.group.scale.setScalar(1); pl.group.rotation.set(0, 0, 0); pl.m.applySit(0); if (pl.m.rideOn) { pl.m.rideOn = false; const dc = pl.m.act.U_Driving; if (dc) dc.weight = 0; pl.m.act.Idle.weight = 1; } this.rider = null; this.riderCar = false; pl.m.pistol.visible = pl.armed && pl.weapon.short === 'pistol'; pl.m.rifle.visible = pl.armed && pl.weapon.short === 'rifle'; }
-    v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true; { const gy = heightAt(pl.x, pl.z); pl.y = gy; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, gy, pl.z); }
+    v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true;
+    { const gy = heightAt(pl.x, pl.z), alt = (v.spec.craft === 'heli' || v.spec.craft === 'jet') ? (v.by || 0) - v.spec.cy - gy : 0;
+      if (alt > 5) {   // leaving an aircraft in the air: ejection, the parachute opens by itself from 25 m
+        pl.y = gy + alt + 1; pl.vx = v.vx * 0.4; pl.vz = v.vz * 0.4; pl.vy = 3; pl.body3.teleport(pl.x, pl.y, pl.z);
+        if (!this.items.count('parachute')) this.items.add('parachute');
+        if (alt > 25) this.mobility.deploy(); else this.toast('비상 탈출', '<kbd>Space</kbd> 낙하산');
+      } else { pl.y = gy; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, gy, pl.z); } }
     pl.hpv = Math.max(pl.hpv, 1);
     document.body.classList.add('onfoot'); document.body.classList.remove('incar');
     this.ui.speedo.classList.remove('on');
@@ -816,7 +829,7 @@ export class Game {
     if (this.input.edge('horn')) { this.audio.horn(); this.alertCivs(v.x, v.z, 25); }
     if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3;
     if (this.input.edge('lights')) v.setLights(!v.lightsOn);
-    pl.x = v.x; pl.z = v.z; pl.y = v.spec.craft === 'heli' ? v.by : 0; pl.body3.teleport(pl.x, pl.y, pl.z);
+    pl.x = v.x; pl.z = v.z; pl.y = v.spec.craft === 'heli' || v.spec.craft === 'jet' ? v.by : 0; pl.body3.teleport(pl.x, pl.y, pl.z);
     if (v.dead && !this.vehicleDeathHandled) { /* handled by explosion */ }
   }
   playerVehicleExploded(v) {
@@ -1011,6 +1024,7 @@ export class Game {
     const pl = this.player; if (pl.dead) return;
     if (this.sandbox?.on && this.sandbox.god) return;
     this.lastHurt = this.time;
+    if (this.vehicle?.spec.armored && kind !== 'crash') dmg *= 0.12;   // inside armour: the hull takes it (Vehicle.damage was called by the attacker)
     if (pl.armor > 0) { const a = Math.min(pl.armor, dmg * 0.7); pl.armor -= a; dmg -= a; }
     pl.hpv -= dmg;
     this.dmgPulse = clamp(dmg / 25, 0.15, 1); this.ui.dmg.style.opacity = clamp(dmg / 14, 0.25, 1);
@@ -1085,7 +1099,7 @@ export class Game {
     const cost = Math.floor(this.cash * 0.1); this.cash -= cost;
     const hp = this.hospital; pl.x = hp ? hp.x : this.world.spawn.x; pl.z = hp ? hp.z : this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0; pl.bleed = 0; pl.body3.teleport(pl.x, 0, pl.z);
     pl.setWeapon(pl.cur === 9 ? 100 : pl.cur);
-    pl.prone = false; pl.crouching = false; pl.sitting = false; pl.aiming = false; pl.reloadT = 0; this.rollK = 0;
+    pl.prone = false; pl.crouching = false; pl.sitting = false; pl.aiming = false; pl.scoped = false; pl.reloadT = 0; this.rollK = 0;
     if (this.needs?.s) { const n = this.needs.s; n.food = Math.max(n.food, 45); n.water = Math.max(n.water, 45); n.energy = Math.max(n.energy, 50); }
     this.clearWanted();
     this.ui.lt.classList.remove('on'); this.ui.lb.classList.remove('on');
@@ -1138,7 +1152,7 @@ export class Game {
       const nx = (h.x - x) / (dd || 1), nz = (h.z - z) / (dd || 1); h.ragdoll(nx * 10 * k, nz * 10 * k, 7 * k);
     }
     const pl = this.player; const dp = Math.hypot(pl.x - x, pl.z - z);
-    if (dp < radius * 1.3 && !pl.dead) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6, null, 'explosion'); }
+    if (dp < radius * 1.3 && !pl.dead && !(src && src === this.vehicle)) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6, null, 'explosion'); }
     for (const v of this.vehicles) {
       if (v === src) continue; const dd = Math.hypot(v.x - x, v.z - z); if (dd > radius * 1.5) continue;
       const k = 1 - dd / (radius * 1.5); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
@@ -1559,7 +1573,7 @@ export class Game {
   updateCamera(dt, inp) {
     const cam = this.cam, c = this.camera, pl = this.player, G = this;
     let ax, ay, az;
-    const adsW = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] && !pl.sitting && !pl.prone ? this.pw(pl.cur) : null;
+    const aw0 = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] && !pl.sitting ? this.pw(pl.cur) : null, adsW = aw0 && (!pl.prone || aw0.scope === 'sniper') ? aw0 : null;   // a prone sniper can scope
     const fpOn = (!!cam.fp || !!adsW) && !pl.dead && this.playerOnFoot;
     this.setScope(fpOn && adsW ? adsW.scope : '');
     if (fpOn) this.firstPersonCam(dt, pl.aiming);
@@ -1590,6 +1604,7 @@ export class Game {
       c.lookAt(lx, ly, lz);
     } else {
       const v = this.vehicle; const sp = v.speed;
+      if (v.spec.war) this.war.camera(v, dt); else {
       // yaw follows velocity direction
       if (cam.offsetT > 0) cam.offsetT -= dt;
       else { const target = sp > 3 ? Math.atan2(v.vx, v.vz) * (v.fwdSpeed < -1 ? 0 : 1) + (v.fwdSpeed < -1 ? v.h : 0) : v.h; const targetH = v.fwdSpeed >= -1 ? (sp > 3 ? Math.atan2(v.vx, v.vz) : v.h) : v.h; cam.yaw = dampAngle(cam.yaw, v.fwdSpeed < -2 ? v.h + Math.PI : targetH, sp > 3 ? 2.6 : 1.2, dt); }
@@ -1613,6 +1628,7 @@ export class Game {
         if (cam.smoothPos.lengthSq() < 1) cam.smoothPos.set(tx, ty, tz);
         c.position.copy(cam.smoothPos);
         c.lookAt(ax + L.x * 6, ay + 0.2 + L.y * 6, az + L.z * 6);
+      }
       }
     }
     // shake
@@ -1667,6 +1683,7 @@ export class Game {
     ui.ammo.classList.toggle('empty', am.clip === 0 && pl.cur !== 9);
     ui.weapon.style.display = this.playerOnFoot ? '' : 'none';
     ui.cross.classList.toggle('hide', !this.playerOnFoot || pl.dead || !!this._scope);
+    this.war.hud(ui);
     if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; }
     // hint
     let hint = '';

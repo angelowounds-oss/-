@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { N, roadC, roadIdx } from './world.js';
 import { clamp, rand, TAU, dampAngle, angDiff } from './util.js';
+import { Vehicle } from './vehicle.js';
 
 // Escalating response to a high wanted level:
 //   4 stars: one attack helicopter (searchlight, machine gun) + heavier SWAT officers
@@ -69,7 +70,7 @@ export class Military {
     const want = { heli: w >= 5 ? 2 : w >= 4 ? 1 : 0, tank: w >= 5 ? 1 + (G.wanted >= 5 && G.time - (this.fiveSince ??= G.time) > 60 ? 1 : 0) : 0 };
     if (w < 5) this.fiveSince = null;
     this.heliT -= dt; this.tankT -= dt;
-    const aliveH = this.heli.filter((e) => !e.leaving && !e.dead).length, aliveT = this.tank.filter((e) => !e.leaving && !e.dead).length;
+    const aliveH = this.heli.filter((e) => !e.leaving && !e.dead && !e.landing).length, aliveT = this.tank.filter((e) => !e.leaving && !e.dead).length;
     if (aliveH < want.heli && this.heliT <= 0) { this.spawnHeli(); this.heliT = aliveH ? 6 : 10; }
     if (aliveT < want.tank && this.tankT <= 0) { this.spawnTank(); this.tankT = 25; }
     if (aliveH > want.heli) { const e = this.heli.find((x) => !x.leaving && !x.dead); if (e) e.leaving = true; }
@@ -77,6 +78,9 @@ export class Military {
     const real = G.vehicle || G.player;
     for (const e of this.heli) this.stepHeli(e, dt, real);
     for (const e of this.tank) this.stepTank(e, dt, real);
+    // a unit shot up badly lets its crew bail out and the machine can be taken (Military.abandon)
+    for (const e of this.tank) if (!e.dead && !e.gone && !e.leaving && e.hp < e.maxHp * 0.35) this.abandon(e);
+    for (const e of this.heli) if (!e.dead && !e.gone && !e.leaving && !e.landing && e.hp < e.maxHp * 0.3) { e.landing = true; this.G.toast('<span style="color:#47ffa8">헬기 비상 착륙</span>', '착륙하면 탈취할 수 있다'); }
     this.stepShells(dt);
     for (const wr of this.wrecks) { wr.t += dt; if (wr.t % 0.25 < dt) G.smokeP.emit(wr.x + rand(-1, 1), wr.y + 1, wr.z + rand(-1, 1), rand(-0.4, 0.4), rand(2, 4), rand(-0.4, 0.4), rand(2, 4), rand(1.5, 3), 0.04, 0.04, 0.045, 0.8, 0.2, 0.4); if (wr.t > 40) { G.scene.remove(wr.g); wr.gone = true; } }
     this.wrecks = this.wrecks.filter((x) => !x.gone);
@@ -114,6 +118,7 @@ export class Military {
       // never into a tall building: climb over what is below
       gy = Math.max(gy, this.groundTop(e.x, e.z) + 14);
     }
+    if (e.landing) { gx = e.x; gz = e.z; gy = this.groundTop(e.x, e.z) + 1.3; sp = 0; }
     const ax = gx - e.x, az = gz - e.z, al = Math.hypot(ax, az) || 1, want = Math.min(sp, al * 0.9);
     const k = 1 - Math.exp(-1.6 * dt);
     const nvx = ax / al * want, nvz = az / al * want;
@@ -147,7 +152,8 @@ export class Military {
       U.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize().negate());
       if (e.sees) G.lights.flash(real.x, (real.y || 0) + 2.5, real.z, 0xdfeaff, 12, 22, 0.1);
     }
-    if (e.leaving || !e.sees) return;
+    if (e.landing && e.y <= gy + 0.4) { this.abandon(e); return; }
+    if (e.leaving || e.landing || !e.sees) return;
     // machine gun
     e.fireCd -= dt;
     if (e.fireCd <= 0 && dist < 100) {
@@ -300,6 +306,17 @@ export class Military {
     e.g.traverse((o) => { if (o.material && o.material.color && !o.material.isMeshBasicMaterial) { o.material = o.material.clone(); o.material.color.multiplyScalar(0.25); } });
     e.g.userData.tur.rotation.y += rand(-0.5, 0.5); e.g.userData.tur.position.y += 0.15; e.g.userData.tur.rotation.z = 0.12;
     this.wrecks.push({ g: e.g, x: e.x, y: 1, z: e.z, t: 0 }); e.gone = true;
+  }
+  // the crew gets out and the machine stays behind, parked and boardable (a Vehicle of the war kind)
+  abandon(e) {
+    const G = this.G, tank = e.kind === 'tank'; if (e.gone) return;
+    const v = new Vehicle(G, tank ? 'tank' : 'gunship', 0x4a5236, 'parked', { glow: [1, 0.3, 0.2] });
+    v.x = e.x; v.z = e.z; v.h = tank ? e.h : e.hy; v.startY = tank ? v.spec.cy + 0.25 : Math.max(v.spec.cy + 0.25, e.y); v.awake = false; v.captured = true;
+    v.hp = Math.max(v.maxHp * 0.35, v.maxHp * (e.hp / e.maxHp)); v.fuel = 55;
+    G.addVehicle(v); if (tank) v.turYaw = e.tur || 0;
+    G.scene.remove(e.g); if (e.g.userData.beam) G.scene.remove(e.g.userData.beam); e.gone = true;
+    for (let k = 0; k < 2; k++) G.spawnCop(e.x + (k ? 3.5 : -3.5), e.z + 2);
+    G.toast('<span style="color:#47ffa8">승무원 탈출</span>', (tank ? '전차' : '헬기') + '를 F로 탈취할 수 있다');
   }
   // one of each unit, for compiling their shaders during loading (see Game.prewarmShaders)
   warmModels() {
