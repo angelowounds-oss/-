@@ -20,7 +20,7 @@ run('transit', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     // ambient trains: stand near a line, find a moving train
     { const L = T.lines[0], m = L.pts[Math.floor(L.pts.length / 2)]; park(m[0] + 40, m[2]); step(30); let vis = 0; for (let k = 0; k < 40 && !vis; k++) { g.time = k * 9; T.trainsUpdate(g.time); const A = T.carMesh.instanceMatrix.array; for (let i = 0; i < T.rideBase; i++) if (A[i * 16] !== 0) vis++; } o.trainsVisible = vis; }
     // the kiosk offers rides: open at the capital's rail station
-    { const s = city('neon'); park(s.x, s.z + 2); step(30); const near = g.interact.query(pl); o.kioskNear = !!near; T.open(s); o.ui = T.box.querySelectorAll('.tr-row').length; T.close(); g.setPaused(false); }
+    { const s = city('neon'); park(s.x, s.z + 2); step(30); const near = g.interact.query(pl); o.kioskNear = !!near; { const b = g.world.colliders.near(s.x, s.z, 6).filter((q) => q.y0 >= 4.3 && q.h > 4.6).length, walk = g.world.colliders.resolve(s.x, s.z, 0.4, 0); o.hall = { roof: b, free: !walk.hit }; } T.open(s); o.ui = T.box.querySelectorAll('.tr-row').length; T.close(); g.setPaused(false); }
     const runRide = (name, plan, cash, started) => {
       const to = plan.to; if (!started) { g.cash = cash; T.start(plan); } let n = 0, worst = 0, minY = 1e9, seenMesh = false;
       while (T.riding && n < 5200) { const a = performance.now(); window.__upd(1 / 60); const d = performance.now() - a; if (n > 5 && d > worst) worst = d; n++; if (T.ride?.pose) minY = Math.min(minY, T.ride.pose.y); if (T.ride?.mesh?.visible) seenMesh = true; if (shots && n === 600) o.shots[name] = snap(); if (!T.ride && !T.riding) break; }
@@ -42,6 +42,6 @@ run('transit', { q: 1, width: 640, height: 360 }, async ({ page }) => {
   if (shots) for (const [k, v] of Object.entries(o.shots || {})) fs.writeFileSync(`tests/results/ride-${k}.png`, Buffer.from(v.split(',')[1], 'base64'));
   delete o.shots;
   const R = o.rides || {}, ok = (r) => r && r.arrived && r.alive && r.done && r.worstMs < 450;
-  const pass = o.has && o.stations >= 25 && o.kinds[1] >= 7 && o.kinds[2] === 1 && o.lines >= 6 && o.trainsVisible > 0 && o.kioskNear && o.ui >= 4 && ok(R.metro) && ok(R.rail) && ok(R.air) && ok(R.taxi) && R.rail.seenMesh !== undefined && o.airliners >= 1 && o.railUi && o.cashAfterBuy < 500 && o.rideStarted;
+  const pass = o.has && o.stations >= 25 && o.kinds[1] >= 7 && o.kinds[2] === 1 && o.lines >= 6 && o.trainsVisible > 0 && o.kioskNear && o.hall.roof >= 1 && o.hall.free && o.ui >= 4 && ok(R.metro) && ok(R.rail) && ok(R.air) && ok(R.taxi) && R.rail.seenMesh !== undefined && o.airliners >= 1 && o.railUi && o.cashAfterBuy < 500 && o.rideStarted;
   result('transit', pass, o);
 });

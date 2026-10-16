@@ -33,10 +33,10 @@ run('highways', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     // attendants at the nearest toll plaza and an event somewhere
     const t = N.tolls[0], r = N.roads.find((q) => q.id === t.road), tp = r.pts[Math.max(0, Math.min(r.pts.length - 1, t.idx))];
     pl.body3.teleport(tp[0], r.y[t.idx] + 1, tp[1] + 8); pl.x = tp[0]; pl.z = tp[1] + 8; pl.y = r.y[t.idx] + 1; step(240); o.tollNpcs = [...T.npcs.keys()].filter((k) => k.startsWith('toll')).length;
-    const sv = N.services[0]; pl.body3.teleport(sv.x, sv.y + 1, sv.z + 20); pl.x = sv.x; pl.z = sv.z + 20; pl.y = sv.y + 1; step(240); o.serviceNpcs = [...T.npcs.keys()].filter((k) => k.startsWith('svc')).length;
+    const sv = N.services[0]; pl.body3.teleport(sv.x, sv.y + 1, sv.z + 20); pl.x = sv.x; pl.z = sv.z + 20; pl.y = sv.y + 1; step(240); o.serviceNpcs = [...T.npcs.keys()].filter((k) => k.startsWith('svc')).length; { const w0 = [...T.npcs.entries()].filter(([k]) => k.startsWith('trav')).map(([, h]) => [h.x, h.z]); step(300); const w1 = [...T.npcs.entries()].filter(([k]) => k.startsWith('trav')).map(([, h]) => [h.x, h.z]); o.travellers = w1.length; o.travellersMoved = w1.filter((p, i) => w0[i] && Math.hypot(p[0] - w0[i][0], p[1] - w0[i][1]) > 1).length; }
     o.events = T.events.size;
     return o;
   });
-  const pass = o.has && o.chunks > 50 && o.tris < 320000 && o.ramps >= 18 && o.tolls >= 10 && o.services >= 4 && o.groundTile && o.cars >= 3 && o.carsMoving >= 2 && o.driven > 250 && o.maxDy < 3.5 && o.alive && o.tollNpcs >= 1 && o.serviceNpcs >= 1;
+  const pass = o.has && o.chunks > 50 && o.tris < 320000 && o.ramps >= 18 && o.tolls >= 10 && o.services >= 4 && o.groundTile && o.cars >= 3 && o.carsMoving >= 2 && o.driven > 250 && o.maxDy < 3.5 && o.alive && o.tollNpcs >= 1 && o.serviceNpcs >= 1 && o.travellers >= 3 && o.travellersMoved >= 1;
   result('highways', pass, o);
 });

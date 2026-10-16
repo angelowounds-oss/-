@@ -67,7 +67,7 @@ export class Transit {
     // the capital: its own subway entrances; the first one is also its central rail station
     const metro = G.world.metro || [];
     metro.forEach((m, i) => S.push({ id: 'neon:' + i, city: 'neon', kind: 0, x: m.x, z: m.z, name: m.name }));
-    if (metro.length) S.push({ id: 'neon:rail', city: 'neon', kind: 1, x: metro[0].x + (metro[0].v ? 4 : 0), z: metro[0].z + (metro[0].v ? 0 : 4), name: '네온 중앙역' });
+    if (metro.length) S.push({ id: 'neon:rail', city: 'neon', kind: 1, x: metro[0].x + (metro[0].v ? 0 : 10), z: metro[0].z + (metro[0].v ? 10 : 0), name: '네온 중앙역' });
     for (const C of G.citysites?.cities || []) {
       const names = ['중앙', '북', '동', '남', '서'], A = C.L.stations;
       let k = 0;
@@ -125,6 +125,17 @@ export class Transit {
       A.box(x - 0.65, y + 1.1, z - 0.5, x + 0.65, y + 2.1, z + 0.5, col.map((v) => v * 1.4), -2);   // the screen, lit on both faces
       A.box(x - 1.7, y + 3, z - 1.2, x + 1.7, y + 3.18, z + 1.2, [0.05, 0.06, 0.09], 0);
       A.box(x - 0.15, y + 3.18, z - 0.15, x + 0.15, y + 9, z + 0.15, col.map((v) => v * 1.6), -2);   // a thin light mast
+      if (s.kind === 1) {   // the central station's hall: a roofed concourse open to the south, with benches and a lit ceiling, walkable
+        const hx = 3, hz = 2.6, W = G.world.colliders, wall = [0.07, 0.08, 0.1];
+        A.box(x - hx, 0, z - hz, x + hx, 0.12, z + hz, [0.12, 0.12, 0.14], -1);                       // floor
+        A.box(x - hx, 0.12, z + hz - 0.3, x + hx, 4.4, z + hz, wall, 0);                              // back wall
+        A.box(x - hx, 0.12, z - hz, x - hx + 0.3, 4.4, z + hz, wall, 0); A.box(x + hx - 0.3, 0.12, z - hz, x + hx, 4.4, z + hz, wall, 0);
+        A.box(x - hx - 0.3, 4.4, z - hz - 0.3, x + hx + 0.3, 4.7, z + hz + 0.3, [0.05, 0.06, 0.08], 0);   // roof
+        A.box(x - 2.4, 4.3, z - 1.9, x + 2.4, 4.4, z + 1.9, [1.6, 1.5, 1.3], -2);                       // ceiling light
+        for (const sx of [-1.9, 1.9]) A.box(x + sx - 0.5, 0.12, z + 1.6, x + sx + 0.5, 0.55, z + 2.1, [0.3, 0.2, 0.1], -1);   // benches
+        W.addBox(x - hx, z + hz - 0.3, x + hx, z + hz, 4.4, 'building'); W.addBox(x - hx, z - hz, x - hx + 0.3, z + hz, 4.4, 'building'); W.addBox(x + hx - 0.3, z - hz, x + hx, z + hz, 4.4, 'building');
+        W.addBox(x - hx - 0.3, z - hz - 0.3, x + hx + 0.3, z + hz + 0.3, 4.7, 'building', 4.4);
+      }
       signs.push({ x, y: 5.2, z, k: s.kind });
       G.interact.add({ x, z, cy: 1.2, r: 5.2, name: s.kind === 0 ? '지하철 입구 · ' + s.name : s.name, verbs: [{ key: 'F', label: () => '이용하기', run: () => this.open(s) }] });
     }
