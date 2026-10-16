@@ -7,13 +7,13 @@ const SHOW=(()=>{
  const off=/[#&]look=(0|lab|classic)/.test(location.hash);
  const warm=[1,.95,.88],cool=[.82,.92,1],mul=(c,k)=>c.map(v=>v*k);
  const S={on:!off,amt:off?0:1,target:off?0:1,
-  pool:{c:[0,1.1,0],r0:3.4,r1:8.6,floor:.16},
+  pool:{c:[0,1.1,0],r0:2.6,r1:5.6,floor:.03},
   tubes:[ /* a, b: segment ends; r: source radius; col: radiance colour x strength; box: fixture [centre, half sizes] */
-   {a:[-4.5,6.5,0],b:[4.5,6.5,0],r:.3,col:mul(warm,34),fix:{c:[0,6.5,0],h:[4.5,.035,.4]}},
-   {a:[-4,6.5,2.2],b:[4,6.5,2.2],r:.14,col:mul(cool,24),fix:{c:[0,6.5,2.2],h:[4,.03,.16]}},
-   {a:[-4,6.5,-2.2],b:[4,6.5,-2.2],r:.14,col:mul(cool,24),fix:{c:[0,6.5,-2.2],h:[4,.03,.16]}},
-   {a:[-3.4,3.1,3.6],b:[3.4,3.1,3.6],r:.1,col:mul(cool,11),fix:null},
-   {a:[-3.4,3.1,-3.6],b:[3.4,3.1,-3.6],r:.1,col:mul(cool,11),fix:null}],
+   {a:[-4.5,6.5,0],b:[4.5,6.5,0],r:.3,col:mul(warm,61),fix:{c:[0,6.5,0],h:[4.5,.035,.4]}},
+   {a:[-4,6.5,2.2],b:[4,6.5,2.2],r:.14,col:mul(cool,43),fix:{c:[0,6.5,2.2],h:[4,.03,.16]}},
+   {a:[-4,6.5,-2.2],b:[4,6.5,-2.2],r:.14,col:mul(cool,43),fix:{c:[0,6.5,-2.2],h:[4,.03,.16]}},
+   {a:[-3.4,3.1,3.6],b:[3.4,3.1,3.6],r:.1,col:mul(cool,20),fix:null},
+   {a:[-3.4,3.1,-3.6],b:[3.4,3.1,-3.6],r:.1,col:mul(cool,20),fix:null}],
   rig:null,rigGen:-1,loc:null};
  S.set=on=>{S.target=on?1:0;S.on=!!on};
  return S})();

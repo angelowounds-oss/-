@@ -58,7 +58,7 @@ float shadowVisibility(vec3 n,vec3 l){
  return sum/9.;
 }
 /* showroom look: the lit pool around the turntable (1 inside r0, falling to the floor value beyond r1); u_look 0 = classic bright lab */
-float poolK(vec3 p){vec3 d=(p-u_pool.xyz)*vec3(1.,.75,1.);float s=1.-smoothstep(u_pool.w,u_pool2.x,length(d));return mix(1.,u_pool2.y+(1.-u_pool2.y)*s,u_look);}
+float poolK(vec3 p){vec3 d=(p-u_pool.xyz)*vec3(.72,.75,1.12);float s=1.-smoothstep(u_pool.w,u_pool2.x,length(d));return mix(1.,u_pool2.y+(1.-u_pool2.y)*s,u_look);}
 /* tube (capsule) studio lights, analytic: closest-point-on-segment diffuse, representative-point GGX specular with source-size energy normalisation (Karis, UE4 'Real Shading').
    No shadow map; floor points are occluded by an analytic ellipsoid standing for the car so the floor keeps a dark contact area. */
 vec3 tubeLights(vec3 n,vec3 v,float nv,vec3 albedo,float rough,float metal,vec3 F0,float onCar){
