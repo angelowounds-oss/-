@@ -32,7 +32,7 @@ export class Phone {
     const shot = document.createElement('div'); shot.id = 'phShot'; shot.innerHTML = '<button id="phSnap" type="button">📷 촬영</button><button id="phExit" type="button">종료</button>'; document.body.appendChild(shot);
     el('hud').insertAdjacentHTML('beforeend', '<div id="job" class="glass"></div>');
     this.root = root; this.body = el('phBody');
-    const tabs = [['map', '지도'], ['people', '주민'], ['news', '뉴스'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
+    const tabs = [['map', '지도'], ['world', '세계'], ['people', '주민'], ['news', '뉴스'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
     const tb = el('phTabs'); tabs.forEach(([k, n]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.dataset.k = k; b.onclick = () => { this.tab = k; this.render(); }; tb.appendChild(b); });
     el('phSnap').onclick = () => this.snap(); el('phExit').onclick = () => this.photo(false);
     addEventListener('keydown', (e) => { if (this.open && (e.code === 'Escape' || e.code === 'KeyM')) { e.stopImmediatePropagation(); e.preventDefault(); this.close(); } }, true);
@@ -50,6 +50,12 @@ export class Phone {
     el('phClock').textContent = G.clock.fmt();
     for (const b of el('phTabs').children) b.classList.toggle('on', b.dataset.k === this.tab);
     if (this.tab === 'map') this.renderMap();
+    else if (this.tab === 'world') {
+      const w = G.waypoint, f = G.focusPos(), city = G.citysites?.cityAt(f.x, f.z, 300) || null;
+      this.row('세계 지도', '100 km 전체 · 4단계 확대 · 클릭으로 목적지 지정 (J)', [['열기', () => { this.close(); G.wmap.toggle(true); }]]);
+      this.row(w ? w.name : '목적지 없음', w ? `${(Math.hypot(w.x - f.x, w.z - f.z) / 1000).toFixed(1)} km` : '지도에서 지점을 눌러 지정', w ? [['자동 주행', () => { this.close(); G.wmap.auto(); }], ['빠른 이동', () => { this.close(); G.wmap.fast(); }], ['해제', () => { G.wmap.clear(); this.render(); }]] : []);
+      this.row(city ? city.name : '도시 밖', city ? { metropolis: '수도', port: '항만 도시', airport: '공항 도시', town: '중소 도시' }[city.type] : '고속도로 · 들판', []);
+    }
     else if (this.tab === 'people') this.renderPeople();
     else if (this.tab === 'news') {
       const M = G.memory; if (!M) return;

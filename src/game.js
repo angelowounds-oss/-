@@ -17,6 +17,10 @@ import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { War, WAR_NAMES } from './warcraft.js';
 import { Farland } from './farland.js';
 import { Highways } from './highways.js';
+import { CitySites } from './citysites.js';
+import { CityLife } from './citylife.js';
+import { AutoNav } from './worldnav.js';
+import { WorldMapUI } from './worldmapui.js';
 import { HighwayTraffic } from './hwtraffic.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
@@ -98,7 +102,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : new Farland(this.scene, { phys: this.phys }); this.highways = this.eng.q.simple ? null : new Highways(this.scene);
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : new Farland(this.scene, { phys: this.phys, markers: false }); this.highways = this.eng.q.simple ? null : new Highways(this.scene); this.citysites = this.eng.q.simple ? null : new CitySites(this.scene, this.world, this.phys, this); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -136,7 +140,7 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
-    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this);
+    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this);
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
@@ -371,7 +375,7 @@ export class Game {
     if (this.input.edge('inv')) this.openInventory();
     if (this.input.edge('sur') && this.playerOnFoot) this.surrender();
     if (this.input.edge('phone') && !this.uiModal && !this.player.dead) this.phone.show();
-    this.jobs.update(sdt); this.updateGPS(sdt);
+    this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }
     this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
@@ -825,6 +829,7 @@ export class Game {
     const v = this.vehicle, pl = this.player;
     if (this.passenger) { this.taxiTick(); pl.x = v.x; pl.z = v.z; pl.body3.teleport(pl.x, 0, pl.z); if (this.input.edge('use') && v.speed < 3) this.endPassenger(false); if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3; return; }
     v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
+    if (this.autonav?.active) this.autonav.control(v, inp, dt);   // the autopilot sets throttle / brake / steer; the driver's own input takes it back
     if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.keys.has('Space'); }
     if (this.input.edge('verb3') && v.speed < 4 && this.nearStation(v.x, v.z)) this.refuel(v);
     // gamepad/keys give both throttle & brake semantic via my; if reversing handled by physics
@@ -1263,7 +1268,7 @@ export class Game {
       const tc = list.filter((v) => v.kind === 'traffic' && v.driver === 'ai' && !v.hw).length;
       const pf = this.society.popFactor();
       if (tc < Math.round(this.eng.q.traffic * (0.4 + 0.6 * pf))) this.spawnTraffic(false);
-      const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside);
+      const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside && !h.remoteCiv);
       const want = Math.round(this.eng.q.npc * pf);
       if (civs.length < want) { const n = want - civs.length > 8 ? 3 : 1; for (let i = 0; i < n; i++) this.spawnCivilian(false); }
       else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
@@ -1650,7 +1655,7 @@ export class Game {
     const fov = cam.fov + this.fallK * 16;
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
-    this.farland?.update(c, this.focusPos()); this.highways?.update(c);
+    this.farland?.update(c, this.focusPos()); this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); this.citylife?.update(dt);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;

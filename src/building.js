@@ -1110,6 +1110,13 @@ export class Buildings {
     this.lights = Array.from({ length: 6 }, (_, i) => { const l = new THREE.PointLight(0xffe2b0, 0, 17, 1.6); l.visible = i < LIGHT_CAP.bld; G.scene.add(l); return l; });
     this.lt = 0;
   }
+  // cities beyond the capital hand their enterable buildings over while their tile is near (citysites.js)
+  addLot(lot) { const b = new Building(this, lot); this.list.push(b); this.byLot.set(lot, b); return b; }
+  removeLot(lot) {
+    const b = this.byLot.get(lot); if (!b) return;
+    if (b.open) { b.deactivate(); this.active.delete(b); }
+    const i = this.list.indexOf(b); if (i >= 0) this.list.splice(i, 1); this.byLot.delete(lot);
+  }
   populateFloor(b, fl, L, rooms) { this.populateLife(b, fl, L, rooms); this.populateCitizens(b, fl, L, rooms); }
   populateLife(b, fl, L, rooms) { this.G.life.populate(b, fl, L, rooms); }
   *populateLifeGen(b, fl, L, rooms) { yield* this.G.life.populateGen(b, fl, L, rooms); }

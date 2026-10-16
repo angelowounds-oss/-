@@ -5,6 +5,7 @@ import { bake } from '../../build/bake.mjs';
 import { unpack } from '../../src/bakefmt.js';
 import { world } from '../../src/worldmap.js';
 import { net } from '../../src/roadnet.js';
+import { layouts } from '../../src/citylayout.js';
 
 const bad = [], a = await bake(), b = await bake();
 if (a.manifest.data !== b.manifest.data) bad.push(['not deterministic']);
@@ -17,7 +18,7 @@ const eq = (x, y, p) => {
   if (x && typeof x === 'object') { for (const k of Object.keys(x)) eq(x[k], y?.[k], p + '.' + k); return; }
   if (!(Number.isNaN(x) && Number.isNaN(y))) bad.push([p, x, y]);
 };
-eq(world(), U.world, 'world'); eq(net(), U.net, 'net');
+eq(world(), U.world, 'world'); eq(net(), U.net, 'net'); eq(layouts(), U.layouts, 'layouts');
 if (U.net.rings.get('neon').roads[0] !== U.net.roads[0]) bad.push(['shared road lost']);
 const mb = a.data.length / 1048576;
 console.log('RESULT ' + JSON.stringify({ test: 'bake', pass: bad.length === 0, metrics: { MB: +mb.toFixed(2), rawMB: +(a.manifest.rawBytes / 1048576).toFixed(2), ms: a.manifest.ms, hash: a.manifest.data.slice(0, 8) }, note: bad.slice(0, 5).join(' | ') }));

@@ -128,7 +128,12 @@ function placeCities(W) {
       }
       if (!best) best = { x: def.x, z: def.z };
     }
-    const c = { ...def, x: best.x, z: best.z, y: def.fixed ? 0 : Math.max(2, sample(W.H, W.N1, best.x, best.z)) };
+    const c = { ...def, x: best.x, z: best.z, y: 0 };   // every city stands on y = 0, like the capital: the building generator, floors and lifts all assume a ground plane at 0
+    if (def.coast) {   // the port lies low and opens to the nearest sea through a harbour basin cut into the flat ground (flattenCities)
+      let bd = 1e18, ba = 0;
+      for (let a = 0; a < 48; a++) for (let d = 1000; d <= 14000; d += 500) { if (sample(W.H, W.N1, c.x + Math.cos(a / 48 * 6.2832) * d, c.z + Math.sin(a / 48 * 6.2832) * d) < SEA) { if (d < bd) { bd = d; ba = a / 48 * 6.2832; } break; } }
+      c.seaDir = { x: Math.cos(ba), z: Math.sin(ba) };
+    }
     placed.push(c); W.cities.push(c);
   }
 }
@@ -139,6 +144,10 @@ function flattenCities(W) {
   for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
     const x = -WORLD_HALF + i * CC, z = -WORLD_HALF + j * CC;
     for (const c of W.cities) { const f = cityFlat(c, x, z); if (f > 0) H[j * N1 + i] = lerp(H[j * N1 + i], c.y, f); }
+    for (const c of W.cities) if (c.seaDir) {   // harbour basin: an ellipse of water on the sea side, 0.74 R from the centre outwards
+      const ox = x - c.x - c.seaDir.x * c.r * 1.15, oz = z - c.z - c.seaDir.z * c.r * 1.15, al = ox * c.seaDir.x + oz * c.seaDir.z, pe = -ox * c.seaDir.z + oz * c.seaDir.x;
+      const w = 1 - sstep(0.75, 1.0, Math.hypot(al / (c.r * 0.4), pe / (c.r * 0.7))); if (w > 0) H[j * N1 + i] = lerp(H[j * N1 + i], SEA - 10, w);
+    }
   }
 }
 

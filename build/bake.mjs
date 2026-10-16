@@ -8,14 +8,14 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const SOURCES = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/bakefmt.js'];
+const SOURCES = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/bakefmt.js', 'src/citylayout.js'];
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
 export async function bake() {
   const t0 = performance.now();
   const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
-  const [{ world }, { net }, { pack }] = await Promise.all([imp('src/worldmap.js'), imp('src/roadnet.js'), imp('src/bakefmt.js')]);
-  const { json, blob } = pack({ world: world(), net: net() });
+  const [{ world }, { net }, { pack }, { layouts }] = await Promise.all([imp('src/worldmap.js'), imp('src/roadnet.js'), imp('src/bakefmt.js'), imp('src/citylayout.js')]);
+  const { json, blob } = pack({ world: world(), net: net(), layouts: layouts() });
   const jb = Buffer.from(json, 'utf8'), head = Buffer.alloc(8); head.writeUInt32LE(jb.length, 0); head.writeUInt32LE(blob.length, 4);
   const raw = Buffer.concat([head, jb, blob]), data = zlib.deflateRawSync(raw, { level: 9 });
   const manifest = {

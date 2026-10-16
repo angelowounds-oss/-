@@ -316,6 +316,7 @@ export function civ(h, dt) {
 }
 // movement override for civilians (dodge / gawk / cower); returns {x,z,s,face} or null
 export function civMove(h, dt) {
+  if (h.steerFn) { const r = h.steerFn(h, dt); if (r) return r; }   // street life in the other cities (citylife.js)
   if (h.dodge) {
     h.dodge.t -= dt;
     if (h.dodge.t <= 0) h.dodge = null; else return { x: h.dodge.x, z: h.dodge.z, s: 7, face: null };

@@ -1136,6 +1136,7 @@ export function buildWorld(scene, quality) {
     m.frustumCulled = false;
     return m;
   }
+  world.facadeApi = { make: makeFacadeMesh };   // the other cities (citysites.js) draw their near buildings with the same facade program
   const facade = makeFacadeMesh(tiers);
   scene.add(facade);
   buildRelief(world, scene, instCull, tiers);

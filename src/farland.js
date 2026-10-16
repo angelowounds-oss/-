@@ -72,7 +72,7 @@ export class Farland {
     // the sea: one big plane at sea level (the land rises out of it)
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x07253d, roughness: 0.22, metalness: 0.25 }));
     sea.rotation.x = -Math.PI / 2; sea.scale.set(500000, 500000, 1); sea.position.y = SEA; sea.renderOrder = -3; sea.frustumCulled = false; this.sea = sea; this.group.add(sea);
-    this.markers = this.buildMarkers();
+    this.markers = opts.markers === false ? null : this.buildMarkers();
     scene.add(this.group);
     this.ground = new FarGround(opts.phys);
     this.stats = { regen: 0, ms: 0, last: 0, reused: 0, computed: 0 };
@@ -135,6 +135,7 @@ export class Farland {
 // Physics ground that follows the focus: a static Rapier heightfield (129 x 129 samples, 8 m) centred on the focus and rebuilt when it has moved
 // 160 m. Under the city's own terrain the heights are -100 so it never competes with the city's colliders.
 const HF = 128, HFC = 8, HFHALF = (HF * HFC) / 2;
+if (typeof window !== 'undefined') window.__farHeights = { physHeight, landHeight };   // test hook
 export class FarGround {
   constructor(phys) { this.phys = phys; this.col = null; this.cx = NaN; this.cz = NaN; this.heights = new Float32Array((HF + 1) * (HF + 1)); }
   update(x, z, y = 0) {
@@ -150,7 +151,7 @@ export class FarGround {
       hs[i * (HF + 1) + j] = (Math.abs(wx) < EXTENT + 8 && Math.abs(wz) < EXTENT + 8) ? -100 : physHeight(wx, wz, HFC);
     }
     const desc = R.ColliderDesc.heightfield(HF, HF, hs, { x: HF * HFC, y: 1, z: HF * HFC }).setTranslation(cx, 0, cz).setFriction(1.0).setRestitution(0).setCollisionGroups(grp(GR.STATIC, 0xffff));
-    this.col = P.world.createCollider(desc); this.cx = cx; this.cz = cz;
+    this.col = P.world.createCollider(desc); this.cx = cx; this.cz = cz; (this.log || (this.log = [])).push([cx, cz, +hs[64 * (HF + 1) + 64].toFixed(1), +y.toFixed(1)]);
   }
   clear() { if (this.col) { this.phys.world.removeCollider(this.col, false); this.col = null; this.cx = this.cz = NaN; } }
   dispose() { this.clear(); }

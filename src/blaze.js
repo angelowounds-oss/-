@@ -25,8 +25,7 @@ const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler()
 export class Blaze {
   constructor(G) {
     this.G = G; const w = G.world; this.w = w;
-    this.fac = w.facade; this.burn = this.fac.geometry.attributes.aBurn; this.door = this.fac.geometry.attributes.aDoor;
-    this.mat0 = this.fac.instanceMatrix.array.slice();
+    this.capF = { mesh: w.facade, burn: w.facade.geometry.attributes.aBurn, door: w.facade.geometry.attributes.aDoor, mat0: w.facade.instanceMatrix.array.slice() };   // lots of the other cities carry their own lot.fac (citysites.js)
     this.lots = w.lots.filter((l) => l.tierIdx != null && !l.far && !l.model);
     this.grid = new Map();
     for (const l of this.lots) for (let cx = Math.floor((l.x0 - 2) / 48); cx <= Math.floor((l.x1 + 2) / 48); cx++) for (let cz = Math.floor((l.z0 - 2) / 48); cz <= Math.floor((l.z1 + 2) / 48); cz++) {
@@ -42,10 +41,26 @@ export class Blaze {
     this.rubble.castShadow = true; this.rubble.receiveShadow = true; this.rubble.frustumCulled = false; this.rubbleHead = 0;
     G.scene.add(this.rubble);
     this.smoke = 0;   // 0..1 smoke around the player inside a burning building (thickens the fog)
-    const st = G.state.ruins || (G.state.ruins = {});
+    const st = G.state.ruins || (G.state.ruins = {}); G.state.rruins = G.state.rruins || {};
     for (const k of Object.keys(st)) { const lot = w.lots[+k]; if (lot && this.lots.includes(lot)) this.ruin(lot, true); else delete st[k]; }
   }
 
+  F(lot) { return lot.fac || this.capF; }
+  // the ruin clock of a lot: the capital's are saved by index, the other cities' by id (a tile can be dropped and made again)
+  ruinStore(lot) { return lot.remote ? this.G.state.rruins : this.G.state.ruins; }
+  ruinKey(lot) { return lot.remote ? lot.id : this.w.lots.indexOf(lot); }
+  cells(l, f) { for (let cx = Math.floor((l.x0 - 2) / 48); cx <= Math.floor((l.x1 + 2) / 48); cx++) for (let cz = Math.floor((l.z0 - 2) / 48); cz <= Math.floor((l.z1 + 2) / 48); cz++) f(cx * 7919 + cz); }
+  // a building of another city whose tile just came near / went away
+  addLot(lot) {
+    this.lots.push(lot); this.cells(lot, (k) => { let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(lot); });
+    if (this.G.state.rruins[lot.id] != null) this.ruin(lot, true);
+  }
+  removeLot(lot) {
+    const i = this.lots.indexOf(lot); if (i >= 0) this.lots.splice(i, 1);
+    this.cells(lot, (k) => { const a = this.grid.get(k); if (!a) return; const j = a.indexOf(lot); if (j >= 0) a.splice(j, 1); if (!a.length) this.grid.delete(k); });
+    const r = this.ruins.get(lot); if (r) { for (const slot of r.chunks) this.rubble.setMatrixAt(slot, M.makeScale(0, 0, 0)); this.rubble.instanceMatrix.needsUpdate = true; this.ruins.delete(lot); }   // the clock stays in the save; the ruin comes back with the tile
+    this.fires.delete(lot);
+  }
   lotAt(x, z, m = 0) {
     const a = this.grid.get(Math.floor(x / 48) * 7919 + Math.floor(z / 48)); if (!a) return null;
     for (const l of a) if (x > l.x0 - m && x < l.x1 + m && z > l.z0 - m && z < l.z1 + m) return l;
@@ -105,7 +120,7 @@ export class Blaze {
     }
     for (const [lot, s] of this.fires) if (s.done) this.fires.delete(lot);
     this.smoke += (smoke - this.smoke) * Math.min(1, dt * 1.5);
-    if (this.ruins.size) { this.rebuildT -= dt; if (this.rebuildT <= 0) { this.rebuildT = 5; for (const lot of [...this.ruins.keys()]) { const t0 = G.state.ruins[this.w.lots.indexOf(lot)]; if (t0 != null && G.clock.t - t0 > REBUILD_MIN) this.rebuild(lot); } } }
+    if (this.ruins.size) { this.rebuildT -= dt; if (this.rebuildT <= 0) { this.rebuildT = 5; for (const lot of [...this.ruins.keys()]) { const t0 = this.ruinStore(lot)[this.ruinKey(lot)]; if (t0 != null && G.clock.t - t0 > REBUILD_MIN) this.rebuild(lot); } } }
     if (this.flameP.n || this.fires.size) this.flameP.update(dt);
     if (this.smokeP.n || this.fires.size) this.smokeP.update(dt);
   }
@@ -155,9 +170,9 @@ export class Blaze {
     }
   }
   writeBurn(lot, lo, hi, heat, charTop) {
-    const a = this.burn.array;
+    const f = this.F(lot), a = f.burn.array;
     for (const i of this.tiers(lot)) { a[i * 4] = lo; a[i * 4 + 1] = hi; a[i * 4 + 2] = heat; a[i * 4 + 3] = charTop; }
-    this.burn.needsUpdate = true;
+    f.burn.needsUpdate = true;
   }
 
   // a building that is open (interior floors built) burns inside too: fires on the floors near the player, the people there run
@@ -217,10 +232,10 @@ export class Blaze {
     G.audio.explosion?.(Math.max(0.2, 1 - dc / 400), clamp((cx - G.camera.position.x) * 0.01, -1, 1));
   }
   animate(s, dt) {
-    const G = this.G, l = s.lot, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, ids = this.tiers(l), a = this.fac.instanceMatrix.array;
+    const G = this.G, l = s.lot, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, ids = this.tiers(l), F = this.F(l), a = F.mesh.instanceMatrix.array;
     s.ct += dt; const e = clamp(s.ct / COLLAPSE_T, 0, 1), e2 = e * e, rubH = this.rubbleH(l);
     for (let j = 0; j < ids.length; j++) {
-      const i = ids[j]; M.fromArray(this.mat0, i * 16); M.decompose(P, Q, S);
+      const i = ids[j]; M.fromArray(F.mat0, i * 16); M.decompose(P, Q, S);
       const y0 = P.y, h0 = S.y;
       if (j === 0) { S.y = h0 + (rubH - h0) * e2; }
       else { P.y = y0 + (rubH * 0.6 - y0) * e2; S.y = Math.max(0.001, h0 * (1 - e2)); }
@@ -229,8 +244,8 @@ export class Blaze {
       E.set(s.tilt[0] * 0.07 * e * (j ? 1 : 0.2), 0, s.tilt[1] * 0.07 * e * (j ? 1 : 0.2)); Q.setFromEuler(E);
       M.compose(P, Q, S); M.toArray(a, i * 16);
     }
-    this.fac.instanceMatrix.needsUpdate = true;
-    this.w.relief?.sink(l, e2, rubH * 0.6);   // ledges, piers and cornices sink with the facade
+    F.mesh.instanceMatrix.needsUpdate = true;
+    if (!l.remote) this.w.relief?.sink(l, e2, rubH * 0.6);   // ledges, piers and cornices sink with the facade
     // the top of what is still standing sheds dust; the base throws a dust wall outwards
     const topNow = l.topY * (1 - e2) + rubH * e2, perim = (l.x1 - l.x0 + l.z1 - l.z0) * 2;
     const dcam = Math.hypot(cx - G.camera.position.x, cz - G.camera.position.z), k = dcam < 250 ? 1 : 0.4;
@@ -266,12 +281,12 @@ export class Blaze {
   ruin(lot, instant, decor) {
     const G = this.G, b = G.buildings.byLot.get(lot), col = this.w.colliders, rubH = this.rubbleH(lot);
     if (b) { b.ruined = true; if (b.open) { G.buildings.active.delete(b); b.deactivate(); } }
-    const ids = this.tiers(lot), a = this.fac.instanceMatrix.array;
-    M.fromArray(this.mat0, ids[0] * 16); M.decompose(P, Q, S); S.y = rubH; S.x *= 0.98; S.z *= 0.98; M.compose(P, Q, S); M.toArray(a, ids[0] * 16);
+    const ids = this.tiers(lot), F = this.F(lot), a = F.mesh.instanceMatrix.array;
+    M.fromArray(F.mat0, ids[0] * 16); M.decompose(P, Q, S); S.y = rubH; S.x *= 0.98; S.z *= 0.98; M.compose(P, Q, S); M.toArray(a, ids[0] * 16);
     for (let j = 1; j < ids.length; j++) a.set(ZERO16, ids[j] * 16);
-    this.fac.instanceMatrix.needsUpdate = true;
-    this.w.relief?.hide(lot);
-    this.door.array[ids[0] * 4 + 3] = 0; this.door.needsUpdate = true;
+    F.mesh.instanceMatrix.needsUpdate = true;
+    if (!lot.remote) this.w.relief?.hide(lot);
+    F.door.array[ids[0] * 4 + 3] = 0; F.door.needsUpdate = true;
     this.writeBurn(lot, 0, 0, 0, 1e4);
     if (lot.solid) col.removeBox(lot.solid);
     lot.solid = col.addBox(lot.x0, lot.z0, lot.x1, lot.z1, rubH, 'building');
@@ -286,22 +301,22 @@ export class Blaze {
     }
     this.rubble.instanceMatrix.needsUpdate = true;
     this.ruins.set(lot, { decor: decor || this.hideDecor(lot), chunks });
-    const idx = this.w.lots.indexOf(lot); if (G.state.ruins[idx] == null) G.state.ruins[idx] = G.clock.t;
+    const st = this.ruinStore(lot), key = this.ruinKey(lot); if (st[key] == null) st[key] = G.clock.t;
     if (!instant) this.fires.delete(lot);
   }
   rebuild(lot) {
     const G = this.G, r = this.ruins.get(lot); if (!r) return;
-    const ids = this.tiers(lot), a = this.fac.instanceMatrix.array;
-    for (const i of ids) for (let c = 0; c < 16; c++) a[i * 16 + c] = this.mat0[i * 16 + c];
-    this.fac.instanceMatrix.needsUpdate = true;
-    this.w.relief?.show(lot);
+    const ids = this.tiers(lot), F = this.F(lot), a = F.mesh.instanceMatrix.array;
+    for (const i of ids) for (let c = 0; c < 16; c++) a[i * 16 + c] = F.mat0[i * 16 + c];
+    F.mesh.instanceMatrix.needsUpdate = true;
+    if (!lot.remote) this.w.relief?.show(lot);
     this.writeBurn(lot, 0, 0, 0, 0);
     this.showDecor(r.decor);
     for (const slot of r.chunks) this.rubble.setMatrixAt(slot, M.makeScale(0, 0, 0));
     this.rubble.instanceMatrix.needsUpdate = true;
     const col = this.w.colliders; if (lot.solid) col.removeBox(lot.solid); lot.solid = col.addBox(lot.x0, lot.z0, lot.x1, lot.z1, lot.h + 5, 'building');
     const b = G.buildings.byLot.get(lot); if (b) b.ruined = false;
-    this.ruins.delete(lot); delete G.state.ruins[this.w.lots.indexOf(lot)];
+    this.ruins.delete(lot); delete this.ruinStore(lot)[this.ruinKey(lot)];
     this.fires.delete(lot);
   }
   rebuildAll() { for (const lot of [...this.ruins.keys()]) this.rebuild(lot); for (const s of this.fires.values()) { this.writeBurn(s.lot, 0, 0, 0, 0); } this.fires.clear(); }
@@ -316,9 +331,9 @@ export class Blaze {
   }
   // signs, holograms, roof props and glare dots standing on / against the lot
   hideDecor(lot) {
-    const m = 1.6, out = { inst: [], glare: [] };
+    const m = 1.6, out = { inst: [], glare: [] }, rem = !!lot.remote;
     const inBox = (x, z) => x > lot.x0 - m && x < lot.x1 + m && z > lot.z0 - m && z < lot.z1 + m;
-    for (const p of instCull.list) {
+    for (const p of rem ? [] : instCull.list) {
       if (!p.ready) p.prepare();
       const pos = p.pos, src = p.attrs[0].src;
       for (let i = 0; i < p.n; i++) if (pos[i * 4 + 1] > 0.8 && inBox(pos[i * 4], pos[i * 4 + 2])) { out.inst.push([p, i, src.slice(i * 16, i * 16 + 16)]); p.setMatrix(i, ZERO16); }
@@ -327,12 +342,13 @@ export class Blaze {
     // below the ground; the original heights are kept for the rebuild
     const d = lot.door, inFront = (x, z) => { if (!d) return false; const ax = x - d.px, az = z - d.pz, out = ax * d.nx + az * d.nz, lat = Math.abs(ax * d.nz - az * d.nx); return out > -1 && out < 10.5 && lat < 4; };
     out.verts = [];
-    for (const mesh of this.decorMeshes()) {
+    const ox = rem ? lot.fac.ox : 0, oz = rem ? lot.fac.oz : 0;
+    for (const mesh of rem ? (lot.fac.ent ? [lot.fac.ent] : []) : this.decorMeshes()) {
       const pa = mesh.geometry.attributes.position, a = pa.array, idx = [];
-      for (let i = 0; i < pa.count; i++) { const x = a[i * 3], z = a[i * 3 + 2]; if (inBox(x, z) || inFront(x, z)) { idx.push(i, a[i * 3 + 1]); a[i * 3 + 1] = -500; } }
+      for (let i = 0; i < pa.count; i++) { const x = a[i * 3] + ox, z = a[i * 3 + 2] + oz; if (inBox(x, z) || inFront(x, z)) { idx.push(i, a[i * 3 + 1]); a[i * 3 + 1] = -500; } }
       if (idx.length) { pa.needsUpdate = true; out.verts.push([pa, idx]); }
     }
-    const gl = this.w.glare; if (gl) {
+    const gl = rem ? null : this.w.glare; if (gl) {
       const pa = gl.points.geometry.attributes.position, a = pa.array;
       for (let i = 0; i < pa.count; i++) if (a[i * 3 + 1] > 2 && inBox(a[i * 3], a[i * 3 + 2])) { out.glare.push([i, a[i * 3 + 1]]); a[i * 3 + 1] = -1e4; }
       if (out.glare.length) pa.needsUpdate = true;
