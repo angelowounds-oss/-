@@ -14,7 +14,7 @@ const SHOW=(()=>{
    {a:[-4,6.5,-2.2],b:[4,6.5,-2.2],r:.14,col:mul(cool,60),fix:{c:[0,6.5,-2.2],h:[4,.03,.16]}},
    {a:[-3.4,3.1,3.6],b:[3.4,3.1,3.6],r:.1,col:mul(cool,28),fix:null},
    {a:[-3.4,3.1,-3.6],b:[3.4,3.1,-3.6],r:.1,col:mul(cool,28),fix:null}],
-  rig:null,rigGen:-1,loc:null};
+  haze:/[#&]haze=0/.test(location.hash)?0:.00055,rig:null,rigGen:-1,loc:null};
  S.set=on=>{S.target=on?1:0;S.on=!!on};
  return S})();
 window.__SHOW=SHOW;
@@ -50,4 +50,11 @@ function showRigBuild(){
 function showDrawRig(){
  if(SHOW.amt<.5||!gl)return;if(SHOW.rigGen!==runtimeGeneration)showRigBuild();
  for(const r of SHOW.rig)drawMesh(r.m,identityMatrix(),r.mat,1);
+}
+/* haze uniforms for the composite pass (view-space tube ends + strengths); k = 0 turns the effect off (classic look, LITE tier) */
+function showHaze(){
+ if(!(SHOW.amt>.02)||!PERF.set.bloom||SHOW.haze<=0)return {uHaze:0};
+ const view=lookAt(camera.eye,camera.target,camera.up),o={uHaze:SHOW.haze*SHOW.amt,uFr:FX.frame%97};
+ for(let i=0;i<3;i++){const t=SHOW.tubes[i];o['uHa'+i]=m4point(view,t.a);o['uHb'+i]=m4point(view,t.b);o['uHc'+i]=t.col}
+ return o;
 }
