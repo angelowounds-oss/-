@@ -39,6 +39,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | gameplay | `entrance-holes` | 로비가 없는 건물의 출입구가 열려 보이지 않음(걷기·운전) | 구멍 프레임 0 |
 | gameplay | `breach` | 바깥벽 3면·코어 벽 파괴, 구멍으로 통과 가능 | 모든 벽 구멍 + 레이 통과 |
 | gameplay | `floor-population` | 탑 문 앞 15초 안에 로비 포함 3개 층 이상 생성, 인물 배치 | 층 3+, 인물 1+ |
+| gameplay | `floor-strand` | 층이 사라질 때 소속 없는 사람(도망 중 시민·시체)이 공중에 남지 않음 | 생존자 지상 복귀, 시체 제거 |
 | gameplay | `ai-behaviour` | 등 돌린 적 미인지, 총성 조사·접근, 피격 시 엄폐/교전, 시민 공포 전파 | 상태 전이 일치 |
 | gameplay | `military` | 5성 헬기·탱크 투입, 폭발 피해, 수배 해제 시 철수 | 모두 충족 |
 | gameplay | `pool-integrity` | 4,000프레임 보행 후 살아 있는 지오메트리끼리 버퍼 공유 없음 | 시작 시 공유 수와 동일 |

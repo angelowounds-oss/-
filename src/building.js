@@ -1115,7 +1115,18 @@ export class Buildings {
   *populateLifeGen(b, fl, L, rooms) { yield* this.G.life.populateGen(b, fl, L, rooms); }
   populateCitizens(b, fl, L, rooms) { this.G.citizens?.populateFloor(b, fl, L, rooms); }
   *populateCitizensGen(b, fl, L, rooms) { if (this.G.citizens) yield* this.G.citizens.populateFloorGen(b, fl, L, rooms); }
-  onFloorDropped(b, fl) { this.G.citizens?.floorDropped(fl); this.G.life.dropFloor(b, fl); }
+  onFloorDropped(b, fl) { this.G.citizens?.floorDropped(fl); this.G.life.dropFloor(b, fl); this.strand(b, fl); }
+  // people who are on a floor but not owned by it (fleeing trip-takers, corpses) would hover once the slab is gone: bring them down
+  strand(b, fl) {
+    const G = this.G, L = b.levels[fl.k], r = L.rect, mine = new Set([...(fl.npcs || []), ...(fl.citizens || [])]);
+    for (let i = G.humans.length - 1; i >= 0; i--) {
+      const h = G.humans[i];
+      if (mine.has(h) || h === G.player || h.y < L.y - 0.5 || h.y > L.y + L.h + 0.5 || h.x < r.x0 - 1 || h.x > r.x1 + 1 || h.z < r.z0 - 1 || h.z > r.z1 + 1) continue;
+      if (h.dead) { G.humans.splice(i, 1); G.scene.remove(h.group); continue; }
+      const d = b.lot.door; h.trip = null; h.inside = null; h.vy = 0; h.knock = 0; h.floorY = 0; h.y = 0;
+      h.x = d.px + d.nx * 1.5; h.z = d.pz + d.nz * 1.5; h.state = 'walk'; h.snapToNode();
+    }
+  }
   // nearest ceiling fixtures around the player become real lights
   updateLights(dt, pl) {
     this.lt -= dt; if (this.lt > 0) return; this.lt = 0.15;
