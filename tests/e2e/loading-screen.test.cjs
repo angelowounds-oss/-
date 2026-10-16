@@ -20,8 +20,8 @@ const { pw, GL_ARGS, GAME, result } = require('../lib.cjs');
     await page.setViewportSize({ width: 960, height: 540 });
     await page.keyboard.press('KeyJ');
     await page.waitForFunction(() => window.__game && window.__game.running, null, { timeout: 30000 });
-    await page.waitForTimeout(1800);
-    o.titleHidden = await page.evaluate(() => getComputedStyle(document.getElementById('title')).display === 'none');
+    // the title hides from a 1.3 s timer that a busy first frame can delay: wait for it instead of sleeping a fixed time
+    o.titleHidden = await page.waitForFunction(() => getComputedStyle(document.getElementById('title')).display === 'none', null, { timeout: 8000 }).then(() => true, () => false);
     o.externalRequests = reqs.length; o.errors = errors.length;
     pass = o.segments === 40 && o.p === '100' && o.lit === 40 && o.now === '100' && /Anton/.test(o.fonts) && /Space Mono/.test(o.fonts) && o.stage[0] === 1280 && o.portraitStage[0] === 720 && o.titleHidden && o.externalRequests === 0 && o.errors === 0;
   } catch (e) { o.error = String(e && e.stack || e).slice(0, 400); }
