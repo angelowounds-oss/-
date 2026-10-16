@@ -31,7 +31,9 @@ try {
       const k = ((ix) * 73856093) ^ ((iy) * 19349663) ^ ((iz) * 83492791); (g.get(k) || g.set(k, []).get(k)).push(i); }
     let tanMax = 0, lenErr = 0, nv = 0; for (let i = 0; i < n; i++) { if (!S.valid[i]) continue; nv++; const d = [S.dir[i * 3], S.dir[i * 3 + 1], S.dir[i * 3 + 2]], l = Math.hypot(...d); tanMax = Math.max(tanMax, Math.abs(d[0] * N[i * 3] + d[1] * N[i * 3 + 1] + d[2] * N[i * 3 + 2])); lenErr = Math.max(lenErr, Math.abs(l - 1)); }
     const nl = Math.max(...Array.from({ length: n }, (_, i) => Math.abs(Math.hypot(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]) - 1)));
-    return { n, area: T.local.tuft.area, sampleMs: Math.round(T.sampleMs), outside, minD, sp, tanMax, lenErr, nv, nl, stats: st, err: T.err };
+    // roof zone split along the car (normal up, valid): forward part (hood + roof, x < 0.9 m) vs rear deck (rear window, boot lid, wing, x >= 0.9 m). Diagnosed with tests/tuft-roof-diag.mjs: the upstream-pointing tufts sit almost only at x >= 1 m where the solver's own reversal flag is set and the speed is ~0.2 U.
+    const split = { fwd: [0, 0], aft: [0, 0] }; for (let i = 0; i < n; i++) { if (!S.valid[i] || N[i * 3 + 1] <= .7) continue; const q = P[i * 3] < .9 ? split.fwd : split.aft; q[0]++; if (S.dir[i * 3] > 0) q[1]++; }
+    return { split, n, area: T.local.tuft.area, sampleMs: Math.round(T.sampleMs), outside, minD, sp, tanMax, lenErr, nv, nl, stats: st, err: T.err };
   });
   const z = R.stats.zones, f = v => v === null ? null : +v.toFixed(3);
   console.log('zones:', JSON.stringify(Object.fromEntries(Object.entries(z).map(([k, v]) => [k, { n: v.n, reversed: f(v.reversed), downstream: f(v.downstream) }]))));
@@ -41,7 +43,12 @@ try {
   check('뿌리 간 최소 간격이 목표 간격의 0.99배 이상(푸아송)', R.minD >= R.sp * .99, { minD: R.minD, sp: R.sp });
   check('법선은 단위 길이, 방향 벡터는 표면 접선(|d·n| < 1e-3)·단위 길이', R.nl < 1e-4 && R.tanMax < 1e-3 && R.lenErr < 1e-3, { nl: R.nl, tanMax: R.tanMax, lenErr: R.lenErr });
   check('유효한(차체 밖으로 읽힌) 터프트가 충분히 있음(≥ 800)과 부위별 표본이 모두 있음', R.nv >= 800 && ['front', 'roof', 'side', 'rear'].every(k => z[k].n >= 20), Object.fromEntries(Object.entries(z).map(([k, v]) => [k, v.n])));
-  check('지붕 터프트의 90 % 이상이 하류 방향(d.x > 0)', z.roof.downstream >= .9, { roof: f(z.roof.downstream) });
+  // The whole-roof fraction (all normal-up tufts) measured 85.7 % since the V19 grid change (also at the commit before V21), below the original 90 % criterion. The diagnosis shows the upstream-pointing ones are the separated rear deck,
+  // so the criterion is kept at 90 % for the part of the car where attached flow is expected, and the separated rear deck must show clearly more reversal than the forward part.
+  const fwd = R.split.fwd[1] / R.split.fwd[0], aft = R.split.aft[1] / R.split.aft[0];
+  console.log('roof downstream fraction: all', f(z.roof.downstream), ' forward (x < 0.9 m)', f(fwd), 'n', R.split.fwd[0], ' rear deck (x >= 0.9 m)', f(aft), 'n', R.split.aft[0]);
+  check('지붕·보닛(x < 0.9 m) 터프트의 90 % 이상이 하류 방향(d.x > 0)', R.split.fwd[0] >= 50 && fwd >= .9, { fwd: f(fwd), n: R.split.fwd[0], wholeRoof: f(z.roof.downstream) });
+  check('뒷유리·트렁크·윙(x ≥ 0.9 m)의 하류 비율이 앞부분보다 0.1 이상 낮음(후류 쪽 박리)', R.split.aft[0] >= 50 && fwd - aft >= .1, { fwd: f(fwd), aft: f(aft), n: R.split.aft[0] });
   check('후미 면의 역류(v.x < −0.08 U) 비율이 지붕보다 0.1 이상 큼(후류 쪽 역류)', z.rear.reversed - z.roof.reversed >= .1, { rear: f(z.rear.reversed), roof: f(z.roof.reversed) });
   await cam([0.35, 1.1, -4.3], [0.35, .65, 0], 40); await shot('1_side_tufts');
   await cam([4.8, 1.7, -3.3], [1.4, .8, 0], 45); await shot('2_rear_tufts');
