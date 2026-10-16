@@ -4,7 +4,8 @@
    - #look=0 (or lab) restores the bright lab look; SHOW.set(false) does the same at run time.
    Tube strengths are chosen by eye against the renders in tests/out/visual (units: irradiance at 1 m before 1/(d^2+0.6)). ===== */
 const SHOW=(()=>{
- const off=/[#&]look=(0|lab|classic)/.test(location.hash);
+ let saved=null;try{saved=localStorage.getItem('aether.look')}catch(e){void e}
+ const hm=(location.hash.match(/[#&]look=(\w+)/)||[])[1],off=hm?/^(0|lab|classic)$/.test(hm):saved==='lab';
  const warm=[1,.95,.88],cool=[.82,.92,1],mul=(c,k)=>c.map(v=>v*k);
  const S={on:!off,amt:off?0:1,target:off?0:1,
   pool:{c:[0,1.1,0],r0:2.6,r1:5.6,floor:.07},
@@ -14,8 +15,10 @@ const SHOW=(()=>{
    {a:[-4,6.5,-2.2],b:[4,6.5,-2.2],r:.14,col:mul(cool,60),fix:{c:[0,6.5,-2.2],h:[4,.03,.16]}},
    {a:[-3.4,3.1,3.6],b:[3.4,3.1,3.6],r:.1,col:mul(cool,28),fix:null},
    {a:[-3.4,3.1,-3.6],b:[3.4,3.1,-3.6],r:.1,col:mul(cool,28),fix:null}],
-  haze:/[#&]haze=0/.test(location.hash)?0:.00055,rig:null,rigGen:-1,loc:null};
+  haze:/[#&]haze=0/.test(location.hash)?0:.00008,rig:null,rigGen:-1,loc:null};
  S.set=on=>{S.target=on?1:0;S.on=!!on};
+ /* the environment probes are captured once at boot, so a mode change reloads the page with the other look (like the vehicle choice) */
+ S.setMode=m=>{try{localStorage.setItem('aether.look',m)}catch(e){void e}const h=location.hash.replace(/[#&]look=\w+/g,'').replace(/^#?&?/,'');location.hash=(h?h+'&':'')+'look='+(m==='lab'?'0':'1');location.reload()};
  return S})();
 window.__SHOW=SHOW;
 /* run-time blend (the mode switch fades over about half a second) */

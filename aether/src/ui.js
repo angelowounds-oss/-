@@ -180,6 +180,9 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
  file.onchange=()=>{const f=file.files&&file.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{R.loadText(String(rd.result));show()};rd.onerror=()=>{R.err='파일을 읽지 못했습니다';show()};if(f.size>R.limit){R.err='1 MB를 넘는 파일입니다';show();return}rd.readAsText(f)};
  show();setInterval(()=>{if(!document.hidden)try{show()}catch(e){void e}},3000)}}
 
+/* lighting look (reloads: the probes are captured at boot) */
+{const Sh=window.__SHOW,sel=$('lookSel');if(Sh&&sel){sel.value=Sh.on?'showroom':'lab';sel.onchange=()=>Sh.setMode(sel.value==='lab'?'lab':'showroom')}}
+
 /* vehicle choice (reloads with the other profile) */
 {const Vh=window.__VEHICLE,sel=$('carSel');if(Vh&&sel){Vh.list.forEach(q=>{const o=document.createElement('option');o.value=q.id;o.textContent=q.label;sel.appendChild(o)});sel.value=Vh.id;sel.onchange=()=>Vh.set(sel.value)}}
 
