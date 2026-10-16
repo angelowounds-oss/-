@@ -225,6 +225,39 @@ export function driveCraft(veh, dt) {
   }
 }
 const _E = new THREE.Euler(0, 0, 0, 'YXZ'), _Q = new THREE.Quaternion();
+// Two helps for a pilot who covers 100 km in half a minute. Altitude hold (key U): the aircraft keeps an altitude above sea level, the mouse pitch moves the
+// target up and down instead of tilting the nose, and the terrain ahead (the real heights of the far land, looked at for the next few seconds) lifts the
+// target over mountains. Low-altitude assist (always on above 120 m/s unless landing with VTOL or diving on purpose with the descend key): when the path
+// ahead would come within 70 m of the ground (terrain, or a building in the ray ahead) the nose is pulled up, harder the closer it is, and PULL UP is shown.
+function terrainAhead(t, h, s, secs) {
+  const n = 18, reach = Math.min(s * secs, 24000), fx = Math.sin(h), fz = Math.cos(h); let m = -1e9, worst = 1e9;
+  for (let i = 1; i <= n; i++) { const d = reach * i / n, g = landHeight(t.x + fx * d, t.z + fz * d, 64); if (g > m) m = g; worst = Math.min(worst, d); }
+  return m;
+}
+function flightAssist(veh, t, s, pilot, pt, lim, dt, agl) {
+  const G = veh.G, spec = veh.spec; veh.pullUp = false;
+  if (!pilot || veh.dead || s < 120) { if (s < 120 && veh.altHold) { veh.altHold = null; } return pt; }
+  const heading = veh.h, ahead = terrainAhead(t, heading, s, spec.hyper ? 5 : 8);
+  if (veh.altHold != null) {
+    // the mouse moves the target (climb rate up to ~220 m/s for the hypersonic one, 80 for the others)
+    veh.altHold += clamp(veh.aimPitch ?? 0, -0.6, 0.6) * (spec.hyper ? 220 : 80) * dt;
+    const want = Math.max(veh.altHold, ahead + 140), far = Math.max(500, s * 2.5);
+    pt = clamp(Math.atan2(want - t.y, far), -0.5, 0.55);
+  }
+  // low altitude: the path ahead against the ground
+  if (!veh.hand && !veh.down) {
+    let risk = 0;
+    const hz = Math.min(s * 4, 6000), sinP = Math.sin(veh.pitchA || 0), rise = t.y + sinP * hz;   // where the nose is heading, 4 s out
+    const gAhead = terrainAhead(t, heading, s, 4);
+    risk = Math.max(risk, 1 - clamp((Math.min(t.y, rise) - 70 - gAhead) / 260, 0, 1));
+    if (s < 900 && Math.abs(t.x) < 1500 && Math.abs(t.z) < 1500 && t.y < 260) {   // over the city: a building in the ray ahead
+      const hit = G.phys.ray(t.x, t.y, t.z, Math.sin(heading) * Math.cos(veh.pitchA || 0), Math.sin(veh.pitchA || 0), Math.cos(heading) * Math.cos(veh.pitchA || 0), s * 3.5, 1 | 16);
+      if (hit) risk = Math.max(risk, 1 - clamp((hit.t - 60) / (s * 3), 0, 1));
+    }
+    if (risk > 0.05) { pt = Math.max(pt, clamp(0.12 + risk * 0.6, 0, lim)); veh.pullUp = risk > 0.35; }
+  }
+  return pt;
+}
 const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // Fighter with VTOL: the nose follows the camera (mouse aim), speed follows the throttle level; below stall speed it sinks unless
 // Space (vertical thrust) holds it up, which also lets it take off and land on a pad. No input = it keeps flying straight.
@@ -255,7 +288,8 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
     veh.airborne = true;
     const dy = wrapPi((veh.returning ? Math.atan2(-t.x, -t.z) : (veh.aimYaw ?? yaw)) - yaw), turn = (veh.returning ? 1.8 : 1.25) * clamp(s / 55, 0.5, 1);
     yaw += clamp(dy, -turn * dt, turn * dt);
-    const lim = 0.95 - hover * 0.6, pt = clamp(veh.aimPitch ?? 0, -lim, lim);
+    const lim = 0.95 - hover * 0.6; let pt = clamp(veh.aimPitch ?? 0, -lim, lim);
+    pt = flightAssist(veh, t, s, pilot, pt, lim, dt, agl);
     pitch = pitch + clamp(pt - pitch, -1.2 * dt, 1.2 * dt);
     bank = damp(bank, clamp(-dy * 1.3, -1.0, 1.0), 4, dt);
     vy = (vtol ? 9 : down ? -9 : -2.5) * hover;

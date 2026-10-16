@@ -307,7 +307,11 @@ export class Transit {
     this.cap.style.display = 'none'; this.fade.textContent = ''; this.fade.style.opacity = '0'; G.toast('도착', to.name); G.cam.yaw = G.cam.yaw || 0;
   }
   update(dt) {
-    this.t0 += dt; if (this.G.time != null) this.trainsUpdate(this.G.time);
+    this.t0 += dt; this.cullAt = (this.cullAt || 0) - dt;
+    if (this.cullAt <= 0) {   // the rail chunks and kiosks follow the same distance rule as the highways (fog hides them from the ground)
+      this.cullAt = 0.3; const c = this.G.camera.position, lim = c.y > 450 ? 70000 : c.y > 120 ? 20000 : 11000;
+      for (const m of this.railGroup.children) { const bs = m.geometry.boundingSphere; if (bs) m.visible = Math.hypot(bs.center.x - c.x, bs.center.z - c.z) - bs.radius < lim; }
+    } if (this.G.time != null) this.trainsUpdate(this.G.time);
     if (this.ride) this.tickRide(dt);
   }
 }

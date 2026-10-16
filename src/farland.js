@@ -135,6 +135,7 @@ export class Farland {
 // Physics ground that follows the focus: a static Rapier heightfield (129 x 129 samples, 8 m) centred on the focus and rebuilt when it has moved
 // 160 m. Under the city's own terrain the heights are -100 so it never competes with the city's colliders.
 const HF = 128, HFC = 8, HFHALF = (HF * HFC) / 2;
+if (typeof window !== 'undefined') window.__farHeights = { physHeight, landHeight };   // test hook
 export class FarGround {
   constructor(phys) { this.phys = phys; this.col = null; this.cx = NaN; this.cz = NaN; this.heights = new Float32Array((HF + 1) * (HF + 1)); }
   update(x, z, y = 0) {

@@ -201,7 +201,15 @@ export class Highways {
     for (const m of [poleMesh, headMesh]) { m.frustumCulled = false; m.count = 0; this.group.add(m); }
     return { poleMesh, headMesh, MAX, cx: NaN, cz: NaN, mat: new THREE.Matrix4(), q: new THREE.Quaternion(), pos: new THREE.Vector3(), one: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0) };
   }
+  // distance cull of the road chunks: in the fog nothing beyond ~11 km can be seen from the ground, so a camera near the ground draws only those (the
+  // air is thin above 450 m and sees the whole network); every 0.3 s
+  cull(camera) {
+    const now = performance.now(); if (now - (this.cullAt || 0) < 300) return; this.cullAt = now;
+    const x = camera.position.x, z = camera.position.z, cy = camera.position.y, lim = cy > 450 ? 70000 : cy > 120 ? 20000 : 11000;
+    for (const m of this.group.children) { if (m.isInstancedMesh) continue; const bs = m.geometry.boundingSphere; if (bs) m.visible = Math.hypot(bs.center.x - x, bs.center.z - z) - bs.radius < lim; }
+  }
   update(camera) {
+    this.cull(camera);
     const L = this.lamps, x = camera.position.x, z = camera.position.z;
     if (Math.hypot(x - L.cx, z - L.cz) < 300) return;
     L.cx = x; L.cz = z; const N = this.N, CS = N.CS, seen = new Set(); let k = 0;

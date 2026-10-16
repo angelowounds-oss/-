@@ -82,6 +82,8 @@ export class Game {
     this.clock = new Clock(this); this.needs = new Needs(this); this.daynight = new DayNight(this);
   }
 
+  // init timing of the big pieces (shown by the boot test; useful when the load gets slower)
+  timed_(name, f) { const t0 = performance.now(), r = f(); (this.initMs = this.initMs || {})[name] = Math.round(performance.now() - t0); return r; }
   slotKey() { return SAVE_KEY + '_' + (localStorage.getItem('neon_slot') || 1); }
   load() { try { return JSON.parse(localStorage.getItem(this.slotKey())) || JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
   saveSlot(n) { try { localStorage.setItem(`${SAVE_KEY}_${n}`, JSON.stringify(this.snapshot())); localStorage.setItem('neon_slot', n); } catch { /* ignore */ } }
@@ -105,7 +107,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : new Farland(this.scene, { phys: this.phys, markers: false }); this.highways = this.eng.q.simple ? null : new Highways(this.scene); this.citysites = this.eng.q.simple ? null : new CitySites(this.scene, this.world, this.phys, this); this.citylife = this.citysites ? new CityLife(this) : null;
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -143,7 +145,7 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
-    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? new Transit(this) : null; this.aviation = this.citysites ? new Aviation(this) : null; this.rules = this.citysites ? new CityRules(this) : null;
+    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? this.timed_('transit', () => new Transit(this)) : null; this.aviation = this.citysites ? this.timed_('aviation', () => new Aviation(this)) : null; this.rules = this.citysites ? new CityRules(this) : null;
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
@@ -834,6 +836,8 @@ export class Game {
     v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
     if (this.autonav?.active) this.autonav.control(v, inp, dt);   // the autopilot sets throttle / brake / steer; the driver's own input takes it back
     if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.keys.has('Space'); }
+    if (this.input.edge('alt') && v.spec.craft === 'jet') { v.altHold = v.altHold != null ? null : v.by ?? v.pv.body.translation().y; this.toast(v.altHold != null ? '고도 유지 ON' : '고도 유지 OFF', v.altHold != null ? `${Math.round(v.altHold)} m · 마우스 위아래로 목표 고도 조절` : ''); }
+    if (v.pullUp && !this._pullT) { this._pullT = 0.9; this.toast('<span style="color:#ff4560">PULL UP</span>', '저고도 경고 · 자동으로 기수를 든다'); this.audio.tone?.(1100, 0.15, 'square', 0.12); } else if (this._pullT) this._pullT -= dt, this._pullT <= 0 && (this._pullT = 0);
     if (this.input.edge('verb3') && v.speed < 4 && this.nearStation(v.x, v.z)) this.refuel(v);
     // gamepad/keys give both throttle & brake semantic via my; if reversing handled by physics
     if (this.input.edge('use') && !this.player.dead) this.exitVehicle();
