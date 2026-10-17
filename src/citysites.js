@@ -3,6 +3,7 @@ import { cities, farHeight, SEA } from './worldmap.js';
 import { layouts, STYLES, KIND } from './citylayout.js';
 import { GLSL_NOISE, nightU, timeUniform } from './shaders.js';
 import { doorSpec, accentColor } from './world.js';
+import { tileDetail, kOf } from './citydetail.js';
 
 // The other cities as drawn places (ADR-0012 phase 4). citylayout.js has the plans; this file turns them into three levels of detail:
 //   L0 (within NEAR m of the camera)   the capital's own facade shader on instanced boxes, one mesh per tile, made and dropped on demand,
@@ -13,6 +14,7 @@ import { doorSpec, accentColor } from './world.js';
 // there while the tile is in range) because the L0 facades replace only the buildings. Tiles are TILE m squares relative to the city centre;
 // every position is stored relative to the tile so Float32 stays exact 40 km from the origin.
 const TILE = 600, NEAR = 650, NEAR_OFF = 850, MID = 6500, COLL = 420, COLL_OFF = 640, TALL = 30;
+const DET_B = 1100, DET_F = 600, DET_REQ = 1500, DET_KEEP = 2600;   // the small things (citydetail.js): solids (roofs, furniture) shown within DET_B m of a tile, ground marks within DET_F, asked for within DET_REQ, dropped beyond DET_KEEP
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Acc {
@@ -34,6 +36,17 @@ export class Acc {
     this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], 1, 0, 0, col, kk);
     this.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], -1, 0, 0, rc, kk);
     this.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], 0, 1, 0, r, 0);
+  }
+  // a gable roof over [x0,x1]x[z0,z1] from y0, h high, ridge along x (rx = 1) or z; the gables are quads with a repeated corner
+  prism(x0, z0, x1, z1, y0, h, rx, col, kk = 0) {
+    const c2 = [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8];
+    if (rx) { const zm = (z0 + z1) / 2, hd = (z1 - z0) / 2, l = Math.hypot(hd, h);
+      this.quad([x0, y0, z1], [x1, y0, z1], [x1, y0 + h, zm], [x0, y0 + h, zm], 0, h / l, hd / l, col, kk); this.quad([x1, y0, z0], [x0, y0, z0], [x0, y0 + h, zm], [x1, y0 + h, zm], 0, h / l, -hd / l, col, kk);
+      this.quad([x1, y0, z1], [x1, y0, z0], [x1, y0 + h, zm], [x1, y0 + h, zm], 1, 0, 0, c2, kk); this.quad([x0, y0, z0], [x0, y0, z1], [x0, y0 + h, zm], [x0, y0 + h, zm], -1, 0, 0, c2, kk);
+    } else { const xm = (x0 + x1) / 2, hd = (x1 - x0) / 2, l = Math.hypot(hd, h);
+      this.quad([x1, y0, z1], [x1, y0, z0], [xm, y0 + h, z0], [xm, y0 + h, z1], h / l, hd / l, 0, col, kk); this.quad([x0, y0, z0], [x0, y0, z1], [xm, y0 + h, z1], [xm, y0 + h, z0], -h / l, hd / l, 0, col, kk);
+      this.quad([x0, y0, z1], [x1, y0, z1], [xm, y0 + h, z1], [xm, y0 + h, z1], 0, 0, 1, c2, kk); this.quad([x1, y0, z0], [x0, y0, z0], [xm, y0 + h, z0], [xm, y0 + h, z0], 0, 0, -1, c2, kk);
+    }
   }
   flat(x0, z0, x1, z1, y, col, kk = 0) { this.quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], 0, 1, 0, col, kk); }
   get empty() { return this.v === 0; }
@@ -77,7 +90,7 @@ export class CitySites {
     defs.forEach((c, k) => { const L = lay.get(c.id); if (L) this.cities.push(this.buildCity(c, L, k)); });
     this.stats.tiles = this.cities.reduce((s, c) => s + c.tiles.size, 0);
     scene.add(this.group);
-    this.t = 0; this.nearQueue = [];
+    this.t = 0; this.nearQueue = []; this.detQueue = [];
   }
 
   makeMaterial() {
@@ -232,15 +245,39 @@ export class CitySites {
           if (wantNear && !this.madeThisFrame) { this.dropNear(t, false); this.makeNear(C, t); this.madeThisFrame = true; } else if (d > MID) this.dropNear(t, false);
         } else if (t.near && !keepNear) this.dropNear(t, t.near.lots.some((l) => this.G.state.rruins[l.id] != null));
         else if (!t.near && wantNear && t.bld.length && !this.madeThisFrame && this.G?.buildings) { this.makeNear(C, t); this.madeThisFrame = true; }
+        if (d < DET_REQ && t.detS === undefined) this.loadDetail(C, t);
+        else if (t.detS === 2 && d > DET_KEEP) this.dropDetail(t);
+        if (t.det) for (const m of t.det) m.visible = d < m.userData.rng;
         const vis = d < MID;
         if (t.gnd) t.gnd.visible = vis;
         if (t.mid) t.mid.visible = vis && !t.near;
         if (t.near && !t.near.stale) near++; if (vis) mid++;
       }
     }
-    this.madeThisFrame = false; this.stats.near = near; this.stats.mid = mid;
+    this.madeThisFrame = false; this.detMade = false; this.stats.near = near;
+    const q = this.detQueue.shift(); if (q && q[1].detS === 1) this.attachDetail(q[0], q[1], q[2]);   // the meshes of arrived chunks are built one per frame
+    this.stats.mid = mid;
     let nl = 0, nc = 0; for (const C of this.cities) for (const t of C.tiles.values()) if (t.near) { nl += t.near.lots.length; nc += t.near.boxes.length + t.near.lots.length; } this.stats.lots = nl; this.stats.coll = nc;
   }
+
+  // the small things of a tile (lane marks, furniture, roof clutter): from the baked chunk when the world data has it (a pack's denser one first),
+  // else made on the spot; built into two small meshes (solids with the city material, ground marks with the biased one)
+  loadDetail(C, t) {
+    t.detS = 1; const key = `city/${C.c.id}/${t.i}_${t.j}`, wd = globalThis.__WORLD;
+    if (wd?.has(key)) { wd.get(key).then((o) => { wd.drop(key); this.detQueue.push([C, t, o]); }).catch(() => { t.detS = 2; }); return; }
+    if (this.detMade) { t.detS = undefined; return; }   // one made on the spot per frame
+    this.detMade = true; this.attachDetail(C, t, tileDetail(C.c, C.L, C.S, t.i, t.j, false) || { empty: 1 });
+  }
+  attachDetail(C, t, o) {
+    t.detS = 2; if (o.empty) return;
+    const B = new Acc(), F = new Acc(), col = (a, k) => [(a[k] / 255) ** 2, (a[k + 1] / 255) ** 2, (a[k + 2] / 255) ** 2];
+    for (let n = 0; n < o.boxes.length / 6; n++) { const b = o.boxes, k = n * 6; B.box(b[k], b[k + 1], b[k + 2], b[k + 3], b[k + 4], b[k + 5], col(o.bcol, n * 4), kOf(o.bcol[n * 4 + 3])); }
+    for (let n = 0; n < o.prisms.length / 7; n++) { const p = o.prisms, k = n * 7; B.prism(p[k], p[k + 1], p[k + 2], p[k + 3], p[k + 4], p[k + 5], p[k + 6], col(o.pcol, n * 3)); }
+    for (let n = 0; n < o.quads.length / 5; n++) { const q = o.quads, k = n * 5; F.flat(q[k], q[k + 1], q[k + 2], q[k + 3], q[k + 4], col(o.qcol, n * 4), kOf(o.qcol[n * 4 + 3])); }
+    t.det = [];
+    for (const [A, mat, rng] of [[B, this.mat, DET_B], [F, this.roadMat, DET_F]]) if (!A.empty) { const m = A.mesh(mat); m.userData.rng = rng; m.position.set(t.ox, 0, t.oz); m.visible = false; C.group.add(m); t.det.push(m); this.stats.detTris = (this.stats.detTris || 0) + A.ni / 3; }
+  }
+  dropDetail(t) { for (const m of t.det || []) { m.parent?.remove(m); m.geometry.dispose(); } t.det = null; t.detS = undefined; }
 
   // L0 for one tile: the instanced facade, the collision boxes, and for every building big enough (as in the capital: 17 m wide, 20 m tall) a
   // lot record with a door, handed to the Buildings manager so it can be entered; the entrance markers are one small merged mesh
@@ -293,5 +330,5 @@ export class CitySites {
 
   // the city whose disc contains (x, z), or null
   cityAt(x, z, margin = 0) { for (const C of this.cities) if (Math.hypot(x - C.c.x, z - C.c.z) < C.L.R + margin) return C.c; return null; }
-  dispose() { this.scene.remove(this.group); this.group.traverse((o) => { o.geometry?.dispose?.(); }); for (const C of this.cities) for (const t of C.tiles.values()) this.dropNear(t, false); }
+  dispose() { this.scene.remove(this.group); this.group.traverse((o) => { o.geometry?.dispose?.(); }); for (const C of this.cities) for (const t of C.tiles.values()) { this.dropNear(t, false); this.dropDetail(t); } }
 }

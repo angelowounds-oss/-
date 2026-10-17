@@ -26,6 +26,12 @@ export const RUN = {
     }
     return { land: encodeTile(land), phys: diff ? encodeTile(phys) : null, col };
   },
+  // the small things of one city tile (citydetail.js); null (no detail there) is stored as an empty chunk
+  async citytile(j) {
+    const [{ cities }, { layouts, STYLES }, { tileDetail }] = await Promise.all([imp('src/worldmap.js'), imp('src/citylayout.js'), imp('src/citydetail.js')]);
+    const c = cities().find((q) => q.id === j.id), L = layouts().get(j.id);
+    return tileDetail(c, L, STYLES[j.id], j.i, j.j, j.hi) || { empty: 1 };
+  },
   // only for the tests of the container, the cache and the pack: a small deterministic chunk
   async selftest(j) { return { id: j.key, a: new Float32Array([0.5, 1.5, 2.5]), m: new Map([['k', { v: 7 }]]) }; },
 };

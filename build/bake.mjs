@@ -19,16 +19,23 @@ const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 // A job makes one chunk: `src` lists the files whose content decides the result, `tier` says where it goes ('embed' = into the page, 'pack' = into
 // the high-detail pack), `run` (in jobs.mjs) returns the object to store. Later steps add the terrain tiles, city tiles, forests... here.
 const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+// which tiles each city has (cheap to compute here: the plan only gives the radius)
+const CITY_IDS = ['harbor', 'airfield', 'mid1', 'mid2', 'mid3', 'mid4'];
+const CITY_TILES = await (async () => { const { CITY_DEFS } = await imp('src/worldmap.js'), { tilesOf } = await imp('src/citydetail.js'), o = {}; for (const id of CITY_IDS) { const d = CITY_DEFS.find((c) => c.id === id); o[id] = tilesOf({ R: d.r }); } return o; })();
 export function jobsFor({ pack = false } = {}) {
   const out = [{ key: 'core', tier: 'embed', src: ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs'] }];
   const tiles = (g, key, tier) => { const n = Math.ceil(100000 / (g * 256)); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, src: TERRAIN_SRC }); };
   tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
+  // the small things of the cities (citydetail.js): one chunk per city tile; the pack makes the denser variant under the same keys
+  const CITY_SRC = ['src/worldmap.js', 'src/citylayout.js', 'src/citydetail.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+  for (const hi of pack ? [false, true] : [false]) for (const [ci, id] of CITY_IDS.entries()) { const L = CITY_TILES[id]; for (const [i, j] of L) out.push({ key: `city/${id}/${i}_${j}`, gen: 'citytile', tier: hi ? 'pack' : 'embed', id, i, j, hi, src: CITY_SRC }); void ci; }
   return out;
 }
 
 const fileHash = new Map();
 const hashOf = (f) => fileHash.get(f) || (fileHash.set(f, sha(fs.readFileSync(path.join(root, f)))), fileHash.get(f));
-const jobHash = (j) => sha(JSON.stringify([FORMAT, j.key, j.gen || '', j.g || 0, j.src.map(hashOf)])).slice(0, 24);
+const rid = (j) => j.tier + ':' + j.key;
+const jobHash = (j) => sha(JSON.stringify([FORMAT, j.tier, j.key, j.gen || '', j.g || 0, j.hi ? 1 : 0, j.src.map(hashOf)])).slice(0, 24);
 
 async function runJob(j) {
   const { RUN } = await imp('build/jobs.mjs'), { encodeChunk } = await imp('src/bakefmt.js');
@@ -38,7 +45,7 @@ async function runJob(j) {
 
 if (!isMainThread && workerData?.bakeWorker) {
   parentPort.on('message', async (j) => {
-    try { const o = await runJob(j); parentPort.postMessage({ key: j.key, z: o.z, r: o.r }); } catch (e) { parentPort.postMessage({ key: j.key, err: String(e && e.stack || e) }); }
+    try { const o = await runJob(j); parentPort.postMessage({ key: rid(j), z: o.z, r: o.r }); } catch (e) { parentPort.postMessage({ key: rid(j), err: String(e && e.stack || e) }); }
   });
 }
 
@@ -48,7 +55,7 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
   const todo = jobs.filter((j) => pack || j.tier === 'embed'), results = new Map(), miss = [];
   for (const j of todo) {
     const f = path.join(dir, j.key.replace(/[^\w.-]/g, '_') + '-' + jobHash(j) + '.json');
-    if (cache && fs.existsSync(f)) { const c = JSON.parse(fs.readFileSync(f, 'utf8')); results.set(j.key, { z: Buffer.from(c.z, 'base64'), r: c.r }); } else miss.push({ j, f });
+    if (cache && fs.existsSync(f)) { const c = JSON.parse(fs.readFileSync(f, 'utf8')); results.set(rid(j), { z: Buffer.from(c.z, 'base64'), r: c.r }); } else miss.push({ j, f });
   }
   if (miss.length) {
     const nw = Math.min(threads, miss.length), workers = [];
@@ -59,7 +66,7 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
         const w = new Worker(new URL(import.meta.url), { workerData: { bakeWorker: true } }); workers.push(w);
         w.on('message', (m) => {
           if (m.err) return reject(new Error(m.err));
-          const it = miss.find((x) => x.j.key === m.key), z = Buffer.from(m.z); results.set(m.key, { z, r: m.r });
+          const it = miss.find((x) => rid(x.j) === m.key), z = Buffer.from(m.z); results.set(m.key, { z, r: m.r });
           if (cache) fs.writeFileSync(it.f, JSON.stringify({ z: z.toString('base64'), r: m.r }));
           if (--left === 0) resolve(); else feed(w);
         });
@@ -68,7 +75,7 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
     }).finally(() => workers.forEach((w) => w.terminate()));
   }
   const { buildContainer } = await imp('src/bakefmt.js');
-  const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, ...results.get(j.key) }));
+  const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, ...results.get(rid(j)) }));
   const embedded = buildContainer(entries('embed'), { tier: 'embed' });
   const out = { embedded, pack: null };
   if (pack) {
@@ -79,7 +86,7 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
     }
   }
   out.manifest = {
-    format: FORMAT, jobs: todo.map((j) => ({ key: j.key, tier: j.tier, bytes: results.get(j.key).z.length, raw: results.get(j.key).r })),
+    format: FORMAT, jobs: todo.map((j) => ({ key: j.key, tier: j.tier, bytes: results.get(rid(j)).z.length, raw: results.get(rid(j)).r })),
     bytes: embedded.length, data: sha(embedded).slice(0, 32), cached: todo.length - miss.length, ms: Math.round(performance.now() - t0),
   };
   return out;
