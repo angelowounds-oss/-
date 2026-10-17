@@ -65,6 +65,8 @@ function ensure(root, name, make) { let o = root.getObjectByName(name); if (!o) 
 function setVis(root, kind, att) {
   const P = parts[kind];
   const sup = ensure(root, 'att_sup', () => { const [r, len, y, z] = P.sup; const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 12).rotateX(Math.PI / 2), metal); m.position.set(0, y, z + len / 2 - 0.01); return m; });
+  const sn = !!root.userData.sn;   // the supplied sniper rifle has its own scope and a longer barrel
+  if (kind === 'rifle') { const [, len] = P.sup; sup.position.set(0, sn ? 0.09 : P.sup[2], (sn ? 0.83 : P.sup[3]) + len / 2 - 0.01); }
   sup.visible = att.muzzle === 'att_sup';
   const dot = ensure(root, 'att_dot', () => {
     const g = new THREE.Group(), [y, z] = P.dot;
@@ -73,7 +75,7 @@ function setVis(root, kind, att) {
     g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 4), lens), 0, 0.004, 0.03));
     g.position.set(0, y, z); return g;
   });
-  dot.visible = att.optic === 'att_reddot';
+  dot.visible = att.optic === 'att_reddot' && !sn;
   const sc = ensure(root, 'att_scope', () => {
     const g = new THREE.Group(), [y, z] = P.scope;
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.2, 14).rotateX(Math.PI / 2), metal));
@@ -81,7 +83,7 @@ function setVis(root, kind, att) {
     g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.026, 14), glass), 0, 0, 0.116));
     g.position.set(0, y + 0.02, z); return g;
   });
-  sc.visible = att.optic === 'att_scope4';
+  sc.visible = att.optic === 'att_scope4' && !sn;
   // extended magazine: the magazine part grows downward
   const mag = root.getObjectByName('mag');
   if (mag) { if (!mag.userData.b) mag.userData.b = { y: mag.scale.y, py: mag.position.y }; const k = att.mag === 'att_mag' ? 1.45 : 1; mag.scale.y = mag.userData.b.y * k; mag.position.y = mag.userData.b.py - (k - 1) * (kind === 'pistol' ? 0.03 : 0.045); }

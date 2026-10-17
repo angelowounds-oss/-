@@ -12,7 +12,7 @@ import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
-import { glowSpriteMat, buildCar, CAR_SPECS } from './models.js';
+import { glowSpriteMat, buildCar, CAR_SPECS, rifleLook } from './models.js';
 import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { War, WAR_NAMES } from './warcraft.js';
 import { Farland } from './farland.js';
@@ -30,7 +30,7 @@ const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: 
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
 import { QUALITY } from './engine.js';
-import { loadAssets } from './assets.js';
+import { loadAssets, A } from './assets.js';
 import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
@@ -451,6 +451,7 @@ export class Game {
       }
       for (const t of Object.keys(CRAFT_SPECS)) models.push(buildCustom(t, CAR_COLORS[2], {}).group);
       models.push(...this.military.warmModels());
+      if (A.props?.sniper_rifle) models.push(A.props.sniper_rifle.clone(true));   // the supplied sniper rifle: its textured material needs a program before it is first drawn
     } catch (e) { console.warn('prewarm models', e); }
     // a row just in front of the camera, so the warm-up frame really draws them (main pass, shadow pass, post)
     const dir = new THREE.Vector3(); cam.getWorldDirection(dir); const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
@@ -1605,6 +1606,7 @@ export class Game {
       if (!this.vmGun[k]) { const m = pl.m[k].clone(true); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.setScalar(0.8); m.traverse((o) => { o.frustumCulled = false; o.castShadow = false; }); m.rotation.y = Math.PI; this.vmGun[k] = m; this.vm.add(m); refreshVisuals(this); }
       this.vmGun[k].visible = kind === k;
     }
+    if (this.vmGun.rifle) { const sn = pl.armed && pl.weapon.look === 'sniper'; if (this.vmGun.rifle.userData.sn !== sn) { rifleLook(this.vmGun.rifle, sn); refreshVisuals(this); } }
     const kick = Math.min(0.08, (pl.recoil || 0) * 0.02);
     { const sl = pl.m.pistol.userData.slide, vs = this.vmGun.pistol && this.vmGun.pistol.getObjectByName('slide'); if (sl && vs) vs.position.x = sl.x0 - Math.min(1, pl.recoil || 0) * 0.028; }
     this.vm.visible = !!kind && !(aim && kind && this.pw(pl.cur)?.scope === 'sniper');

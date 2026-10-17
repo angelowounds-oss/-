@@ -37,7 +37,7 @@ export const ITEMS = {
   mag_sniper: { name: '저격 탄', shape: ['box', 0.16, 0.11, 0.025], model: 'sniper_mag', color: 0x606068, mass: 0.2, price: 25, ammo: [4, 5] },
   w_smg: { name: 'SMG', shape: ['box', 0.1, 0.1, 0.4], color: 0x20222a, mass: 1.5, price: 520, gun: 2 },
   w_shotgun: { name: '샷건', shape: ['box', 0.08, 0.08, 0.9], color: 0x3a2a20, mass: 2.4, price: 640, gun: 3 },
-  w_sniper: { name: '저격 소총', shape: ['box', 0.08, 0.1, 1.1], color: 0x1a2020, mass: 2.4, price: 1500, gun: 4 },
+  w_sniper: { name: '저격 소총', shape: ['box', 0.08, 0.1, 1.1], model: 'sniper_rifle', color: 0x1a2020, mass: 2.4, price: 1500, gun: 4 },
   mag_rifle: { name: '카빈 탄창', shape: ['box', 0.035, 0.16, 0.08], color: 0x303038, mass: 0.3, price: 20, ammo: [1, 30] },
   att_sup: { name: '소음기', shape: ['cyl', 0.025, 0.16], color: 0x1c1e24, mass: 0.4, price: 260, att: true },
   att_reddot: { name: '도트 사이트', shape: ['box', 0.04, 0.04, 0.06], color: 0x202228, mass: 0.15, price: 140, att: true },

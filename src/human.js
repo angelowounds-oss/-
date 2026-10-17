@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildHuman } from './models.js';
+import { buildHuman, rifleLook } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
@@ -9,7 +9,7 @@ export const WEAPONS = [
   { name: 'CARBINE', scope: 'dot', zoom: 2.2, short: 'rifle', clip: 30, reserve: 180, damage: 21, head: 1.9, rate: 0.085, spread: 0.012, range: 200, reload: 1.7, recoil: 0.011, auto: true, tracer: [0.5, 0.95, 1], snd: 'rifle' },
   { name: 'SMG', scope: 'iron', zoom: 1.4, short: 'pistol', clip: 25, reserve: 0, damage: 13, head: 1.8, rate: 0.058, spread: 0.022, range: 110, reload: 1.4, recoil: 0.008, auto: true, tracer: [1, 0.7, 0.4], snd: 'smg' },
   { name: 'SHOTGUN', scope: 'iron', zoom: 1.25, short: 'rifle', clip: 6, reserve: 0, damage: 12, head: 1.5, rate: 0.85, spread: 0.055, range: 45, reload: 2.4, recoil: 0.04, auto: false, tracer: [1, 0.6, 0.3], snd: 'shotgun', pellets: 8 },
-  { name: 'SNIPER', scope: 'sniper', zoom: 6, short: 'rifle', clip: 5, reserve: 0, damage: 125, head: 3, rate: 1.1, spread: 0.0008, range: 420, reload: 2.4, recoil: 0.05, auto: false, tracer: [0.8, 1, 1], snd: 'sniper' },
+  { name: 'SNIPER', scope: 'sniper', zoom: 6, short: 'rifle', look: 'sniper', clip: 5, reserve: 0, damage: 125, head: 3, rate: 1.1, spread: 0.0008, range: 420, reload: 2.4, recoil: 0.05, auto: false, tracer: [0.8, 1, 1], snd: 'sniper' },
 ];
 const SW_MID = R / 2 + SW / 2;
 let uid = 0;
@@ -40,12 +40,12 @@ export class Human {
     this.group.userData.human = this;
     this.inCar = null;
     this.m.pistol.visible = this.armed && this.weapon.short === 'pistol';
-    this.m.rifle.visible = this.armed && this.weapon.short === 'rifle';
+    this.m.rifle.visible = this.armed && this.weapon.short === 'rifle'; rifleLook(this.m.rifle, this.weapon?.look === 'sniper');
   }
   get alive() { return !this.dead; }
   setWeapon(i) {
     if (i >= 100 || !WEAPONS[i]) { this.m.pistol.visible = this.m.rifle.visible = false; this.armed = false; return; }
-    this.weapon = WEAPONS[i]; this.armed = true;
+    this.weapon = WEAPONS[i]; this.armed = true; rifleLook(this.m.rifle, this.weapon.look === 'sniper');
     this.m.pistol.visible = this.weapon.short === 'pistol'; this.m.rifle.visible = this.weapon.short === 'rifle';
   }
   // ---- sidewalk graph for civilians ----

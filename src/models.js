@@ -253,9 +253,18 @@ function makeGuns() {
     g.rotation.set(0, 0, 0); pistol.add(g);
     const slide = g.getObjectByName('slide'); if (slide) pistol.userData.slide = { node: slide, x0: slide.position.x };
   } else { const b = new THREE.Mesh(gunBody, gunMat); b.position.z = 0.1; const br = new THREE.Mesh(gunBarrel, gunMat); br.position.set(0, 0.03, 0.22); const st = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.02, 0.2), accent); st.position.set(0, 0.052, 0.1); pistol.add(b, br, st); }
-  const rifle = new THREE.Group(); { const b = new THREE.Mesh(rifleBody, gunMat); b.position.z = 0.22; const br = new THREE.Mesh(rifleBarrel, gunMat); br.position.set(0, 0.02, 0.62); const sk = new THREE.Mesh(rifleStock, gunMat); sk.position.set(0, -0.01, -0.1); const mg = new THREE.Mesh(rifleMag, gunMat); mg.name = 'mag'; mg.position.set(0, -0.12, 0.25); const st = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.015, 0.4), accent); st.position.set(0, 0.058, 0.25); rifle.add(b, br, sk, mg, st); }
+  const rifle = new THREE.Group(); { const b = new THREE.Mesh(rifleBody, gunMat); b.position.z = 0.22; const br = new THREE.Mesh(rifleBarrel, gunMat); br.position.set(0, 0.02, 0.62); const sk = new THREE.Mesh(rifleStock, gunMat); sk.position.set(0, -0.01, -0.1); const mg = new THREE.Mesh(rifleMag, gunMat); mg.name = 'mag'; mg.position.set(0, -0.12, 0.25); const st = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.015, 0.4), accent); st.position.set(0, 0.058, 0.25); rifle.add(b, br, sk, mg, st); for (const c of rifle.children) c.userData.gen = true; }
   rifle.visible = false;
   return { pistol, rifle };
+}
+
+// the sniper shows the supplied KSR-29 (assets/props/sniper_rifle.glb, scope included) instead of the generic rifle shapes; the model is added on first use
+export function rifleLook(root, sniper) {
+  sniper = !!sniper; if (!root || root.userData.sn === sniper) return; root.userData.sn = sniper;
+  let m = root.getObjectByName('snipermodel');
+  if (sniper && !m && A.props?.sniper_rifle) { m = A.props.sniper_rifle.clone(true); m.name = 'snipermodel'; m.traverse((o) => { if (o.isMesh) o.castShadow = false; }); root.add(m); }
+  for (const c of root.children) if (c.userData.gen) c.visible = !sniper;
+  if (m) m.visible = sniper;
 }
 
 export function buildHuman(o = {}) {
