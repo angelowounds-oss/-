@@ -14,7 +14,7 @@
 ### CHR-03 원거리 군중 임포스터 — P2 · S · Backlog
 - 범위: 75 m 밖 인물을 빌보드 임포스터로(현재는 몸체 숨김). RND-04와 연계.
 
-### CHR-04 제스처·물건 조작 모션 — P1 · L · In progress (A·B·C·E·F·G 1차 구현, 테스트 `motions`; 손 소품(컵·전화·음식·랜턴·도구·상자)·시민 환경 제스처·발 미끄러짐 측정 완료; 새 외부 모션 팩·시민 일과별 모션 연결 남음)
+### CHR-04 제스처·물건 조작 모션 — P1 · L · In progress (A·B·C·E·F·G 1차 구현, 테스트 `motions`; 손 소품(컵·전화·음식·랜턴·도구·상자)·시민 환경 제스처·발 미끄러짐 측정 완료; 상점 구매(줍기 모션)·직원 근무 모션 연결. 새 외부 모션 팩은 보류하고 Character.glb(Quaternius UAL1+2, CC0) 178클립 + 코드 모션으로 대체(2026-10-17 결정); 차량 탑승은 즉시 운전 자세로 전환되어 별도 모션 없음)
 - 목적: 서기·걷기·사격 외의 사소한 동작(물건 집기, 문·스위치 조작, 손 흔들기, 끄덕임, 전화, 먹고 마시기, 앉아 대화)이 없어 생활 시뮬레이션(LIFE-05/07/11)이 어색해진다.
 - 현황: 원본 `assets/Character.glb`에 178개 클립이 이미 있고(같은 라이선스, 새 에셋 도입 없음) 게임에는 33개만 담았다. 쓸 만한 후보: Greeting, Head_Nod, Yes, Reject, Confused, Insult, Cheering_Two_Hands, Salute, Bow, Idle_Listening, Idle_FoldArms, Idle_TalkingPhone, Sitting_Talking, Consume, Consume_Item, PickUp_Table, Throw_Object, OverhandThrow, Walk_Carry, Walk_Backwards, Walk_Formal, Turn_Left/Right_90/180, Strafe, Sleeping, Meditate, Shivering, Tired_Hunched, Kneeling_Tired, Fixing_Kneeling, Dance_*, Help_*, Chest_Open, Zombie 계열(필요 시).
 - 범위: (1) 클립 추가 선별(번들 증가 예산 +1.5 MB 이하, 클립은 상체 위주로 압축·키 줄이기) (2) `gesture.js`: 이름이 있는 제스처 API `play(person, 'wave'|'nod'|'pickup'|…)`와 상체 전용 레이어(걷는 중에도 손 흔들기·전화), 손에 물건 붙이기(손 본 소켓: 컵·가방·전화·음식) (3) 상황 연결: 상호작용 키(줍기·문·상점 계산), 시민 인사·대화 시작, 전화, 차량 승하차 (4) 정지·출발·방향 전환 클립으로 CHR-02 흡수.

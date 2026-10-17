@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Human } from './human.js';
 import { ITEMS } from './items.js';
+import { gesture } from './gesture.js';
 import { mulberry32, rand, clamp } from './util.js';
 
 export const SHOPS = {
@@ -88,7 +89,7 @@ export class Life {
       fl.B.ext('emit', vp.x - 0.35, y + 0.6, vp.z + 0.36, vp.x + 0.35, y + 1.7, vp.z + 0.38, new THREE.Color(...b.accent).multiplyScalar(1.4));
       fl.cc(vp.x - 0.45, vp.z - 0.35, vp.x + 0.45, vp.z + 0.35, y, y + 1.9);
       this.fix(fl, vp.x, y + 1.0, vp.z + 0.9, 1.7, '자판기', [
-        { key: 'F', label: () => '음료 $2', run: () => { if (G.cash >= 2) { G.cash -= 2; G.items.add(rnd() < 0.5 ? 'soda' : 'water'); G.audio.cash(); G.toast('음료 구매'); } else G.toast('돈이 부족합니다'); } },
+        { key: 'F', label: () => '음료 $2', run: () => { if (G.cash >= 2) { G.cash -= 2; gesture(G.player, 'pickup'); G.items.add(rnd() < 0.5 ? 'soda' : 'water'); G.audio.cash(); G.toast('음료 구매'); } else G.toast('돈이 부족합니다'); } },
         { key: 'G', label: () => '에너지 $4', run: () => { if (G.cash >= 4) { G.cash -= 4; G.items.add('energy'); G.audio.cash(); } else G.toast('돈이 부족합니다'); } },
       ]);
       // CCTV
