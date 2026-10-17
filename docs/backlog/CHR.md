@@ -14,6 +14,13 @@
 ### CHR-03 원거리 군중 임포스터 — P2 · S · Backlog
 - 범위: 75 m 밖 인물을 빌보드 임포스터로(현재는 몸체 숨김). RND-04와 연계.
 
+### CHR-04 제스처·물건 조작 모션 — P1 · L · Backlog
+- 목적: 서기·걷기·사격 외의 사소한 동작(물건 집기, 문·스위치 조작, 손 흔들기, 끄덕임, 전화, 먹고 마시기, 앉아 대화)이 없어 생활 시뮬레이션(LIFE-05/07/11)이 어색해진다.
+- 현황: 원본 `assets/Character.glb`에 178개 클립이 이미 있고(같은 라이선스, 새 에셋 도입 없음) 게임에는 33개만 담았다. 쓸 만한 후보: Greeting, Head_Nod, Yes, Reject, Confused, Insult, Cheering_Two_Hands, Salute, Bow, Idle_Listening, Idle_FoldArms, Idle_TalkingPhone, Sitting_Talking, Consume, Consume_Item, PickUp_Table, Throw_Object, OverhandThrow, Walk_Carry, Walk_Backwards, Walk_Formal, Turn_Left/Right_90/180, Strafe, Sleeping, Meditate, Shivering, Tired_Hunched, Kneeling_Tired, Fixing_Kneeling, Dance_*, Help_*, Chest_Open, Zombie 계열(필요 시).
+- 범위: (1) 클립 추가 선별(번들 증가 예산 +1.5 MB 이하, 클립은 상체 위주로 압축·키 줄이기) (2) `gesture.js`: 이름이 있는 제스처 API `play(person, 'wave'|'nod'|'pickup'|…)`와 상체 전용 레이어(걷는 중에도 손 흔들기·전화), 손에 물건 붙이기(손 본 소켓: 컵·가방·전화·음식) (3) 상황 연결: 상호작용 키(줍기·문·상점 계산), 시민 인사·대화 시작, 전화, 차량 승하차 (4) 정지·출발·방향 전환 클립으로 CHR-02 흡수.
+- AC: `gestures` 테스트(모든 제스처 재생·복귀, 손 소켓 위치가 손 본 근처, 진행 중 제스처가 사격·피격·사망에 즉시 양보, 클립 누락 시 무동작 대체), `character`·`no-runtime-compile`·`frame-time` 녹색, 75 m 밖 인물은 제스처 계산 생략.
+- 의존: CHR-00(완료), LIFE-07/11이 소비. 아이 체형(LIFE-14)은 같은 클립을 스케일로 재사용.
+
 ### CHR-00 캐릭터 교체 (새 리그·178 클립 원본) — Done · 2026-10-16
 - 결과: `assets/character_game.glb`(33 클립)로 교체, `adaptCharacter`가 뼈 이름·프레임·클립을 Soldier 규약에 맞춤, 코드 변경 없음. `Soldier.glb`와 원본 `Character.glb`는 보관. 테스트 `character`.
 - 남은 일: 발 미끄러짐 측정(CHR-02), 모델당 삼각형 +21%·뼈 +35%의 실기기 비용(PERF-01/02), 마네킹형이라 군중 다양성은 CHR-01 그대로, 대체 클립 품질(`Run`→`Jog`, 사망 `Death_A`) 눈으로 재확인.
