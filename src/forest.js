@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { landHeight } from './landfn.js';
 import { vegCell, CELL, VT } from './vegfn.js';
-import { nightU } from './shaders.js';
+import { nightU, timeUniform } from './shaders.js';
 
 // Trees, shrubs, rocks and grass over the whole world (ADR-0013). The data is one byte per 32 m cell (vegfn.js: kind << 5 | trees, baked as the tiles
 // `veg/<i>_<j>` and kept in memory as one array); the instances inside a cell are made from hashes of the cell, so the same place always grows the same
@@ -36,18 +36,44 @@ function part(geo0, col, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz
   const c = new Float32Array(geo.attributes.position.count * 3); for (let i = 0; i < c.length; i += 3) { c[i] = col[0]; c[i + 1] = col[1]; c[i + 2] = col[2]; } geo.setAttribute('color', new THREE.BufferAttribute(c, 3)); return geo;
 }
 const cyl = (r0, r1, h, seg = 6) => new THREE.CylinderGeometry(r1, r0, h, seg, 1).translate(0, h / 2, 0);
+// a lumpy, smooth-shaded foliage mass: an icosphere with its vertices pushed about by noise, shaded dark underneath and light on top
+function blob(x, y, z, rx, ry, rz, base, seed, detail = 1, lump = 0.28) {
+  let g = new THREE.IcosahedronGeometry(1, detail); g.deleteAttribute('uv'); g.deleteAttribute('normal'); g = mergeVertices(g);
+  const p = g.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), k = 1 + lump * (hash(Math.round(vx * 30) + seed, Math.round(vy * 30), Math.round(vz * 30)) - 0.5) * 2;
+    p.setXYZ(i, vx * k * rx + x, vy * k * ry + y, vz * k * rz + z); const t = 0.55 + 0.45 * (vy * 0.5 + 0.5), n = 0.88 + 0.24 * hash(Math.round(vx * 20) + seed * 3, Math.round(vz * 20), 7);
+    c[i * 3] = base[0] * t * n; c[i * 3 + 1] = base[1] * t * n; c[i * 3 + 2] = base[2] * t * n;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g.toNonIndexed();
+}
+// a tapering trunk with a flared foot and bark colour streaks
+function trunk(h, r0, r1, base) {
+  const g = new THREE.CylinderGeometry(r1, r0, h, 7, 3).translate(0, h / 2, 0); g.deleteAttribute('uv'); const p = g.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const y = p.getY(i), flare = 1 + 0.55 * Math.max(0, 1 - y / (h * 0.14)), a = Math.atan2(p.getZ(i), p.getX(i)); p.setX(i, p.getX(i) * flare); p.setZ(i, p.getZ(i) * flare); const n = 0.8 + 0.4 * hash(Math.round(a * 4), Math.round(y * 2), 3); c[i * 3] = base[0] * n; c[i * 3 + 1] = base[1] * n; c[i * 3 + 2] = base[2] * n; }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g.toNonIndexed();
+}
+// a conifer tier: a cone with a ragged skirt (the rim vertices alternate in and out), shaded dark at the rim
+function tier(y, r, h, base, seed) {
+  const g = new THREE.ConeGeometry(r, h, 9, 1, true).translate(0, h / 2 + y, 0); g.deleteAttribute('uv'); const p = g.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const vy = p.getY(i) - y, rim = vy < 0.01 * h, a = Math.atan2(p.getZ(i), p.getX(i)), k = rim ? 0.8 + 0.4 * hash(Math.round(a * 5) + seed, 1, 2) : 1, t = 0.5 + 0.5 * (vy / h); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); if (rim) p.setY(i, p.getY(i) - h * 0.12 * hash(Math.round(a * 5) + seed, 2, 3)); c[i * 3] = base[0] * t; c[i * 3 + 1] = base[1] * t; c[i * 3 + 2] = base[2] * t; }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g.toNonIndexed();
+}
+const limb = (r0, r1, h, col, x, y, z, rx = 0, rz = 0, seg = 5) => part(cyl(r0, r1, h, seg), col, x, y, z, 1, 1, 1, rx, rz);
 const MODELS = {
-  broad: () => mergeGeometries([part(cyl(0.3, 0.2, 2.8), [0.1, 0.065, 0.04]), part(new THREE.IcosahedronGeometry(1, 0), [0.07, 0.2, 0.06], 0, 3.6, 0, 2.2, 1.9, 2.2), part(new THREE.IcosahedronGeometry(1, 0), [0.09, 0.24, 0.07], 0.8, 4.4, 0.4, 1.4, 1.2, 1.4), part(new THREE.IcosahedronGeometry(1, 0), [0.05, 0.17, 0.05], -0.7, 4.1, -0.5, 1.5, 1.3, 1.5)]),
-  conifer: () => mergeGeometries([part(cyl(0.28, 0.2, 2.2), [0.09, 0.06, 0.04]), part(new THREE.ConeGeometry(2.0, 3.6, 7).translate(0, 1.8, 0), [0.03, 0.13, 0.07], 0, 2.0), part(new THREE.ConeGeometry(1.5, 3.2, 7).translate(0, 1.6, 0), [0.04, 0.16, 0.08], 0, 4.2), part(new THREE.ConeGeometry(1.0, 2.8, 7).translate(0, 1.4, 0), [0.05, 0.19, 0.09], 0, 6.2)]),
-  palm: () => mergeGeometries([part(cyl(0.3, 0.16, 7.5, 5), [0.28, 0.2, 0.12]), ...[0, 1, 2, 3, 4, 5].map((k) => part(new THREE.ConeGeometry(0.4, 4, 3).translate(0, 2, 0), [0.07, 0.3, 0.09], Math.cos(k * 1.047) * 0.2, 7.4, Math.sin(k * 1.047) * 0.2, 1, 1, 1, Math.sin(k * 1.047) * 1.15, -Math.cos(k * 1.047) * 1.15))]),
-  cactus: () => mergeGeometries([part(cyl(0.38, 0.34, 3, 6), [0.1, 0.3, 0.12]), part(cyl(0.2, 0.2, 1.1, 5), [0.1, 0.3, 0.12], 0.5, 1.1, 0), part(cyl(0.2, 0.2, 0.9, 5), [0.1, 0.3, 0.12], -0.5, 1.6, 0), part(cyl(0.2, 0.2, 0.7, 5), [0.1, 0.3, 0.12], 0.5, 0.6, 0, 1, 1, 1, 0, 1.57)]),
-  dead: () => mergeGeometries([part(cyl(0.25, 0.12, 4.2, 5), [0.16, 0.14, 0.12]), part(cyl(0.1, 0.05, 1.8, 4), [0.15, 0.13, 0.11], 0.1, 2.6, 0, 1, 1, 1, 0, -0.9), part(cyl(0.1, 0.05, 1.5, 4), [0.15, 0.13, 0.11], -0.1, 3.2, 0, 1, 1, 1, 0, 0.8), part(cyl(0.08, 0.04, 1.2, 4), [0.15, 0.13, 0.11], 0, 3.6, 0.1, 1, 1, 1, 0.8, 0)]),
-  shrub: () => mergeGeometries([part(new THREE.IcosahedronGeometry(1, 0), [0.07, 0.2, 0.07], 0, 0.5, 0, 0.8, 0.55, 0.8), part(new THREE.IcosahedronGeometry(1, 0), [0.09, 0.23, 0.08], 0.5, 0.35, 0.2, 0.55, 0.4, 0.55)]),
-  rock: () => { const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const k = 0.78 + 0.34 * hash(Math.round(p.getX(i) * 40), Math.round(p.getY(i) * 40), Math.round(p.getZ(i) * 40)); p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.7, p.getZ(i) * k); } g.computeVertexNormals(); return mergeGeometries([part(g, [0.2, 0.19, 0.18], 0, 0.3)]); },
-  grass: () => { const blades = []; for (let k = 0; k < 4; k++) { const a = k * 0.8 + 0.3, h = 0.55 + (k % 2) * 0.25, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.07, 0, 0, 0.07, 0, 0, 0.0, h, 0.0]), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([0.03, 0.09, 0.03, 0.03, 0.09, 0.03, 0.12, 0.3, 0.1]), 3)); g.setIndex([0, 1, 2]); g.rotateY(a); g.translate(Math.cos(a * 3) * 0.12, 0, Math.sin(a * 3) * 0.12); g.rotateZ(0); blades.push(g); } return mergeGeometries(blades); },
+  broad: () => mergeGeometries([trunk(3.0, 0.3, 0.17, [0.2, 0.14, 0.09]), limb(0.12, 0.06, 2.2, [0.18, 0.13, 0.08], 0.5, 2.0, 0, 0, -0.9), limb(0.12, 0.06, 2.0, [0.18, 0.13, 0.08], -0.4, 2.3, 0.2, 0.3, 0.8),
+    blob(0, 4.3, 0, 2.3, 1.7, 2.3, [0.2, 0.42, 0.13], 1), blob(1.5, 3.7, 0.5, 1.5, 1.2, 1.5, [0.24, 0.46, 0.14], 2), blob(-1.4, 3.9, -0.6, 1.6, 1.3, 1.6, [0.16, 0.38, 0.12], 3), blob(0.3, 5.5, 0.4, 1.4, 1.1, 1.4, [0.27, 0.5, 0.16], 4), blob(-0.5, 3.4, 1.4, 1.2, 1.0, 1.2, [0.18, 0.4, 0.12], 5)]),
+  conifer: () => mergeGeometries([trunk(2.4, 0.26, 0.14, [0.18, 0.12, 0.08]), tier(1.4, 2.5, 2.8, [0.05, 0.2, 0.09], 1), tier(2.8, 2.1, 2.6, [0.06, 0.23, 0.1], 2), tier(4.2, 1.7, 2.5, [0.07, 0.26, 0.11], 3), tier(5.5, 1.3, 2.3, [0.08, 0.28, 0.12], 4), tier(6.7, 0.9, 2.0, [0.1, 0.31, 0.13], 5), tier(7.8, 0.45, 1.6, [0.12, 0.34, 0.14], 6)]),
+  palm: () => mergeGeometries([trunk(7.5, 0.34, 0.17, [0.4, 0.3, 0.2]), ...[0, 1, 2, 3, 4, 5, 6].map((k) => { const a = k * 0.898; return part(new THREE.ConeGeometry(0.5, 4.4, 3).translate(0, 2.2, 0), [0.12, 0.42, 0.14], Math.cos(a) * 0.2, 7.4, Math.sin(a) * 0.2, 1, 1, 0.5, Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2); })]),
+  cactus: () => mergeGeometries([blob(0, 1.5, 0, 0.45, 1.6, 0.45, [0.15, 0.36, 0.17], 1, 1, 0.08), blob(0.75, 1.5, 0, 0.22, 0.7, 0.22, [0.16, 0.38, 0.18], 2, 1, 0.08), blob(-0.7, 2.0, 0, 0.2, 0.6, 0.2, [0.16, 0.38, 0.18], 3, 1, 0.08), limb(0.18, 0.18, 0.7, [0.15, 0.36, 0.17], 0.4, 1.0, 0, 0, 1.57, 6)]),
+  dead: () => mergeGeometries([trunk(4.2, 0.26, 0.1, [0.3, 0.27, 0.24]), limb(0.1, 0.04, 1.8, [0.3, 0.27, 0.24], 0.1, 2.6, 0, 0, -0.9), limb(0.1, 0.04, 1.5, [0.3, 0.27, 0.24], -0.1, 3.2, 0, 0, 0.8), limb(0.08, 0.03, 1.2, [0.3, 0.27, 0.24], 0, 3.6, 0.1, 0.8, 0)]),
+  shrub: () => mergeGeometries([blob(0, 0.5, 0, 0.9, 0.6, 0.9, [0.14, 0.32, 0.1], 1, 1, 0.3), blob(0.6, 0.35, 0.3, 0.6, 0.45, 0.6, [0.2, 0.38, 0.12], 2, 1, 0.3), blob(-0.5, 0.4, -0.3, 0.55, 0.42, 0.55, [0.12, 0.3, 0.1], 3, 1, 0.3)]),
+  rock: () => { let g = new THREE.IcosahedronGeometry(1, 2); g.deleteAttribute('uv'); g.deleteAttribute('normal'); g = mergeVertices(g); const p = g.attributes.position, c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), k = 0.72 + 0.4 * hash(Math.round(vx * 6), Math.round(vy * 6), Math.round(vz * 6)) + 0.12 * hash(Math.round(vx * 18), Math.round(vy * 18), Math.round(vz * 18)); p.setXYZ(i, vx * k, vy * k * 0.62 + 0.25, vz * k); const n = 0.75 + 0.5 * hash(Math.round(vx * 12), Math.round(vz * 12), 5), t = 0.65 + 0.35 * (vy * 0.5 + 0.5); c[i * 3] = 0.32 * n * t; c[i * 3 + 1] = 0.3 * n * t; c[i * 3 + 2] = 0.28 * n * t; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g.toNonIndexed(); },
+  // a tuft: nine tapered, bent blades, dark at the root and bright at the tip; the vertex shader below sways it
+  grass: () => { const pos = [], col = []; for (let k = 0; k < 9; k++) { const a = k * 2.4 + 0.3, h = 0.45 + 0.5 * hash(k, 1, 2), w = 0.05 + 0.03 * hash(k, 2, 3), bx = Math.cos(a) * 0.12, bz = Math.sin(a) * 0.12, lean = 0.12 + 0.28 * hash(k, 3, 4), tx = Math.cos(a) * lean, tz = Math.sin(a) * lean, sx = -Math.sin(a) * w, sz = Math.cos(a) * w; const shade = 0.75 + 0.5 * hash(k, 4, 5); const P = [[bx - sx, 0, bz - sz], [bx + sx, 0, bz + sz], [bx + tx * 0.5 - sx * 0.6, h * 0.55, bz + tz * 0.5 - sz * 0.6], [bx + tx * 0.5 + sx * 0.6, h * 0.55, bz + tz * 0.5 + sz * 0.6], [bx + tx, h, bz + tz]], C = [[0.03, 0.08, 0.03], [0.03, 0.08, 0.03], [0.09, 0.22, 0.07], [0.09, 0.22, 0.07], [0.2, 0.4, 0.12]]; for (const f of [[0, 1, 2], [1, 3, 2], [2, 3, 4]]) for (const v of f) { pos.push(...P[v]); col.push(C[v][0] * shade, C[v][1] * shade, C[v][2] * shade); } } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(pos), 3)); g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(col), 3)); g.computeVertexNormals(); const nr = g.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 1, 0); return g; },
 };
 const TYPES = ['broad', 'conifer', 'palm', 'cactus', 'dead', 'shrub', 'rock'], BILL = { broad: 0, conifer: 1, palm: 2, cactus: 3, dead: 4 };
-const CAP = { broad: 3500, conifer: 3500, palm: 800, cactus: 1200, dead: 800, shrub: 1500, rock: 900, grass: 9000 }, BILL_CAP = 26000;
+const CAP = { broad: 2600, conifer: 2600, palm: 800, cactus: 1200, dead: 800, shrub: 1500, rock: 900, grass: 9000 }, BILL_CAP = 26000;
 const SAFE_FOG = 2.9;
 
 export class Forest {
@@ -56,8 +82,12 @@ export class Forest {
     const high = globalThis.__DETAIL === 'high'; this.f = high ? 1 : 0.5; this.maxR = high ? 900 : 520; this.nearR = high ? 230 : 170; this.grassR = high ? 80 : 56; this.bbCap = high ? BILL_CAP : BILL_CAP * 0.7;
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
     this.meshes = {}; this.cells = new Map(); this.t = 0; this.last = [1e9, 1e9]; this.cols = new Map(); this.stats = { near: 0, bill: 0, grass: 0, cells: 0, boxes: 0 };
+    // grass has its own program: the same material with a vertex wind (blade tips move, roots stay)
+    this.gmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+    this.gmat.onBeforeCompile = (sh) => { sh.uniforms.uWind = { value: timeUniform }; sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uWind;').replace('#include <begin_vertex>', '#include <begin_vertex>\n{vec3 ip=vec3(instanceMatrix[3]);float k=transformed.y*transformed.y*.5;transformed.x+=sin(uWind*1.7+ip.x*.31+ip.z*.23)*.13*k;transformed.z+=cos(uWind*1.3+ip.z*.29+ip.x*.17)*.1*k;}'); };
+    this.gmat.customProgramCacheKey = () => 'forest-grass';
     for (const t of [...TYPES, 'grass']) {
-      const m = new THREE.InstancedMesh(MODELS[t](), this.mat, CAP[t]); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false;
+      const m = new THREE.InstancedMesh(MODELS[t](), t === 'grass' ? this.gmat : this.mat, CAP[t]); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false;
       m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP[t] * 3), 3); this.meshes[t] = m; this.group.add(m);
     }
     // billboards: a quad that turns to the camera about the vertical axis; the silhouette is drawn by type in the fragment shader
