@@ -37,14 +37,27 @@ run('motions', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     g.items.add('knife'); g.equipMelee('knife'); step(5);
     o.knifeShown = !!m.bones && pl.melee && pl.melee.name === '단검';
     pl.fireCd = 0; g.meleeAttack(); o.hitDelay = +(pl.meleeHitT || 0).toFixed(2); o.gesturing = !!pl.gestUB; step(40); o.hitDone = !(pl.meleeHitT > 0) && !pl.gestUB;
+    // foot slide: the speed at which the stance foot moves back in a locomotion clip, which the playback speed constants in Human.animateSkinned assume
+    const THREE = window.__THREE; pl.group.rotation.set(0, 0, 0); pl.group.updateMatrixWorld(true); o.stance = {};
+    for (const n of ['Walk', 'Run']) {
+      const a = m.act[n] || m.clip(n); m.playOnce(n, true); const dur = a.getClip().duration, N = 120, z = [], y = [];
+      for (let i = 0; i <= N; i++) { a.time = (i / N) * dur * 0.9999; m.mixer.update(0); pl.group.updateMatrixWorld(true); const p = pl.group.worldToLocal(m.bones.LeftFoot.getWorldPosition(new THREE.Vector3())), q = pl.group.worldToLocal(m.bones.RightFoot.getWorldPosition(new THREE.Vector3())); z.push([p.z, q.z]); y.push([p.y, q.y]); }
+      const v = []; for (let i = 0; i < N; i++) for (let f = 0; f < 2; f++) if (y[i][f] < y[i][1 - f] && y[i][f] < Math.min(...y.map((r) => r[f])) + 0.02) v.push(-(z[i + 1][f] - z[i][f]) / (dur / N));
+      v.sort((p, q) => p - q); o.stance[n] = +(v[v.length >> 1] || 0).toFixed(2);
+    }
+    m.stopOnce(); pl.reactT = 0;
+    // procedural arm motion: bends the arm while it runs and ends by itself
+    const { procGesture } = window.__gesture;
+    const fa = () => m.bones.RightForeArm.quaternion.toArray().map((v) => +v.toFixed(3)).join();
+    pl.speed = 0; step(3); const q0 = fa(); o.procStart = procGesture(pl, 'handshake'); step(40); o.procBends = fa() !== q0; step(240); o.procEnds = !pl.proc;
     // menu gesture, drinking
     pl.reactT = 0; pl.gestUB = null; step(5);
-    o.menuWave = g.gestures.play('wave') && pl.gestUB === 'UB_Greeting'; step(420); o.menuDone = !pl.gestUB;
+    pl.armed = true; pl.aimT = 0; pl.forceAim = false; o.menuWave = g.gestures.play('wave') && pl.gestUB === 'UB_Greeting'; step(40); o.armedKeeps = !!pl.armed && pl.gestUB === 'UB_Greeting' && m.act.UB_Greeting.weight > 10; step(380); o.menuDone = !pl.gestUB;
     g.items.add('water'); g.items.use('water'); o.drinks = pl.gestUB === 'UB_Consume_Item'; step(200);
     return o;
   });
   const pass = o.missing.length === 0 && o.upperMasks.length === 0 &&
     o2.crawling && o2.crawlW > 0.5 && Math.abs(o2.proneTilt) < 0.2 && o2.standsAgain &&
-    o2.throwT > 0.15 && o2.heldBack && o2.released && o2.knifeShown && o2.hitDelay > 0.05 && o2.gesturing && o2.hitDone && o2.menuWave && o2.menuDone && o2.drinks;
+    o2.throwT > 0.15 && o2.heldBack && o2.released && o2.knifeShown && o2.hitDelay > 0.05 && o2.gesturing && o2.hitDone && Math.abs(o2.stance.Walk - 0.9) < 0.25 && Math.abs(o2.stance.Run - 5.2) < 0.8 && o2.procStart && o2.procBends && o2.procEnds && o2.menuWave && o2.armedKeeps && o2.menuDone && o2.drinks;
   result('motions', pass, { ...o, ...o2 });
 });

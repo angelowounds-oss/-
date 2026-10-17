@@ -3,7 +3,7 @@ import { buildHuman, rifleLook } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
-import { updateGesture } from './gesture.js';
+import { updateGesture, updateProc } from './gesture.js';
 
 export const WEAPONS = [
   { name: '9MM PISTOL', scope: 'iron', zoom: 1.3, short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
@@ -254,8 +254,8 @@ export class Human {
     const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
-    if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : clamp(sp / 1.6, 0.6, 1.8);
-    a.Walk.timeScale = clamp(sp / 1.55, 0.6, 2.2); a.Run.timeScale = clamp(sp / 5.2, 0.8, 1.7);
+    if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : set[1] === 'U_Crouch_Fwd' ? clamp(sp / 0.66, 0.6, 3) : clamp(sp / 1.6, 0.6, 1.8);
+    a.Walk.timeScale = clamp(sp / 1.0, 0.6, 2.4);   // the clip's feet move back at ~0.9 m/s in stance (tests/e2e/motions) a.Run.timeScale = clamp(sp / 5.2, 0.8, 1.7);
     const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
     this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
     // distance LOD: fog hides far actors anyway, so skip their skinning and animation
@@ -266,8 +266,10 @@ export class Human {
     if (cd > 35) { this.lodT = (this.lodT || 0) + dt; if ((this.lodF = !this.lodF)) return; dt = this.lodT; this.lodT = 0; }
     // pistol-class weapons use the retargeted UAL upper-body clips (idle / aim up-neutral-down / shoot / reload); the limbs below keep walking
     const freeStance = !m.sit && !this.swimming && !this.prone && !this.lying && !m.rideOn;
-    const pistolish = this.armed && this.weapon && this.weapon.short === 'pistol' && freeStance;
-    const riflish = this.armed && this.weapon && this.weapon.short === 'rifle' && freeStance && !!m.setRifleMode;
+    // a gesture or procedural arm motion takes the arms from the held-weapon pose until the weapon is raised again
+    const busy = !!this.proc || (!!this.gestUB && !aiming);
+    const pistolish = this.armed && this.weapon && this.weapon.short === 'pistol' && freeStance && !busy;
+    const riflish = this.armed && this.weapon && this.weapon.short === 'rifle' && freeStance && !!m.setRifleMode && !busy;
     if (m.setRifleMode) m.setRifleMode(riflish);
     if (this.recoil > (this._rc || 0) + 0.4) {
       this.shootT = 0.38;
@@ -290,10 +292,11 @@ export class Human {
       }
       this._rl = rel;
     }
-    if (this.gestUB) updateGesture(this, dt, pistolish || riflish);
+    if (this.gestUB) updateGesture(this, dt, aiming);
     if (m.setMelee) m.setMelee(this.melee && this.cur === 9 ? this.melee.name : null);
     m.mixer.update(dt);
     m.applyPose(pistolish || riflish ? 0 : this.pose, this.aimPitch || 0);
+    if (this.proc) updateProc(this, dt);
     if (riflish) {
       const ph = (t, len, delay) => (t > 0 ? Math.max(0, Math.min(1, (len - t - delay) / (len - delay))) : 0);
       m.rifleIK(this.pose, this.aimPitch || 0, { recoil: this.recoil || 0, pump: this.pumpT > 0 ? Math.sin(ph(this.pumpT, 0.55, 0.12) * Math.PI) : 0, bolt: ph(this.boltT, 0.8, 0.15), reload: this.reloadT > 0 && this.weapon.reload ? 1 - this.reloadT / this.weapon.reload : 0 });

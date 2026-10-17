@@ -46,3 +46,44 @@ export function updateGesture(h, dt, armed) {
   a.weight = THREE.MathUtils.lerp(a.weight, on ? 40 : 0, 1 - Math.exp(-16 * dt));
   if (!on && a.weight < 0.4) { a.weight = 0; a.enabled = true; h.gestUB = null; }
 }
+
+// ---- Procedural arm motions for the things the clip library has none of (handshake, hug, clap, point, typing, stirring, stretching, thinking, facepalm).
+// They are rotations of the arm bones about the character's own axes, added on top of the idle pose after the mixer ran: X swings an arm forward
+// (negative) and up, Z swings it out to the side, Y turns it in. k is the fade (0..1), t the time in seconds, side +1 is the character's left arm.
+const sin = Math.sin, TAU = Math.PI * 2;
+export const PROC = {
+  handshake: { dur: 2.4, f: (t, k) => [['RightArm', 'x', -1.0 * k], ['RightArm', 'y', 0.5 * k], ['RightForeArm', 'x', (-0.55 + 0.22 * sin(t * 13)) * k]] },
+  hug: { dur: 3.0, f: (t, k) => { const c = Math.min(1, Math.max(0, Math.min(t / 0.9, (3.0 - t) / 0.7))); return [['RightArm', 'x', -1.15 * k], ['LeftArm', 'x', -1.15 * k], ['RightArm', 'y', (0.35 + 0.55 * c) * k], ['LeftArm', 'y', -(0.35 + 0.55 * c) * k], ['RightForeArm', 'x', -0.7 * k], ['LeftForeArm', 'x', -0.7 * k], ['RightArm', 'z', -0.5 * (1 - c) * k], ['LeftArm', 'z', 0.5 * (1 - c) * k]]; } },
+  clap: { dur: 2.0, f: (t, k) => { const o = 0.22 * sin(t * 18); return [['RightArm', 'x', -1.15 * k], ['LeftArm', 'x', -1.15 * k], ['RightForeArm', 'x', -1.05 * k], ['LeftForeArm', 'x', -1.05 * k], ['RightArm', 'y', (0.35 + o) * k], ['LeftArm', 'y', -(0.35 + o) * k]]; } },
+  point: { dur: 1.8, f: (t, k) => [['RightArm', 'x', -1.45 * k], ['RightArm', 'y', 0.1 * k], ['RightForeArm', 'x', -0.05 * k]] },
+  typing: { dur: 4.0, f: (t, k) => [['RightArm', 'x', -0.55 * k], ['LeftArm', 'x', -0.55 * k], ['RightForeArm', 'x', -1.35 * k], ['LeftForeArm', 'x', -1.35 * k], ['RightHand', 'x', (0.1 * sin(t * 17)) * k], ['LeftHand', 'x', (0.1 * sin(t * 17 + 2.1)) * k]] },
+  stir: { dur: 4.0, f: (t, k) => [['RightArm', 'x', -0.75 * k], ['RightForeArm', 'x', -1.1 * k], ['RightArm', 'y', (0.3 + 0.22 * sin(t * 7)) * k], ['RightForeArm', 'z', 0.2 * sin(t * 7 + 1.6) * k]] },
+  stretch: { dur: 3.0, f: (t, k) => { const u = Math.min(1, Math.max(0, Math.min(t / 0.8, (3.0 - t) / 0.7))) * k; return [['RightArm', 'x', -2.9 * u], ['LeftArm', 'x', -2.9 * u], ['RightArm', 'z', -0.25 * u], ['LeftArm', 'z', 0.25 * u]]; } },
+  think: { dur: 3.0, f: (t, k) => [['RightArm', 'x', -0.9 * k], ['RightForeArm', 'x', -2.2 * k], ['LeftArm', 'x', -0.7 * k], ['LeftForeArm', 'x', -1.5 * k], ['LeftArm', 'y', -0.5 * k]] },
+  facepalm: { dur: 2.2, f: (t, k) => [['RightArm', 'x', -1.55 * k], ['RightForeArm', 'x', -2.05 * k], ['RightArm', 'y', -0.1 * k]] },
+  wipe: { dur: 2.2, f: (t, k) => [['RightArm', 'x', -1.7 * k], ['RightForeArm', 'x', -2.1 * k], ['RightForeArm', 'z', 0.25 * sin(t * 9) * k]] },
+};
+const AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+const _wq = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _qa = new THREE.Quaternion(), _la = new THREE.Vector3();
+
+// Starts a procedural motion (only while standing still, on foot); returns false otherwise.
+export function procGesture(h, name) {
+  const P = PROC[name], m = h.m;
+  if (!P || !m || !m.skinned || !m.bones || h.dead || h.rag || h.reactT > 0 || h.swimming || h.prone || (m.sit || 0) > 0.3 || m.rideOn || (h.speed || 0) > 0.8) return false;
+  h.proc = { name, t: 0, dur: P.dur }; return true;
+}
+
+// After the mixer and applyPose of a frame.
+export function updateProc(h, dt) {
+  const p = h.proc, m = h.m; if (!p) return;
+  if (h.dead || h.reactT > 0 || h.rag || (h.speed || 0) > 1.2) { h.proc = null; return; }
+  p.t += dt; if (p.t >= p.dur) { h.proc = null; return; }
+  const k = Math.min(1, p.t / 0.35, (p.dur - p.t) / 0.35), wrap = m.group;
+  wrap.updateWorldMatrix(true, false); wrap.getWorldQuaternion(_wq);
+  for (const [bone, ax, ang] of PROC[p.name].f(p.t, k)) {
+    const b = m.bones[bone]; if (!b || !ang) continue;
+    b.parent.updateWorldMatrix(true, false); b.parent.getWorldQuaternion(_pq).invert();
+    _la.copy(AX[ax]).applyQuaternion(_wq).applyQuaternion(_pq).normalize();
+    _qa.setFromAxisAngle(_la, ang); b.quaternion.premultiply(_qa);
+  }
+}

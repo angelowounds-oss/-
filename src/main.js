@@ -1,3 +1,4 @@
+import { procGesture, gesture } from './gesture.js';
 import * as THREE from 'three';
 import { initLoading } from './loading.js';
 import { createEngine, QUALITY } from './engine.js';
@@ -35,7 +36,7 @@ function fatal(e) {
     if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
     if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
     game = new Game(eng); game.RAPIER = RAPIER;
-    window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM;
+    window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM; window.__gesture = { procGesture, gesture };
     await game.init((p, t) => loading.set(p, t));
     furnitureReady();   // prepare the furniture models during loading, not in the middle of the first building that opens
     game.buildings.warm(game.player.x, game.player.z, game.player.y || 0);
