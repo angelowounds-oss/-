@@ -53,8 +53,8 @@ try {
   const note = await page.evaluate(() => document.getElementById('aeroSetNote').textContent);
   check('UI: 슬라이더 값이 적용되고 해상도 문구 표시', ui.active && ui.ride === 10 && /2칸 미만/.test(note), { ui, note });
   await page.evaluate(() => __AERO.reset());
-  // sequencer axis plumbing (state machine only; physics is not checked here)
-  const ax = await page.evaluate(() => { __LIVE.freeze = false; const ok = __SEQ.start({ plan: 'ride', values: [0, 10], window: .6, spinUp: .3, maxMul: 1.2, minSamples: 2 }); return { ok, axis: __SEQ.opts.axis, plan: __SEQ.plan.slice() }; });
+  // sequencer axis plumbing (state machine only; physics is not checked here). Window 1.5 s (was 0.6 s): at the frame rates of slower machines a 0.6 s window held fewer than the 2 required force samples, the point had no Cd and the verdict list was empty (seen at the baseline commit a60da0c too, so not a regression).
+  const ax = await page.evaluate(() => { __LIVE.freeze = false; const ok = __SEQ.start({ plan: 'ride', values: [0, 10], window: 1.5, spinUp: .3, maxMul: 1.6, minSamples: 2 }); return { ok, axis: __SEQ.opts.axis, plan: __SEQ.plan.slice() }; });
   check('시퀀서 차고 축: 시작 성공, 값 [0, 10]', ax.ok && ax.axis === 'ride' && ax.plan.join() === '0,10', ax);
   await page.waitForFunction(() => ['DONE', 'ABORTED'].includes(__SEQ.state), null, { timeout: 1800000, polling: 1000 });
   const sq = await page.evaluate(() => ({ state: __SEQ.state, err: __SEQ.err, res: __SEQ.results.map(r => ({ axis: r.axis, x: r.x, Cd: r.Cd })), aeroAfter: [__AERO.rideMm, __AERO.pitchDeg], deltas: __SEQ.deltas(), htmlHasDelta: /기준 대비 변화/.test(__SEQ.html()) }));
