@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { surfaceColor, cities, SEA, WORLD_HALF } from './worldmap.js';
 import { EXTENT } from './terrain.js';
 import { landHeight, physHeight } from './landfn.js';
-import { stream } from './heightmap.js';
-import { patchStandard } from './shaders.js';
+import { stream, colorAt } from './heightmap.js';
+import { patchStandard, timeUniform } from './shaders.js';
 import { GR, grp } from './physics.js';
 
 // The land outside the city: a geometry clipmap of the whole 100 x 100 km world (worldmap.js), a sea, markers for the cities, and a small
@@ -44,9 +44,13 @@ export class Farland {
     this.scene = scene; this.group = new THREE.Group(); this.group.name = 'farland'; this.levels = []; this.levelCount = opts.levels || LEVELS;
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
     patchStandard(this.mat, 'farland-v1', {
-      vertexDecl: 'varying vec2 vFW;', vertexMain: 'vFW=(modelMatrix*vec4(transformed,1.)).xz;',
-      fragDecl: `varying vec2 vFW;float fRough=.96,fMetal=0.;vec3 fEmit=vec3(0.);`,
-      fragMain: `if(abs(vFW.x)<${EXTENT.toFixed(1)}&&abs(vFW.y)<${EXTENT.toFixed(1)})discard;`,
+      vertexDecl: 'varying vec2 vFW;varying float vFY;', vertexMain: 'vec4 fwp=modelMatrix*vec4(transformed,1.);vFW=fwp.xz;vFY=fwp.y;',
+      fragDecl: `varying vec2 vFW;varying float vFY;uniform float uTf;float fRough=.96,fMetal=0.;vec3 fEmit=vec3(0.);`,
+      fragMain: `if(abs(vFW.x)<${EXTENT.toFixed(1)}&&abs(vFW.y)<${EXTENT.toFixed(1)})discard;
+        float fe=${SEA.toFixed(1)};float fw=sin(vFW.x*.045+vFW.y*.031+uTf*1.3)*.5+sin(vFW.x*.021-vFW.y*.05-uTf*.9)*.5;
+        float foam=smoothstep(fe+1.5+fw*.35,fe+.1,vFY)*smoothstep(fe-.6,fe-.05,vFY);   /* the wet strip along a shore: a band of foam that breathes with the waves */
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.86,.9),foam*.7);fRough=mix(.96,.35,foam);`,
+      uniforms: { uTf: timeUniform },
     });
     const hole = ringIndex(true), full = ringIndex(false);
     for (let k = 0; k < this.levelCount; k++) {
@@ -89,7 +93,7 @@ export class Farland {
       const k = j * M + i, oi = i + di, oj = j + dj;
       if (reuse && oi >= 0 && oi <= N && oj >= 0 && oj <= N) { const ok = oj * M + oi; h[k] = oh[ok]; cg[k * 3] = ocg[ok * 3]; cg[k * 3 + 1] = ocg[ok * 3 + 1]; cg[k * 3 + 2] = ocg[ok * 3 + 2]; this.stats.reused++; continue; }
       const x = x0 + i * cell, z = z0 + j * cell, y = landHeight(x, z, cell);
-      h[k] = y; surfaceColor(x, z, y, tmp); cg[k * 3] = tmp[0]; cg[k * 3 + 1] = tmp[1]; cg[k * 3 + 2] = tmp[2]; this.stats.computed++;
+      h[k] = y; if (!(cell <= 32 && colorAt(x, z, tmp))) surfaceColor(x, z, y, tmp); cg[k * 3] = tmp[0]; cg[k * 3 + 1] = tmp[1]; cg[k * 3 + 2] = tmp[2]; this.stats.computed++;
     }
     L.h = h; L.h2 = oh; L.cg = cg; L.cg2 = ocg; L.cx = ncx; L.cz = ncz;
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {

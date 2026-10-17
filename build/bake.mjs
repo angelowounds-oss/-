@@ -18,7 +18,7 @@ const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 
 // A job makes one chunk: `src` lists the files whose content decides the result, `tier` says where it goes ('embed' = into the page, 'pack' = into
 // the high-detail pack), `run` (in jobs.mjs) returns the object to store. Later steps add the terrain tiles, city tiles, forests... here.
-const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
 export function jobsFor({ pack = false } = {}) {
   const out = [{ key: 'core', tier: 'embed', src: ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs'] }];
   const tiles = (g, key, tier) => { const n = Math.ceil(100000 / (g * 256)); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, src: TERRAIN_SRC }); };

@@ -15,13 +15,13 @@ function ih(ix, iz, s) {
   h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }
-function vn(x, z, s) {
+export function vn(x, z, s) {
   const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
   return (ih(ix, iz, s) * (1 - ux) + ih(ix + 1, iz, s) * ux) * (1 - uz) + (ih(ix, iz + 1, s) * (1 - ux) + ih(ix + 1, iz + 1, s) * ux) * uz;
 }
-function fbm(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let i = 0; i < oct; i++) { sum += a * vn(x * f, z * f, s + i * 17); n += a; a *= 0.5; f *= 2.03; } return sum / n; }
+export function fbm(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let i = 0; i < oct; i++) { sum += a * vn(x * f, z * f, s + i * 17); n += a; a *= 0.5; f *= 2.03; } return sum / n; }
 function ridged(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let i = 0; i < oct; i++) { const r = 1 - Math.abs(2 * vn(x * f, z * f, s + i * 31) - 1); sum += a * r * r; n += a; a *= 0.5; f *= 2.07; } return sum / n; }
-const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+export const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------------ the raw landscape (before cities are flattened)
@@ -254,7 +254,7 @@ export function biomeAt(x, z, h) {
   if (M > 0.56) return 4;
   return vn(x / 1800, z / 1800, 11) > 0.5 ? 3 : 2;
 }
-const PAL = [
+export const PAL = [
   [0.02, 0.07, 0.12], [0.55, 0.50, 0.36], [0.20, 0.30, 0.13], [0.30, 0.34, 0.14], [0.07, 0.17, 0.08], [0.24, 0.24, 0.17], [0.30, 0.28, 0.26], [0.82, 0.86, 0.92], [0.62, 0.50, 0.30], [0.10, 0.07, 0.07],
 ];
 // vertex colour (dusk-ish: the lighting does the rest); out is a [r, g, b] array

@@ -5,6 +5,7 @@ import { HM } from './landfn.js';
 // neighbour): "t16" has 16 m cells (4096 m tiles, all kept in memory, made into the page), "t8" has 8 m cells (2048 m tiles, from the high pack,
 // streamed around the player and dropped when far). `sample` takes the finest tile that is loaded and says NaN where none is (landfn then computes it).
 export const TILE = 256, N1 = TILE + 1, HALF = 50000, UNIT = 0.1;
+export const CT = 128, CN = CT + 1;   // the ground colour grid of a tile: 128 cells (twice the height cell), RGB, gamma 2
 export const LEVELS = [{ g: 8, key: 't8', stream: true }, { g: 16, key: 't16', stream: false }];   // finest first
 const tileM = (g) => g * TILE, count = (g) => Math.ceil((2 * HALF) / tileM(g));
 
@@ -48,8 +49,21 @@ export function sample(x, z, phys = false) {
 }
 HM.land = (x, z) => sample(x, z, false); HM.phys = (x, z) => sample(x, z, true);
 
-// decode a chunk object {land, phys?} (predictor-coded) into a tile ready for lookups
-const toTile = (c) => ({ land: decodeTile(c.land), phys: c.phys ? decodeTile(c.phys) : null });
+// decode a chunk object {land, phys?, col?} (heights predictor-coded) into a tile ready for lookups
+const toTile = (c) => ({ land: decodeTile(c.land), phys: c.phys ? decodeTile(c.phys) : null, col: c.col || null });
+const LUT = new Float32Array(256).map((_, i) => (i / 255) ** 2);
+// the baked ground colour at (x, z) into out (linear rgb), false where no tile with colour is loaded
+export function colorAt(x, z, out) {
+  for (const L of lvl) {
+    if (!L.tiles.size) continue;
+    const { t, u, v } = L.tile(x, z); if (!t || !t.col) continue;
+    const cu = Math.min(CT - 1e-6, Math.max(0, u * CT / TILE)), cv = Math.min(CT - 1e-6, Math.max(0, v * CT / TILE)), i = cu | 0, j = cv | 0, fu = cu - i, fv = cv - j, k = (j * CN + i) * 3, c = t.col, K = CN * 3;
+    const w00 = (1 - fu) * (1 - fv), w10 = fu * (1 - fv), w01 = (1 - fu) * fv, w11 = fu * fv;
+    for (let q = 0; q < 3; q++) out[q] = LUT[c[k + q]] * w00 + LUT[c[k + 3 + q]] * w10 + LUT[c[k + K + q]] * w01 + LUT[c[k + K + 3 + q]] * w11;
+    return true;
+  }
+  return false;
+}
 
 // load every tile of the always-resident level from the store (before the game starts); returns how many
 export async function loadResident(wd) {

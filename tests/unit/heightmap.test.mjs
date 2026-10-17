@@ -3,12 +3,12 @@
 import zlib from 'node:zlib';
 import { bake } from '../../build/bake.mjs';
 import { openContainer, decodeChunk } from '../../src/bakefmt.js';
-import { encodeTile, decodeTile, N1, TILE, levels, sample, loadResident } from '../../src/heightmap.js';
-import { landProc, physProc, landHeight, riverAt, channelDepth } from '../../src/landfn.js';
+import { encodeTile, decodeTile, N1, TILE, CN, levels, sample, loadResident, colorAt } from '../../src/heightmap.js';
+import { landProc, physProc, landHeight, riverAt, bedDepth } from '../../src/landfn.js';
 import { rivers, highways } from '../../src/worldmap.js';
 import { WorldData, memoryReader } from '../../src/chunkstore.js';
 
-const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
 const tileOf = (x, z, g = 16) => [Math.floor((x + 50000) / (g * TILE)), Math.floor((z + 50000) / (g * TILE))];
 const rp = rivers()[0].pts[Math.floor(rivers()[0].pts.length / 2)], hp = highways()[0].pts[Math.floor(highways()[0].pts.length / 2)];
 const spots = [[0, 0], [rp[0], rp[1]], [hp[0], hp[1]]], want = new Map();
@@ -33,13 +33,15 @@ for (const [x, z] of spots) {
 }
 if (maxNode > 0.06) bad.push(['node error', maxNode]);
 if (maxMid > 6) bad.push(['mid error', maxMid]);
-// a river is cut: on the centreline the ground is lower than its bank by about channelDepth
-{ const q = riverAt(rp[0], rp[1]); if (!q || q.d > 1) bad.push(['riverAt', q]); const bank = landProc(rp[0] + 400, rp[1], 16), mid = landProc(rp[0], rp[1], 16); if (!(channelDepth(0, rp[2]) > 1.5)) bad.push(['channel depth']); void bank; void mid; }
+// a river is cut: on the centreline the ground lies below the river's water level by about the bed depth, so water stands there
+{ const q = riverAt(rp[0], rp[1]); if (!q || q.d > 1) bad.push(['riverAt', q]); else { const g = landProc(rp[0], rp[1], 16); if (!(g < q.y - 1.0 && g > q.y - bedDepth(q.w) - 0.5)) bad.push(['river bed', g, q.y]); } }
 // physics layer: bridges/tunnels filled where the tile has one, same as the computation
 { const [i, j] = tileOf(hp[0], hp[1]), t = levels[1].tiles.get(j * levels[1].n + i); let dm = 0; if (t.phys) for (let q = 0; q < 200; q++) { const x = hp[0] + (q - 100) * 16, z = hp[1]; dm = Math.max(dm, Math.abs(sample(x, z, true) - physProc(x, z, 16)) > 6 ? 1 : 0); } if (dm) bad.push(['phys layer']); }
 // a point in a tile that is not loaded: NaN from the tiles, the computation from landHeight
 const far = [-44000, 44000]; if (sample(far[0], far[1]) === sample(far[0], far[1])) bad.push(['unloaded tile gave a value']);
 if (Math.abs(landHeight(far[0], far[1], 16) - landProc(far[0], far[1], 16)) > 1e-6) bad.push(['fallback']);
+// the ground colour: present, in range, and the same where the tile and the computation both give it (to the byte steps)
+{ const o = [0, 0, 0]; if (!colorAt(rp[0] + 40, rp[1] + 40, o) || o.some((v) => !(v >= 0 && v <= 1))) bad.push(['colour', o]); const t = levels[1].tiles.values().next().value; if (!t.col || t.col.length !== CN * CN * 3) bad.push(['colour size']); if (colorAt(far[0], far[1], o)) bad.push(['colour from unloaded tile']); }
 // size
 const sizes = Object.values(C.chunks).map((c) => c.z), kb = sizes.reduce((s, v) => s + v, 0) / sizes.length / 1024;
 console.log('RESULT ' + JSON.stringify({ test: 'heightmap', pass: bad.length === 0, metrics: { tiles: n, KBperTile: +kb.toFixed(1), maxNode: +maxNode.toFixed(3), maxMid: +maxMid.toFixed(2) }, note: bad.slice(0, 5).map((b) => b.join(' ')).join(' | ') }));

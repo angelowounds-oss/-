@@ -34,7 +34,9 @@ import { loadAssets } from './assets.js';
 import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
-import { buildTerrain, addTerrainPhysics, heightAt, roadsData } from './terrain.js';
+import { buildTerrain, addTerrainPhysics, heightAt, roadsData, EXTENT } from './terrain.js';
+import { farWater } from './waterfn.js';
+import { buildRivers } from './rivers.js';
 import { Citizens } from './citizens.js';
 import { Memory } from './memory.js';
 import { Power } from './power.js';
@@ -108,7 +110,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -569,7 +571,21 @@ export class Game {
     }
     this.carRider.before(dt);
     let impact = 0;
-    if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k, pl.vz * k, wat.y - 1.25 + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
+    // swimming: Z held dives (as deep as the water is), Space comes up, the current of a river carries; under water the breath runs out (45 s)
+    let cur = 0, curX = 0, curZ = 0;
+    if (swim) {
+      const maxDive = Math.max(0, (wat.depth ?? 3) - 1.9), keys = this.input.keys;
+      pl.dive = clamp((pl.dive || 0) + ((keys.has('KeyZ') ? 2.4 : 0) - (keys.has('Space') ? 3.2 : 0.7)) * dt, 0, maxDive);
+      cur = wat.speed ? wat.speed * 0.6 : 0; curX = (wat.fx || 0) * cur; curZ = (wat.fz || 0) * cur;
+    } else pl.dive = 0;
+    {
+      const under = swim && pl.dive > 0.55; pl.breath = under ? (pl.breath ?? 45) - dt : Math.min(45, (pl.breath ?? 45) + dt * 6);
+      if (under && pl.breath < 0) this.hurtPlayer(9 * dt, null, 'drown');
+      this.ui.uw = this.ui.uw || el('uw'); this.ui.br = this.ui.br || el('breath');
+      const cam = this.camera.position, cw = this.waterAt(cam.x, cam.z), uw = !!(cw && cam.y < cw.y - 0.05);
+      this.ui.uw.classList.toggle('on', uw); this.ui.br.classList.toggle('on', under || pl.breath < 44.5); this.ui.br.firstElementChild.style.width = Math.max(0, pl.breath / 45 * 100) + '%';
+    }
+    if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k + curX, pl.vz * k + curZ, wat.y - 1.25 - pl.dive + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
     else if (this.mobility.active()) this.mobility.move(dt, inp, dx, dz, mag);
     else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 * (this.sandbox?.on ? Math.sqrt(this.sandbox.jump) : 1) : 0);
     this._prevVy = pl.vy;
@@ -708,7 +724,10 @@ export class Game {
     if (!this.markerPos) { this.gpsPath = null; return; }
     const pl = this.vehicle || this.player; this.gpsPath = gpsRoute(pl.x, pl.z, this.markerPos.x, this.markerPos.z);
   }
-  waterAt(x, z) { for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w; return null; }
+  waterAt(x, z) {
+    for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w;
+    return Math.abs(x) < EXTENT + 20 && Math.abs(z) < EXTENT + 20 ? null : farWater(x, z);   // rivers and the sea outside the capital's own ground
+  }
   focusPos() { return this.vehicle || this.player; }
   // the capital's own road grid as street lines (the route planner treats it like the other cities' plans)
   capitalLines() { if (!this._capL) { const set = []; for (let i = 0; i <= N; i++) set.push({ c: roadC(i), a: -HALF, b: HALF, w: R }); this._capL = { v: set, h: set.map((l) => ({ ...l })) }; } return this._capL; }

@@ -18,6 +18,8 @@ canvas{display:block}
 #hud.on{opacity:1}
 #hud.scoped{opacity:.0}
 #dmg{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,20,50,.55) 100%);transition:opacity .25s}
+#uw{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(10,70,100,.55),rgba(2,22,40,.82));transition:opacity .2s}#uw.on{opacity:1}
+#breath{position:fixed;left:50%;top:62%;width:160px;height:6px;margin-left:-80px;background:rgba(0,0,0,.45);border-radius:3px;opacity:0;pointer-events:none;transition:opacity .2s}#breath.on{opacity:1}#breath i{display:block;height:100%;background:#7fd4ff;border-radius:3px}
 #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#fff;mix-blend-mode:overlay}
 .letter{position:fixed;left:0;right:0;height:0;background:#000;pointer-events:none;transition:height .5s;z-index:3}
 .letter.t{top:0}.letter.b{bottom:0}.letter.on{height:9vh}
@@ -239,7 +241,7 @@ body.touch #helpov{display:none!important}
 </head>
 <body>
 <div id="game"></div>
-<div id="dmg"></div><div id="flash"></div><div id="fade"></div>
+<div id="uw"></div><div id="breath"><i></i></div><div id="dmg"></div><div id="flash"></div><div id="fade"></div>
 <div id="letterT" class="letter t"></div><div id="letterB" class="letter b"></div>
 <div id="hud">
   <div id="status" class="glass">
