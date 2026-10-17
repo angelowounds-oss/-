@@ -1,6 +1,8 @@
 import { net } from './roadnet.js';
 import { cities } from './worldmap.js';
 
+const LANE_W = 3.75;   // highway lane width (hwtraffic.js LANE)
+
 // Route planning over the highway network and an autopilot for the player's car (ADR-0012 phase 5).
 // The graph is the road samples (30 m apart) of every highway, ring and connector: consecutive samples are joined, and samples of different roads
 // that lie within LINK m of each other are joined too (an interchange). A route is: street leg out of the start, A* over the graph, street leg into
@@ -125,11 +127,35 @@ export class AutoNav {
   constructor(G) { this.G = G; this.route = null; this.i = 0; this.active = false; this.goal = null; this.cancelT = 0; this.router = new Router((c) => { if (c.id === 'neon') return G.capitalLines(); const C = G.citysites?.cities.find((q) => q.c.id === c.id); return C && G.citylife.linesOf(C); }); }
   start(x, z) {
     const G = this.G, v = G.vehicle; if (!v || v.spec.craft) { G.toast('자동 주행 불가', '자동차에 타고 있어야 한다'); return false; }
-    const f = G.focusPos(); this.route = this.router.route(f.x, f.z, x, z); this.goal = { x, z }; this.i = this.closest(f.x, f.z); this.active = true; this.cancelT = 0.6;
+    const f = G.focusPos(); this.route = this.router.route(f.x, f.z, x, z); this.goal = { x, z }; this.i = this.closest(f.x, f.z); this.active = true; this.cancelT = 0.6; this.lat = this.latT = this.laneT = 0;
     G.toast('자동 주행 시작', `${Math.round(this.route.length / 1000 * 10) / 10} km${this.route.straight ? ' · 도로 없음(직선)' : ''}`); return true;
   }
   stop(msg) { if (this.active && msg) this.G.toast(msg); this.active = false; this.route = null; const v = this.G.vehicle; if (v) { v.throttle = 0; v.steer = 0; } }
   closest(x, z) { const P = this.route.pts; let bi = 0, bd = 1e18; for (let i = 0; i < P.length; i++) { const d = (P[i][0] - x) ** 2 + (P[i][1] - z) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; }
+  // Highway overtaking: a slower car ahead moves the steering point one lane over (the median side first, else the outer lane) when that
+  // lane is clear; once the road ahead is free again the car goes back to the route's middle lane. Off the highway, and before an exit,
+  // the offset returns to zero.
+  lanes(v, P, cls, blocked, lookO, dt) {
+    this.laneT = Math.max(0, (this.laneT || 0) - dt);
+    const exitAhead = !P[Math.min(P.length - 1, this.i + 10)][2];
+    let want = this.latT || 0;
+    if (!cls || exitAhead) want = 0;
+    else if (this.laneT <= 0) {
+      const opts = blocked ? [want + LANE_W, want - LANE_W].filter((q) => Math.abs(q) <= LANE_W + 0.01) : want ? [0] : [];
+      for (const q of opts) if (this.laneClear(v, q - (this.lat || 0), lookO)) { want = q; this.laneT = 3; break; }
+    }
+    this.latT = want;
+    const d = want - (this.lat || 0); this.lat = (this.lat || 0) + Math.sign(d) * Math.min(Math.abs(d), 2.5 * dt);
+  }
+  // no vehicle beside or ahead in the lane `side` metres to the left (negative: right) of the car
+  laneClear(v, side, lookO) {
+    const sH = Math.sin(v.h), cH = Math.cos(v.h);
+    for (const o of this.G.vehicles) {
+      if (o === v || !o.group.visible) continue; const dx = o.x - v.x, dz = o.z - v.z, along = dx * sH + dz * cH;
+      if (along < -v.L - 6 || along > lookO + 12) continue; if (Math.abs(dx * cH - dz * sH - side) < (v.W + o.W) * 0.5 + 0.8) return false;
+    }
+    return true;
+  }
   // called each frame with the vehicle the player drives and the raw input
   control(v, inp, dt) {
     if (!this.active || !this.route) return;
@@ -141,7 +167,9 @@ export class AutoNav {
     if (goalD < 16 && this.i >= P.length - 2) { this.stop('목적지 도착'); v.brake = 1; return; }
     const spd = v.speed, look = 12 + spd * 0.9;
     let j = this.i; while (j < P.length - 1 && Math.hypot(P[j][0] - v.x, P[j][1] - v.z) < look) j++;
-    const tx = P[j][0], tz = P[j][1], want = Math.atan2(tx - v.x, tz - v.z), dh = Math.atan2(Math.sin(want - v.h), Math.cos(want - v.h));
+    // the steering point sits on the route, moved sideways by the lane offset (positive = toward the median) while overtaking
+    const pj = P[Math.max(0, j - 1)], fl = Math.hypot(P[j][0] - pj[0], P[j][1] - pj[1]) || 1, lat = this.lat || 0;
+    const tx = P[j][0] + ((P[j][1] - pj[1]) / fl) * lat, tz = P[j][1] - ((P[j][0] - pj[0]) / fl) * lat, want = Math.atan2(tx - v.x, tz - v.z), dh = Math.atan2(Math.sin(want - v.h), Math.cos(want - v.h));
     v.steer = Math.max(-1, Math.min(1, -dh * 2.4 * (spd > 25 ? 0.6 : 1)));
     // speed: by road class, less for a sharp turn ahead
     let cls = P[Math.min(P.length - 1, this.i + 2)][2], target = cls ? 36 : 13;
@@ -150,10 +178,12 @@ export class AutoNav {
     if (Math.abs(dh) > 0.5) target = Math.min(target, 8);
     // obstacles: other vehicles and people ahead in the lane
     const lookO = 12 + Math.max(spd, 0) * 1.3;
+    const free = target;
     for (const o of G.vehicles) {
       if (o === v || !o.group.visible) continue; const dx = o.x - v.x, dz = o.z - v.z, along = dx * sH + dz * cH;
       if (along < 1 || along > lookO + o.L * 0.5) continue; if (Math.abs(dx * cH - dz * sH) < (v.W + o.W) * 0.5 + 0.6) target = Math.min(target, Math.max(0, (along - o.L * 0.5 - v.L * 0.5 - 3) * 0.9, o.speed * 0.8));
     }
+    this.lanes(v, P, cls, target < free - 4, lookO, dt);
     for (const h of G.humans) {
       if (h.dead || h.hidden) continue; const dx = h.x - v.x, dz = h.z - v.z, along = dx * sH + dz * cH;
       if (along < 0.5 || along > lookO * 0.8) continue; if (Math.abs(dx * cH - dz * sH) < v.W * 0.5 + 1.2) target = Math.min(target, Math.max(0, (along - 4) * 0.8));
