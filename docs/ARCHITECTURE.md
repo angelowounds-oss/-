@@ -14,7 +14,7 @@ base64/data URL로 내장해 `neon_city_v9.html` 한 파일로 만든다(ADR-000
 | 건물 | `building.js`, `rooms.js`, `furnish.js`, `livingset.js`, `gfx.js`, `breach.js` | 건물 활성화·층 스트리밍(생성기), 방 배치·가구, 층 지오메트리 Builder(풀 버퍼), 벽 파괴 |
 | 물리 | `physics.js`, `character.js`, `vehicle.js`, `craft.js`, `carrider.js`, `ragdoll.js` | Rapier 월드(고정 60 Hz + 보간), 캐릭터 컨트롤러, 차량/비행체, 차 지붕·탈출, 랙돌 |
 | 사람 | `human.js`, `ai.js`, `assets.js`, `attachments.js` | 인물(애니메이션·IK·피격), 전투/시민 AI, 캐릭터 모델 로딩(`assets.js adaptCharacter`가 새 리그를 Soldier 뼈 규약에 맞춤, ADR-0009), 무기 부착물 |
-| 사회 | `society.js`, `citizens.js`, `life.js`, `memory.js`, `power.js`, `military.js`, `warcraft.js`, `worldmap.js`, `farland.js`, `roadnet.js`, `highways.js`, `hwtraffic.js`, `citylayout.js`, `citysites.js`, `bakefmt.js`, `bakedload.js`, `fire.js`, `blaze.js`, `jobs.js`, `needs.js` | 일과·목격·체포, 주민 2,000명, 층별 직원/주민 배치, 탄흔·뉴스·소문, 정전 구역, 군 투입, 군 기지·전차·전투기·공격헬기(플레이어용), 100 km 월드 설계·원경 지형(ADR-0012), 일자리, 시계·욕구 |
+| 사회 | `society.js`, `citizens.js`, `life.js`, `memory.js`, `power.js`, `military.js`, `warcraft.js`, `worldmap.js`, `farland.js`, `roadnet.js`, `highways.js`, `hwtraffic.js`, `citylayout.js`, `citysites.js`, `bakefmt.js`, `chunkstore.js`, `bakedload.js`, `detail.js`, `landfn.js`, `heightmap.js`, `groundfn.js`, `waterfn.js`, `rivers.js`, `citydetail.js`, `vegfn.js`, `forest.js`, `settlements.js`, `village.js`, `industry.js`, `fire.js`, `blaze.js`, `jobs.js`, `needs.js` | 일과·목격·체포, 주민 2,000명, 층별 직원/주민 배치, 탄흔·뉴스·소문, 정전 구역, 군 투입, 군 기지·전차·전투기·공격헬기(플레이어용), 100 km 월드 설계·원경 지형(ADR-0012), 구운 데이터 청크·화질 2단계(노트북/고사양 팩)·16 m 지면 타일·강과 헤엄·숲·마을·시설(ADR-0013), 일자리, 시계·욕구 |
 | 상호작용·UI | `interact.js`, `items.js`, `panels.js`, `phone.js`, `input.js`, `mobility.js`, `sandbox.js`, `template.html` | 동사(F/G/T), 소품·인벤토리, 상점/ATM 패널, 휴대폰, 입력(키보드·마우스·터치·패드), 이동 장비, 샌드박스, HUD 마크업 |
 | 기타 | `fx.js`, `audio.js`, `daynight.js`, `nav.js`, `models.js`, `modelinfo.js`, `util.js` | 비·파티클·트레이서·라이트 풀, 합성 오디오, 낮밤·안개, 격자 A*, 차량 모델, 공용 헬퍼 |
 
@@ -29,7 +29,7 @@ base64/data URL로 내장해 `neon_city_v9.html` 한 파일로 만든다(ADR-000
 3. `carRider.draw()` — 차량이 보간 위치로 그려진 **뒤에** 지붕 위 플레이어를 같은 위치에 그린다
 4. `updateHumans` (AI, 애니메이션, 원거리 시민 1/3 빈도) → `updatePolice` → 미션·타이머·시계·욕구·사회·아이템(던진 물건 보간 동기화)
 5. `buildings.update` (활성화·층 생성 생성기 3 ms 예산) → 시민·기억·정전·이동 장비·벽 파괴·군·샌드박스 → (월드) 고속도로 교통·도시 거리 생활·`transit`(열차 시계, 이동 진행)·`aviation`·`rules`(관할·기후·경비·원거리 통계). 이동 중(`riding`)에는 건물·고속도로 교통·거리 생활을 건너뛴다
-6. `updateCamera` (보간된 차량·지붕 위치를 따라감; 이동 중이면 `transit.camera`가 카메라를 놓는다) → `farland.update`(원경 지형 층, 물리 지면은 **카메라가 아니라 조종하는 몸**을 따라간다)·`highways.update`·`citysites.update`(도시 타일 LOD, 예측 선적재) → `fxUpdate`
+6. `updateCamera` (보간된 차량·지붕 위치를 따라감; 이동 중이면 `transit.camera`가 카메라를 놓는다) → `farland.update`(원경 지형 층, 물리 지면은 **카메라가 아니라 조종하는 몸**을 따라간다)·`forest.update`·`villages.update`·`industry.update`(구운 칸에서 가까운 것만)·`highways.update`·`citysites.update`(도시 타일 LOD, 예측 선적재) → `fxUpdate`
 7. `updateHUD` (안에서 `autoQuality`) → `audioUpdate`
 8. `renderFrame`: 월드 애니메이션 → 가짜 조명/신호등 → 낮밤(안개 밀도) → **`instCull.update`(안개 밀도·카메라 필요)** → 스킨 컬링 → 원거리 LOD → `eng.render`
 9. `workMs` 기록(동적 해상도의 여유 판단)
