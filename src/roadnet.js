@@ -5,6 +5,7 @@
 // surface height" for carving the terrain (farland.js) and for the physics ground.
 import { cities, highways, farHeight, SEA, WORLD_HALF } from './worldmap.js';
 import { baseHeight, roadsData } from './terrainfn.js';
+import { settlements } from './settlements.js';
 
 export const DS = 30, HALF_W = 17.5, CARVE_FADE = 46, GRADE = 0.055;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -131,6 +132,10 @@ function build() {
     const r = N.roads.find((q) => q.id === sv.road), i = sv.idx, p = r.pts[i], q = r.pts[Math.min(r.pts.length - 1, i + 1)], l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, nx = (q[1] - p[1]) / l, nz = -(q[0] - p[0]) / l;
     sv.x = p[0] + nx * sv.side * 62; sv.z = p[1] + nz * sv.side * 62; sv.y = r.y[i] - 0.25; sv.heading = Math.atan2(q[0] - p[0], q[1] - p[1]); sv.r = 52; N.pads.push(sv);
   }
+  // ---- flat pads under the villages, farms, industry and comms towers (settlements.js): carved into the terrain, the places stand on them
+  { const S = settlements(), pad = (id, x, z, r) => N.pads.push({ id, x, z, y: Math.round(groundH(x, z, 100) * 10) / 10, r });
+    for (const v of S.villages) pad(v.id, v.x, v.z, v.r); for (const f of S.farms) pad(f.id, f.x, f.z, 70);
+    for (const s of S.industry) pad(s.id, s.x, s.z, s.type === 'wind' ? 60 : s.type === 'refinery' ? 210 : s.type === 'mine' ? 190 : 150); for (const t of S.towers) pad(t.id, t.x, t.z, 24); }
   // ---- spatial index for carving: cell 240 m, every segment of every road
   const CS = 240, grid = new Map();
   N.roads.forEach((r, ri) => { const n = r.pts.length, m = r.closed ? n : n - 1; for (let i = 0; i < m; i++) { const A = r.pts[i], B = r.pts[(i + 1) % n]; const x0 = Math.floor((Math.min(A[0], B[0]) - 70) / CS), x1 = Math.floor((Math.max(A[0], B[0]) + 70) / CS), z0 = Math.floor((Math.min(A[1], B[1]) - 70) / CS), z1 = Math.floor((Math.max(A[1], B[1]) + 70) / CS); for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) { const key = cx * 100003 + cz; (grid.get(key) || grid.set(key, []).get(key)).push(ri, i); } } });
@@ -151,10 +156,17 @@ export function roadAt(x, z, max = CARVE_FADE + HALF_W) {
 }
 // terrain next to a road: cut / fill to the road surface within the corridor, blended out over CARVE_FADE. Bridges and tunnels leave the
 // visible terrain alone (it falls away under the deck / stands over the portal); `physics` fills them so a vehicle has ground on the deck.
+// blown-up bridge spans (highways.js): the sample segments 'road:i' and circles around their centres; the physics ground no longer fills them
+export const BROKEN = new Set(), BREAK_AT = [];
+if (typeof window !== 'undefined') window.__bro = BROKEN;   // test hook
+export const brokenAt = (x, z) => { for (const b of BREAK_AT) if ((x - b.x) ** 2 + (z - b.z) ** 2 < b.r * b.r) return true; return false; };
+export function breakSegment(road, i) { const k = road.id + ':' + i; if (BROKEN.has(k)) return; BROKEN.add(k); const p = road.pts[i], q = road.pts[Math.min(road.pts.length - 1, i + 1)]; BREAK_AT.push({ k, x: (p[0] + q[0]) / 2, z: (p[1] + q[1]) / 2, r: 21 }); }
+export function repairSegment(road, i) { const k = road.id + ':' + i; BROKEN.delete(k); const j = BREAK_AT.findIndex((b) => b.k === k); if (j >= 0) BREAK_AT.splice(j, 1); }
 export function carve(x, z, h, physics = false) {
   for (const p of net().pads) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r + 30) { const w = 1 - sstep(p.r - 8, p.r + 30, d); h += (p.y - h) * w; } }
   const r = roadAt(x, z); if (!r) return h;
   if (r.cls !== 0 && !physics) return h;
+  if (physics && r.cls === 1 && BROKEN.has(r.road.id + ':' + r.i)) return h;   // a blown-up span has no deck to fill
   const w = 1 - sstep(HALF_W + 1, HALF_W + CARVE_FADE, r.d);
   return h + (r.y - 0.25 - h) * w;
 }

@@ -1,6 +1,7 @@
 import { biomeAt, vn, cities, SEA } from './worldmap.js';
 import { roadAt, HALF_W } from './roadnet.js';
 import { landProc, riverAt } from './landfn.js';
+import { settlements } from './settlements.js';
 
 // Where things grow (pure): one byte per 32 m cell of the world, kind << 5 | trees (0..31 per cell). The bake stores them in the tiles `veg/<i>_<j>` (128 x
 // 128 cells = 4096 m); forest.js reads them and puts trees, grass and rocks in the cells by hash, so the density is data and the exact positions are free.
@@ -15,6 +16,7 @@ export function vegCell(x, z) {
   const sl = Math.hypot(landProc(x + 16, z, 16) - landProc(x - 16, z, 16), landProc(x, z + 16, 16) - landProc(x, z - 16, 16)) / 32;
   // no growth in the cities and their hem, on roads and their cuts, in river channels
   for (const c of cities()) { const d = Math.hypot(x - c.x, z - c.z), lim = c.id === 'neon' ? 3300 : c.r * 1.3; if (d < lim) return 0; }
+  { const S = settlements(); for (const v of S.villages) if (Math.hypot(x - v.x, z - v.z) < v.r * 0.95) return (6 << 5); for (const p of [...S.industry, ...S.farms, ...S.towers]) if (Math.hypot(x - p.x, z - p.z) < (p.type === 'refinery' ? 215 : p.type === 'mine' ? 195 : p.type === 'solar' ? 155 : p.type === 'wind' ? 70 : p.h ? 30 : 80)) return 0; }
   const rd = roadAt(x, z, HALF_W + 40); if (rd && rd.d < HALF_W + 24) return 0;
   const rv = riverAt(x, z); if (rv && rv.d < rv.w / 2 + 14) return 0;
   const b = biomeAt(x, z, h), clump = vn(x / 260, z / 260, 61), fine = vn(x / 60, z / 60, 62);

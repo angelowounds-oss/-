@@ -51,6 +51,8 @@ export class Jobs {
     }
     this.cur = job; G.toast(job.title, job.text); G.audio.star?.();
   }
+  // a job made by something else (a village shop asks for a parcel to be taken to another village): the same bookkeeping as start()
+  begin(job) { const G = this.G; if (this.cur) { G.toast('이미 진행 중인 일이 있습니다', this.cur.title); return false; } this.cur = job; G.toast(job.title, job.text); G.audio.star?.(); return true; }
   event(kind, b) { const j = this.cur; if (j && j.type === 'hack' && kind === 'server' && j.b === b) this.finish(true); }
   finish(ok) {
     const G = this.G, j = this.cur; if (!j) return;

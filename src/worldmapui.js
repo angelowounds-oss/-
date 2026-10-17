@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { settlements } from './settlements.js';
 import { cities, farHeight, surfaceColor, SEA, WORLD_HALF } from './worldmap.js';
 import { net } from './roadnet.js';
 import { N as GN, HALF, R as GR_, roadC } from './world.js';
@@ -87,6 +88,7 @@ export class WorldMapUI {
     // clicking a city name / facility picks that place, else the point itself
     let best = null, bd = 1e18; const s = this.scale();
     for (const c of cities()) { const d = Math.hypot(c.x - x, c.z - z); if (d < Math.max(c.r * 0.6, 40 / s) && d < bd) { bd = d; best = { x: c.x, z: c.z, name: c.name }; } }
+    { const S = settlements(); for (const v of [...S.villages, ...S.farms, ...S.industry]) { const d = Math.hypot(v.x - x, v.z - z); if (d < 30 / s && d < bd) { bd = d; best = { x: v.x, z: v.z, name: v.name || ({ wind: '풍력 단지', solar: '태양광 단지', mine: '광산', refinery: '정유소' }[v.type]) }; } } }
     this.sel = best || { x, z, name: '지정한 지점' };
     this.setWaypoint(this.sel.x, this.sel.z, this.sel.name);
   }
@@ -170,6 +172,10 @@ export class WorldMapUI {
       g.fillStyle = '#fff'; g.font = `${L === 0 ? 15 : 17}px "Space Mono",monospace`; g.textAlign = 'center'; g.fillText(c.name, px, py - Math.max(r, 5) - 6);
       g.font = '12px "Space Mono",monospace'; g.fillStyle = '#9ce'; g.fillText({ metropolis: '수도', port: '항만 ⚓', airport: '공항 ✈', town: '' }[c.type] || '', px, py + Math.max(r, 5) + 16);
     }
+    // villages, farms and the country's works (settlements.js): from the region level up
+    if (L >= 1) { const S = settlements(), mark = (o, col, txt, ring) => { const [px, py] = this.toScreen(o.x, o.z); if (px < -20 || px > W + 20 || py < -20 || py > H + 20) return; g.fillStyle = col; g.strokeStyle = '#031'; g.lineWidth = 1.5; g.beginPath(); g.arc(px, py, ring, 0, 7); g.fill(); g.stroke(); if (txt && L >= 2) { g.fillStyle = '#cfe'; g.font = '11px "Space Mono",monospace'; g.textAlign = 'center'; g.fillText(txt, px, py - ring - 4); } };
+      for (const v of S.villages) mark(v, '#9fd18b', v.name, 4.5); if (L >= 2) for (const f of S.farms) mark(f, '#d8c27a', L >= 3 ? f.name : '', 3);
+      for (const i of S.industry) mark(i, { wind: '#e6f2ff', solar: '#4a6cff', mine: '#b38a5a', refinery: '#ff9a3a' }[i.type], L >= 3 ? { wind: '풍력', solar: '태양광', mine: '광산', refinery: '정유소' }[i.type] : '', 4); }
     // stations: metro entrances (street levels), rail stations and the airport gate (from the region level up)
     for (const s of G.transit?.stations || []) {
       if (s.kind === 0 && L < 2) continue; if (s.kind === 1 && L < 1) continue; const [px, py] = this.toScreen(s.x, s.z); if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;

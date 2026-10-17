@@ -1,6 +1,6 @@
 import { farHeight, rivers, SEA } from './worldmap.js';
 import { baseHeight } from './terrainfn.js';
-import { carve } from './roadnet.js';
+import { carve, brokenAt } from './roadnet.js';
 
 // The ground height of the land outside the city as one function, pure (no three.js) so the bake can sample it into height tiles (build/jobs.mjs)
 // and the page can read those tiles back (heightmap.js): `landHeight` is the ground as drawn, `physHeight` the ground the physics uses (bridges and
@@ -60,4 +60,4 @@ export const physProc = (x, z, cell = 0) => carve(x, z, groundBase(x, z, cell), 
 // octaves and the road corridors, which a coarse ring of the far land does not show anyway)
 export const HM = { land: null, phys: null };
 export function landHeight(x, z, cell = 0) { if (HM.land && cell <= 32) { const h = HM.land(x, z); if (h === h) return h; } return landProc(x, z, cell); }
-export function physHeight(x, z, cell = 0) { if (HM.phys && cell <= 32) { const h = HM.phys(x, z); if (h === h) return h; } return physProc(x, z, cell); }
+export function physHeight(x, z, cell = 0) { if (brokenAt(x, z)) return landHeight(x, z, cell); if (HM.phys && cell <= 32) { const h = HM.phys(x, z); if (h === h) return h; } return physProc(x, z, cell); }

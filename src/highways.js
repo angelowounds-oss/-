@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { net, groundH, HALF_W } from './roadnet.js';
+import { net, groundH, HALF_W, BROKEN, breakSegment } from './roadnet.js';
 import { cities } from './worldmap.js';
+import { rand } from './util.js';
 
 // The highway network drawn (roadnet.js has the data): asphalt ribbons with lane markings, median barrier and guard rails, bridges with pillars,
 // tunnels with lights, ramps, sign gantries, toll plazas and service areas; street lamps are an instanced pool that follows the camera.
@@ -68,7 +69,7 @@ export class Highways {
       struct: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 }),
       glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
     };
-    this.stats = { chunks: 0, tris: 0 };
+    this.stats = { chunks: 0, tris: 0 }; this.cm = new Map();
     for (const r of this.N.roads) this.buildRoad(r);
     this.buildGantries(); this.buildTolls(); this.buildServices();
     this.lamps = this.buildLamps();
@@ -82,15 +83,21 @@ export class Highways {
   }
 
   buildRoad(r) {
+    const n = r.pts.length, m = r.closed ? n : n - 1; let dist = 0; r.st = [];
+    for (let c0 = 0; c0 < m; c0 += CHUNK) { r.st.push(dist); dist = this.chunk(r, c0, dist); }
+  }
+  // one 3 km chunk of a road (also rebuilt when a bridge in it is blown up): returns the distance along the road at its end
+  chunk(r, c0, dist) {
     const n = r.pts.length, ramp = r.kind === 'ramp', m = r.closed ? n : n - 1;
     const half = ramp ? 4.6 : MED / 2 + 3 * LANE + SHOULDER, medH = MED / 2;
-    let dist = 0; const BARR = [0.3, 0.36, 0.38], CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], DARK = [0.19, 0.2, 0.22], PIL = [0.4, 0.41, 0.44], LIGHT = [3.2, 2.9, 2.2];
-    for (let c0 = 0; c0 < m; c0 += CHUNK) {
+    const BARR = [0.3, 0.36, 0.38], CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], DARK = [0.19, 0.2, 0.22], PIL = [0.4, 0.41, 0.44], LIGHT = [3.2, 2.9, 2.2];
+    {
       const A = new Acc(), S = new Acc(), E = new Acc(), c1 = Math.min(m, c0 + CHUNK);
       for (let i = c0; i < c1; i++) {
         const f0 = this.frame(r, i), f1 = this.frame(r, (i + 1) % n), seg = Math.hypot(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
         const at = (f, off, dy = 0) => [f.x + f.rx * off, f.y + dy, f.z + f.rz * off];
         const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
+        if (BROKEN.has(r.id + ':' + i)) continue;   // a blown-up span: no deck, rails or pillars
         if (ramp) {
           A.quad(at(f0, -half), at(f0, half), at(f1, half), at(f1, -half), [1, 1, 1], [0, v0], [1, v0], [1, v1], [0, v1]);
           for (const s of [-1, 1]) { const o = s * (half + 0.15); S.quad(at(f0, o, 0.8), at(f1, o, 0.8), at(f1, o, 0), at(f0, o, 0), RAIL); S.quad(at(f0, o - s * 0.12, 0.8), at(f1, o - s * 0.12, 0.8), at(f1, o + s * 0.12, 0.8), at(f0, o + s * 0.12, 0.8), RAIL); }
@@ -132,10 +139,36 @@ export class Highways {
           if ((f0.cls === 2) !== (prev === 2) && i > 0) { const w = half + 1.4; box(S, [f0.x + f0.rx * (w + 0.8), f0.z + f0.rz * (w + 0.8)], f0.tx, f0.tz, 1.6, 9, 3, f0.y, CONC); box(S, [f0.x - f0.rx * (w + 0.8), f0.z - f0.rz * (w + 0.8)], f0.tx, f0.tz, 1.6, 9, 3, f0.y, CONC); box(S, [f0.x, f0.z], f0.tx, f0.tz, 2 * w + 3.2, 2, 3, f0.y + 7.0, CONC); }
         }
       }
-      for (const [acc, mat] of [[A, ramp ? this.mats.ramp : this.mats.asphalt], [S, this.mats.struct], [E, this.mats.glow]]) if (!acc.empty) { const mesh = acc.mesh(mat); this.group.add(mesh); this.stats.tris += acc.i.length / 3; }
-      this.stats.chunks++;
+      const made = []; for (const [acc, mat] of [[A, ramp ? this.mats.ramp : this.mats.asphalt], [S, this.mats.struct], [E, this.mats.glow]]) if (!acc.empty) { const mesh = acc.mesh(mat); this.group.add(mesh); made.push(mesh); this.stats.tris += acc.i.length / 3; }
+      this.cm.set(r.id + ':' + c0, made); this.stats.chunks++;
+    }
+    return dist;
+  }
+  // bridges can be blown up: a span of two 30 m samples loses its deck (colliders: the physics ground there is the valley again), the rest of the
+  // chunk is drawn anew without it, cars stop coming; spans are remembered in the save and stand again after five days
+  attach(G) {
+    this.G = G; const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
+    for (const [k, v] of Object.entries(P.bridges)) { if (G.clock.t - v.t > 7200) { delete P.bridges[k]; continue; } this.breakSpan(this.byId.get(v.road), v.span, true); }
+  }
+  blast(x, y, z, radius, dmg) {
+    if (!this.G) return;
+    for (const r of this.N.roads) for (let i = 0; i < r.pts.length - 1; i++) {
+      if (r.cls[i] !== 1) continue; const p = r.pts[i], dx = p[0] - x, dz = p[1] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
+      const d = Math.hypot(dx, dz); if (d > radius + 16 || Math.abs(r.y[i] - y) > radius + 30) continue;
+      const span = i >> 1, key = r.id + ':' + span; if (BROKEN.has(r.id + ':' + span * 2)) continue;
+      const hp = (this.hp.get(key) ?? 480) - dmg * (1 - d / (radius + 16)) * 1.4; this.hp.set(key, hp); if (hp <= 0) this.breakSpan(r, span, false);
     }
   }
+  breakSpan(r, span, silent) {
+    if (!r) return; for (const i of [span * 2, span * 2 + 1]) if (i < r.pts.length - 1) breakSegment(r, i);
+    this.rebuild(r, span * 2); const G = this.G, p = r.pts[Math.min(r.pts.length - 1, span * 2 + 1)];
+    if (silent) return;
+    G.state.places.bridges[r.id + ':' + span] = { road: r.id, span, t: G.clock.t }; G.farland?.ground?.clear?.();
+    for (let k = 0; k < 30; k++) G.smokeP.emit(p[0] + rand(-12, 12), r.y[span * 2] + rand(-2, 3), p[1] + rand(-12, 12), rand(-3, 3), rand(-1, 5), rand(-3, 3), rand(4, 8), rand(5, 9), 0.12, 0.11, 0.1, 0.8, 0.2, 0.5);
+    G.audio.explosion?.(1.6, 0); G.memory?.log('collapse', p[0], p[1], { city: '', text: '고속도로 교량 붕괴' }); G.addHeat?.(15);
+  }
+  // blown-up spans: the chunk is made again without them
+  rebuild(r, i) { const c0 = Math.floor(i / CHUNK) * CHUNK, key = r.id + ':' + c0; for (const o of this.cm.get(key) || []) { this.group.remove(o); o.geometry.dispose(); this.stats.tris -= (o.geometry.index ? o.geometry.index.count : 0) / 3; this.stats.chunks--; } this.chunk(r, c0, r.st[c0 / CHUNK]); }
 
   // ---- sign gantries
   buildGantries() {

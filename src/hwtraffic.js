@@ -1,4 +1,4 @@
-import { net, HALF_W } from './roadnet.js';
+import { net, HALF_W, BROKEN } from './roadnet.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human } from './human.js';
 import { clamp, rand } from './util.js';
@@ -41,6 +41,7 @@ export class HighwayTraffic {
     const h = v.hw, r = h.r, n = r.pts.length, ai = v.ai;
     while (ai.wp.length < 5) {
       let i = h.i + h.dir; if (r.closed) i = (i + n) % n; else if (i < 1 || i > n - 2) { v.hwDone = true; return; }
+      if (BROKEN.has(r.id + ':' + Math.min(i, h.i))) { v.hwDone = true; return; }   // a blown-up bridge: no cars across
       h.i = i; const P = this.lane(r, i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 });
     }
   }

@@ -3,7 +3,7 @@ import { Human } from './human.js';
 import { ITEMS } from './items.js';
 import { mulberry32, rand, clamp } from './util.js';
 
-const SHOPS = {
+export const SHOPS = {
   convenience: { name: '편의점', stock: [['burger', 6], ['noodles', 4], ['sandwich', 5], ['soda', 2], ['water', 2], ['coffee', 3], ['energy', 4], ['cigarette', 8], ['newspaper', 2], ['bandage', 8]] },
   hardware: { name: '철물점', stock: [['molotov', 40], ['jerrycan', 14], ['lockpick', 35], ['crowbar', 30], ['flashlight', 18], ['bat', 25], ['brick', 2], ['knife', 30], ['grapple', 450], ['parachute', 160]] },
   pharmacy: { name: '약국', stock: [['medkit', 40], ['bandage', 8], ['pills', 15], ['water', 2], ['energy', 4]] },

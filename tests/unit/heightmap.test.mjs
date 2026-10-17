@@ -8,7 +8,7 @@ import { landProc, physProc, landHeight, riverAt, bedDepth } from '../../src/lan
 import { rivers, highways } from '../../src/worldmap.js';
 import { WorldData, memoryReader } from '../../src/chunkstore.js';
 
-const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
 const tileOf = (x, z, g = 16) => [Math.floor((x + 50000) / (g * TILE)), Math.floor((z + 50000) / (g * TILE))];
 const rp = rivers()[0].pts[Math.floor(rivers()[0].pts.length / 2)], hp = highways()[0].pts[Math.floor(highways()[0].pts.length / 2)];
 const spots = [[0, 0], [rp[0], rp[1]], [hp[0], hp[1]]], want = new Map();
