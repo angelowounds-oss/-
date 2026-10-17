@@ -72,6 +72,7 @@ export async function connectPack() {
   drop(); await attach(dir); settle(); return detail.state === 'ready';
 }
 
+if (typeof window !== 'undefined') window.__detail = { detail, connectPack, setPref, mountPack };   // test hook
 export function initDetailUI(onChange) {
   const box = document.getElementById('detail'); if (!box) return;
   const tierName = { laptop: '노트북', high: '고사양' };

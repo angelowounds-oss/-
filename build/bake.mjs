@@ -53,7 +53,7 @@ if (!isMainThread && workerData?.bakeWorker) {
 
 // returns {embedded: Uint8Array (container), pack: Map(file -> Uint8Array) | null, manifest}
 export async function bake({ pack = false, jobs: given = null, cache = true, threads = Math.max(1, Math.min(os.cpus().length, 4)) } = {}) {
-  const jobs = given || jobsFor(pack), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
+  const jobs = given || jobsFor({ pack }), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
   const todo = jobs.filter((j) => pack || j.tier === 'embed'), results = new Map(), miss = [];
   for (const j of todo) {
     const f = path.join(dir, j.key.replace(/[^\w.-]/g, '_') + '-' + jobHash(j) + '.json');
@@ -75,6 +75,11 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
         w.on('error', reject); feed(w);
       }
     }).finally(() => workers.forEach((w) => w.terminate()));
+  }
+  // the cache keeps only what the current sources use (a changed source leaves its old results behind)
+  if (cache && jobs === given) { /* a partial job list (tests) must not prune */ } else if (cache) {
+    const keep = new Set(jobsFor({ pack: true }).map((j) => j.key.replace(/[^\w.-]/g, '_') + '-' + jobHash(j) + '.json'));
+    for (const f of fs.readdirSync(dir)) if (!keep.has(f)) fs.unlinkSync(path.join(dir, f));
   }
   const { buildContainer } = await imp('src/bakefmt.js');
   const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, ...results.get(rid(j)) }));

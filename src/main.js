@@ -8,7 +8,7 @@ import * as V from './vehicle.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { AIM } from './assets.js';
 import { loadBaked } from './bakedload.js';
-import { initDetail, initDetailUI } from './detail.js';
+import { initDetail, initDetailUI, detail } from './detail.js';
 import { loadResident } from './heightmap.js';
 import { loadVeg } from './forest.js';
 
@@ -30,6 +30,8 @@ function fatal(e) {
     await RAPIER.init();
     await loadBaked();   // the baked world must be in place before the first terrain/road query
     await initDetail();   // reconnect the optional high-detail pack when the browser allows it without asking
+    // the high world detail starts at the 'high' graphics level (shadows, post-processing, textures) unless the player or the URL chose one
+    { let stored = null; try { stored = sessionStorage.getItem('neon_q'); } catch (e) { /* ignore */ } if (detail.tier === 'high' && !params.has('q') && stored === null && !mobile) eng.setQuality(Math.max(q, 2)); }
     if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
     if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
     game = new Game(eng); game.RAPIER = RAPIER;

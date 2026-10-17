@@ -32,6 +32,7 @@ class Level {
 }
 const lvl = LEVELS.map((s) => new Level(s));
 export const levels = lvl;
+if (typeof window !== 'undefined') window.__hm = { levels: lvl, sample };   // test hook
 
 function bilerp(a, u, v) {
   u = Math.min(TILE - 1e-6, Math.max(0, u)); v = Math.min(TILE - 1e-6, Math.max(0, v));
