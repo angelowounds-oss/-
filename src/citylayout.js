@@ -3,6 +3,7 @@
 // accent colours, sign language), so they do not look like copies of one another. Coordinates are relative to the city centre (so they stay
 // precise in Float32 far from the origin). Pure and seeded: the bake stores the result, the browser only draws it.
 import { cities, farHeight, SEA } from './worldmap.js';
+import { LM_DIMS } from './landmarkdims.js';
 
 export const STYLES = {
   harbor:   { pattern: 'grid',   pitch: [118, 88],  jitter: 0.12, roadW: 16, hMax: 70,  hBase: 10, palette: [0x56606b, 0x6b7480, 0x4a5560, 0x7b6a5a, 0x8a8f96, 0x3f4a55, 0x5f6b72, 0x716456], accents: [1, 4, 2],   lang: 'en', words: ['PORT AUTHORITY', 'HARBOR BANK', 'SEA FREIGHT', 'DOCK 7', 'GATE MART', 'CARGO INN', 'TIDE CAFE', 'FERRY'],        density: 0.9 },
@@ -15,7 +16,7 @@ export const STYLES = {
 
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-const KIND = { normal: 0, park: 1, stadium: 2, hospital: 3, school: 4, warehouse: 5, terminal: 6, hangar: 7, tower: 8, station: 9 };
+const KIND = { normal: 0, park: 1, stadium: 2, hospital: 3, school: 4, warehouse: 5, terminal: 6, hangar: 7, tower: 8, station: 9, landmark: 10 };
 export { KIND };
 
 // a string of cumulative line positions from -R to R with jittered spacing
@@ -94,8 +95,16 @@ export function layoutCity(c, index) {
   take(c.type === 'town' ? 3 : 5, KIND.park); take(1, KIND.stadium, (b) => b.t > 0.35 && b.t < 0.8 && b.bx - b.ax > 60 && b.bz - b.az > 60);
   take(1, KIND.hospital, (b) => b.t < 0.6); take(c.type === 'town' ? 2 : 3, KIND.school, (b) => b.t > 0.2);
   take(1, KIND.station, (b) => b.t < 0.5);
+  take(S.hMax >= 56 ? 3 : S.hMax >= 38 ? 2 : 1, KIND.landmark, (b) => b.t < 0.55 && b.bx - b.ax >= 62 && b.bz - b.az >= 56);   // a tower from assets/landmarks stands in each of these blocks
+  const lm = [], lmRnd = mulberry(index * 977 + 0x1a2d), lmUsed = new Set();
   block.forEach((b, k) => {
     const kind = role.get(k) ?? 0, w = b.bx - b.ax, d = b.bz - b.az;
+    if (kind === KIND.landmark) {   // the model whose fitted height is nearest to 2.6 x the tallest ordinary building, turned so the long sides agree; [x, z, model, quarter turns, scale, w, d]
+      let best = -1, bs = 1, bq = 0, bd = 1e9; const want = S.hMax * 2.6;
+      LM_DIMS.forEach(([mh, mw, md], q) => { const turn = (mw > md) !== (w > d) ? 1 : 0, fw = turn ? md : mw, fd = turn ? mw : md, sc = Math.min(1, (w * 0.9) / fw, (d * 0.9) / fd); if (sc < 0.55 || lmUsed.has(q)) return; const e = Math.abs(sc * mh - want) + lmRnd() * 12; if (e < bd) { bd = e; best = q; bs = sc; bq = turn; } });
+      if (best >= 0) { lmUsed.add(best); const [, mw, md] = LM_DIMS[best]; lm.push([b.cx, b.cz, best, bq, bs, (bq ? md : mw) * bs, (bq ? mw : md) * bs]); }
+      return;
+    }
     if (kind === KIND.park) { areas.push([1, b.ax, b.az, b.bx, b.bz, Math.floor(rnd() * 4)]); return; }
     if (kind === KIND.stadium) { areas.push([2, b.ax, b.az, b.bx, b.bz, 0]); const bw = 16; bld.push([b.cx, b.az + bw / 2, w, bw, 4, 22, 2, 2, c.type === 'port' ? 1 : 3, 7 + KIND.stadium * 16], [b.cx, b.bz - bw / 2, w, bw, 4, 22, 3, 2, 3, 7 + KIND.stadium * 16], [b.ax + bw / 2, b.cz, bw, d - bw * 2, 4, 22, 4, 2, 3, 7 + KIND.stadium * 16], [b.bx - bw / 2, b.cz, bw, d - bw * 2, 4, 22, 5, 2, 3, 7 + KIND.stadium * 16]); return; }
     // lots: split the long side into pieces of 22..46 m; a deep block gets two rows
@@ -133,7 +142,7 @@ export function layoutCity(c, index) {
   }
   const trim = bld.map((b) => { const o = b.slice(); while (o.length < 12) o.push(o.length === 11 ? 15 : 1.5); return o; });
   const q = (arr, stride) => { const f = new Float32Array(arr.length * stride); arr.forEach((a, i) => { for (let k = 0; k < stride; k++) f[i * stride + k] = a[k] ?? 0; }); return f; };
-  return { id: c.id, R, stations: q(stations, 3), bld: q(trim, 12), roads: q(roads, 5), areas: q(areas, 6), props: q(props, 7), seaDir };
+  return { id: c.id, R, stations: q(stations, 3), bld: q(trim, 12), roads: q(roads, 5), areas: q(areas, 6), props: q(props, 7), lm: q(lm, 7), seaDir };
 }
 
 export function layouts() {
