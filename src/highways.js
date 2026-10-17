@@ -60,7 +60,7 @@ function signTexture(to, km) {
 
 export class Highways {
   constructor(scene) {
-    this.scene = scene; this.group = new THREE.Group(); this.group.name = 'highways'; this.N = net();
+    this.scene = scene; this.group = new THREE.Group(); this.group.name = 'highways'; this.N = net(); this.urban = cities();
     const t3 = asphaltTexture(3), t1 = asphaltTexture(1); t3.repeat.set(1, 1); t1.repeat.set(1, 1);
     this.mats = {
       asphalt: new THREE.MeshStandardMaterial({ map: t3, roughness: 0.82, metalness: 0, envMapIntensity: 0.3 }),
@@ -84,7 +84,7 @@ export class Highways {
   buildRoad(r) {
     const n = r.pts.length, ramp = r.kind === 'ramp', m = r.closed ? n : n - 1;
     const half = ramp ? 4.6 : MED / 2 + 3 * LANE + SHOULDER, medH = MED / 2;
-    let dist = 0; const CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], DARK = [0.19, 0.2, 0.22], PIL = [0.4, 0.41, 0.44], LIGHT = [3.2, 2.9, 2.2];
+    let dist = 0; const BARR = [0.3, 0.36, 0.38], CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], DARK = [0.19, 0.2, 0.22], PIL = [0.4, 0.41, 0.44], LIGHT = [3.2, 2.9, 2.2];
     for (let c0 = 0; c0 < m; c0 += CHUNK) {
       const A = new Acc(), S = new Acc(), E = new Acc(), c1 = Math.min(m, c0 + CHUNK);
       for (let i = c0; i < c1; i++) {
@@ -107,6 +107,12 @@ export class Highways {
           S.quad(at(f0, -0.55, 0), at(f1, -0.55, 0), at(f1, -0.55, 0.85), at(f0, -0.55, 0.85), CONC); S.quad(at(f0, 0.55, 0.85), at(f1, 0.55, 0.85), at(f1, 0.55, 0), at(f0, 0.55, 0), CONC);
           // guard rails at both outer edges
           for (const s of [-1, 1]) { const o = s * (half + 0.3); S.quad(at(f0, o - s * 0.15, 0.78), at(f1, o - s * 0.15, 0.78), at(f1, o + s * 0.15, 0.78), at(f0, o + s * 0.15, 0.78), RAIL); S.quad(at(f0, o - s * 0.15, 0.78), at(f0, o - s * 0.15, 0.35), at(f1, o - s * 0.15, 0.35), at(f1, o - s * 0.15, 0.78), RAIL); }
+        }
+        if (!ramp && !tunnel) {   // furniture of the open road: sound barriers beside the towns, delineator posts, a kilometre post every kilometre
+          const urban = this.urban.some((u) => Math.hypot(f0.x - u.x, f0.z - u.z) < u.r * 2.1);
+          if (urban && !bridge) for (const s of [-1, 1]) { const o = s * (half + 1.5), p0 = at(f0, o, 0), p1 = at(f1, o, 0), up = (q, h) => [q[0], q[1] + h, q[2]]; S.quad(p0, p1, up(p1, 3.6), up(p0, 3.6), BARR); S.quad(up(p0, 3.6), up(p1, 3.6), p1, p0, BARR); S.quad(up(p0, 3.6), up(p1, 3.6), [p1[0] + f1.rx * s * 0.05, p1[1] + 3.75, p1[2] + f1.rz * s * 0.05], [p0[0] + f0.rx * s * 0.05, p0[1] + 3.75, p0[2] + f0.rz * s * 0.05], [0.2, 0.2, 0.22]); }
+          for (const s of [-1, 1]) if (i % 2 === 0) box(S, [f0.x + f0.rx * s * (half + 0.9), f0.z + f0.rz * s * (half + 0.9)], f0.tx, f0.tz, 0.14, 1.1, 0.14, f0.y, [0.85, 0.85, 0.8]);
+          if (i % 33 === 0 && !bridge) box(S, [f0.x + f0.rx * (half + 3), f0.z + f0.rz * (half + 3)], f0.tx, f0.tz, 0.2, 1.4, 0.9, f0.y, [0.05, 0.3, 0.12]);
         }
         if (bridge) {   // fascia and underside; pillars every fourth sample
           for (const s of [-1, 1]) { const o = s * (half + 0.5); S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); }
