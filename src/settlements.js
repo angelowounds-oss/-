@@ -4,6 +4,8 @@ import { cities, farHeight, highways, rivers, biomeAt, SEA } from './worldmap.js
 // near them, the industry (wind farms, solar fields, mines, refineries), the comms towers and the pylon lines. Everything is a function of the seed and the
 // world, so the bake can carve a flat pad under each site (roadnet.js) and the page can lay the same places out. Coordinates are world metres; the
 // layout of a village is in its own frame (x along the main street, z across it), y is the height of its pad.
+// footprints of the three apartment block models in assets/blocks (long side along the street)
+const BLOCKS = [{ w: 23, d: 12.6 }, { w: 23, d: 12.6 }, { w: 23, d: 12.6 }];
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const sl = (x, z, e = 60) => Math.hypot(farHeight(x + e, z, 40) - farHeight(x - e, z, 40), farHeight(x, z + e, 40) - farHeight(x, z - e, 40)) / (2 * e);
 const NAMES = {
@@ -108,6 +110,13 @@ export function layoutVillage(v) {
     for (let q = 0; q < count; q++) { const work = h.kind === 'shop' ? 'shop' : ['plaza', 'plaza', 'fields', 'church', 'shop'][Math.floor(rnd() * 5)]; residents.push({ id: v.id + ':' + k++, home: houses.indexOf(h), work: work === 'church' && !v.church ? 'plaza' : work, seed: Math.floor(rnd() * 1e6), age: rnd(), name: ['Alex', 'Sam', 'Jo', 'Kim', 'Lee', 'Max', 'Ana', 'Ben', 'Eva', 'Tom', 'Ida', 'Joe'][Math.floor(rnd() * 12)] }); }
   }
   v.residents = residents.slice(0, 22);
+  // apartment blocks (assets/blocks): one or two at the quiet ends of the street, on their own random stream so the rest of the plan stays as it was
+  const br = mulberry(v.seed ^ 0xb10c), nb = br() < 0.8 ? 1 + (n >= 11 && br() < 0.6 ? 1 : 0) : 0;
+  for (let b = 0; b < nb; b++) {
+    const model = Math.floor(br() * BLOCKS.length), { w, d } = BLOCKS[model], from = br() < 0.5 ? -1 : 1; let placed = null;
+    for (let q = 0; q < 30 && !placed; q++) for (const side of [from, -from]) { const x = from * (Lh - 12 - q * 6), zc = side * (4.5 + 4 + d / 2), r = [x - w / 2, zc - d / 2, x + w / 2, zc + d / 2]; if (Math.abs(x) + w / 2 > Lh + 8 || !free(r)) continue; occupied.push(r); placed = { kind: 'block', model, x, z: zc, w, d, r, side, door: { x, z: side * 4.5 }, color: pal[Math.floor(br() * pal.length)], roof: ROOFS[0] }; houses.push(placed); break; }
+    if (placed) for (let q = 0; q < 3; q++) v.residents.push({ id: v.id + ':b' + b + q, home: houses.length - 1, work: ['plaza', 'plaza', 'fields', 'shop'][Math.floor(br() * 4)], seed: Math.floor(br() * 1e6), age: br(), name: ['Alex', 'Sam', 'Jo', 'Kim', 'Lee', 'Max', 'Ana', 'Ben'][Math.floor(br() * 8)] });
+  }
   return v;
 }
 // a farm: a farmhouse and a barn either side of a short track, a silo, hay; one farmer

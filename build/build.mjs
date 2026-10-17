@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { bake } from './bake.mjs';
 const r = await build({
   entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife',
-  write: false, loader: { '.glb': 'base64', '.jpg': 'dataurl', '.rgbe': 'base64' }, target: 'es2020', legalComments: 'none',
+  write: false, loader: { '.glb': 'base64', '.jpg': 'dataurl', '.bin': 'base64', '.rgbe': 'base64' }, target: 'es2020', legalComments: 'none',
   nodePaths: ['build/node_modules'], logLevel: 'warning',
 });
 const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');

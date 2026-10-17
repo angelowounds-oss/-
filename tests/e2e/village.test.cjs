@@ -35,8 +35,16 @@ run('village', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     park(0, 0); await run(60); o.dropped = !L.built;
     // back after two days: the ruin is gone
     g.clock.t += 3000; park(v.x + 4, v.z + 12); await run(240); const H2 = L.houses[H1.idx]; o.rebuilt = H2 && H2.alive;
+    // an apartment block (assets/blocks) and the water tower / canopy fall too: a few seconds of collapse, then the ruin; the colliders go at once
+    const LB = V.list.find((q) => q.v.houses.some((h) => h.kind === 'block') && (q.v.tower || q.v.gas)) || V.list.find((q) => q.v.houses.some((h) => h.kind === 'block'));
+    park(LB.v.x + 4, LB.v.z + 12); await run(240); const B = LB.houses.find((H) => H.h.kind === 'block'), bh = B.h, X = LB.houses.find((H) => H.h.kind === 'tower' || H.h.kind === 'canopy');
+    o.blockBoxes = B.cb.length; o.blockTall = B.cols[0][5] > 15; o.extraBoxes = X ? X.cb.length : -1; o.blockTris = B.group.children[0].children.length;
+    g.explosion(LB.v.x + bh.x, LB.pad.y + 1, LB.v.z + bh.z, 30, 900, null); await run(20);
+    if (X) { const xh = X.h; g.explosion(LB.v.x + xh.x, LB.pad.y + 1, LB.v.z + xh.z, 25, 900, null); await run(20); }
+    o.blockFalling = !B.alive && B.cb.length === 0 && B.anim !== undefined && B.group.scale.y < 1; await run(400);
+    o.blockRuin = B.anim === undefined && B.group.scale.y < 0.2 && LB.cb.length < 400; o.extraFell = X ? !X.alive && X.cb.length === 0 : true;
     return o;
   });
-  const pass = o.has && o.built && o.boxes > 20 && o.people >= 2 && o.hasShop && o.shopOpen && o.wallHolds && o.doorOpen && /F/.test(o.verbs || '') && o.closed && o.sleepers >= 1 && o.fell && o.remembered && o.dropped && o.rebuilt;
+  const pass = o.has && o.built && o.boxes > 20 && o.people >= 2 && o.hasShop && o.shopOpen && o.wallHolds && o.doorOpen && /F/.test(o.verbs || '') && o.closed && o.sleepers >= 1 && o.fell && o.remembered && o.dropped && o.rebuilt && o.blockBoxes === 1 && o.blockTall && o.blockTris >= 2 && o.blockFalling && o.blockRuin && o.extraFell && o.extraBoxes !== 0;
   result('village', pass, o);
 });

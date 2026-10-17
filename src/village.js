@@ -7,12 +7,14 @@ import { SHOPS } from './life.js';
 import { nightU } from './shaders.js';
 import { cities } from './worldmap.js';
 import { rand } from './util.js';
+import { blockGeometries, aoTexture } from './blocks.js';
 
 // Villages (ADR-0013): thirty places over the countryside, each with its own name, houses you can walk into, a general store (or diner, pharmacy,
 // hardware shop) with a shopkeeper and stock, sometimes a filling station, a chapel and a water tower, and people with a day of their own: they sleep in
 // their beds, go to the plaza, the shop, the fields or the chapel, and come home in the evening (their position is a function of the clock; they are
 // made only while the player is near, a sleeper only when he is in the house). The buildings can be blown up (a house sinks into rubble, the people
-// in it die, the ruin is rebuilt after two days). The plan is settlements.js; the pad under it is carved by roadnet.js. All frames are local to the village.
+// in it die, the ruin is rebuilt after two days; apartment blocks from assets/blocks stand at the ends of the street, and the water tower and the filling
+// station canopy fall as well). The plan is settlements.js; the pad under it is carved by roadnet.js. All frames are local to the village.
 const BUILD = 900, DROP = 1500, COLL = 220, PEOPLE = 140, T = 0.28, H = 3.0, WALK = 1.5;
 const hash = (a, b = 0) => { let h = Math.imul(Math.floor(a * 1000) | 0, 0x9e3779b1) ^ Math.imul(Math.floor(b * 1000) | 0, 0x85ebca6b); h = Math.imul(h ^ (h >>> 15), 0xc2b2ae35); return ((h ^ (h >>> 13)) >>> 0) / 4294967296; };
 const col = (hex, k = 1) => [((hex >> 16) & 255) / 255 * k, ((hex >> 8) & 255) / 255 * k, (hex & 255) / 255 * k];
@@ -27,8 +29,10 @@ export class Villages {
     this.struct = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
     this.glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide });
     this.rubble = new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 1 });
-    // two small meshes with the village materials, so the load-time compile covers their programs
-    for (const m of [this.struct, this.glow, this.rubble]) { const w = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)).setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3)).setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(1), 3)), m); w.frustumCulled = false; this.group.add(w); }
+    this.blockMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: aoTexture(), roughness: 0.82, metalness: 0 });
+    this.glass = new THREE.MeshStandardMaterial({ vertexColors: true, color: 0x8fb0cc, roughness: 0.1, metalness: 0.55 });
+    // small meshes with the village materials, so the load-time compile covers their programs
+    for (const m of [this.struct, this.glow, this.rubble, this.blockMat, this.glass]) { const w = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)).setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3)).setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2)).setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(1), 3)), m); w.frustumCulled = false; this.group.add(w); }
     this.P = G.state.places = G.state.places || { dead: {}, ruins: {} };
     G.interact.providers.push((pl, out) => this.provide(pl, out));
     this.active = null; this.hour = 12; this.stats = { built: 0, people: 0, boxes: 0 };
@@ -42,6 +46,7 @@ export class Villages {
       const d = Math.hypot(focus.x - L.v.x, focus.z - L.v.z);
       if (d < BUILD && !L.built) this.build(L); else if (d > DROP && L.built) this.dispose(L);
       if (!L.built) continue; built++;
+      this.collapse(L, dt);
       if (d < L.v.r + COLL) { if (!L.coll) this.addColliders(L); this.shopDoor(L); this.rebuildCheck(L); } else if (L.coll) this.removeColliders(L);
       if (d < PEOPLE + L.v.r * 0.4) this.people(L, dt); else this.clearPeople(L);
       for (const r of L.res.values()) if (r.h) people++; boxes += L.coll ? L.cb.length : 0;
@@ -86,6 +91,7 @@ export class Villages {
 
   // one building: four walls with a door in the one facing the street, a floor, a ceiling, a roof, windows that glow at night, a lamp and furniture
   house(L, h, idx) {
+    if (h.kind === 'block') return this.block(L, h, idx);
     const { v } = L, S = new Acc(), E = new Acc(), [x0, z0, x1, z1] = h.r, side = h.side, church = h.kind === 'church', barn = h.kind === 'barn', Hh = church ? 5.2 : barn ? 4.8 : H, wc = col(h.color), dx = h.x, dw = barn ? 1.6 : 0.9;
     const wall = (a, b, c, d, y0 = 0, y1 = Hh) => S.box(a, y0, b, c, y1, d, wc, 0), cols = [];
     const addC = (a, b, c, d, y0 = 0, y1 = Hh) => cols.push([a, b, c, d, y0, y1]);
@@ -132,16 +138,34 @@ export class Villages {
     else delete this.P.ruins[key];
     return st;
   }
+  // water tower and filling-station canopy are buildings too: each is a group with colliders, hit points and a ruin like a house
+  extra(L, kind, x, z, w, d, hp, rk, parts, cols) {
+    const group = new THREE.Group(); group.name = 'house:' + kind; for (const [A, mat] of parts) { const m = A.mesh(mat); m.frustumCulled = true; group.add(m); } L.root.add(group);
+    const key = L.v.id + ':' + kind, ruin = this.P.ruins[key], h = { kind, x, z, w, d, side: 0, r: [x - w / 2, z - d / 2, x + w / 2, z + d / 2] };
+    const st = { h, idx: -1, key, group, cols, hp, max: hp, alive: true, cb: [], rect: h.r, rk };
+    if (ruin != null && this.G.clock.t - ruin < 2880) this.ruinLook(st, true); else delete this.P.ruins[key];
+    L.houses.push(st);
+  }
   waterTower(L) {
-    const { v } = L, S = new Acc(), x = -26, z = -34; for (const a of [-1, 1]) for (const b of [-1, 1]) S.box(x + a * 2.4 - 0.18, 0, z + b * 2.4 - 0.18, x + a * 2.4 + 0.18, 9, z + b * 2.4 + 0.18, [0.3, 0.31, 0.34], 0);
-    S.box(x - 3.2, 9, z - 3.2, x + 3.2, 13, z + 3.2, [0.3, 0.2, 0.14], 0); S.prism(x - 3.4, z - 3.4, x + 3.4, z + 3.4, 13, 2.2, 1, [0.2, 0.2, 0.22]);
-    const m = S.mesh(this.struct); L.root.add(m); L.objs.push(m); void v;
+    const S = new Acc(), x = -26, z = -34, cols = []; for (const a of [-1, 1]) for (const b of [-1, 1]) { S.box(x + a * 2.4 - 0.18, 0, z + b * 2.4 - 0.18, x + a * 2.4 + 0.18, 9, z + b * 2.4 + 0.18, [0.3, 0.31, 0.34], 0); cols.push([x + a * 2.4 - 0.18, z + b * 2.4 - 0.18, x + a * 2.4 + 0.18, z + b * 2.4 + 0.18, 0, 9]); }
+    S.box(x - 3.2, 9, z - 3.2, x + 3.2, 13, z + 3.2, [0.3, 0.2, 0.14], 0); S.prism(x - 3.4, z - 3.4, x + 3.4, z + 3.4, 13, 2.2, 1, [0.2, 0.2, 0.22]); cols.push([x - 3.2, z - 3.2, x + 3.2, z + 3.2, 9, 13]);
+    this.extra(L, 'tower', x, z, 7, 7, 140, 0.12, [[S, this.struct]], cols);
   }
   canopy(L) {
-    const S = new Acc(), E = new Acc(), x = -48, z = 22; for (const a of [-1, 1]) for (const b of [-1, 1]) S.box(x + a * 7 - 0.2, 0, z + b * 4 - 0.2, x + a * 7 + 0.2, 4.8, z + b * 4 + 0.2, [0.7, 0.7, 0.72], 0);
+    const S = new Acc(), E = new Acc(), x = -48, z = 22, cols = []; for (const a of [-1, 1]) for (const b of [-1, 1]) { S.box(x + a * 7 - 0.2, 0, z + b * 4 - 0.2, x + a * 7 + 0.2, 4.8, z + b * 4 + 0.2, [0.7, 0.7, 0.72], 0); cols.push([x + a * 7 - 0.2, z + b * 4 - 0.2, x + a * 7 + 0.2, z + b * 4 + 0.2, 0, 4.8]); }
     S.box(x - 8.5, 4.8, z - 5.5, x + 8.5, 5.5, z + 5.5, [0.75, 0.2, 0.15], 0); E.quad([x - 8.5, 4.78, z - 5.5], [x + 8.5, 4.78, z - 5.5], [x + 8.5, 4.78, z + 5.5], [x - 8.5, 4.78, z + 5.5], 0, -1, 0, [1.6, 1.5, 1.3], 0);
-    for (const a of [-3, 3]) { S.box(x + a - 0.4, 0, z - 0.4, x + a + 0.4, 1.5, z + 0.4, [0.8, 0.8, 0.82], 0); E.box(x + a - 0.3, 1.1, z - 0.42, x + a + 0.3, 1.4, z - 0.4, [1.2, 2.2, 1.2], 0); }
-    for (const [A, mat] of [[S, this.struct], [E, this.glow]]) { const m = A.mesh(mat); L.root.add(m); L.objs.push(m); }
+    for (const a of [-3, 3]) { S.box(x + a - 0.4, 0, z - 0.4, x + a + 0.4, 1.5, z + 0.4, [0.8, 0.8, 0.82], 0); E.box(x + a - 0.3, 1.1, z - 0.42, x + a + 0.3, 1.4, z - 0.4, [1.2, 2.2, 1.2], 0); cols.push([x + a - 0.4, z - 0.4, x + a + 0.4, z + 0.4, 0, 1.5]); }
+    this.extra(L, 'canopy', x, z, 17, 11, 90, 0.15, [[S, this.struct], [E, this.glow]], cols);
+  }
+  // an apartment block: one of the real models of assets/blocks, turned a quarter so its long side runs along the street; one solid box for the physics
+  block(L, h, idx) {
+    const { v } = L, [x0, z0, x1, z1] = h.r, g = blockGeometries(h.model, col(h.color, 0.9), hash(h.x, v.x), 0.4), th = h.side < 0 ? Math.PI / 2 : -Math.PI / 2, s = Math.sin(th), c = Math.cos(th);
+    const mx = g.cx * c + g.cz * s, mz = -g.cx * s + g.cz * c, inner = new THREE.Group(); inner.rotation.y = th; inner.position.set(h.x - mx, 0, h.z - mz);
+    for (const [geo, mat] of [[g.wall, this.blockMat], [g.dark, this.glass], [g.lit, this.glow]]) if (geo) { const m = new THREE.Mesh(geo, mat); m.frustumCulled = true; inner.add(m); }
+    const group = new THREE.Group(); group.name = 'house:block'; group.add(inner); L.root.add(group);
+    const key = L.v.id + ':' + idx, ruin = this.P.ruins[key], st = { h, idx, key, group, cols: [[x0, z0, x1, z1, 0, g.size.h]], hp: 700, max: 700, alive: true, cb: [], rect: h.r, rk: 0.1 };
+    if (ruin != null && this.G.clock.t - ruin < 2880) this.ruinLook(st, true); else delete this.P.ruins[key];
+    return st;
   }
   // the name board of a shop or chapel: a small canvas on a plane above the door
   sign(L, H2) {
@@ -203,11 +227,24 @@ export class Villages {
     }
   }
   rebuildCheck(L) { const t = this.G.clock.t; for (const H2 of L.houses) if (!H2.alive && this.P.ruins[H2.key] != null && t - this.P.ruins[H2.key] > 2880) { delete this.P.ruins[H2.key]; this.ruinLook(H2, false); if (L.coll) { this.removeColliders(L); this.addColliders(L); } } }
-  ruinLook(st, ruined) {
-    st.alive = !ruined; st.group.scale.set(1, ruined ? 0.22 : 1, 1); st.group.traverse((o) => { if (o.isMesh && o.userData.keep === undefined) { o.userData.keep = o.material; } if (o.isMesh) o.material = ruined ? this.rubble : o.userData.keep; });
+  ruinLook(st, ruined, animate) {
+    if (ruined && animate) { st.alive = false; st.anim = 0; return; }
+    st.anim = undefined; st.group.rotation.set(0, 0, 0); st.group.position.set(0, 0, 0);
+    st.alive = !ruined; st.group.scale.set(1, ruined ? st.rk || 0.22 : 1, 1); st.group.traverse((o) => { if (o.isMesh && o.userData.keep === undefined) { o.userData.keep = o.material; } if (o.isMesh) o.material = ruined ? this.rubble : o.userData.keep; });
     if (!ruined) st.hp = st.max;
   }
 
+  // a collapse takes a few seconds: the building shakes, tilts and sinks into its own dust, then it is the ruin
+  collapse(L, dt) {
+    const G = this.G;
+    for (const H2 of L.houses) {
+      if (H2.anim === undefined) continue; H2.anim += dt; const T2 = 1.5 + Math.min(H2.h.w, H2.h.d) * 0.12, u = Math.min(1, H2.anim / T2), e = u * u * (3 - 2 * u), rk = H2.rk || 0.22;
+      H2.group.scale.set(1, 1 - (1 - rk) * e, 1); H2.group.rotation.set(Math.sin(H2.anim * 31) * 0.01 * (1 - u) + 0.05 * e * (H2.idx & 1 ? 1 : -1), 0, Math.sin(H2.anim * 27) * 0.01 * (1 - u));
+      const cx = L.v.x + H2.h.x, cz = L.v.z + H2.h.z;
+      if (Math.random() < dt * 30) G.smokeP.emit(cx + rand(-H2.h.w / 2, H2.h.w / 2), L.pad.y + rand(0, 4), cz + rand(-H2.h.d / 2, H2.h.d / 2), rand(-2, 2), rand(1, 4), rand(-2, 2), rand(3, 6), rand(3, 6), 0.1, 0.09, 0.08, 0.9, 0.2, 0.4);
+      if (u >= 1) this.ruinLook(H2, true);
+    }
+  }
   // explosions: houses within reach take damage; at zero the house sinks into rubble, the people inside die, the colliders go
   blast(x, y, z, radius, dmg, src) {
     const G = this.G;
@@ -216,11 +253,11 @@ export class Villages {
       for (const H2 of L.houses) {
         if (!H2.alive) continue; const cx = L.v.x + H2.h.x, cz = L.v.z + H2.h.z, d = Math.hypot(x - cx, z - cz) - Math.max(H2.h.w, H2.h.d) / 2; if (d > radius) continue;
         H2.hp -= dmg * (1 - Math.max(0, d) / radius) * 1.3; if (H2.hp > 0) continue;
-        this.ruinLook(H2, true); this.P.ruins[H2.key] = G.clock.t;
+        this.ruinLook(H2, true, true); this.P.ruins[H2.key] = G.clock.t;
         if (L.coll) { for (const b of H2.cb || []) { G.world.colliders.removeBox(b); L.cb = L.cb.filter((q) => q !== b); } H2.cb = []; }
         for (const r of L.res.values()) if (r.h && !r.h.dead && Math.hypot(r.h.x - cx, r.h.z - cz) < Math.max(H2.h.w, H2.h.d) / 2 + 1) r.h.hurt(999, src, false, src);
         for (let k = 0; k < 24; k++) G.smokeP.emit(cx + rand(-3, 3), L.pad.y + rand(0, 3), cz + rand(-3, 3), rand(-2, 2), rand(1, 5), rand(-2, 2), rand(3, 6), rand(3, 6), 0.1, 0.09, 0.08, 0.9, 0.2, 0.4);
-        G.memory?.log('collapse', cx, cz, { city: L.v.name, text: `${L.v.name} ${H2.h.kind === 'church' ? '교회' : '건물'} 붕괴` }); G.addHeat?.(10); G.audio.explosion?.(1.4, 0);
+        G.memory?.log('collapse', cx, cz, { city: L.v.name, text: `${L.v.name} ${H2.h.kind === 'church' ? '교회' : H2.h.kind === 'block' ? '아파트' : H2.h.kind === 'tower' ? '급수탑' : H2.h.kind === 'canopy' ? '주유소 지붕' : '건물'} 붕괴` }); G.addHeat?.(10); G.audio.explosion?.(1.4, 0);
       }
     }
   }
@@ -229,7 +266,9 @@ export class Villages {
   // a resident's route in village coordinates: the bed, the inside of the door, the doorstep, the yard, the street, then the work place
   route(L, r) {
     const { v } = L, h = v.houses[r.home], sg = h.side, zWall = sg < 0 ? h.r[3] : h.r[1], pts = [];
-    const bed = h.bed || { x: h.x, z: h.z }; pts.push([bed.x, bed.z], [h.x, zWall - sg * 1.4], [h.x, zWall + sg * 0.3], [h.x, sg * 5.4]); const home = pts.length;
+    if (h.kind === 'block') pts.push([h.x, zWall + sg * 0.3], [h.x, sg * 5.4]);   // a block has no beds: its people come out of the door and go back in
+    else { const bed = h.bed || { x: h.x, z: h.z }; pts.push([bed.x, bed.z], [h.x, zWall - sg * 1.4], [h.x, zWall + sg * 0.3], [h.x, sg * 5.4]); }
+    const home = pts.length;
     pts.push([h.x, 0]);
     const w = r.work;
     if (w === 'plaza') { const px = (hash(r.seed, 1) - 0.5) * 22, pz = (hash(r.seed, 2) < 0.5 ? -1 : 1) * (7 + hash(r.seed, 3) * 14); pts.push([px, 0], [px, pz]); }
