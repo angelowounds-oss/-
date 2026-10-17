@@ -17,6 +17,7 @@ import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { War, WAR_NAMES } from './warcraft.js';
 import { Farland } from './farland.js';
 import { Highways } from './highways.js';
+import { CountryRoads } from './countryroads.js';
 import { CitySites } from './citysites.js';
 import { CityLife } from './citylife.js';
 import { AutoNav } from './worldnav.js';
@@ -114,7 +115,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.highways?.attach(this); this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.countryroads = this.eng.q.simple ? null : this.timed_('countryroads', () => new CountryRoads(this.scene)); this.highways?.attach(this); this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -1691,7 +1692,7 @@ export class Game {
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
     if (this.riding) this.transit.camera(c, dt);   // a ride (transit.js) places the camera itself
-    this.farland?.update(c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); } this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
+    this.farland?.update(c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); this.countryroads?.update(dt, this.focusPos()); } this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;

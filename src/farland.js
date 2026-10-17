@@ -43,13 +43,30 @@ export class Farland {
   constructor(scene, opts = {}) {
     this.scene = scene; this.group = new THREE.Group(); this.group.name = 'farland'; this.levels = []; this.levelCount = opts.levels || LEVELS;
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
-    patchStandard(this.mat, 'farland-v1', {
-      vertexDecl: 'varying vec2 vFW;varying float vFY;', vertexMain: 'vec4 fwp=modelMatrix*vec4(transformed,1.);vFW=fwp.xz;vFY=fwp.y;',
-      fragDecl: `varying vec2 vFW;varying float vFY;uniform float uTf;float fRough=.96,fMetal=0.;vec3 fEmit=vec3(0.);`,
+    patchStandard(this.mat, 'farland-v2', {
+      vertexDecl: 'varying vec2 vFW;varying float vFY;varying float vFS;', vertexMain: 'vec4 fwp=modelMatrix*vec4(transformed,1.);vFW=fwp.xz;vFY=fwp.y;vFS=objectNormal.y;',
+      fragDecl: `varying vec2 vFW;varying float vFY;varying float vFS;uniform float uTf;float fRough=.96,fMetal=0.,fBump=0.;vec3 fEmit=vec3(0.);
+        float fh(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+        float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}`,
       fragMain: `if(abs(vFW.x)<${EXTENT.toFixed(1)}&&abs(vFW.y)<${EXTENT.toFixed(1)})discard;
         float fe=${SEA.toFixed(1)};float fw=sin(vFW.x*.045+vFW.y*.031+uTf*1.3)*.5+sin(vFW.x*.021-vFW.y*.05-uTf*.9)*.5;
         float foam=smoothstep(fe+1.5+fw*.35,fe+.1,vFY)*smoothstep(fe-.6,fe-.05,vFY);   /* the wet strip along a shore: a band of foam that breathes with the waves */
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.86,.9),foam*.7);fRough=mix(.96,.35,foam);`,
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.86,.9),foam*.7);fRough=mix(.96,.35,foam);
+        /* ground detail: the vertex colours are one value per 16 m, so up close the land would be a flat wash. Three scales of noise break it into patches
+           and grain, blades streak the grass, steep slopes turn to banded rock; every layer fades with distance so far land stays calm (no shimmer) */
+        float fd=length(vViewPosition),fnear=1.-smoothstep(30.,200.,fd),ffine=1.-smoothstep(12.,90.,fd),fmid=1.-smoothstep(300.,1800.,fd),fland=1.-foam;
+        float n1=fn(vFW*.045),n2=fn(vFW*.31+7.),n3=fn(vFW*1.9+3.),n4=fn(vFW*7.3+11.);
+        vec3 gc=diffuseColor.rgb;float green=smoothstep(.0,.06,gc.g-max(gc.r,gc.b)*.92);
+        float tone=(n1-.5)*.3*fmid+(n2-.5)*.2*fmid+(n3-.5)*.07*fnear+(n4-.5)*.03*ffine;
+        vec3 pat=mix(vec3(1.),mix(vec3(.9,1.04,.8),vec3(1.06,1.0,.86),n1),.5*fmid);   /* lush / dry patches */
+        float blade=fn(vec2(vFW.x*11.,vFW.y*1.3)+n2*3.)*fn(vec2(vFW.x*1.3,vFW.y*11.)+n3*3.);
+        diffuseColor.rgb=gc*pat*(1.+tone)*(1.+green*(blade-.25)*.12*ffine);
+        float rock=smoothstep(.86,.7,vFS)*fland,strata=fn(vec2(vFW.x*.02+vFW.y*.015,vFY*.55))*.6+fn(vec2(vFW.x*.2+vFW.y*.17,vFY*2.3))*.4;
+        vec3 rc=mix(vec3(.30,.28,.26),vec3(.52,.47,.41),strata)*(.8+n3*.4);
+        diffuseColor.rgb=mix(diffuseColor.rgb,rc,rock*.85);fRough=mix(fRough,.99,rock);
+        fBump=(n2*.5*fnear+n3*.25*fnear+n4*.1*ffine)*(1.+rock*2.5)*fland;`,
+      normalMain: `{vec3 q0=dFdx(-vViewPosition),q1=dFdy(-vViewPosition);float dx=dFdx(fBump),dy=dFdy(fBump);vec3 r1=cross(q1,normal),r2=cross(normal,q0);float det=dot(q0,r1);
+        normal=normalize(abs(det)*normal-.55*sign(det)*(dx*r1+dy*r2));}`,
       uniforms: { uTf: timeUniform },
     });
     const hole = ringIndex(true), full = ringIndex(false);

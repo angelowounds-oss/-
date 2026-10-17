@@ -3,6 +3,7 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 import { landHeight } from './landfn.js';
 import { vegCell, CELL, VT } from './vegfn.js';
 import { nightU, timeUniform } from './shaders.js';
+import { onCountryRoad } from './countryroads.js';
 
 // Trees, shrubs, rocks and grass over the whole world (ADR-0013). The data is one byte per 32 m cell (vegfn.js: kind << 5 | trees, baked as the tiles
 // `veg/<i>_<j>` and kept in memory as one array); the instances inside a cell are made from hashes of the cell, so the same place always grows the same
@@ -73,7 +74,7 @@ const MODELS = {
   grass: () => { const pos = [], col = []; for (let k = 0; k < 9; k++) { const a = k * 2.4 + 0.3, h = 0.45 + 0.5 * hash(k, 1, 2), w = 0.05 + 0.03 * hash(k, 2, 3), bx = Math.cos(a) * 0.12, bz = Math.sin(a) * 0.12, lean = 0.12 + 0.28 * hash(k, 3, 4), tx = Math.cos(a) * lean, tz = Math.sin(a) * lean, sx = -Math.sin(a) * w, sz = Math.cos(a) * w; const shade = 0.75 + 0.5 * hash(k, 4, 5); const P = [[bx - sx, 0, bz - sz], [bx + sx, 0, bz + sz], [bx + tx * 0.5 - sx * 0.6, h * 0.55, bz + tz * 0.5 - sz * 0.6], [bx + tx * 0.5 + sx * 0.6, h * 0.55, bz + tz * 0.5 + sz * 0.6], [bx + tx, h, bz + tz]], C = [[0.03, 0.08, 0.03], [0.03, 0.08, 0.03], [0.09, 0.22, 0.07], [0.09, 0.22, 0.07], [0.2, 0.4, 0.12]]; for (const f of [[0, 1, 2], [1, 3, 2], [2, 3, 4]]) for (const v of f) { pos.push(...P[v]); col.push(C[v][0] * shade, C[v][1] * shade, C[v][2] * shade); } } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(pos), 3)); g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(col), 3)); g.computeVertexNormals(); const nr = g.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 1, 0); return g; },
 };
 const TYPES = ['broad', 'conifer', 'palm', 'cactus', 'dead', 'shrub', 'rock'], BILL = { broad: 0, conifer: 1, palm: 2, cactus: 3, dead: 4 };
-const CAP = { broad: 2600, conifer: 2600, palm: 800, cactus: 1200, dead: 800, shrub: 1500, rock: 900, grass: 9000 }, BILL_CAP = 26000;
+const CAP = { broad: 2600, conifer: 2600, palm: 800, cactus: 1200, dead: 800, shrub: 1500, rock: 900, grass: 24000 }, BILL_CAP = 26000;
 const SAFE_FOG = 2.9;
 
 export class Forest {
@@ -121,7 +122,7 @@ export class Forest {
   cell(cx, cz, byte) {
     const key = cz * NV + cx; let r = this.cells.get(key); if (r) return r;
     const kind = byte >> 5, n0 = byte & 31, out = [], f = this.f, x0 = ORIGIN + cx * CELL, z0 = ORIGIN + cz * CELL;
-    const put = (k, type, size) => { const x = x0 + hash(cx, cz, k * 3) * CELL, z = z0 + hash(cx, cz, k * 3 + 1) * CELL; out.push(x, landHeight(x, z, 8), z, hash(cx, cz, k * 3 + 2) * 6.283, size, type); };
+    const put = (k, type, size) => { const x = x0 + hash(cx, cz, k * 3) * CELL, z = z0 + hash(cx, cz, k * 3 + 1) * CELL; if (onCountryRoad(x, z, 6 + size)) return; out.push(x, landHeight(x, z, 8), z, hash(cx, cz, k * 3 + 2) * 6.283, size, type); };
     const n = Math.floor(n0 * f + hash(cx, cz, 900));
     for (let k = 0; k < n; k++) {
       const u = hash(cx, cz, 100 + k), sz = 0.75 + 0.6 * hash(cx, cz, 200 + k);
@@ -172,9 +173,10 @@ export class Forest {
       }
       // grass tufts close to the camera, from the cell's hash (not kept)
       if (d < this.grassR && grassKinds[kind] > 0) {
-        const per = Math.floor(grassKinds[kind] * 70 * this.f + hash(i, j, 910)), gm = this.meshes.grass;
+        const per = Math.floor(grassKinds[kind] * 820 * this.f + hash(i, j, 910)), gm = this.meshes.grass;
         for (let k = 0; k < per && cnt.grass < CAP.grass; k++) {
           const x = ORIGIN + i * CELL + hash(i, j, 1000 + k * 2) * CELL, z = ORIGIN + j * CELL + hash(i, j, 1001 + k * 2) * CELL, s = 0.7 + 0.9 * hash(i, j, 1500 + k), t = 0.8 + 0.4 * hash(i, j, 1700 + k);
+          if (onCountryRoad(x, z, 5.6)) continue;
           set(gm, cnt.grass++, x, landHeight(x, z, 8), z, hash(i, j, 1900 + k) * 6.28, s, [t, t, t]);
         }
       }

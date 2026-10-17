@@ -29,7 +29,7 @@
 | ARC | | ARC-01, ARC-02 | ARC-03, ARC-04 |
 | RND | | RND-02, RND-03 | RND-04, RND-05, RND-07 |
 | WLD | | WLD-01, WLD-02, WLD-06, WLD-07, WLD-08, WLD-12 | WLD-03, WLD-04, WLD-05, WLD-09, WLD-10, WLD-11 |
-| AI | | AI-01, AI-02 | AI-03, AI-04 |
+| AI | | AI-01, AI-02, AI-05 | AI-03, AI-04 |
 | CHR | | CHR-01 | CHR-02, CHR-03 |
 | PHY | | PHY-03 | PHY-01, PHY-02 |
 | UX | | UX-01, UX-02, UX-04 | UX-03, UX-05, UX-06(완료) |

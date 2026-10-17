@@ -95,7 +95,7 @@ export function createGlareMaterial() {
 }
 
 // Install a shader patch into a MeshStandardMaterial
-export function patchStandard(mat, key, { vertexDecl = '', vertexMain = '', fragDecl = '', fragMain = '', uniforms = {} }) {
+export function patchStandard(mat, key, { vertexDecl = '', vertexMain = '', fragDecl = '', fragMain = '', normalMain = '', uniforms = {} }) {
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
@@ -104,6 +104,7 @@ export function patchStandard(mat, key, { vertexDecl = '', vertexMain = '', frag
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\n' + fragDecl)
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + fragMain)
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + normalMain)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = fRough;')
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = fMetal;')
       .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance += fEmit;');
