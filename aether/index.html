@@ -106,6 +106,8 @@
 
   <section class="card" aria-labelledby="lookTitle"><h2 id="lookTitle">조명</h2>
     <div class="btn-grid"><select id="lookSel" aria-label="조명 모드"><option value="showroom">쇼룸 (어두운 터널 + 스튜디오 조명)</option><option value="lab">연구소 (밝은 기본 조명)</option></select></div>
+    <div class="btn-grid"><button id="lookBench" class="btn" type="button">성능 측정 (약 25초)</button></div>
+    <pre class="status" id="lookBenchOut" aria-live="polite" hidden></pre>
     <p class="help">쇼룸은 턴테이블 주변에만 빛이 모이고 벽·천장은 어두우며, 튜브 스튜디오 조명(차체의 긴 하이라이트)과 천장에 매달린 조명 장치, 젖은 듯한 바닥, 약한 빛줄기를 씁니다. 환경 반사를 부팅 때 한 번 찍기 때문에 바꾸면 페이지를 다시 불러옵니다(선택은 기억됩니다). 화면 연출만 바뀌며 공기역학 계산·측정값에는 영향이 없습니다. 해시 <code>#look=0</code>은 연구소, <code>#haze=0</code>은 빛줄기만 끕니다.</p></section>
 
   <section class="card" aria-labelledby="refTitle"><h2 id="refTitle">사전 계산 기준 결과</h2>

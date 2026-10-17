@@ -61,3 +61,13 @@ function showHaze(){
  for(let i=0;i<3;i++){const t=SHOW.tubes[i];o['uHa'+i]=m4point(view,t.a);o['uHb'+i]=m4point(view,t.b);o['uHc'+i]=t.col}
  return o;
 }
+/* on-device cost probe (UI button in the lighting card, tests/showroom-bench.mjs): average frame time of four looks, each after a 1 s settle. The look is restored afterwards.
+   The automatic quality controller may change tiers while it runs, so open the page with a fixed tier (#q=LOW / MID / HIGH) for a clean comparison. */
+SHOW.bench=async(secs=4,settle=1)=>{
+ const V=window.__VIZ,keep={target:SHOW.target,amt:SHOW.amt,haze:SHOW.haze,vortex:V?V.vortex:false},h0=keep.haze>0?keep.haze:.00008;
+ const cfg=[['연구소(기본 조명)',0,0,0],['쇼룸',1,0,0],['쇼룸 + 빛줄기',1,1,0],['쇼룸 + 빛줄기 + 후류 소용돌이',1,1,1]],out=[];
+ const frames=ms=>new Promise(res=>{let n=0;const t0=performance.now();(function f(){n++;const dt=performance.now()-t0;if(dt<ms)requestAnimationFrame(f);else res({n,ms:dt})})()});
+ try{for(const [name,look,hz,vx] of cfg){SHOW.target=look;SHOW.amt=look;SHOW.haze=hz?h0:0;if(V)V.vortex=!!vx;await frames(settle*1000);const r=await frames(secs*1000);out.push({name,fps:+(r.n/(r.ms/1000)).toFixed(1),msPerFrame:+(r.ms/r.n).toFixed(1),frames:r.n})}}
+ finally{SHOW.target=keep.target;SHOW.amt=keep.amt;SHOW.haze=keep.haze;if(V)V.vortex=keep.vortex}
+ return out;
+};

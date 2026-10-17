@@ -182,6 +182,7 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
  show();setInterval(()=>{if(!document.hidden)try{show()}catch(e){void e}},3000)}}
 
 /* lighting look (reloads: the probes are captured at boot) */
+{const Sh=window.__SHOW,bb=$('lookBench'),bo=$('lookBenchOut');if(Sh&&bb&&bo){bb.onclick=async()=>{bb.disabled=true;bo.hidden=false;bo.textContent='측정 중… (화면을 그대로 두세요)';try{const r=await Sh.bench(4,1);bo.textContent=r.map(x=>x.name+': '+x.fps+' fps ('+x.msPerFrame+' ms/프레임, '+x.frames+'프레임)').join('\n')+'\n등급을 고정해(#q=LOW/MID/HIGH) 열면 자동 품질 조절이 섞이지 않습니다.'}catch(e){bo.textContent='측정 실패: '+String(e&&e.message||e)}bb.disabled=false}}}
 {const Sh=window.__SHOW,sel=$('lookSel');if(Sh&&sel){sel.value=Sh.on?'showroom':'lab';sel.onchange=()=>Sh.setMode(sel.value==='lab'?'lab':'showroom')}}
 
 /* vehicle choice (reloads with the other profile) */
