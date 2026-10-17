@@ -26,6 +26,8 @@ export const RUN = {
     }
     return { land: encodeTile(land), phys: diff ? encodeTile(phys) : null, col };
   },
+  // growth cells of one 4096 m tile (vegfn.js)
+  async veg(j) { const { vegTile } = await imp('src/vegfn.js'); return { v: vegTile(j.i, j.j) }; },
   // the small things of one city tile (citydetail.js); null (no detail there) is stored as an empty chunk
   async citytile(j) {
     const [{ cities }, { layouts, STYLES }, { tileDetail }] = await Promise.all([imp('src/worldmap.js'), imp('src/citylayout.js'), imp('src/citydetail.js')]);

@@ -10,6 +10,7 @@ import { AIM } from './assets.js';
 import { loadBaked } from './bakedload.js';
 import { initDetail, initDetailUI } from './detail.js';
 import { loadResident } from './heightmap.js';
+import { loadVeg } from './forest.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -30,6 +31,7 @@ function fatal(e) {
     await loadBaked();   // the baked world must be in place before the first terrain/road query
     await initDetail();   // reconnect the optional high-detail pack when the browser allows it without asking
     if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
+    if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
     game = new Game(eng); game.RAPIER = RAPIER;
     window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM;
     await game.init((p, t) => loading.set(p, t));

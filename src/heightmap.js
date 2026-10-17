@@ -80,7 +80,7 @@ export async function loadResident(wd) {
 // keep the streamed levels around (x, z): tiles within `ring` tiles are requested, tiles beyond ring + 2 are let go. Cheap when the focus stays in its tile.
 export function stream(wd, x, z, ring = 1) {
   for (const L of lvl) {
-    if (!L.stream || !wd.keys(L.key + '/').length) continue;
+    if (!L.stream) continue; if (L.have === undefined) L.have = wd.keys(L.key + '/').length > 0; if (!L.have) continue;
     const ci = Math.floor((x + HALF) / L.size), cj = Math.floor((z + HALF) / L.size);
     if (L.ci === ci && L.cj === cj && !L.loading.size) continue; L.ci = ci; L.cj = cj;
     for (let j = cj - ring; j <= cj + ring; j++) for (let i = ci - ring; i <= ci + ring; i++) {

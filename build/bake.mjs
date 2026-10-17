@@ -26,6 +26,8 @@ export function jobsFor({ pack = false } = {}) {
   const out = [{ key: 'core', tier: 'embed', src: ['src/worldmap.js', 'src/terrainfn.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs'] }];
   const tiles = (g, key, tier) => { const n = Math.ceil(100000 / (g * 256)); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, src: TERRAIN_SRC }); };
   tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
+  // where trees, grass and rocks grow (vegfn.js): one byte per 32 m cell, tiles of 4096 m
+  for (let j = 0; j < 25; j++) for (let i = 0; i < 25; i++) out.push({ key: `veg/${i}_${j}`, gen: 'veg', tier: 'embed', i, j, src: [...TERRAIN_SRC, 'src/vegfn.js'] });
   // the small things of the cities (citydetail.js): one chunk per city tile; the pack makes the denser variant under the same keys
   const CITY_SRC = ['src/worldmap.js', 'src/citylayout.js', 'src/citydetail.js', 'src/bakefmt.js', 'build/jobs.mjs'];
   for (const hi of pack ? [false, true] : [false]) for (const [ci, id] of CITY_IDS.entries()) { const L = CITY_TILES[id]; for (const [i, j] of L) out.push({ key: `city/${id}/${i}_${j}`, gen: 'citytile', tier: hi ? 'pack' : 'embed', id, i, j, hi, src: CITY_SRC }); void ci; }
