@@ -3,7 +3,7 @@ import { buildHuman, rifleLook } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
-import { updateGesture, updateProc, gesture } from './gesture.js';
+import { updateGesture, updateProc, gesture, PROPS } from './gesture.js';
 
 // small calm gestures that read well over a walk or stand
 const AMBIENT = ['scratch', 'shrug', 'nod', 'phone', 'foldarms', 'fidget', 'lean'];
@@ -305,6 +305,8 @@ export class Human {
       }
     }
     if (this.gestUB) updateGesture(this, dt, aiming);
+    if (!this.gestUB && !(this.reactT > 0)) this.gestName = null;
+    if (m.setProp) m.setProp((this.gestUB || this.reactT > 0) && !this.dead ? PROPS[this.gestName] || null : null);
     if (m.setMelee) m.setMelee(this.melee && this.cur === 9 ? this.melee.name : null);
     m.mixer.update(dt);
     m.applyPose(pistolish || riflish ? 0 : this.pose, this.aimPitch || 0);

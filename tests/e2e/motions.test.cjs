@@ -53,11 +53,11 @@ run('motions', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     // menu gesture, drinking
     pl.reactT = 0; pl.gestUB = null; step(5);
     pl.armed = true; pl.aimT = 0; pl.forceAim = false; o.menuWave = g.gestures.play('wave') && pl.gestUB === 'UB_Greeting'; step(40); o.armedKeeps = !!pl.armed && pl.gestUB === 'UB_Greeting' && m.act.UB_Greeting.weight > 10; step(380); o.menuDone = !pl.gestUB;
-    g.items.add('water'); g.items.use('water'); o.drinks = pl.gestUB === 'UB_Consume_Item'; step(200);
+    g.items.add('water'); g.items.use('water'); o.drinks = pl.gestUB === 'UB_Consume_Item'; step(10); o.cup = m.prop; step(500); o.cupGone = !m.prop;
     return o;
   });
   const pass = o.missing.length === 0 && o.upperMasks.length === 0 &&
     o2.crawling && o2.crawlW > 0.5 && Math.abs(o2.proneTilt) < 0.2 && o2.standsAgain &&
-    o2.throwT > 0.15 && o2.heldBack && o2.released && o2.knifeShown && o2.hitDelay > 0.05 && o2.gesturing && o2.hitDone && Math.abs(o2.stance.Walk - 0.9) < 0.25 && Math.abs(o2.stance.Run - 5.2) < 0.8 && o2.procStart && o2.procBends && o2.procEnds && o2.menuWave && o2.armedKeeps && o2.menuDone && o2.drinks;
+    o2.throwT > 0.15 && o2.heldBack && o2.released && o2.knifeShown && o2.hitDelay > 0.05 && o2.gesturing && o2.hitDone && Math.abs(o2.stance.Walk - 0.9) < 0.25 && Math.abs(o2.stance.Run - 5.2) < 0.8 && o2.procStart && o2.procBends && o2.procEnds && o2.menuWave && o2.armedKeeps && o2.menuDone && o2.drinks && o2.cup === 'cup' && o2.cupGone;
   result('motions', pass, { ...o, ...o2 });
 });

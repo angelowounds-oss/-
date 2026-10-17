@@ -17,6 +17,8 @@ export const GESTURES = {
 const dur = (a) => a.getClip().duration / (a.timeScale || 1);
 
 // Plays a gesture on a Human; returns false when it cannot (dead, hit reaction running, unknown name, clip missing). opts.speed scales the clip.
+// gestures that hold something in the right hand while they play
+export const PROPS = { phone: 'phone', drink: 'cup', eat: 'food', lantern: 'lantern', torch: 'torch', carry: 'box', repair: 'tool', chop: 'tool', harvest: 'tool', plant: 'tool', water: 'cup' };
 export function gesture(h, name, opts = {}) {
   const clip = GESTURES[name] || name, m = h.m;
   if (!m || !m.skinned || h.dead || h.rag || h.reactT > 0 || h.swimming) return false;
@@ -24,14 +26,14 @@ export function gesture(h, name, opts = {}) {
   const moving = (h.speed || 0) > 0.8;
   const ub = m.clip('UB_' + clip);
   if (ub && (moving || opts.upper) && !m.sit && !h.prone) {
-    ub.timeScale = speed; h.gestUB = 'UB_' + clip; h.gestT = dur(ub); h.gestStart = true; h.gestSpeed = speed;
+    h.gestName = name; ub.timeScale = speed; h.gestUB = 'UB_' + clip; h.gestT = dur(ub); h.gestStart = true; h.gestSpeed = speed;
     return true;
   }
   if (moving && !opts.moving) return false;
   const a = m.clip('U_' + clip); if (!a) return false;
   a.timeScale = speed;
   if (!m.playOnce('U_' + clip, false)) return false;
-  h.reactT = dur(a); return true;
+  h.gestName = name; h.reactT = dur(a); return true;
 }
 
 export function gestureBusy(h) { return !!h.gestUB || h.reactT > 0; }

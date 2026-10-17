@@ -222,6 +222,19 @@ export function buildSoldier(look = {}, gunParts) {
     else { box(0.026, 0.026, 0.62, 0, 0.03, 0.26); box(0.026, 0.08, 0.04, 0, 0.03, 0.57); }
     return g;
   };
+  // gesture props (phone, cup, food ...) share the same material for the same reason; each shape is built once on first use
+  let propMesh = null, propName = null; const propCache = {};
+  const propShape = (name) => {
+    const g = new THREE.Group(), box = (x, y, z, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x, y, z), gunMat); o.position.set(px, py, pz); g.add(o); };
+    if (name === 'phone') box(0.04, 0.012, 0.08, 0, 0.04, 0.03);
+    else if (name === 'cup') box(0.05, 0.05, 0.09, 0, 0.04, 0.03);
+    else if (name === 'food') box(0.06, 0.04, 0.06, 0, 0.04, 0.03);
+    else if (name === 'lantern') { box(0.1, 0.1, 0.14, 0, 0.04, 0.0); box(0.02, 0.02, 0.1, 0, 0.04, 0.12); }
+    else if (name === 'torch') box(0.03, 0.03, 0.3, 0, 0.04, 0.12);
+    else if (name === 'box') box(0.3, 0.2, 0.2, 0, 0.12, 0.1);
+    else box(0.03, 0.03, 0.26, 0, 0.04, 0.1);
+    return g;
+  };
   const stub = () => new THREE.Object3D();
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
@@ -230,6 +243,11 @@ export function buildSoldier(look = {}, gunParts) {
       if (name === meleeName) return; meleeName = name;
       if (meleeMesh) { mount.remove(meleeMesh); meleeMesh = null; }
       if (name) { meleeMesh = meleeShape(name); mount.add(meleeMesh); }
+    },
+    setProp(name) {
+      if (name === propName) return; propName = name; this.prop = name;
+      if (propMesh) { mount.remove(propMesh); propMesh = null; }
+      if (name) { propMesh = propCache[name] || (propCache[name] = propShape(name)); mount.add(propMesh); }
     },
     setTop(hex) { for (const mm of topMats) { mm.color.set(hex).multiplyScalar(3.2); mm.emissive.set(hex); } },
     // one-shot full-body clip (death, hit reaction): everything else fades out until stopOnce()
