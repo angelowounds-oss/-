@@ -3,7 +3,10 @@ import { buildHuman, rifleLook } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
-import { updateGesture, updateProc } from './gesture.js';
+import { updateGesture, updateProc, gesture } from './gesture.js';
+
+// small calm gestures that read well over a walk or stand
+const AMBIENT = ['scratch', 'shrug', 'nod', 'phone', 'foldarms', 'fidget', 'lean'];
 
 export const WEAPONS = [
   { name: '9MM PISTOL', scope: 'iron', zoom: 1.3, short: 'pistol', clip: 12, reserve: 96, damage: 34, head: 2.4, rate: 0.16, spread: 0.006, range: 160, reload: 1.2, recoil: 0.018, auto: false, tracer: [1, 0.85, 0.5], snd: 'pistol' },
@@ -291,6 +294,15 @@ export class Human {
         ac.weight = lerp(ac.weight, tw[key] * 40, 1 - Math.exp(-14 * dt)); if (ac.weight < 0.4 && tw[key] === 0) ac.weight = 0;
       }
       this._rl = rel;
+    }
+    // ambient gestures for calm citizens near the player so crowds do not move in lockstep
+    if (this.citizen && !this.gestUB && !this.armed && !this.fleeT && this.state === 'route' && !this.dead) {
+      this._ambT = (this._ambT === undefined ? 4 + Math.random() * 14 : this._ambT) - dt;
+      if (this._ambT <= 0) {
+        this._ambT = 12 + Math.random() * 25;
+        const G = this.G, pl = G && G.player;
+        if (pl && Math.hypot(this.x - pl.x, this.z - pl.z) < 45) gesture(this, AMBIENT[(Math.random() * AMBIENT.length) | 0], { upper: true });
+      }
     }
     if (this.gestUB) updateGesture(this, dt, aiming);
     if (m.setMelee) m.setMelee(this.melee && this.cur === 9 ? this.melee.name : null);
