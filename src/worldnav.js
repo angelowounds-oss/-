@@ -127,7 +127,7 @@ export class AutoNav {
   constructor(G) { this.G = G; this.route = null; this.i = 0; this.active = false; this.goal = null; this.cancelT = 0; this.router = new Router((c) => { if (c.id === 'neon') return G.capitalLines(); const C = G.citysites?.cities.find((q) => q.c.id === c.id); return C && G.citylife.linesOf(C); }); }
   start(x, z) {
     const G = this.G, v = G.vehicle; if (!v || v.spec.craft) { G.toast('자동 주행 불가', '자동차에 타고 있어야 한다'); return false; }
-    const f = G.focusPos(); this.route = this.router.route(f.x, f.z, x, z); this.goal = { x, z }; this.i = this.closest(f.x, f.z); this.active = true; this.cancelT = 0.6; this.lat = this.latT = this.laneT = 0;
+    const f = G.focusPos(); this.route = this.router.route(f.x, f.z, x, z); this.goal = { x, z }; this.i = this.closest(f.x, f.z); this.active = true; this.cancelT = 0.6; this.lat = this.latT = this.laneT = this.backT = this.wedged = 0;
     G.toast('자동 주행 시작', `${Math.round(this.route.length / 1000 * 10) / 10} km${this.route.straight ? ' · 도로 없음(직선)' : ''}`); return true;
   }
   stop(msg) { if (this.active && msg) this.G.toast(msg); this.active = false; this.route = null; const v = this.G.vehicle; if (v) { v.throttle = 0; v.steer = 0; } }
@@ -146,6 +146,11 @@ export class AutoNav {
     }
     this.latT = want;
     const d = want - (this.lat || 0); this.lat = (this.lat || 0) + Math.sign(d) * Math.min(Math.abs(d), 2.5 * dt);
+  }
+  // the car's sideways distance from the route line (positive = toward the median)
+  carLat(v, P) {
+    const a = P[Math.max(0, this.i - 1)], b = P[Math.min(P.length - 1, Math.max(this.i, 1))], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return ((v.x - a[0]) * (b[1] - a[1]) - (v.z - a[1]) * (b[0] - a[0])) / l;
   }
   // no vehicle beside or ahead in the lane `side` metres to the left (negative: right) of the car
   laneClear(v, side, lookO) {
@@ -178,10 +183,13 @@ export class AutoNav {
     if (Math.abs(dh) > 0.5) target = Math.min(target, 8);
     // obstacles: other vehicles and people ahead in the lane
     const lookO = 12 + Math.max(spd, 0) * 1.3;
-    const free = target;
+    // while moving over, a car counts as in the way if it is in the lane being entered, or so close in the current lane that the move cannot clear it
+    const free = target, shift = (this.latT || 0) - this.carLat(v, P);
     for (const o of G.vehicles) {
       if (o === v || !o.group.visible) continue; const dx = o.x - v.x, dz = o.z - v.z, along = dx * sH + dz * cH;
-      if (along < 1 || along > lookO + o.L * 0.5) continue; if (Math.abs(dx * cH - dz * sH) < (v.W + o.W) * 0.5 + 0.6) target = Math.min(target, Math.max(0, (along - o.L * 0.5 - v.L * 0.5 - 3) * 0.9, o.speed * 0.8));
+      if (along < 1 || along > lookO + o.L * 0.5) continue;
+      const side = dx * cH - dz * sH, w = (v.W + o.W) * 0.5 + 0.6, gap = along - o.L * 0.5 - v.L * 0.5;
+      if (Math.abs(side - shift) < w || (Math.abs(side) < w && gap < 4 + spd * 0.35)) target = Math.min(target, Math.max(0, (gap - 3) * 0.9, o.speed * 0.8));
     }
     this.lanes(v, P, cls, target < free - 4, lookO, dt);
     for (const h of G.humans) {
@@ -190,6 +198,9 @@ export class AutoNav {
     }
     const err = target - spd;
     v.throttle = err > 0 ? Math.min(1, err * 0.35) : 0; v.brake = err < -2 ? Math.min(1, -err * 0.12) : 0; v.hand = false;
+    // wedged behind a stopped car: back off for a moment (brake at a standstill reverses) with the wheels turned the other way
+    if (spd < 1 && target < 1 && free > 3) { this.wedged = (this.wedged || 0) + dt; if (this.wedged > 3) { this.wedged = 0; this.backT = 1.6; } } else this.wedged = 0;
+    if (this.backT > 0) { this.backT -= dt; v.throttle = 0; v.brake = 1; v.steer = -v.steer; return; }
     if (spd < 1.5 && target > 3) { this.stuck = (this.stuck || 0) + dt; if (this.stuck > 6) { this.stuck = 0; this.i = Math.min(P.length - 1, this.i + 3); } } else this.stuck = 0;
   }
 }
