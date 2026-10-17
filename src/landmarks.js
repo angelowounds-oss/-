@@ -42,8 +42,8 @@ export class Landmarks {
   constructor(G) {
     this.G = G; this.group = new THREE.Group(); this.group.name = 'landmarks'; G.scene.add(this.group);
     const tx = tiles();
-    this.facade = new THREE.MeshStandardMaterial({ vertexColors: true, map: tx.day, emissiveMap: tx.night, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.38, metalness: 0.22 });
-    this.roof = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+    this.facade = new THREE.MeshStandardMaterial({ vertexColors: true, map: tx.day, emissiveMap: tx.night, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.38, metalness: 0.22, side: THREE.DoubleSide });   // the source models have faces of both windings
+    this.roof = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
     this.rubble = new THREE.MeshStandardMaterial({ color: 0x4a4642, roughness: 1 });
     // one small mesh per material, so the load-time compile covers their programs
     for (const m of [this.facade, this.roof, this.rubble]) { const w = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)).setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3)).setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2)).setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(1), 3)), m); w.frustumCulled = false; this.group.add(w); }
