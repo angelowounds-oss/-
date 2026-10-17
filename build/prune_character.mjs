@@ -5,7 +5,8 @@ import fs from 'fs';
 const src = 'assets/Character.glb', dst = 'assets/character_game.glb';
 const assets = fs.readFileSync('src/assets.js', 'utf8');
 const block = assets.slice(assets.indexOf('const CLIPS = {'), assets.indexOf('};', assets.indexOf('const CLIPS = {')));
-const keep = new Set([...block.matchAll(/'([A-Za-z0-9_]+)'/g)].map((m) => m[1]));
+const mot = assets.slice(assets.indexOf('const MOTIONS = ['), assets.indexOf('];', assets.indexOf('const MOTIONS = [')));
+const keep = new Set([...block, ...mot].length ? [...block.matchAll(/'([A-Za-z0-9_]+)'/g), ...mot.matchAll(/'([A-Za-z0-9_]+)'/g)].map((m) => m[1]) : []);
 
 const buf = fs.readFileSync(src);
 const jl = buf.readUInt32LE(12), json = JSON.parse(buf.subarray(20, 20 + jl).toString('utf8'));
@@ -51,4 +52,5 @@ head.write('glTF', 0); head.writeUInt32LE(2, 4); head.writeUInt32LE(12 + 8 + jso
 head.writeUInt32LE(jsonBuf.length, 12); head.writeUInt32LE(0x4e4f534a, 16);
 const binHead = Buffer.alloc(8); binHead.writeUInt32LE(outBin.length, 0); binHead.writeUInt32LE(0x004e4942, 4);
 fs.writeFileSync(dst, Buffer.concat([head, jsonBuf, binHead, outBin]));
+for (const n of keep) if (!animsAll.some((a) => a.name === n) && !/^(U_|UB_)/.test(n)) console.log('missing in source:', n);
 console.log(`${dst}: ${kept.length} clips, ${(fs.statSync(dst).size / 1e6).toFixed(2)} MB (from ${(buf.length / 1e6).toFixed(2)} MB)`);

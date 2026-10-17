@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import characterB64 from '../assets/character_game.glb';
+import playerB64 from '../assets/player_female.glb';
 import ferrariB64 from '../assets/ferrari.glb';
 import hydrantB64 from '../assets/props/fire_hydrant.glb';
 import trashB64 from '../assets/props/metal_trash_can.glb';
@@ -48,6 +49,24 @@ const CLIPS = {
   U_Pistol_Shoot: 'Pistol_Shoot', U_Pistol_Reload: 'Pistol_Reload', U_Punch_Jab: 'Punch_Jab', U_Punch_Cross: 'Punch_Cross',
   U_Hit_Chest: 'Hit_Chest', U_Hit_Head: 'Hit_Head', U_Death01: 'Death_A',
 };
+// Life and combat motions from the same character file, played under the game name U_<file name> (gestures, hand work, locomotion variants, climbing, hits,
+// fighting, knife and grenade). Gestures in UPPER also get a UB_ mask without the legs and root, so they can play on top of walking and standing.
+const MOTIONS = [
+  'Greeting', 'Head_Nod', 'Yes', 'Reject', 'Confused', 'Insult', 'Salute', 'Bow', 'Help_One_Arm', 'Help_Two_Arms', 'Idle_Listening', 'Idle_Rail_Call', 'Cheer_One_arm',
+  'Cheering_Two_Hands', 'Victory', 'Victory_Fist_Pump', 'Angry', 'Dizzy', 'Idle_ShakeOff', 'Idle_Hurt', 'Shivering', 'Tired_Hunched', 'Kneeling_Tired',
+  'Idle_FoldArms', 'Idle_Subtle', 'Idle_TalkingPhone', 'Idle_Lantern', 'Idle_Torch', 'Idle_Rail', 'Meditate', 'Sitting_Talking', 'Sleeping',
+  'Throw_Object', 'OverhandThrow', 'Walk_Carry', 'Consume', 'Consume_Item', 'Chest_Open', 'Kick_Breach',
+  'Fixing_Kneeling', 'Farm_Harvest', 'Farm_PlantSeed', 'Farm_Watering', 'Chop_Tree', 'Fishing_Cast', 'Fishing_Reel', 'Fishing_Catch', 'Golf_Drive', 'Golf_idle',
+  'Jumping_Jacks', 'Pushup', 'Dance_Body_Roll', 'Crawl', 'Crawl_RM', 'LayToIdle', 'Zombie_Rise',
+  'Turn_Left_90', 'Turn_Right_90', 'Turn_Left_180', 'Turn_Right_180', 'Walk_Backwards', 'Strafe_left', 'Strafe_right', 'Walk_Formal', 'Walk_Stealth', 'Run_Stealth', 'Walk_Female', 'Run_Female',
+  'Climb_Ladder', 'Ladder_Idle', 'Climb_Wall', 'ClimbUp_1m_RM', 'Ledge_Hang', 'Pipe_Climb', 'Jump_2', 'Run_Jump', 'Land_Three_Point',
+  'Hit_Knockback', 'Hit_Knockback_RM', 'Defend', 'Death_B', 'Death_C', 'Death_D', 'Fighting_Idle', 'Fighting_Left_Jab', 'Fighting_Right_Jab', 'Melee_Hook', 'Melee_Hook_Rec',
+  'Zombie_Idle', 'Zombie_Idle_Crouch', 'Zombie_Walk', 'Zombie_Walk_2', 'Zombie_Scratch', 'Zombie_Yell',
+  'Idle_Sword', 'Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Attack', 'Sword_Block',
+];
+const UPPER = new Set(['Greeting', 'Head_Nod', 'Yes', 'Reject', 'Confused', 'Insult', 'Salute', 'Help_One_Arm', 'Help_Two_Arms', 'Idle_Listening', 'Idle_Rail_Call', 'Cheer_One_arm',
+  'Cheering_Two_Hands', 'Idle_FoldArms', 'Idle_TalkingPhone', 'Throw_Object', 'OverhandThrow', 'Consume', 'Consume_Item', 'Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Attack', 'Sword_Block', 'Defend']);
+for (const n of MOTIONS) CLIPS['U_' + n] = n;
 // upper-body masks: the pistol UB_* clips are the U_* aim/shoot/reload clips without the legs and root
 const LOWER = /^(root|pelvis|thigh_|calf_|foot_|ball_)/;
 
@@ -69,7 +88,7 @@ const FACE = new THREE.Quaternion(0, 1, 0, 0);
 
 // Renames the rig to RIG, re-expresses its bone frames to SOLDIER_REST (positions unchanged, so the skin is unchanged too), rewrites
 // the clips to match, and keeps only the clips above under their game names (UB_* made as upper-body masks of the U_* clips).
-function adaptCharacter(gltf) {
+function adaptCharacter(gltf, clips = gltf.animations) {
   const scene = gltf.scene; scene.updateMatrixWorld(true);
   const K = new Map(), parentOf = new Map(), w = new THREE.Quaternion();
   scene.traverse((o) => {
@@ -93,7 +112,7 @@ function adaptCharacter(gltf) {
     o.skeleton.bones.forEach((b, i) => { if (K.has(b.name)) o.skeleton.boneInverses[i].premultiply(new THREE.Matrix4().makeRotationFromQuaternion(K.get(b.name).clone().invert())); });
   });
   scene.traverse((o) => { if (RIG[o.name]) o.name = RIG[o.name]; });
-  const byName = new Map(gltf.animations.map((c) => [c.name, c]));
+  const byName = new Map(clips.map((c) => [c.name, c]));
   const make = (name, src, upper) => {
     const tracks = [];
     for (const t of src.tracks) {
@@ -108,19 +127,22 @@ function adaptCharacter(gltf) {
   };
   const out = [];
   for (const [game, file] of Object.entries(CLIPS)) { const c = byName.get(file); if (c) out.push(make(game, c, false)); }
-  for (const game of Object.keys(CLIPS)) if (game.startsWith('U_Pistol_')) { const c = byName.get(CLIPS[game]); if (c) out.push(make('UB_' + game.slice(2), c, true)); }
+  for (const game of Object.keys(CLIPS)) if (game.startsWith('U_Pistol_') || UPPER.has(game.slice(2))) { const c = byName.get(CLIPS[game]); if (c) out.push(make('UB_' + game.slice(2), c, true)); }
   gltf.animations = out;
   return gltf;
 }
 
 const b64ToBuf = (s) => { const bin = atob(s), n = bin.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
-export const A = { soldier: null, ferrari: null, props: null, res: null, ok: false };
+export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, ok: false };
 
 export async function loadAssets() {
   const loader = new GLTFLoader();
   try {
     const [s, f] = await Promise.all([loader.parseAsync(b64ToBuf(characterB64), ''), loader.parseAsync(b64ToBuf(ferrariB64), '')]);
+    const rawClips = s.animations;
     A.soldier = adaptCharacter(s); A.ferrari = f;
+    // the player's own body: the same rig and bind pose with a different mesh (build/fit_female.mjs), so every clip plays on it; a failure keeps the shared body
+    try { A.player = adaptCharacter(await loader.parseAsync(b64ToBuf(playerB64), ''), rawClips); } catch (e) { console.warn('player body failed', e); }
     // CC0 Poly Haven street props (decimated, 256px textures); a failure here must not take the characters down with it
     try {
       const src = { fire_hydrant: hydrantB64, metal_trash_can: trashB64, utility_box_01: boxB64, trashbag: bagB64, potted_plant_01: plantB64, sniper_mag: sniperMagB64, sniper_rifle: sniperRifleB64, living_set: livingB64, street_props: streetPropsB64, street_signs: streetSignsB64, furniture: furnitureB64, pistol: pistolB64 };
@@ -135,6 +157,7 @@ export async function loadAssets() {
     } catch (e) { console.warn('skyline load failed', e); }
     const box = new THREE.Box3().setFromObject(A.soldier.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
+    if (A.player) { const pb = new THREE.Box3().setFromObject(A.player.scene); A.playerScale = 1.82 / (pb.max.y - pb.min.y); }
     A.ok = true;
   } catch (e) { console.warn('asset load failed, procedural fallback', e); }
   return A.ok;
@@ -144,9 +167,10 @@ const q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Qu
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
 
 export function buildSoldier(look = {}, gunParts) {
-  const root = skClone(A.soldier.scene);
+  const S = look.player && A.player ? A.player : A.soldier, scale = S === A.player ? A.playerScale : A.soldierScale;
+  const root = skClone(S.scene);
   const wrap = new THREE.Group(), body = new THREE.Group();
-  root.scale.multiplyScalar(A.soldierScale);
+  root.scale.multiplyScalar(scale);
   root.rotation.y = CHARACTER_YAW; root.position.z = CHARACTER_SHIFT_Z;
   body.add(root); wrap.add(body);
   const tint = new THREE.Color(look.top ?? 0x445566);
@@ -159,7 +183,8 @@ export function buildSoldier(look = {}, gunParts) {
       o.castShadow = true; o.frustumCulled = false; skinMeshes.push(o);
       o.material = o.material.clone();
       const m = o.material;
-      if (/visor/i.test(o.name)) {
+      if (m.name === 'Female') { m.roughness = 0.7; m.metalness = 0; m.emissive = new THREE.Color(0x151a22); m.emissiveIntensity = 0.5; }   // vertex-coloured body: keeps its own colours
+      else if (/visor/i.test(o.name)) {
         m.color.set(0x050608); m.emissive = new THREE.Color(...(look.visor || [0.2, 0.9, 1])); m.emissiveIntensity = 2.2; m.roughness = 0.2; m.metalness = 0.8;
       } else {
         m.color.copy(tint).multiplyScalar(3.2); m.roughness = 0.62; m.metalness = 0.05;
@@ -170,8 +195,8 @@ export function buildSoldier(look = {}, gunParts) {
   const mixer = new THREE.AnimationMixer(root);
   const act = {};
   // base clips (idle / walk / run) run permanently at weight 0; the retargeted UAL clips (U_*) and the pistol upper-body clips (UB_*) are created on first use so idle and unarmed actors do not pay for them
-  const clipBy = new Map(A.soldier.animations.map((c) => [c.name, c]));
-  for (const c of A.soldier.animations) if (c.name !== 'TPose' && !c.name.startsWith('U_') && !c.name.startsWith('UB_')) { act[c.name] = mixer.clipAction(c); act[c.name].play(); act[c.name].weight = 0; }
+  const clipBy = new Map(S.animations.map((c) => [c.name, c]));
+  for (const c of S.animations) if (c.name !== 'TPose' && !c.name.startsWith('U_') && !c.name.startsWith('UB_')) { act[c.name] = mixer.clipAction(c); act[c.name].play(); act[c.name].weight = 0; }
   const clip = (name) => { if (act[name]) return act[name]; const c = clipBy.get(name); if (!c) return null; const a = (act[name] = mixer.clipAction(c)); a.play(); a.weight = 0; return a; };
   act.Idle.weight = 1;
   mixer.update(Math.random() * 2);
@@ -187,10 +212,25 @@ export function buildSoldier(look = {}, gunParts) {
   const { pistol, rifle, muzzle } = gunParts();
   mount.add(pistol, rifle);
   const mz = new THREE.Object3D(); mz.position.set(0, 0.03, 0.3); mount.add(mz);
+  // hand-held melee tools reuse the pistol's material (same shader program, so showing one never compiles anything); built on first use
+  let meleeMesh = null, meleeName = null;
+  const gunMat = (() => { let mm = null; pistol.traverse((o) => { if (!mm && o.isMesh) mm = o.material; }); return mm; })();
+  const meleeShape = (name) => {
+    const g = new THREE.Group(), box = (x, y, z, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x, y, z), gunMat); o.position.set(px, py, pz); o.castShadow = true; g.add(o); };
+    if (name === '단검') { box(0.026, 0.012, 0.1, 0, 0.03, 0.02); box(0.018, 0.004, 0.19, 0, 0.03, 0.17); }
+    else if (name === '방망이') { box(0.03, 0.03, 0.2, 0, 0.03, 0.05); box(0.075, 0.075, 0.5, 0, 0.03, 0.4); }
+    else { box(0.026, 0.026, 0.62, 0, 0.03, 0.26); box(0.026, 0.08, 0.04, 0, 0.03, 0.57); }
+    return g;
+  };
   const stub = () => new THREE.Object3D();
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
+    setMelee(name) {
+      if (name === meleeName) return; meleeName = name;
+      if (meleeMesh) { mount.remove(meleeMesh); meleeMesh = null; }
+      if (name) { meleeMesh = meleeShape(name); mount.add(meleeMesh); }
+    },
     setTop(hex) { for (const mm of topMats) { mm.color.set(hex).multiplyScalar(3.2); mm.emissive.set(hex); } },
     // one-shot full-body clip (death, hit reaction): everything else fades out until stopOnce()
     playOnce(name, hold = true) {

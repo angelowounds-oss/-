@@ -10,6 +10,7 @@ import { buildWorld, uploadSigns, N, P, R, SW, LANE, HALF, roadC, nodePos, block
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
+import { gesture } from './gesture.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
 import { glowSpriteMat, buildCar, CAR_SPECS, rifleLook } from './models.js';
@@ -183,7 +184,7 @@ export class Game {
 
   // ====================================================================
   setupPlayer() {
-    const pl = new Human(this, 'player', { hp: 100, weapon: 1, look: { top: 0x2a3f55, pants: 0x1a2230, trim: [0.2, 0.9, 1], visor: [0.2, 0.95, 1], hair: 0x0b0b10, skin: 0xd9a47c } });
+    const pl = new Human(this, 'player', { hp: 100, weapon: 1, look: { top: 0x2a3f55, pants: 0x1a2230, trim: [0.2, 0.9, 1], visor: [0.2, 0.95, 1], hair: 0x0b0b10, skin: 0xd9a47c, player: true } });
     pl.group.visible = true;
     this.scene.add(pl.group);
     const pz0 = this.world.plaza; pl.x = pz0.cx + 22; pl.z = pz0.cz + 22; pl.ry = Math.PI;
@@ -628,7 +629,16 @@ export class Game {
       } else if (!pl.fireHeld) { this.audio.empty(); pl.fireCd = 0.3; }
     }
     }
-    if (this.input.edge('nade')) { if (this.items.take('grenade')) this.throwGrenade(); else if (this.items.take('molotov')) this.throwMolotov(); }
+    if (pl.throwT > 0) { pl.throwT -= dt; if (pl.throwT <= 0) { if (pl.throwKind === 'molotov') this.throwMolotov(); else this.throwGrenade(); } }
+    else if (this.input.edge('nade') && !pl.dead) {
+      const kind = this.items.count('grenade') ? 'grenade' : this.items.count('molotov') ? 'molotov' : null;
+      if (kind && this.items.take(kind)) {
+        // the arm swings first and the grenade leaves the hand at the end of the swing
+        if (gesture(pl, 'throw', { upper: true, speed: 1.5 })) { pl.throwKind = kind; pl.throwT = Math.max(0.2, pl.gestT * 0.5); }
+        else if (kind === 'molotov') this.throwMolotov(); else this.throwGrenade();
+      }
+    }
+    if (pl.meleeHitT > 0) { pl.meleeHitT -= dt; if (pl.meleeHitT <= 0) { pl.meleeHitT = 0; this.meleeAttack(true); } }
     if (pl.bleed) { pl.bleedT = (pl.bleedT || 0) + dt; if (pl.bleedT > 1) { pl.bleedT = 0; this.hurtPlayer(1.2, null, 'bleed'); } }
     pl.fireHeld = inp.fire;
     // interactions: vehicles, building doors, interior objects
@@ -914,9 +924,17 @@ export class Game {
     if (r.kind === 'human') this.markHit(r.head);
     if (ammo.clip === 0 && ammo.reserve > 0) pl.reloadT = w.reload, this.audio.reloadW(w.snd, w.reload);
   }
-  meleeAttack() {
+  // late: the blow lands (called when the swing of a weapon with m.swing reaches its hit frame); otherwise it starts the swing or, for fists, hits at once
+  meleeAttack(late = false) {
     const pl = this.player, m = pl.melee || { dmg: 9, rate: 0.45, name: '맨손' };
-    pl.fireCd = m.rate; pl.punchT = 0.22; if (pl.m.playOnce && pl.m.playOnce(Math.random() < 0.5 ? 'U_Punch_Jab' : 'U_Punch_Cross', false)) pl.reactT = 0.42; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
+    if (!late) {
+      pl.fireCd = m.rate;
+      if (m.swing && !pl.dead) {
+        const clip = m.swing[(pl.swingN = ((pl.swingN || 0) + (this.time - (pl.swingT || -9) < 1.2 ? 1 : 0)) % m.swing.length)]; pl.swingT = this.time;
+        if (gesture(pl, clip, { upper: true, speed: m.swingSpeed || 1.6 })) { pl.meleeHitT = m.hitDelay || 0.18; this.audio.tone?.(520, 0.09, 'sawtooth', 0.025, 180); this.lastShotT = this.time - 1; return; }
+      }
+      pl.punchT = 0.22; if (pl.m.playOnce && pl.m.playOnce(Math.random() < 0.5 ? 'U_Punch_Jab' : 'U_Punch_Cross', false)) pl.reactT = 0.42; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
+    }
     const fx = Math.sin(pl.ry), fz = Math.cos(pl.ry);
     let best = null, bd = 2.2;
     for (const h of this.humans) {
