@@ -17,6 +17,10 @@ run('motions', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     o.upperMasks = ['Greeting', 'OverhandThrow', 'Sword_Regular_A'].filter((n) => !m.clip('UB_' + n));
     const step = (n) => { for (let i = 0; i < n; i++) window.__upd(1 / 60); };
     pl.dead = false; pl.reactT = 0; pl.speed = 0;
+    // counter staff pick work motions on their own
+    const npc = g.life.npc(null, { npcs: [], interact: [] }, pl.x + 3, pl.y || 0, pl.z + 3, { role: 'cashier' }); npc.group.visible = true; npc._ambT = 0; npc.m.setProp && 0;
+    let seen = false; for (let i = 0; i < 30 && !seen; i++) { step(2); seen = !!(npc.proc || npc.gestUB || npc.reactT > 0); }
+    o.staffGesture = seen;
     return o;
   });
   // the gesture module is bundled, not importable: drive it through the game's own player methods
@@ -58,6 +62,6 @@ run('motions', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   });
   const pass = o.missing.length === 0 && o.upperMasks.length === 0 &&
     o2.crawling && o2.crawlW > 0.5 && Math.abs(o2.proneTilt) < 0.2 && o2.standsAgain &&
-    o2.throwT > 0.15 && o2.heldBack && o2.released && o2.knifeShown && o2.hitDelay > 0.05 && o2.gesturing && o2.hitDone && Math.abs(o2.stance.Walk - 0.9) < 0.25 && Math.abs(o2.stance.Run - 5.2) < 0.8 && o2.procStart && o2.procBends && o2.procEnds && o2.menuWave && o2.armedKeeps && o2.menuDone && o2.drinks && o2.cup === 'cup' && o2.cupGone;
+    o2.throwT > 0.15 && o2.heldBack && o2.released && o2.knifeShown && o2.hitDelay > 0.05 && o2.gesturing && o2.hitDone && Math.abs(o2.stance.Walk - 0.9) < 0.25 && Math.abs(o2.stance.Run - 5.2) < 0.8 && o2.procStart && o2.procBends && o2.procEnds && o2.menuWave && o2.armedKeeps && o2.menuDone && o2.drinks && o2.cup === 'cup' && o2.cupGone && o.staffGesture;
   result('motions', pass, { ...o, ...o2 });
 });

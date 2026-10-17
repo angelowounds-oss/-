@@ -3,8 +3,9 @@ import { buildHuman, rifleLook } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
-import { updateGesture, updateProc, gesture, PROPS } from './gesture.js';
+import { updateGesture, updateProc, gesture, procGesture, PROPS } from './gesture.js';
 
+const STAFF = { cashier: ['typing', 'interact', 'fidget', 'nod'], reception: ['typing', 'listen', 'nod', 'phone'], nurse: ['listen', 'nod', 'fidget', 'wipe'] };
 // small calm gestures that read well over a walk or stand
 const AMBIENT = ['scratch', 'shrug', 'nod', 'phone', 'foldarms', 'fidget', 'lean'];
 
@@ -295,13 +296,17 @@ export class Human {
       }
       this._rl = rel;
     }
-    // ambient gestures for calm citizens near the player so crowds do not move in lockstep
-    if (this.citizen && !this.gestUB && !this.armed && !this.fleeT && this.state === 'route' && !this.dead) {
+    // ambient gestures for calm citizens near the player so crowds do not move in lockstep; counter staff use work motions
+    const idleStaff = this.static && this.state === 'stand' && !this.scared && !this.sleeping && !this.lying && !this.guard;
+    if ((this.citizen || idleStaff) && !this.gestUB && !this.proc && !this.armed && !this.fleeT && (this.state === 'route' || idleStaff) && !this.dead) {
       this._ambT = (this._ambT === undefined ? 4 + Math.random() * 14 : this._ambT) - dt;
       if (this._ambT <= 0) {
         this._ambT = 12 + Math.random() * 25;
         const G = this.G, pl = G && G.player;
-        if (pl && Math.hypot(this.x - pl.x, this.z - pl.z) < 45) gesture(this, AMBIENT[(Math.random() * AMBIENT.length) | 0], { upper: true });
+        if (pl && Math.hypot(this.x - pl.x, this.z - pl.z) < 45) {
+          const list = STAFF[this.role] || AMBIENT, pick = list[(Math.random() * list.length) | 0];
+          if (!(idleStaff && procGesture(this, pick))) gesture(this, pick, { upper: true, moving: idleStaff });
+        }
       }
     }
     if (this.gestUB) updateGesture(this, dt, aiming);
