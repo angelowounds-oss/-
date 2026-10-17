@@ -11,7 +11,7 @@ export const GESTURES = {
   throw: 'OverhandThrow', toss: 'Throw_Object', carry: 'Walk_Carry', eat: 'Consume', drink: 'Consume_Item', open: 'Chest_Open', kick: 'Kick_Breach',
   repair: 'Fixing_Kneeling', harvest: 'Farm_Harvest', plant: 'Farm_PlantSeed', water: 'Farm_Watering', chop: 'Chop_Tree',
   cast: 'Fishing_Cast', reel: 'Fishing_Reel', catch: 'Fishing_Catch', golf: 'Golf_Drive', jacks: 'Jumping_Jacks', pushup: 'Pushup', dance: 'Dance_Body_Roll',
-  block: 'Sword_Block', getup: 'LayToIdle', rise: 'Zombie_Rise', yell: 'Zombie_Yell', scratch: 'Zombie_Scratch', knockback: 'Hit_Knockback',
+  block: 'Sword_Block', pickup: 'PickUp_Table', interact: 'Interact', walkback: 'Walk_Backwards', getup: 'LayToIdle', rise: 'Zombie_Rise', yell: 'Zombie_Yell', scratch: 'Zombie_Scratch', knockback: 'Hit_Knockback',
 };
 
 const dur = (a) => a.getClip().duration / (a.timeScale || 1);

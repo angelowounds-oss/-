@@ -17,7 +17,7 @@ export class Input {
   }
   edge(n) { const v = this.edges[n]; this.edges[n] = 0; return v > 0; }
   bind() {
-    const keyMap = { Space: 'jump', KeyF: 'use', KeyE: 'use', KeyR: 'reload', KeyQ: 'swap', KeyC: 'cam', KeyL: 'lights', Digit1: 'w1', Digit2: 'w2', Digit3: 'w3', Digit4: 'w4', Digit5: 'w5', Digit6: 'w6', KeyH: 'horn', KeyG: 'horn', KeyT: 'verb3', KeyI: 'inv', Tab: 'inv', KeyX: 'drop', KeyZ: 'crouch', KeyP: 'prone', KeyV: 'grab', KeyM: 'phone', KeyN: 'sit', KeyB: 'nade', KeyY: 'sur', KeyO: 'grapple', KeyU: 'alt' };
+    const keyMap = { Space: 'jump', KeyF: 'use', KeyE: 'use', KeyR: 'reload', KeyQ: 'swap', KeyC: 'cam', KeyL: 'lights', Digit1: 'w1', Digit2: 'w2', Digit3: 'w3', Digit4: 'w4', Digit5: 'w5', Digit6: 'w6', KeyH: 'horn', KeyG: 'horn', KeyT: 'verb3', KeyI: 'inv', Tab: 'inv', KeyX: 'drop', KeyZ: 'crouch', KeyP: 'prone', KeyV: 'grab', KeyM: 'phone', KeyN: 'sit', KeyB: 'nade', KeyY: 'sur', KeyO: 'grapple', KeyU: 'alt', KeyK: 'gest' };
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);

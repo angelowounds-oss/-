@@ -246,11 +246,12 @@ export class Human {
     const sitC = (m.sit || 0) > 0.5, airC = !sitC && !swimC && !!this.body3 && !this.body3.grounded && !this.hang && !this.mantle && !this.ladder;
     const crawlC = !swimC && !sitC && this.prone && !!m.clip('U_Crawl');
     this.crawling = crawlC;
-    const set = sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : airC ? ['U_Jump', 'U_Jump'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crawlC ? ['U_Crawl', 'U_Crawl'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
+    const hangC = !!this.hang && !!m.clip('U_Ledge_Hang'), ladC = !hangC && !!(this.mantle && this.mantle.ladder) && !!m.clip('U_Climb_Ladder');
+    const set = hangC ? ['U_Ledge_Hang', 'U_Ledge_Hang'] : ladC ? ['U_Ladder_Idle', 'U_Climb_Ladder'] : sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : airC ? ['U_Jump', 'U_Jump'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crawlC ? ['U_Crawl', 'U_Crawl'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
-    const moving = clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0 };
+    const moving = ladC ? 1 : clamp(sp / 1.5, 0, 1);
+    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
     if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : clamp(sp / 1.6, 0.6, 1.8);

@@ -11,6 +11,7 @@ import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
 import { gesture } from './gesture.js';
+import { GestureMenu } from './gesturemenu.js';
 import { Audio } from './audio.js';
 import { Input } from './input.js';
 import { glowSpriteMat, buildCar, CAR_SPECS, rifleLook } from './models.js';
@@ -154,7 +155,7 @@ export class Game {
     this.missionIndex = this.saveData.mission ?? 0;
     this.cacheUI();
     this.bindUI();
-    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? this.timed_('transit', () => new Transit(this)) : null; this.aviation = this.citysites ? this.timed_('aviation', () => new Aviation(this)) : null; this.rules = this.citysites ? new CityRules(this) : null; this.ships = this.citysites ? new Ships(this) : null;
+    this.panels = new Panels(this); this.jobs = new Jobs(this); this.phone = new Phone(this); this.gestures = new GestureMenu(this); this.autonav = new AutoNav(this); this.wmap = new WorldMapUI(this); this.transit = this.citysites ? this.timed_('transit', () => new Transit(this)) : null; this.aviation = this.citysites ? this.timed_('aviation', () => new Aviation(this)) : null; this.rules = this.citysites ? new CityRules(this) : null; this.ships = this.citysites ? new Ships(this) : null;
     if (!Object.keys(this.items.inv.items).length && !this.state.started) { this.state.started = true; for (const [id, n] of [['water', 1], ['burger', 1], ['bandage', 2], ['flashlight', 1]]) this.items.add(id, n); }
     this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
@@ -388,6 +389,7 @@ export class Game {
     this.clock.update(sdt); this.needs.update(sdt); this.society.update(sdt); this.items.update(sdt); this.updateFlashlight();
     if (this.input.edge('inv')) this.openInventory();
     if (this.input.edge('sur') && this.playerOnFoot) this.surrender();
+    if (this.input.edge('gest') && this.playerOnFoot && !this.player.dead && !this.uiModal) this.gestures.toggle();
     if (this.input.edge('phone') && !this.uiModal && !this.riding && !this.player.dead) this.phone.show();
     this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt); this.transit?.update(sdt); this.aviation?.update(sdt); this.rules?.update(sdt); this.ships?.update(sdt);
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }

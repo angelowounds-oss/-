@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GR, grp } from './physics.js';
 import { clamp, damp, rand } from './util.js';
 import { A } from './assets.js';
+import { gesture } from './gesture.js';
 
 // ====================================================================
 // Items: catalogue, physical props (grab / carry / throw / kick), inventory, containers
@@ -235,7 +236,7 @@ export class ItemWorld {
     const d = p.def; if (d.mass > SMALL) { this.grab(p); return; }
     if (this.weight() + d.mass > 25) { this.G.toast('가방이 가득 찼습니다'); return; }
     if (p.sale) { this.inv.unpaid[p.id] = (this.inv.unpaid[p.id] || 0) + 1; this.inv.unpaidCost = (this.inv.unpaidCost || 0) + p.sale; this.G.toast(`${d.name}`, `계산대에서 $${p.sale} 지불`); }
-    this.add(p.id, 1); this.remove(p); this.G.audio.tone?.(900, 0.05, 'sine', 0.05);
+    this.add(p.id, 1); this.remove(p); this.G.audio.tone?.(900, 0.05, 'sine', 0.05); gesture(this.G.player, 'pickup');
     this.G.onItemChange?.();
   }
   // consume / use from the inventory or the world
@@ -250,6 +251,7 @@ export class ItemWorld {
     if (d.gun !== undefined) { pl.owned[d.gun] = true; pl.ammo[d.gun].reserve += d.gun === 3 ? 12 : 30; G.toast('무기 획득', d.name); G.switchWeapon(d.gun); }
     if (d.heal) pl.bleed = 0;
     if (d.eat || d.heal) G.audio.tone?.(520, 0.1, 'triangle', 0.08, 380);
+    if (d.eat) gesture(pl, d.eat.water > 0 ? 'drink' : 'eat', { upper: true });
     if (!d.heal && !d.eat && !d.cash && !d.ammo && !d.fuelCan && d.gun === undefined) { this.add(id); return false; }
     G.onItemChange?.();
     return true;

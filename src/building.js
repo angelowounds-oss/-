@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { gesture } from './gesture.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, mats, disposeGroup, SURF } from './gfx.js';
 import { GR, grp } from './physics.js';
@@ -900,6 +901,7 @@ export class Door {
   }
   toggle(pl) {
     if (this.locked) { this.G.toast('잠겨 있습니다', 'G 키로 따거나 걷어찰 수 있습니다'); this.G.audio.tone?.(200, 0.08, 'square', 0.08); return; }
+    if (pl === this.G.player) gesture(pl, 'interact');
     if (this.target > 0.1) { this.target = 0; this.G.audio.door?.(); }
     else {
       // swing away from the player
