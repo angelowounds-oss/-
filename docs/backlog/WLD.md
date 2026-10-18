@@ -97,3 +97,18 @@
 
 ### WLD-18 마을·시설의 남은 것 — P3 · M · Backlog
 - 마을 주민의 길 위 경로(집 밖에서의 충돌 회피)는 직선 경로, 파괴된 집의 불(Blaze) 연동 없음, 농장 가축·밭 작업 없음, 광산 갱도 없음.
+
+### WLD-19 도시 외곽 디테일 (도로 형태·농촌 흔적) — P1 · L · In progress (1단계 진단 완료 2026-10-18)
+- 목적: 외곽 도로가 이상해 보이고 농촌 구간이 비어 보인다는 사용자 지적을 푼다. 계획: `/root/.claude/plans/vivid-soaring-harbor.md`.
+- 진단 (`country.bin` 66개 도로, 측정 스크립트는 스크래치패드 `diag/`):
+  - 도로: 아스팔트 46 · 흙길 20. 꺾임 30° 이상 45곳(최대 65°, 90° 이상 0), 중복 점 10개(길이 0 구간).
+  - 지면과 도로 옆 교차 기울기: 평균 0.07 m, 1.5 m 초과 0.4%(최대 2.27 m, `v4>c:mid3`). 떠 있음·묻힘은 주 원인이 아님.
+  - 끝점 132개 중 40 m 안에 다른 도로가 없는 곳 72개 — 대부분 마을·농장 입구. 장면 확인: 흙길이 들판 가장자리에서 끊김.
+  - 나무: 육지(해발 0.5 m 이상, 도시 밖) 셀의 약 80%가 숲 (`vegCell`). 나무 부족은 원인이 아니다.
+  - 빈 느낌의 실제 원인: 농지 구획·울타리·헛간 같은 사람 흔적이 없고, 초지(kind 6)가 평지를 덮음(육지 셀 약 7%), 도로 옆 배수로·표지판·가드레일 없음.
+  - 장면 확인(SwiftShader): 굽은 곳에서 노면 흰 선이 V자로 꺾임, 끝점에서 흙길 종료.
+- 범위 (계획 2~4단계): 평활화·중복 점 제거·곡률 제한 재베이크(`build/roads_pack.mjs`), 도로 끝 연결, 도로변 시설, 농지 구획·농촌 소품(기존 마을 키트 재사용). 시각 변경은 ADR-0015로 승인 기록.
+- AC: 꺾임 30° 이상 0곳, 중복 점 0개, 도로 옆 1.5 m 초과 기울기 0.5% 이하, 끝점 중 연결 불가한 곳은 마을 입구 표시 가능한 곳만, 외곽 4컷 육안 승인, 도시 안 픽셀 동일, `farland`·`frame-time`·`no-runtime-compile` 통과.
+- 검증: `node build/roads_pack.mjs` → `node tests/run.cjs --only farland`, 신규 `unit/countryroads-quality`.
+- 관련 파일: `build/roads_pack.mjs`, `assets/roads/country.bin`, `src/countryroads.js`, `src/vegfn.js`, `src/forest.js`, `src/farland.js`, `src/settlements.js`, `src/village.js`.
+- 의존: 시각 변경 승인(ADR-0015).
