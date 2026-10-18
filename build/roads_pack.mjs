@@ -39,6 +39,15 @@ const hwNear = (x, z, r) => { for (let i = -1; i <= 1; i++) for (let j = -1; j <
 const links = [];
 for (const v of S.villages) if (v.tag === 'highway') { let best = null, bd = 1e18; for (const p of hwPts) { const d = (p[0] - v.x) ** 2 + (p[1] - v.z) ** 2; if (d < bd) { bd = d; best = p; } } if (best && Math.sqrt(bd) < 3000) links.push([byId.get(v.id), { id: 'h:' + v.id, kind: 'highway', x: best[0], z: best[1], r: 0, gate: () => ({ x: best[0], z: best[1], in: null, pad: 0, hw: true }) }, Math.sqrt(bd)]); }
 
+// resampling leaves duplicate points and a short leftover piece at the corners, which read as kinks of 30-65 degrees; drop the duplicates, fold a short
+// last piece into its neighbour, then relax the inner points (the first and last point stay on the gates)
+function tidy(pts) {
+  const d = []; for (const p of pts) { const q = d[d.length - 1]; if (!q || Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.5) d.push(p); }
+  if (d.length > 2 && Math.hypot(d[d.length - 1][0] - d[d.length - 2][0], d[d.length - 1][1] - d[d.length - 2][1]) < STEP * 0.5) d.splice(d.length - 2, 1);
+  for (let r = 0; r < 8; r++) for (let i = 1; i < d.length - 1; i++) d[i] = [(d[i - 1][0] + 2 * d[i][0] + d[i + 1][0]) / 4, (d[i - 1][1] + 2 * d[i][1] + d[i + 1][1]) / 4];
+  return d;
+}
+
 // ---- A*
 function route(a, b) {
   const ga = a.gate(b.x, b.z), gb = b.gate(a.x, a.z), pad = 2200;
@@ -85,7 +94,7 @@ function route(a, b) {
   }
   const out = [pts[0]]; let acc = 0;   // resample every STEP metres
   for (let i = 1; i < pts.length; i++) { let a0 = out[out.length - 1], b0 = pts[i], l = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]); while (acc + l >= STEP) { const f = (STEP - acc) / l; a0 = [a0[0] + (b0[0] - a0[0]) * f, a0[1] + (b0[1] - a0[1]) * f]; out.push(a0); l = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]); acc = 0; } acc += l; }
-  out.push(pts[pts.length - 1]); return out;
+  out.push(pts[pts.length - 1]); return tidy(out);
 }
 
 const roads = [], t0 = Date.now(); let failed = 0;

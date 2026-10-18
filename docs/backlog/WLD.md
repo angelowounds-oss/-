@@ -98,7 +98,7 @@
 ### WLD-18 마을·시설의 남은 것 — P3 · M · Backlog
 - 마을 주민의 길 위 경로(집 밖에서의 충돌 회피)는 직선 경로, 파괴된 집의 불(Blaze) 연동 없음, 농장 가축·밭 작업 없음, 광산 갱도 없음.
 
-### WLD-19 도시 외곽 디테일 (도로 형태·농촌 흔적) — P1 · L · In progress (1단계 진단 완료 2026-10-18)
+### WLD-19 도시 외곽 디테일 (도로 형태·농촌 흔적) — P1 · L · In progress (1단계 진단·2단계 도로 형태 완료 2026-10-18; 3·4단계 남음)
 - 목적: 외곽 도로가 이상해 보이고 농촌 구간이 비어 보인다는 사용자 지적을 푼다. 계획: `/root/.claude/plans/vivid-soaring-harbor.md`.
 - 진단 (`country.bin` 66개 도로, 측정 스크립트는 스크래치패드 `diag/`):
   - 도로: 아스팔트 46 · 흙길 20. 꺾임 30° 이상 45곳(최대 65°, 90° 이상 0), 중복 점 10개(길이 0 구간).
@@ -112,3 +112,6 @@
 - 검증: `node build/roads_pack.mjs` → `node tests/run.cjs --only farland`, 신규 `unit/countryroads-quality`.
 - 관련 파일: `build/roads_pack.mjs`, `assets/roads/country.bin`, `src/countryroads.js`, `src/vegfn.js`, `src/forest.js`, `src/farland.js`, `src/settlements.js`, `src/village.js`.
 - 의존: 시각 변경 승인(ADR-0015).
+- 2단계 결과 (`build/roads_pack.mjs`에 `tidy` 추가, `country.bin` 재생성 335 KB, 679 km, 66개 도로): 중복 점 10 → 0, 30° 이상 꺾임 45 → 0(최대 65° → 29.5°), 도로 옆 1.5 m 초과 기울기 0.35%(0.4%에서 바뀌지 않음, 기준 0.5% 이하 충족). 단위 테스트 `unit/countryroads-quality`(통과).
+- 남은 것: 끝점 72곳은 그대로(마을·농장 입구, 입구 연결은 마을 도로 데이터가 필요). 3단계(배수로·가드레일·표지판·전신주), 4단계(농지 구획·농촌 소품)는 시각 변경 승인 후. 도로 옆 둑이 세로 벽처럼 보이는 곳이 있어 둑 경사 완화를 3단계에 포함한다.
+
