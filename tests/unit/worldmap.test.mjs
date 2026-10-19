@@ -10,7 +10,9 @@ const cap = cs[0]; if (cap.x !== 0 || cap.z !== 0 || cap.type !== 'metropolis' |
 cs.forEach((c, i) => {
   if (farHeight(c.x, c.z) < SEA + 1.5) bad.push(['city on water', c.id]);
   if (i && Math.abs(farHeight(c.x, c.z) - c.y) > 3) bad.push(['city not flat', c.id, farHeight(c.x, c.z), c.y]);
-  for (let k = 0; k < i; k++) if (Math.hypot(c.x - cs[k].x, c.z - cs[k].z) < 14500) bad.push(['cities too close', c.id, cs[k].id]);
+  // the towns' footprints must not overlap: real towns can be close (Gwangju and Mokpo are about 80 km apart, 12 km on the map), so the
+  // rule is the sum of the two footprint radii, not a fixed spacing
+  for (let k = 0; k < i; k++) if (Math.hypot(c.x - cs[k].x, c.z - cs[k].z) < 1.5 * (c.r + cs[k].r)) bad.push(['cities too close', c.id, cs[k].id]);
   if (Math.abs(c.x + CAPITAL.x) > WORLD_HALF - 5000 || Math.abs(c.z + CAPITAL.z) > WORLD_HALF - 5000) bad.push(['city at the edge', c.id]);
 });
 if (!cs.some((c) => c.type === 'port') || !cs.some((c) => c.type === 'airport')) bad.push(['missing city types']);

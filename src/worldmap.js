@@ -8,7 +8,8 @@
 //           cities (site search on the coarse grid), highways (A* on a coarser grid, smoothed) -> CITIES, HIGHWAYS
 import { koreaMask, landAt } from './koreamap.js';
 
-import { CAPITAL } from './koreamap.js';
+import { CAPITAL, project } from './koreamap.js';
+import { DEM_N1, DEM_B64 } from './koreadem.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
@@ -37,16 +38,20 @@ function koreaShare(x, z, r) {
   for (let a = 0; a < 8; a++) sum += landAt(M, x + Math.cos(a * 0.785398) * r, z + Math.sin(a * 0.785398) * r);
   return sum / 9;
 }
+// the real elevation (src/koreadem.js, build/korea_dem.py): 257 x 257 nodes at the height-grid spacing, bilinear in between (WLD-20e)
+let DEM = null;
+function demAt(x, z) {
+  if (!DEM) DEM = new Int16Array(Uint8Array.from(atob(DEM_B64), (c) => c.charCodeAt(0)).buffer);   // little-endian int16, as build/korea_dem.py writes it
+  const fx = Math.min(CG - 1e-6, Math.max(0, (x + WORLD_HALF) / CC)), fz = Math.min(CG - 1e-6, Math.max(0, (z + WORLD_HALF) / CC));
+  const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, k = j * DEM_N1 + i;
+  return (DEM[k] * (1 - u) + DEM[k + 1] * u) * (1 - v) + (DEM[k + DEM_N1] * (1 - u) + DEM[k + DEM_N1 + 1] * u) * v;
+}
 function rawHeight(x, z) {
-  const land = sstep(0.3, 0.7, koreaShare(x, z, 1000));
-  const shelf = koreaShare(x, z, 4000);   // 0 far out at sea (deepest), 1 well inland
-  const plains = 8 + 26 * fbm(x / 9000, z / 9000, 3, 2);
-  const mm = sstep(0.50, 0.74, fbm(x / 30000 + 9, z / 30000 - 4, 3, 3));                    // where mountain ranges stand
-  const mount = mm * (260 + 1450 * ridged(x / 7600, z / 7600, 5, 4));
-  const hills = 130 * fbm(x / 5200, z / 5200, 4, 5) * (0.35 + 0.65 * sstep(0.35, 0.62, fbm(x / 21000 + 2, z / 21000, 3, 6)));
-  const dv = Math.hypot(x - VOLCANO.x, z - VOLCANO.z);
-  const cone = VOLCANO.h * Math.exp(-Math.pow(dv / VOLCANO.r, 2.0)) - 420 * Math.exp(-Math.pow(dv / (VOLCANO.r * 0.12), 2.0));   // cone with a crater
-  const landH = plains + hills + mount + cone * land;   // the real spines (ranges.js) are not applied yet: they break road grades and highway routes (WLD-20e)
+  const real = demAt(x, z);   // the real land height (the DEM already carries the mountains, the cones and the plains)
+  // land from the admin-boundary mask or from the elevation grid itself: small islands (Ulleung) and coasts the mask misses come from the DEM
+  const land = Math.max(sstep(0.3, 0.7, koreaShare(x, z, 1000)), sstep(8, 30, real));
+  const shelf = Math.max(koreaShare(x, z, 4000), sstep(8, 30, real));   // 0 far out at sea (deepest), 1 well inland
+  const landH = Math.max(real, 2);
   const seaH = SEA - 3 - 130 * sstep(0, 1, 1 - shelf);
   return lerp(seaH, landH, land);
 }
@@ -60,7 +65,12 @@ function build() {
   for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
     const x = -WORLD_HALF + i * CC, z = -WORLD_HALF + j * CC;
     H[j * N1 + i] = rawHeight(x, z);
-    M[j * N1 + i] = sstep(0.50, 0.74, fbm(x / 30000 + 9, z / 30000 - 4, 3, 3));
+  }
+  // roughness (how much detail noise a place gets) follows the real relief: the height range over the neighbouring nodes, none on flat ground and the coast
+  for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
+    let lo = 1e9, hi = -1e9;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const v = H[Math.min(CG, Math.max(0, j + dj)) * N1 + Math.min(CG, Math.max(0, i + di))]; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    M[j * N1 + i] = sstep(25, 450, hi - lo);
   }
   const W = { N1, H, M, rivers: [], riverMask: new Float32Array(N1 * N1), cities: [], highways: [], F: new Float32Array(N1 * N1), B: new Uint8Array(N1 * N1), COL: new Float32Array(N1 * N1 * 3) };
   COARSE = W;
@@ -110,12 +120,13 @@ function carveRivers(W) {
 // ------------------------------------------------------------------ cities: wished position -> nearest suitable site (flat land; the port at a coast)
 export const CITY_DEFS = [
   { id: 'neon', name: 'NEON CITY', type: 'metropolis', x: CAPITAL.x, z: CAPITAL.z, r: 4200, fixed: true },   // at Seoul (ADR-0017)
-  { id: 'harbor', name: 'HARBOR GATE', type: 'port', x: -31000, z: 9000, r: 3000, coast: true },
-  { id: 'airfield', name: 'SKYPORT', type: 'airport', x: 29000, z: -15000, r: 3400 },
-  { id: 'mid1', name: 'REDWOOD', type: 'town', x: -12000, z: -32000, r: 1900 },
-  { id: 'mid2', name: 'AMBER FLATS', type: 'town', x: 22000, z: 33000, r: 1800 },
-  { id: 'mid3', name: 'SILVERFJORD', type: 'town', x: -6000, z: 38000, r: 1700 },
-  { id: 'mid4', name: 'CINDER BAY', type: 'town', x: -40000, z: -27000, r: 1600 },
+  // the seven detailed towns sit on real city halls now (WLD-20d): the ids stay for the tests and the bake
+  { id: 'harbor', name: '부산', type: 'port', ...project(129.0756, 35.1796), r: 3000, coast: true },
+  { id: 'airfield', name: '인천', type: 'airport', ...project(126.7052, 37.4563), r: 3400 },
+  { id: 'mid1', name: '대구', type: 'town', ...project(128.6014, 35.8714), r: 1900 },
+  { id: 'mid2', name: '광주', type: 'town', ...project(126.8526, 35.1595), r: 1800 },
+  { id: 'mid3', name: '대전', type: 'town', ...project(127.3845, 36.3504), r: 1700 },
+  { id: 'mid4', name: '목포', type: 'town', ...project(126.3922, 34.8118), r: 1600 },
 ];
 const slopeAt = (W, x, z) => { const e = CC; return Math.hypot(sample(W.H, W.N1, x + e, z) - sample(W.H, W.N1, x - e, z), sample(W.H, W.N1, x, z + e) - sample(W.H, W.N1, x, z - e)) / (2 * e); };
 const nearSea = (W, x, z, within) => { for (let a = 0; a < 16; a++) for (let d = within * 0.4; d <= within; d += within * 0.3) if (sample(W.H, W.N1, x + Math.cos(a / 16 * 6.2832) * d, z + Math.sin(a / 16 * 6.2832) * d) < SEA) return true; return false; };
@@ -191,7 +202,7 @@ function routeHighways(W) {
     let pts = path.map(([i, j]) => [-WORLD_HALF + i * HC, -WORLD_HALF + j * HC]);
     pts[0] = [W.cities[a].x, W.cities[a].z]; pts[pts.length - 1] = [W.cities[b].x, W.cities[b].z];
     // corner cutting must not put the road into the sea: smooth as much as keeps every point (and every midpoint) on land
-    const wet = (P) => { for (let k = 0; k < P.length; k++) { if (sample(W.H, W.N1, P[k][0], P[k][1]) < SEA + 2.5) return true; if (k && sample(W.H, W.N1, (P[k][0] + P[k - 1][0]) / 2, (P[k][1] + P[k - 1][1]) / 2) < SEA + 2.5) return true; } return false; };
+    const wet = (P) => { for (let k = 0; k < P.length; k++) { if (sample(W.H, W.N1, P[k][0], P[k][1]) < SEA + 6) return true; if (k && sample(W.H, W.N1, (P[k][0] + P[k - 1][0]) / 2, (P[k][1] + P[k - 1][1]) / 2) < SEA + 6) return true; } return false; };
     let best = pts; const chaikin = (P) => { const o = [P[0]]; for (let k = 0; k < P.length - 1; k++) { const p = P[k], q = P[k + 1]; o.push([p[0] * 0.75 + q[0] * 0.25, p[1] * 0.75 + q[1] * 0.25], [p[0] * 0.25 + q[0] * 0.75, p[1] * 0.25 + q[1] * 0.75]); } o.push(P[P.length - 1]); return o; };
     let cur = pts; for (let it = 0; it < 3; it++) { cur = chaikin(cur); if (!wet(cur)) best = cur; else break; }
     pts = best;
@@ -240,7 +251,9 @@ function farHeightMap(x, z, cell) {
   if (land) {
     let amp = 6 + 90 * rug + 18 * sstep(120, 600, h), wl = 1400, s = 0;
     for (let o = 0; o < 7 && wl >= Math.max(2 * cell, 6); o++, wl *= 0.5, amp *= 0.5) s += amp * (vn(x / wl, z / wl, 200 + o * 13) - 0.5) * 2;
-    h += s * (1 - sample(W.F, W.N1, x, z)) * sstep(SEA, SEA + 6, h);
+    // detail noise is damped along the rivers: the channel follows the valley floor, so the ground beside it must not rise and fall by tens of metres
+    h += s * (1 - sample(W.F, W.N1, x, z)) * (1 - 0.92 * Math.min(1, 2.2 * sample(W.riverMask, W.N1, x, z))) * sstep(SEA, SEA + 6, h);
+    h = Math.max(h, SEA + 1.5);   // detail noise must not drown a land cell (a highway on the coast would end up in the sea)
   }
   return h;
 }

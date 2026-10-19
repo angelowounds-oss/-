@@ -20,8 +20,11 @@ const hav = (a, b) => {   // great-circle km
 };
 const local = (lon, lat) => { const p = project(lon, lat); return { x: p.x - CAPITAL.x, z: p.z - CAPITAL.z }; };   // local frame for farHeight
 const rows = [];
+// the height grid has one node per 390 m of map (about 2.5 km of real ground): a city hall on the shore shares its node with sea, so a land point
+// passes when the highest height within one node spacing is above the sea
+const around = (q) => { let m = -1e9; for (const [dx, dz] of [[0, 0], [390, 0], [-390, 0], [0, 390], [0, -390]]) m = Math.max(m, farHeight(q.x + dx, q.z + dz)); return m; };
 for (const [name, lon, lat] of LAND) {
-  const q = local(lon, lat), h = farHeight(q.x, q.z), ok = h > SEA + 1;
+  const q = local(lon, lat), h = around(q), ok = h > SEA + 1;
   rows.push({ name, kind: 'land', h: Math.round(h), ok });
   if (!ok) bad.push(['real land is sea in the map', name, Math.round(h)]);
 }

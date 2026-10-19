@@ -22,7 +22,7 @@ function riverIndex() {
     polys.push({ pts: r.pts, lv: L });
   }
   for (const r of rivers()) for (let i = 0; i + 1 < r.pts.length; i++) {
-    const A = r.pts[i], B = r.pts[i + 1], pad = Math.max(A[2], B[2]) + 60, id = segs.length / 2; segs.push(A, B);
+    const A = r.pts[i], B = r.pts[i + 1], pad = Math.max(A[2], B[2]) + 260, id = segs.length / 2; segs.push(A, B);
     for (let cx = Math.floor((Math.min(A[0], B[0]) - pad) / RC); cx <= Math.floor((Math.max(A[0], B[0]) + pad) / RC); cx++) for (let cz = Math.floor((Math.min(A[1], B[1]) - pad) / RC); cz <= Math.floor((Math.max(A[1], B[1]) + pad) / RC); cz++) { const k = cx * 100003 + cz; (grid.get(k) || grid.set(k, []).get(k)).push(id); }
   }
   return (RIV = { grid, segs, lv, polys });
@@ -46,7 +46,9 @@ export function riverAt(x, z) {
 export const bedDepth = (w) => Math.min(6, 1.5 + 0.03 * w);
 function riverCut(x, z, h) {
   const r = riverAt(x, z); if (!r) return h;
-  const half = r.w / 2, t = smooth(half * 0.45, half + 14, r.d), bed = r.y - bedDepth(r.w);
+  const half = r.w / 2, bed = r.y - bedDepth(r.w), drop = Math.max(0, h - bed);
+  // the banks widen with the depth of the cut, so a river in real mountain country runs in a valley, not between 20 m walls
+  const t = smooth(half * 0.45, half + 14 + Math.min(2 * drop, 200), r.d);
   return Math.min(h, bed + (h - bed) * t);
 }
 

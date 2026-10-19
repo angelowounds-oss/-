@@ -37,8 +37,10 @@ function profile(P, closed, fixed0, fixed1) {
     for (let i = 1; i < (closed ? n * 2 : n); i++) { const a = (i - 1) % n, b = i % n; y[b] = Math.min(y[a] + g, Math.max(y[a] - g, y[b])); }
     for (let i = (closed ? n * 2 : n) - 2; i >= 0; i--) { const a = (i + 1) % n, b = i % n; y[b] = Math.min(y[a] + g, Math.max(y[a] - g, y[b])); }
   }
-  if (fixed0 != null && !closed) { const k = Math.min(30, n - 1); const d = fixed0 - y[0]; for (let i = 0; i <= k; i++) y[i] += d * (1 - i / k); }
-  if (fixed1 != null && !closed) { const k = Math.min(30, n - 1); const d = fixed1 - y[n - 1]; for (let i = 0; i <= k; i++) y[n - 1 - i] += d * (1 - i / k); }
+  // the road meets the city plateau (y = 0) over as many samples as the height difference needs, so real terrain around a town never makes a steep ramp
+  const blendLen = (d) => Math.min(n - 1, Math.max(30, Math.ceil(Math.abs(d) / (0.35 * g))));
+  if (fixed0 != null && !closed) { const d = fixed0 - y[0], k = blendLen(d); for (let i = 0; i <= k; i++) y[i] += d * (1 - i / k); }
+  if (fixed1 != null && !closed) { const d = fixed1 - y[n - 1], k = blendLen(d); for (let i = 0; i <= k; i++) y[n - 1 - i] += d * (1 - i / k); }
   return Float32Array.from(y);
 }
 function classify(P, y) {

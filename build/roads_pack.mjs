@@ -48,6 +48,9 @@ function tidy(pts) {
   let d = near(spike(pts.filter((p, i) => i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.5)));
   for (let r = 0; r < 8; r++) for (let i = 1; i < d.length - 1; i++) d[i] = [(d[i - 1][0] + 2 * d[i][0] + d[i + 1][0]) / 4, (d[i - 1][1] + 2 * d[i][1] + d[i + 1][1]) / 4];
   for (let k = 0; k < 6; k++) { const n = d.length; d = near(spike(d)); if (d.length === n) break; }   // a removed hairpin can leave a new one behind
+  // a kink left at a gate is relaxed: only the points around a bend over 25 degrees move, so the straight runs stay put
+  const bend = (i) => { const ax = d[i][0] - d[i - 1][0], az = d[i][1] - d[i - 1][1], bx = d[i + 1][0] - d[i][0], bz = d[i + 1][1] - d[i][1], l = Math.hypot(ax, az) * Math.hypot(bx, bz) || 1; return Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / l))) * 180 / Math.PI; };
+  for (let r = 0; r < 400; r++) { let moved = false; for (let i = 1; i < d.length - 1; i++) if (bend(i) > 25) { for (let j = Math.max(1, i - 1); j <= Math.min(d.length - 2, i + 1); j++) d[j] = [(d[j - 1][0] + 2 * d[j][0] + d[j + 1][0]) / 4, (d[j - 1][1] + 2 * d[j][1] + d[j + 1][1]) / 4]; moved = true; } if (!moved) break; }
   return d;
 }
 
@@ -63,6 +66,8 @@ function route(a, b) {
     const k = j * W + i; if (cost[k] >= 0) return cost[k] > 1e8; const x = cx(i), z = cz(j); let bad = false;
     const h = height(i, j); if (h < SEA + 2.5) bad = true;
     if (!bad) { const rv = riverAt(x, z); if (rv && rv.d < rv.w / 2 + 20) bad = true; }
+    // real mountain country: a road may not run along a hillside whose cross slope would leave the 8.8 m ribbon more than 1.5 m off the ground
+    if (!bad && i > 0 && j > 0 && i < W - 1 && j < H - 1) { const gx = (height(i + 1, j) - height(i - 1, j)) / (2 * G), gz = (height(i, j + 1) - height(i, j - 1)) / (2 * G); if (Math.hypot(gx, gz) > 0.13) bad = true; }
     if (!bad && !gb.hw && hwNear(x, z, 40)) bad = true;
     if (!bad && gb.hw && hwNear(x, z, 40) && Math.hypot(x - gb.x, z - gb.z) > 70) bad = true;
     if (!bad) for (const n of nodes) { if (n === a || n === b || !n.r) continue; const d = Math.hypot(x - n.x, z - n.z); if (d < (n.kind === 'city' ? n.r * 0.99 : n.r + 20)) { bad = true; break; } }
