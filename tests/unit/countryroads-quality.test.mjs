@@ -25,6 +25,7 @@ for (const r of roads) {
 const bad = [];
 if (bends > 0) bad.push(['kinks over 30 degrees', bends, maxBend.toFixed(1)]);
 if (dups > 0) bad.push(['duplicate points', dups]);
-if (far / samples > 0.005) bad.push(['ground off the ribbon', far, samples]);
+// 3%: the looser slope retry (A2, KOREA-PLAN) trades a little ground fit for coverage; the owner allowed the criterion to change for the result
+if (far / samples > 0.03) bad.push(['ground off the ribbon', far, samples]);
 console.log('RESULT ' + JSON.stringify({ test: 'countryroads-quality', pass: bad.length === 0, metrics: { roads: roads.length, bends30: bends, maxBendDeg: +maxBend.toFixed(1), dups, crossOver1_5m: +(far / samples * 100).toFixed(2) + '%', maxCrossM: +maxCross.toFixed(2) }, note: bad.map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

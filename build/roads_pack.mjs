@@ -55,7 +55,7 @@ function tidy(pts) {
 }
 
 // ---- A*
-function route(a, b) {
+function route(a, b, slopeMax = 0.3, crossMax = 0.25) {
   const ga = a.gate(b.x, b.z), gb = b.gate(a.x, a.z), pad = 3500;
   let x0 = Math.min(ga.x, gb.x) - pad, x1 = Math.max(ga.x, gb.x) + pad, z0 = Math.min(ga.z, gb.z) - pad, z1 = Math.max(ga.z, gb.z) + pad;
   const W = Math.ceil((x1 - x0) / G), H = Math.ceil((z1 - z0) / G), cost = new Float32Array(W * H).fill(-1), hts = new Float32Array(W * H).fill(NaN);
@@ -67,7 +67,7 @@ function route(a, b) {
     const h = height(i, j); if (h < SEA + 2.5) bad = true;
     if (!bad) { const rv = riverAt(x, z); if (rv && rv.d < rv.w / 2 + 20) bad = true; }
     // real mountain country: a road may not run along a hillside whose cross slope would leave the 8.8 m ribbon more than 1.5 m off the ground
-    if (!bad && i > 0 && j > 0 && i < W - 1 && j < H - 1) { const gx = (height(i + 1, j) - height(i - 1, j)) / (2 * G), gz = (height(i, j + 1) - height(i, j - 1)) / (2 * G); if (Math.hypot(gx, gz) > 0.25) bad = true; }
+    if (!bad && i > 0 && j > 0 && i < W - 1 && j < H - 1) { const gx = (height(i + 1, j) - height(i - 1, j)) / (2 * G), gz = (height(i, j + 1) - height(i, j - 1)) / (2 * G); if (Math.hypot(gx, gz) > crossMax) bad = true; }
     if (!bad && !gb.hw && hwNear(x, z, 40)) bad = true;
     if (!bad && gb.hw && hwNear(x, z, 40) && Math.hypot(x - gb.x, z - gb.z) > 70) bad = true;
     if (!bad) for (const n of nodes) { if (n === a || n === b || !n.r) continue; const d = Math.hypot(x - n.x, z - n.z); if (d < (n.kind === 'city' ? n.r * 0.99 : n.r + 20)) { bad = true; break; } }
@@ -87,7 +87,7 @@ function route(a, b) {
     for (const [di, dj] of D) {
       const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const nk = nj * W + ni;
       if (nk !== t && blocked(ni, nj)) continue;
-      const d = Math.hypot(di, dj) * G, sl = Math.abs(height(ni, nj) - hk0) / d; if (sl > 0.3) continue;
+      const d = Math.hypot(di, dj) * G, sl = Math.abs(height(ni, nj) - hk0) / d; if (sl > slopeMax) continue;
       const turn = from[k] >= 0 ? (((from[k] % W) - i) * (di) + (((from[k] / W) | 0) - j) * (dj)) : 0;   // a bend costs a little: roads prefer straight runs
       const ng = g[k] + d * (1 + 26 * sl * sl) + (turn > 0 ? 6 : 0);
       if (ng < g[nk]) { g[nk] = ng; from[nk] = k; push(ng + Math.hypot(ni - ti, nj - tj) * G, nk); }
@@ -107,7 +107,8 @@ function route(a, b) {
 
 const roads = [], t0 = Date.now(); let failed = 0;
 // spanning tree by trial: an edge joins two pieces only if a road can really be found between them (the world is an archipelago: some places have no way)
-const add = (a, b) => { const pts = route(a, b); if (!pts || pts.length < 4) { failed++; return false; } roads.push({ id: a.id + '>' + b.id, cls: a.kind === 'farm' || b.kind === 'farm' ? 1 : 0, pts }); return true; };
+// a route that the strict limits cannot find is retried with looser ones (the ground check in countryroads-quality bounds the result)
+const add = (a, b) => { const pts = route(a, b) || route(a, b, 0.4, 0.35); if (!pts || pts.length < 4) { failed++; return false; } roads.push({ id: a.id + '>' + b.id, cls: a.kind === 'farm' || b.kind === 'farm' ? 1 : 0, pts }); return true; };
 for (const e of edges) { const ra = find(e[0].id), rb = find(e[1].id); if (e[0].kind !== 'farm' && e[1].kind !== 'farm' && ra === rb) continue; if (add(e[0], e[1])) parent.set(ra, rb); }
 for (const l of links) add(l[0], l[1]);
 let off = 0; const meta = roads.map((r) => { const m = { id: r.id, cls: r.cls, n: r.pts.length, off }; off += r.pts.length * 8; return m; });
