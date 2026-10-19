@@ -1,12 +1,12 @@
 import { farHeight, rivers, SEA } from './worldmap.js';
 import { baseHeight } from './terrainfn.js';
-import { carve, brokenAt } from './roadnet.js';
-import { carveCountry } from './countrycarve.js';
+import { brokenAt } from './roadnet.js';
+import { gradeGround } from './roadgrade.js';
 
 // The ground height of the land outside the city as one function, pure (no three.js) so the bake can sample it into height tiles (build/jobs.mjs)
 // and the page can read those tiles back (heightmap.js): `landHeight` is the ground as drawn, `physHeight` the ground the physics uses (bridges and
 // tunnels filled so a vehicle has ground on the deck). Order of the layers: the world's landscape (worldmap.farHeight), the city's own hills near the
-// origin, the river channels, then the road corridors and service pads (roadnet.carve).
+// origin, the river channels, then the road corridors and settlement pads (roadgrade.js).
 const NEAR_BLEND0 = 1400, NEAR_BLEND1 = 9000;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -56,11 +56,10 @@ function riverCut(x, z, h) {
 // the world's ground before roads: the city's hills near the origin blend into the landscape between 1.4 and 9 km
 function groundNoRiver(x, z, cell) { const r = Math.hypot(x, z), w = smooth(NEAR_BLEND0, NEAR_BLEND1, r), f = farHeight(x, z, cell); return w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w; }
 const groundBase = (x, z, cell) => riverCut(x, z, groundNoRiver(x, z, cell));
-// the country roads are graded into the ground first (their profile reads the ground without them); highways and pads then lie over that
-const withNet = (x, z, cell) => carve(x, z, groundBase(x, z, cell), false);
-const graded = (x, z, cell) => (cell <= 32 ? carveCountry(x, z, groundBase(x, z, cell), groundBase, withNet) : groundBase(x, z, cell));
-export const landProc = (x, z, cell = 0) => carve(x, z, graded(x, z, cell), false);
-export const physProc = (x, z, cell = 0) => carve(x, z, graded(x, z, cell), true);
+// every road and pad is laid into the ground by one rule (roadgrade.js); the country roads only where the cell is fine (the far ring does not show them)
+const graded = (x, z, cell, physics) => gradeGround(x, z, groundBase(x, z, cell), physics, groundBase, cell <= 32);
+export const landProc = (x, z, cell = 0) => graded(x, z, cell, false);
+export const physProc = (x, z, cell = 0) => graded(x, z, cell, true);
 
 // the baked tiles (heightmap.js) replace the computation where they are loaded; `cell` above 32 m keeps the computation (it leaves out the fine
 // octaves and the road corridors, which a coarse ring of the far land does not show anyway)

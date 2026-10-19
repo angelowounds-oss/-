@@ -1,7 +1,8 @@
 // The highway network (src/roadnet.js): rings around every city, highways trimmed onto the rings with an interchange at each junction,
 // four connectors from the capital's loop, grades within the limit, no NaN, classes (bridge / tunnel) exist but are minorities, the spatial
 // index finds a road at its own centre line, and carving puts the terrain at the road surface there.
-import { net, roadAt, carve, DS, GRADE, groundH } from '../../src/roadnet.js';
+import { net, roadAt, DS, GRADE, groundH } from '../../src/roadnet.js';
+import { gradeGround } from '../../src/roadgrade.js';
 import { cities, highways } from '../../src/worldmap.js';
 const bad = [];
 const t0 = performance.now(); const N = net(); const ms = performance.now() - t0;
@@ -21,9 +22,9 @@ const types = new Set(N.junctions.map((j) => j.type)); if (types.size < 3) bad.p
 if (bridge / samples > 0.2 || tunnel / samples > 0.2) bad.push(['too many bridges/tunnels', bridge, tunnel, samples]);
 if (kinds.ramp < N.junctions.length) bad.push(['ramps', kinds.ramp]);
 if (!N.tolls.length || !N.services.length || !N.gantries.length) bad.push(['facilities', N.tolls.length, N.services.length, N.gantries.length]);
-// index + carve
-let miss = 0, off = 0; for (let k = 0; k < 400; k++) { const flat = N.roads.filter((q) => q.kind !== 'ramp'), r = flat[k % flat.length], i = (k * 37) % r.pts.length, p = r.pts[i], q = roadAt(p[0], p[1]); if (!q || q.d > 1) miss++; else if (r.cls[i] === 0 && Math.abs(carve(p[0], p[1], 50) - (r.y[i] - 0.25)) > 1.0) off++; }
-if (miss) bad.push(['roadAt missed', miss]); if (off > 12) bad.push(['carve off the surface', off]);
+// index + grading (highways and pads only: the country roads are left out so the ground stays the flat 50 m the test feeds in)
+let miss = 0, off = 0; for (let k = 0; k < 400; k++) { const flat = N.roads.filter((q) => q.kind !== 'ramp'), r = flat[k % flat.length], i = (k * 37) % r.pts.length, p = r.pts[i], q = roadAt(p[0], p[1]); if (!q || q.d > 1) miss++; else if (r.cls[i] === 0 && Math.abs(gradeGround(p[0], p[1], 50, false, () => 50, false) - (r.y[i] - 0.25)) > 1.0) off++; }
+if (miss) bad.push(['roadAt missed', miss]); if (off > 12) bad.push(['grading off the surface', off]);
 if (roadAt(0, 0) !== null) bad.push(['road at the capital centre']);
 if (ms > 4000) bad.push(['slow', ms]);
 console.log('RESULT ' + JSON.stringify({ test: 'roadnet', pass: bad.length === 0, metrics: { ms: Math.round(ms), roads: N.roads.length, kinds, km: Math.round(km / 1000), junctions: N.junctions.length, types: [...types], tolls: N.tolls.length, services: N.services.length, gantries: N.gantries.length, bridgePct: +(100 * bridge / samples).toFixed(1), tunnelPct: +(100 * tunnel / samples).toFixed(1), maxGrade: +maxGrade.toFixed(3), bad: bad.slice(0, 6) }, note: '' }));

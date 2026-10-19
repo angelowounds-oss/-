@@ -156,20 +156,11 @@ export function roadAt(x, z, max = CARVE_FADE + HALF_W) {
   }
   return best;
 }
-// terrain next to a road: cut / fill to the road surface within the corridor, blended out over CARVE_FADE. Bridges and tunnels leave the
-// visible terrain alone (it falls away under the deck / stands over the portal); `physics` fills them so a vehicle has ground on the deck.
+// terrain next to a road is cut / filled to the road surface by roadgrade.js (it reads the roads, pads and bridge states from here)
 // blown-up bridge spans (highways.js): the sample segments 'road:i' and circles around their centres; the physics ground no longer fills them
 export const BROKEN = new Set(), BREAK_AT = [];
 if (typeof window !== 'undefined') window.__bro = BROKEN;   // test hook
 export const brokenAt = (x, z) => { for (const b of BREAK_AT) if ((x - b.x) ** 2 + (z - b.z) ** 2 < b.r * b.r) return true; return false; };
 export function breakSegment(road, i) { const k = road.id + ':' + i; if (BROKEN.has(k)) return; BROKEN.add(k); const p = road.pts[i], q = road.pts[Math.min(road.pts.length - 1, i + 1)]; BREAK_AT.push({ k, x: (p[0] + q[0]) / 2, z: (p[1] + q[1]) / 2, r: 21 }); }
 export function repairSegment(road, i) { const k = road.id + ':' + i; BROKEN.delete(k); const j = BREAK_AT.findIndex((b) => b.k === k); if (j >= 0) BREAK_AT.splice(j, 1); }
-export function carve(x, z, h, physics = false) {
-  for (const p of net().pads) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r + 30) { const w = 1 - sstep(p.r - 8, p.r + 30, d); h += (p.y - h) * w; } }
-  const r = roadAt(x, z); if (!r) return h;
-  if (r.cls !== 0 && !physics) return h;
-  if (physics && r.cls === 1 && BROKEN.has(r.road.id + ':' + r.i)) return h;   // a blown-up span has no deck to fill
-  const w = 1 - sstep(HALF_W + 1, HALF_W + CARVE_FADE, r.d);
-  return h + (r.y - 0.25 - h) * w;
-}
 export { WORLD_HALF };

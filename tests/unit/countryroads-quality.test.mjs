@@ -27,7 +27,7 @@ let km = 0; for (const r of roads) km += (r.n - 1) * 16 / 1000;
 if (km < 250) bad.push(['coverage below 250 km', km.toFixed(0)]);
 if (bends > 0) bad.push(['kinks over 30 degrees', bends, maxBend.toFixed(1)]);
 if (dups > 0) bad.push(['duplicate points', dups]);
-// the ground is graded along the roads (src/countrycarve.js, A2b), so the ribbon fits the ground for almost every sample
+// the ground is graded along the roads (src/roadgrade.js, A2b), so the ribbon fits the ground for almost every sample
 if (far / samples > 0.005) bad.push(['ground off the ribbon', far, samples]);
 console.log('RESULT ' + JSON.stringify({ test: 'countryroads-quality', pass: bad.length === 0, metrics: { roads: roads.length, km: Math.round(km), bends30: bends, maxBendDeg: +maxBend.toFixed(1), dups, crossOver1_5m: +(far / samples * 100).toFixed(2) + '%', maxCrossM: +maxCross.toFixed(2) }, note: bad.map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;
