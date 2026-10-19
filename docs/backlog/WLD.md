@@ -153,5 +153,5 @@
 
 ### 1단계 감사 (2026-10-19): 수도 로컬 프레임 전환 대상
 - 맵 데이터를 읽는 모듈(약 30곳): `src/aviation.js`, `citylayout.js`, `cityrules.js`, `citysites.js`, `farland.js`, `forest.js`, `game.js`, `groundfn.js`, `highways.js`, `hwtraffic.js`, `industry.js`, `landfn.js`, `landmarks.js`, `rivers.js`, `roadnet.js`, `sandbox.js`, `settlements.js`, `ships.js`, `terrain.js`, `terrainfn.js`, `transit.js`, `vegfn.js`, `village.js`, `waterfn.js`, `worldmap.js`, `worldmapui.js`, `worldnav.js`; 빌드 `build/jobs.mjs`, `build/roads_pack.mjs`.
-- 권장 쪼개기: (a) `worldmap.js` 공개 함수에 경계 변환 추가(로컬 → 맵 좌표, 반환은 로컬) + 단위 테스트, (b) `roadnet`·`settlements`·`vegfn`·`highways` 반환 좌표, (c) 베이크 재생성과 `build/jobs.mjs` 키, (d) 원점 가정 지점(`landfn`, `farland`, `game.waterAt`, `craft`) 확인.
+- 진행 (2026-10-19): `src/frame.js`(toMap·toLocal·onMap, ADR-0017) + `unit/frame` 추가. 아직 모듈을 바꾸지 않았다(기반만). 다음: (a) `worldmap.js` 공개 함수에 경계 변환 추가(로컬 → 맵 좌표, 반환은 로컬) + 단위 테스트, (b) `roadnet`·`settlements`·`vegfn`·`highways` 반환 좌표, (c) 베이크 재생성과 `build/jobs.mjs` 키, (d) 원점 가정 지점(`landfn`, `farland`, `game.waterAt`, `craft`) 확인.
 - 각 쪼개기 단계마다 `quick` 검사 후 커밋한다.
