@@ -4,13 +4,22 @@
 // (the terrain falls away), 2 tunnel (the terrain rises over the road). A spatial index answers "how far is the nearest road, and what is its
 // surface height" for carving the terrain (farland.js) and for the physics ground.
 import { cities, highways, farHeight, SEA, WORLD_HALF } from './worldmap.js';
-import { baseHeight, roadsData } from './terrainfn.js';
+import { baseHeight, heightAt, roadsData, EXTENT } from './terrainfn.js';
 import { settlements } from './settlements.js';
+import { regionWeight, regionHeight, regionRoads } from './region.js';
 
 export const DS = 30, HALF_W = 17.5, CARVE_FADE = 46, GRADE = 0.055;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // ground height as the far land draws it (the city's own hills near the origin, the world from ~9 km on); roads follow this
 export function groundH(x, z, cell = 200) { const r = Math.hypot(x, z), w = sstep(1400, 9000, r), f = farHeight(x, z, cell); return w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w; }
+// the ground the capital's connectors are judged against (bridge or tunnel): inside the capital's own square the drawn hill (terrainfn.heightAt, which the
+// terrain mesh and its collider use), beyond it a blend to the compiled region's ground over the keep band
+const cheb = (x, z) => Math.max(Math.abs(x), Math.abs(z));
+export function capitalH(x, z) {
+  const c = cheb(x, z); if (c < EXTENT) return heightAt(x, z);
+  const k = EXTENT / c, edge = heightAt(x * k, z * k), rh = regionHeight(x, z), w = regionWeight(x, z);
+  return rh === rh ? edge * (1 - w) + rh * w : groundH(x, z, 48);
+}
 const RING_R = { metropolis: 5600, port: 3700, airport: 4300, town: 2700 };
 const INTERCHANGE = { metropolis: 'stack', port: 'trumpet', airport: 'cloverleaf', town: 'diamond' };
 
@@ -27,8 +36,8 @@ function resample(pts, ds) {
   if (Math.hypot(out[out.length - 1][0] - pts[pts.length - 1][0], out[out.length - 1][1] - pts[pts.length - 1][1]) > ds * 0.4) out.push(pts[pts.length - 1].slice());
   return out;
 }
-function profile(P, closed, fixed0, fixed1) {
-  const n = P.length; let y = P.map((p) => groundH(p[0], p[1], 200));
+function profile(P, closed, fixed0, fixed1, ground = groundH) {
+  const n = P.length; let y = P.map((p) => ground(p[0], p[1], 200));
   if (fixed0 != null) y[0] = fixed0; if (fixed1 != null) y[n - 1] = fixed1;
   const at = (a, i) => (closed ? a[(i + n) % n] : a[Math.min(n - 1, Math.max(0, i))]);
   for (let it = 0; it < 4; it++) { const o = y.slice(); for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let k = -7; k <= 7; k++) { s += at(y, i + k); c++; } o[i] = s / c; } y = o; if (fixed0 != null) y[0] = fixed0; if (fixed1 != null) y[n - 1] = fixed1; }
@@ -43,20 +52,29 @@ function profile(P, closed, fixed0, fixed1) {
   if (fixed1 != null && !closed) { const d = fixed1 - y[n - 1], k = blendLen(d); for (let i = 0; i <= k; i++) y[n - 1 - i] += d * (1 - i / k); }
   return Float32Array.from(y);
 }
-function classify(P, y) {
-  const n = P.length, c = new Uint8Array(n);
-  for (let i = 0; i < n; i++) { const d = groundH(P[i][0], P[i][1], 48) - y[i]; c[i] = d > 15 ? 2 : d < -5.5 ? 1 : 0; }
+// `capital`: the road is laid against the capital's drawn hill, where nothing is cut for it, so a road under the surface is always a tunnel (never a short buried stretch)
+function classify(P, y, ground = groundH, capital = false) {
+  const n = P.length, c = new Uint8Array(n), inside = (i) => capital && cheb(P[i][0], P[i][1]) < EXTENT;
+  for (let i = 0; i < n; i++) { const d = ground(P[i][0], P[i][1], 48) - y[i]; c[i] = d > (inside(i) ? 1 : 15) ? 2 : d < -5.5 ? 1 : 0; }
   // short runs are not worth a bridge or a tunnel (the corridor is just filled / cut)
-  for (let v = 1; v <= 2; v++) { let i = 0; while (i < n) { if (c[i] !== v) { i++; continue; } let j = i; while (j < n && c[j] === v) j++; if (j - i < 7) for (let k = i; k < j; k++) c[k] = 0; i = j; } }
+  for (let v = 1; v <= 2; v++) { let i = 0; while (i < n) { if (c[i] !== v) { i++; continue; } let j = i; while (j < n && c[j] === v) j++; if (j - i < 7) for (let k = i; k < j; k++) if (!inside(k)) c[k] = 0; i = j; } }
   return c;
 }
 const isDry = (x, z) => farHeight(x, z, 64) > SEA + 2.5;
 
+// the nearest point of a compiled road to a highway end that stops at the region (within 600 m), or null
+function joinRegion(p) {
+  let best = null, bd = 600 * 600;
+  for (const r of regionRoads()) { if (r.hw !== 'motorway' && r.hw !== 'trunk') continue; for (let i = 0; i < r.x.length; i += 2) { const d = (r.x[i] - p[0]) ** 2 + (r.z[i] - p[1]) ** 2; if (d < bd) { bd = d; best = { road: r.id, i, d: Math.sqrt(d) }; } } }
+  return best;
+}
 function build() {
   const N = { roads: [], junctions: [], tolls: [], services: [], gantries: [], rings: new Map() };
   const cs = cities(), byId = new Map(cs.map((c) => [c.id, c]));
   // ---- ring roads: the largest radius (down from the wished one) with at least 75 % dry ground; broken into arcs where it would cross water
+  const compiled = regionRoads().length > 0;   // a compiled region (ADR-0019) brings the capital's real roads: no ring or connectors there
   for (const c of cs) {
+    if (compiled && c.id === 'neon') continue;
     let R = RING_R[c.type] || 2700, dry = 0;
     for (; R > 1500; R -= 200) { dry = 0; for (let a = 0; a < 48; a++) if (isDry(c.x + Math.cos(a / 48 * 6.2832) * R, c.z + Math.sin(a / 48 * 6.2832) * R)) dry++; if (dry >= 36) break; }
     const n = Math.max(24, Math.round(6.2832 * R / DS)), P = []; for (let i = 0; i < n; i++) { const a = i / n * 6.2832; P.push([c.x + Math.cos(a) * R, c.z + Math.sin(a) * R]); }
@@ -67,20 +85,34 @@ function build() {
     N.rings.set(c.id, { R, cx: c.x, cz: c.z, roads: [] });
     arcs.forEach((a, k) => { const y = profile(a.P, a.closed); const road = { id: `ring:${c.id}:${k}`, kind: 'ring', city: c.id, pts: a.P, y, closed: a.closed, cls: classify(a.P, y), lanes: 3 }; N.roads.push(road); N.rings.get(c.id).roads.push(road); });
   }
-  const ringY = (cid, x, z) => { let best = null, bd = 1e18; for (const r of N.rings.get(cid).roads) for (let i = 0; i < r.pts.length; i++) { const d = (r.pts[i][0] - x) ** 2 + (r.pts[i][1] - z) ** 2; if (d < bd) { bd = d; best = { road: r, i, d: Math.sqrt(d) }; } } return best; };
+  const ringY = (cid, x, z) => { if (!N.rings.has(cid)) return null; let best = null, bd = 1e18; for (const r of N.rings.get(cid).roads) for (let i = 0; i < r.pts.length; i++) { const d = (r.pts[i][0] - x) ** 2 + (r.pts[i][1] - z) ** 2; if (d < bd) { bd = d; best = { road: r, i, d: Math.sqrt(d) }; } } return best; };
   // ---- highways: trimmed at the rings of their two cities, the profile ends on the ring's height
+  // highways that run along one another (shared corridors) take the surface of the one built first, so two roads never stand 100 m apart on the same ground
+  const HG = new Map(), HK = (x, z) => Math.floor(x / 60) * 100003 + Math.floor(z / 60);
+  const shared = (x, z) => { let best = null, bd = 25 * 25; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = HG.get(HK(x + a * 60, z + b * 60)); if (!c) continue; for (const q of c) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = q; } } } return best; };
   for (const h of highways()) {
     let P = resample(h.pts, DS);
-    const a = byId.get(h.a), b = byId.get(h.b), Ra = N.rings.get(a.id).R, Rb = N.rings.get(b.id).R;
+    const a = byId.get(h.a), b = byId.get(h.b), Ra = N.rings.get(a.id)?.R, Rb = N.rings.get(b.id)?.R;
     const dist = (p, c) => Math.hypot(p[0] - c.x, p[1] - c.z);
-    let i0 = 0; while (i0 < P.length - 1 && dist(P[i0], a) < Ra) i0++;
-    let i1 = P.length - 1; while (i1 > 0 && dist(P[i1], b) < Rb) i1--;
+    // an end at a city with a ring stops at the ring; an end in a compiled region stops where the region begins (its own roads go on from there)
+    // a line that starts outside the region (at the capital, whose keep zone holds none of its roads) and crosses it is cut where it leaves it: the stretch over the real ground has no use at the old height scale
+    const wt = (p) => regionWeight(p[0], p[1]), crosses = P.some((p) => wt(p) >= 1);
+    const trimEnd = (from, step, c, R) => {
+      if (cheb(P[from][0], P[from][1]) < 2100 && crosses) { let k = P.length - 1 - from; while (k !== from && wt(P[k]) <= 0) k -= step; return k === from ? from : k + step; }   // from the capital: out of the last stretch that touches the region
+      let i = from; const last = step > 0 ? P.length - 1 : 0; while (i !== last && ((R && dist(P[i], c) < R) || wt(P[i]) >= 1)) i += step; return i;
+    };
+    const i0 = trimEnd(0, 1, a, Ra), i1 = trimEnd(P.length - 1, -1, b, Rb);
     if (i1 - i0 < 6) continue;
     P = P.slice(i0, i1 + 1);
     const ja = ringY(a.id, P[0][0], P[0][1]), jb = ringY(b.id, P[P.length - 1][0], P[P.length - 1][1]);
-    const y = profile(P, false, ja ? ja.road.y[ja.i] : null, jb ? jb.road.y[jb.i] : null);
-    const road = { id: `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: P, y, closed: false, cls: classify(P, y), lanes: 3 }; N.roads.push(road);
+    const sh = P.map((p) => shared(p[0], p[1])), anyShared = sh.some(Boolean), shIdx = new Map(P.map((p, i) => [p, i]));
+    const against = (x, z, c) => { const q = shared(x, z); return q ? q.y : groundH(x, z, c); };
+    const y = profile(P, false, ja ? ja.road.y[ja.i] : null, jb ? jb.road.y[jb.i] : null, anyShared ? against : groundH);
+    const cls = classify(P, y, anyShared ? against : groundH); if (anyShared) sh.forEach((q, i) => { if (q) cls[i] = q.cls; });
+    const road = { id: `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: P, y, closed: false, cls, lanes: 3 }; N.roads.push(road); void shIdx;
+    P.forEach((p, i) => { const k = HK(p[0], p[1]); let l = HG.get(k); if (!l) HG.set(k, (l = [])); l.push({ x: p[0], z: p[1], y: y[i], cls: cls[i] }); });
     for (const [end, c, jn] of [[0, a, ja], [P.length - 1, b, jb]]) {
+      if (!N.rings.has(c.id)) { road[end ? 'joinB' : 'joinA'] = joinRegion(P[end]); continue; }   // no ring: the end meets the region's roads, no interchange or toll
       const p = P[end], q = P[end === 0 ? 1 : P.length - 2], dir = Math.atan2(q[0] - p[0], q[1] - p[1]);   // heading pointing away from the city
       N.junctions.push({ id: `${road.id}@${c.id}`, city: c.id, type: INTERCHANGE[c.type] || 'diamond', x: p[0], z: p[1], y: y[end], heading: dir, road: road.id, end, ring: jn ? jn.road.id : null });
       N.tolls.push({ road: road.id, x: P[end === 0 ? Math.min(P.length - 1, 14) : Math.max(0, P.length - 15)][0], z: P[end === 0 ? Math.min(P.length - 1, 14) : Math.max(0, P.length - 15)][1], idx: end === 0 ? 14 : P.length - 15, city: c.id });
@@ -94,7 +126,7 @@ function build() {
   }
   // ---- the capital's connectors: from the mountain loop (r ~ 1.3 km) straight out to the ring road
   const cap = byId.get('neon'), loop = roadsData()[0].pts;
-  for (let k = 0; k < 4; k++) {
+  for (let k = 0; k < (N.rings.has('neon') ? 4 : 0); k++) {
     const a = Math.PI / 4 + k * Math.PI / 2 + 0.0;
     let ln = loop[0], bd = 9; for (const p of loop) { const d = Math.abs(((p.a - a + Math.PI * 3) % 6.2832) - Math.PI); if (d < bd) { bd = d; ln = p; } }
     const R = N.rings.get('neon').R, P0 = []; const steps = Math.round((R - Math.hypot(ln.x, ln.z)) / DS);
@@ -103,6 +135,27 @@ function build() {
     const y = profile(P0, false, ln.y, jr ? jr.road.y[jr.i] : null);
     const road = { id: `conn:${k}`, kind: 'connector', city: 'neon', pts: P0, y, closed: false, cls: classify(P0, y), lanes: 2 }; N.roads.push(road);
     N.junctions.push({ id: `${road.id}@neon`, city: 'neon', type: 'diamond', x: P0[P0.length - 1][0], z: P0[P0.length - 1][1], y: y[y.length - 1], heading: Math.atan2(P0[P0.length - 2][0] - P0[P0.length - 1][0], P0[P0.length - 2][1] - P0[P0.length - 1][1]), road: road.id, end: 1, ring: jr ? jr.road.id : null });
+  }
+  // ---- with a compiled region the capital's four connectors run straight out along the diagonals (through the corner gates of the city's boundary
+  // walls, world.js) to the nearest big compiled road beyond the capital's keep band, and meet it at its height
+  if (compiled) for (let k = 0; k < 4; k++) {
+    const a = Math.PI / 4 + k * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    let ln = loop[0], bd = 9; for (const p of loop) { const d = Math.abs(((p.a - a + Math.PI * 3) % 6.2832) - Math.PI); if (d < bd) { bd = d; ln = p; } }
+    const r0 = Math.hypot(ln.x, ln.z), out = 2200 / Math.max(Math.abs(ca), Math.abs(sa)), ox = cap.x + ca * out, oz = cap.z + sa * out;   // just beyond the keep band (1500 + 600)
+    let tgt = null, td = 900;
+    for (const r of regionRoads()) { if (r.hw === 'secondary') continue; for (let i = 0; i < r.x.length; i += 2) { const d = Math.hypot(r.x[i] - ox, r.z[i] - oz); if (d < td) { td = d; tgt = { r, i }; } } }
+    if (!tgt) continue;
+    const P0 = [], via = [[cap.x + ca * r0, cap.z + sa * r0], [ox, oz], [tgt.r.x[tgt.i], tgt.r.z[tgt.i]]];
+    for (let s2 = 0; s2 + 1 < via.length; s2++) { const [A, B] = [via[s2], via[s2 + 1]], m = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1]) / DS)); for (let i = 0; i < m; i++) P0.push([A[0] + (B[0] - A[0]) * i / m, A[1] + (B[1] - A[1]) * i / m]); }
+    P0.push(via[2]);
+    // a last sample a few metres short of the join would make the final hop a spike in grade
+    if (P0.length > 3 && Math.hypot(P0[P0.length - 2][0] - via[2][0], P0[P0.length - 2][1] - via[2][1]) < DS * 0.75) P0.splice(P0.length - 2, 1);
+    // the surface runs from the loop down to the region's ground by the end of the keep band (the hill between is tunnelled, the band's ground is cut or filled
+    // to it by roadgrade) and follows the region's ground from there
+    const c0 = cheb(P0[0][0], P0[0][1]), c1 = 1500 + 600, rEnd = P0.find((p) => cheb(p[0], p[1]) >= c1) || P0[P0.length - 1], yEnd = (regionHeight(rEnd[0], rEnd[1]) || 0) + 0.3;
+    const want = (x, z) => { const c = cheb(x, z); if (c < c1) return ln.y + (yEnd - ln.y) * sstep(c0, c1, c); const h = regionHeight(x, z); return h === h ? h + 0.3 : groundH(x, z, 200); };
+    const y = profile(P0, false, ln.y, tgt.r.y[tgt.i], want);
+    N.roads.push({ id: `conn:${k}`, kind: 'connector', city: 'neon', pts: P0, y, closed: false, cls: classify(P0, y, capitalH, true), lanes: 2, joinB: { road: tgt.r.id, i: tgt.i, d: 0 } });
   }
   // ---- interchange ramps: slip roads (Bezier) from a point of the highway back from the ring onto the ring, by interchange type
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -128,6 +181,15 @@ function build() {
     if (fly) { mk(1, 'fly'); mk(-1, 'fly'); mk(1, 'slip'); mk(-1, 'slip'); }
     else { mk(1, loops >= 2 || j.type === 'trumpet' ? 'loop' : 'slip'); mk(-1, loops >= 2 ? 'loop' : 'slip'); if (loops >= 1) { mk(1, 'slip'); if (loops >= 2) mk(-1, 'slip'); } }
   }
+  // ---- the compiled region's arterial roads (ADR-0019): one record per carriageway line, with its own width, lanes, direction and junctions
+  const idOf = new Map();
+  for (const r of regionRoads()) {
+    const road = { id: r.id, kind: 'arterial', hw: r.hw, oneway: r.oneway, lanes: r.lanes, half: r.half, ds: r.ds, ref: r.ref, name: r.name,
+      pts: Array.from(r.x, (x, i) => [x, r.z[i]]), y: r.y, cls: r.cls, closed: false, next: [], prev: [] };
+    idOf.set(r, road); N.roads.push(road);
+  }
+  const lines = regionRoads();
+  for (const r of lines) { const road = idOf.get(r); road.next = r.next.map(([li, i]) => ({ road: lines[li].id, i })); road.prev = r.prev.map(([li, i]) => ({ road: lines[li].id, i })); }
   // ---- service area pads: flat ground next to the road, carved into the terrain (the buildings stand on them)
   N.pads = [];
   for (const sv of N.services) {

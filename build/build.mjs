@@ -1,6 +1,12 @@
 import { build } from 'esbuild';
 import fs from 'node:fs';
-import { bake } from './bake.mjs';
+import { execFileSync } from 'node:child_process';
+// the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
+if (process.env.WORLD !== 'small') {
+  const out = 'build/baked/world/capital/region.bin', srcs = fs.readdirSync('build/world').map((f) => 'build/world/' + f);
+  if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', '1/4', '--roads', '--emit'], { stdio: 'inherit' });
+}
+const { bake } = await import('./bake.mjs');
 const r = await build({
   entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife',
   write: false, loader: { '.glb': 'base64', '.jpg': 'dataurl', '.bin': 'base64', '.rgbe': 'base64' }, target: 'es2020', legalComments: 'none',

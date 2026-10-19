@@ -1,3 +1,4 @@
+import { regionWeight, regionPlaces } from './region.js';
 import { cities, farHeight, highways, rivers, biomeAt, SEA } from './worldmap.js';
 
 // The places between the cities (ADR-0013), as data (pure): about thirty villages (eight beside the highways, the rest over the countryside), the farms
@@ -15,7 +16,7 @@ const NAMES = {
   ja: [['Kita', 'Minami', 'Higashi', 'Nishi', 'Aka', 'Kuro', 'Shiro', 'Naka', 'Ao', 'Tsuki'], ['mura', 'machi', 'hama', 'yama', 'gawa', 'saki', 'no', 'hara']],
 };
 const LANG = { mid1: 'sv', mid3: 'sv', mid2: 'es', mid4: 'ja', harbor: 'en', airfield: 'en', neon: 'en' };
-const PALETTES = { en: [0xb9a58a, 0xa8b0b8, 0xc9b79a, 0x9a8a78, 0xb8b0a0], sv: [0xa6402f, 0xd8c9a0, 0x6b4a32, 0xb08a4a, 0x8a3a2c], es: [0xe0cfa8, 0xd8b88a, 0xe8dcc0, 0xc79a6a], ja: [0x9a8f84, 0xb8aea0, 0x7a746e, 0xcfc6b6] };
+const PALETTES = { en: [0xb9a58a, 0xa8b0b8, 0xc9b79a, 0x9a8a78, 0xb8b0a0], sv: [0xa6402f, 0xd8c9a0, 0x6b4a32, 0xb08a4a, 0x8a3a2c], es: [0xe0cfa8, 0xd8b88a, 0xe8dcc0, 0xc79a6a], ja: [0x9a8f84, 0xb8aea0, 0x7a746e, 0xcfc6b6], ko: [0xc9c4b8, 0xb5b0a4, 0xd8d0c0, 0xa7a79f, 0xcbbfa8] };
 const ROOFS = [0x7a2f22, 0x3a3f4a, 0x5a4a38, 0x4a5a48];
 
 let CACHE = null;
@@ -50,6 +51,9 @@ export function settlements() {
   const cand = []; for (let k = 0; k < 4000; k++) { const x = (rnd() * 2 - 1) * 46000, z = (rnd() * 2 - 1) * 46000; cand.push([x, z, sl(x, z)]); }
   cand.sort((a, b) => a[2] - b[2]);
   for (const [x, z] of cand) { if (V.length >= 30) break; if (okVillage(x, z)) add(x, z, 'country'); }
+  // the real settlements of a compiled region (ADR-0021): Korean names, on the pad the compiler cut for them
+  const SIZE = { village: 6, suburb: 8, town: 11, city: 13 };
+  for (const q of regionPlaces()) { const nc = nearest(q.x, q.z).c; V.push({ id: 'v' + V.length, name: q.name, x: q.x, z: q.z, y: q.y, seed: 1000 + V.length * 7919, lang: 'ko', tag: 'real', city: nc.id, nHouses: SIZE[q.kind] || 6, real: q.id }); }
   for (const v of V) layoutVillage(v);
   // farms: one or two near each third village on farmland or plains, 600-1400 m out
   V.forEach((v, i) => { if (i % 3 !== 0) return; for (let k = 0; k < 2; k++) for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, d = 600 + rnd() * 800, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, h = farHeight(x, z, 60); if (h > 6 && sl(x, z) < 0.04 && !riverNear(x, z, 150) && farFrom(x, z, F, 900) && ![0, 1, 7, 9].includes(biomeAt(x, z, h))) { F.push({ id: 'f' + F.length, x, z, y: farHeight(x, z, 80), seed: Math.floor(rnd() * 1e6), village: v.id }); break; } } });
@@ -80,23 +84,25 @@ export function settlements() {
   const K = [], hp = []; for (const h of hw) for (let i = 0; i < h.pts.length; i += 10) hp.push(h.pts[i]);
   for (const v of V) { let b = null, bd = 1e18; for (const p of hp) { const d = Math.hypot(p[0] - v.x, p[1] - v.z); if (d < bd) { bd = d; b = p; } } let o = null, od = 1e18; for (const w of V) if (w !== v) { const d = Math.hypot(w.x - v.x, w.z - v.z); if (d < od) { od = d; o = w; } } if (b && bd < 9000) K.push([v.x, v.z, b[0], b[1]]); if (o && od < 9000 && v.id < o.id) K.push([v.x, v.z, o.x, o.z]); }
   for (const f of F) { const v = V.find((q) => q.id === f.village); if (v) K.push([f.x, f.z, v.x, v.z]); }
-  CACHE = { villages: V, farms: F, industry: I, towers: T, pylons: P, tracks: K };
+  // inside a compiled region the real ground and roads are the only source (ADR-0020): the invented places leave it until real settlements come in M4
+  const out = (q) => q.tag !== 'real' && regionWeight(q.x, q.z) > 0, away = (a) => a.filter((q) => !out(q));
+  CACHE = { villages: away(V), farms: away(F), industry: away(I), towers: away(T), pylons: P.filter((l) => !l.pts.some((p) => regionWeight(p[0], p[1]) > 0)), tracks: K.filter((k) => !out({ x: k[0], z: k[1] }) && !out({ x: k[2], z: k[3] })) };
   return CACHE;
 }
 
 // the plan of a village in its own frame (x along the main street, z across; y of the pad is v.y): houses on both sides, a plaza with the general store, an
 // optional filling station, church and water tower. All rectangles are [x0, z0, x1, z1]; a door is on the wall facing the street.
 export function layoutVillage(v) {
-  const rnd = mulberry(v.seed), n = 6 + Math.floor(rnd() * 9), pal = PALETTES[v.lang] || PALETTES.en, houses = [];
+  const rnd = mulberry(v.seed), n = v.nHouses || 6 + Math.floor(rnd() * 9), pal = PALETTES[v.lang] || PALETTES.en, houses = [];
   const Lh = 70 + n * 9;
   v.Lh = Lh; v.r = Lh + 70; v.church = rnd() < 0.4; v.gas = rnd() < 0.55; v.tower = rnd() < 0.3; v.pitched = v.lang === 'sv' || v.lang === 'en' || rnd() < 0.4;
   v.shopKind = ['convenience', 'hardware', 'pharmacy', 'restaurant', 'convenience', 'convenience'][Math.floor(rnd() * 6)];
   const occupied = [[-18, -30, 18, 30]];   // the plaza
   const free = (r) => occupied.every((o) => r[2] < o[0] - 3 || r[0] > o[2] + 3 || r[3] < o[1] - 3 || r[1] > o[3] + 3);
   const put = (kind, x, side, w, d, extra = {}) => { const zc = side * (4.5 + 4 + d / 2), r = [x - w / 2, zc - d / 2, x + w / 2, zc + d / 2]; if (!free(r)) return null; occupied.push(r); const hs = { kind, x, z: zc, w, d, r, side, door: { x, z: side * 4.5 }, color: pal[Math.floor(rnd() * pal.length)], roof: ROOFS[Math.floor(rnd() * ROOFS.length)], ...extra }; houses.push(hs); return hs; };
-  put('shop', 32, -1, 15, 11, { name: { convenience: 'General Store', hardware: 'Hardware', pharmacy: 'Pharmacy', restaurant: 'Diner' }[v.shopKind], stock: v.shopKind });
-  if (v.gas) put('gas', -48, 1, 8, 6, { name: 'Gas & Go' });
-  if (v.church) put('church', Lh - 18, -1, 10, 18, { name: 'Chapel' });
+  put('shop', 32, -1, 15, 11, { name: (v.lang === 'ko' ? { convenience: '편의점', hardware: '철물점', pharmacy: '약국', restaurant: '식당' } : { convenience: 'General Store', hardware: 'Hardware', pharmacy: 'Pharmacy', restaurant: 'Diner' })[v.shopKind], stock: v.shopKind });
+  if (v.gas) put('gas', -48, 1, 8, 6, { name: v.lang === 'ko' ? '주유소' : 'Gas & Go' });
+  if (v.church) put('church', Lh - 18, -1, 10, 18, { name: v.lang === 'ko' ? '교회' : 'Chapel' });
   let slot = 0;
   for (let x = -Lh + 14; x < Lh - 10 && houses.filter((h) => h.kind === 'house').length < n; x += 17 + rnd() * 6) for (const side of [-1, 1]) {
     if (houses.filter((h) => h.kind === 'house').length >= n) break; const w = 8 + rnd() * 5, d = 7 + rnd() * 4; if (put('house', x + (rnd() - 0.5) * 3, side, w, d)) slot++;

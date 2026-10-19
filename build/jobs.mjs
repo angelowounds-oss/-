@@ -3,12 +3,15 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
+// the compiled region (ADR-0019): installed before any generator runs, so the ground, the roads and the water of every job see it
+export const REGION_FILE = 'build/baked/world/capital/region.bin';
+globalThis.__REGION = (await imp('build/world/emit.mjs')).readRegion(path.join(root, REGION_FILE));
 
 export const RUN = {
   // the coarse world, the road network and the city layouts: what the page used to generate at start-up
   async core() {
     const [{ world }, { net }, { layouts }] = await Promise.all([imp('src/worldmap.js'), imp('src/roadnet.js'), imp('src/citylayout.js')]);
-    return { world: world(), net: net(), layouts: layouts() };
+    return { world: world(), net: net(), layouts: layouts(), region: globalThis.__REGION };
   },
   // one tile of baked ground (heightmap.js): the ground of landfn.js on the tile's grid; the physics layer only when it differs (bridges, tunnels)
   async tile(j) {

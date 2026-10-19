@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { regionWeight } from './region.js';
 import { surfaceColor, cities, SEA, WORLD_HALF } from './worldmap.js';
 import { EXTENT } from './terrain.js';
 import { landHeight, physHeight } from './landfn.js';
@@ -110,7 +111,7 @@ export class Farland {
       const k = j * M + i, oi = i + di, oj = j + dj;
       if (reuse && oi >= 0 && oi <= N && oj >= 0 && oj <= N) { const ok = oj * M + oi; h[k] = oh[ok]; cg[k * 3] = ocg[ok * 3]; cg[k * 3 + 1] = ocg[ok * 3 + 1]; cg[k * 3 + 2] = ocg[ok * 3 + 2]; this.stats.reused++; continue; }
       const x = x0 + i * cell, z = z0 + j * cell, y = landHeight(x, z, cell);
-      h[k] = y; if (!(cell <= 32 && colorAt(x, z, tmp))) surfaceColor(x, z, y, tmp); cg[k * 3] = tmp[0]; cg[k * 3 + 1] = tmp[1]; cg[k * 3 + 2] = tmp[2]; this.stats.computed++;
+      h[k] = y; if (!((cell <= 32 || regionWeight(x, z) > 0) && colorAt(x, z, tmp))) surfaceColor(x, z, y, tmp); cg[k * 3] = tmp[0]; cg[k * 3 + 1] = tmp[1]; cg[k * 3 + 2] = tmp[2]; this.stats.computed++;
     }
     L.h = h; L.h2 = oh; L.cg = cg; L.cg2 = ocg; L.cx = ncx; L.cz = ncz;
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {

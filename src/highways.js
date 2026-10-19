@@ -2,12 +2,19 @@ import * as THREE from 'three';
 import { net, groundH, HALF_W, BROKEN, breakSegment } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand } from './util.js';
+import { landHeight, physHeight } from './landfn.js';
+import { regionWeight } from './region.js';
+import { Deck, oldDeck } from './roaddeck.js';
+import { GR, grp } from './physics.js';
 
 // The highway network drawn (roadnet.js has the data): asphalt ribbons with lane markings, median barrier and guard rails, bridges with pillars,
 // tunnels with lights, ramps, sign gantries, toll plazas and service areas; street lamps are an instanced pool that follows the camera.
 // Static geometry is built once, in chunks of CHUNK samples (3 km) so frustum culling works, three meshes per chunk (asphalt / structure with
 // vertex colours / emissive). Materials are created here so the load-time warm-up compiles them.
 const CHUNK = 100, LANE = 3.75, MED = 3.2, SHOULDER = 2.4;
+// compiled arterial lines (roadnet kind 'arterial', ADR-0019): pieces of ART samples built near the camera and dropped beyond; the big roads are seen
+// from further away
+const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200 }, ART_OFF = 1.4, ART_BUDGET = 4;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 class Acc {
@@ -37,12 +44,13 @@ function box(acc, c, tx, tz, w, h, d, y0, col) {   // centre c = [x, z], tangent
 }
 
 function asphaltTexture(lanes) {
-  const cv = document.createElement('canvas'), W = lanes === 1 ? 64 : 256, H = 128; cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  const cv = document.createElement('canvas'), W = lanes < 2 ? 64 : 256, H = 128; cv.width = W; cv.height = H; const g = cv.getContext('2d');
   g.fillStyle = '#3a3c42'; g.fillRect(0, 0, W, H);
   for (let i = 0; i < 1800; i++) { const v = 44 + Math.random() * 26; g.fillStyle = `rgb(${v},${v},${v + 4})`; g.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 2, 1 + Math.random() * 2); }
-  const wTotal = lanes === 1 ? 9.2 : lanes * LANE + SHOULDER, px = (m) => (m / wTotal) * W;
+  const wTotal = lanes === 1 ? 9.2 : Math.max(1, Math.round(lanes)) * LANE + SHOULDER, px = (m) => (m / wTotal) * W;   // lanes 1: the ramp ribbon; -n: n lanes of a carriageway
   g.fillStyle = '#e9e9e2';
   if (lanes === 1) { g.fillRect(px(0.35), 0, 3, H); g.fillRect(px(8.85) - 3, 0, 3, H); }
+  else if (lanes < 2) { g.fillStyle = '#e8c640'; g.fillRect(px(0.15), 0, 4, H); g.fillStyle = '#ecece4'; g.fillRect(px(LANE) - 2, 0, 4, H); }   // a single lane: edge lines only
   else {
     g.fillStyle = '#e8c640'; g.fillRect(px(0.15), 0, 4, H);                        // yellow edge at the median
     g.fillStyle = '#ecece4';
@@ -69,8 +77,16 @@ export class Highways {
       struct: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 }),
       glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
     };
-    this.stats = { chunks: 0, tris: 0 }; this.cm = new Map();
-    for (const r of this.N.roads) this.buildRoad(r);
+    // one carriageway of 1..4 lanes: the same shader as the highway asphalt, only its texture differs (no new program at run time)
+    this.mats.lanes = [1, 2, 3, 4].map((n) => { const t = asphaltTexture(n === 1 ? 1.0001 : n); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.82, metalness: 0, envMapIntensity: 0.3 }); });
+    this.stats = { chunks: 0, tris: 0, artPieces: 0, artLive: 0, artVerts: 0, artLifted: 0 }; this.cm = new Map(); this.decks = new Map();
+    for (const r of this.N.roads) if (r.kind !== 'arterial') this.buildRoad(r);
+    this.art = []; for (const r of this.N.roads) if (r.kind === 'arterial') for (let a = 0; a < r.pts.length - 1; a += ART) {
+      const b = Math.min(r.pts.length - 1, a + ART); let cx = 0, cz = 0, rad = 0; for (let i = a; i <= b; i++) { cx += r.pts[i][0]; cz += r.pts[i][1]; } cx /= b - a + 1; cz /= b - a + 1;
+      for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.pts[i][0] - cx, r.pts[i][1] - cz));
+      this.art.push({ r, a, b, cx, cz, rad, on: ART_ON[r.hw] || 2200, meshes: null });
+    }
+    this.stats.artPieces = this.art.length;
     this.buildGantries(); this.buildTolls(); this.buildServices();
     this.lamps = this.buildLamps();
     scene.add(this.group);
@@ -147,13 +163,27 @@ export class Highways {
   // bridges can be blown up: a span of two 30 m samples loses its deck (colliders: the physics ground there is the valley again), the rest of the
   // chunk is drawn anew without it, cars stop coming; spans are remembered in the save and stand again after five days
   attach(G) {
-    this.G = G; const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
+    this.G = G; this.phys = G.phys; for (const r of this.N.roads) if (r.kind !== 'arterial') for (let c0 = 0; c0 < r.pts.length; c0 += CHUNK) this.deckChunk(r, c0); const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
     for (const [k, v] of Object.entries(P.bridges)) { if (G.clock.t - v.t > 7200) { delete P.bridges[k]; continue; } this.breakSpan(this.byId.get(v.road), v.span, true); }
+  }
+  // ---- physics decks: where the ground below a road is not at its surface (a viaduct, a stacked interchange, a tunnel, a road laid at another height than
+  // the ground there) the drawn asphalt also gets a thin triangle mesh to stand on; a chunk or piece that is dropped takes its deck with it
+  makeDeck(D) {
+    if (!D.P.length || !this.phys) return null;
+    const R = this.phys.R; return this.phys.world.createCollider(R.ColliderDesc.trimesh(new Float32Array(D.P), new Uint32Array(D.I)).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
+  }
+  dropDeck(c) { if (c && this.phys) this.phys.world.removeCollider(c, true); }
+  deckChunk(r, c0) {
+    const key = r.id + ':' + c0; this.dropDeck(this.decks.get(key)); this.decks.delete(key);
+    const D = oldDeck(r, c0, CHUNK, BROKEN);
+    const c = this.makeDeck(D); if (c) this.decks.set(key, c);
   }
   blast(x, y, z, radius, dmg) {
     if (!this.G) return;
     for (const r of this.N.roads) for (let i = 0; i < r.pts.length - 1; i++) {
-      if (r.cls[i] !== 1) continue; const p = r.pts[i], dx = p[0] - x, dz = p[1] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
+      // compiled lines keep their bridges (no span bookkeeping yet)
+      if (r.cls[i] !== 1 || r.kind === 'arterial') continue;
+      const p = r.pts[i], dx = p[0] - x, dz = p[1] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
       const d = Math.hypot(dx, dz); if (d > radius + 16 || Math.abs(r.y[i] - y) > radius + 30) continue;
       const span = i >> 1, key = r.id + ':' + span; if (BROKEN.has(r.id + ':' + span * 2)) continue;
       const hp = (this.hp.get(key) ?? 480) - dmg * (1 - d / (radius + 16)) * 1.4; this.hp.set(key, hp); if (hp <= 0) this.breakSpan(r, span, false);
@@ -168,7 +198,7 @@ export class Highways {
     G.audio.explosion?.(1.6, 0); G.memory?.log('collapse', p[0], p[1], { city: '', text: '고속도로 교량 붕괴' }); G.addHeat?.(15);
   }
   // blown-up spans: the chunk is made again without them
-  rebuild(r, i) { const c0 = Math.floor(i / CHUNK) * CHUNK, key = r.id + ':' + c0; for (const o of this.cm.get(key) || []) { this.group.remove(o); o.geometry.dispose(); this.stats.tris -= (o.geometry.index ? o.geometry.index.count : 0) / 3; this.stats.chunks--; } this.chunk(r, c0, r.st[c0 / CHUNK]); }
+  rebuild(r, i) { const c0 = Math.floor(i / CHUNK) * CHUNK, key = r.id + ':' + c0; for (const o of this.cm.get(key) || []) { this.group.remove(o); o.geometry.dispose(); this.stats.tris -= (o.geometry.index ? o.geometry.index.count : 0) / 3; this.stats.chunks--; } this.chunk(r, c0, r.st[c0 / CHUNK]); this.deckChunk(r, c0); }
 
   // ---- sign gantries
   buildGantries() {
@@ -248,7 +278,7 @@ export class Highways {
     for (const m of this.group.children) { if (m.isInstancedMesh) continue; const bs = m.geometry.boundingSphere; if (bs) m.visible = Math.hypot(bs.center.x - x, bs.center.z - z) - bs.radius < lim; }
   }
   update(camera) {
-    this.cull(camera);
+    this.cull(camera); this.arterials(camera);
     const L = this.lamps, x = camera.position.x, z = camera.position.z;
     if (Math.hypot(x - L.cx, z - L.cz) < 300) return;
     L.cx = x; L.cz = z; const N = this.N, CS = N.CS, seen = new Set(); let k = 0;
@@ -256,13 +286,70 @@ export class Highways {
     outer: for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) {
       const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue;
       for (let q = 0; q < cell.length; q += 2) {
-        const ri = cell[q], i = cell[q + 1], r = N.roads[ri]; if (r.kind === 'ramp' || i % 2) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
+        const ri = cell[q], i = cell[q + 1], r = N.roads[ri]; if (r.kind === 'ramp' || (r.kind === 'arterial' ? r.hw === 'secondary' || i % 5 : i % 2)) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
         const px = r.pts[i][0], pz = r.pts[i][1]; if ((px - x) ** 2 + (pz - z) ** 2 > R * R || r.cls[i] === 2) continue;
-        const f = this.frame(r, i); L.pos.set(f.x, f.y, f.z); L.q.setFromAxisAngle(L.up, Math.atan2(f.rx, f.rz)); L.mat.compose(L.pos, L.q, L.one);
+        const f = this.frame(r, i), side = r.kind === 'arterial' ? this.artWidth(r).half + 0.8 : 0; L.pos.set(f.x + f.rx * side, f.y, f.z + f.rz * side); L.q.setFromAxisAngle(L.up, Math.atan2(f.rx, f.rz)); L.mat.compose(L.pos, L.q, L.one);
         L.poleMesh.setMatrixAt(k, L.mat); L.headMesh.setMatrixAt(k, L.mat); if (++k >= L.MAX) break outer;
       }
     }
     L.poleMesh.count = L.headMesh.count = k; L.poleMesh.instanceMatrix.needsUpdate = true; L.headMesh.instanceMatrix.needsUpdate = true;
+  }
+  // ---- compiled arterial lines: one carriageway (or a two-way road without median) per line, its own width and lanes
+  artWidth(r) {
+    const n = Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
+    return r.oneway ? { n, half: (n * LANE + SHOULDER) / 2, two: false } : { n, half: n * LANE + SHOULDER, two: true };
+  }
+  arterials(camera) {
+    const now = performance.now(); if (now - (this.artAt || 0) < 300) return; this.artAt = now;
+    const x = camera.position.x, z = camera.position.z, t0 = performance.now();
+    for (const p of this.art) {
+      const d = Math.hypot(p.cx - x, p.cz - z) - p.rad;
+      if (!p.meshes && d < p.on && performance.now() - t0 < ART_BUDGET) { p.meshes = this.artPiece(p); this.stats.artLive++; }
+      else if (p.meshes && d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; this.stats.artLive--; this.dropDeck(p.col); p.col = null; }
+    }
+  }
+  // a piece of a compiled line: asphalt across its width, laid on its own heights but never under the drawn ground (a vertex is lifted to it, with an
+  // earth bank down to the ground where the road stands above it); rails on the big roads, bridge fascia and piers, tunnel lining
+  artPiece(p) {
+    const r = p.r, { n, half, two } = this.artWidth(r), mat = this.mats.lanes[n - 1], A = new Acc(), S = new Acc(), E = new Acc(), big = r.hw === 'motorway' || r.hw === 'trunk';
+    const CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], PIL = [0.4, 0.41, 0.44], EARTH = [0.24, 0.21, 0.16], LIGHT = [3.2, 2.9, 2.2];
+    let dist = 0; const D = new Deck();
+    for (let i = p.a; i < p.b; i++) {
+      const f0 = this.frame(r, i), f1 = this.frame(r, i + 1), seg = Math.hypot(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
+      const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
+      const at = (f, off, dy = 0) => {
+        const x = f.x + f.rx * off, z = f.z + f.rz * off; let y = f.y;
+        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; if (dy === 0 && Math.abs(off) <= half) { if (regionWeight(x, z) < 1) { this.stats.artBand = (this.stats.artBand || 0) + 1; if (g - y > 0.3) this.stats.artBandLifted = (this.stats.artBandLifted || 0) + 1; return [x, Math.max(y, g) + dy, z]; } this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; } else if (dy !== 0 || Math.abs(off) > half) { this.stats.artOther = (this.stats.artOther || 0) + 1; if (g - y > 0.3) this.stats.artOtherLifted = (this.stats.artOtherLifted || 0) + 1; } if (g > y) y = g; }
+        return [x, y + dy, z];
+      };
+      D.quadIfOff(at(f0, -half), at(f1, -half), at(f1, half), at(f0, half));
+      if (two) {   // a two-way road: a carriageway each side of a centre line (the texture's yellow edge meets in the middle)
+        A.quad(at(f0, 0.12), at(f1, 0.12), at(f1, half), at(f0, half), [1, 1, 1], [0, v0], [0, v1], [1, v1], [1, v0]);
+        A.quad(at(f0, -half), at(f1, -half), at(f1, -0.12), at(f0, -0.12), [1, 1, 1], [1, v0], [1, v1], [0, v1], [0, v0]);
+      } else A.quad(at(f0, -half), at(f1, -half), at(f1, half), at(f0, half), [1, 1, 1], [1, v0], [1, v1], [0, v1], [0, v0]);   // the inner (yellow) edge on +right: traffic keeps right
+      if (big && !tunnel) for (const s of [-1, 1]) { const o = s * (half + 0.3); S.quad(at(f0, o - s * 0.15, 0.78), at(f1, o - s * 0.15, 0.78), at(f1, o + s * 0.15, 0.78), at(f0, o + s * 0.15, 0.78), RAIL); }
+      if (!bridge && !tunnel) for (const s of [-1, 1]) {   // earth banks from the edge down to the ground beside the road, where the road stands above it
+        const e0 = at(f0, s * half), e1 = at(f1, s * half), g0 = landHeight(f0.x + f0.rx * s * (half + 2.5), f0.z + f0.rz * s * (half + 2.5), 16) - 0.05, g1 = landHeight(f1.x + f1.rx * s * (half + 2.5), f1.z + f1.rz * s * (half + 2.5), 16) - 0.05;
+        if (e0[1] - g0 < 0.15 && e1[1] - g1 < 0.15) continue;
+        const o0 = [f0.x + f0.rx * s * (half + 2.5), Math.min(g0, e0[1]), f0.z + f0.rz * s * (half + 2.5)], o1 = [f1.x + f1.rx * s * (half + 2.5), Math.min(g1, e1[1]), f1.z + f1.rz * s * (half + 2.5)];
+        if (s > 0) S.quad(e0, e1, o1, o0, EARTH); else S.quad(e1, e0, o0, o1, EARTH);
+      }
+      if (bridge) {
+        for (const s of [-1, 1]) { const o = s * (half + 0.5); S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); }
+        S.quad(at(f0, -half - 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f0, half + 0.5, -1.7), PIL);
+        if (i % 4 === 0) { const gy = landHeight(f0.x, f0.z, 16), h = f0.y - 1.7 - gy; if (h > 0.6) box(S, [f0.x, f0.z], f0.tx, f0.tz, Math.min(6, half), h, 2.2, gy, PIL); }   // a pier every 32 m
+      }
+      if (tunnel) {
+        const w = half + 1.4, hgt = 7.0, wall = [0.34, 0.35, 0.38];
+        for (const s of [-1, 1]) { const o = s * w; if (s > 0) S.quad(at(f0, o, hgt), at(f1, o, hgt), at(f1, o, 0), at(f0, o, 0), wall); else S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, hgt), at(f0, o, hgt), wall); }
+        S.quad(at(f0, w, hgt), at(f0, -w, hgt), at(f1, -w, hgt), at(f1, w, hgt), [0.28, 0.29, 0.31]);
+        E.quad(at(f0, -0.5, hgt - 0.05), at(f0, 0.5, hgt - 0.05), at(f1, 0.5, hgt - 0.05), at(f1, -0.5, hgt - 0.05), LIGHT);
+        if ((r.cls[i - 1] ?? 2) !== 2 && f0.cls === 2) for (const s of [-1, 1]) box(S, [f0.x + f0.rx * s * (w + 0.8), f0.z + f0.rz * s * (w + 0.8)], f0.tx, f0.tz, 1.6, 9, 3, f0.y, CONC);   // portal
+      }
+    }
+    const made = []; for (const [acc, m] of [[A, mat], [S, this.mats.struct], [E, this.mats.glow]]) if (!acc.empty) { const mesh = acc.mesh(m); this.group.add(mesh); made.push(mesh); }
+    p.col = this.makeDeck(D);
+    return made;
   }
   dispose() { this.scene.remove(this.group); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
 }

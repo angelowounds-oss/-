@@ -7,6 +7,9 @@ import { clamp, rand } from './util.js';
 // service areas, and road-side events (an accident, road works, a police checkpoint) at fixed places along the roads (a hash of road and
 // position, so they are the same every time). Everything exists only within ~1.5 km of the player.
 const LANE = 3.75, MED = 3.2, CAP = 16, NEAR = 1500, FAR = 2100;
+// lanes per direction of a compiled line, as drawn (highways.js artWidth)
+const lanesOf = (r) => Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
+const SPEED = { motorway: [27, 38], trunk: [20, 30], primary: [13, 19], secondary: [10, 14] };
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13; return ((h >>> 0) % 100000) / 100000; };
 const KINDS = ['sedan', 'sedan', 'sedan', 'suv', 'sport', 'truck', 'truck', 'suv'];
 
@@ -17,20 +20,27 @@ export class HighwayTraffic {
   lane(r, i, dir, laneNo) {
     const n = r.pts.length, a = r.pts[Math.max(0, i - 1)], b = r.pts[Math.min(n - 1, i + 1)], p = r.pts[i];
     let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-    const off = -dir * (MED / 2 + LANE * (laneNo + 0.5)), rx = tz, rz = -tx;
+    // a highway: lanes from the median on the centre line; a compiled line (ADR-0019): a one-way carriageway's lanes from its inner (+right) edge, a
+    // two-way road's from its centre line
+    let off;
+    if (r.kind !== 'arterial') off = -dir * (MED / 2 + LANE * (laneNo + 0.5));
+    else if (r.oneway) { const n = lanesOf(r); off = (n * LANE + 2.4) / 2 - LANE * (laneNo + 0.5); }
+    else off = -dir * (0.12 + LANE * (laneNo + 0.5));
+    const rx = tz, rz = -tx;
     return { x: p[0] + rx * off, z: p[1] + rz * off, y: r.y[i], h: Math.atan2(tx * dir, tz * dir) };
   }
   nearestSample(x, z, max = 2500) {
     const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS);
     let best = null, bd = max * max;
-    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp') continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || (r.kind === 'arterial' && r.hw === 'secondary')) continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
   }
 
   spawnCar(r, i, dir, lane) {
     const G = this.G, P = this.lane(r, i, dir, lane), type = KINDS[Math.floor(Math.random() * KINDS.length)];
     const v = new Vehicle(G, type, CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'traffic');
-    v.kind = 'traffic'; v.driver = 'ai'; v.hw = { r, i, dir, lane }; v.ai.speed = rand(27, 40) * (type === 'truck' ? 0.72 : 1) * (lane === 0 ? 1.15 : lane === 2 ? 0.88 : 1);
+    const sp = SPEED[r.hw] || [27, 40];
+    v.kind = 'traffic'; v.driver = 'ai'; v.hw = { r, i, dir, lane }; v.ai.speed = rand(sp[0], sp[1]) * (type === 'truck' ? 0.72 : 1) * (lane === 0 ? 1.15 : lane === 2 ? 0.88 : 1);
     v.x = P.x; v.z = P.z; v.h = P.h; v.vx = Math.sin(P.h) * 20; v.vz = Math.cos(P.h) * 20; v.startY = undefined;
     v.planAhead = () => this.plan(v);
     G.addVehicle(v); v.pv.body.setTranslation({ x: P.x, y: P.y + 1.2, z: P.z }, true); v.pv.body.setLinvel({ x: v.vx, y: 0, z: v.vz }, true);
@@ -40,7 +50,15 @@ export class HighwayTraffic {
   plan(v) {
     const h = v.hw, r = h.r, n = r.pts.length, ai = v.ai;
     while (ai.wp.length < 5) {
-      let i = h.i + h.dir; if (r.closed) i = (i + n) % n; else if (i < 1 || i > n - 2) { v.hwDone = true; return; }
+      let i = h.i + h.dir; if (r.closed) i = (i + n) % n;
+      else if (i < 1 || i > n - 2) {
+        // a compiled line goes on into the line it was joined to (at its end, or from its start backwards on a two-way road); otherwise the car is done
+        const nx = r.kind === 'arterial' && (h.dir > 0 ? r.next : r.prev)?.find((t) => this.roadIdx.has(t.road));
+        const to = nx && this.roadIdx.get(nx.road);
+        if (!to || BROKEN.has(to.id + ':' + nx.i)) { v.hwDone = true; return; }
+        h.r = to; h.i = Math.min(to.pts.length - 2, Math.max(1, nx.i)); h.dir = to.oneway ? 1 : h.dir; h.lane = Math.min(h.lane, (to.kind === 'arterial' ? lanesOf(to) : 3) - 1);
+        const P = this.lane(to, h.i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 }); return this.plan(v);
+      }
       if (BROKEN.has(r.id + ':' + Math.min(i, h.i))) { v.hwDone = true; return; }   // a blown-up bridge: no cars across
       h.i = i; const P = this.lane(r, i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 });
     }
@@ -59,7 +77,7 @@ export class HighwayTraffic {
     if (near && this.cars.length < CAP && (pl.y || 0) < 120) {
       // a few cars ahead of and behind the player on the nearest road, in both directions
       for (let tries = 0; tries < 3 && this.cars.length < CAP; tries++) {
-        const r = near.r, dir = Math.random() < 0.5 ? 1 : -1, lane = Math.floor(Math.random() * 3), back = rand(-1, 1) * 24, i = clamp(near.i + Math.round(back * (Math.random() < 0.5 ? 1 : -1) * 3 + (Math.random() < 0.5 ? 1 : -1) * 12), 3, r.pts.length - 4);
+        const r = near.r, art = r.kind === 'arterial', dir = art && r.oneway ? 1 : Math.random() < 0.5 ? 1 : -1, lane = Math.floor(Math.random() * (art ? lanesOf(r) : 3)), back = rand(-1, 1) * 24, i = clamp(near.i + Math.round(back * (Math.random() < 0.5 ? 1 : -1) * 3 + (Math.random() < 0.5 ? 1 : -1) * 12), 3, r.pts.length - 4);
         const P = this.lane(r, i, dir, lane), dd = Math.hypot(P.x - pl.x, P.z - pl.z);
         if (dd < 140 || dd > NEAR) continue;
         if (this.cars.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 30)) continue;
@@ -74,7 +92,7 @@ export class HighwayTraffic {
     const G = this.G, N = this.N;
     // road events: one candidate per 2.4 km of road
     if (this.nearestSample(pl.x, pl.z, 1100)) for (const r of N.roads) {
-      if (r.kind === 'ramp') continue;
+      if (r.kind === 'ramp' || r.kind === 'arterial') continue;
       for (let i = 40; i < r.pts.length - 40; i += 80) {
         const p = r.pts[i]; if (Math.abs(p[0] - pl.x) > 900 || Math.abs(p[1] - pl.z) > 900) continue;
         const key = r.id + ':' + i, hv = hash(r.id.length * 977 + i, r.id.charCodeAt(r.id.length - 1) * 31 + i);

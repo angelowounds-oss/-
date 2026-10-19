@@ -44,6 +44,7 @@ base64/data URL로 내장해 `neon_city_v9.html` 한 파일로 만든다(ADR-000
 | 컬링·인스턴스 패킹·조명 루프 패치는 픽셀 동일 | 화질 손실 없는 최적화 | `cull-identity`, `pack-identity`, `light-skip-identity`, ADR-0005 |
 | 층 지오메트리 버퍼는 풀에서 빌리고 `dispose` 때 한 번만 반납. 버린 층의 지오메트리를 다시 그리지 않는다 | 버퍼 재사용 충돌 = 형상 깨짐 | `pool-integrity`, `builder-bitexact`, ADR-0006 |
 | 출입구 유리는 로비 층이 있을 때만 열린다 | 건물 1층 구멍 | `entrance-holes` |
+| 도로 노면은 물리 바닥과 0.3 m 안이거나 판 충돌체가 받친다 | 고가·터널에서 차·사람이 허공에 | `highway-drivable`, `highway-drive`, ADR-0022 |
 
 ## 4. 데이터·상태
 - 저장: `localStorage['neon_city_v9_<slot>']` = `{cash, mission, kills, world: G.state}`. `G.state`에 각 시스템이 자기 영역을 쓴다(기억, 주민 사망, 정전, 아이템 위치, 시계, 설정 일부). 스키마 버전 없음 → SAV-01.

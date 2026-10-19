@@ -17,18 +17,29 @@ export class RoadGraph {
     this.n = n; this.x = new Float32Array(n); this.z = new Float32Array(n); this.rd = new Int32Array(n); this.ix = new Int32Array(n);
     roads.forEach((r, k) => r.pts.forEach((p, i) => { const id = this.off[k] + i; this.x[id] = p[0]; this.z[id] = p[1]; this.rd[id] = k; this.ix[id] = i; }));
     this.adj = Array.from({ length: n }, () => []);
-    roads.forEach((r, k) => {
-      const m = r.pts.length;
-      for (let i = 0; i < m - 1 + (r.closed ? 1 : 0); i++) { const a = this.off[k] + i, b = this.off[k] + (i + 1) % m; this.adj[a].push(b); this.adj[b].push(a); }
+    roads.forEach((r, k) => {   // consecutive samples; a one-way line only in its direction
+      const m = r.pts.length, one = r.kind === 'arterial' && r.oneway;
+      for (let i = 0; i < m - 1 + (r.closed ? 1 : 0); i++) { const a = this.off[k] + i, b = this.off[k] + (i + 1) % m; this.adj[a].push(b); if (!one) this.adj[b].push(a); }
     });
+    // compiled lines meet where the compiler joined them (a line's end to the point of the next line, a line's start from the point before it), and a
+    // highway that stops at the region meets the line it was joined to
+    const idx = new Map(roads.map((r, k) => [r.id, k])), node = (id, i) => (idx.has(id) ? this.off[idx.get(id)] + Math.min(i, roads[idx.get(id)].pts.length - 1) : -1);
+    roads.forEach((r, k) => {
+      const end = this.off[k] + r.pts.length - 1, start = this.off[k];
+      for (const t of r.next || []) { const b = node(t.road, t.i); if (b >= 0) { this.adj[end].push(b); if (!r.oneway) this.adj[b].push(end); } }
+      for (const t of r.prev || []) { const b = node(t.road, t.i); if (b >= 0) { this.adj[b].push(start); if (!r.oneway) this.adj[start].push(b); } }
+      for (const [j, at] of [[r.joinA, start], [r.joinB, end]]) if (j) { const b = node(j.road, j.i); if (b >= 0) { this.adj[at].push(b); this.adj[b].push(at); } }
+    });
+    this.art = Uint8Array.from(roads, (r) => (r.kind === 'arterial' ? 1 : 0));
     // interchange links: nearest sample of another road within LINK m (grid hash of 120 m)
     const CS = 120, grid = new Map(), key = (x, z) => Math.floor(x / CS) * 100003 + Math.floor(z / CS);
     for (let i = 0; i < n; i++) { const k = key(this.x[i], this.z[i]); let a = grid.get(k); if (!a) grid.set(k, (a = [])); a.push(i); }
     this.grid = grid; this.CS = CS;
     for (let i = 0; i < n; i += 2) {
+      if (this.art[this.rd[i]]) continue;   // compiled lines have their own junctions
       const cx = Math.floor(this.x[i] / CS), cz = Math.floor(this.z[i] / CS);
       let best = -1, bd = LINK * LINK;
-      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { if (this.rd[j] === this.rd[i]) continue; const d = (this.x[i] - this.x[j]) ** 2 + (this.z[i] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { if (this.rd[j] === this.rd[i] || this.art[this.rd[j]]) continue; const d = (this.x[i] - this.x[j]) ** 2 + (this.z[i] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
       if (best >= 0) { this.adj[i].push(best); this.adj[best].push(i); }
     }
   }
@@ -93,7 +104,7 @@ export class Router {
     const pts = [];
     const leg = (xa, za, xb, zb) => {
       const c = cityAt(xa, za, 0) || cityAt(xb, zb, 0), L = c && this.lineOf(c);
-      const seq = c && L ? manhattan(L, c, xa, za, xb, zb) : [[xb, zb]]; let px = xa, pz = za;
+      const seq = c && L && Math.hypot(xb - xa, zb - za) > 40 ? manhattan(L, c, xa, za, xb, zb) : [[xb, zb]]; let px = xa, pz = za;
       pts.push([xa, za, 0]); for (const q of seq) { pts.push([q[0], q[1], 0]); px = q[0]; pz = q[1]; } void px; void pz;
     };
     leg(x0, z0, G.x[nodes[0]], G.z[nodes[0]]);
@@ -101,12 +112,16 @@ export class Router {
     for (let k = 0; k < nodes.length; k++) {
       const id = nodes[k], p0 = nodes[Math.max(0, k - 2)], p1 = nodes[Math.min(nodes.length - 1, k + 2)];
       let tx = G.x[p1] - G.x[p0], tz = G.z[p1] - G.z[p0]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-      pts.push([G.x[id] - tz * 7.2, G.z[id] + tx * 7.2, 1]);
+      const r = G.roads[G.rd[id]], art = r.kind === 'arterial';
+      // the right-hand lane: on a highway 7.2 m right of the median line; on a compiled one-way line its outer lane, on a two-way line the first lane right of the centre
+      const per = art ? Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2))) : 0, half = art ? (r.oneway ? (per * LANE_W + 2.4) / 2 : per * LANE_W + 2.4) : 0;
+      const off = !art ? 7.2 : r.oneway ? half - 2.4 - LANE_W / 2 : 0.12 + LANE_W / 2;
+      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1]);
     }
     const last = nodes[nodes.length - 1]; pts.push([x1, z1, 0]);
     // the way in: street leg from the graph end to the destination (reversed use of the same helper)
     const tail = []; const c2 = cityAt(x1, z1, 400), L2 = c2 && this.lineOf(c2);
-    if (c2 && L2) { const m = manhattan(L2, c2, G.x[last], G.z[last], x1, z1); pts.pop(); for (const q of m) pts.push([q[0], q[1], 0]); }
+    if (c2 && L2 && Math.hypot(x1 - G.x[last], z1 - G.z[last]) > 40) { const m = manhattan(L2, c2, G.x[last], G.z[last], x1, z1); pts.pop(); for (const q of m) pts.push([q[0], q[1], 0]); }
     void tail;
     // resample to ~25 m and measure
     const out = []; let len = 0;

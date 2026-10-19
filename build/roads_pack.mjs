@@ -5,6 +5,8 @@
 // ground it draws. usage: node build/roads_pack.mjs
 // Layout: u32 json length (space padded), json header { roads: [{ id, cls, n, off }] }, then f32 x,z pairs (n points) per road at byte offset `off`.
 import fs from 'node:fs';
+import './jobs.mjs';   // installs the compiled region first: its roads and ground replace the planned ones
+import { regionWeight } from '../src/region.js';
 import { settlements } from '../src/settlements.js';
 import { net } from '../src/roadnet.js';
 import { cities } from '../src/worldmap.js';
@@ -111,7 +113,7 @@ function route(a, b, slopeMax = 0.3, crossMax = 0.25) {
 const roads = [], t0 = Date.now(); let failed = 0;
 // spanning tree by trial: an edge joins two pieces only if a road can really be found between them (the world is an archipelago: some places have no way)
 // a route that the strict limits cannot find is retried with looser ones (the ground check in countryroads-quality bounds the result)
-const add = (a, b) => { const pts = route(a, b) || route(a, b, 0.5, 0.4); if (!pts || pts.length < 4) { failed++; return false; } roads.push({ id: a.id + '>' + b.id, cls: a.kind === 'farm' || b.kind === 'farm' ? 1 : 0, pts }); return true; };
+const add = (a, b) => { const pts = route(a, b) || route(a, b, 0.5, 0.4); if (!pts || pts.length < 4 || pts.some((q) => regionWeight(q[0], q[1]) > 0)) { failed++; return false; } roads.push({ id: a.id + '>' + b.id, cls: a.kind === 'farm' || b.kind === 'farm' ? 1 : 0, pts }); return true; };
 for (const e of edges) { const ra = find(e[0].id), rb = find(e[1].id); if (e[0].kind !== 'farm' && e[1].kind !== 'farm' && ra === rb) continue; if (add(e[0], e[1])) parent.set(ra, rb); }
 for (const l of links) add(l[0], l[1]);
 let off = 0; const meta = roads.map((r) => { const m = { id: r.id, cls: r.cls, n: r.pts.length, off }; off += r.pts.length * 8; return m; });
