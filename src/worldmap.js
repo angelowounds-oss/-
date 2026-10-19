@@ -31,7 +31,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------------ the raw landscape (before cities are flattened)
 // Hallasan on Jeju (126.53 E, 33.36 N, WLD-20e): the cone and its volcanic biome sit on the real mountain
-export const VOLCANO = { ...project(126.53, 33.36), r: 3200, h: 1900 };
+export const VOLCANO = { ...project(126.53, 33.36), r: 1300, h: 1900 };   // radius ~8 km real: Jeju City, 16 km north of the summit, stays near sea level
 // the Korea land mask (koreamap.js, WLD-20e): the share of land on a ring of radius r around (x, z); the coast is a slope over a kilometre, not a step
 function koreaShare(x, z, r) {
   const M = koreaMask(); let sum = landAt(M, x, z);
@@ -39,7 +39,7 @@ function koreaShare(x, z, r) {
   return sum / 9;
 }
 function rawHeight(x, z) {
-  const land = sstep(0.3, 0.7, koreaShare(x, z, 1000));
+  const land = Math.max(sstep(0.3, 0.7, koreaShare(x, z, 1000)), landAt(koreaMask(), x, z));   // a land cell is land even when the ring is mostly sea (small islands such as Ulleung)
   const shelf = koreaShare(x, z, 4000);   // 0 far out at sea (deepest), 1 well inland
   const plains = 8 + 26 * fbm(x / 9000, z / 9000, 3, 2);
   const mm = sstep(0.50, 0.74, fbm(x / 30000 + 9, z / 30000 - 4, 3, 3));                    // where mountain ranges stand
