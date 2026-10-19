@@ -56,7 +56,7 @@ function tidy(pts) {
 
 // ---- A*
 function route(a, b) {
-  const ga = a.gate(b.x, b.z), gb = b.gate(a.x, a.z), pad = 2200;
+  const ga = a.gate(b.x, b.z), gb = b.gate(a.x, a.z), pad = 3500;
   let x0 = Math.min(ga.x, gb.x) - pad, x1 = Math.max(ga.x, gb.x) + pad, z0 = Math.min(ga.z, gb.z) - pad, z1 = Math.max(ga.z, gb.z) + pad;
   const W = Math.ceil((x1 - x0) / G), H = Math.ceil((z1 - z0) / G), cost = new Float32Array(W * H).fill(-1), hts = new Float32Array(W * H).fill(NaN);
   const cx = (i) => x0 + (i + 0.5) * G, cz = (j) => z0 + (j + 0.5) * G;
@@ -67,7 +67,7 @@ function route(a, b) {
     const h = height(i, j); if (h < SEA + 2.5) bad = true;
     if (!bad) { const rv = riverAt(x, z); if (rv && rv.d < rv.w / 2 + 20) bad = true; }
     // real mountain country: a road may not run along a hillside whose cross slope would leave the 8.8 m ribbon more than 1.5 m off the ground
-    if (!bad && i > 0 && j > 0 && i < W - 1 && j < H - 1) { const gx = (height(i + 1, j) - height(i - 1, j)) / (2 * G), gz = (height(i, j + 1) - height(i, j - 1)) / (2 * G); if (Math.hypot(gx, gz) > 0.13) bad = true; }
+    if (!bad && i > 0 && j > 0 && i < W - 1 && j < H - 1) { const gx = (height(i + 1, j) - height(i - 1, j)) / (2 * G), gz = (height(i, j + 1) - height(i, j - 1)) / (2 * G); if (Math.hypot(gx, gz) > 0.25) bad = true; }
     if (!bad && !gb.hw && hwNear(x, z, 40)) bad = true;
     if (!bad && gb.hw && hwNear(x, z, 40) && Math.hypot(x - gb.x, z - gb.z) > 70) bad = true;
     if (!bad) for (const n of nodes) { if (n === a || n === b || !n.r) continue; const d = Math.hypot(x - n.x, z - n.z); if (d < (n.kind === 'city' ? n.r * 0.99 : n.r + 20)) { bad = true; break; } }
@@ -87,7 +87,7 @@ function route(a, b) {
     for (const [di, dj] of D) {
       const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const nk = nj * W + ni;
       if (nk !== t && blocked(ni, nj)) continue;
-      const d = Math.hypot(di, dj) * G, sl = Math.abs(height(ni, nj) - hk0) / d; if (sl > 0.2) continue;
+      const d = Math.hypot(di, dj) * G, sl = Math.abs(height(ni, nj) - hk0) / d; if (sl > 0.3) continue;
       const turn = from[k] >= 0 ? (((from[k] % W) - i) * (di) + (((from[k] / W) | 0) - j) * (dj)) : 0;   // a bend costs a little: roads prefer straight runs
       const ng = g[k] + d * (1 + 26 * sl * sl) + (turn > 0 ? 6 : 0);
       if (ng < g[nk]) { g[nk] = ng; from[nk] = k; push(ng + Math.hypot(ni - ti, nj - tj) * G, nk); }

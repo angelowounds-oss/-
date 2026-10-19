@@ -26,12 +26,12 @@
   - 검증: quick 전부 통과. 월드·렌더에 닿았으므로 마지막에 `all`도 1회.
   - 완료: quick 16/16 + all 통과 수치를 이 줄에 기록.
 
-- [ ] **A2 국도 생성기 커버리지 복구** (현재 90개 연결 중 17개, 91 km; 합류 전 333 km)
+- [ ] **A2 국도 생성기 커버리지 복구** (부분: 2026-10-19 단면 경사 한계 0.13→0.25, A* 한 걸음 경사 0.2→0.3, 검색 여유 pad 2200→3500 적용. 결과 33개 연결, 48개 실패, 305 km, 품질 테스트 통과. 실패 48 → 15 이하, 커버리지 단위 테스트 `countryroads-coverage` 추가는 남음)
   - 방법: `build/roads_pack.mjs`의 `blocked()`에 넣은 단면 경사 한계(0.13)가 지나치다. 한계를 0.18~0.25로 올려가며 연결 수와 `crossOver1_5m`을 함께 본다. 막힘을 하드 차단 대신 A* 비용(`d*(1+26*sl²)`에 단면 경사 항 추가)으로 바꾸는 안을 먼저 시도한다. 끝점이 막히는 경우(`h < SEA+2.5`, 강 근접, 도시 반경)는 끝점 반경 안에서는 차단을 풀거나 가장 가까운 열린 셀로 옮긴다. 리본이 지면에서 뜨는 문제는 `landfn` 도로 둑(bank)이 메우므로 한계를 올려도 되는지 `crossOver1_5m`로 판단한다.
   - 검증: `node build/roads_pack.mjs`의 "N roads (M had no way)"와 총 km를 기록. `node tests/unit/countryroads-quality.test.mjs`(꺾임 30° 초과 0, 중복점 0, 지면 이탈 0.5% 이하). 커버리지는 새 단위 테스트 `countryroads-coverage`로 고정: 모든 도시 쌍 인접 연결(`worldmap.highways` 그래프에서 이웃인 노드)이 국도로도 이어졌는지, 도로 수 ≥ 60.
   - 완료: 연결 실패 ≤ 15, 총 ≥ 250 km, 품질 테스트 통과.
 
-- [ ] **A3 `src/ranges.js` 정리** (DEM과 중복)
+- [x] **A3 `src/ranges.js` 정리** (2026-10-19: `src/ranges.js`와 `ranges.test.mjs` 삭제, `tests/run.cjs` 목록 갱신, 잔여 참조 0)
   - 방법: 코드에서 `rangeHeight`를 쓰는 곳이 없음을 `grep`으로 확인하고, 파일과 `tests/unit/ranges.test.mjs`를 삭제하거나 "산맥 능선 데이터"로만 남겨 지도 UI 라벨에 쓴다. `tests/run.cjs` 목록 갱신.
   - 검증: `grep -rn ranges src tests` 잔여 참조 0, quick 통과.
   - 완료: 중복 지형 로직 0.
