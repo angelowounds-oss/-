@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { landHeight } from './landfn.js';
-import { vegCell, CELL, VT } from './vegfn.js';
+import { vegCell, CELL, VT, VEG_ORIGIN } from './vegfn.js';
 import { nightU, timeUniform } from './shaders.js';
 import { onCountryRoad } from './countryroads.js';
 
@@ -11,7 +11,7 @@ import { onCountryRoad } from './countryroads.js';
 // height, so the radius follows the fog. Near the camera, real low-poly models in instanced meshes; further out, one instanced billboard per tree
 // (a silhouette drawn in the fragment shader, no texture); trunks within 24 m of the player are collision boxes. Everything is created at start (count 0)
 // so no program compiles during play.
-const NV = 25 * VT, ORIGIN = -50000;
+const NV = 25 * VT, OX = VEG_ORIGIN.x, OZ = VEG_ORIGIN.z;   // the cell grid in the local frame (ADR-0017)
 let VEG = null;
 export async function loadVeg(wd) {
   const keys = wd.keys('veg/'); if (!keys.length) return 0;
@@ -26,7 +26,7 @@ const SYNTH = new Map();   // without baked data (WORLD=small, tests): the cell 
 const byteAt = (cx, cz) => {
   if (cx < 0 || cz < 0 || cx >= NV || cz >= NV) return 0;
   if (VEG) return VEG[cz * NV + cx];
-  const k = cz * NV + cx; let b = SYNTH.get(k); if (b === undefined) { b = vegCell(ORIGIN + (cx + 0.5) * CELL, ORIGIN + (cz + 0.5) * CELL); SYNTH.set(k, b); if (SYNTH.size > 20000) SYNTH.clear(); } return b;
+  const k = cz * NV + cx; let b = SYNTH.get(k); if (b === undefined) { b = vegCell(OX + (cx + 0.5) * CELL, OZ + (cz + 0.5) * CELL); SYNTH.set(k, b); if (SYNTH.size > 20000) SYNTH.clear(); } return b;
 };
 const hash = (a, b, c) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1) ^ Math.imul(c + 1, 0x9e3779b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 
@@ -121,7 +121,7 @@ export class Forest {
   // the trees, shrubs and rocks of a cell as records [x, y, z, rot, size, type] (type: index in TYPES), made once and kept
   cell(cx, cz, byte) {
     const key = cz * NV + cx; let r = this.cells.get(key); if (r) return r;
-    const kind = byte >> 5, n0 = byte & 31, out = [], f = this.f, x0 = ORIGIN + cx * CELL, z0 = ORIGIN + cz * CELL;
+    const kind = byte >> 5, n0 = byte & 31, out = [], f = this.f, x0 = OX + cx * CELL, z0 = OZ + cz * CELL;
     const put = (k, type, size) => { const x = x0 + hash(cx, cz, k * 3) * CELL, z = z0 + hash(cx, cz, k * 3 + 1) * CELL; if (onCountryRoad(x, z, 6 + size)) return; out.push(x, landHeight(x, z, 8), z, hash(cx, cz, k * 3 + 2) * 6.283, size, type); };
     const n = Math.floor(n0 * f + hash(cx, cz, 900));
     for (let k = 0; k < n; k++) {
@@ -136,7 +136,7 @@ export class Forest {
   }
 
   // the growth byte at a world position (kind << 5 | trees), for tests and tools
-  byteAtWorld(x, z) { return byteAt(Math.floor((x - ORIGIN) / CELL), Math.floor((z - ORIGIN) / CELL)); }
+  byteAtWorld(x, z) { return byteAt(Math.floor((x - OX) / CELL), Math.floor((z - OZ) / CELL)); }
 
   update(cam, focus, dt) {
     this.t -= dt; const dx = cam.position.x - this.last[0], dz = cam.position.z - this.last[1];
@@ -148,10 +148,10 @@ export class Forest {
     const cx = cam.position.x, cz = cam.position.z, fog = this.scene.fog, R = Math.min(this.maxR, Math.max(120, SAFE_FOG / Math.max(fog ? fog.density : 0.01, 1e-4) + 30)), Rn = Math.min(R, this.nearR);
     // too high to see single trees (beyond 1 km the ground colour carries the forest): nothing is drawn
     const alt = cam.position.y - landHeight(cx, cz, 64), idle = alt > 600;
-    const c0x = Math.floor((cx - R - ORIGIN) / CELL), c1x = Math.floor((cx + R - ORIGIN) / CELL), c0z = Math.floor((cz - R - ORIGIN) / CELL), c1z = Math.floor((cz + R - ORIGIN) / CELL), list = [];
+    const c0x = Math.floor((cx - R - OX) / CELL), c1x = Math.floor((cx + R - OX) / CELL), c0z = Math.floor((cz - R - OZ) / CELL), c1z = Math.floor((cz + R - OZ) / CELL), list = [];
     if (!idle) for (let j = c0z; j <= c1z; j++) for (let i = c0x; i <= c1x; i++) {
       const b = byteAt(i, j); if (!(b >> 5) && !(b & 31)) continue;
-      const ex = ORIGIN + (i + 0.5) * CELL - cx, ez = ORIGIN + (j + 0.5) * CELL - cz, d2 = ex * ex + ez * ez; if (d2 > (R + 24) * (R + 24)) continue; list.push([d2, i, j, b]);
+      const ex = OX + (i + 0.5) * CELL - cx, ez = OZ + (j + 0.5) * CELL - cz, d2 = ex * ex + ez * ez; if (d2 > (R + 24) * (R + 24)) continue; list.push([d2, i, j, b]);
     }
     list.sort((a, b) => a[0] - b[0]);
     const cnt = {}; for (const t of [...TYPES, 'grass']) cnt[t] = 0; let nb = 0, mc = 0;
@@ -175,7 +175,7 @@ export class Forest {
       if (d < this.grassR && grassKinds[kind] > 0) {
         const per = Math.floor(grassKinds[kind] * 820 * this.f + hash(i, j, 910)), gm = this.meshes.grass;
         for (let k = 0; k < per && cnt.grass < CAP.grass; k++) {
-          const x = ORIGIN + i * CELL + hash(i, j, 1000 + k * 2) * CELL, z = ORIGIN + j * CELL + hash(i, j, 1001 + k * 2) * CELL, s = 0.7 + 0.9 * hash(i, j, 1500 + k), t = 0.8 + 0.4 * hash(i, j, 1700 + k);
+          const x = OX + i * CELL + hash(i, j, 1000 + k * 2) * CELL, z = OZ + j * CELL + hash(i, j, 1001 + k * 2) * CELL, s = 0.7 + 0.9 * hash(i, j, 1500 + k), t = 0.8 + 0.4 * hash(i, j, 1700 + k);
           if (onCountryRoad(x, z, 5.6)) continue;
           set(gm, cnt.grass++, x, landHeight(x, z, 8), z, hash(i, j, 1900 + k) * 6.28, s, [t, t, t]);
         }
@@ -190,7 +190,7 @@ export class Forest {
   colliders(focus) {
     const fx = focus.x, fz = focus.z, col = this.world.colliders; if (!col) return;
     if (this.boxAt && Math.abs(fx - this.boxAt[0]) < 4 && Math.abs(fz - this.boxAt[1]) < 4) return; this.boxAt = [fx, fz];
-    const want = new Map(), R = 24, ci = Math.floor((fx - ORIGIN) / CELL), cj = Math.floor((fz - ORIGIN) / CELL);
+    const want = new Map(), R = 24, ci = Math.floor((fx - OX) / CELL), cj = Math.floor((fz - OZ) / CELL);
     for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) {
       const b = byteAt(i, j); if (!(b & 31) && (b >> 5) !== 7 && (b >> 5) !== 4) continue; const rec = this.cell(i, j, b);
       for (let q = 0; q < rec.length; q += 6) {

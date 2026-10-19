@@ -42,9 +42,12 @@ for (const v of S.villages) if (v.tag === 'highway') { let best = null, bd = 1e1
 // resampling leaves duplicate points and a short leftover piece at the corners, which read as kinks of 30-65 degrees; drop the duplicates, fold a short
 // last piece into its neighbour, then relax the inner points (the first and last point stay on the gates)
 function tidy(pts) {
-  const d = []; for (const p of pts) { const q = d[d.length - 1]; if (!q || Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.5) d.push(p); }
-  if (d.length > 2 && Math.hypot(d[d.length - 1][0] - d[d.length - 2][0], d[d.length - 1][1] - d[d.length - 2][1]) < STEP * 0.5) d.splice(d.length - 2, 1);
+  const near = (P) => { const d = [P[0]]; for (let i = 1; i < P.length - 1; i++) if (Math.hypot(P[i][0] - d[d.length - 1][0], P[i][1] - d[d.length - 1][1]) > 4) d.push(P[i]); d.push(P[P.length - 1]); return d; };   // points closer than 4 m read as a kink
+  // a spike (the route runs out and back) is dropped: a point whose two sides meet at more than 90 degrees (a hairpin at a gate)
+  const spike = (P) => { const Q = [P[0]]; for (let i = 1; i < P.length - 1; i++) { const a = Q[Q.length - 1], b = P[i], c = P[i + 1], ux = b[0] - a[0], uz = b[1] - a[1], vx = c[0] - b[0], vz = c[1] - b[1], l = Math.hypot(ux, uz) * Math.hypot(vx, vz) || 1; if ((ux * vx + uz * vz) / l > 0) Q.push(b); } Q.push(P[P.length - 1]); return Q; };
+  let d = near(spike(pts.filter((p, i) => i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.5)));
   for (let r = 0; r < 8; r++) for (let i = 1; i < d.length - 1; i++) d[i] = [(d[i - 1][0] + 2 * d[i][0] + d[i + 1][0]) / 4, (d[i - 1][1] + 2 * d[i][1] + d[i + 1][1]) / 4];
+  for (let k = 0; k < 6; k++) { const n = d.length; d = near(spike(d)); if (d.length === n) break; }   // a removed hairpin can leave a new one behind
   return d;
 }
 

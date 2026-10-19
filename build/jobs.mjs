@@ -12,8 +12,8 @@ export const RUN = {
   },
   // one tile of baked ground (heightmap.js): the ground of landfn.js on the tile's grid; the physics layer only when it differs (bridges, tunnels)
   async tile(j) {
-    const [{ landProc, physProc }, { encodeTile, N1, TILE, CT, CN }, { groundColor }] = await Promise.all([imp('src/landfn.js'), imp('src/heightmap.js'), imp('src/groundfn.js')]);
-    const size = j.g * TILE, x0 = -50000 + j.i * size, z0 = -50000 + j.j * size, land = new Float32Array(N1 * N1), phys = new Float32Array(N1 * N1); let diff = false;
+    const [{ landProc, physProc }, { encodeTile, N1, TILE, CT, CN, TILE_ORIGIN }, { groundColor }] = await Promise.all([imp('src/landfn.js'), imp('src/heightmap.js'), imp('src/groundfn.js')]);
+    const size = j.g * TILE, x0 = TILE_ORIGIN.x + j.i * size, z0 = TILE_ORIGIN.z + j.j * size, land = new Float32Array(N1 * N1), phys = new Float32Array(N1 * N1); let diff = false;
     for (let b = 0; b < N1; b++) for (let a = 0; a < N1; a++) {
       const x = x0 + a * j.g, z = z0 + b * j.g, k = b * N1 + a; land[k] = landProc(x, z, j.g); phys[k] = physProc(x, z, j.g);
       if (Math.abs(phys[k] - land[k]) > 0.05) diff = true;

@@ -3,6 +3,7 @@ import { glowSpriteMat } from './models.js';
 import { GR, grp } from './physics.js';
 import { clamp, lerp, damp, TAU, rand } from './util.js';
 import { WORLD_HALF } from './worldmap.js';
+import { CAPITAL } from './koreamap.js';
 import { landHeight } from './farland.js';
 
 // Motorcycle, boat and helicopter: procedural models + physics drive models (Vehicle subclass-free hooks)
@@ -270,7 +271,8 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
   const onGround = agl < 0.5;
   let s = veh.jetS ?? 0;
   // the hypersonic one crosses the world in half a minute: near the edge of the map it slows down and turns back by itself
-  if (spec.hyper) { const r = Math.max(Math.abs(t.x), Math.abs(t.z)), lim = WORLD_HALF - 3500; veh.returning = r > lim ? true : r < lim - 8000 ? false : !!veh.returning; }
+  // the map's edge is measured in map coordinates (ADR-0017)
+  if (spec.hyper) { const r = Math.max(Math.abs(t.x + CAPITAL.x), Math.abs(t.z + CAPITAL.z)), lim = WORLD_HALF - 3500; veh.returning = r > lim ? true : r < lim - 8000 ? false : !!veh.returning; }
   const target = Math.min(veh.thrLvl * spec.maxSpeed, veh.returning ? 700 : 1e9);
   s += clamp(target - s, -spec.accel * 1.6 * dt, spec.accel * dt);
   if (onGround && brk > 0.1 && s > 0) s = Math.max(0, s - 28 * dt);

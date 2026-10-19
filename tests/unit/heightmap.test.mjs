@@ -3,13 +3,13 @@
 import zlib from 'node:zlib';
 import { bake } from '../../build/bake.mjs';
 import { openContainer, decodeChunk } from '../../src/bakefmt.js';
-import { encodeTile, decodeTile, N1, TILE, CN, levels, sample, loadResident, colorAt } from '../../src/heightmap.js';
+import { encodeTile, decodeTile, N1, TILE, CN, levels, sample, loadResident, colorAt, TILE_ORIGIN } from '../../src/heightmap.js';
 import { landProc, physProc, landHeight, riverAt, bedDepth } from '../../src/landfn.js';
 import { rivers, highways } from '../../src/worldmap.js';
 import { WorldData, memoryReader } from '../../src/chunkstore.js';
 
 const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
-const tileOf = (x, z, g = 16) => [Math.floor((x + 50000) / (g * TILE)), Math.floor((z + 50000) / (g * TILE))];
+const tileOf = (x, z, g = 16) => [Math.floor((x - TILE_ORIGIN.x) / (g * TILE)), Math.floor((z - TILE_ORIGIN.z) / (g * TILE))];   // the tile grid is in the local frame (ADR-0017)
 const rp = rivers()[0].pts[Math.floor(rivers()[0].pts.length / 2)], hp = highways()[0].pts[Math.floor(highways()[0].pts.length / 2)];
 const spots = [[0, 0], [rp[0], rp[1]], [hp[0], hp[1]]], want = new Map();
 for (const [x, z] of spots) { const [i, j] = tileOf(x, z); want.set(`${i}_${j}`, { key: `t16/${i}_${j}`, gen: 'tile', tier: 'embed', g: 16, i, j, src: S }); }
@@ -24,7 +24,7 @@ if (n !== want.size) bad.push(['loaded', n, want.size]);
 // at the nodes: exact to the step; between the nodes: close
 let maxNode = 0, maxMid = 0, cnt = 0;
 for (const [x, z] of spots) {
-  const [i, j] = tileOf(x, z), x0 = -50000 + i * 4096, z0 = -50000 + j * 4096;
+  const [i, j] = tileOf(x, z), x0 = TILE_ORIGIN.x + i * 4096, z0 = TILE_ORIGIN.z + j * 4096;
   for (let q = 0; q < 300; q++) {
     const a = (q * 37) % TILE, b = (q * 91) % TILE, nx = x0 + a * 16, nz = z0 + b * 16, mx = nx + 8, mz = nz + 8;
     maxNode = Math.max(maxNode, Math.abs(sample(nx, nz) - landProc(nx, nz, 16)));

@@ -8,6 +8,8 @@
 //           cities (site search on the coarse grid), highways (A* on a coarser grid, smoothed) -> CITIES, HIGHWAYS
 import { koreaMask, landAt } from './koreamap.js';
 
+import { CAPITAL } from './koreamap.js';
+
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
 // ------------------------------------------------------------------ noise (integer hash: identical on every platform)
@@ -106,7 +108,7 @@ function carveRivers(W) {
 
 // ------------------------------------------------------------------ cities: wished position -> nearest suitable site (flat land; the port at a coast)
 export const CITY_DEFS = [
-  { id: 'neon', name: 'NEON CITY', type: 'metropolis', x: 0, z: 0, r: 4200, fixed: true },
+  { id: 'neon', name: 'NEON CITY', type: 'metropolis', x: CAPITAL.x, z: CAPITAL.z, r: 4200, fixed: true },   // at Seoul (ADR-0017)
   { id: 'harbor', name: 'HARBOR GATE', type: 'port', x: -31000, z: 9000, r: 3000, coast: true },
   { id: 'airfield', name: 'SKYPORT', type: 'airport', x: 29000, z: -15000, r: 3400 },
   { id: 'mid1', name: 'REDWOOD', type: 'town', x: -12000, z: -32000, r: 1900 },
@@ -217,13 +219,21 @@ function astar(cost, ca, cb) {
 }
 
 // ------------------------------------------------------------------ public sampling
-export const world = () => build();
-export const cities = () => build().cities;
-export const highways = () => build().highways;
-export const rivers = () => build().rivers;
+// The game reads the world in its local frame (ADR-0017: the capital is the origin); generation and the baked container stay in map coordinates.
+const LOCAL = new WeakMap();
+const localView = (W) => LOCAL.get(W) || LOCAL.set(W, {
+  cities: W.cities.map((c) => ({ ...c, x: c.x - CAPITAL.x, z: c.z - CAPITAL.z })),
+  highways: W.highways.map((h) => ({ ...h, pts: h.pts.map((p) => [p[0] - CAPITAL.x, p[1] - CAPITAL.z]) })),
+  rivers: W.rivers.map((r) => ({ ...r, pts: r.pts.map((p) => [p[0] - CAPITAL.x, p[1] - CAPITAL.z, p[2]]) })),
+}).get(W);
+export const world = () => build();   // map coordinates: the baked container and the bake only
+export const cities = () => localView(build()).cities;
+export const highways = () => localView(build()).highways;
+export const rivers = () => localView(build()).rivers;
 
 // terrain height at (x, z); `cell` = size of the smallest feature the caller can show (m): finer noise octaves are left out
-export function farHeight(x, z, cell = 0) {
+export function farHeight(x, z, cell = 0) { return farHeightMap(x + CAPITAL.x, z + CAPITAL.z, cell); }
+function farHeightMap(x, z, cell) {
   const W = build(); let h = sample(W.H, W.N1, x, z);
   const rug = sample(W.M, W.N1, x, z), land = h > SEA ? 1 : 0;
   if (land) {
@@ -240,7 +250,7 @@ function surfaceGrids(W) {
     const x = -WORLD_HALF + i * CC, z = -WORLD_HALF + j * CC, k = j * N1 + i; let f = 0;
     for (const c of W.cities) f = Math.max(f, cityFlat(c, x, z));
     W.F[k] = f;
-    const b = biomeAt(x, z, H[k] + (H[k] > SEA ? 0 : 0)), c = PAL[b]; W.B[k] = b;
+    const b = biomeMap(x, z, H[k] + (H[k] > SEA ? 0 : 0)), c = PAL[b]; W.B[k] = b;
     let r = c[0], g = c[1], bl = c[2];
     if (b === 3) { const s = vn(x / 1800, z / 1800, 12) > 0.5 ? 1.12 : 0.9; r *= s; g *= s; }
     const rv = W.riverMask[k]; if (rv > 0.3 && H[k] > SEA) { const t = Math.min(1, (rv - 0.3) * 1.6); r = lerp(r, 0.04, t); g = lerp(g, 0.16, t); bl = lerp(bl, 0.26, t); }
@@ -248,7 +258,8 @@ function surfaceGrids(W) {
   }
 }
 // 0 sea, 1 beach, 2 plains, 3 farmland, 4 forest, 5 hills, 6 mountain, 7 snow, 8 desert, 9 volcanic
-export function biomeAt(x, z, h) {
+export function biomeAt(x, z, h) { return biomeMap(x + CAPITAL.x, z + CAPITAL.z, h); }
+function biomeMap(x, z, h) {
   if (h < SEA) return 0;
   const dv = Math.hypot(x - VOLCANO.x, z - VOLCANO.z); if (dv < VOLCANO.r * 1.5 && h > 80) return 9;
   const T = 0.55 + (z / WORLD_HALF) * 0.32 + (fbm(x / 26000 + 3, z / 26000 + 8, 3, 6) - 0.5) * 0.5 - Math.max(0, h) / 2600;   // north (-z) is cold
@@ -265,7 +276,8 @@ export const PAL = [
   [0.02, 0.07, 0.12], [0.55, 0.50, 0.36], [0.20, 0.30, 0.13], [0.30, 0.34, 0.14], [0.07, 0.17, 0.08], [0.24, 0.24, 0.17], [0.30, 0.28, 0.26], [0.82, 0.86, 0.92], [0.62, 0.50, 0.30], [0.10, 0.07, 0.07],
 ];
 // vertex colour (dusk-ish: the lighting does the rest); out is a [r, g, b] array
-export function surfaceColor(x, z, h, out) {
+export function surfaceColor(x, z, h, out) { return surfaceMap(x + CAPITAL.x, z + CAPITAL.z, h, out); }
+function surfaceMap(x, z, h, out) {
   const W = build(), fx = Math.min(CG - 1e-6, Math.max(0, cellAt(x))), fz = Math.min(CG - 1e-6, Math.max(0, cellAt(z))), i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, k = (j * W.N1 + i) * 3, K = W.N1 * 3, C = W.COL;
   const w00 = (1 - u) * (1 - v), w10 = u * (1 - v), w01 = (1 - u) * v, w11 = u * v;
   const n = 0.84 + 0.32 * vn(x / 70, z / 70, 301);

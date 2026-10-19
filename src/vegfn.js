@@ -1,4 +1,5 @@
 import { biomeAt, vn, cities, SEA } from './worldmap.js';
+import { CAPITAL } from './koreamap.js';
 import { roadAt, HALF_W } from './roadnet.js';
 import { landProc, riverAt } from './landfn.js';
 import { settlements } from './settlements.js';
@@ -39,8 +40,10 @@ export function vegCell(x, z) {
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // one tile of the grid: Uint8Array(VT * VT), row = z, column = x
+// the cell grid lies in the local frame (ADR-0017): the same cells as the map's grid, moved by the capital offset
+export const VEG_ORIGIN = { x: -50000 - CAPITAL.x, z: -50000 - CAPITAL.z };
 export function vegTile(i, j) {
-  const out = new Uint8Array(VT * VT), x0 = -50000 + i * VT * CELL, z0 = -50000 + j * VT * CELL;
+  const out = new Uint8Array(VT * VT), x0 = VEG_ORIGIN.x + i * VT * CELL, z0 = VEG_ORIGIN.z + j * VT * CELL;
   for (let b = 0; b < VT; b++) for (let a = 0; a < VT; a++) out[b * VT + a] = vegCell(x0 + (a + 0.5) * CELL, z0 + (b + 0.5) * CELL);
   return out;
 }

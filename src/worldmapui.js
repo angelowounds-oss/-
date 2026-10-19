@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { settlements } from './settlements.js';
 import { cities, farHeight, surfaceColor, SEA, WORLD_HALF } from './worldmap.js';
+import { CAPITAL } from './koreamap.js';
+
+// the middle of the map in the local frame (ADR-0017): the capital is the origin, the map is centred on Korea
+const MAP_C = { x: -CAPITAL.x, z: -CAPITAL.z };
 import { net } from './roadnet.js';
 import { N as GN, HALF, R as GR_, roadC } from './world.js';
 import { el } from './util.js';
@@ -67,7 +71,7 @@ export class WorldMapUI {
   scale() { return Math.min(this.cv.width, this.cv.height) / SPAN[this.level]; }
   toScreen(x, z) { const s = this.scale(); return [this.cv.width / 2 + (x - this.cx) * s, this.cv.height / 2 + (z - this.cz) * s]; }
   toWorld(px, pz) { const s = this.scale(), k = this.cv.width / this.cv.clientWidth; return { x: this.cx + (px * k - this.cv.width / 2) / s, z: this.cz + (pz * k - this.cv.height / 2) / s }; }
-  clampView() { const m = WORLD_HALF + 4000; this.cx = Math.max(-m, Math.min(m, this.cx)); this.cz = Math.max(-m, Math.min(m, this.cz)); }
+  clampView() { const m = WORLD_HALF + 4000; this.cx = Math.max(MAP_C.x - m, Math.min(MAP_C.x + m, this.cx)); this.cz = Math.max(MAP_C.z - m, Math.min(MAP_C.z + m, this.cz)); }
   zoom(d, px, pz) {
     const nl = Math.max(0, Math.min(SPAN.length - 1, this.level + d)); if (nl === this.level) return;
     if (px != null) { const w = this.toWorld(px, pz); this.level = nl; const w2 = this.toWorld(px, pz); this.cx += w.x - w2.x; this.cz += w.z - w2.z; } else this.level = nl;
@@ -122,7 +126,7 @@ export class WorldMapUI {
   // ---- drawing
   terrain() {
     const L = this.level, s = this.scale(); this.g;
-    if (L === 0) { if (!this.base) this.base = this.paint(0, 0, WORLD_HALF * 2.1, 320, 700); return [this.base, 0, 0, WORLD_HALF * 2.1]; }
+    if (L === 0) { if (!this.base) this.base = this.paint(MAP_C.x, MAP_C.z, WORLD_HALF * 2.1, 320, 700); return [this.base, MAP_C.x, MAP_C.z, WORLD_HALF * 2.1]; }
     // finer levels: a 192 x 192 patch of the view (a bit larger than the screen), cached by level and the centre snapped to a quarter of the span
     const span = SPAN[L] * Math.max(1.3, this.cv.width / this.cv.height * 1.15), snap = SPAN[L] / 4, cx = Math.round(this.cx / snap) * snap, cz = Math.round(this.cz / snap) * snap, key = `${L}:${cx}:${cz}`;
     let t = this.tiles.get(key); if (!t) { t = this.paint(cx, cz, span, 192, 24); this.tiles.set(key, t); if (this.tiles.size > 24) this.tiles.delete(this.tiles.keys().next().value); }
@@ -148,7 +152,7 @@ export class WorldMapUI {
     const [t, cx, cz, span] = this.terrain(); const [sx, sy] = this.toScreen(cx - span / 2, cz - span / 2);
     g.imageSmoothingEnabled = true; g.drawImage(t, sx, sy, span * s, span * s);
     // world border
-    g.strokeStyle = 'rgba(255,80,80,.5)'; g.lineWidth = 2; const [bx, by] = this.toScreen(-WORLD_HALF, -WORLD_HALF); g.strokeRect(bx, by, WORLD_HALF * 2 * s, WORLD_HALF * 2 * s);
+    g.strokeStyle = 'rgba(255,80,80,.5)'; g.lineWidth = 2; const [bx, by] = this.toScreen(MAP_C.x - WORLD_HALF, MAP_C.z - WORLD_HALF); g.strokeRect(bx, by, WORLD_HALF * 2 * s, WORLD_HALF * 2 * s);
     // roads
     const N = net(); g.lineJoin = 'round'; g.lineCap = 'round';
     const vis = (x, z) => { const [px, py] = this.toScreen(x, z); return px > -60 && px < W + 60 && py > -60 && py < H + 60; };

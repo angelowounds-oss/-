@@ -163,3 +163,8 @@
 - 맵 데이터 입구: `src/worldmap.js` 공개 함수(`farHeight`, `biomeAt`, `surfaceColor`, `cities`, `highways`, `rivers`). 입력은 로컬, 내부 생성은 맵 좌표, 반환 좌표는 로컬. `world()`는 베이크 전용으로 맵 좌표 유지.
 - 가장자리 판정: `src/craft.js` 273행(`WORLD_HALF - 3500`), `src/worldmapui.js`(`clampView`, 기본 그림 중심 `(0,0)`은 `-CAPITAL`로 옮긴다), `src/farland.js` 재내보내기.
 - 검증: `unit/frame`(통과), `unit/worldmap`, `unit/bake`(같은 소스 같은 바이트), `farland`, `roadnet`, `worldnav`, `citydetail`, `no-runtime-compile`, `quick`. 수도 중심 맵 좌표 = `CAPITAL` 1 m 이내.
+
+### 1단계 전환 진행 기록 (2026-10-19, ADR-0017)
+- 전환 완료: `worldmap`(공개 입출력 로컬), `heightmap`·`jobs.mjs`(타일 원점 `TILE_ORIGIN`), `vegfn`·`forest`(셀 원점 `VEG_ORIGIN`), `craft`(맵 가장자리), `worldmapui`(화면 중심 `MAP_C`), NEON CITY를 서울로 이동. 테스트 `worldmap`·`heightmap`·`frame`·`koreamap`·`roadnet`·`bake`·`citydetail`·`shapes`·`worldnav`·`builder-bitexact`·`chunkpack` 통과.
+- 도로 생성기: 헤어핀 제거(`build/roads_pack.mjs` `spike`, `tidy`)와 4 m 미만 점 병합을 추가했다. 남은 헤어핀 2곳(`v4>v21`, 새 배치의 마을 입구 근처)이 `unit/countryroads-quality`(꺾임 30° 이하)를 실패시킨다. 이 테스트를 낮추지 않고, 다음 작업에서 입구 주변 경로를 고친다.
+- 정착지 생성 범위 ±46 km는 로컬 좌표 기준으로 맵 동쪽 끝(강원 동해안 일부)을 덜 덮는다. 다음 작업에서 맵 범위 기준으로 바꾼다.

@@ -24,3 +24,9 @@ ADR-0016으로 수도 NEON CITY를 실제 서울 위치에 두기로 했다. 서
 - 수도 중심 맵 좌표가 `CAPITAL`과 1 m 이내 일치(`unit/koreamap`에 `CAPITAL` 검사 추가됨).
 - 도시 내부 픽셀 동일(위치만 바뀌고 도시 모습은 그대로).
 - `farland`, `roadnet`, `worldnav`, `bake`, `citydetail`, `no-runtime-compile` 통과.
+
+## 구현 상태 (2026-10-19)
+- 완료: 맵 데이터의 공개 입출력을 로컬 프레임으로 전환. `worldmap`(`farHeight`·`biomeAt`·`surfaceColor` 입력, `cities`·`highways`·`rivers` 로컬 복사본), `heightmap`(타일 격자 원점 `TILE_ORIGIN`, 베이크 `build/jobs.mjs`도 같은 원점), `vegfn`·`forest`(셀 원점 `VEG_ORIGIN`, 셀 인덱스는 그대로), `craft`(고속 이동 경계는 맵 좌표), `worldmapui`(화면 중심 `MAP_C`), NEON CITY 위치를 서울(`CAPITAL`)로 이동.
+- 그대로 쓰는 것: `landfn`·`roadnet`·`settlements`·`highways`는 로컬 좌표로 동작하므로 코드 변경 없음. 맵 생성 내부(`worldmap` build)만 맵 좌표.
+- 베이크 타일 격자는 맵 좌표와 같은 타일을 같은 자리에 두고, 조회와 생성만 로컬 원점을 쓴다(그래서 타일 데이터의 위치는 바뀌지 않는다).
+- 남은 것: 도로 생성기의 헤어핀 2곳(v4 마을 입구 근처, `unit/countryroads-quality` 실패 — WLD-19 기록), 정착지 생성 범위(±46 km, 맵 동쪽 끝 일부 제외), 베이크 재생성 후 `quick` 결과 확인.
