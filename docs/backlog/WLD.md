@@ -150,3 +150,8 @@
 
 ### WLD-20g 상세 도시 15~17개 스트리밍 (ADR-0012 이월) — P1 · L · Backlog
 - 수도 외 도시도 타일로 올리는 작업(4단계 도시 타일의 이월분). 로컬 원점과 타일 활성화를 함께.
+
+### 1단계 감사 (2026-10-19): 수도 로컬 프레임 전환 대상
+- 맵 데이터를 읽는 모듈(약 30곳): `src/aviation.js`, `citylayout.js`, `cityrules.js`, `citysites.js`, `farland.js`, `forest.js`, `game.js`, `groundfn.js`, `highways.js`, `hwtraffic.js`, `industry.js`, `landfn.js`, `landmarks.js`, `rivers.js`, `roadnet.js`, `sandbox.js`, `settlements.js`, `ships.js`, `terrain.js`, `terrainfn.js`, `transit.js`, `vegfn.js`, `village.js`, `waterfn.js`, `worldmap.js`, `worldmapui.js`, `worldnav.js`; 빌드 `build/jobs.mjs`, `build/roads_pack.mjs`.
+- 권장 쪼개기: (a) `worldmap.js` 공개 함수에 경계 변환 추가(로컬 → 맵 좌표, 반환은 로컬) + 단위 테스트, (b) `roadnet`·`settlements`·`vegfn`·`highways` 반환 좌표, (c) 베이크 재생성과 `build/jobs.mjs` 키, (d) 원점 가정 지점(`landfn`, `farland`, `game.waterAt`, `craft`) 확인.
+- 각 쪼개기 단계마다 `quick` 검사 후 커밋한다.
