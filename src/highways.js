@@ -167,7 +167,9 @@ export class Highways {
   blast(x, y, z, radius, dmg) {
     if (!this.G) return;
     for (const r of this.N.roads) for (let i = 0; i < r.pts.length - 1; i++) {
-      if (r.cls[i] !== 1 || r.kind === 'arterial') continue;   // compiled lines keep their bridges (no span bookkeeping yet) const p = r.pts[i], dx = p[0] - x, dz = p[1] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
+      // compiled lines keep their bridges (no span bookkeeping yet)
+      if (r.cls[i] !== 1 || r.kind === 'arterial') continue;
+      const p = r.pts[i], dx = p[0] - x, dz = p[1] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
       const d = Math.hypot(dx, dz); if (d > radius + 16 || Math.abs(r.y[i] - y) > radius + 30) continue;
       const span = i >> 1, key = r.id + ':' + span; if (BROKEN.has(r.id + ':' + span * 2)) continue;
       const hp = (this.hp.get(key) ?? 480) - dmg * (1 - d / (radius + 16)) * 1.4; this.hp.set(key, hp); if (hp <= 0) this.breakSpan(r, span, false);

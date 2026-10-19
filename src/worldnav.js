@@ -104,7 +104,7 @@ export class Router {
     const pts = [];
     const leg = (xa, za, xb, zb) => {
       const c = cityAt(xa, za, 0) || cityAt(xb, zb, 0), L = c && this.lineOf(c);
-      const seq = c && L ? manhattan(L, c, xa, za, xb, zb) : [[xb, zb]]; let px = xa, pz = za;
+      const seq = c && L && Math.hypot(xb - xa, zb - za) > 40 ? manhattan(L, c, xa, za, xb, zb) : [[xb, zb]]; let px = xa, pz = za;
       pts.push([xa, za, 0]); for (const q of seq) { pts.push([q[0], q[1], 0]); px = q[0]; pz = q[1]; } void px; void pz;
     };
     leg(x0, z0, G.x[nodes[0]], G.z[nodes[0]]);
@@ -121,7 +121,7 @@ export class Router {
     const last = nodes[nodes.length - 1]; pts.push([x1, z1, 0]);
     // the way in: street leg from the graph end to the destination (reversed use of the same helper)
     const tail = []; const c2 = cityAt(x1, z1, 400), L2 = c2 && this.lineOf(c2);
-    if (c2 && L2) { const m = manhattan(L2, c2, G.x[last], G.z[last], x1, z1); pts.pop(); for (const q of m) pts.push([q[0], q[1], 0]); }
+    if (c2 && L2 && Math.hypot(x1 - G.x[last], z1 - G.z[last]) > 40) { const m = manhattan(L2, c2, G.x[last], G.z[last], x1, z1); pts.pop(); for (const q of m) pts.push([q[0], q[1], 0]); }
     void tail;
     // resample to ~25 m and measure
     const out = []; let len = 0;
