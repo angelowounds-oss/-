@@ -27,9 +27,15 @@ run('region-drive', { q: 1, width: 640, height: 360 }, async ({ page }) => {
       if (v.speed > 5 && Math.sin(v.h) * tx + Math.cos(v.h) * tz < 0 && !(v.reverse)) back++;
     }
     o.auto.driven = Math.round(Math.hypot(v.x - x1, v.z - z1)); o.auto.left = Math.round(Math.hypot(ex - v.x, ez - v.z)); o.auto.topKmh = Math.round(top * 3.6); o.auto.alive = !v.dead; o.auto.minAbove = +minAbove.toFixed(2); o.auto.maxAbove = +maxAbove.toFixed(2); o.auto.against = back;
+    g.autonav.cancel && g.autonav.cancel(); g.exitVehicle(true); step(30);
+    // the wall: shut across its middle, open at each corner (60 m gates, where the connectors leave along the diagonals)
+    const walk = (x, z, dx, dz) => { const b = pl.body3; b.teleport(x, 3, z); pl.x = x; pl.y = 3; pl.z = z; pl.vy = 0; step(90); for (let k = 0; k < 450; k++) { for (let q = 0; q < 4; q++) b.move(1 / 60, dx * 6, dz * 6, 0); step(1); } const t = b.body.translation(); return Math.round(Math.max(Math.abs(t.x), Math.abs(t.z))); };
+    o.wallMid = walk(0, 1400, 0, 1);
+    // the gates: a ray along each corner diagonal passes the wall (a ray at its middle does not)
+    o.gateRays = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => g.world.colliders.raycast(sx * 1400, 2, sz * 1400, sx * 0.7071, 0, sz * 0.7071, 300));
     return o;
   });
   if (o.noRegion) return result('region-drive', true, o, 'no compiled region in this build');
-  const pass = !o.noLine && o.auto && o.auto.started && o.auto.alive && o.auto.driven > 2000 && o.auto.minAbove > -0.5 && o.auto.maxAbove < 6 && o.auto.against === 0 && o.startAbove > 0;
+  const pass = !o.noLine && o.auto && o.auto.started && o.auto.alive && o.auto.driven > 2000 && o.auto.minAbove > -0.5 && o.auto.maxAbove < 6 && o.auto.against === 0 && o.startAbove > 0 && o.wallMid < 1480 && o.gateRays.every((t) => !(t >= 0 && t < 300));
   result('region-drive', pass, o);
 });
