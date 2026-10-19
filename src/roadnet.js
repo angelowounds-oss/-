@@ -4,14 +4,22 @@
 // (the terrain falls away), 2 tunnel (the terrain rises over the road). A spatial index answers "how far is the nearest road, and what is its
 // surface height" for carving the terrain (farland.js) and for the physics ground.
 import { cities, highways, farHeight, SEA, WORLD_HALF } from './worldmap.js';
-import { baseHeight, roadsData } from './terrainfn.js';
+import { baseHeight, heightAt, roadsData, EXTENT } from './terrainfn.js';
 import { settlements } from './settlements.js';
-import { regionWeight, regionRoads } from './region.js';
+import { regionWeight, regionHeight, regionRoads } from './region.js';
 
 export const DS = 30, HALF_W = 17.5, CARVE_FADE = 46, GRADE = 0.055;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // ground height as the far land draws it (the city's own hills near the origin, the world from ~9 km on); roads follow this
 export function groundH(x, z, cell = 200) { const r = Math.hypot(x, z), w = sstep(1400, 9000, r), f = farHeight(x, z, cell); return w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w; }
+// the ground the capital's connectors are judged against (bridge or tunnel): inside the capital's own square the drawn hill (terrainfn.heightAt, which the
+// terrain mesh and its collider use), beyond it a blend to the compiled region's ground over the keep band
+const cheb = (x, z) => Math.max(Math.abs(x), Math.abs(z));
+export function capitalH(x, z) {
+  const c = cheb(x, z); if (c < EXTENT) return heightAt(x, z);
+  const k = EXTENT / c, edge = heightAt(x * k, z * k), rh = regionHeight(x, z), w = regionWeight(x, z);
+  return rh === rh ? edge * (1 - w) + rh * w : groundH(x, z, 48);
+}
 const RING_R = { metropolis: 5600, port: 3700, airport: 4300, town: 2700 };
 const INTERCHANGE = { metropolis: 'stack', port: 'trumpet', airport: 'cloverleaf', town: 'diamond' };
 
@@ -28,8 +36,8 @@ function resample(pts, ds) {
   if (Math.hypot(out[out.length - 1][0] - pts[pts.length - 1][0], out[out.length - 1][1] - pts[pts.length - 1][1]) > ds * 0.4) out.push(pts[pts.length - 1].slice());
   return out;
 }
-function profile(P, closed, fixed0, fixed1) {
-  const n = P.length; let y = P.map((p) => groundH(p[0], p[1], 200));
+function profile(P, closed, fixed0, fixed1, ground = groundH) {
+  const n = P.length; let y = P.map((p) => ground(p[0], p[1], 200));
   if (fixed0 != null) y[0] = fixed0; if (fixed1 != null) y[n - 1] = fixed1;
   const at = (a, i) => (closed ? a[(i + n) % n] : a[Math.min(n - 1, Math.max(0, i))]);
   for (let it = 0; it < 4; it++) { const o = y.slice(); for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let k = -7; k <= 7; k++) { s += at(y, i + k); c++; } o[i] = s / c; } y = o; if (fixed0 != null) y[0] = fixed0; if (fixed1 != null) y[n - 1] = fixed1; }
@@ -44,11 +52,12 @@ function profile(P, closed, fixed0, fixed1) {
   if (fixed1 != null && !closed) { const d = fixed1 - y[n - 1], k = blendLen(d); for (let i = 0; i <= k; i++) y[n - 1 - i] += d * (1 - i / k); }
   return Float32Array.from(y);
 }
-function classify(P, y) {
-  const n = P.length, c = new Uint8Array(n);
-  for (let i = 0; i < n; i++) { const d = groundH(P[i][0], P[i][1], 48) - y[i]; c[i] = d > 15 ? 2 : d < -5.5 ? 1 : 0; }
+// `capital`: the road is laid against the capital's drawn hill, where nothing is cut for it, so a road under the surface is always a tunnel (never a short buried stretch)
+function classify(P, y, ground = groundH, capital = false) {
+  const n = P.length, c = new Uint8Array(n), inside = (i) => capital && cheb(P[i][0], P[i][1]) < EXTENT;
+  for (let i = 0; i < n; i++) { const d = ground(P[i][0], P[i][1], 48) - y[i]; c[i] = d > (inside(i) ? 1 : 15) ? 2 : d < -5.5 ? 1 : 0; }
   // short runs are not worth a bridge or a tunnel (the corridor is just filled / cut)
-  for (let v = 1; v <= 2; v++) { let i = 0; while (i < n) { if (c[i] !== v) { i++; continue; } let j = i; while (j < n && c[j] === v) j++; if (j - i < 7) for (let k = i; k < j; k++) c[k] = 0; i = j; } }
+  for (let v = 1; v <= 2; v++) { let i = 0; while (i < n) { if (c[i] !== v) { i++; continue; } let j = i; while (j < n && c[j] === v) j++; if (j - i < 7) for (let k = i; k < j; k++) if (!inside(k)) c[k] = 0; i = j; } }
   return c;
 }
 const isDry = (x, z) => farHeight(x, z, 64) > SEA + 2.5;
@@ -128,8 +137,14 @@ function build() {
     const P0 = [], via = [[cap.x + ca * r0, cap.z + sa * r0], [ox, oz], [tgt.r.x[tgt.i], tgt.r.z[tgt.i]]];
     for (let s2 = 0; s2 + 1 < via.length; s2++) { const [A, B] = [via[s2], via[s2 + 1]], m = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1]) / DS)); for (let i = 0; i < m; i++) P0.push([A[0] + (B[0] - A[0]) * i / m, A[1] + (B[1] - A[1]) * i / m]); }
     P0.push(via[2]);
-    const y = profile(P0, false, ln.y, tgt.r.y[tgt.i]);
-    N.roads.push({ id: `conn:${k}`, kind: 'connector', city: 'neon', pts: P0, y, closed: false, cls: classify(P0, y), lanes: 2, joinB: { road: tgt.r.id, i: tgt.i, d: 0 } });
+    // a last sample a few metres short of the join would make the final hop a spike in grade
+    if (P0.length > 3 && Math.hypot(P0[P0.length - 2][0] - via[2][0], P0[P0.length - 2][1] - via[2][1]) < DS * 0.75) P0.splice(P0.length - 2, 1);
+    // the surface runs from the loop down to the region's ground by the end of the keep band (the hill between is tunnelled, the band's ground is cut or filled
+    // to it by roadgrade) and follows the region's ground from there
+    const c0 = cheb(P0[0][0], P0[0][1]), c1 = 1500 + 600, rEnd = P0.find((p) => cheb(p[0], p[1]) >= c1) || P0[P0.length - 1], yEnd = (regionHeight(rEnd[0], rEnd[1]) || 0) + 0.3;
+    const want = (x, z) => { const c = cheb(x, z); if (c < c1) return ln.y + (yEnd - ln.y) * sstep(c0, c1, c); const h = regionHeight(x, z); return h === h ? h + 0.3 : groundH(x, z, 200); };
+    const y = profile(P0, false, ln.y, tgt.r.y[tgt.i], want);
+    N.roads.push({ id: `conn:${k}`, kind: 'connector', city: 'neon', pts: P0, y, closed: false, cls: classify(P0, y, capitalH, true), lanes: 2, joinB: { road: tgt.r.id, i: tgt.i, d: 0 } });
   }
   // ---- interchange ramps: slip roads (Bezier) from a point of the highway back from the ring onto the ring, by interchange type
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

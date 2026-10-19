@@ -4,6 +4,8 @@ import { cities } from './worldmap.js';
 import { rand } from './util.js';
 import { landHeight } from './landfn.js';
 import { regionWeight } from './region.js';
+import { GR, grp } from './physics.js';
+import { EXTENT } from './terrainfn.js';
 
 // The highway network drawn (roadnet.js has the data): asphalt ribbons with lane markings, median barrier and guard rails, bridges with pillars,
 // tunnels with lights, ramps, sign gantries, toll plazas and service areas; street lamps are an instanced pool that follows the camera.
@@ -161,8 +163,24 @@ export class Highways {
   // bridges can be blown up: a span of two 30 m samples loses its deck (colliders: the physics ground there is the valley again), the rest of the
   // chunk is drawn anew without it, cars stop coming; spans are remembered in the save and stand again after five days
   attach(G) {
-    this.G = G; const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
+    this.G = G; if (G.phys) this.deckColliders(G.phys); const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
     for (const [k, v] of Object.entries(P.bridges)) { if (G.clock.t - v.t > 7200) { delete P.bridges[k]; continue; } this.breakSpan(this.byId.get(v.road), v.span, true); }
+  }
+  // the capital's own ground is a surface mesh with nothing under a tunnelled or bridged connector, so the stretch inside its square gets a deck collider
+  deckColliders(phys) {
+    const P = [], I = [];
+    for (const r of this.N.roads) {
+      if (r.kind !== 'connector' || !r.joinB) continue;
+      for (let i = 0; i + 1 < r.pts.length; i++) {
+        if (!r.cls[i] && !r.cls[i + 1]) continue;
+        const a = r.pts[i], b = r.pts[i + 1]; if (Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(b[0]), Math.abs(b[1])) > EXTENT + 8) continue;
+        const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l * HALF_W, nz = dx / l * HALF_W, k = P.length / 3;
+        P.push(a[0] + nx, r.y[i] - 0.25, a[1] + nz, a[0] - nx, r.y[i] - 0.25, a[1] - nz, b[0] + nx, r.y[i + 1] - 0.25, b[1] + nz, b[0] - nx, r.y[i + 1] - 0.25, b[1] - nz);
+        I.push(k, k + 1, k + 2, k + 1, k + 3, k + 2, k, k + 2, k + 1, k + 1, k + 2, k + 3);
+      }
+    }
+    if (!P.length) return;
+    const R = phys.R; phys.world.createCollider(R.ColliderDesc.trimesh(new Float32Array(P), new Uint32Array(I)).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
   }
   blast(x, y, z, radius, dmg) {
     if (!this.G) return;
