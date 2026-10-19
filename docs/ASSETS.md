@@ -6,6 +6,7 @@
 |---|---|---|---|---|
 | Anton (로딩 화면 제목·숫자) | `assets/fonts/Anton-400.woff2` (라틴 부분) | Google Fonts (Vernon Adams) | SIL Open Font License 1.1 | 로딩 화면 하단 크레딧에 표기 |
 | 대한민국 행정구역 경계 (2013, 단순화) | `assets/korea/provinces_2013_simple.geojson`, 파생: `assets/korea/land.bin` (`build/korea_mask.mjs`) | southkorea/southkorea-maps (GitHub), 원자료 KOSTAT(통계청) 센서스용 행정구역경계 2013 | KOSTAT: "Free to share or remix" (저장소 README) | 표기: 통계청 원자료 출처 명시 |
+| 한반도 표고 (Terrarium 타일, z=10 샘플) | `assets/korea/dem.bin`, `src/koreadem.js` (생성: `build/korea_dem.py`, 타일은 `build/.dem-tiles/`에 캐시하고 커밋하지 않음) | AWS Open Data `elevation-tiles-prod` (Terrarium 인코딩). 원자료 SRTM·USGS NED·GMTED2010·ETOPO1 등 미국 정부 공개 자료(퍼블릭 도메인). 출처 표기를 권장 |
 | Space Mono 400/700 (로딩 화면 보조 글자) | `assets/fonts/SpaceMono-{400,700}.woff2` (라틴 부분) | Google Fonts (Colophon Foundry) | SIL Open Font License 1.1 | 위와 같음 |
 | 플레이어 캐릭터 (rig·메시·178 클립) | `assets/Character.glb` (원본, 보관), `assets/character_game.glb` (게임 사용분 33 클립, `build/prune_character.mjs`로 생성) | 사용자 제공 파일 | 사용자 확인 완료: 표기 의무 없음(CC0 계열) | 표기 불필요. 크레딧 줄에는 올리지 않는다 |
 | 주인공 몸 (여성 캐릭터) | `assets/player_female.glb` (`build/fit_female.mjs`가 사용자 제공 OBJ에서 생성; 원본은 보관하지 않음) | 사용자 제공(여성 캐릭터 3D 모델 zip, Tripo 변환 OBJ) | **라이선스 미확인**: 생성 도구 이용약관·상업 이용 가능 여부를 사용자가 확인해야 함 | 표기 여부 미정 |

@@ -174,3 +174,9 @@
 - 전환 완료: `worldmap`(공개 입출력 로컬), `heightmap`·`jobs.mjs`(타일 원점 `TILE_ORIGIN`), `vegfn`·`forest`(셀 원점 `VEG_ORIGIN`), `craft`(맵 가장자리), `worldmapui`(화면 중심 `MAP_C`), NEON CITY를 서울로 이동. 테스트 `worldmap`·`heightmap`·`frame`·`koreamap`·`roadnet`·`bake`·`citydetail`·`shapes`·`worldnav`·`builder-bitexact`·`chunkpack` 통과.
 - 도로 생성기: 헤어핀 제거(`build/roads_pack.mjs` `spike`, `tidy`)와 4 m 미만 점 병합을 추가했다. 남은 헤어핀 2곳(`v4>v21`, 새 배치의 마을 입구 근처)이 `unit/countryroads-quality`(꺾임 30° 이하)를 실패시킨다. 이 테스트를 낮추지 않고, 다음 작업에서 입구 주변 경로를 고친다.
 - 정착지 생성 범위 ±46 km는 로컬 좌표 기준으로 맵 동쪽 끝(강원 동해안 일부)을 덜 덮는다. 다음 작업에서 맵 범위 기준으로 바꾼다.
+
+### 2단계 인계 메모 (2026-10-19, 다음 작업자용: 더 높은 모델로 합치기)
+- 확보한 자료: 한반도 표고 `assets/korea/dem.bin`(257×257 int16, 맵 높이 격자와 같은 노드, 해상도 약 390 m 맵 = 2.5 km 실거리). 생성 `build/korea_dem.py`(타일 506장, 약 40 MB 내려받음). 검사값: 태백산 1507 m, 한라산 1857 m, 지리산 천왕봉 1873 m, 울릉 성인봉 824 m, 서울 54 m, 강릉 17 m, 대구 45 m, 부산 23 m. 실제 대비 대부분 1~5% 안이고, 봉우리는 격자 간격 때문에 조금 낮다.
+- 미합류 변경(패치): 육지 높이를 DEM으로 바꾸고 가상 산지·화산 원뿔을 빼고, 가상 도시 7곳을 부산·인천·대구·광주·대전·목포(harbor·airfield·mid1~4 ID 유지)로 옮긴 변경. 패치 `scratchpad/handoff/dem-integration-pending.patch`. 현재 남은 실패: 고속도로 한 점이 바다(-4.5 m, 부산 해안 근처 `(20116, 34022)`)에 걸린다. 경로 평활화 여유를 올리는 것만으로는 안 고쳐져서, 해안 도시(harbor)의 끝점 처리를 봐야 한다.
+- 도시 간격 규칙: 고정 14.5 km 대신 발자국 반경 합의 1.5배로 바꾸는 것이 패치에 들어 있다. 실제 도시 간 거리(광주–목포 약 80 km = 맵 12 km)에 맞추기 위한 기준 변경이므로 사용자 승인이 필요하다.
+- 아직 손대지 않은 것: 산맥(`src/ranges.js`)은 DEM과 중복이라 DEM 합류 때 빼야 한다. 강 실제 물길, 울릉도(DEM에는 있음, 육지 규칙과 함께 확인), `countryroads-quality` 헤어핀.
