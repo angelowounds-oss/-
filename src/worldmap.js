@@ -34,7 +34,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------------ the raw landscape (before cities are flattened)
 // Hallasan's real place (126.53 E, 33.36 N) is not used yet: moving the cone breaks the highway routes until the cities move (WLD-20f)
-export const VOLCANO = { x: -21000, z: 24000, r: 3200, h: 1900 };
+// Hallasan crater (KOREA-PLAN B2): the real summit position, so the volcanic biome sits on Jeju
+export const VOLCANO = { ...project(126.533, 33.362), r: 3200, h: 1900 };
 // the Korea land mask (koreamap.js, WLD-20e): the share of land on a ring of radius r around (x, z); the coast is a slope over a kilometre, not a step
 function koreaShare(x, z, r) {
   const M = koreaMask(); let sum = landAt(M, x, z);
