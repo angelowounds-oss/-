@@ -48,7 +48,12 @@ export function project(lon, lat, scale = KOREA_SCALE, origin = KOREA_ORIGIN) {
 }
 
 // the land mask of build/korea_mask.mjs: 200 x 200 cells of 500 m over the 100 km world (1 = land, 0 = sea)
+import { LAND_B64 } from './korealand.js';
+
 export const LAND_CELL = 500, LAND_N = 200, LAND_HALF = 50000;
+let LAND = null;
+// the mask as bytes (decoded once; the same in the page and in node)
+export function koreaMask() { return LAND || (LAND = Uint8Array.from(atob(LAND_B64), (c) => c.charCodeAt(0))); }
 export function landAt(mask, x, z) {
   const i = Math.floor((x + LAND_HALF) / LAND_CELL), j = Math.floor((z + LAND_HALF) / LAND_CELL);
   if (i < 0 || j < 0 || i >= LAND_N || j >= LAND_N) return 0;

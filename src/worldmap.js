@@ -6,6 +6,8 @@
 // Layers:   coarse grid (CG x CG, ~390 m cells): base height, mountain-ness, biome, rivers      -> farHeight(x, z, cell)
 //           fine detail noise on top, only the octaves a given level of detail can show         -> no shimmer between levels
 //           cities (site search on the coarse grid), highways (A* on a coarser grid, smoothed) -> CITIES, HIGHWAYS
+import { koreaMask, landAt } from './koreamap.js';
+
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
 // ------------------------------------------------------------------ noise (integer hash: identical on every platform)
@@ -26,10 +28,15 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------------ the raw landscape (before cities are flattened)
 export const VOLCANO = { x: -21000, z: 24000, r: 3200, h: 1900 };
+// the Korea land mask (koreamap.js, WLD-20e): the share of land on a ring of radius r around (x, z); the coast is a slope over a kilometre, not a step
+function koreaShare(x, z, r) {
+  const M = koreaMask(); let sum = landAt(M, x, z);
+  for (let a = 0; a < 8; a++) sum += landAt(M, x + Math.cos(a * 0.785398) * r, z + Math.sin(a * 0.785398) * r);
+  return sum / 9;
+}
 function rawHeight(x, z) {
-  const d = Math.hypot(x, z) / WORLD_HALF;
-  const c = 0.80 - d * 0.98 + (fbm(x / 23000 + 4, z / 23000 - 7, 4, 1) - 0.5) * 0.62;     // > 0: land
-  const land = sstep(-0.04, 0.10, c);
+  const land = sstep(0.3, 0.7, koreaShare(x, z, 1000));
+  const shelf = koreaShare(x, z, 4000);   // 0 far out at sea (deepest), 1 well inland
   const plains = 8 + 26 * fbm(x / 9000, z / 9000, 3, 2);
   const mm = sstep(0.50, 0.74, fbm(x / 30000 + 9, z / 30000 - 4, 3, 3));                    // where mountain ranges stand
   const mount = mm * (260 + 1450 * ridged(x / 7600, z / 7600, 5, 4));
@@ -37,7 +44,7 @@ function rawHeight(x, z) {
   const dv = Math.hypot(x - VOLCANO.x, z - VOLCANO.z);
   const cone = VOLCANO.h * Math.exp(-Math.pow(dv / VOLCANO.r, 2.0)) - 420 * Math.exp(-Math.pow(dv / (VOLCANO.r * 0.12), 2.0));   // cone with a crater
   const landH = plains + hills + mount + cone * land;
-  const seaH = SEA - 3 - 130 * sstep(0, 0.45, -c);
+  const seaH = SEA - 3 - 130 * sstep(0, 1, 1 - shelf);
   return lerp(seaH, landH, land);
 }
 
