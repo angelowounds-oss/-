@@ -155,3 +155,11 @@
 - 맵 데이터를 읽는 모듈(약 30곳): `src/aviation.js`, `citylayout.js`, `cityrules.js`, `citysites.js`, `farland.js`, `forest.js`, `game.js`, `groundfn.js`, `highways.js`, `hwtraffic.js`, `industry.js`, `landfn.js`, `landmarks.js`, `rivers.js`, `roadnet.js`, `sandbox.js`, `settlements.js`, `ships.js`, `terrain.js`, `terrainfn.js`, `transit.js`, `vegfn.js`, `village.js`, `waterfn.js`, `worldmap.js`, `worldmapui.js`, `worldnav.js`; 빌드 `build/jobs.mjs`, `build/roads_pack.mjs`.
 - 진행 (2026-10-19): `src/frame.js`(toMap·toLocal·onMap, ADR-0017) + `unit/frame` 추가. 아직 모듈을 바꾸지 않았다(기반만). 다음: (a) `worldmap.js` 공개 함수에 경계 변환 추가(로컬 → 맵 좌표, 반환은 로컬) + 단위 테스트, (b) `roadnet`·`settlements`·`vegfn`·`highways` 반환 좌표, (c) 베이크 재생성과 `build/jobs.mjs` 키, (d) 원점 가정 지점(`landfn`, `farland`, `game.waterAt`, `craft`) 확인.
 - 각 쪼개기 단계마다 `quick` 검사 후 커밋한다.
+
+### 1단계 전환 목록 (다음 세션 착수 기준, 2026-10-19 확인)
+한 번에 바꿔야 한다. 일부만 바꾸면 타일 좌표가 어긋나 게임이 깨진다.
+- 베이크 격자: `src/heightmap.js`의 `HALF = 50000`, `build/jobs.mjs`의 `x0 = -50000 + i·size`·`z0`. 타일 인덱스를 로컬 좌표 기준으로 정하거나, 로더가 `+CAPITAL`로 맞춘다(둘 중 하나를 택해 ADR-0017에 기록).
+- 숲 격자: `src/forest.js`의 `ORIGIN = -50000`(x·z 공통). 로컬 원점 `OX = -50000 - CAPITAL.x`, `OZ = -50000 - CAPITAL.z`로 나누고 `vegCell`·`VEG` 조회에만 맵 좌표를 더한다. 같은 함수가 두 방식으로 쓰이므로 `byteAt`·`byteAtWorld`·`vegCell` 호출부를 한 번에 본다.
+- 맵 데이터 입구: `src/worldmap.js` 공개 함수(`farHeight`, `biomeAt`, `surfaceColor`, `cities`, `highways`, `rivers`). 입력은 로컬, 내부 생성은 맵 좌표, 반환 좌표는 로컬. `world()`는 베이크 전용으로 맵 좌표 유지.
+- 가장자리 판정: `src/craft.js` 273행(`WORLD_HALF - 3500`), `src/worldmapui.js`(`clampView`, 기본 그림 중심 `(0,0)`은 `-CAPITAL`로 옮긴다), `src/farland.js` 재내보내기.
+- 검증: `unit/frame`(통과), `unit/worldmap`, `unit/bake`(같은 소스 같은 바이트), `farland`, `roadnet`, `worldnav`, `citydetail`, `no-runtime-compile`, `quick`. 수도 중심 맵 좌표 = `CAPITAL` 1 m 이내.
