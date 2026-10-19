@@ -10,6 +10,7 @@ import { koreaMask, landAt } from './koreamap.js';
 
 import { CAPITAL, project } from './koreamap.js';
 import { DEM_N1, DEM_B64 } from './koreadem.js';
+import { osmRoute } from './osmroads.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
@@ -197,6 +198,8 @@ function routeHighways(W) {
     if (cand.length && dist(a, cand[0]) < 36000) { edges.push([a, cand[0]]); linked.add(key(a, cand[0])); }
   }
   edges.forEach(([a, b], id) => {
+    const real = realRoad(W.cities[a], W.cities[b]);   // the motorway itself, where it joins the two cities (KOREA-PLAN D2)
+    if (real) { const res = resample300(real); let len = 0; for (let k = 1; k < res.length; k++) len += Math.hypot(res[k][0] - res[k - 1][0], res[k][1] - res[k - 1][1]); W.highways.push({ id, a: W.cities[a].id, b: W.cities[b].id, pts: res, length: len, real: true }); return; }
     const path = astar(cost, W.cities[a], W.cities[b]);
     if (!path) { W.failed = (W.failed || []).concat([[W.cities[a].id, W.cities[b].id]]); return; }
     let pts = path.map(([i, j]) => [-WORLD_HALF + i * HC, -WORLD_HALF + j * HC]);
@@ -211,6 +214,19 @@ function routeHighways(W) {
     let len = 0; for (let k = 1; k < res.length; k++) len += Math.hypot(res[k][0] - res[k - 1][0], res[k][1] - res[k - 1][1]);
     W.highways.push({ id, a: W.cities[a].id, b: W.cities[b].id, pts: res, length: len });
   });
+}
+// the real motorway between two cities when the network joins them without a long detour: at most 1.6 times the straight line plus 3 km
+function realRoad(ca, cb) {
+  const P = osmRoute(ca.x, ca.z, cb.x, cb.z);
+  if (!P) return null;
+  let len = 0; for (let k = 1; k < P.length; k++) len += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]);
+  return len <= 1.6 * Math.hypot(ca.x - cb.x, ca.z - cb.z) + 3000 ? P : null;
+}
+// one point every 300 m of the polyline, the ends kept
+function resample300(pts) {
+  const res = [pts[0]]; let acc = 0;
+  for (let k = 1; k < pts.length; k++) { acc += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); if (acc >= 300 || k === pts.length - 1) { res.push(pts[k]); acc = 0; } }
+  return res;
 }
 function astar(cost, ca, cb) {
   const N1 = HG + 1, idx = (i, j) => j * N1 + i, si = Math.round((ca.x + WORLD_HALF) / HC), sj = Math.round((ca.z + WORLD_HALF) / HC), ti = Math.round((cb.x + WORLD_HALF) / HC), tj = Math.round((cb.z + WORLD_HALF) / HC);

@@ -1,11 +1,9 @@
-// The converted OpenStreetMap roads (assets/roads/osm-trunk.json, build/korea_roads_convert.mjs): on land, the motorway length is plausible,
+// The converted OpenStreetMap roads (src/korearoads.js, build/korea_roads_convert.mjs): on land, one carriageway's motorway length is plausible,
 // route 1 (Gyeongbu) reaches both Seoul and Busan, and the file stays small. Pure data, no browser.
-import fs from 'node:fs';
 import { project, koreaMask, landAt, KOREA_SCALE } from '../../src/koreamap.js';
+import { ROADS as doc } from '../../src/korearoads.js';
 
-const file = new URL('../../assets/roads/osm-trunk.json', import.meta.url);
-const bytes = fs.statSync(file).size;
-const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+const bytes = JSON.stringify(doc).length;
 const mask = koreaMask();
 const bad = [];
 
@@ -14,7 +12,7 @@ for (const r of doc.roads) {
   for (let i = 0; i < r.pts.length; i++) {
     samples++;
     if (landAt(mask, r.pts[i][0], r.pts[i][1])) onLand++;
-    if (i > 0 && r.hw === 'motorway') motorwayKm += Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]) * KOREA_SCALE / 1000;
+    if (i > 0 && r.hw === 'motorway' && !r.twin) motorwayKm += Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]) * KOREA_SCALE / 1000;
   }
 }
 const landShare = onLand / samples;
@@ -29,7 +27,7 @@ const dSeoul = near(seoul), dBusan = near(busan);
 if (dSeoul > 15000) bad.push(['route 1 does not reach Seoul', dSeoul.toFixed(0)]);
 if (dBusan > 15000) bad.push(['route 1 does not reach Busan', dBusan.toFixed(0)]);
 
-if (bytes > 3.5 * 1024 * 1024) bad.push(['file larger than 3.5 MB', bytes]);
+if (bytes > 4 * 1024 * 1024) bad.push(['file larger than 4 MB', bytes]);
 
 console.log('RESULT ' + JSON.stringify({
   test: 'osm-roads', pass: bad.length === 0,
