@@ -46,3 +46,11 @@ export function project(lon, lat, scale = KOREA_SCALE, origin = KOREA_ORIGIN) {
   const x = R * k * Math.cos(p) * Math.sin(dl), y = R * k * (Math.cos(p0) * Math.sin(p) - Math.sin(p0) * Math.cos(p) * Math.cos(dl));
   return { x, z: -y };
 }
+
+// the land mask of build/korea_mask.mjs: 200 x 200 cells of 500 m over the 100 km world (1 = land, 0 = sea)
+export const LAND_CELL = 500, LAND_N = 200, LAND_HALF = 50000;
+export function landAt(mask, x, z) {
+  const i = Math.floor((x + LAND_HALF) / LAND_CELL), j = Math.floor((z + LAND_HALF) / LAND_CELL);
+  if (i < 0 || j < 0 || i >= LAND_N || j >= LAND_N) return 0;
+  return mask[j * LAND_N + i];
+}

@@ -143,6 +143,7 @@
 - 현재 CITY_DEFS의 가상 이름(HARBOR GATE, SKYPORT, REDWOOD…)을 실제 지명 또는 게임 지명 중 결정한 뒤 `koreamap.CITIES` 위치로 옮긴다.
 
 ### WLD-20e 남한 해안·산맥·강 지형 — P1 · XL · Backlog
+- 진행 (2026-10-19): 육지 마스크 `assets/korea/land.bin`(200×200, 500 m 칸) 생성, 실제 육지 면적 100,882 km²(공식 약 100,400 km², 0.6% 차이), `unit/koreamap-land` 통과. 아직 `worldmap.js` 지형에 연결하지 않았다(연결은 다음 단계, 지형 전체에 영향).
 - 현재 `worldmap.js`는 가상 대륙을 절차로 만든다. 한국 해안선(`prov.json`의 시도 경계를 바다 마스크로), 태백·소백산맥, 한강·낙동강을 실제 자리에 넣는다. 시도 경계는 KOSTAT 2013 단순화 파일을 쓰고 출처를 `docs/ASSETS.md`에 적는다.
 
 ### WLD-20f 고속도로·철도를 실제 도시 연결로 재계산 — P1 · M · Backlog (20c 뒤)
