@@ -21,6 +21,10 @@ run('region', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     let wet = null; for (const r of RG.regionRoads()) { if (wet) break; }
     for (let k = 0; k < 4000 && !wet; k++) { const x = -7000 + (k * 7919 % 12000), z = -4000 + (k * 104729 % 9400), w = RG.regionWater(x, z); if (RG.regionWeight(x, z) >= 1 && w && w.cls === 2 && w.level - LF.landHeight(x, z, 16) > 2.5) wet = [x, z, w.level]; }
     if (wet) { const wa = g.waterAt(wet[0], wet[1]); o.water = !!wa && wa.depth > 2; park(wet[0], wet[2] + 1, wet[1]); step(150); o.swims = pl.swimming; }
+    // 3b. a car put down on raised ground starts on it, not inside it
+    { const v = g.vehicles.find((q) => q.pv && !q.spec.craft); let hill = null;
+      for (let k = 0; k < 4000 && !hill; k++) { const x = -7000 + (k * 7919 % 12000), z = -4000 + (k * 104729 % 9400); if (RG.regionWeight(x, z) >= 1 && LF.physHeight(x, z, 8) > 15) hill = [x, z]; }
+      if (v && hill) { v.x = hill[0]; v.z = hill[1]; v.vx = v.vz = 0; v.syncToBody(true); o.carAbove = +(v.pv.body.translation().y - LF.physHeight(hill[0], hill[1], 8)).toFixed(2); } else o.carAbove = null; }
     // 4. the roads near a motorway are built, and how often a vertex had to be lifted to the drawn ground
     const mw = RG.regionRoads().find((r) => r.hw === 'motorway' && r.x.length > 200 && RG.regionWeight(r.x[100], r.z[100]) >= 1);
     park(mw.x[100] + 30, LF.physHeight(mw.x[100] + 30, mw.z[100], 8) + 1.5, mw.z[100]); g.eng.camera.position.set(mw.x[100], mw.y[100] + 40, mw.z[100]);
@@ -29,6 +33,6 @@ run('region', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     return o;
   });
   if (o.noRegion) return result('region', true, o, 'no compiled region in this build');
-  const pass = o.groundSamples > 200 && o.groundOff === 0 && o.stands && o.water && o.swims && o.artLive > 0;
+  const pass = o.groundSamples > 200 && o.groundOff === 0 && o.stands && o.water && o.swims && o.artLive > 0 && (o.carAbove === null || o.carAbove > 0);
   result('region', pass, o);
 });
