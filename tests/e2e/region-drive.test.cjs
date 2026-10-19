@@ -33,9 +33,16 @@ run('region-drive', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     o.wallMid = walk(0, 1400, 0, 1);
     // the gates: a ray along each corner diagonal passes the wall (a ray at its middle does not)
     o.gateRays = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => g.world.colliders.raycast(sx * 1400, 2, sz * 1400, sx * 0.7071, 0, sz * 0.7071, 300));
+    // the connectors' tunnelled and bridged stretch inside the capital square has a deck: a ray down from 3 m above the road meets it
+    let deck = 0, deckHit = 0;
+    for (const r of g.highways.N.roads) if (r.kind === 'connector' && r.joinB) for (let i = 0; i < r.pts.length; i++) {
+      const [x, z] = r.pts[i]; if (!r.cls[i] || Math.max(Math.abs(x), Math.abs(z)) > 1490) continue;
+      deck++; const h = g.phys.world.castRay(new g.phys.R.Ray({ x, y: r.y[i] + 3, z }, { x: 0, y: -1, z: 0 }), 8, true, undefined, 1 << 0); if (h && Math.abs(h.timeOfImpact - 3.25) < 0.6) deckHit++;
+    }
+    o.deck = deck; o.deckHit = deckHit;
     return o;
   });
   if (o.noRegion) return result('region-drive', true, o, 'no compiled region in this build');
-  const pass = !o.noLine && o.auto && o.auto.started && o.auto.alive && o.auto.driven > 2000 && o.auto.minAbove > -0.5 && o.auto.maxAbove < 6 && o.auto.against === 0 && o.startAbove > 0 && o.wallMid < 1480 && o.gateRays.every((t) => !(t >= 0 && t < 300));
+  const pass = !o.noLine && o.auto && o.auto.started && o.auto.alive && o.auto.driven > 2000 && o.auto.minAbove > -0.5 && o.auto.maxAbove < 6 && o.auto.against === 0 && o.startAbove > 0 && o.wallMid < 1480 && o.deck > 20 && o.deckHit === o.deck && o.gateRays.every((t) => !(t >= 0 && t < 300));
   result('region-drive', pass, o);
 });
