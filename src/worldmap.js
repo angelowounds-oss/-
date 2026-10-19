@@ -11,6 +11,8 @@ import { koreaMask, landAt } from './koreamap.js';
 import { CAPITAL, project } from './koreamap.js';
 import { DEM_N1, DEM_B64 } from './koreadem.js';
 import { osmRoute } from './osmroads.js';
+import { RIVERS } from './korerivers.js';
+import { KOREA_SCALE } from './koreamap.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
@@ -89,32 +91,29 @@ function sample(arr, N1, x, z) {
   return (arr[k] * (1 - u) + arr[k + 1] * u) * (1 - v) + (arr[k + N1] * (1 - u) + arr[k + N1 + 1] * u) * v;
 }
 
-// ------------------------------------------------------------------ rivers: downhill walks from the high peaks to the sea, valleys carved into the coarse heights
+// ------------------------------------------------------------------ rivers: the real courses (OpenStreetMap, KOREA-PLAN B1), carved into the coarse heights
+// Widths are real metres in the data and map metres here (1:KOREA_SCALE). A course cuts a channel into every grid cell its line crosses,
+// deeper where the river is wider (the flow proxy grows from the source to the mouth).
 function carveRivers(W) {
-  const { N1, H } = W, peaks = [];
-  for (let j = 4; j < CG - 4; j += 3) for (let i = 4; i < CG - 4; i += 3) { const h = H[j * N1 + i]; if (h > 650) peaks.push({ i, j, h, o: ih(i, j, 91) }); }
-  peaks.sort((a, b) => b.o - a.o);
-  const used = []; const flow = new Float32Array(N1 * N1);
-  for (const p of peaks) {
-    if (W.rivers.length >= 9) break;
-    if (used.some((q) => Math.hypot(q.i - p.i, q.j - p.j) < 20)) continue;
-    used.push(p);
-    let i = p.i, j = p.j; const pts = [], seen = new Set();
-    for (let step = 0; step < 900; step++) {
-      pts.push([i, j]); seen.add(j * N1 + i); flow[j * N1 + i] += 1;
-      if (H[j * N1 + i] < SEA + 1 || i <= 1 || j <= 1 || i >= CG - 1 || j >= CG - 1) break;
-      let bi = -1, bj = -1, bh = 1e9;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        if (!di && !dj) continue; const ni = i + di, nj = j + dj; if (seen.has(nj * N1 + ni)) continue;
-        const h = H[nj * N1 + ni] + ih(ni, nj, 92) * 6 + (di && dj ? 4 : 0); if (h < bh) { bh = h; bi = ni; bj = nj; }
+  const { N1, H } = W;
+  for (const R of RIVERS) {
+    const n = R.pts.length, pts = R.pts.map(([x, z], k) => [x, z, R.w[k] / KOREA_SCALE]);
+    const cells = [];
+    for (let k = 1; k < n; k++) {
+      const [ax, az] = R.pts[k - 1], [bx, bz] = R.pts[k], len = Math.hypot(bx - ax, bz - az), steps = Math.max(1, Math.ceil(len / (CC / 3)));
+      for (let s2 = 0; s2 <= steps; s2++) {
+        const t = s2 / steps, x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+        const i = Math.min(CG, Math.max(0, Math.round((x + WORLD_HALF) / CC))), j = Math.min(CG, Math.max(0, Math.round((z + WORLD_HALF) / CC)));
+        const f = 1 + 3 * ((k - 1 + t) / (n - 1));   // 1 at the source, 4 at the mouth
+        cells.push([i, j, f]);
       }
-      if (bi < 0) break; i = bi; j = bj;
     }
-    if (pts.length > 25) W.rivers.push({ cells: pts });
-  }
-  for (const r of W.rivers) {
-    r.pts = r.cells.map(([i, j], k) => [-WORLD_HALF + i * CC, -WORLD_HALF + j * CC, 14 + 70 * Math.sqrt(flow[j * N1 + i]) * Math.min(1, k / 30)]);
-    r.cells.forEach(([i, j]) => { const k = j * N1 + i, f = Math.sqrt(flow[k]); W.riverMask[k] = Math.max(W.riverMask[k], Math.min(1, 0.4 + 0.2 * f)); if (H[k] > SEA + 2) H[k] -= Math.min(26, 5 + 6 * f); });
+    W.rivers.push({ name: R.name, pts, cells: cells.map(([i, j]) => [i, j]) });
+    for (const [i, j, f] of cells) {
+      const k = j * N1 + i;
+      W.riverMask[k] = Math.max(W.riverMask[k], Math.min(1, 0.4 + 0.2 * f));
+      if (H[k] > SEA + 2) H[k] = Math.max(SEA + 2, H[k] - Math.min(26, 5 + 6 * f));   // the bed stays above the sea: an estuary is land
+    }
   }
 }
 
