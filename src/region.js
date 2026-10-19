@@ -27,6 +27,9 @@ export function regionHeight(x, z) {
   return ((h[k] * (1 - u) + h[k + 1] * u) * (1 - v) + (h[k + R.nx] * (1 - u) + h[k + R.nx + 1] * u) * v) / 10;
 }
 
+// the real settlements the compiler found: { id, name, kind, pop, x, z, y, r } (y in game metres, r the flat pad)
+export const regionPlaces = () => region()?.places || [];
+
 // the water of the nearest cell: { cls: 0 land, 1 sea, 2 inland, level (game metres) }, or null outside the region
 export function regionWater(x, z) {
   const R = region(); if (!R) return null;
@@ -64,4 +67,4 @@ export function regionPhysHeight(x, z) {
   return y;
 }
 
-if (typeof window !== 'undefined') window.__region = { regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight };   // test hook
+if (typeof window !== 'undefined') window.__region = { regionPlaces, regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight };   // test hook

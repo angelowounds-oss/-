@@ -10,6 +10,8 @@ import { Dem, osmTiles } from './dem.mjs';
 import { relief, sheet, profile, roadSvg, crop } from './preview.mjs';
 import { roadPass } from './roads.mjs';
 import { emitRegion } from './emit.mjs';
+import { placesPass } from './places.mjs';
+import { SEA } from '../../src/worldmap.js';
 import { overpass, bbox } from './osm.mjs';
 import { waterPass, waterHeights, distanceTo } from './water.mjs';
 
@@ -73,9 +75,12 @@ for (const { name, v } of [{ name: '1 (no scale)', v: 1 }, ...Vs]) { const a = b
 let roads = null;
 if (args.roads) {
   const t1 = Date.now(), rels = overpass(`roads-${args.region || 'capital'}`, `[out:json][timeout:240];way["highway"~"^(motorway|trunk|primary|secondary)$"](${B4});out geom tags;`);
-  const gh = waterHeights(R, Vs[0].v); roads = { gh, ...roadPass(R, gh, rels) };
+  const gh = waterHeights(R, Vs[0].v);
+  // the real settlements (M4a): sites chosen and their pads cut into the ground before the roads are laid in
+  const pl = placesPass(R, gh, overpass(`places-${args.region || 'capital'}`, `[out:json][timeout:120];(node["place"~"^(city|town|village|suburb)$"]["name"](${B4}););out;`), SEA); stats.places = pl.stats;
+  roads = { gh, ...roadPass(R, gh, rels) };
   stats.roads = { V: Vs[0].name, seconds: +((Date.now() - t1) / 1000).toFixed(1), ...roads.stats };
-  if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v);
+  if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v, pl.places);
 }
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify(stats, null, 1));
 console.log(JSON.stringify(stats));
