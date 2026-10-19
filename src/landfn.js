@@ -2,11 +2,12 @@ import { farHeight, rivers, SEA } from './worldmap.js';
 import { baseHeight } from './terrainfn.js';
 import { brokenAt } from './roadnet.js';
 import { gradeGround } from './roadgrade.js';
+import { regionWeight, regionHeight, regionPhysHeight } from './region.js';
 
 // The ground height of the land outside the city as one function, pure (no three.js) so the bake can sample it into height tiles (build/jobs.mjs)
 // and the page can read those tiles back (heightmap.js): `landHeight` is the ground as drawn, `physHeight` the ground the physics uses (bridges and
 // tunnels filled so a vehicle has ground on the deck). Order of the layers: the world's landscape (worldmap.farHeight), the city's own hills near the
-// origin, the river channels, then the road corridors and settlement pads (roadgrade.js).
+// origin, the river channels, then the road corridors and settlement pads (roadgrade.js). A compiled region (region.js) replaces all of them inside it.
 const NEAR_BLEND0 = 1400, NEAR_BLEND1 = 9000;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -58,11 +59,22 @@ function groundNoRiver(x, z, cell) { const r = Math.hypot(x, z), w = smooth(NEAR
 const groundBase = (x, z, cell) => riverCut(x, z, groundNoRiver(x, z, cell));
 // every road and pad is laid into the ground by one rule (roadgrade.js); the country roads only where the cell is fine (the far ring does not show them)
 const graded = (x, z, cell, physics) => gradeGround(x, z, groundBase(x, z, cell), physics, groundBase, cell <= 32);
-export const landProc = (x, z, cell = 0) => graded(x, z, cell, false);
-export const physProc = (x, z, cell = 0) => graded(x, z, cell, true);
+// a compiled region (region.js) is the only ground inside it; the layers above blend in only across its bands (its border, the capital's keep zone)
+function withRegion(x, z, cell, physics) {
+  const w = regionWeight(x, z);
+  if (w <= 0) return graded(x, z, cell, physics);
+  const r = physics ? regionPhysHeight(x, z) : regionHeight(x, z);
+  if (w >= 1) return r;
+  const old = graded(x, z, cell, physics);
+  return old + (r - old) * w;
+}
+export const landProc = (x, z, cell = 0) => withRegion(x, z, cell, false);
+export const worldProc = (x, z, cell = 0) => graded(x, z, cell, false);   // the ground without the region (the tests compare the blend with it)
+export const physProc = (x, z, cell = 0) => withRegion(x, z, cell, true);
 
 // the baked tiles (heightmap.js) replace the computation where they are loaded; `cell` above 32 m keeps the computation (it leaves out the fine
-// octaves and the road corridors, which a coarse ring of the far land does not show anyway)
+// octaves and the road corridors, which a coarse ring of the far land does not show anyway). Inside a compiled region the computation is the
+// region's own raster at every cell size, so the far rings, the terrain look-ahead of aircraft and the map see the same ground as the tiles.
 export const HM = { land: null, phys: null };
 export function landHeight(x, z, cell = 0) { if (HM.land && cell <= 32) { const h = HM.land(x, z); if (h === h) return h; } return landProc(x, z, cell); }
 export function physHeight(x, z, cell = 0) { if (brokenAt(x, z)) return landHeight(x, z, cell); if (HM.phys && cell <= 32) { const h = HM.phys(x, z); if (h === h) return h; } return physProc(x, z, cell); }

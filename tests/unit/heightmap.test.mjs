@@ -1,6 +1,8 @@
 // Baked height tiles: the tile a job makes must give back the ground of landfn.js at its nodes (to the 0.1 m of the Int16 step) and stay close between
 // nodes, the predictor coding must round-trip, rivers must be cut into the ground, and a missing tile must fall back to the computation.
 import zlib from 'node:zlib';
+import fs from 'node:fs';
+import '../../build/jobs.mjs';   // installs the compiled region (when there is one) as the bake does, so the tiles and landfn here agree
 import { bake } from '../../build/bake.mjs';
 import { openContainer, decodeChunk } from '../../src/bakefmt.js';
 import { encodeTile, decodeTile, N1, TILE, CN, levels, sample, loadResident, colorAt, TILE_ORIGIN } from '../../src/heightmap.js';
@@ -8,7 +10,9 @@ import { landProc, physProc, landHeight, riverAt, bedDepth } from '../../src/lan
 import { rivers, highways } from '../../src/worldmap.js';
 import { WorldData, memoryReader } from '../../src/chunkstore.js';
 
-const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+const REGION = 'build/baked/world/capital/region.bin';
+const bad = [], S = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs',
+  'src/roadgrade.js', 'src/countryplan.js', 'src/region.js', ...(fs.existsSync(new URL('../../' + REGION, import.meta.url)) ? [REGION] : [])];
 const tileOf = (x, z, g = 16) => [Math.floor((x - TILE_ORIGIN.x) / (g * TILE)), Math.floor((z - TILE_ORIGIN.z) / (g * TILE))];   // the tile grid is in the local frame (ADR-0017)
 const rp = rivers()[0].pts[Math.floor(rivers()[0].pts.length / 2)], hp = highways()[0].pts[Math.floor(highways()[0].pts.length / 2)];
 const spots = [[0, 0], [rp[0], rp[1]], [hp[0], hp[1]]], want = new Map();

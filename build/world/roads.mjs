@@ -24,7 +24,9 @@ function chains(els) {
   for (const e of els) {
     const t = e.tags || {}; if (!CLASS[t.highway] || !e.geometry || e.geometry.length < 2) continue;
     const g = t.highway + '|' + (t.ref || t.name || e.id); if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes', hw: t.highway, used: false });
+    const lanes = parseInt(t.lanes, 10);
+    groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes' || (t.highway === 'motorway' && t.oneway !== 'no'),
+      lanes: lanes > 0 ? lanes : 0, ref: t.ref || null, name: t.name || null, hw: t.highway, used: false });
   }
   const out = [];
   for (const list of groups.values()) {
@@ -41,7 +43,7 @@ function chains(els) {
         const next = (starts.get(key(w.pts[w.pts.length - 1])) || []).filter((q) => !q.used);
         w = next[0] || null;
       }
-      if (line.length >= 2) out.push({ hw: w0.hw, pts: line });
+      if (line.length >= 2) out.push({ hw: w0.hw, oneway: w0.oneway, lanes: w0.lanes, ref: w0.ref, name: w0.name, pts: line });
     }
   }
   return out;
@@ -73,7 +75,7 @@ function generalize(c) {
   }
   let shift = 0; for (let i = 0; i < n; i++) shift = Math.max(shift, Math.hypot(x[i] - X0[i], z[i] - Z0[i]));
   let rminSeen = Infinity; for (let i = k; i < n - k; i++) rminSeen = Math.min(rminSeen, radius(i));
-  return { hw: c.hw, X: x, Z: z, cls: Uint8Array.from(C), shift, tight, rminSeen, n };
+  return { hw: c.hw, oneway: c.oneway, lanes: c.lanes, ref: c.ref, name: c.name, X: x, Z: z, cls: Uint8Array.from(C), shift, tight, rminSeen, n };
 }
 
 // bilinear ground of a raster at map metres

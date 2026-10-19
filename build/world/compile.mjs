@@ -1,6 +1,7 @@
 // The world compiler (ADR-0019, KOREA-PLAN v2). M1: the terrain of a region from the real elevation at a chosen height scale V; M2: its sea, coast
 // and inland water from OpenStreetMap. With the pictures and numbers to check it by eye. Output goes to build/baked/world/<region>/ (not committed, ADR-0013).
-// Usage: node build/world/compile.mjs --region capital --v 1/3,1/4 [--preview] [--roads]   (--roads lays the arterial roads in at the first V)
+// Usage: node build/world/compile.mjs --region capital --v 1/3,1/4 [--preview] [--roads] [--emit]   (--roads lays the arterial roads in at the first V;
+// --emit (with --roads) writes region.bin, what the game reads)
 import fs from 'node:fs';
 import path from 'node:path';
 import { project, CAPITAL } from '../../src/koreamap.js';
@@ -8,6 +9,7 @@ import { unproject, mapBox } from './geo.mjs';
 import { Dem, osmTiles } from './dem.mjs';
 import { relief, sheet, profile, roadSvg, crop } from './preview.mjs';
 import { roadPass } from './roads.mjs';
+import { emitRegion } from './emit.mjs';
 import { overpass, bbox } from './osm.mjs';
 import { waterPass, waterHeights, distanceTo } from './water.mjs';
 
@@ -73,6 +75,7 @@ if (args.roads) {
   const t1 = Date.now(), rels = overpass(`roads-${args.region || 'capital'}`, `[out:json][timeout:240];way["highway"~"^(motorway|trunk|primary|secondary)$"](${B4});out geom tags;`);
   const gh = waterHeights(R, Vs[0].v); roads = { gh, ...roadPass(R, gh, rels) };
   stats.roads = { V: Vs[0].name, seconds: +((Date.now() - t1) / 1000).toFixed(1), ...roads.stats };
+  if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v);
 }
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify(stats, null, 1));
 console.log(JSON.stringify(stats));
