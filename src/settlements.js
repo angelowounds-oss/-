@@ -1,3 +1,4 @@
+import { regionWeight } from './region.js';
 import { cities, farHeight, highways, rivers, biomeAt, SEA } from './worldmap.js';
 
 // The places between the cities (ADR-0013), as data (pure): about thirty villages (eight beside the highways, the rest over the countryside), the farms
@@ -80,7 +81,9 @@ export function settlements() {
   const K = [], hp = []; for (const h of hw) for (let i = 0; i < h.pts.length; i += 10) hp.push(h.pts[i]);
   for (const v of V) { let b = null, bd = 1e18; for (const p of hp) { const d = Math.hypot(p[0] - v.x, p[1] - v.z); if (d < bd) { bd = d; b = p; } } let o = null, od = 1e18; for (const w of V) if (w !== v) { const d = Math.hypot(w.x - v.x, w.z - v.z); if (d < od) { od = d; o = w; } } if (b && bd < 9000) K.push([v.x, v.z, b[0], b[1]]); if (o && od < 9000 && v.id < o.id) K.push([v.x, v.z, o.x, o.z]); }
   for (const f of F) { const v = V.find((q) => q.id === f.village); if (v) K.push([f.x, f.z, v.x, v.z]); }
-  CACHE = { villages: V, farms: F, industry: I, towers: T, pylons: P, tracks: K };
+  // inside a compiled region the real ground and roads are the only source (ADR-0020): the invented places leave it until real settlements come in M4
+  const out = (q) => regionWeight(q.x, q.z) > 0, away = (a) => a.filter((q) => !out(q));
+  CACHE = { villages: away(V), farms: away(F), industry: away(I), towers: away(T), pylons: P.filter((l) => !l.pts.some((p) => regionWeight(p[0], p[1]) > 0)), tracks: K.filter((k) => !out({ x: k[0], z: k[1] }) && !out({ x: k[2], z: k[3] })) };
   return CACHE;
 }
 
