@@ -39,6 +39,7 @@ export async function sheet(file, panels, nx, nz, marks) {
   panels.forEach((p, n) => {
     const ox = 12 + n * (nx + 12);
     svg += `<text x="${ox}" y="20" font-family="sans-serif" font-size="15" font-weight="bold" fill="#111">${esc(p.title)}</text>`;
+    if (p.svg) svg += `<svg x="${ox}" y="${pad}" width="${nx}" height="${nz}" overflow="hidden">${p.svg}</svg>`;   // overlay in the panel's own pixels, clipped to it
     for (const m of marks) svg += `<circle cx="${ox + m.px}" cy="${pad + m.py}" r="3.5" fill="#d0021b" stroke="#fff" stroke-width="1.2"/><text x="${ox + m.px + 6}" y="${pad + m.py + 4}" font-family="sans-serif" font-size="11" fill="#111" stroke="#fff" stroke-width="2.5" paint-order="stroke">${esc(m.label)}</text>`;
   });
   svg += '</svg>';
@@ -62,4 +63,24 @@ export async function profile(file, dist, series, title) {
   }
   svg += `<text x="${W - m.r}" y="${H - 8}" font-family="sans-serif" font-size="11" fill="#444" text-anchor="end">true scale: 1 m across = 1 m up (game metres). top ${Math.round(top)} m</text></svg>`;
   await sharp(Buffer.from(svg)).png().toFile(file);
+}
+
+// road lines as SVG for a panel: pixel = (map - origin) / cell * zoom, cropped to [0, w) x [0, h)
+export function roadSvg(lines, x0, z0, g, zoom = 1) {
+  const COL = { motorway: ['#c0182b', 2.4], trunk: ['#e8730c', 2], primary: ['#f3c400', 1.6], secondary: ['#ffffff', 1.1] };
+  let s = '';
+  for (const L of lines) {
+    const [c, w] = COL[L.hw]; let run = [], k = -1;
+    const flush = () => { if (run.length > 1) s += `<polyline fill="none" stroke="${k === 2 ? '#555' : c}" stroke-width="${w * Math.sqrt(zoom)}" ${k ? 'stroke-dasharray="4 3"' : ''} points="${run.join(' ')}"/>`; run = []; };
+    for (let i = 0; i < L.n; i += 2) {
+      if (L.cls[i] !== k) { const last = run[run.length - 1]; flush(); if (last) run.push(last); k = L.cls[i]; }
+      run.push(`${(((L.X[i] - x0) / g) * zoom).toFixed(1)},${(((L.Z[i] - z0) / g) * zoom).toFixed(1)}`);
+    }
+    flush();
+  }
+  return s;
+}
+// an enlarged crop of an RGB panel (nearest neighbour, so cells stay visible)
+export async function crop(rgb, nx, nz, i0, j0, w, h, zoom) {
+  return sharp(rgb, { raw: { width: nx, height: nz, channels: 3 } }).extract({ left: i0, top: j0, width: w, height: h }).resize(w * zoom, h * zoom, { kernel: 'nearest' }).raw().toBuffer();
 }

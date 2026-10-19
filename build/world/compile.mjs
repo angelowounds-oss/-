@@ -1,12 +1,13 @@
 // The world compiler (ADR-0019, KOREA-PLAN v2). M1: the terrain of a region from the real elevation at a chosen height scale V; M2: its sea, coast
 // and inland water from OpenStreetMap. With the pictures and numbers to check it by eye. Output goes to build/baked/world/<region>/ (not committed, ADR-0013).
-// Usage: node build/world/compile.mjs --region capital --v 1/3,1/4 [--preview]
+// Usage: node build/world/compile.mjs --region capital --v 1/3,1/4 [--preview] [--roads]   (--roads lays the arterial roads in at the first V)
 import fs from 'node:fs';
 import path from 'node:path';
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { unproject, mapBox } from './geo.mjs';
 import { Dem, osmTiles } from './dem.mjs';
-import { relief, sheet, profile } from './preview.mjs';
+import { relief, sheet, profile, roadSvg, crop } from './preview.mjs';
+import { roadPass } from './roads.mjs';
 import { overpass, bbox } from './osm.mjs';
 import { waterPass, waterHeights, distanceTo } from './water.mjs';
 
@@ -16,12 +17,12 @@ const REGIONS = {
     marks: [['City Hall', 126.978, 37.5665], ['Bukhansan 836', 126.9779, 37.6587], ['Gwanaksan 629', 126.9637, 37.4448], ['Namsan 262', 126.9882, 37.5512], ['Yeouido', 126.924, 37.525], ['Wolmido', 126.597, 37.476], ['Gimpo Airport', 126.795, 37.558]],
     section: { from: [126.597, 37.476], to: [126.9779, 37.6587], name: 'Wolmido (Incheon) -> Bukhansan' } },
 };
-const G = 16;   // map metres per cell: the t16 height tiles
+const G = +(process.argv.join(' ').match(/--cell (\d+)/)?.[1] || 16);   // map metres per cell: 16 for the t16 tiles, 8 for the t8 pack (--cell 8)
 
 const args = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean).map((s) => { const [k, ...v] = s.trim().split(/\s+/); return [k, v.join(' ') || true]; }));
 const region = REGIONS[args.region || 'capital']; if (!region) { console.error('unknown region', args.region); process.exit(2); }
 const Vs = String(args.v || '1/3,1/4').split(',').map((s) => { const [a, b] = s.split('/').map(Number); return { name: s, v: b ? a / b : a }; });
-const out = path.join('build/baked/world', args.region || 'capital'); fs.mkdirSync(out, { recursive: true });
+const out = path.join('build/baked/world', (args.region || 'capital') + (G === 16 ? '' : '-' + G)); fs.mkdirSync(out, { recursive: true });
 
 // ---- raster of real heights on the map grid
 const t0 = Date.now(), dem = new Dem(11), nTiles = await dem.load(region.box);
@@ -66,6 +67,13 @@ for (const { name, v } of [{ name: '1 (no scale)', v: 1 }, ...Vs]) { const a = b
   stats.water = { areas: wInfo.areas, coastWays: wInfo.coastWays, seaCells: R.water.filter((w) => w === 1).length, inlandCells: R.water.filter((w) => w === 2).length, rivers: {} };
   for (const [name, d] of Object.entries(river)) { if (d.length < 50) continue; d.sort((u, v) => u - v); stats.water.rivers[name] = { samples: d.length, inWater: +(d.filter((v) => v === 0).length / d.length * 100).toFixed(1), p90m: Math.round(pct(d, 0.9)), maxm: Math.round(d[d.length - 1]) }; }
 }
+// ---- roads (M3a): the arterial network laid in at the first height scale
+let roads = null;
+if (args.roads) {
+  const t1 = Date.now(), rels = overpass(`roads-${args.region || 'capital'}`, `[out:json][timeout:240];way["highway"~"^(motorway|trunk|primary|secondary)$"](${B4});out geom tags;`);
+  const gh = waterHeights(R, Vs[0].v); roads = { gh, ...roadPass(R, gh, rels) };
+  stats.roads = { V: Vs[0].name, seconds: +((Date.now() - t1) / 1000).toFixed(1), ...roads.stats };
+}
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify(stats, null, 1));
 console.log(JSON.stringify(stats));
 
@@ -76,6 +84,18 @@ if (args.preview) {
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const p = unproject(x0 + i * G, z0 + j * G); osm.rgb(p.lon, p.lat, c); for (let q = 0; q < 3; q++) ref[(j * nx + i) * 3 + q] = c[q]; }
   const marks = region.marks.map(([label, lon, lat]) => { const p = project(lon, lat); return { label, px: (p.x - x0) / G, py: (p.z - z0) / G }; });
   await sheet(path.join(out, 'compare.png'), [{ title: 'OpenStreetMap (reference)', rgb: ref }, ...Vs.map(({ name, v }) => ({ title: `compiled terrain + water, V = ${name}`, rgb: relief(R, v, waterHeights(R, v)) }))], nx, nz, marks);
+  if (roads) {
+    const rgb = relief(R, Vs[0].v, roads.gh), svg = roadSvg(roads.lines, x0, z0, G);
+    await sheet(path.join(out, 'roads.png'), [{ title: 'OpenStreetMap (reference)', rgb: ref }, { title: `compiled roads, V = ${Vs[0].name}`, rgb, svg }, { title: 'ground after laying the roads in', rgb }], nx, nz, marks);
+    // the centre of Seoul enlarged: 4 x 3 km of map around City Hall, three times
+    const c = project(126.978, 37.5665), Z = 3, w = Math.round(4000 / G), hh = Math.round(3000 / G), i0 = Math.round((c.x - x0) / G - w / 2), j0 = Math.round((c.z - z0) / G - hh / 2);
+    const zm = marks.map((m) => ({ ...m, px: (m.px - i0) * Z, py: (m.py - j0) * Z })).filter((m) => m.px > 0 && m.py > 0 && m.px < w * Z && m.py < hh * Z);
+    const cz = await crop(rgb, nx, nz, i0, j0, w, hh, Z), cref = Buffer.alloc(w * Z * hh * Z * 3), osmZ = osmTiles(13), cc = [0, 0, 0];   // a finer reference for the enlargement
+    const corners = [[0, 0], [w, 0], [0, hh], [w, hh]].map(([a, b]) => unproject(x0 + (i0 + a) * G, z0 + (j0 + b) * G));
+    await osmZ.load({ w: Math.min(...corners.map((q) => q.lon)), e: Math.max(...corners.map((q) => q.lon)), s: Math.min(...corners.map((q) => q.lat)), n: Math.max(...corners.map((q) => q.lat)) });
+    for (let b = 0; b < hh * Z; b++) for (let a = 0; a < w * Z; a++) { const q = unproject(x0 + (i0 + a / Z) * G, z0 + (j0 + b / Z) * G); osmZ.rgb(q.lon, q.lat, cc); for (let t = 0; t < 3; t++) cref[(b * w * Z + a) * 3 + t] = cc[t]; }
+    await sheet(path.join(out, 'roads_zoom.png'), [{ title: 'OpenStreetMap (reference)', rgb: cref }, { title: 'compiled roads (centre of Seoul)', rgb: cz, svg: roadSvg(roads.lines, x0 + i0 * G, z0 + j0 * G, G, Z) }, { title: 'ground after laying the roads in', rgb: cz }], w * Z, hh * Z, zm);
+  }
   // the section line, sampled every map cell
   const a = project(...region.section.from), b = project(...region.section.to), L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(L / G), dist = [], real = [];
   for (let k = 0; k <= n; k++) { const t = k / n, p = unproject(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t); dist.push(L * t); real.push(Math.max(0, dem.height(p.lon, p.lat))); }
