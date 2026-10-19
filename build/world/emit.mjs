@@ -6,11 +6,10 @@ import zlib from 'node:zlib';
 import { CAPITAL } from '../../src/koreamap.js';
 import { SEA } from '../../src/worldmap.js';
 import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
-import { CLASS } from './roads.mjs';
+import { lanesOf, halfOf } from './roads.mjs';
 
 // the capital's own ground stays the city's (|x|, |z| below KEEP, local metres); the compiled data starts beyond KEEP + BAND, where the two blend
 export const KEEP = 1500, BAND = 600, EDGE = 1000;   // EDGE: the blend band at the region's outer border, towards the world outside it
-const DEFAULT_LANES = { motorway: 3, trunk: 2, primary: 2, secondary: 1 };   // per direction when OpenStreetMap gives none
 const JOIN = 20;   // map metres: a line end this close to another line meets it there
 
 export function emitRegion(file, name, R, gh, lines, V) {
@@ -29,7 +28,7 @@ export function emitRegion(file, name, R, gh, lines, V) {
     const flush = () => {
       if (run.length >= 3) {
         const key = `${L.hw}:${L.ref || L.name || '-'}`, k = groupCount.get(key) || 0; groupCount.set(key, k + 1);
-        roads.push({ id: `osm:${key}:${k}`, hw: L.hw, oneway: !!L.oneway, lanes: L.lanes || (L.oneway ? DEFAULT_LANES[L.hw] : 2 * DEFAULT_LANES[L.hw]), half: CLASS[L.hw].half, ref: L.ref, name: L.name, ds: 8,
+        roads.push({ id: `osm:${key}:${k}`, hw: L.hw, oneway: !!L.oneway, lanes: lanesOf(L), half: halfOf(L), ref: L.ref, name: L.name, ds: 8,
           x: Float32Array.from(run, (q) => L.X[q] - CAPITAL.x), z: Float32Array.from(run, (q) => L.Z[q] - CAPITAL.z), y: Float32Array.from(run, (q) => L.Y[q] + SEA), cls: Uint8Array.from(run, (q) => L.cls[q]), next: [], prev: [] });
       }
       run = [];

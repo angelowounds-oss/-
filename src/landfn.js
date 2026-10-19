@@ -19,7 +19,9 @@ function riverIndex() {
   const grid = new Map(), segs = [], lv = [], polys = [];
   for (const r of rivers()) {
     // the water surface: a metre below the bank at each point and never rising downstream (the points run from the source to the sea)
-    let run = 1e9; const L = r.pts.map((p) => { run = Math.min(run, groundNoRiver(p[0], p[1], 16) - 1.0); return Math.max(SEA + 0.1, run); });
+    // the level never rises downstream; which end is the source is read from the ground (the data's point order is not to be trusted)
+    const n = r.pts.length, down = groundNoRiver(r.pts[0][0], r.pts[0][1], 16) >= groundNoRiver(r.pts[n - 1][0], r.pts[n - 1][1], 16), L = new Array(n);
+    let run = 1e9; for (let q = 0; q < n; q++) { const i = down ? q : n - 1 - q, p = r.pts[i]; run = Math.min(run, groundNoRiver(p[0], p[1], 16) - 1.0); L[i] = Math.max(SEA + 0.1, run); }
     for (let i = 0; i + 1 < r.pts.length; i++) lv.push(L[i], L[i + 1]);
     polys.push({ pts: r.pts, lv: L });
   }
@@ -78,3 +80,5 @@ export const physProc = (x, z, cell = 0) => withRegion(x, z, cell, true);
 export const HM = { land: null, phys: null };
 export function landHeight(x, z, cell = 0) { if (HM.land && cell <= 32) { const h = HM.land(x, z); if (h === h) return h; } return landProc(x, z, cell); }
 export function physHeight(x, z, cell = 0) { if (brokenAt(x, z)) return landHeight(x, z, cell); if (HM.phys && cell <= 32) { const h = HM.phys(x, z); if (h === h) return h; } return physProc(x, z, cell); }
+
+if (typeof window !== 'undefined') window.__landfn = { landHeight, physHeight };   // test hook

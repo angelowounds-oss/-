@@ -36,6 +36,7 @@ function countrySurface(C, natural, atEnd) {
 function build(natural) {
   const N = net(), carriers = [], grid = new Map(), pads = new Map();
   for (const r of N.roads) {
+    if (r.kind === 'arterial') continue;   // a compiled region's roads are already laid into its raster
     const n = r.pts.length;
     carriers.push({ id: r.id, n, closed: r.closed, X: Float64Array.from(r.pts, (p) => p[0]), Z: Float64Array.from(r.pts, (p) => p[1]), Y: r.y, cls: r.cls, off: 0.25, flat: HALF_W + 1, core: HW_CORE, reach: HALF_W + CARVE_FADE, country: false });
   }

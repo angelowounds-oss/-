@@ -63,3 +63,5 @@ export function regionPhysHeight(x, z) {
   }
   return y;
 }
+
+if (typeof window !== 'undefined') window.__region = { regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight };   // test hook

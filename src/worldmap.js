@@ -13,6 +13,7 @@ import { DEM_N1, DEM_B64 } from './koreadem.js';
 import { osmRoute } from './osmroads.js';
 import { RIVERS } from './korerivers.js';
 import { KOREA_SCALE } from './koreamap.js';
+import { regionWeight, regionHeight } from './region.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
@@ -81,6 +82,7 @@ function build() {
   carveRivers(W);
   placeCities(W);
   flattenCities(W);
+  applyRegion(W);
   surfaceGrids(W);
   routeHighways(W);
   return W;
@@ -173,6 +175,17 @@ function flattenCities(W) {
   }
 }
 
+// a compiled region (region.js, ADR-0019) replaces the coarse heights inside it: the far rings, the map and the planners then see the real ground;
+// its rivers are its own water, so the old river mask goes there too
+function applyRegion(W) {
+  const { N1, H } = W;
+  for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
+    const x = -WORLD_HALF + i * CC - CAPITAL.x, z = -WORLD_HALF + j * CC - CAPITAL.z, w = regionWeight(x, z); if (w <= 0) continue;
+    const k = j * N1 + i, r = regionHeight(x, z); if (r === r) H[k] = lerp(H[k], r, w);
+    W.riverMask[k] *= 1 - w;
+  }
+}
+
 // ------------------------------------------------------------------ highways: A* over a coarse grid (no sea, slopes cost), then smoothed
 const HG = 128, HC = (2 * WORLD_HALF) / HG;
 function routeHighways(W) {
@@ -252,7 +265,13 @@ const LOCAL = new WeakMap();
 const localView = (W) => LOCAL.get(W) || LOCAL.set(W, {
   cities: W.cities.map((c) => ({ ...c, x: c.x - CAPITAL.x, z: c.z - CAPITAL.z })),
   highways: W.highways.map((h) => ({ ...h, pts: h.pts.map((p) => [p[0] - CAPITAL.x, p[1] - CAPITAL.z]) })),
-  rivers: W.rivers.map((r) => ({ ...r, pts: r.pts.map((p) => [p[0] - CAPITAL.x, p[1] - CAPITAL.z, p[2]]) })),
+  // a compiled region has its own water: a river is cut where it enters one, and its pieces outside stay rivers of their own
+  rivers: W.rivers.flatMap((r) => {
+    const out = []; let run = [];
+    for (const p of r.pts) { const q = [p[0] - CAPITAL.x, p[1] - CAPITAL.z, p[2]]; if (regionWeight(q[0], q[1]) > 0) { if (run.length > 1) out.push(run); run = []; } else run.push(q); }
+    if (run.length > 1) out.push(run);
+    return out.map((pts, k) => ({ ...r, name: k ? `${r.name}#${k}` : r.name, pts }));
+  }),
 }).get(W);
 export const world = () => build();   // map coordinates: the baked container and the bake only
 export const cities = () => localView(build()).cities;
@@ -279,6 +298,7 @@ function surfaceGrids(W) {
   for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
     const x = -WORLD_HALF + i * CC, z = -WORLD_HALF + j * CC, k = j * N1 + i; let f = 0;
     for (const c of W.cities) f = Math.max(f, cityFlat(c, x, z));
+    f *= 1 - regionWeight(x - CAPITAL.x, z - CAPITAL.z);   // a compiled region keeps its real relief (and its own detail)
     W.F[k] = f;
     const b = biomeMap(x, z, H[k] + (H[k] > SEA ? 0 : 0)), c = PAL[b]; W.B[k] = b;
     let r = c[0], g = c[1], bl = c[2];

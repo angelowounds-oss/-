@@ -2,6 +2,7 @@ import { surfaceColor, biomeAt, vn, sstep, cities, SEA } from './worldmap.js';
 import { roadAt, HALF_W } from './roadnet.js';
 import { riverAt } from './landfn.js';
 import { settlements } from './settlements.js';
+import { regionWeight, regionWater } from './region.js';
 
 // The colour of the ground at a point (pure, linear RGB): worldmap.surfaceColor (biome colour with fine noise) with what the landscape adds on top of
 // it where the coarse grid cannot show it: bare rock on steep slopes and a snow line that follows the ground, patchwork fields on farmland, wet sand
@@ -21,12 +22,15 @@ export function groundColor(x, z, h, slope, out) {
   const rk = sstep(0.55, 1.0, slope); if (rk > 0 && b !== 0) mixTo(out, rock, rk * (b === 7 ? 0.6 : 0.85));
   if (h > 900) { const line = 1050 + 260 * vn(x / 3000, z / 3000, 29), sn = sstep(line, line + 220, h) * (1 - sstep(0.75, 1.3, slope)); if (sn > 0) mixTo(out, snow, sn); }
   if (h > SEA - 0.5 && h < SEA + 3.2) mixTo(out, sand, (1 - sstep(SEA + 1.2, SEA + 3.2, h)) * 0.8);
+  const rw = regionWeight(x, z) >= 0.5 ? regionWater(x, z) : null; if (rw && rw.cls === 2) mixTo(out, wet, 0.9);
   const rv = riverAt(x, z);
   if (rv) { const hw = rv.w / 2; if (rv.d < hw + 10) mixTo(out, rv.d < hw ? wet : sand, rv.d < hw ? 0.9 : 0.7 * (1 - sstep(hw, hw + 10, rv.d))); }
-  const rd = roadAt(x, z, HALF_W + 14); if (rd && rd.d > HALF_W - 4) mixTo(out, dirt, 0.75 * (1 - sstep(HALF_W + 2, HALF_W + 14, rd.d)));
+  const rd = roadAt(x, z, HALF_W + 14), hw = rd?.road.half ?? HALF_W;   // a road's own half width (compiled lines carry theirs), the dual highway's otherwise
+  if (rd && rd.d > hw - 4 && rd.d < hw + 14) mixTo(out, dirt, 0.75 * (1 - sstep(hw + 2, hw + 14, rd.d)));
   { const S = settlements();   // village ground, dirt tracks
     for (const v of S.villages) { const d = Math.hypot(x - v.x, z - v.z); if (d < v.r) mixTo(out, [0.2, 0.19, 0.16], 0.3 * (1 - sstep(v.Lh * 0.5, v.r * 0.9, d))); }
     for (const k of S.tracks) { if (x < Math.min(k[0], k[2]) - 8 || x > Math.max(k[0], k[2]) + 8 || z < Math.min(k[1], k[3]) - 8 || z > Math.max(k[1], k[3]) + 8) continue; const dx = k[2] - k[0], dz = k[3] - k[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - k[0]) * dx + (z - k[1]) * dz) / l2)), d = Math.hypot(x - k[0] - dx * t, z - k[1] - dz * t); if (d < 8) mixTo(out, dirt, 0.8 * (1 - sstep(2.5, 8, d))); } }
-  for (const c of cities()) { const d = Math.hypot(x - c.x, z - c.z); if (d < c.r * 2.6) mixTo(out, hem, 0.4 * (1 - sstep(c.r * 1.0, c.r * 2.6, d))); }
+  const keepHem = 1 - regionWeight(x, z);   // a compiled region shows its own land use, not the capital's grey hem
+  for (const c of cities()) { const d = Math.hypot(x - c.x, z - c.z); if (d < c.r * 2.6) mixTo(out, hem, keepHem * 0.4 * (1 - sstep(c.r * 1.0, c.r * 2.6, d))); }
   return b;
 }

@@ -973,9 +973,10 @@ export function buildWorld(scene, quality) {
       farInst.push({ ...f, h: 6, y: 0, podium: 1 });
       farInst.push({ ...f, h: f.h - 6, y: 6, podium: 0 });
     }
-    const L = 1475, T = 12; // boundary of the playable world, behind the hill rim (see terrain.js)
-    world.colliders.addBox(-L - T, L, L + T, L + T, 400, 'wall'); world.colliders.addBox(-L - T, -L - T, L + T, -L, 400, 'wall');
-    world.colliders.addBox(L, -L - T, L + T, L + T, 400, 'wall'); world.colliders.addBox(-L - T, -L - T, -L, L + T, 400, 'wall');
+    const L = 1475, T = 12, G = 60; // boundary of the playable world, behind the hill rim (see terrain.js); a gate of G m at each corner, where the
+    // capital's connectors leave along the diagonals (roadnet.js)
+    world.colliders.addBox(-L + G, L, L - G, L + T, 400, 'wall'); world.colliders.addBox(-L + G, -L - T, L - G, -L, 400, 'wall');
+    world.colliders.addBox(L, -L + G, L + T, L - G, 400, 'wall'); world.colliders.addBox(-L - T, -L + G, -L, L - G, 400, 'wall');
   }
 
   // Plaza centerpiece

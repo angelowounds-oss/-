@@ -15,7 +15,11 @@ export const CLASS = {
   primary: { rmin: 60, grade: 0.08, half: 5, order: 2 },
   secondary: { rmin: 30, grade: 0.1, half: 4, order: 3 },
 };
-const FADE = 30, SMOOTH = 12;   // metres from the flat edge back to the ground; samples each side in the profile mean
+const FADE = 30, SMOOTH = 12;
+// the width the game draws (src/highways.js artWidth): a one-way carriageway of n lanes, or a two-way road of n lanes each side, plus shoulders
+export const DEFAULT_LANES = { motorway: 3, trunk: 2, primary: 2, secondary: 1 };   // per direction when OpenStreetMap gives none
+export function lanesOf(L) { return L.lanes || (L.oneway ? DEFAULT_LANES[L.hw] : 2 * DEFAULT_LANES[L.hw]); }
+export function halfOf(L) { const per = Math.max(1, Math.min(4, L.oneway ? lanesOf(L) : Math.ceil(lanesOf(L) / 2))), w = per * 3.75 + 2.4; return L.oneway ? w / 2 : w; }   // metres from the flat edge back to the ground; samples each side in the profile mean
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // 1. long lines: pieces of the same class and name (or ref) joined where one ends and the next begins, in the direction of travel
@@ -121,7 +125,7 @@ function profile(L, R, gh, claimed) {
 // 4. one line laid into gh: the cells within reach of its segments, pulled towards its surface; its flat surface becomes final (claimed), so the lines
 // laid after it (lower classes, and later lines of the same class) lay in around it and meet its height
 function layLine(R, gh, L, claimed) {
-  const half = CLASS[L.hw].half, flat = Math.max(half + 1, R.g * 1.05), reach = flat + FADE, best = new Map();   // at least one cell flat each side
+  const half = halfOf(L), flat = Math.max(half + 1, R.g * 1.05), reach = flat + FADE, best = new Map();   // at least one cell flat each side
   // bridges and tunnels leave the ground alone, but for the few points at each end (abutments, portals) where the road meets it
   const lay = new Uint8Array(L.n); for (let i = 0; i < L.n; i++) if (!L.cls[i]) for (let q = Math.max(0, i - 3); q <= Math.min(L.n - 1, i + 3); q++) lay[q] = 1;
   for (let s = 0; s + 1 < L.n; s++) {
@@ -155,7 +159,7 @@ export function roadPass(R, gh, els) {
   // last, one rule for every road: the ground under a carriageway is never above its surface (it is only lowered), measured against the surface at
   // the nearest point of the line. Only the carriageway's own width: a cell-wide reach also pushed the ground down under the roads beside it
   for (const L of lines) {
-    const r = CLASS[L.hw].half + 1;   // the carriageway itself: a wider reach pushes the ground down under the roads beside it
+    const r = halfOf(L) + 1;   // the carriageway itself: a wider reach pushes the ground down under the roads beside it
     for (let s = 0; s + 1 < L.n; s++) {
       if (L.cls[s] || L.cls[s + 1]) continue;
       const ax = L.X[s], az = L.Z[s], dx = L.X[s + 1] - ax, dz = L.Z[s + 1] - az, l2 = dx * dx + dz * dz || 1;
