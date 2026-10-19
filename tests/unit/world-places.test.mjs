@@ -16,11 +16,13 @@ else {
     // the roads laid in afterwards cut through a pad, so most of it, not all, must lie at the pad's height
     let n = 0, flat = 0; for (let a = 0; a < 16; a++) for (const f of [0.3, 0.7]) { const h = regionHeight(p.x + Math.cos(a / 16 * 6.2832) * p.r * f, p.z + Math.sin(a / 16 * 6.2832) * p.r * f); if (h === h) { n++; if (Math.abs(h - p.y) < 1.5) flat++; } }
     tot += n; totFlat += flat; if (flat / n < 0.6 || Math.abs(regionHeight(p.x, p.z) - p.y) > 1.5) rough++;
-    for (let j = 0; j < i; j++) if (Math.hypot(P[j].x - p.x, P[j].z - p.z) < 800) close++;
+    for (let j = 0; j < i; j++) if (Math.hypot(P[j].x - p.x, P[j].z - p.z) < Math.max(800, P[j].r + p.r + 100)) close++;
   });
   m.flatShare = +(totFlat / tot).toFixed(2); if (totFlat / tot < 0.85) bad.push(['pads are not flat', m.flatShare]); m.nameBad = nameBad; m.wet = wet; m.rough = rough; m.close = close; m.band = band;
   for (const [k, v] of Object.entries({ nameBad, wet, rough, close, band })) if (v) bad.push([k, v]);
   const real = settlements().villages.filter((v) => v.tag === 'real'); m.villages = real.length; if (real.length !== P.length) bad.push(['villages differ from places', real.length, P.length]);
+  m.big = P.filter((p) => p.r > 320).length; if (!m.big) bad.push(['no district-sized pad', 0]);
+  const over = real.filter((v) => { const p = P.find((q) => q.id === v.real); return v.nHouses > Math.max(6, Math.floor((p.r - 140) / 9)); }).length; m.overfull = over; if (over) bad.push(['villages longer than their pad', over]);
   void SEA;
   console.log('RESULT ' + JSON.stringify({ test: 'world-places', pass: bad.length === 0, metrics: m, note: bad.map((b) => b.join(' ')).join(' | ') }));
   process.exitCode = bad.length ? 1 : 0;

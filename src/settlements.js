@@ -52,8 +52,8 @@ export function settlements() {
   cand.sort((a, b) => a[2] - b[2]);
   for (const [x, z] of cand) { if (V.length >= 30) break; if (okVillage(x, z)) add(x, z, 'country'); }
   // the real settlements of a compiled region (ADR-0021): Korean names, on the pad the compiler cut for them
-  const SIZE = { village: 6, suburb: 8, town: 11, city: 13 };
-  for (const q of regionPlaces()) { const nc = nearest(q.x, q.z).c; V.push({ id: 'v' + V.length, name: q.name, x: q.x, z: q.z, y: q.y, seed: 1000 + V.length * 7919, lang: 'ko', tag: 'real', city: nc.id, nHouses: SIZE[q.kind] || 6, real: q.id }); }
+  const SIZE = { village: 6, suburb: 8, town: 11, city: 13 }, BASE = { village: 200, suburb: 230, town: 260, city: 300 };   // a wider pad (M4b-1) has more houses, up to what its radius holds
+  for (const q of regionPlaces()) { const nc = nearest(q.x, q.z).c; V.push({ id: 'v' + V.length, name: q.name, x: q.x, z: q.z, y: q.y, seed: 1000 + V.length * 7919, lang: 'ko', tag: 'real', city: nc.id, nHouses: Math.max(6, Math.min(Math.round((SIZE[q.kind] || 6) * q.r / (BASE[q.kind] || 200)), Math.floor((q.r - 140) / 9))), real: q.id }); }
   for (const v of V) layoutVillage(v);
   // farms: one or two near each third village on farmland or plains, 600-1400 m out
   V.forEach((v, i) => { if (i % 3 !== 0) return; for (let k = 0; k < 2; k++) for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, d = 600 + rnd() * 800, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, h = farHeight(x, z, 60); if (h > 6 && sl(x, z) < 0.04 && !riverNear(x, z, 150) && farFrom(x, z, F, 900) && ![0, 1, 7, 9].includes(biomeAt(x, z, h))) { F.push({ id: 'f' + F.length, x, z, y: farHeight(x, z, 80), seed: Math.floor(rnd() * 1e6), village: v.id }); break; } } });
