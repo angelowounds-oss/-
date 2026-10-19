@@ -16,6 +16,7 @@
 - 데이터 수집 경로: `download.geofabrik.de`는 이 환경 네트워크 정책에서 막혀 있다. 허용되면 전국 OSM 파일 하나로 받고, 아니면 Overpass로 필요한 등급만 받는다(M2·M3 전 확인)
 
 ## M1 컴파일러 골격 + 지형 — 수도권 단면
+- 진행(2026-10-19): `build/world/{geo,dem,preview,compile}.mjs`. `node build/world/compile.mjs --region capital --v 1/3,1/4 --preview` → `build/baked/world/capital/{compare.png,profile.png,stats.json}`. 고해상도 DEM에서 육지 경사 0.30 초과: V=1/3 35.8%, V=1/4 26.8%(2.5 km 격자 측정의 5%·1.5%는 산비탈을 뭉갠 값이었다). 실제 고속도로·국도 3,069 km를 따라 잰 게임 경사 12% 초과 비율: V=1/3 9.2%, V=1/4 6.4%, 축척 없음(V=1/6.5) 3.5%(다리·터널·DEM 잡음 몫). 해안은 DEM 0 m 기준이라 매립지가 바다로 나온다 → M2. **V 결정 대기**
 - 범위: 서울·인천·경기 일부, 실거리 약 80×60 km(맵 약 12×9 km)
 - 만들 것: `build/world/compile.mjs`(구동: `--region --v --preview`), `build/world/dem.mjs`(Terrarium z11 수집·모자이크·맵 래스터 재표본, 캐시 `build/.dem-cache/`), `build/world/png.mjs`(PNG 쓰기), `build/world/preview.mjs`(음영 기복·고도 색·해안)
 - 산출: V = 1/3과 1/4 미리보기 PNG, 같은 범위의 실제 지도, 경사 분포 표
