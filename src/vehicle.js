@@ -3,6 +3,7 @@ import { buildCar, CAR_SPECS } from './models.js';
 import { N, P, R, LANE, HALF, roadC, roadIdx, hasEdge } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
+import { physHeight } from './landfn.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
 const QB = new THREE.Quaternion();
 
@@ -135,10 +136,12 @@ export class Vehicle {
     this.readBody(0);
   }
   detachPhysics() { if (this.pv) { this.phys.removeVehicle(this.pv); this.pv = null; } }
+  // a car put down on raised ground starts on it, not at the flat city's height (it would be inside the hill and never get out)
+  groundRise() { const h = physHeight(this.x, this.z, 8); return h > 0 ? h : 0; }
   // Teleport body to current x,z,h and velocity fields
   syncToBody(sleep = false) {
     const b = this.pv.body;
-    b.setTranslation({ x: this.x, y: this.spec.craft ? (this.startY ?? this.spec.cy + 0.25) : PHYS.bodyY + 0.05, z: this.z }, true);
+    b.setTranslation({ x: this.x, y: this.spec.craft ? (this.startY ?? this.spec.cy + 0.25) : PHYS.bodyY + 0.05 + this.groundRise(), z: this.z }, true);
     b.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true);
     b.setLinvel({ x: this.vx, y: 0, z: this.vz }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     if (sleep) b.sleep();

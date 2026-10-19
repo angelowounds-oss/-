@@ -15,6 +15,8 @@ const JOIN = 20;   // map metres: a line end this close to another line meets it
 export function emitRegion(file, name, R, gh, lines, V) {
   const lx0 = R.x0 - CAPITAL.x, lz0 = R.z0 - CAPITAL.z, n = R.nx * R.nz;
   const kept = (x, z) => Math.max(Math.abs(x), Math.abs(z)) >= KEEP + BAND;   // local coordinates outside the capital's keep zone and its band
+  // the outer border blends into the world outside, whose ground is another height scale: a road there would sink far under it, so lines end where the blend starts
+  const inner = (x, z) => x >= lx0 + EDGE && z >= lz0 + EDGE && x <= lx0 + (R.nx - 1) * R.g - EDGE && z <= lz0 + (R.nz - 1) * R.g - EDGE;
   const h = new Int16Array(n), water = new Uint8Array(n), level = new Int16Array(n);
   for (let j = 0; j < R.nz; j++) for (let i = 0; i < R.nx; i++) {
     const k = j * R.nx + i, x = lx0 + i * R.g, z = lz0 + j * R.g;
@@ -33,7 +35,7 @@ export function emitRegion(file, name, R, gh, lines, V) {
       }
       run = [];
     };
-    for (let i = 0; i < L.n; i++) { if (kept(L.X[i] - CAPITAL.x, L.Z[i] - CAPITAL.z)) run.push(i); else flush(); }
+    for (let i = 0; i < L.n; i++) { if (kept(L.X[i] - CAPITAL.x, L.Z[i] - CAPITAL.z) && inner(L.X[i] - CAPITAL.x, L.Z[i] - CAPITAL.z)) run.push(i); else flush(); }
     flush();
   }
   // junctions: each line end joins the nearest point of another line within JOIN (a line that starts there, or the middle of a crossing road)

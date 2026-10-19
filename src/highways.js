@@ -3,6 +3,7 @@ import { net, groundH, HALF_W, BROKEN, breakSegment } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand } from './util.js';
 import { landHeight } from './landfn.js';
+import { regionWeight } from './region.js';
 
 // The highway network drawn (roadnet.js has the data): asphalt ribbons with lane markings, median barrier and guard rails, bridges with pillars,
 // tunnels with lights, ramps, sign gantries, toll plazas and service areas; street lamps are an instanced pool that follows the camera.
@@ -302,7 +303,7 @@ export class Highways {
       const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
       const at = (f, off, dy = 0) => {
         const x = f.x + f.rx * off, z = f.z + f.rz * off; let y = f.y;
-        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; if (dy === 0 && Math.abs(off) <= half) { this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; } else if (dy !== 0 || Math.abs(off) > half) { this.stats.artOther = (this.stats.artOther || 0) + 1; if (g - y > 0.3) this.stats.artOtherLifted = (this.stats.artOtherLifted || 0) + 1; } if (g > y) y = g; }
+        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; if (dy === 0 && Math.abs(off) <= half) { if (regionWeight(x, z) < 1) { this.stats.artBand = (this.stats.artBand || 0) + 1; if (g - y > 0.3) this.stats.artBandLifted = (this.stats.artBandLifted || 0) + 1; return [x, Math.max(y, g) + dy, z]; } this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; } else if (dy !== 0 || Math.abs(off) > half) { this.stats.artOther = (this.stats.artOther || 0) + 1; if (g - y > 0.3) this.stats.artOtherLifted = (this.stats.artOtherLifted || 0) + 1; } if (g > y) y = g; }
         return [x, y + dy, z];
       };
       if (two) {   // a two-way road: a carriageway each side of a centre line (the texture's yellow edge meets in the middle)

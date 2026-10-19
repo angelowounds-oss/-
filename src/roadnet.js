@@ -6,7 +6,7 @@
 import { cities, highways, farHeight, SEA, WORLD_HALF } from './worldmap.js';
 import { baseHeight, roadsData } from './terrainfn.js';
 import { settlements } from './settlements.js';
-import { regionHeight, regionRoads } from './region.js';
+import { regionWeight, regionRoads } from './region.js';
 
 export const DS = 30, HALF_W = 17.5, CARVE_FADE = 46, GRADE = 0.055;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -83,7 +83,7 @@ function build() {
     const a = byId.get(h.a), b = byId.get(h.b), Ra = N.rings.get(a.id)?.R, Rb = N.rings.get(b.id)?.R;
     const dist = (p, c) => Math.hypot(p[0] - c.x, p[1] - c.z);
     // an end at a city with a ring stops at the ring; an end in a compiled region stops where the region begins (its own roads go on from there)
-    const inside = (p, c, R) => (R ? dist(p, c) < R : regionHeight(p[0], p[1]) === regionHeight(p[0], p[1]));   // NaN outside the region's raster
+    const inside = (p, c, R) => (R ? dist(p, c) < R : regionWeight(p[0], p[1]) >= 1);   // where the compiled roads start: the border band blends into the world outside and holds none
     let i0 = 0; while (i0 < P.length - 1 && inside(P[i0], a, Ra)) i0++;
     let i1 = P.length - 1; while (i1 > 0 && inside(P[i1], b, Rb)) i1--;
     if (i1 - i0 < 6) continue;
