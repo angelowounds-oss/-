@@ -14,14 +14,17 @@ function tint(h, out) {
 }
 
 // RGB bytes of the relief: R is the raster (real metres), V the height scale, g the cell (map metres)
-export function relief(R, V) {
-  const { nx, nz, h, g } = R, rgb = Buffer.alloc(nx * nz * 3), c = [0, 0, 0];
+// with gh (game heights from the water pass) the shading reads it directly and the water classes get their own colours
+export function relief(R, V, gh = null) {
+  const { nx, nz, h, g } = R, rgb = Buffer.alloc(nx * nz * 3), c = [0, 0, 0], H = gh || h, s0 = gh ? 1 : V;
   const L = [-Math.SQRT1_2 * Math.cos(Math.PI / 4), Math.sin(Math.PI / 4), -Math.SQRT1_2 * Math.cos(Math.PI / 4)];   // light from the north-west, 45 degrees up
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
     const k = j * nx + i, hh = h[k];
-    const dx = (h[j * nx + Math.min(nx - 1, i + 1)] - h[j * nx + Math.max(0, i - 1)]) * V / (2 * g), dz = (h[Math.min(nz - 1, j + 1) * nx + i] - h[Math.max(0, j - 1) * nx + i]) * V / (2 * g);
-    const n = [-dx, 1, -dz], l = Math.hypot(...n), s = hh > 0.5 ? Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / l) : 0.75;
-    tint(hh > 0.5 ? hh : -20, c); const f = hh > 0.5 ? 0.35 + 0.85 * s : 1;   // the DEM gives 0 m over the shallow west sea
+    const dx = (H[j * nx + Math.min(nx - 1, i + 1)] - H[j * nx + Math.max(0, i - 1)]) * s0 / (2 * g), dz = (H[Math.min(nz - 1, j + 1) * nx + i] - H[Math.max(0, j - 1) * nx + i]) * s0 / (2 * g);
+    const wet = R.water ? R.water[k] : hh > 0.5 ? 0 : 1;   // without the water pass the DEM's 0 m over the shallow west sea is the sea
+    const n = [-dx, 1, -dz], l = Math.hypot(...n), s = wet ? 0.75 : Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / l);
+    if (wet === 2) { c[0] = 64; c[1] = 140; c[2] = 205; } else tint(wet ? (gh ? Math.min(-1, gh[k]) * 2.4 : -20) : hh, c);
+    const f = wet ? 1 : 0.35 + 0.85 * s;
     for (let q = 0; q < 3; q++) rgb[k * 3 + q] = Math.max(0, Math.min(255, c[q] * f));
   }
   return rgb;

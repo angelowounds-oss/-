@@ -1,5 +1,5 @@
-// The world compiler (ADR-0019, KOREA-PLAN v2). M1: the terrain of a region from the real elevation at a chosen height scale V, with the pictures
-// and numbers to check it by eye. Output goes to build/baked/world/<region>/ (not committed, ADR-0013).
+// The world compiler (ADR-0019, KOREA-PLAN v2). M1: the terrain of a region from the real elevation at a chosen height scale V; M2: its sea, coast
+// and inland water from OpenStreetMap. With the pictures and numbers to check it by eye. Output goes to build/baked/world/<region>/ (not committed, ADR-0013).
 // Usage: node build/world/compile.mjs --region capital --v 1/3,1/4 [--preview]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,6 +7,8 @@ import { project, CAPITAL } from '../../src/koreamap.js';
 import { unproject, mapBox } from './geo.mjs';
 import { Dem, osmTiles } from './dem.mjs';
 import { relief, sheet, profile } from './preview.mjs';
+import { overpass, bbox } from './osm.mjs';
+import { waterPass, waterHeights, distanceTo } from './water.mjs';
 
 const REGIONS = {
   // Seoul, Incheon and part of Gyeonggi: about 80 x 60 km real (KOREA-PLAN v2 M1)
@@ -27,6 +29,9 @@ const B = mapBox(region.box), x0 = Math.floor(B.x0 / G) * G, z0 = Math.floor(B.z
 const h = new Float32Array(nx * nz);
 for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const p = unproject(x0 + i * G, z0 + j * G); h[j * nx + i] = dem.height(p.lon, p.lat); }
 const R = { nx, nz, h, g: G, x0, z0 };
+// ---- water (M2): coastline, water areas and river lines of the region
+const B4 = bbox(region.box), els = overpass(`water-${args.region || 'capital'}`, `[out:json][timeout:200];(way["natural"="coastline"](${B4});way["natural"="water"](${B4});relation["natural"="water"](${B4});way["waterway"="riverbank"](${B4});relation["waterway"="riverbank"](${B4});way["waterway"="river"](${B4}););out geom;`);
+const wInfo = waterPass(R, els);
 console.log(`raster ${nx} x ${nz} (${(nx * G / 1000).toFixed(1)} x ${(nz * G / 1000).toFixed(1)} km map), ${nTiles} DEM tiles, ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 
 // ---- slopes on land at each V (central difference over 32 m), and the current game terrain on a subsample for comparison
@@ -45,6 +50,22 @@ for (const { name, v } of [{ name: '1 (no scale)', v: 1 }, ...Vs]) { const a = b
   a.sort((u, w) => u - w);
   stats.currentGame = { samples: a.length, median: +pct(a, 0.5).toFixed(3), p90: +pct(a, 0.9).toFixed(3), over012: share(a, 0.12), over030: share(a, 0.3), over050: share(a, 0.5) };
 }
+// ---- water checks: the named main rivers' centre lines must lie in the compiled water (KOREA-PLAN v2 M2: 300 m real at most)
+{
+  const toWet = distanceTo(Uint8Array.from(R.water, (w) => (w ? 1 : 0)), nx, nz), river = {};
+  for (const e of els) {
+    const name = e.tags?.waterway === 'river' && e.tags.name; if (!name || !e.geometry) continue;
+    for (let k = 0; k + 1 < e.geometry.length; k++) {
+      const a = project(e.geometry[k].lon, e.geometry[k].lat), b = project(e.geometry[k + 1].lon, e.geometry[k + 1].lat), m = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / G));
+      for (let t = 0; t < m; t++) {
+        const i = Math.round((a.x + (b.x - a.x) * t / m - x0) / G), j = Math.round((a.z + (b.z - a.z) * t / m - z0) / G); if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
+        (river[name] || (river[name] = [])).push(toWet[j * nx + i] * G * 6.5);
+      }
+    }
+  }
+  stats.water = { areas: wInfo.areas, coastWays: wInfo.coastWays, seaCells: R.water.filter((w) => w === 1).length, inlandCells: R.water.filter((w) => w === 2).length, rivers: {} };
+  for (const [name, d] of Object.entries(river)) { if (d.length < 50) continue; d.sort((u, v) => u - v); stats.water.rivers[name] = { samples: d.length, inWater: +(d.filter((v) => v === 0).length / d.length * 100).toFixed(1), p90m: Math.round(pct(d, 0.9)), maxm: Math.round(d[d.length - 1]) }; }
+}
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify(stats, null, 1));
 console.log(JSON.stringify(stats));
 
@@ -54,7 +75,7 @@ if (args.preview) {
   const ref = Buffer.alloc(nx * nz * 3), c = [0, 0, 0];
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const p = unproject(x0 + i * G, z0 + j * G); osm.rgb(p.lon, p.lat, c); for (let q = 0; q < 3; q++) ref[(j * nx + i) * 3 + q] = c[q]; }
   const marks = region.marks.map(([label, lon, lat]) => { const p = project(lon, lat); return { label, px: (p.x - x0) / G, py: (p.z - z0) / G }; });
-  await sheet(path.join(out, 'compare.png'), [{ title: 'OpenStreetMap (reference)', rgb: ref }, ...Vs.map(({ name, v }) => ({ title: `compiled terrain, V = ${name}`, rgb: relief(R, v) }))], nx, nz, marks);
+  await sheet(path.join(out, 'compare.png'), [{ title: 'OpenStreetMap (reference)', rgb: ref }, ...Vs.map(({ name, v }) => ({ title: `compiled terrain + water, V = ${name}`, rgb: relief(R, v, waterHeights(R, v)) }))], nx, nz, marks);
   // the section line, sampled every map cell
   const a = project(...region.section.from), b = project(...region.section.to), L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(L / G), dist = [], real = [];
   for (let k = 0; k <= n; k++) { const t = k / n, p = unproject(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t); dist.push(L * t); real.push(Math.max(0, dem.height(p.lon, p.lat))); }
