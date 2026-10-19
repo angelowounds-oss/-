@@ -1,5 +1,5 @@
-// The country roads as packed (assets/roads/country.bin): no kink sharper than 30 degrees, no duplicate points, and the ground under a
-// ribbon stays within a metre and a half of the road for almost every sample (the banks close the rest). Pure data, no browser.
+// The country roads as packed (assets/roads/country.bin): at least 250 km, no kink sharper than 30 degrees, no duplicate points, and the ground (graded
+// along the roads, A2b) under a ribbon stays within a metre and a half of the road for almost every sample. Pure data, no browser.
 import fs from 'node:fs';
 import { landHeight } from '../../src/landfn.js';
 
@@ -23,9 +23,11 @@ for (const r of roads) {
   }
 }
 const bad = [];
+let km = 0; for (const r of roads) km += (r.n - 1) * 16 / 1000;
+if (km < 250) bad.push(['coverage below 250 km', km.toFixed(0)]);
 if (bends > 0) bad.push(['kinks over 30 degrees', bends, maxBend.toFixed(1)]);
 if (dups > 0) bad.push(['duplicate points', dups]);
-// 3%: the looser slope retry (A2, KOREA-PLAN) trades a little ground fit for coverage; the owner allowed the criterion to change for the result
-if (far / samples > 0.03) bad.push(['ground off the ribbon', far, samples]);
-console.log('RESULT ' + JSON.stringify({ test: 'countryroads-quality', pass: bad.length === 0, metrics: { roads: roads.length, bends30: bends, maxBendDeg: +maxBend.toFixed(1), dups, crossOver1_5m: +(far / samples * 100).toFixed(2) + '%', maxCrossM: +maxCross.toFixed(2) }, note: bad.map((b) => b.join(' ')).join(' | ') }));
+// the ground is graded along the roads (src/countrycarve.js, A2b), so the ribbon fits the ground for almost every sample
+if (far / samples > 0.005) bad.push(['ground off the ribbon', far, samples]);
+console.log('RESULT ' + JSON.stringify({ test: 'countryroads-quality', pass: bad.length === 0, metrics: { roads: roads.length, km: Math.round(km), bends30: bends, maxBendDeg: +maxBend.toFixed(1), dups, crossOver1_5m: +(far / samples * 100).toFixed(2) + '%', maxCrossM: +maxCross.toFixed(2) }, note: bad.map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;
