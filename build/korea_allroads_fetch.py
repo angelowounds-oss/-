@@ -10,6 +10,8 @@ CLASSES = 'motorway|trunk|primary|secondary|tertiary|unclassified|residential|li
 S, W, N, E = 33.9, 125.9, 38.7, 129.7
 STEP = 0.25
 
+FAILED = []
+
 def fetch(s, w, n, e, depth=0):
     name = f'{s:.3f}_{w:.3f}_{n:.3f}_{e:.3f}'
     out = os.path.join(HERE, name + '.json')
@@ -24,7 +26,7 @@ def fetch(s, w, n, e, depth=0):
         sm, wm, nm, em = (s + n) / 2, (w + e) / 2, n, e
         for a, b, c, d in [(s, w, sm, wm), (s, wm, sm, e), (sm, w, n, wm), (sm, wm, n, e)]: fetch(a, b, c, d, depth + 1)
         return
-    raise RuntimeError('failed ' + name)
+    FAILED.append(name); print('failed', name, flush=True)   # retried once at the end of main()
 
 def main():
     os.makedirs(HERE, exist_ok=True)
@@ -35,6 +37,11 @@ def main():
             fetch(s, w, min(s + STEP, N), min(w + STEP, E))
             w += STEP
         s += STEP
+    for name in list(FAILED):   # a second pass: the mirror often recovers after a minute
+        FAILED.remove(name)
+        s0, w0, n0, e0 = (float(x) for x in name.split('_'))
+        fetch(s0, w0, n0, e0)
+    print('failed boxes left:', FAILED, flush=True)
     print('done', flush=True)
 
 if __name__ == '__main__':
