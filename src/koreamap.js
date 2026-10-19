@@ -37,6 +37,9 @@ export const ISLANDS = [
   { id: 'geoje', name: '거제도', lon: 128.6211, lat: 34.8806 },
 ];
 
+// the capital's place in the world: Seoul City Hall (ADR-0017). The game's local frame (the detailed city) is centred here; far-world data is read at world = local + CAPITAL
+export const CAPITAL = { x: -10741, z: -28553 };   // project(126.978, 37.5665), rounded to metres; unit/koreamap checks it
+
 // lon/lat to game metres: x east, z south, the origin at KOREA_ORIGIN. Azimuthal equidistant, so distances from the origin are exact and
 // distances between towns inside the country stay within about 1% (a plain equirectangular grid drifts by 2% at the north-east corner)
 export function project(lon, lat, scale = KOREA_SCALE, origin = KOREA_ORIGIN) {

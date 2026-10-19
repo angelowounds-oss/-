@@ -1,6 +1,6 @@
 // South Korea as game data (src/koreamap.js): the whole country, islands included, fits the 100 km map, every detailed city sits in its region,
 // the projection keeps distances to the scale, and the 17 regions each have exactly one detailed city.
-import { REGIONS, CITIES, ISLANDS, KOREA_SCALE, project } from '../../src/koreamap.js';
+import { REGIONS, CITIES, ISLANDS, KOREA_SCALE, CAPITAL, project } from '../../src/koreamap.js';
 import { WORLD_HALF } from '../../src/worldmap.js';
 
 const bad = [];
@@ -38,5 +38,6 @@ for (const [a, b] of pairs) {
 }
 
 const seoul = project(126.978, 37.5665);
+if (Math.abs(seoul.x - CAPITAL.x) > 1 || Math.abs(seoul.z - CAPITAL.z) > 1) bad.push(['CAPITAL is not Seoul', Math.round(seoul.x), Math.round(seoul.z)]);
 console.log('RESULT ' + JSON.stringify({ test: 'koreamap', pass: bad.length === 0, metrics: { regions: REGIONS.length, cities: CITIES.length, islands: ISLANDS.length, scale: KOREA_SCALE, widthKm: +((maxX - minX) / 1000).toFixed(1), heightKm: +((maxZ - minZ) / 1000).toFixed(1), seoulXZ: [Math.round(seoul.x), Math.round(seoul.z)] }, note: bad.slice(0, 5).map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;
