@@ -87,19 +87,30 @@ function build() {
   }
   const ringY = (cid, x, z) => { if (!N.rings.has(cid)) return null; let best = null, bd = 1e18; for (const r of N.rings.get(cid).roads) for (let i = 0; i < r.pts.length; i++) { const d = (r.pts[i][0] - x) ** 2 + (r.pts[i][1] - z) ** 2; if (d < bd) { bd = d; best = { road: r, i, d: Math.sqrt(d) }; } } return best; };
   // ---- highways: trimmed at the rings of their two cities, the profile ends on the ring's height
+  // highways that run along one another (shared corridors) take the surface of the one built first, so two roads never stand 100 m apart on the same ground
+  const HG = new Map(), HK = (x, z) => Math.floor(x / 60) * 100003 + Math.floor(z / 60);
+  const shared = (x, z) => { let best = null, bd = 25 * 25; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = HG.get(HK(x + a * 60, z + b * 60)); if (!c) continue; for (const q of c) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = q; } } } return best; };
   for (const h of highways()) {
     let P = resample(h.pts, DS);
     const a = byId.get(h.a), b = byId.get(h.b), Ra = N.rings.get(a.id)?.R, Rb = N.rings.get(b.id)?.R;
     const dist = (p, c) => Math.hypot(p[0] - c.x, p[1] - c.z);
     // an end at a city with a ring stops at the ring; an end in a compiled region stops where the region begins (its own roads go on from there)
-    const inside = (p, c, R) => (R ? dist(p, c) < R : regionWeight(p[0], p[1]) >= 1);   // where the compiled roads start: the border band blends into the world outside and holds none
-    let i0 = 0; while (i0 < P.length - 1 && inside(P[i0], a, Ra)) i0++;
-    let i1 = P.length - 1; while (i1 > 0 && inside(P[i1], b, Rb)) i1--;
+    // a line that starts outside the region (at the capital, whose keep zone holds none of its roads) and crosses it is cut where it leaves it: the stretch over the real ground has no use at the old height scale
+    const wt = (p) => regionWeight(p[0], p[1]), crosses = P.some((p) => wt(p) >= 1);
+    const trimEnd = (from, step, c, R) => {
+      if (cheb(P[from][0], P[from][1]) < 2100 && crosses) { let k = P.length - 1 - from; while (k !== from && wt(P[k]) <= 0) k -= step; return k === from ? from : k + step; }   // from the capital: out of the last stretch that touches the region
+      let i = from; const last = step > 0 ? P.length - 1 : 0; while (i !== last && ((R && dist(P[i], c) < R) || wt(P[i]) >= 1)) i += step; return i;
+    };
+    const i0 = trimEnd(0, 1, a, Ra), i1 = trimEnd(P.length - 1, -1, b, Rb);
     if (i1 - i0 < 6) continue;
     P = P.slice(i0, i1 + 1);
     const ja = ringY(a.id, P[0][0], P[0][1]), jb = ringY(b.id, P[P.length - 1][0], P[P.length - 1][1]);
-    const y = profile(P, false, ja ? ja.road.y[ja.i] : null, jb ? jb.road.y[jb.i] : null);
-    const road = { id: `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: P, y, closed: false, cls: classify(P, y), lanes: 3 }; N.roads.push(road);
+    const sh = P.map((p) => shared(p[0], p[1])), anyShared = sh.some(Boolean), shIdx = new Map(P.map((p, i) => [p, i]));
+    const against = (x, z, c) => { const q = shared(x, z); return q ? q.y : groundH(x, z, c); };
+    const y = profile(P, false, ja ? ja.road.y[ja.i] : null, jb ? jb.road.y[jb.i] : null, anyShared ? against : groundH);
+    const cls = classify(P, y, anyShared ? against : groundH); if (anyShared) sh.forEach((q, i) => { if (q) cls[i] = q.cls; });
+    const road = { id: `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: P, y, closed: false, cls, lanes: 3 }; N.roads.push(road); void shIdx;
+    P.forEach((p, i) => { const k = HK(p[0], p[1]); let l = HG.get(k); if (!l) HG.set(k, (l = [])); l.push({ x: p[0], z: p[1], y: y[i], cls: cls[i] }); });
     for (const [end, c, jn] of [[0, a, ja], [P.length - 1, b, jb]]) {
       if (!N.rings.has(c.id)) { road[end ? 'joinB' : 'joinA'] = joinRegion(P[end]); continue; }   // no ring: the end meets the region's roads, no interchange or toll
       const p = P[end], q = P[end === 0 ? 1 : P.length - 2], dir = Math.atan2(q[0] - p[0], q[1] - p[1]);   // heading pointing away from the city
