@@ -3,3 +3,4 @@ tests/results/
 build/baked/
 neon_city_v9.html
 build/.dem-tiles/
+build/.osm-cache/
