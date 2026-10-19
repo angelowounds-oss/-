@@ -4,7 +4,8 @@
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { KEEP, BAND, EDGE } from './emit.mjs';
 
-const KIND = { city: { rank: 4, r: 300 }, town: { rank: 3, r: 260 }, suburb: { rank: 2, r: 230 }, village: { rank: 1, r: 200 } };
+// r lists the pad radii to try, widest first: a city or town gets a district-sized pad (M4b-1) when the ground allows, else the old village size
+const KIND = { city: { rank: 4, r: [900, 600, 300] }, town: { rank: 3, r: [500, 350, 260] }, suburb: { rank: 2, r: [230] }, village: { rank: 1, r: [200] } };
 const SPACING = 800, MAX_PLACES = 80, MAX_SLOPE = 0.3, MAX_WET = 0.1, FADE = 40;
 const hangul = (s) => /[가-힣]/.test(s || '');
 
@@ -34,12 +35,16 @@ export function placesPass(R, gh, els, SEA) {
     if (out.length >= MAX_PLACES) break;
     let best = null, why = 'crowded';
     for (const [dx, dz] of [[0, 0], ...[200, 400].flatMap((d) => Array.from({ length: 8 }, (_, a) => [Math.cos(a * Math.PI / 4) * d, Math.sin(a * Math.PI / 4) * d]))]) {
-      const x = c.x + dx, z = c.z + dz; if (!ok(x, z) || out.some((o) => Math.hypot(o.x - x, o.z - z) < SPACING)) continue;
-      const s = site(x, z, c.k.r); if (!s) { why = 'site'; continue; }
-      best = { x, z, y: s.y }; break;
+      const x = c.x + dx, z = c.z + dz; if (!ok(x, z)) continue;
+      for (const r of c.k.r) {
+        if (out.some((o) => Math.hypot(o.x - x, o.z - z) < Math.max(SPACING, o.r + r + 100))) continue;
+        const s = site(x, z, r); if (!s) { why = 'site'; continue; }
+        best = { x, z, y: s.y, r }; break;
+      }
+      if (best) break;
     }
     if (!best) { if (why === 'site') st.steep++; else st.crowded++; continue; }
-    out.push({ id: `osm:place:${out.length}`, name: c.name, kind: c.kind, pop: c.pop, x: best.x, z: best.z, r: c.k.r, y0: best.y });
+    out.push({ id: `osm:place:${out.length}`, name: c.name, kind: c.kind, pop: c.pop, x: best.x, z: best.z, r: best.r, y0: best.y });
   }
   // the pads: inside r the ground is the site height, over the next FADE metres it returns to the natural ground
   for (const o of out) disc(o.x, o.z, o.r + FADE, (k, d) => { if (R.water[k]) return; const w = d <= o.r ? 1 : 1 - (d - o.r) / FADE, s = w * w * (3 - 2 * w); gh[k] = gh[k] * (1 - s) + o.y0 * s; });
