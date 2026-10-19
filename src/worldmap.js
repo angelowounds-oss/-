@@ -8,8 +8,7 @@
 //           cities (site search on the coarse grid), highways (A* on a coarser grid, smoothed) -> CITIES, HIGHWAYS
 import { koreaMask, landAt } from './koreamap.js';
 
-import { CAPITAL, project } from './koreamap.js';
-import { rangeHeight } from './ranges.js';
+import { CAPITAL } from './koreamap.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
@@ -30,8 +29,8 @@ export const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / 
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------------ the raw landscape (before cities are flattened)
-// Hallasan on Jeju (126.53 E, 33.36 N, WLD-20e): the cone and its volcanic biome sit on the real mountain
-export const VOLCANO = { ...project(126.53, 33.36), r: 1300, h: 1900 };   // radius ~8 km real: Jeju City, 16 km north of the summit, stays near sea level
+// Hallasan's real place (126.53 E, 33.36 N) is not used yet: moving the cone breaks the highway routes until the cities move (WLD-20f)
+export const VOLCANO = { x: -21000, z: 24000, r: 3200, h: 1900 };
 // the Korea land mask (koreamap.js, WLD-20e): the share of land on a ring of radius r around (x, z); the coast is a slope over a kilometre, not a step
 function koreaShare(x, z, r) {
   const M = koreaMask(); let sum = landAt(M, x, z);
@@ -39,7 +38,7 @@ function koreaShare(x, z, r) {
   return sum / 9;
 }
 function rawHeight(x, z) {
-  const land = Math.max(sstep(0.3, 0.7, koreaShare(x, z, 1000)), landAt(koreaMask(), x, z));   // a land cell is land even when the ring is mostly sea (small islands such as Ulleung)
+  const land = sstep(0.3, 0.7, koreaShare(x, z, 1000));
   const shelf = koreaShare(x, z, 4000);   // 0 far out at sea (deepest), 1 well inland
   const plains = 8 + 26 * fbm(x / 9000, z / 9000, 3, 2);
   const mm = sstep(0.50, 0.74, fbm(x / 30000 + 9, z / 30000 - 4, 3, 3));                    // where mountain ranges stand
@@ -47,8 +46,7 @@ function rawHeight(x, z) {
   const hills = 130 * fbm(x / 5200, z / 5200, 4, 5) * (0.35 + 0.65 * sstep(0.35, 0.62, fbm(x / 21000 + 2, z / 21000, 3, 6)));
   const dv = Math.hypot(x - VOLCANO.x, z - VOLCANO.z);
   const cone = VOLCANO.h * Math.exp(-Math.pow(dv / VOLCANO.r, 2.0)) - 420 * Math.exp(-Math.pow(dv / (VOLCANO.r * 0.12), 2.0));   // cone with a crater
-  const ridges = land * rangeHeight(x, z) * (0.55 + 0.45 * ridged(x / 3000, z / 3000, 4, 8));   // Taebaek and Sobaek spines (ranges.js)
-  const landH = plains + hills + mount + ridges + cone * land;
+  const landH = plains + hills + mount + cone * land;   // the real spines (ranges.js) are not applied yet: they break road grades and highway routes (WLD-20e)
   const seaH = SEA - 3 - 130 * sstep(0, 1, 1 - shelf);
   return lerp(seaH, landH, land);
 }

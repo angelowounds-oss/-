@@ -4,8 +4,8 @@ import { project, KOREA_SCALE } from './koreamap.js';
 // The envelope is the highest ridge line at (x, z): a Gaussian across each spine, so the crest is the peak and the flanks fall off by the half width.
 // The positions are approximate (a few km); the heights are typical crest heights, not survey values. Half widths are in real metres (the map is 1:KOREA_SCALE).
 export const RANGES = [
-  { id: 'taebaek', peak: 1400, w: 15000, pts: [[128.62, 37.95], [128.72, 37.70], [128.92, 37.10], [129.05, 36.75]] },
-  { id: 'sobaek', peak: 1000, w: 12000, pts: [[128.73, 36.95], [128.35, 36.60], [127.80, 36.20], [127.75, 35.85], [127.49, 35.33]] },
+  { id: 'taebaek', peak: 1400, w: 30000, pts: [[128.62, 37.95], [128.72, 37.70], [128.92, 37.10], [129.05, 36.75]] },
+  { id: 'sobaek', peak: 1000, w: 22000, pts: [[128.73, 36.95], [128.35, 36.60], [127.80, 36.20], [127.75, 35.85], [127.49, 35.33]] },
 ];
 
 let LINES = null;
