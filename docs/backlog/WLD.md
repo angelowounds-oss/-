@@ -125,3 +125,27 @@
 - 결정 (2026-10-19, ADR-0016): 축척 1:6.5(1:5 기각), NEON CITY는 실제 서울 위치(원점 고정 규칙 대체), 원점은 한반도 중심.
 - 다음 단계: `worldmap.js` 도시 목록을 `koreamap`으로 바꾸고(NEON CITY 원점 가정 제거), 도시 17곳 배치와 고속도로 경로 재계산.
 - 확인 필요: 시도별 인구·면적, 도시 좌표(시청 좌표는 사전 지식), 실제 지명 사용 시 간판·로고 확인.
+
+### WLD-20a 도시 기준 좌표계 결정 (ADR-0017) — P1 · S · Backlog
+- 목적: 수도를 서울 위치에 두려면 원점 가정을 어떻게 바꿀지 정한다. 결정 필요(탭으로 확인).
+- 후보: (A) 도시 로컬 프레임 + 오프셋 O(서울 위치) — 도시 생성은 로컬, 원경·도로·물리 입력에서 O를 더한다(권장). (B) 전 월드 평행 이동 — 맵 중심을 서울로 두면 한국이 ±50 km를 넘어 불가(계산 완료).
+- AC: ADR-0017 작성, 원점 의존 지점 목록(아래 20b)과 연결.
+
+### WLD-20b 원점 의존 지점 목록화 — P1 · S · Backlog
+- 목적: 수도 중심(0,0) 가정을 전부 찾는다. 확인된 곳: `landfn.js` `groundNoRiver`·`roadnet.js` `groundH`(원점 거리 블렌드 1.4~9 km), `farland.js`(셰이더 |x|,|z|<EXTENT 폐기, 물리 높이 제외 영역 156·164행), `game.js` `waterAt`(747행), `craft.js` 도시 위 판정(253행), `terrain.js`(EXTENT, 도시 지면), `worldmap.js` `CITY_DEFS.neon`(`fixed: true`), `vegfn.js` 도시 제외(18행), `roadnet.js` 연결로(94~103행, `cap = neon`), `settlements.js` 수도 연결(69~74행), `transit.js`·`aviation.js` 수도 참조.
+- AC: 목록이 테스트 가능한 형태(모듈·줄·기대 값)로 `docs/backlog/WLD.md`에 있다.
+
+### WLD-20c 수도 블록을 서울 좌표로 이동 — P1 · L · Backlog (20a·20b 뒤)
+- 범위: 도시 생성 프레임을 오프셋으로 옮기고 원경·물리·도로·셰이더 제외 영역을 같은 오프셋으로 맞춘다. 베이크 재생성.
+- AC: 수도 중심이 `koreamap` 서울 좌표와 1 m 안에서 일치, `farland`·`roadnet`·`worldnav`·`bake`·`citydetail`·`no-runtime-compile` 통과, 도시 안 픽셀 동일(시각 변경 없음; 위치만 이동).
+
+### WLD-20d 나머지 16개 도시 실제 위치와 이름 — P1 · M · Backlog (지명 결정 뒤)
+- 현재 CITY_DEFS의 가상 이름(HARBOR GATE, SKYPORT, REDWOOD…)을 실제 지명 또는 게임 지명 중 결정한 뒤 `koreamap.CITIES` 위치로 옮긴다.
+
+### WLD-20e 남한 해안·산맥·강 지형 — P1 · XL · Backlog
+- 현재 `worldmap.js`는 가상 대륙을 절차로 만든다. 한국 해안선(`prov.json`의 시도 경계를 바다 마스크로), 태백·소백산맥, 한강·낙동강을 실제 자리에 넣는다. 시도 경계는 KOSTAT 2013 단순화 파일을 쓰고 출처를 `docs/ASSETS.md`에 적는다.
+
+### WLD-20f 고속도로·철도를 실제 도시 연결로 재계산 — P1 · M · Backlog (20c 뒤)
+
+### WLD-20g 상세 도시 15~17개 스트리밍 (ADR-0012 이월) — P1 · L · Backlog
+- 수도 외 도시도 타일로 올리는 작업(4단계 도시 타일의 이월분). 로컬 원점과 타일 활성화를 함께.
