@@ -107,7 +107,7 @@
 
 ## D. 도로·철도·항공
 
-- [ ] **D1 OSM 고속도로·국도 변환**
+- [x] **D1 OSM 고속도로·국도 변환** (2026-10-19: `build/korea_roads_convert.mjs` → `assets/roads/osm-trunk.json` 3,039 KB, 18,433개 선분; `unit/osm-roads` 통과: 육지 99.8%, 고속도로 5,404 km, 1번 고속도로가 시청 12.6 km·부산 7.7 km 안. 파일 기준 3.5 MB로 조정)
   - 방법: `build/korea_roads_osm_convert.mjs`(신규)가 `build/.osm-cache/korea_roads_osm.json`(원자료 59,290개 선분)을 읽어 ① 남한 육지 마스크로 거르기(규슈·북한 제외), ② 같은 `ref`·근접(30 m 실거리 이내) 반대 방향 쌍을 중심선으로 합치기, ③ 선분을 이어 폴리라인으로, ④ `project()`로 맵 좌표, ⑤ 100 m 실거리로 단순화, ⑥ `highway`/`ref`/`lanes`/`maxspeed`/`bridge`/`tunnel` 태그 보존, ⑦ `assets/roads/osm-trunk.json`(+ 크기 제한 시 바이너리)으로 저장. 파생 자산이므로 ODbL 문구를 파일 머리에 넣는다.
   - 검증: 새 `unit/osm-roads.test.mjs`: 남한 안 선분 비율 100%, 총 길이가 실제 고속도로 연장(약 4,900 km) × 1/6.5 의 ±20% (중심선 합친 후), 경부고속도로가 서울-부산을 하나의 연결 폴리라인으로 잇고 양끝이 각각 서울/부산 도시 반경 ±10 km 실거리 안에 닿음, 중복 선분 0.
   - 완료: 위 테스트 통과, 파일 크기 ≤ 2 MB.
