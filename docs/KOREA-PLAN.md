@@ -41,7 +41,7 @@
   - 검증: 문서 링크와 파일명이 실제 존재(`ls`), 용어가 코드와 일치.
   - 완료: 각 문서에 날짜와 근거 수치.
 
-- [ ] **A5 크레딧 화면**
+- [x] **A5 크레딧 화면** (2026-10-19: 타이틀 크레딧 줄에 OpenStreetMap(ODbL), Terrarium/SRTM, KOSTAT 추가. 패널이 아니라 기존 한 줄로 두었다. `unit/credits` 통과, `loading-screen` e2e 통과)
   - 방법: 타이틀/설정에 크레딧 패널을 만들고 © OpenStreetMap contributors (ODbL), SRTM/Terrarium(AWS Open Data), KOSTAT 경계, 폰트(Anton, Space Mono) 등 `docs/ASSETS.md` 전 항목을 표시. 문구는 ASSETS.md에서 한 곳으로 모아 빌드가 읽게 한다.
   - 검증: e2e 테스트가 크레딧 열기 → 문자열 "OpenStreetMap" 존재 확인. 스크린샷 1장(Playwright, 소프트웨어 렌더).
   - 완료: ODbL 표기 의무 충족.
