@@ -25,7 +25,7 @@ run('region', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const mw = RG.regionRoads().find((r) => r.hw === 'motorway' && r.x.length > 200 && RG.regionWeight(r.x[100], r.z[100]) >= 1);
     park(mw.x[100] + 30, LF.physHeight(mw.x[100] + 30, mw.z[100], 8) + 1.5, mw.z[100]); g.eng.camera.position.set(mw.x[100], mw.y[100] + 40, mw.z[100]);
     const H = g.highways; for (let k = 0; k < 30; k++) { H.artAt = 0; H.update(g.eng.camera); }
-    const st = H.stats; o.artPieces = st.artPieces; o.artLive = st.artLive; o.artVerts = st.artVerts; o.liftedShare = st.artVerts ? +(st.artLifted / st.artVerts * 100).toFixed(2) : null;
+    const st = H.stats; o.artPieces = st.artPieces; o.artLive = st.artLive; o.artVerts = st.artVerts; o.other = st.artOther; o.otherLifted = st.artOtherLifted; o.liftedShare = st.artVerts ? +(st.artLifted / st.artVerts * 100).toFixed(2) : null;
     return o;
   });
   if (o.noRegion) return result('region', true, o, 'no compiled region in this build');

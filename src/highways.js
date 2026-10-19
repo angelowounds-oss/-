@@ -302,7 +302,7 @@ export class Highways {
       const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
       const at = (f, off, dy = 0) => {
         const x = f.x + f.rx * off, z = f.z + f.rz * off; let y = f.y;
-        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; if (g > y) y = g; }
+        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; if (dy === 0 && Math.abs(off) <= half) { this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; } else if (dy !== 0 || Math.abs(off) > half) { this.stats.artOther = (this.stats.artOther || 0) + 1; if (g - y > 0.3) this.stats.artOtherLifted = (this.stats.artOtherLifted || 0) + 1; } if (g > y) y = g; }
         return [x, y + dy, z];
       };
       if (two) {   // a two-way road: a carriageway each side of a centre line (the texture's yellow edge meets in the middle)
