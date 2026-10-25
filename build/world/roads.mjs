@@ -149,6 +149,77 @@ function layLine(R, gh, L, claimed) {
   }
 }
 
+// 5. clearance: where two lines cross, the one above must clear the one below by CLEAR (a vehicle and its deck). A structure (bridge) goes up and a tunnel
+// down; a motorway never crosses on the level, so the lower class goes over it. Same-class crossings on the ground stay junctions (ADR-0023). Each
+// move is a raised cosine along the line, long enough to keep the class's grade, and runs a few rounds because a move can break a neighbouring crossing.
+const CLEAR = 6.5, MIN_ANGLE = 20 * Math.PI / 180;
+function crossings(lines) {
+  const CS = 64, grid = new Map(), K = (a, b) => a * 100003 + b;
+  lines.forEach((L, li) => { for (let i = 0; i + 1 < L.n; i++) {
+    for (let a = Math.floor(Math.min(L.X[i], L.X[i + 1]) / CS); a <= Math.floor(Math.max(L.X[i], L.X[i + 1]) / CS); a++)
+      for (let b = Math.floor(Math.min(L.Z[i], L.Z[i + 1]) / CS); b <= Math.floor(Math.max(L.Z[i], L.Z[i + 1]) / CS); b++) { const k = K(a, b); let l = grid.get(k); if (!l) grid.set(k, (l = [])); l.push(li, i); }
+  } });
+  const seen = new Set(), out = [];
+  for (const l of grid.values()) for (let u = 0; u < l.length; u += 2) for (let v = u + 2; v < l.length; v += 2) {
+    const A = l[u], a = l[u + 1], B = l[v], b = l[v + 1]; if (A === B) continue;
+    const key = A < B ? `${A}:${a}:${B}:${b}` : `${B}:${b}:${A}:${a}`; if (seen.has(key)) continue; seen.add(key);
+    const P = lines[A], Q = lines[B];
+    const ax = P.X[a], az = P.Z[a], bx = P.X[a + 1], bz = P.Z[a + 1], cx = Q.X[b], cz = Q.Z[b], dx = Q.X[b + 1], dz = Q.Z[b + 1];
+    const o = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px), d1 = o(ax, az, bx, bz, cx, cz), d2 = o(ax, az, bx, bz, dx, dz), d3 = o(cx, cz, dx, dz, ax, az), d4 = o(cx, cz, dx, dz, bx, bz);
+    if (!(d1 * d2 < 0 && d3 * d4 < 0)) continue;
+    let ang = Math.abs(Math.atan2(bz - az, bx - ax) - Math.atan2(dz - cz, dx - cx)) % Math.PI; ang = Math.min(ang, Math.PI - ang); if (ang < MIN_ANGLE) continue;
+    const t = d3 / (d3 - d4), t2 = d1 / (d1 - d2);
+    out.push({ A, a, ta: t, B, b, tb: t2, ya: P.Y[a] + (P.Y[a + 1] - P.Y[a]) * t, yb: Q.Y[b] + (Q.Y[b + 1] - Q.Y[b]) * t2 });
+  }
+  return out;
+}
+function bump(L, i, h) {
+  // h > 0 raises, h < 0 lowers. The offsets of all moves on a line are kept apart from its profile and combined by taking the largest (a sum of two humps
+  // doubles the grade; the largest keeps each hump's own). The foot, measured along the line (relaxing a bend packs points), allows a quarter of the class grade.
+  if (!L.Y0) { L.Y0 = Float64Array.from(L.Y); L.H = new Float64Array(L.n); L.at = [0]; for (let q = 1; q < L.n; q++) L.at.push(L.at[q - 1] + Math.hypot(L.X[q] - L.X[q - 1], L.Z[q] - L.Z[q - 1])); }
+  const T = L.H[i] + h, foot = Math.abs(T) * Math.PI / (2 * CLASS[L.hw].grade * 0.25), top = 14;
+  for (let q = 0; q < L.n; q++) {
+    const e = Math.max(0, Math.abs(L.at[q] - L.at[i]) - top); if (e >= foot) continue;
+    const o = T * 0.5 * (1 + Math.cos(Math.PI * e / foot));
+    if (T > 0 ? o > L.H[q] : o < L.H[q]) L.H[q] = o;
+    L.Y[q] = L.Y0[q] + L.H[q];
+    if (L.H[q] > 1.5 && !L.cls[q]) L.cls[q] = 1; else if (L.H[q] < -1.5 && !L.cls[q]) L.cls[q] = 2;
+  }
+}
+function clearancePass(lines) {
+  const st = { rounds: 0, moved: 0, maxRaise: 0, junctionsLeft: 0, before: null, after: null };
+  for (let round = 0; round < 12; round++) {
+    const X = crossings(lines); let bad = 0, junc = 0;
+    const need = [];
+    for (const c of X) {
+      const P = lines[c.A], Q = lines[c.B], sa = P.cls[c.a] || P.cls[c.a + 1], sb = Q.cls[c.b] || Q.cls[c.b + 1], dy = Math.abs(c.ya - c.yb);
+      if (dy >= CLEAR) continue;
+      const mw = P.hw === 'motorway' || Q.hw === 'motorway';
+      if (!sa && !sb && !mw) { junc++; continue; }   // a junction on the ground
+      bad++; need.push({ c, P, Q, sa, sb, mw, dy });
+    }
+    if (round === 0) st.before = { crossings: X.length, deficient: bad, junctions: junc };
+    st.junctionsLeft = junc; st.after = { crossings: X.length, deficient: bad, junctions: junc };
+    if (!bad) break; st.rounds = round + 1;
+    need.sort((p, q) => p.dy - q.dy);
+    const moved = new Map();
+    for (const { c, P, Q, sa, sb, mw } of need) {
+      // who moves: the line with a bridge goes up, a tunnel goes down; on the ground the lower class (or the shorter line) goes over the motorway
+      let mover, other, ym, yo, dir;
+      if (sa === 2 || sb === 2) { const aTun = sa === 2; mover = aTun ? c.A : c.B; other = aTun ? c.B : c.A; dir = -1; }
+      else if (sa === 1 || sb === 1) { const aBr = sa === 1 && (sb !== 1 || c.ya >= c.yb); mover = aBr ? c.A : c.B; other = aBr ? c.B : c.A; dir = 1; }
+      else { const aLow = CLASS[P.hw].order > CLASS[Q.hw].order || (P.hw === Q.hw && P.n <= Q.n); mover = aLow ? c.A : c.B; other = aLow ? c.B : c.A; dir = 1; }
+      const mi = mover === c.A ? c.a : c.b, mt = mover === c.A ? c.ta : c.tb; ym = mover === c.A ? c.ya : c.yb; yo = mover === c.A ? c.yb : c.ya;
+      const L0 = lines[mover], dist = (q) => Math.hypot(L0.X[q] - L0.X[mi], L0.Z[q] - L0.Z[mi]); if ((moved.get(mover) || []).some((q) => dist(q) < 160)) continue; if (!moved.has(mover)) moved.set(mover, []); moved.get(mover).push(mi);   // one move per stretch and round: two on top of each other would double the grade
+      const want = dir > 0 ? yo + CLEAR + 0.5 : yo - CLEAR - 0.5, h = want - ym;
+      if (dir > 0 ? h <= 0 : h >= 0) continue;
+      bump(lines[mover], mt > 0.5 ? mi + 1 : mi, h); st.moved++; st.maxRaise = Math.max(st.maxRaise, Math.abs(h));
+      void other; void mw;
+    }
+  }
+  return st;
+}
+
 // the whole pass: returns the generalized lines (with profiles) and their numbers; gh is changed in place
 export function roadPass(R, gh, els) {
   const lines = chains(els).map(generalize).filter((L) => L.n >= 3).sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order);
@@ -156,6 +227,7 @@ export function roadPass(R, gh, els) {
   const claimed = new Uint8Array(R.nx * R.nz);
   lines.sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order || b.n - a.n);
   for (const L of lines) { profile(L, R, gh, claimed); layLine(R, gh, L, claimed); }
+  const clearance = clearancePass(lines);
   // last, one rule for every road: the ground under a carriageway is never above its surface (it is only lowered), measured against the surface at
   // the nearest point of the line. Only the carriageway's own width: a cell-wide reach also pushed the ground down under the roads beside it
   for (const L of lines) {
@@ -190,5 +262,6 @@ export function roadPass(R, gh, els) {
     stats[hw] = { lines: ls.length, kmReal: Math.round(km * 6.5 / 1000), bridgePct: +(bridge / km * 100).toFixed(1), tunnelPct: +(tunnel / km * 100).toFixed(1), gradeP99: +q(grades, 0.99).toFixed(3), gradeMax: +gradeMax.toFixed(3),
       groundGapP99m: +q(gaps, 0.99).toFixed(2), within05m: +(gaps.filter((v) => v <= 0.5).length / (gaps.length || 1) * 100).toFixed(2), groundAbove03Pct: +(poke / (gaps.length || 1) * 100).toFixed(2), floatingOver2mPct: +(floating / (gaps.length || 1) * 100).toFixed(2), linesStillTight: tightLeft, shiftMaxRealM: Math.round(shiftMax * 6.5) };
   }
+  stats.clearance = clearance;
   return { lines, stats };
 }
