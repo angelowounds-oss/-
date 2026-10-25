@@ -14,7 +14,8 @@ import { GR, grp } from './physics.js';
 const CHUNK = 100, LANE = 3.75, MED = 3.2, SHOULDER = 2.4;
 // compiled arterial lines (roadnet kind 'arterial', ADR-0019): pieces of ART samples built near the camera and dropped beyond; the big roads are seen
 // from further away
-const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200 }, ART_OFF = 1.4, ART_BUDGET = 4;
+const LOCAL_LAMPS = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // no lamp poles along the smaller roads
+const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200, motorway_link: 3000, trunk_link: 3000, primary_link: 2200, secondary_link: 1600, tertiary: 1600, tertiary_link: 1200, residential: 700 }, ART_OFF = 1.4, ART_BUDGET = 4;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 class Acc {
@@ -286,7 +287,7 @@ export class Highways {
     outer: for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) {
       const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue;
       for (let q = 0; q < cell.length; q += 2) {
-        const ri = cell[q], i = cell[q + 1], r = N.roads[ri]; if (r.kind === 'ramp' || (r.kind === 'arterial' ? r.hw === 'secondary' || i % 5 : i % 2)) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
+        const ri = cell[q], i = cell[q + 1], r = N.roads[ri]; if (r.kind === 'ramp' || (r.kind === 'arterial' ? LOCAL_LAMPS[r.hw] || i % 5 : i % 2)) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
         const px = r.pts[i][0], pz = r.pts[i][1]; if ((px - x) ** 2 + (pz - z) ** 2 > R * R || r.cls[i] === 2) continue;
         const f = this.frame(r, i), side = r.kind === 'arterial' ? this.artWidth(r).half + 0.8 : 0; L.pos.set(f.x + f.rx * side, f.y, f.z + f.rz * side); L.q.setFromAxisAngle(L.up, Math.atan2(f.rx, f.rz)); L.mat.compose(L.pos, L.q, L.one);
         L.poleMesh.setMatrixAt(k, L.mat); L.headMesh.setMatrixAt(k, L.mat); if (++k >= L.MAX) break outer;

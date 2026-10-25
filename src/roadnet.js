@@ -143,7 +143,7 @@ function build() {
     let ln = loop[0], bd = 9; for (const p of loop) { const d = Math.abs(((p.a - a + Math.PI * 3) % 6.2832) - Math.PI); if (d < bd) { bd = d; ln = p; } }
     const r0 = Math.hypot(ln.x, ln.z), out = 2200 / Math.max(Math.abs(ca), Math.abs(sa)), ox = cap.x + ca * out, oz = cap.z + sa * out;   // just beyond the keep band (1500 + 600)
     let tgt = null, td = 900;
-    for (const r of regionRoads()) { if (r.hw === 'secondary') continue; for (let i = 0; i < r.x.length; i += 2) { const d = Math.hypot(r.x[i] - ox, r.z[i] - oz); if (d < td) { td = d; tgt = { r, i }; } } }
+    for (const r of regionRoads()) { if (r.hw !== 'motorway' && r.hw !== 'trunk' && r.hw !== 'primary') continue; for (let i = 0; i < r.x.length; i += 2) { const d = Math.hypot(r.x[i] - ox, r.z[i] - oz); if (d < td) { td = d; tgt = { r, i }; } } }
     if (!tgt) continue;
     const P0 = [], via = [[cap.x + ca * r0, cap.z + sa * r0], [ox, oz], [tgt.r.x[tgt.i], tgt.r.z[tgt.i]]];
     for (let s2 = 0; s2 + 1 < via.length; s2++) { const [A, B] = [via[s2], via[s2 + 1]], m = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1]) / DS)); for (let i = 0; i < m; i++) P0.push([A[0] + (B[0] - A[0]) * i / m, A[1] + (B[1] - A[1]) * i / m]); }

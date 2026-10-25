@@ -18,23 +18,36 @@ export const CLASS = {
   motorway_link: { rmin: 50, grade: 0.08, half: 4, order: 0.5 },
   trunk_link: { rmin: 40, grade: 0.09, half: 4, order: 1.5 },
   primary_link: { rmin: 30, grade: 0.09, half: 4, order: 2.5 },
+  secondary_link: { rmin: 25, grade: 0.1, half: 3.5, order: 3.5 },
+  // collectors and streets (KOR-R4): a street follows the ground (lay: false) instead of cutting a corridor through the 16 m raster, where it would
+  // flatten a town into steps; its dead ends are real, so they are not led on to the next road
+  tertiary: { rmin: 20, grade: 0.12, half: 3.5, order: 4 },
+  tertiary_link: { rmin: 20, grade: 0.12, half: 3, order: 4.5 },
+  residential: { rmin: 12, grade: 0.15, half: 3, order: 5, lay: false },
 };
+const NORM = { unclassified: 'residential', living_street: 'residential' };   // other OpenStreetMap classes that are streets here
 const FADE = 30, SMOOTH = 12;
 // the width the game draws (src/highways.js artWidth): a one-way carriageway of n lanes, or a two-way road of n lanes each side, plus shoulders
-export const DEFAULT_LANES = { motorway: 3, trunk: 2, primary: 2, secondary: 1, motorway_link: 1, trunk_link: 1, primary_link: 1 };   // per direction when OpenStreetMap gives none
+export const DEFAULT_LANES = { motorway: 3, trunk: 2, primary: 2, secondary: 1, motorway_link: 1, trunk_link: 1, primary_link: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // per direction when OpenStreetMap gives none
 export function lanesOf(L) { return L.lanes || (L.oneway ? DEFAULT_LANES[L.hw] : 2 * DEFAULT_LANES[L.hw]); }
 export function halfOf(L) { const per = Math.max(1, Math.min(4, L.oneway ? lanesOf(L) : Math.ceil(lanesOf(L) / 2))), w = per * 3.75 + 2.4; return L.oneway ? w / 2 : w; }   // metres from the flat edge back to the ground; samples each side in the profile mean
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+// a way with a point inside a site (map metres, with its radius and a margin for the streets around it)
+function inSites(geom, sites) {
+  for (const p of geom) { const q = project(p.lon, p.lat); for (const o of sites) if (Math.hypot(q.x - o.x, q.z - o.z) < o.r) return true; }
+  return false;
+}
 // 1. long lines: pieces of the same class and name (or ref) joined where one ends and the next begins, in the direction of travel
-function chains(els) {
+function chains(els, sites) {
   const key = (p) => `${Math.round(p.lon * 1e6)},${Math.round(p.lat * 1e6)}`, groups = new Map();
   for (const e of els) {
-    const t = e.tags || {}; if (!CLASS[t.highway] || !e.geometry || e.geometry.length < 2) continue;
-    const g = t.highway + '|' + (t.ref || t.name || e.id); if (!groups.has(g)) groups.set(g, []);
+    const t = e.tags || {}, hw = NORM[t.highway] || t.highway; if (!CLASS[hw] || !e.geometry || e.geometry.length < 2) continue;
+    if (CLASS[hw].lay === false && !inSites(e.geometry, sites)) continue;   // streets only where there is a town
+    const g = hw + '|' + (t.ref || t.name || e.id); if (!groups.has(g)) groups.set(g, []);
     const lanes = parseInt(t.lanes, 10);
-    groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes' || ((t.highway === 'motorway' || t.highway.endsWith('_link')) && t.oneway !== 'no'),
-      lanes: lanes > 0 ? lanes : 0, ref: t.ref || null, name: t.name || null, hw: t.highway, used: false });
+    groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes' || ((hw === 'motorway' || hw.endsWith('_link')) && t.oneway !== 'no'),
+      lanes: lanes > 0 ? lanes : 0, ref: t.ref || null, name: t.name || null, hw, used: false });
   }
   const out = [];
   for (const list of groups.values()) {
@@ -102,7 +115,7 @@ function snapEnds(lines) {
   let snapped = 0, left = 0; const add = [];
   lines.forEach((L, li) => {
     for (const end of [0, 1]) {
-      const i = end ? L.n - 1 : 0, j = end ? L.n - 2 : 1; if (nearest(li, L.X[i], L.Z[i], SNAP_NEAR)) continue;
+      const i = end ? L.n - 1 : 0, j = end ? L.n - 2 : 1; if (CLASS[L.hw].lay === false || nearest(li, L.X[i], L.Z[i], SNAP_NEAR)) continue;
       const t = nearest(li, L.X[i], L.Z[i], SNAP); if (!t) { left++; continue; }
       const tx = lines[t[0]].X[t[1]], tz = lines[t[0]].Z[t[1]], da = Math.atan2(L.Z[i] - L.Z[j], L.X[i] - L.X[j]), db = Math.atan2(tz - L.Z[i], tx - L.X[i]);
       let d = Math.abs(da - db) % (2 * Math.PI); d = Math.min(d, 2 * Math.PI - d); if (d > SNAP_ANGLE) { left++; continue; }
@@ -257,17 +270,18 @@ function clearancePass(lines) {
 }
 
 // the whole pass: returns the generalized lines (with profiles) and their numbers; gh is changed in place
-export function roadPass(R, gh, els) {
-  const lines = chains(els).map(generalize).filter((L) => L.n >= 3).sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order);
+export function roadPass(R, gh, els, sites = []) {
+  const lines = chains(els, sites).map(generalize).filter((L) => L.n >= 3).sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order);
   // highest class first, longest line first within a class: each line reads the ground the earlier ones left, then is laid
   const snap = snapEnds(lines);
   const claimed = new Uint8Array(R.nx * R.nz);
   lines.sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order || b.n - a.n);
-  for (const L of lines) { profile(L, R, gh, claimed); layLine(R, gh, L, claimed); }
+  for (const L of lines) { profile(L, R, gh, claimed); if (CLASS[L.hw].lay !== false) layLine(R, gh, L, claimed); }
   const clearance = clearancePass(lines);
   // last, one rule for every road: the ground under a carriageway is never above its surface (it is only lowered), measured against the surface at
   // the nearest point of the line. Only the carriageway's own width: a cell-wide reach also pushed the ground down under the roads beside it
   for (const L of lines) {
+    if (CLASS[L.hw].lay === false) continue;
     const r = halfOf(L) + 1;   // the carriageway itself: a wider reach pushes the ground down under the roads beside it
     for (let s = 0; s + 1 < L.n; s++) {
       if (L.cls[s] || L.cls[s + 1]) continue;
