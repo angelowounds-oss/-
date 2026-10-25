@@ -14,10 +14,14 @@ export const CLASS = {
   trunk: { rmin: 60, grade: 0.08, half: 6, order: 1 },
   primary: { rmin: 60, grade: 0.08, half: 5, order: 2 },
   secondary: { rmin: 30, grade: 0.1, half: 4, order: 3 },
+  // slip roads and interchange ramps (OpenStreetMap *_link): slower design speed than the road they leave, one lane, one way; laid just after it
+  motorway_link: { rmin: 50, grade: 0.08, half: 4, order: 0.5 },
+  trunk_link: { rmin: 40, grade: 0.09, half: 4, order: 1.5 },
+  primary_link: { rmin: 30, grade: 0.09, half: 4, order: 2.5 },
 };
 const FADE = 30, SMOOTH = 12;
 // the width the game draws (src/highways.js artWidth): a one-way carriageway of n lanes, or a two-way road of n lanes each side, plus shoulders
-export const DEFAULT_LANES = { motorway: 3, trunk: 2, primary: 2, secondary: 1 };   // per direction when OpenStreetMap gives none
+export const DEFAULT_LANES = { motorway: 3, trunk: 2, primary: 2, secondary: 1, motorway_link: 1, trunk_link: 1, primary_link: 1 };   // per direction when OpenStreetMap gives none
 export function lanesOf(L) { return L.lanes || (L.oneway ? DEFAULT_LANES[L.hw] : 2 * DEFAULT_LANES[L.hw]); }
 export function halfOf(L) { const per = Math.max(1, Math.min(4, L.oneway ? lanesOf(L) : Math.ceil(lanesOf(L) / 2))), w = per * 3.75 + 2.4; return L.oneway ? w / 2 : w; }   // metres from the flat edge back to the ground; samples each side in the profile mean
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -29,7 +33,7 @@ function chains(els) {
     const t = e.tags || {}; if (!CLASS[t.highway] || !e.geometry || e.geometry.length < 2) continue;
     const g = t.highway + '|' + (t.ref || t.name || e.id); if (!groups.has(g)) groups.set(g, []);
     const lanes = parseInt(t.lanes, 10);
-    groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes' || (t.highway === 'motorway' && t.oneway !== 'no'),
+    groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes' || ((t.highway === 'motorway' || t.highway.endsWith('_link')) && t.oneway !== 'no'),
       lanes: lanes > 0 ? lanes : 0, ref: t.ref || null, name: t.name || null, hw: t.highway, used: false });
   }
   const out = [];

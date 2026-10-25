@@ -74,7 +74,7 @@ for (const { name, v } of [{ name: '1 (no scale)', v: 1 }, ...Vs]) { const a = b
 // ---- roads (M3a): the arterial network laid in at the first height scale
 let roads = null;
 if (args.roads) {
-  const t1 = Date.now(), rels = overpass(`roads-${args.region || 'capital'}`, `[out:json][timeout:240];way["highway"~"^(motorway|trunk|primary|secondary)$"](${B4});out geom tags;`);
+  const t1 = Date.now(), rels = overpass(`roads-${args.region || 'capital'}`, `[out:json][timeout:240];way["highway"~"^(motorway|trunk|primary|secondary|motorway_link|trunk_link|primary_link)$"](${B4});out geom tags;`);
   const gh = waterHeights(R, Vs[0].v);
   // the real settlements (M4a): sites chosen and their pads cut into the ground before the roads are laid in
   const pl = placesPass(R, gh, overpass(`places-${args.region || 'capital'}`, `[out:json][timeout:120];(node["place"~"^(city|town|village|suburb)$"]["name"](${B4}););out;`), SEA); stats.places = pl.stats;
