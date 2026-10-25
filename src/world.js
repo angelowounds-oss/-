@@ -7,6 +7,7 @@ import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { buildRelief } from './relief.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
+import { nearestRoad, ROAD_W } from './terrainfn.js';
 import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
 import paveA from '../assets/tex/concrete_pavers_a.jpg';
@@ -949,10 +950,13 @@ export function buildWorld(scene, quality) {
   {
     const clear = world.promenade.outer + 18; // keep off the model ring and its back wall
     const fr = mulberry32(31337);
+    const onRoad = (x, z, w, d) => { for (const [i, j] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) { const r = nearestRoad(x + i * w / 2, z + j * d / 2); if (r && r.d < ROAD_W / 2 + 10) return true; } return false; };
     for (let tries = 0; far.length < 120 && tries < 1500; tries++) {
       const a = fr() * TAU, dist = HALF + P * 2 + 30 + fr() * 420;
       const w = 30 + fr() * 60, d = 30 + fr() * 60, h = 80 + fr() * 250, x = Math.cos(a) * dist, z = Math.sin(a) * dist;
       if (Math.max(Math.abs(x) - w / 2, Math.abs(z) - d / 2) < clear) continue;
+      // the mountain road and its access roads start at 1 km: a tower never stands on one (probe the footprint's corners, edge middles and centre)
+      if (onRoad(x, z, w, d)) continue;
       if (far.some((f) => Math.abs(f.x - x) < (f.w + w) / 2 + 14 && Math.abs(f.z - z) < (f.d + d) / 2 + 14)) continue;
       far.push({ x, z, w, d, h, style: Math.floor(fr() * 4), accent: Math.floor(fr() * 6), seed: fr() * 50, tex: Math.floor(fr() * 4), color: new THREE.Color(pickR(wallColors)).multiplyScalar(0.8) });
     }
