@@ -7,7 +7,7 @@
 //      them, and its own flat surface becomes final for the lines after it
 import { project } from '../../src/koreamap.js';
 
-const STEP = 8;   // map metres between line points
+const STEP = 8, MIN_GAP = 3;   // map metres between line points; the closest two points may be after relaxing
 // per class: minimum radius and maximum grade (1:1 design rules, game metres), half width of one carriageway, priority (lower lays first)
 export const CLASS = {
   motorway: { rmin: 154, grade: 0.06, half: 7, order: 0 },
@@ -82,8 +82,40 @@ function generalize(c) {
     for (let i = 1; i < n - 1; i++) if (bad[i]) { x[i] = 0.5 * x[i] + 0.25 * (x[i - 1] + x[i + 1]); z[i] = 0.5 * z[i] + 0.25 * (z[i - 1] + z[i + 1]); }
   }
   let shift = 0; for (let i = 0; i < n; i++) shift = Math.max(shift, Math.hypot(x[i] - X0[i], z[i] - Z0[i]));
+  // relaxing a bend packs points a metre apart; they add nothing and make a kink in the ribbon, so drop the ones closer than MIN_GAP (the ends stay)
+  const keep = [0]; for (let i = 1; i < n - 1; i++) if (Math.hypot(x[i] - x[keep[keep.length - 1]], z[i] - z[keep[keep.length - 1]]) >= MIN_GAP) keep.push(i);
+  if (keep.length > 1 && Math.hypot(x[n - 1] - x[keep[keep.length - 1]], z[n - 1] - z[keep[keep.length - 1]]) < MIN_GAP) keep.pop();
+  keep.push(n - 1);
+  if (keep.length < n) { const nx = Float64Array.from(keep, (i) => x[i]), nz = Float64Array.from(keep, (i) => z[i]), nc = Uint8Array.from(keep, (i) => C[i]); return { hw: c.hw, oneway: c.oneway, lanes: c.lanes, ref: c.ref, name: c.name, X: nx, Z: nz, cls: nc, shift, tight, rminSeen: Infinity, n: keep.length }; }
   let rminSeen = Infinity; for (let i = k; i < n - k; i++) rminSeen = Math.min(rminSeen, radius(i));
   return { hw: c.hw, oneway: c.oneway, lanes: c.lanes, ref: c.ref, name: c.name, X: x, Z: z, cls: Uint8Array.from(C), shift, tight, rminSeen, n };
+}
+
+// 2b. a line that ends short of another road (generalizing moves ends by tens of metres, and ways end at roads this pass does not carry) is led on to it
+const SNAP = 130, SNAP_NEAR = 40, SNAP_ANGLE = 70 * Math.PI / 180;
+function snapEnds(lines) {
+  const CS = 64, grid = new Map(), K = (a, b) => a * 100003 + b;
+  lines.forEach((L, li) => { for (let i = 0; i < L.n; i++) { const k = K(Math.floor(L.X[i] / CS), Math.floor(L.Z[i] / CS)); let l = grid.get(k); if (!l) grid.set(k, (l = [])); l.push(li, i); } });
+  const nearest = (li, x, z, rad) => { let best = null, bd = rad; const n = Math.ceil(rad / CS);
+    for (let a = -n; a <= n; a++) for (let b = -n; b <= n; b++) { const c = grid.get(K(Math.floor(x / CS) + a, Math.floor(z / CS) + b)); if (!c) continue; for (let q = 0; q < c.length; q += 2) { if (c[q] === li) continue; const d = Math.hypot(lines[c[q]].X[c[q + 1]] - x, lines[c[q]].Z[c[q + 1]] - z); if (d < bd) { bd = d; best = [c[q], c[q + 1], d]; } } }
+    return best; };
+  let snapped = 0, left = 0; const add = [];
+  lines.forEach((L, li) => {
+    for (const end of [0, 1]) {
+      const i = end ? L.n - 1 : 0, j = end ? L.n - 2 : 1; if (nearest(li, L.X[i], L.Z[i], SNAP_NEAR)) continue;
+      const t = nearest(li, L.X[i], L.Z[i], SNAP); if (!t) { left++; continue; }
+      const tx = lines[t[0]].X[t[1]], tz = lines[t[0]].Z[t[1]], da = Math.atan2(L.Z[i] - L.Z[j], L.X[i] - L.X[j]), db = Math.atan2(tz - L.Z[i], tx - L.X[i]);
+      let d = Math.abs(da - db) % (2 * Math.PI); d = Math.min(d, 2 * Math.PI - d); if (d > SNAP_ANGLE) { left++; continue; }
+      const m = Math.max(1, Math.round(t[2] / STEP)), px = [], pz = []; for (let q = 1; q <= m; q++) { px.push(L.X[i] + (tx - L.X[i]) * q / m); pz.push(L.Z[i] + (tz - L.Z[i]) * q / m); }
+      add.push({ li, end, px, pz }); snapped++;
+    }
+  });
+  for (const { li, end, px, pz } of add) {
+    const L = lines[li], X = Array.from(L.X), Z = Array.from(L.Z), C = Array.from(L.cls);
+    if (end) { X.push(...px); Z.push(...pz); C.push(...px.map(() => 0)); } else { X.unshift(...px.reverse()); Z.unshift(...pz.reverse()); C.unshift(...px.map(() => 0)); }
+    L.X = Float64Array.from(X); L.Z = Float64Array.from(Z); L.cls = Uint8Array.from(C); L.n = X.length;
+  }
+  return { snapped, left };
 }
 
 // bilinear ground of a raster at map metres
@@ -228,6 +260,7 @@ function clearancePass(lines) {
 export function roadPass(R, gh, els) {
   const lines = chains(els).map(generalize).filter((L) => L.n >= 3).sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order);
   // highest class first, longest line first within a class: each line reads the ground the earlier ones left, then is laid
+  const snap = snapEnds(lines);
   const claimed = new Uint8Array(R.nx * R.nz);
   lines.sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order || b.n - a.n);
   for (const L of lines) { profile(L, R, gh, claimed); layLine(R, gh, L, claimed); }
@@ -266,6 +299,6 @@ export function roadPass(R, gh, els) {
     stats[hw] = { lines: ls.length, kmReal: Math.round(km * 6.5 / 1000), bridgePct: +(bridge / km * 100).toFixed(1), tunnelPct: +(tunnel / km * 100).toFixed(1), gradeP99: +q(grades, 0.99).toFixed(3), gradeMax: +gradeMax.toFixed(3),
       groundGapP99m: +q(gaps, 0.99).toFixed(2), within05m: +(gaps.filter((v) => v <= 0.5).length / (gaps.length || 1) * 100).toFixed(2), groundAbove03Pct: +(poke / (gaps.length || 1) * 100).toFixed(2), floatingOver2mPct: +(floating / (gaps.length || 1) * 100).toFixed(2), linesStillTight: tightLeft, shiftMaxRealM: Math.round(shiftMax * 6.5) };
   }
-  stats.clearance = clearance;
+  stats.clearance = clearance; stats.snap = snap;
   return { lines, stats };
 }
