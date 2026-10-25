@@ -9,7 +9,8 @@ import { clamp, rand } from './util.js';
 const LANE = 3.75, MED = 3.2, CAP = 16, NEAR = 1500, FAR = 2100;
 // lanes per direction of a compiled line, as drawn (highways.js artWidth)
 const lanesOf = (r) => Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
-const SPEED = { motorway: [27, 38], trunk: [20, 30], primary: [13, 19], secondary: [10, 14] };
+const SPEED = { motorway: [27, 38], trunk: [20, 30], primary: [13, 19], secondary: [10, 14], motorway_link: [15, 22], trunk_link: [12, 18], primary_link: [10, 15], secondary_link: [8, 12], tertiary: [8, 12], tertiary_link: [7, 10], residential: [5, 8] };
+const LOCAL = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // roads that carry no highway traffic
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13; return ((h >>> 0) % 100000) / 100000; };
 const KINDS = ['sedan', 'sedan', 'sedan', 'suv', 'sport', 'truck', 'truck', 'suv'];
 
@@ -32,7 +33,7 @@ export class HighwayTraffic {
   nearestSample(x, z, max = 2500) {
     const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS);
     let best = null, bd = max * max;
-    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || (r.kind === 'arterial' && r.hw === 'secondary')) continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || (r.kind === 'arterial' && LOCAL[r.hw])) continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
   }
 

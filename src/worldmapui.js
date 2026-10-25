@@ -32,7 +32,7 @@ const CSS = `
 #wpHud.on{display:block}
 `;
 const KIND_COL = { highway: '#ffd24a', ring: '#ff9a3a', connector: '#ffb86a' };
-const HW_COL = { motorway: '#ff6a3a', trunk: '#ffb24a', primary: '#ffe08a', secondary: '#e8e8e0' }, HW_W = { motorway: 10, trunk: 8, primary: 5, secondary: 3 };   // compiled lines
+const HW_COL = { motorway: '#ff6a3a', trunk: '#ffb24a', primary: '#ffe08a', secondary: '#e8e8e0', motorway_link: '#ff9a6a', trunk_link: '#ffc87a', primary_link: '#ffeaa8', secondary_link: '#d8d8d0', tertiary: '#c8c8c0', tertiary_link: '#c0c0b8', residential: '#8a8a88' }, HW_W = { motorway: 10, trunk: 8, primary: 5, secondary: 3, motorway_link: 4, trunk_link: 3, primary_link: 3, secondary_link: 2, tertiary: 2, tertiary_link: 1.5, residential: 1.2 };   // compiled lines
 
 export class WorldMapUI {
   constructor(G) {
@@ -159,7 +159,7 @@ export class WorldMapUI {
     const vis = (x, z) => { const [px, py] = this.toScreen(x, z); return px > -60 && px < W + 60 && py > -60 && py < H + 60; };
     for (const r of N.roads) {
       if (r.kind === 'ramp' && L < 2) continue;
-      const art = r.kind === 'arterial'; if (art && L < 1 && r.hw === 'secondary') continue;
+      const art = r.kind === 'arterial'; if (art && L < 1 && (r.hw === 'secondary' || r.hw === 'secondary_link' || r.hw === 'tertiary' || r.hw === 'tertiary_link' || r.hw === 'residential')) continue; if (art && L < 3 && r.hw === 'residential') continue;
       g.strokeStyle = art ? HW_COL[r.hw] : r.kind === 'ramp' ? '#caa' : KIND_COL[r.kind] || '#ffd24a'; g.lineWidth = Math.max(art ? 0.8 : 1.2, (art ? HW_W[r.hw] : r.kind === 'ramp' ? 5 : 14) * s * (L > 1 ? 1 : 1)) * (L === 0 ? 1.6 : 1);
       if (L >= 2) g.lineWidth = Math.max(2, (r.kind === 'ramp' ? 7 : 18) * s);
       g.beginPath(); let on = false;

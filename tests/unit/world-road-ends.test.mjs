@@ -10,7 +10,7 @@ else {
   const near = (x, z, ri, rad) => { let b = 1e9; const a = Math.floor(x / CS), c = Math.floor(z / CS), n = Math.ceil(rad / CS); for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const l = grid.get(K(a + i, c + j)); if (!l) continue; for (let q = 0; q < l.length; q += 2) { if (l[q] === ri) continue; const d = Math.hypot(R[l[q]].x[l[q + 1]] - x, R[l[q]].z[l[q + 1]] - z); if (d < b) b = d; } } return b; };
   let inner = 0, ends = 0, pts = 0, sharp = 0, dup = 0;
   R.forEach((r, ri) => {
-    const n = r.x.length; pts += n;
+    const n = r.x.length; pts += n; if (r.hw === 'residential') { for (let i = 1; i + 1 < n; i++) if (Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1]) < 2) dup++; return; }
     for (const [idx, link] of [[0, r.prev], [n - 1, r.next]]) { ends++; if (link && link.length) continue; if (near(r.x[idx], r.z[idx], ri, 60) < 40) continue;
       const x = r.x[idx], z = r.z[idx], dEdge = Math.min(x - reg.x0, reg.x0 + reg.nx * g - x, z - reg.z0, reg.z0 + reg.nz * g - z), dKeep = Math.max(Math.abs(x), Math.abs(z)); if (dEdge >= 1200 && dKeep >= 2200) inner++; }
     for (let i = 1; i + 1 < n; i++) {
