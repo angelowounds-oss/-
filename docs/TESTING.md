@@ -72,6 +72,12 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | perf | `nav-perf` | 경로 탐색 160건(도달 불가 포함) | 평균 < 3 ms, p95 < 10 ms, 최대 < 40 ms |
 | perf | `autoquality` | 동적 해상도: 나쁜 순간 후 60 Hz에서 복귀, GPU 한계 시 백오프 | 복귀 1.0, 대기 48 s 이상 |
 
+## 기준 장면 (AAA-PLAN Q0-3, `src/views.js`)
+- 열두 장면(장소, 시각, 날씨, 카메라 고정)으로 화면 변경을 전후로 비교한다. 화면이 바뀌는 PR은 전후 시트를 함께 낸다.
+- 시트: `node tests/tools/golden-views.cjs`(결과 `tests/results/golden-views.png`, 커밋 안 함). `PICK=1,5`로 일부만, `TWICE=1`로 같은 장면을 두 번 찍어 바이트 차이를 출력, `Q=0..3` 화질.
+- 실기기: `neon_city_v9.html?view=3&q=3`처럼 열고 시작하면 그 장면에 카메라가 고정되고 HUD가 숨는다(사진 모드의 촬영 버튼으로 저장).
+- 시작 전에 `Math.random`을 고정 시드로 바꾸고(`openGame({init})`), 땅 타일과 도시 근거리 타일이 다 들어올 때까지(최대 600프레임) 기다린다.
+
 ## 새 테스트 작성 규칙
 - `tests/e2e/<이름>.test.cjs`: `run(name, {q, width, height}, async ({page}) => { … result(name, pass, metrics) })`. 게임을 손으로 진행할 때는 먼저 `freeze(page)`(rAF 루프 정지, 진짜 update는 `window.__upd`).
 - 픽셀 비교는 `shot(page)` + `pixelDiff`. GPU 시간은 재지 않는다. 시간 측정은 렌더를 끄고(`g.eng.render = () => {}`) 한다.

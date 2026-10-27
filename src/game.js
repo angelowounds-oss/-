@@ -1712,6 +1712,7 @@ export class Game {
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
     if (this.riding) this.transit.camera(c, dt);   // a ride (transit.js) places the camera itself
+    if (this.viewCam) { const v = this.viewCam; c.position.set(v.x, v.y, v.z); c.lookAt(v.tx, v.ty, v.tz); if (v.fov && c.fov !== v.fov) { c.fov = v.fov; c.updateProjectionMatrix(); } this.cam.pos.copy(c.position); }   // a reference view (views.js) pins the camera; the world still streams around the player
     this.farland?.update(c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); this.countryroads?.update(dt, this.focusPos()); } this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
