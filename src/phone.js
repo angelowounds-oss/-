@@ -85,6 +85,7 @@ export class Phone {
         this.row(`슬롯 ${s}${s === slot ? ' (현재)' : ''}`, info, [['저장', () => { G.saveSlot(s); G.toast('저장됨', `슬롯 ${s}`); }], ['불러오기', () => { if (raw) { localStorage.setItem('neon_slot', s); location.reload(); } }]]);
       }
       this.row('현실성 모드 (허기·갈증·피로)', G.needs.s.on ? '켜짐' : '꺼짐', [['전환', () => { G.needs.s.on = !G.needs.s.on; }]]);
+      this.row('건물 번호 표시 (개발용)', G.showIds ? '켜짐 · 시계 줄에 #번호' : '꺼짐', [['전환', () => { G.showIds = !G.showIds; }]]);
     }
   }
   // ---- residents register: search by name, see where they live and work, track them ----

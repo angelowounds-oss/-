@@ -9,6 +9,7 @@ import { buildRelief } from './relief.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
 import { nearestRoad, ROAD_W } from './terrainfn.js';
 import { hiSlot } from './hiassets.js';
+import { assignNeonIds } from './buildingid.js';
 import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
 import paveA from '../assets/tex/concrete_pavers_a.jpg';
@@ -785,7 +786,7 @@ export function buildWorld(scene, quality) {
     }
     const solid = world.colliders.addBox(x0, z0, x1, z1, H + 5, 'building');
     const stages = [lotTiers.podium, ...towerStages, ...crowns];
-    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, stages, solid, topY, tierIdx });
+    world.lots.push({ x0, z0, x1, z1, h: H, accent, edges, podium: podiumH, style, ring: !!world._ring, seed, tiers: lotTiers, stages, solid, topY, tierIdx, bi, bj });
 
     // signs on road-facing facades
     const ground = podiumH;
@@ -1119,6 +1120,7 @@ export function buildWorld(scene, quality) {
       setTowerFog(l.x0 - 3, l.z0 - 3, l.x1 + 3, l.z1 + 3, 0.1);
     }
   }
+  assignNeonIds(world.lots);   // every lot's building number (ADR-0030), now that the list is final
   // ---- Build instanced facade mesh ----
   function makeFacadeMesh(list, fog = true, relief = true) {
     const m = new THREE.InstancedMesh(boxGeo, facadeMat, list.length);
