@@ -13,6 +13,7 @@ import { initDetail, initDetailUI, detail } from './detail.js';
 import { loadResident } from './heightmap.js';
 import { loadVeg } from './forest.js';
 import { loadHiAssets } from './hiassets.js';
+import { applyView } from './views.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -52,6 +53,8 @@ function fatal(e) {
     const t = el('title'); t.classList.add('off');
     setTimeout(() => { t.style.display = 'none'; }, 1300);   // after the fade: no full-screen layer and no title animations ticking over the game
     game.start();
+    // ?view=n (1..12): a reference view (views.js) for comparing pictures across machines; the HUD is hidden as in the phone's photo mode
+    if (params.has('view')) applyView(game, +params.get('view') - 1).then(() => document.body.classList.add('photo')).catch((e) => console.warn('view', e));
   };
   go.addEventListener('click', begin);
   addEventListener('keydown', (e) => {

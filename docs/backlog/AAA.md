@@ -15,7 +15,7 @@
 - AC: 같은 텍스처의 GPU 메모리 4배 이상 감소(ETC1S/UASTC는 RGBA8의 1/4~1/8), 팩 없이도 게임 동작, 본체 크기 증가 1 MB 이하(실측 +58 KB).
 - 검증: `node build/assets/fetch.mjs --fetch && node tests/unit/ktx2-pack.test.mjs`(인코딩 약 2분), e2e `hiassets`(사용자 실행).
 
-### Q0-3 기준 장면 하네스 — P0 · M · Q0 · Backlog
+### Q0-3 기준 장면 하네스 — P0 · M · Q0 · Review (`src/views.js`, `tests/tools/golden-views.cjs`, e2e `golden-views`)
 - 범위: 고정 카메라 12장면(`?view=n`), `tests/tools/golden-views.cjs` 촬영·대조 시트.
 - AC: 같은 빌드 두 번 촬영이 픽셀 동일, 대조 시트 PNG 한 장.
 

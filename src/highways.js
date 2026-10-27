@@ -300,12 +300,13 @@ export class Highways {
     const n = Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
     return r.oneway ? { n, half: (n * LANE + SHOULDER) / 2, two: false } : { n, half: n * LANE + SHOULDER, two: true };
   }
-  arterials(camera) {
-    const now = performance.now(); if (now - (this.artAt || 0) < 300) return; this.artAt = now;
+  // `all`: build every piece in reach now, with no time budget (after a jump: a reference view, views.js)
+  arterials(camera, all = false) {
+    const now = performance.now(); if (!all && now - (this.artAt || 0) < 300) return; this.artAt = now;
     const x = camera.position.x, z = camera.position.z, t0 = performance.now();
     for (const p of this.art) {
       const d = Math.hypot(p.cx - x, p.cz - z) - p.rad;
-      if (!p.meshes && d < p.on && performance.now() - t0 < ART_BUDGET) { p.meshes = this.artPiece(p); this.stats.artLive++; }
+      if (!p.meshes && d < p.on && (all || performance.now() - t0 < ART_BUDGET)) { p.meshes = this.artPiece(p); this.stats.artLive++; }
       else if (p.meshes && d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; this.stats.artLive--; this.dropDeck(p.col); p.col = null; }
     }
   }
@@ -336,8 +337,9 @@ export class Highways {
         if (s > 0) S.quad(e0, e1, o1, o0, EARTH); else S.quad(e1, e0, o0, o1, EARTH);
       }
       if (bridge) {
-        for (const s of [-1, 1]) { const o = s * (half + 0.5); S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); }
-        S.quad(at(f0, -half - 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f0, half + 0.5, -1.7), PIL);
+        // the fascias face outward and the soffit faces down (the material draws front faces only: seen from below, a bridge must not lose its deck)
+        for (const s of [-1, 1]) { const o = s * (half + 0.5); if (s > 0) S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); else S.quad(at(f1, o, 0), at(f0, o, 0), at(f0, o, -1.7), at(f1, o, -1.7), PIL); }
+        S.quad(at(f0, half + 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f0, -half - 0.5, -1.7), PIL);
         if (i % 4 === 0) { const gy = landHeight(f0.x, f0.z, 16), h = f0.y - 1.7 - gy; if (h > 0.6) box(S, [f0.x, f0.z], f0.tx, f0.tz, Math.min(6, half), h, 2.2, gy, PIL); }   // a pier every 32 m
       }
       if (tunnel) {

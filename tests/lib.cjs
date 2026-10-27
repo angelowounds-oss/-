@@ -15,10 +15,12 @@ const GAME = process.env.GAME_HTML || path.join(ROOT, 'neon_city_v9.html');
 const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 
 // open the game at quality tier q, wait until it is ready, start it; returns { browser, page, errors }
-async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = '' } = {}) {
+// `init`: a script run in the page before any of its own (e.g. a seeded Math.random)
+async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = '', init = null } = {}) {
   const browser = await pw.chromium.launch({ args: GL_ARGS });
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
+  if (init) await page.addInitScript(init);
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 300)));
   page.on('console', (m) => { const t = m.text(); if (/GLSL|shader error|ERROR/i.test(t)) errors.push('console: ' + t.slice(0, 300)); else if (t.startsWith('##')) console.log(t.slice(2)); });
   const href = (url.startsWith('file:') || url.startsWith('http') ? url : 'file://' + url) + '?q=' + q + extra;
