@@ -153,7 +153,9 @@ const AUDIT = () => {
   const report = (r) => { results.push(r); if (process.env.OUT) fs.appendFileSync(process.env.OUT + 'l', JSON.stringify(r) + '\n'); if (r.items.length || results.length % 50 === 0) process.stdout.write(`${results.length} ${r.uid} ${r.ms}ms ${r.items.map((i) => i.code).join(',')}\n`); };
   if (mode === 'neon') {
     const uids = await page.evaluate(() => window.__game.world.lots.filter((l) => window.__game.buildings.byLot.has(l)).map((l) => l.uid));
-    for (const uid of (pick || uids).slice(0, limit)) report(await page.evaluate(({ uid, floors }) => { const g = window.__game, lot = g.world.lots.find((l) => l.uid === uid || l.alias === uid); return window.__auditOne(g.buildings.byLot.get(lot), floors); }, { uid, floors }));
+    const done = new Set(process.env.RESUME && fs.existsSync(process.env.RESUME) ? fs.readFileSync(process.env.RESUME, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l).uid) : []);   // RESUME=<earlier .jsonl>: skip what it has
+    for (const uid of (pick || uids).filter((u) => !done.has(u)).slice(0, limit)) report(await page.evaluate(({ uid, floors }) => { const g = window.__game, lot = g.world.lots.find((l) => l.uid === uid || l.alias === uid); return window.__auditOne(g.buildings.byLot.get(lot), floors); }, { uid, floors: /^NC-B(00|10)_/.test(uid) && floors === 'all' ? '4' : floors }));   // the ring's wide buildings take minutes a floor: sample them
+
   } else {
     const info = await page.evaluate(() => window.__game.citysites && window.__game.citysites.cities ? window.__game.citysites.cities.map((c) => ({ id: c.c.id, x: c.c.x, y: c.c.y, z: c.c.z, r: c.c.r })) : null);
     console.log('cities mode: ' + JSON.stringify(info));
