@@ -26,5 +26,6 @@
 | [0025](0025-road-ends.md) | 도로 끝 잇기와 모인 점 정리 | 채택 |
 | [0026](0026-streets.md) | 실제 골목·집산 도로(tertiary 전체, 주거 도로는 읍·시 터 안) | 채택 |
 | [0027](0027-neon-connectors.md) | NEON CITY 연결로 분류·끝 맞춤, 외곽 탑이 산길을 비킴 | 채택 |
-| [0029](0029-ktx2-asset-pack.md) | KTX2 압축 텍스처와 에셋 팩(assets.pak, transcoder 포함) | 채택 |
 | [0028](0028-asset-packs-and-licences.md) | 고화질 에셋 팩과 라이선스 정책(CC0/CC-BY, 목록 검증) | 채택 |
+| [0029](0029-ktx2-asset-pack.md) | KTX2 압축 텍스처와 에셋 팩(assets.pak, transcoder 포함) | 채택 |
+| [0030](0030-building-ids.md) | 건물 고유번호(uid)와 목록(docs/buildings/registry.csv) | 채택 |

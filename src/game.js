@@ -67,6 +67,7 @@ import { Character } from './character.js';
 import * as AI from './ai.js';
 import { Military } from './military.js';
 import { instCull } from './instcull.js';
+import { idLabel } from './buildingdev.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -1836,7 +1837,8 @@ export class Game {
   }
   drawMinimap() {
     const g = this.minictx, W = 340, S = this.mapScale, pl = this.player;
-    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `${ZONES[this.zone ?? 0].name} · ${this.clock.fmt()} · ${{ clear: '맑음', rain: '비', storm: '폭풍우' }[this.weatherType || 'rain']}`);
+    const uidTxt = idLabel(this);   // the building number when the maintenance numbers are on (buildingdev.js)
+    this.setText('clk', this.ui.clock || (this.ui.clock = el('clock')), (this.where ? `${this.where.b.name} · ${this.where.k + 1}F · ${this.clock.fmt()}` : `${ZONES[this.zone ?? 0].name} · ${this.clock.fmt()} · ${{ clear: '맑음', rain: '비', storm: '폭풍우' }[this.weatherType || 'rain']}`) + (uidTxt ? ` · #${uidTxt}` : ''));
     const p = this.vehicle || pl; const zoom = this.vehicle ? 1.1 : 1.5;
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W); g.fillStyle = '#05080f'; g.fillRect(0, 0, W, W);
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);

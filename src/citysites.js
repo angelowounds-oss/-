@@ -1,3 +1,4 @@
+import { cityUid } from './buildingid.js';
 import * as THREE from 'three';
 import { cities, farHeight, SEA } from './worldmap.js';
 import { layouts, STYLES, KIND } from './citylayout.js';
@@ -298,7 +299,7 @@ export class CitySites {
       };
       const d = doorSpec(lot);
       if (!d) { near.boxes.push(col.addBox(x0, z0, x1, z1, H + 5, 'building')); continue; }
-      lot.door = d; lot.name = C.S.words[(i + Math.floor(T.seed)) % C.S.words.length] + ' ' + ['TOWER', 'PLAZA', 'COURT', 'HOUSE', 'POINT', 'GATE'][(i * 3) % 6]; lot.id = C.c.id + ':' + i;
+      lot.door = d; lot.name = C.S.words[(i + Math.floor(T.seed)) % C.S.words.length] + ' ' + ['TOWER', 'PLAZA', 'COURT', 'HOUSE', 'POINT', 'GATE'][(i * 3) % 6]; lot.id = C.c.id + ':' + i; lot.uid = cityUid(C.c.id, i);
       lot.solid = col.addBox(x0, z0, x1, z1, H + 5, 'building');
       aDoor.setXYZW(at, d.nx !== 0 ? z0 : x0, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 0); lot.doorRefs = [{ attr: aDoor, start: at, count: 1 }];
       this.entrance(ent, d, accentColor(lot.accent), ax, az);

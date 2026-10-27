@@ -19,6 +19,10 @@
 - 범위: 고정 카메라 12장면(`?view=n`), `tests/tools/golden-views.cjs` 촬영·대조 시트.
 - AC: 같은 빌드 두 번 촬영이 픽셀 동일, 대조 시트 PNG 한 장.
 
+### Q0-6 건물 고유번호와 목록 — P0 · M · Q0 · Review (ADR-0030, 2026-10-27 사용자 요청)
+- 범위: `src/buildingid.js` 번호 규칙, `docs/buildings/registry.csv`(16,936채), `tests/tools/building-registry.cjs [--check]`, `?ids=1`·`?bld=`·`__bld`, 휴대폰 설정 토글.
+- AC: 중복 0, 두 번 만들어 차이 0(`--check`), 단위 `building-ids` 통과. 저장 키 이전은 SAV-01.
+
 ### Q0-4 물 셰이더 교체(GPL 제거) — P0 · M · Q0 · Backlog
 - 범위: three.js `Water`(MIT)를 바탕으로 다시 쓴다. Q2-4와 합친다.
 

@@ -27,5 +27,6 @@ node tests/run.cjs --only <이름> # 테스트 하나
 - 코드 스타일: 주변 코드에 맞춘다(주석은 영어, 이유 중심). 새로 쓰거나 크게 고치는 함수는 한 줄 한 문장. 기존 코드 대량 재포맷 금지.
 - 에셋을 추가하면 출처·라이선스를 `docs/ASSETS.md`(BLD-04)에 적는다. GPL·CC-BY 표기 의무에 주의.
 - 사용자와의 대화는 한국어. 디자인·라이선스·에셋 도입 같은 결정은 선택지와 권고안을 정리해 묻는다.
+- 건물을 말할 때는 고유번호(uid, 예 `HARBOR-0123`, `NC-B04_06-2`)로 한다. 목록은 `docs/buildings/registry.csv`, 규칙은 ADR-0030. 생성기를 바꾸면 `node tests/tools/building-registry.cjs --check` 결과를 PR에 적고 목록을 다시 만든다.
 - 월드 키: J 세계 지도(목적지·자동 주행·빠른 이동), U 고도 유지(전투기·다크스타), F 키오스크·이동 건너뛰기. 월드 구조는 `docs/adr/0012-world-archipelago.md`.
 - 구운 데이터(`build/baked/`)와 빌드 산출물(`neon_city_v9.html`, `world/` 팩)은 커밋하지 않는다(2026-10-16 결정, ADR-0013). 빌드 결과는 대화로 전달한다. 월드 화질 2단계(노트북 내장 / 고사양 팩)와 청크 컨테이너는 `docs/adr/0013-world-detail-tiers.md`.
