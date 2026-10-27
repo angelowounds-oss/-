@@ -9,7 +9,8 @@
   "PD",
   "KOSTAT-free",
   "own",
-  "Apache-2.0"
+  "Apache-2.0",
+  "USER-PERMITTED"
  ],
  "assets": [
   {
@@ -106,9 +107,9 @@
     "assets/player_female.glb": "6e01f0ae76c9e28102bf553718f28d25ee75a49f224f5c36acd31a0c1bcadad9"
    },
    "source": "user-supplied (Tripo conversion)",
-   "licence": "UNVERIFIED",
-   "status": "confirm",
-   "note": "licence of the generator output not confirmed"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "soldier",
@@ -259,8 +260,9 @@
     "assets/facade/facade_nr.jpg": "42a91e1320801f44709d63138d2d6e9c6bfb9578b8334665569343426fd54385"
    },
    "source": "user-supplied",
-   "licence": "UNVERIFIED",
-   "status": "confirm"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "residential-set",
@@ -281,8 +283,9 @@
     "assets/blocks/ao.jpg": "10142091130c60f9d62fb1acf55f268a9e8b2042965ea4a80e44d169e871ec6b"
    },
    "source": "user-supplied",
-   "licence": "UNVERIFIED",
-   "status": "confirm"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "landmarks",
@@ -291,8 +294,9 @@
     "assets/landmarks/landmarks.bin": "d3c6033842d72ae0ccaa0dcad64618cef8af54fbea832068ad2f98cbe6eafd00"
    },
    "source": "user-supplied",
-   "licence": "UNVERIFIED",
-   "status": "confirm"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "sniper",
@@ -302,8 +306,9 @@
     "assets/props/sniper_mag.glb": "0424366bd8a020446e8d5c69c45dc172a159a709522d40d5990c8c7ca1ac5717"
    },
    "source": "user-supplied glTF (2020)",
-   "licence": "UNVERIFIED",
-   "status": "confirm"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "street-props",
@@ -313,8 +318,9 @@
     "assets/props/street_signs.glb": "0ace1a26a49f2e06d9e8c3515fb2b57e0efc5ce5d47f95e7d95d93fedb1d4f4f"
    },
    "source": "user-supplied",
-   "licence": "UNVERIFIED",
-   "status": "confirm"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "living-set",
@@ -323,8 +329,9 @@
     "assets/props/living_set.glb": "65e12a8b45be99bd96303a73c64f95b12e6065ce75dba043dcc39c9be916b20d"
    },
    "source": "user-supplied, Poly Haven textures",
-   "licence": "UNVERIFIED",
-   "status": "confirm"
+   "licence": "USER-PERMITTED",
+   "status": "ok",
+   "note": "사용자가 2026-10-27 사용 허용(원 라이선스 미상, 외부 재배포 조건 미상)"
   },
   {
    "id": "three",
