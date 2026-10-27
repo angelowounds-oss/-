@@ -8,6 +8,7 @@ import { facadeUniforms } from './facade.js';
 import { buildRelief } from './relief.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
 import { nearestRoad, ROAD_W } from './terrainfn.js';
+import { hiSlot } from './hiassets.js';
 import asphA from '../assets/tex/asphalt_04_a.jpg';
 import asphN from '../assets/tex/asphalt_04_n.jpg';
 import paveA from '../assets/tex/concrete_pavers_a.jpg';
@@ -211,6 +212,7 @@ export class Colliders {
 }
 
 // CC0 Poly Haven asphalt_04 / concrete_pavers (512px): real grain, roughness and normal detail layered over the procedural ground
+// (the high-detail pack swaps in 2048 px KTX2 versions of the same scans, hiassets.js)
 const groundTex = (url, srgb) => {
   const t = new THREE.TextureLoader().load(url); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; return t;
@@ -229,8 +231,8 @@ function createGround(fakeLights) {
     uLake: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, 0, 0)) },   // lake rectangles: the ground is cut out there so it cannot z-fight the water
     uRC: { value: Array.from({ length: N + 1 }, (_, i) => roadC(i)) },
     uCut: { value: CUTS.map((c) => new THREE.Vector4(...cutRect(c))) },
-    tAsph: { value: groundTex(asphA, true) }, tAsphN: { value: groundTex(asphN, false) },
-    tPave: { value: groundTex(paveA, true) }, tPaveN: { value: groundTex(paveN, false) },
+    tAsph: hiSlot('asphalt_04_a', { value: groundTex(asphA, true) }), tAsphN: hiSlot('asphalt_04_n', { value: groundTex(asphN, false) }),
+    tPave: hiSlot('concrete_pavers_a', { value: groundTex(paveA, true) }), tPaveN: hiSlot('concrete_pavers_n', { value: groundTex(paveN, false) }),
   };
   patchStandard(mat, 'ground-v9', {
     uniforms,

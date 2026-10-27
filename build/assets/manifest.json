@@ -353,6 +353,91 @@
    "author": "Dimforge",
    "url": "https://rapier.rs",
    "status": "ok"
+  },
+  {
+   "id": "ph-ground-2k",
+   "title": "Poly Haven asphalt_04, concrete_pavers (2K, high-detail pack)",
+   "files": {},
+   "source": "Poly Haven",
+   "licence": "CC0-1.0",
+   "url": "https://polyhaven.com/a/asphalt_04",
+   "status": "ok",
+   "fetch": [
+    {
+     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_04/asphalt_04_diff_2k.jpg",
+     "to": "asphalt_04_diff_2k.jpg",
+     "sha256": "e02ac16d23ea97008c2507cf58bfad7c18a3b5933b5bdea14f7f90f33a784976"
+    },
+    {
+     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_04/asphalt_04_nor_gl_2k.jpg",
+     "to": "asphalt_04_nor_gl_2k.jpg",
+     "sha256": "16ab393a8e9135ff1f30545bc0bc46b7b7f79da8db881bcb0da22cd12d528257"
+    },
+    {
+     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_04/asphalt_04_rough_2k.jpg",
+     "to": "asphalt_04_rough_2k.jpg",
+     "sha256": "4a5090564b400e481af564f97e2f8ba0db820a61f6b2d50d0cfe92160a7161ab"
+    },
+    {
+     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavers/concrete_pavers_diff_2k.jpg",
+     "to": "concrete_pavers_diff_2k.jpg",
+     "sha256": "ac772172824543ce53a9ad60e0b7a00c02fcaf875ec6a65ae49806f6ae25539a"
+    },
+    {
+     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavers/concrete_pavers_nor_gl_2k.jpg",
+     "to": "concrete_pavers_nor_gl_2k.jpg",
+     "sha256": "e2c582e8cfbd1fd05a344fecba7d8cade8590ab2ebf24088118618a721c66149"
+    },
+    {
+     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavers/concrete_pavers_rough_2k.jpg",
+     "to": "concrete_pavers_rough_2k.jpg",
+     "sha256": "b885c369528efb5c999577a49f60aeaa4c48b57f4a727c47d22fe3253f828f8d"
+    }
+   ],
+   "pack": [
+    {
+     "name": "asphalt_04_a",
+     "from": "asphalt_04_diff_2k.jpg",
+     "srgb": true,
+     "mode": "etc1s"
+    },
+    {
+     "name": "asphalt_04_n",
+     "combine": {
+      "rg": "asphalt_04_nor_gl_2k.jpg",
+      "b": "asphalt_04_rough_2k.jpg"
+     },
+     "size": 2048,
+     "srgb": false,
+     "mode": "uastc"
+    },
+    {
+     "name": "concrete_pavers_a",
+     "from": "concrete_pavers_diff_2k.jpg",
+     "srgb": true,
+     "mode": "etc1s"
+    },
+    {
+     "name": "concrete_pavers_n",
+     "combine": {
+      "rg": "concrete_pavers_nor_gl_2k.jpg",
+      "b": "concrete_pavers_rough_2k.jpg"
+     },
+     "size": 2048,
+     "srgb": false,
+     "mode": "uastc"
+    }
+   ]
+  },
+  {
+   "id": "basis-transcoder",
+   "title": "Basis Universal transcoder (in the high-detail pack) and encoder (build tool)",
+   "files": {},
+   "source": "three.js examples/jsm/libs/basis, npm basisu",
+   "licence": "Apache-2.0",
+   "author": "Binomial LLC",
+   "url": "https://github.com/BinomialLLC/basis_universal",
+   "status": "ok"
   }
  ]
 }

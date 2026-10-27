@@ -12,6 +12,7 @@ import { loadBaked } from './bakedload.js';
 import { initDetail, initDetailUI, detail } from './detail.js';
 import { loadResident } from './heightmap.js';
 import { loadVeg } from './forest.js';
+import { loadHiAssets } from './hiassets.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -33,6 +34,7 @@ function fatal(e) {
     await initDetail();   // reconnect the optional high-detail pack when the browser allows it without asking
     // the high world detail starts at the 'high' graphics level (shadows, post-processing, textures) unless the player or the URL chose one
     { let stored = null; try { stored = sessionStorage.getItem('neon_q'); } catch (e) { /* ignore */ } if (detail.tier === 'high' && !params.has('q') && stored === null && !mobile) eng.setQuality(Math.max(q, 2)); }
+    if (detail.tier === 'high') await loadHiAssets(eng.renderer);   // the pack's compressed textures, before the world that uses them is built
     if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
     if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
     game = new Game(eng); game.RAPIER = RAPIER;

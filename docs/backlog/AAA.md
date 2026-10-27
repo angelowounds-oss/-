@@ -3,16 +3,17 @@
 현재: Q0 착수. 결정(2026-10-27): 본체 HTML + 고화질 팩, 라이선스 CC0/CC-BY만, 사운드 샘플 + 합성, 보이는 화질 먼저.
 시각이 달라지는 티켓은 기준 장면(Q0-3) 전후 대조를 보내고 사용자 승인 후 ADR에 남긴다.
 
-### Q0-1 에셋 목록·검증·크레딧 — P0 · M · Q0 · Review (29항목, 사용자 허용 7·교체 예정 1)
+### Q0-1 에셋 목록·검증·크레딧 — P0 · M · Q0 · Review (28항목, 사용자 허용 7·교체 예정 1)
 - 목적: 오픈소스 에셋을 대량으로 들이기 전에 출처·라이선스를 기계로 지킨다(BLD-04, UX-04 흡수).
 - 범위: `build/assets/manifest.json`(id, url, author, licence, sha256, files), `build/assets/fetch.mjs`(받기·sha256·허용 라이선스 검사), `docs/ASSETS.md` 자동 절, 게임 크레딧 화면 데이터. 기존 에셋도 목록에 올린다.
 - AC: 허용 목록(CC0-1.0, CC-BY-3.0/4.0, OFL-1.1, MIT, ODbL 데이터) 밖이면 빌드 실패. 크레딧이 CC-BY·OFL·ODbL 전부를 표기.
 - 검증: `node build/assets/fetch.mjs --check`, 단위 `assets-manifest`.
 - 의존: 출처 미확인 4건(player_female, Residential Buildings Set, Manhattan/Camellia, KSR-29)은 사용자 확인.
 
-### Q0-2 압축 팩(KTX2·meshopt) — P0 · M · Q0 · Backlog
-- 범위: gltf-transform + basisu로 텍스처 KTX2, 메시 meshopt. 청크 컨테이너(ADR-0013)에 `assets/*.pak`, KTX2Loader·transcoder 내장, 팩 없으면 본체 에셋으로 대체.
-- AC: 같은 텍스처의 GPU 메모리 4배 이상 감소, 팩 없이도 게임 동작, 본체 크기 증가 1 MB 이하.
+### Q0-2 압축 팩(KTX2) — P0 · M · Q0 · Review (ADR-0029)
+- 범위: basisu로 텍스처 KTX2(색 ETC1S, 데이터 UASTC), `build/baked/pack/assets.pak`(transcoder 포함), `src/hiassets.js`가 이름 슬롯에 넣는다. 팩 없으면 본체 에셋. meshopt 메시 압축은 첫 모델 팩(Q4-1/Q5-1)에서 붙인다.
+- AC: 같은 텍스처의 GPU 메모리 4배 이상 감소(ETC1S/UASTC는 RGBA8의 1/4~1/8), 팩 없이도 게임 동작, 본체 크기 증가 1 MB 이하(실측 +58 KB).
+- 검증: `node build/assets/fetch.mjs --fetch && node tests/unit/ktx2-pack.test.mjs`(인코딩 약 2분), e2e `hiassets`(사용자 실행).
 
 ### Q0-3 기준 장면 하네스 — P0 · M · Q0 · Backlog
 - 범위: 고정 카메라 12장면(`?view=n`), `tests/tools/golden-views.cjs` 촬영·대조 시트.
