@@ -1,6 +1,8 @@
 import { build } from 'esbuild';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+// every shipped file is listed with its licence (ADR-0028): an unlisted file, a changed one or a licence outside the allowed list stops the build
+{ const { check } = await import('./assets/fetch.mjs'), m = check(); if (m.errors.length) { for (const e of m.errors) console.error('asset:', e); process.exit(1); } }
 // the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
 if (process.env.WORLD !== 'small') {
   const out = 'build/baked/world/capital/region.bin', srcs = fs.readdirSync('build/world').map((f) => 'build/world/' + f);
