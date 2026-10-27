@@ -106,6 +106,11 @@ if (isMainThread && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const withPack = process.argv.includes('--pack'), r = await bake({ pack: withPack }), dir = path.join(root, 'build/baked');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'world.bin'), r.embedded); fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(r.manifest, null, 1));
-  if (r.pack) { const pd = path.join(dir, 'pack'); fs.mkdirSync(pd, { recursive: true }); for (const [n, b] of r.pack) fs.writeFileSync(path.join(pd, n), b); }
+  if (r.pack) {
+    const pd = path.join(dir, 'pack'), ixf = path.join(pd, 'index.json'); fs.mkdirSync(pd, { recursive: true });
+    // the folder also holds the asset pack (build/assets/pack.mjs): its line in the index stays
+    const old = fs.existsSync(ixf) ? JSON.parse(fs.readFileSync(ixf, 'utf8')).files.filter((f) => f.name !== 'high.pak') : [];
+    for (const [n, b] of r.pack) { if (n !== 'index.json') { fs.writeFileSync(path.join(pd, n), b); continue; } const ix = JSON.parse(b); ix.files = ix.files.concat(old); fs.writeFileSync(ixf, JSON.stringify(ix, null, 1)); }
+  }
   console.log('baked', r.manifest.bytes, 'bytes', 'hash', r.manifest.data, `${r.manifest.ms} ms (${r.manifest.cached}/${r.manifest.jobs.length} from cache)`);
 }

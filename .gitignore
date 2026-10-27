@@ -5,3 +5,4 @@ neon_city_v9.html
 build/.dem-tiles/
 build/.dem-cache/
 build/.osm-cache/
+build/.asset-cache/

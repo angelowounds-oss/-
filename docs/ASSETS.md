@@ -61,4 +61,6 @@
 | Living room set (InteriorTest.blend) | `assets/props/living_set.glb` | user-supplied, Poly Haven textures | USER-PERMITTED | 표기 불필요 |
 | three.js | (빌드에 포함되는 파생 데이터) | [npm three](https://threejs.org) · three.js authors | MIT | 크레딧: Three.js (MIT) |
 | Rapier physics (WASM) | (빌드에 포함되는 파생 데이터) | [npm @dimforge/rapier3d-compat](https://rapier.rs) · Dimforge | Apache-2.0 | 표기 불필요 |
+| Poly Haven asphalt_04, concrete_pavers (2K, high-detail pack) | (빌드에 포함되는 파생 데이터) | [Poly Haven](https://polyhaven.com/a/asphalt_04) | CC0-1.0 | 표기 불필요 |
+| Basis Universal transcoder (in the high-detail pack) and encoder (build tool) | (빌드에 포함되는 파생 데이터) | [three.js examples/jsm/libs/basis, npm basisu](https://github.com/BinomialLLC/basis_universal) · Binomial LLC | Apache-2.0 | 표기 불필요 |
 <!-- /AUTO:manifest -->
