@@ -23,6 +23,10 @@
 - 범위: `src/buildingid.js` 번호 규칙, `docs/buildings/registry.csv`(16,936채), `tests/tools/building-registry.cjs [--check]`, `?ids=1`·`?bld=`·`__bld`, 휴대폰 설정 토글.
 - AC: 중복 0, 두 번 만들어 차이 0(`--check`), 단위 `building-ids` 통과. 저장 키 이전은 SAV-01.
 
+### Q0-7 건물 전수 점검 — P0 · M · Q0 · Review (`docs/buildings/AUDIT.md`)
+- 범위: 패스 A(외부 16,294채), 패스 B(NEON 내부 560채) 완료. 패스 C·D와 단위 테스트는 남음.
+- AC: 결과 보고서와 uid 목록. 수정은 별도 티켓.
+
 ### Q0-4 물 셰이더 교체(GPL 제거) — P0 · M · Q0 · Backlog
 - 범위: three.js `Water`(MIT)를 바탕으로 다시 쓴다. Q2-4와 합친다.
 
