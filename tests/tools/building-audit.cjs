@@ -46,40 +46,80 @@ const AUDIT = () => {
       if (sh && bd.elev && slabAt((sh.x0 + sh.x1) / 2, (sh.z0 + sh.z1) / 2)) S('shaft-hole-missing');
     }
     if (k < bd.levels.length - 1 && !boxes.some((b) => b.tag === 'stair') && !(bd.levels[k + 1].tier === 'crown')) S('stair-missing');
-    // walk: a grid over the plate (the ground floor also the street around it), free where a floor is and nothing stands 0.35..1.7 m above it
+    // walk: a grid over the plate (the ground floor also the street around it), free where a floor is and nothing stands 0.43..1.7 m above it (the
+    // controller steps over 0.42). Done twice: with a thin body (0.2 m: a room that fails is shut in) and with the player's (0.36 m: a room that only
+    // passes the thin one is a squeeze; the controller slides along walls, so a squeeze is often still walkable and is only a hint)
     const pad = k === 0 ? 4 : 0.4, gx0 = R.x0 - pad, gz0 = R.z0 - pad, W = Math.ceil((R.x1 - R.x0 + 2 * pad) / CS), D = Math.ceil((R.z1 - R.z0 + 2 * pad) / CS);
-    if (W * D > 2500000) return S('walk-skipped', { cells: W * D });
-    const free = new Uint8Array(W * D), at = (x, z) => ((Math.floor((z - gz0) / CS)) * W + Math.floor((x - gx0) / CS));
+    if (W * D > 800000) return S('walk-skipped', { cells: W * D });
+    const at = (x, z) => ((Math.floor((z - gz0) / CS)) * W + Math.floor((x - gx0) / CS));
     const inside = (x, z) => x > R.x0 && x < R.x1 && z > R.z0 && z < R.z1;
-    for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) { const x = gx0 + (i + 0.5) * CS, z = gz0 + (j + 0.5) * CS; free[j * W + i] = k === 0 && !inside(x, z) ? 1 : 0; }
-    for (const b of boxes) if (b.tag === 'slab' && b.h > top - 0.6 && b.h < top + 0.4) for (let j = Math.max(0, Math.floor((b.z0 - gz0) / CS)); j <= Math.min(D - 1, Math.floor((b.z1 - gz0) / CS)); j++) for (let i = Math.max(0, Math.floor((b.x0 - gx0) / CS)); i <= Math.min(W - 1, Math.floor((b.x1 - gx0) / CS)); i++) free[j * W + i] = 1;
-    if (k === 0) for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) if (inside(gx0 + (i + 0.5) * CS, gz0 + (j + 0.5) * CS)) free[j * W + i] = 1;   // the ground floor may have no slab boxes of its own
-    for (const b of boxes) {
-      if (!BLOCK.has(b.tag) || !(b.y0 < top + 1.7 && b.h > top + 0.43)) continue;
-      for (let j = Math.max(0, Math.floor((b.z0 - BODY - gz0) / CS)); j <= Math.min(D - 1, Math.floor((b.z1 + BODY - gz0) / CS)); j++) for (let i = Math.max(0, Math.floor((b.x0 - BODY - gx0) / CS)); i <= Math.min(W - 1, Math.floor((b.x1 + BODY - gx0) / CS)); i++) free[j * W + i] = 0;
+    const base = new Uint8Array(W * D);
+    for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) { const x = gx0 + (i + 0.5) * CS, z = gz0 + (j + 0.5) * CS; base[j * W + i] = k === 0 && !inside(x, z) ? 1 : 0; }
+    for (const b of boxes) if (b.tag === 'slab' && b.h > top - 0.6 && b.h < top + 0.4) for (let j = Math.max(0, Math.floor((b.z0 - gz0) / CS)); j <= Math.min(D - 1, Math.floor((b.z1 - gz0) / CS)); j++) for (let i = Math.max(0, Math.floor((b.x0 - gx0) / CS)); i <= Math.min(W - 1, Math.floor((b.x1 - gx0) / CS)); i++) base[j * W + i] = 1;
+    if (k === 0) for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) if (inside(gx0 + (i + 0.5) * CS, gz0 + (j + 0.5) * CS)) base[j * W + i] = 1;   // the ground floor may have no slab boxes of its own
+    const obst = boxes.filter((b) => BLOCK.has(b.tag) && b.y0 < top + 1.7 && b.h > top + 0.43);
+    const sb2 = bd.stairB, rooms = fl.rooms || [];
+    const unreached = {};   // by body: the rooms that cannot be reached
+    let shareThin = 1, thin = null, mid = null;
+    for (const BODY of [0.2, 0.28, 0.36]) {
+      const free = base.slice();
+      for (const b of obst) for (let j = Math.max(0, Math.floor((b.z0 - BODY - gz0) / CS)); j <= Math.min(D - 1, Math.floor((b.z1 + BODY - gz0) / CS)); j++) for (let i = Math.max(0, Math.floor((b.x0 - BODY - gx0) / CS)); i <= Math.min(W - 1, Math.floor((b.x1 + BODY - gx0) / CS)); i++) {
+        const x = gx0 + (i + 0.5) * CS, z = gz0 + (j + 0.5) * CS, dx = Math.max(b.x0 - x, 0, x - b.x1), dz = Math.max(b.z0 - z, 0, z - b.z1);
+        if (dx * dx + dz * dz < BODY * BODY) free[j * W + i] = 0;   // a round body: the corner of a box keeps it off less than a straight side does
+      }
+      const nearFree = (x, z, r) => { let best = -1, bd2 = 1e9; for (let dz = -r; dz <= r; dz += CS) for (let dx = -r; dx <= r; dx += CS) { const px = x + dx, pz = z + dz; if (px < gx0 || pz < gz0 || px >= gx0 + W * CS || pz >= gz0 + D * CS) continue; const c = at(px, pz); if (free[c] && dx * dx + dz * dz < bd2) { bd2 = dx * dx + dz * dz; best = c; } } return best; };
+      const seeds = [];
+      if (k === 0) { const d = bd.lot.door; if (d) { const s = nearFree(d.px + d.nx * 2.5, d.pz + d.nz * 2.5, 0.6); if (s < 0) { if (BODY === 0.2) S('door-blocked-outside'); } else seeds.push(s); } }
+      else if (sb2) for (let z = sb2.z0 - 1; z <= sb2.z1 + 1; z += CS) for (let x = sb2.x0 - 1; x <= sb2.x1 + 1; x += CS) { const onHole = x > sb2.x0 && x < sb2.x1 && z > sb2.z0 && z < sb2.z1; if (!onHole && x >= gx0 && z >= gz0 && x < gx0 + W * CS && z < gz0 + D * CS) { const c = at(x, z); if (free[c]) seeds.push(c); } }
+      if (!seeds.length) { if (BODY === 0.2 && k > 0) S('no-landing'); break; }
+      const seen = new Uint8Array(W * D), q = new Int32Array(W * D), par = new Int32Array(W * D).fill(-1); let qn = 0; for (const c of seeds) if (!seen[c]) { seen[c] = 1; q[qn++] = c; }
+      for (let h = 0; h < qn; h++) { const c = q[h], i = c % W; if (i > 0 && free[c - 1] && !seen[c - 1]) { seen[c - 1] = 1; q[qn++] = c - 1; par[c - 1] = c; } if (i < W - 1 && free[c + 1] && !seen[c + 1]) { seen[c + 1] = 1; q[qn++] = c + 1; par[c + 1] = c; } if (c >= W && free[c - W] && !seen[c - W]) { seen[c - W] = 1; q[qn++] = c - W; par[c - W] = c; } if (c + W < W * D && free[c + W] && !seen[c + W]) { seen[c + W] = 1; q[qn++] = c + W; par[c + W] = c; } }
+      let nFree = 0, nSeen = 0; for (let c = 0; c < W * D; c++) if (free[c]) { const i = c % W, j = (c - i) / W; if (inside(gx0 + (i + 0.5) * CS, gz0 + (j + 0.5) * CS)) { nFree++; if (seen[c]) nSeen++; } }
+      const bad = [];
+      for (const r of rooms) {   // a room is reachable when a fair patch of it (0.5 m2) is: its middle is often a bed or a table
+        const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2; let got = 0, any = 0;
+        for (let z = r.z0 + 0.2; z < r.z1 - 0.2; z += CS) for (let x = r.x0 + 0.2; x < r.x1 - 0.2; x += CS) { const c = at(x, z); if (free[c]) { any++; if (seen[c]) got++; } }
+        if (got < 50) bad.push({ room: r.kind, x: +cx.toFixed(1), z: +cz.toFixed(1), noFloor: any < 50 });
+      }
+      unreached[BODY] = bad;
+      if (BODY === 0.28) mid = { seen, par };
+      if (BODY === 0.2) {
+        thin = { seen, par, free };
+        shareThin = nSeen / Math.max(1, nFree);
+        if (k === 0 && sb2) { const c = nearFree((sb2.x0 + sb2.x1) / 2, sb2.z1 + 1.2, 1.5); if (c < 0 || !seen[c]) S('stair-unreachable-from-door'); }
+        if (window.__auditDump && window.__auditDump.k === k && window.__auditDump.uid === bd.lot.uid) {   // debugging aid: the walk grid as text (. free, o reached, # blocked, R room centre)
+          const rows = []; for (let j = 0; j < D; j++) { let t = ''; for (let i = 0; i < W; i++) { const c = j * W + i; t += seen[c] ? 'o' : free[c] ? '.' : '#'; } rows.push(t); }
+          for (const r of rooms) { const x = Math.floor(((r.x0 + r.x1) / 2 - gx0) / CS), z = Math.floor(((r.z0 + r.z1) / 2 - gz0) / CS); rows[z] = rows[z].slice(0, x) + 'R' + rows[z].slice(x + 1); }
+          add('dump', { rows: rows.join('\n'), seeds: seeds.length, W, D, pts: (window.__auditDump.pts || []).map(([x, z]) => { const c = at(x, z); return [x, z, free[c], seen[c]]; }) });
+        }
+      }
     }
-    const nearFree = (x, z, r) => { let best = -1, bd2 = 1e9; for (let dz = -r; dz <= r; dz += CS) for (let dx = -r; dx <= r; dx += CS) { const px = x + dx, pz = z + dz; if (px < gx0 || pz < gz0 || px >= gx0 + W * CS || pz >= gz0 + D * CS) continue; const c = at(px, pz); if (free[c] && dx * dx + dz * dz < bd2) { bd2 = dx * dx + dz * dz; best = c; } } return best; };
-    const seeds = [];
-    if (k === 0) { const d = bd.lot.door; if (d) { const s = nearFree(d.px + d.nx * 2.5, d.pz + d.nz * 2.5, 0.6); if (s < 0) S('door-blocked-outside'); else seeds.push(s); } }
-    else if (sb) for (let z = sb.z0 - 1; z <= sb.z1 + 1; z += CS) for (let x = sb.x0 - 1; x <= sb.x1 + 1; x += CS) { const onHole = x > sb.x0 && x < sb.x1 && z > sb.z0 && z < sb.z1; if (!onHole && x >= gx0 && z >= gz0 && x < gx0 + W * CS && z < gz0 + D * CS) { const c = at(x, z); if (free[c]) seeds.push(c); } }
-    if (!seeds.length) return k === 0 ? undefined : S('no-landing');
-    const seen = new Uint8Array(W * D), q = new Int32Array(W * D); let qn = 0; for (const c of seeds) if (!seen[c]) { seen[c] = 1; q[qn++] = c; }
-    for (let h = 0; h < qn; h++) { const c = q[h], i = c % W; if (i > 0 && free[c - 1] && !seen[c - 1]) { seen[c - 1] = 1; q[qn++] = c - 1; } if (i < W - 1 && free[c + 1] && !seen[c + 1]) { seen[c + 1] = 1; q[qn++] = c + 1; } if (c >= W && free[c - W] && !seen[c - W]) { seen[c - W] = 1; q[qn++] = c - W; } if (c + W < W * D && free[c + W] && !seen[c + W]) { seen[c + W] = 1; q[qn++] = c + W; } }
-    let nFree = 0, nSeen = 0; for (let c = 0; c < W * D; c++) if (free[c]) { const i = c % W, j = (c - i) / W; if (inside(gx0 + (i + 0.5) * CS, gz0 + (j + 0.5) * CS)) { nFree++; if (seen[c]) nSeen++; } }
-    for (const r of fl.rooms || []) {
-      const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2, c = nearFree(cx, cz, 1.8);
-      if (c < 0) S('room-no-floor', { room: r.kind }); else if (!seen[c]) S('room-unreachable', { room: r.kind, x: +cx.toFixed(1), z: +cz.toFixed(1) });
+    for (const r of unreached[0.2] || []) S(r.noFloor ? 'room-no-floor' : 'room-shut-in', { room: r.room, x: r.x, z: r.z });
+    const key = (r) => r.room + r.x + r.z, thin0 = new Set((unreached[0.2] || []).map(key)), mid0 = new Set((unreached[0.28] || []).map(key));
+    let walked = 0;
+    for (const r of unreached[0.28] || []) if (!thin0.has(key(r))) S('room-squeeze', { room: r.room, x: r.x, z: r.z });   // only a thin body gets in
+    for (const r of unreached[0.36] || []) if (!mid0.has(key(r))) {
+      // too tight for the player's width on the grid but open for 0.28: walk the real player along that path (the controller slides along walls)
+      const info = { room: r.room, x: r.x, z: r.z }; let verdict = 'room-tight';
+      if (mid && walked < 3) {
+        walked++; const room = rooms.find((q) => q.kind === r.room && Math.abs((q.x0 + q.x1) / 2 - r.x) < 0.1 && Math.abs((q.z0 + q.z1) / 2 - r.z) < 0.1);
+        let best = -1, bd2 = 1e9; for (let z = room.z0 + 0.2; z < room.z1 - 0.2; z += CS) for (let x = room.x0 + 0.2; x < room.x1 - 0.2; x += CS) { const c = at(x, z); if (mid.seen[c] && (x - r.x) ** 2 + (z - r.z) ** 2 < bd2) { bd2 = (x - r.x) ** 2 + (z - r.z) ** 2; best = c; } }
+        if (best >= 0) {
+          const path = []; for (let c = best; c >= 0; c = mid.par[c]) path.push(c); path.reverse();
+          const pts = path.filter((_, i) => i % 6 === 0 || i === path.length - 1).map((c) => { const i = c % W, j = (c - i) / W; return [gx0 + (i + 0.5) * CS, gz0 + (j + 0.5) * CS]; });
+          const c0 = g.player.body3, mv = (vx, vz) => { c0.move(1 / 60, vx, vz); g.phys.world.step(); };   // the capsule only follows the body when the world steps
+          c0.teleport(pts[0][0], top + 0.05, pts[0][1]); g.phys.world.step(); for (let u = 0; u < 3; u++) mv(0, 0);
+          let stuck = null; for (const [tx, tz] of pts) { let n = 0; while (n++ < 120 && Math.hypot(tx - c0.x, tz - c0.z) > 0.2) { const dx = tx - c0.x, dz = tz - c0.z, l = Math.hypot(dx, dz); mv(dx / l * 2, dz / l * 2); } if (Math.hypot(tx - c0.x, tz - c0.z) > 0.5) { stuck = [+c0.x.toFixed(1), +c0.z.toFixed(1), +tx.toFixed(1), +tz.toFixed(1)]; break; } }
+          verdict = stuck ? 'room-blocked-physically' : 'room-tight-walkable'; if (stuck) info.stuck = stuck;
+        }
+      }
+      if (verdict !== 'room-tight-walkable') S(verdict, info);
     }
-    if (k === 0 && sb) { const c = nearFree((sb.x0 + sb.x1) / 2, sb.z1 + 1.2, 1.5); if (c < 0 || !seen[c]) S('stair-unreachable-from-door'); }
-    if (window.__auditDump && window.__auditDump.k === k && window.__auditDump.uid === bd.lot.uid) {   // debugging aid: the walk grid as text (. free, o reached, space no floor, # blocked, R room centre)
-      const rows = []; for (let j = 0; j < D; j++) { let t = ''; for (let i = 0; i < W; i++) { const c = j * W + i; t += seen[c] ? 'o' : free[c] ? '.' : '#'; } rows.push(t); }
-      for (const r of fl.rooms || []) { const c = nearFree((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, 0.01); const x = Math.floor(((r.x0 + r.x1) / 2 - gx0) / CS), z = Math.floor(((r.z0 + r.z1) / 2 - gz0) / CS); rows[z] = rows[z].slice(0, x) + 'R' + rows[z].slice(x + 1); void c; }
-      add('dump', { rows: rows.join('\n'), seeds: seeds.length, W, D });
-    }
-    const share = nSeen / Math.max(1, nFree); if (nFree > 40 && share < 0.5) S('floor-fragmented', { reached: +share.toFixed(2) });
-    return { share };
+    if (shareThin < 0.5) S('floor-fragmented', { reached: +shareThin.toFixed(2) });
+    return { share: shareThin };
   }
 
+  const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return h | 0; };
   return function auditOne(bd, floors) {
     const res = { uid: bd.lot.uid, name: bd.name, kind: bd.kind, items: [], floors: 0, ms: 0 }, t0 = performance.now(), nBoxes = col.boxes.length, hadSolid = !!bd.lot.solid;
     const add = (code, info) => res.items.push({ code, ...info });
@@ -88,7 +128,8 @@ const AUDIT = () => {
       const L = bd.levels; res.levels = L.length;
       for (let k = 1; k < L.length; k++) if (!(L[k].y > L[k - 1].y) || !finite(L[k].y, L[k].h)) add('levels-not-ascending', { k });
       const ks = floors === 'all' ? L.map((_, i) => i) : [...new Set([0, L.findIndex((l) => l.tier === 'tower'), Math.floor(L.length / 2), L.length - 2, L.length - 1])].filter((k) => k >= 0 && k < L.length);
-      for (const k of ks) { bd.ensureRange(k, k, true); while (bd.job) bd.finishJob(); bd.buildFloor(k); floorCheck(bd, k, add); res.floors++; }
+      for (const k of ks) { window.__seedRandom(hash(res.uid) + k * 7919); bd.ensureRange(k, k, true);   // the same floor of the same building always gets the same furniture
+         while (bd.job) bd.finishJob(); bd.buildFloor(k); floorCheck(bd, k, add); res.floors++; }
       if (bd.lot.door && bd.floors.has(0) === false) { bd.ensureRange(0, 0, true); bd.buildFloor(0); }
       if (bd.lot.door) { const f0 = bd.floors.get(0); if (f0 && !f0.entrance) add('no-entrance-doors'); }
     } catch (e) { add('exception', { msg: String(e && e.stack || e).slice(0, 300) }); }
@@ -104,12 +145,12 @@ const AUDIT = () => {
 
 (async () => {
   const mode = process.env.MODE || 'neon', floors = process.env.FLOORS || 'all', limit = +(process.env.LIMIT || 1e9), pick = process.env.PICK ? process.env.PICK.split(',') : null;
-  const { browser, page, errors } = await openGame({ q: 0, width: 320, height: 180, init: () => { let s = 1; Math.random = () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; } });
+  const { browser, page, errors } = await openGame({ q: 0, width: 320, height: 180, init: () => { let s = 1; window.__seedRandom = (v) => { s = v | 0; }; Math.random = () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; } });
   await freeze(page);
-  if (process.env.DUMP) { const [u, k] = process.env.DUMP.split(':'); await page.evaluate(({ u, k }) => { window.__auditDump = { uid: u, k: +k }; }, { u, k }); }
+  if (process.env.DUMP) { const [u, k] = process.env.DUMP.split(':'); await page.evaluate(({ u, k, pts }) => { window.__auditDump = { uid: u, k: +k, pts }; }, { u, k, pts: JSON.parse(process.env.DUMPPTS || '[]') }); }
   await page.evaluate(`window.__auditOne = (${AUDIT.toString()})(); window.__game.eng.render = () => {};`);
   const results = [], t0 = Date.now();
-  const report = (r) => { results.push(r); if (r.items.length || results.length % 50 === 0) process.stdout.write(`${results.length} ${r.uid} ${r.ms}ms ${r.items.map((i) => i.code).join(',')}\n`); };
+  const report = (r) => { results.push(r); if (process.env.OUT) fs.appendFileSync(process.env.OUT + 'l', JSON.stringify(r) + '\n'); if (r.items.length || results.length % 50 === 0) process.stdout.write(`${results.length} ${r.uid} ${r.ms}ms ${r.items.map((i) => i.code).join(',')}\n`); };
   if (mode === 'neon') {
     const uids = await page.evaluate(() => window.__game.world.lots.filter((l) => window.__game.buildings.byLot.has(l)).map((l) => l.uid));
     for (const uid of (pick || uids).slice(0, limit)) report(await page.evaluate(({ uid, floors }) => { const g = window.__game, lot = g.world.lots.find((l) => l.uid === uid || l.alias === uid); return window.__auditOne(g.buildings.byLot.get(lot), floors); }, { uid, floors }));
