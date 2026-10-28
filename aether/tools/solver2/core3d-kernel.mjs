@@ -27,12 +27,19 @@ export function roundSig(x, mbits, eMin) {
   const ulp = 2 ** (Math.max(e, eMin) - mbits), m = a / ulp; let r = Math.floor(m); const fr = m - r; if (fr > .5 || (fr === .5 && r % 2 === 1)) r++;
   return x < 0 ? -r * ulp : r * ulp;
 }
+// same with one more significand bit (11 stored bits, smallest normal 2^-14, spacing 2^-25 below), fast path for 'f16c' (checked against roundSig in tests/f16-round.mjs)
+export function f16cr(x) {
+  F16[0] = x; const b = U16[0], e = (b >>> 23) & 255;
+  if (e === 255) return F16[0];
+  if (e < 113) { const v = F16[0] * 33554432, t = Math.abs(v - Math.trunc(v)) === .5 ? 2 * Math.round(v / 2) : Math.round(v); return t / 33554432; }
+  U16[0] = (b + 0x7ff + ((b >>> 12) & 1)) & 0xfffff000; return F16[0];
+}
 export const STORAGE = { f32: 0, f16s: 1, f16: 2, f16raw: 3, f16c: 4 };
 export function storeVal(st, v, q) {
   if (st === 1) return W[q] + f16r((v - W[q]) * F16_SCALE) / F16_SCALE;
   if (st === 2) return W[q] + f16r(v - W[q]);
   if (st === 3) return f16r(v);
-  if (st === 4) return W[q] + roundSig(Math.fround(v) - W[q], 11, -14);
+  if (st === 4) return W[q] + f16cr(v - W[q]);
   return v;
 }
 export const C = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0], [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1], [0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1]];

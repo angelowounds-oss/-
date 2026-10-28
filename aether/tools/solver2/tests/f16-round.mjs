@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Checks f16r (the binary16 store emulation in core3d-kernel.mjs) against a slow exact reference:
 // every finite half value, every midpoint between neighbouring halves (ties to even), and random float32 values over the whole exponent range.
-import { f16r } from '../core3d-kernel.mjs';
+import { f16r, f16cr, roundSig } from '../core3d-kernel.mjs';
 const f32 = x => Math.fround(x);
 // exact reference: x is a float32 value (exact in double); round to the nearest binary16, ties to even
 function ref(x) {
@@ -23,5 +23,9 @@ for (let i = 0; i + 1 < uniq.length; i++) { const mid = f32((uniq[i] + uniq[i + 
 check(65504); check(65519); check(65520); check(70000); check(1e-9); check(-1e-9); check(6.0e-8); check(2.9e-8); check(3.0e-8);
 let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
 for (let i = 0; i < 400000; i++) { const x = f32((rnd() < .5 ? -1 : 1) * 2 ** (rnd() * 46 - 30) * (1 + rnd())); check(x); }
-console.log(JSON.stringify({ checked: n, mismatches: bad, halves: uniq.length, fails }));
-process.exit(bad ? 1 : 0);
+// the 12-bit-significand variant (f16c storage) against the generic exact rounding
+let nc = 0, badc = 0; const failc = [];
+for (let i = 0; i < 400000; i++) { const x = f32((rnd() < .5 ? -1 : 1) * 2 ** (rnd() * 40 - 30) * (1 + rnd())); nc++; const a = f16cr(x), b = roundSig(x, 11, -14); if (a !== b) { badc++; if (failc.length < 8) failc.push({ x, got: a, want: b }); } }
+for (let m = 0; m < 4096; m++) { const x = f32((1 + (m + .5) / 2048) * 2 ** -3); nc++; if (f16cr(x) !== roundSig(x, 11, -14)) badc++; } // exact ties
+console.log(JSON.stringify({ checked: n, mismatches: bad, halves: uniq.length, fails, f16c: { checked: nc, mismatches: badc, fails: failc } }));
+process.exit(bad || badc ? 1 : 0);
