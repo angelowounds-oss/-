@@ -700,8 +700,8 @@ export class Building {
     const acc = fl.acc;
     this.roomMEP(fl, L, rm, y, dirIn, cx, cz);
     if (rm.level === 2) { fl.fixtures.push([cx, y + 3.2, cz, [1, 0.9, 0.75]]); return; }   // the last resort: a bare room
-    // the en-suite needs the back corner, where a room leading on to another has its doorway
-    if (rm.kind === 'bedroom' && rm.sub != null && rm.bx == null && fl.deco && (L.type === 'apartment' || L.type === 'hotel')) this.bathCell(fl, L, rm, y);
+    // the en-suite needs the back corner, where a room leading on to another has its doorway; a second try goes without it
+    if (rm.kind === 'bedroom' && rm.sub != null && rm.bx == null && rm.level === 0 && fl.deco && (L.type === 'apartment' || L.type === 'hotel')) this.bathCell(fl, L, rm, y);
     if (fl.deco) {
       // rooms are ~8 x 20 m: split into zones of ~6.5 m from the back wall and furnish each as its own room-like area
       const D = rm.z1 - rm.z0 - 0.4, nseg = Math.max(1, Math.round(D / 6.5)), seg = D / nseg;
