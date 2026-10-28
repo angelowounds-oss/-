@@ -116,12 +116,14 @@ const AUDIT = () => {
       if (verdict !== 'room-tight-walkable') S(verdict, info);
     }
     if (shareThin < 0.5) S('floor-fragmented', { reached: +shareThin.toFixed(2) });
+    // rooms the builder had to furnish again more sparsely (level 1) or leave bare (level 2) to keep them walkable (building.js furnishRoom)
+    if (fl.roomLevels && fl.roomLevels[2]) S('room-bare', { n: fl.roomLevels[2], why: [...new Set(rooms.filter((r) => r.level === 2).map((r) => r.kind + ':' + r.walkWhy))].slice(0, 4) });
     return { share: shareThin };
   }
 
   const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return h | 0; };
   return function auditOne(bd, floors) {
-    const res = { uid: bd.lot.uid, name: bd.name, kind: bd.kind, items: [], floors: 0, ms: 0 }, t0 = performance.now(), nBoxes = col.boxes.length, hadSolid = !!bd.lot.solid;
+    const res = { uid: bd.lot.uid, name: bd.name, kind: bd.kind, items: [], floors: 0, ms: 0, roomLevels: [0, 0, 0] }, t0 = performance.now(), nBoxes = col.boxes.length, hadSolid = !!bd.lot.solid;
     const add = (code, info) => res.items.push({ code, ...info });
     try {
       bd.activate(); bd.plan();
@@ -129,7 +131,7 @@ const AUDIT = () => {
       for (let k = 1; k < L.length; k++) if (!(L[k].y > L[k - 1].y) || !finite(L[k].y, L[k].h)) add('levels-not-ascending', { k });
       const ks = floors === 'all' ? L.map((_, i) => i) : [...new Set([0, L.findIndex((l) => l.tier === 'tower'), Math.floor(L.length / 2), L.length - 2, L.length - 1])].filter((k) => k >= 0 && k < L.length);
       for (const k of ks) { window.__seedRandom(hash(res.uid) + k * 7919); bd.ensureRange(k, k, true);   // the same floor of the same building always gets the same furniture
-         while (bd.job) bd.finishJob(); bd.buildFloor(k); floorCheck(bd, k, add); res.floors++; }
+         while (bd.job) bd.finishJob(); bd.buildFloor(k); floorCheck(bd, k, add); res.floors++; const rl = bd.floors.get(k)?.roomLevels; if (rl) rl.forEach((v, i) => { res.roomLevels[i] += v; }); }
       if (bd.lot.door && bd.floors.has(0) === false) { bd.ensureRange(0, 0, true); bd.buildFloor(0); }
       if (bd.lot.door) { const f0 = bd.floors.get(0); if (f0 && !f0.entrance) add('no-entrance-doors'); }
     } catch (e) { add('exception', { msg: String(e && e.stack || e).slice(0, 300) }); }

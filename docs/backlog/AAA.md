@@ -27,6 +27,14 @@
 - 범위: 패스 A(외부 16,294채), 패스 B(NEON 내부 560채) 완료. 패스 C·D와 단위 테스트는 남음.
 - AC: 결과 보고서와 uid 목록. 수정은 별도 티켓.
 
+### Q0-8 실내 통로 보장 — P0 · M · Q0 · Review (ADR-0031, 2026-10-28 사용자 요청)
+- 범위: 안쪽 문 모서리, `Frame` 뒷문·통로 예약, 고정 가구 fit/slide, 꾸민 뒤 걷기 판정과 다시 꾸미기(`src/walkgrid.js`), 복도 장식 문 앞 금지.
+- AC: NEON 560채 재점검에서 room-shut-in·room-blocked-physically·room-squeeze·room-tight 0, room-bare는 보고, 가구 감소 층당 15% 이내, 층 생성 단계 8 ms 미만.
+- 검증: 단위 `room-walkways`, `node tests/tools/building-audit.cjs`, `building-registry --check` 차이 0. 사용자: quick, `--only floor-population`, `--only ai-behaviour`.
+
+### Q0-9 밖에서 안이 보이는 창 — P0 · L · Q0 · Backlog (2026-10-28 사용자 요청, 방식 결정: 가짜 방 + 진짜 층)
+- 범위: 외관 셰이더 창 칸 인테리어 매핑(모든 도시·층), 만들어진 층은 창 칸을 열어 진짜 실내·반투명 유리가 보이게(`entrance-holes` 규칙 유지). ADR-0032.
+
 ### Q0-4 물 셰이더 교체(GPL 제거) — P0 · M · Q0 · Backlog
 - 범위: three.js `Water`(MIT)를 바탕으로 다시 쓴다. Q2-4와 합친다.
 

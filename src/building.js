@@ -7,6 +7,7 @@ import { accentColor, BAY } from './world.js';
 import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
 import { livingSet, LIVING_COLLIDERS } from './livingset.js';
 import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
+import { roomWalkable } from './walkgrid.js';
 
 // ====================================================================
 // Physically continuous buildings: every road-facing tower has a real entrance, real floors,
@@ -15,6 +16,8 @@ import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
 // ====================================================================
 const FH = 4.0, SLAB = 0.35, WALL = 0.5, ACT_R = 62, DROP_R = 96, MAX_ACTIVE = 6;
 const CORE_W = 6.6, CORE_D = 6.0, COR_W = 2.6;
+// the doorway between two rooms of a flat or suite: its centre this far from the room's left wall (a corner, clear of the back-wall furniture)
+const INNER_DOOR = 0.85;
 // interior paint: each flat / office suite gets its own light colour (partitions and the room-side faces), picked by a hash of the building, floor and unit
 const PAINT = [0xd2cbbf, 0xcdbfa6, 0xbec6b3, 0xb6c2cd, 0xd0bcb5, 0xc3bcb0, 0xc5c8cd, 0xd3c78e, 0xaab8b5, 0xc4af92];
 const PAINT_OFFICE = [0xcfd2d7, 0xc4cad1, 0xd1cfc9, 0xb7c4c6, 0xc8ccd3];
@@ -581,7 +584,8 @@ export class Building {
         // a 20 m deep strip becomes a flat: front room on the corridor, then inner rooms behind partitions with open doorways
         const Dn = iz1 - corrZ1, ns = Math.max(1, Math.round(Dn / 6.8)), sg = Dn / ns;
         for (let q = 0; q < ns; q++) {
-          const z0s = corrZ1 + q * sg, door = q === 0 ? dx : a + rw * 0.5 + (q % 2 ? 0.9 : -0.9);
+          const z0s = corrZ1 + q * sg, door = q === 0 ? dx : a + INNER_DOOR;   // inner doorways sit in the corner, where no furniture stands against the wall
+          if (q > 0) rooms[rooms.length - 1].bx = door;   // the room in front has this doorway in its back wall
           rooms.push({ x0: a, z0: z0s, x1: b, z1: z0s + sg, wall: 'n', dx: door, dz: z0s, sub: q, ns });
           if (q > 0) wallX(z0s, a, b, [[door, 1.05]], paintOf(i));
         }
@@ -599,7 +603,8 @@ export class Building {
         gaps.push([dx, 1.05]);
         const Dn = zc - iz0, ns = Math.max(1, Math.round(Dn / 6.8)), sg = Dn / ns;
         for (let q = 0; q < ns; q++) {
-          const z1s = zc - q * sg, door = q === 0 ? dx : a + rw * 0.5 + (q % 2 ? 0.9 : -0.9);
+          const z1s = zc - q * sg, door = q === 0 ? dx : a + INNER_DOOR;
+          if (q > 0) rooms[rooms.length - 1].bx = door;
           rooms.push({ x0: a, z0: z1s - sg, x1: b, z1: z1s, wall: 's', dx: door, dz: z1s, sub: q, ns });
           if (q > 0) wallX(z1s, a, b, [[door, 1.05]], paintOf(i + 50));
         }
@@ -629,8 +634,9 @@ export class Building {
     yield;
     for (let i = 0; i < rooms.length; i++) { this.furnishRoom(fl, L, rooms[i], i); yield; }   // one room per step
     this.addLivingSets(fl, y);
-    // open spaces: corridor decor
-    this.plant(fl, ix0 + 0.6, corrZ1 - 0.6);
+    // open spaces: corridor decor, none of it in front of a door (a piece on a wall is clear when it ends 0.95 m either side of a doorway's centre)
+    const clear = (xa, xb, c) => !doors.some((d) => Math.abs(d.c - c) < 0.01 && xb > d.u - 0.95 && xa < d.u + 0.95);
+    if (clear(ix0 + 0.2, ix0 + 1.0, corrZ1)) this.plant(fl, ix0 + 0.6, corrZ1 - 0.6);
     const D = fl.deco;
     if (D) {
       const mid = (zc + corrZ1) / 2;
@@ -638,7 +644,7 @@ export class Building {
       D.put('wall_clock', ix0 + 0.12, mid, Math.PI / 2, { lift: 2.3, solid: false });
       D.put('fire_alarm', ix1 - 0.12, corrZ1 - 0.2, -Math.PI / 2, { lift: 1.5, solid: false });
       D.put('security_camera_01', ix1 - 0.4, mid, 0, { lift: L.h - 0.65, solid: false, s: 0.8 });
-      D.put('painted_wooden_cabinet', ix1 - 0.5, zc + 0.9, -Math.PI / 2, { tag: 'furniture' });
+      if (clear(ix1 - 1.0, ix1, zc)) D.put('painted_wooden_cabinet', ix1 - 0.5, zc + 0.9, -Math.PI / 2, { tag: 'furniture' });
       // fire safety and wayfinding: extinguishers with signs, glowing exit sign at the far end, bins, wall lights, duct + pipe runs
       for (const xx of [r2x0 + 3, ix0 + 9]) { D.put('korean_fire_extinguisher_01', xx, zc + 0.3, 0, { lift: 0.95, solid: false }); B.ext('emit', xx - 0.14, y + 1.75, zc + 0.065, xx + 0.14, y + 2.0, zc + 0.08, new THREE.Color(1, 0.2, 0.15).multiplyScalar(1.3)); }
       B.ext('emit', ix1 - 0.06, y + 2.3, mid - 0.45, ix1 - 0.03, y + 2.62, mid + 0.45, new THREE.Color(0.2, 1, 0.45).multiplyScalar(1.7));
@@ -649,7 +655,7 @@ export class Building {
       B.ext('steel', ix0, y + L.h - 0.78, zc + 0.14, ix1, y + L.h - 0.7, zc + 0.2, 0x8a6a3a);
       B.ext('decor', ix0, y + L.h - 0.5, zc + 0.05, ix1, y + L.h - 0.46, zc + 0.45, 0x3c4048);          // cable tray
       // vending machine at the end of the corridor
-      { const vx = ix1 - 1.1, vz = corrZ1 - 0.5; fl.solid('decor', vx - 0.45, y, vz - 0.4, vx + 0.45, y + 1.85, vz + 0.4, 0x2a3a5a); B.ext('emit', vx - 0.38, y + 0.9, vz - 0.405, vx + 0.38, y + 1.7, vz - 0.395, new THREE.Color(0.35, 0.75, 1).multiplyScalar(1.5)); B.ext('emit', vx - 0.38, y + 0.3, vz - 0.405, vx + 0.38, y + 0.38, vz - 0.395, new THREE.Color(1, 0.5, 0.2).multiplyScalar(1.3)); }
+      { const vx = ix1 - 1.1, vz = corrZ1 - 0.5; if (clear(vx - 0.45, vx + 0.45, corrZ1)) { fl.solid('decor', vx - 0.45, y, vz - 0.4, vx + 0.45, y + 1.85, vz + 0.4, 0x2a3a5a); B.ext('emit', vx - 0.38, y + 0.9, vz - 0.405, vx + 0.38, y + 1.7, vz - 0.395, new THREE.Color(0.35, 0.75, 1).multiplyScalar(1.5)); B.ext('emit', vx - 0.38, y + 0.3, vz - 0.405, vx + 0.38, y + 0.38, vz - 0.395, new THREE.Color(1, 0.5, 0.2).multiplyScalar(1.3)); } }
     }
     yield;
     if (this.M.populateLifeGen) yield* this.M.populateLifeGen(this, fl, L, rooms); else this.M.populateLife?.(this, fl, L, rooms);
@@ -657,7 +663,26 @@ export class Building {
     yield* this.M.populateCitizensGen(this, fl, L, rooms);
     fl.rooms = rooms;
   }
+  // furnishes a room, then walks it; a room the player could not get through is undone and furnished again more sparsely (level 1 keeps
+  // walkways clear, level 2 leaves it bare). Undoing truncates what the room appended: merged boxes, furniture, colliders, lights, sofa sets.
   furnishRoom(fl, L, rm, i) {
+    const B = fl.B, D = fl.deco, mark = () => ({ acc: Object.fromEntries(Object.entries(B.acc).map(([k, a]) => [k, a.n])), boxes: fl.boxes.length, fix: fl.fixtures.length, liv: fl.livings ? fl.livings.length : 0, geos: D ? D.geos.length : 0, recs: D ? D.boxes.length : 0 });
+    const undo = (m) => {
+      for (const [k, a] of Object.entries(B.acc)) a.n = m.acc[k] ?? 0;
+      const col = this.G.world.colliders; for (const b of fl.boxes.splice(m.boxes)) col.removeBox(b);
+      fl.fixtures.length = m.fix; if (fl.livings) fl.livings.length = m.liv;
+      if (D) { D.geos.length = m.geos; D.boxes.length = m.recs; D.count = m.geos; }
+      B.surf = 0; delete rm.reserved; delete rm.setX;
+    };
+    for (let level = 0; level <= 2; level++) {
+      const m = mark(); rm.level = level;
+      this.furnishRoomOnce(fl, L, rm, i);
+      if (level === 2 || roomWalkable(fl.boxes, L.y, rm)) break;
+      undo(m);
+    }
+    (fl.roomLevels ||= [0, 0, 0])[rm.level]++;
+  }
+  furnishRoomOnce(fl, L, rm, i) {
     const { B, solid, R } = fl, y = L.y;
     const unit = (rm.sub != null ? Math.floor(i / Math.max(1, rm.ns)) : i);
     const kind = rm.sub != null
@@ -674,7 +699,9 @@ export class Building {
     const col = (cx_, cz_, w, d, hgt, color, em) => solid('decor', cx_ - w / 2, y, cz_ - d / 2, cx_ + w / 2, y + hgt, cz_ + d / 2, color, em);
     const acc = fl.acc;
     this.roomMEP(fl, L, rm, y, dirIn, cx, cz);
-    if (rm.kind === 'bedroom' && rm.sub != null && fl.deco && (L.type === 'apartment' || L.type === 'hotel')) this.bathCell(fl, L, rm, y);
+    if (rm.level === 2) { fl.fixtures.push([cx, y + 3.2, cz, [1, 0.9, 0.75]]); return; }   // the last resort: a bare room
+    // the en-suite needs the back corner, where a room leading on to another has its doorway
+    if (rm.kind === 'bedroom' && rm.sub != null && rm.bx == null && fl.deco && (L.type === 'apartment' || L.type === 'hotel')) this.bathCell(fl, L, rm, y);
     if (fl.deco) {
       // rooms are ~8 x 20 m: split into zones of ~6.5 m from the back wall and furnish each as its own room-like area
       const D = rm.z1 - rm.z0 - 0.4, nseg = Math.max(1, Math.round(D / 6.5)), seg = D / nseg;
@@ -682,11 +709,11 @@ export class Building {
       const tint = { bedroom: [1, 0.78, 0.55], kitchen: [1, 0.95, 0.85], office: [0.9, 0.95, 1], meeting: [1, 1, 1], server: [0.4, 0.7, 1], living: [1, 0.8, 0.6] };
       for (let sI = 0; sI < nseg; sI++) {
         const k2 = cycle[sI % cycle.length];
-        if (kind === 'living' && sI === 0) continue;       // the first living zone keeps the hand-placed sofa / TV anchors of life.js
+        if (kind === 'living' && sI === 0 && rm.level === 0) continue;       // the first living zone keeps the hand-placed sofa / TV anchors of life.js
         decorateRoom(new Frame(rm, y, [sI * seg, (sI + 1) * seg]), fl.deco, k2, L);
         if (sI > 0) { const south2 = rm.wall === 'n', zz = south2 ? rm.z1 - 0.2 - (sI + 0.5) * seg : rm.z0 + 0.2 + (sI + 0.5) * seg; fl.fixtures.push([cx, y + 3.2, zz, tint[k2] || [1, 1, 1]]); }
       }
-      if (kind !== 'living') { fl.fixtures.push([cx, y + 3.2, rm.wall === 'n' ? rm.z1 - 0.2 - 0.5 * seg : rm.z0 + 0.2 + 0.5 * seg, tint[kind] || [1, 1, 1]]); return; }
+      if (kind !== 'living' || rm.level > 0) { fl.fixtures.push([cx, y + 3.2, rm.wall === 'n' ? rm.z1 - 0.2 - 0.5 * seg : rm.z0 + 0.2 + 0.5 * seg, tint[kind] || [1, 1, 1]]); return; }
     }
     if (kind === 'bedroom') {
       col(cx, back - dirIn * 1.2, 2.0, 2.1, 0.5, 0xd8d0d8);
@@ -696,10 +723,13 @@ export class Building {
       col(cx + 1.5, back - dirIn * 0.5, 0.5, 0.5, 0.55, 0x2a2d38);
       fl.fixtures.push([cx, y + 3.2, cz, [1, 0.78, 0.55]]);
     } else if (kind === 'living') {
-      (fl.livings = fl.livings || []).push({ x: cx, z: back, ry: south ? Math.PI : 0 });
-      this.sofa(fl, cx, back - dirIn * 0.9, south ? 0 : Math.PI, 0x2f3b5a, 2.6);
-      col(cx, back - dirIn * 3.4, 1.8, 0.5, 0.4, 0x1b1d26);
-      B.ext('emit', cx - 0.9, y + 0.7, back - dirIn * 0.15 + 0, cx + 0.9, y + 1.5, back - dirIn * 0.1, new THREE.Color(0.3, 0.5, 1).multiplyScalar(1.5));
+      // a doorway in the back-left corner: the sofa set moves a little to the right so it clears it (life.js reads rm.setX)
+      const sx = cx + (rm.bx != null ? 0.25 : 0); rm.setX = sx;
+      const p = { x: sx, z: back, ry: south ? Math.PI : 0 }; (fl.livings = fl.livings || []).push(p);
+      if (livingSet()) this.livingColliders(fl, p, y);
+      this.sofa(fl, sx, back - dirIn * 0.9, south ? 0 : Math.PI, 0x2f3b5a, 2.6);
+      col(sx, back - dirIn * 3.4, 1.8, 0.5, 0.4, 0x1b1d26);
+      B.ext('emit', sx - 0.9, y + 0.7, back - dirIn * 0.15 + 0, sx + 0.9, y + 1.5, back - dirIn * 0.1, new THREE.Color(0.3, 0.5, 1).multiplyScalar(1.5));
       this.plant(fl, x1 - 0.6, z0 + 0.8);
       fl.fixtures.push([cx, y + 3.2, cz, [1, 0.8, 0.6]]);
     } else if (kind === 'kitchen') {
@@ -733,9 +763,10 @@ export class Building {
   // diffuser in offices and hotel rooms; all small merged boxes
   roomMEP(fl, L, rm, y, dirIn, cx, cz) {
     const { B } = fl, plate = 0xf0ece4, face = rm.dz + dirIn * 0.09, e = face + dirIn * 0.016, z0 = Math.min(face, e), z1 = Math.max(face, e), ceil = y + L.h - SLAB;
+    const l = rm.dx - rm.x0 < 1.6 ? -1 : 1;   // a corner doorway has no wall on its left: what went there goes to its right
     B.ext('decor', rm.dx + 0.84, y + 1.1, z0, rm.dx + 0.92, y + 1.22, z1, plate);                                   // light switch
-    for (const dx of [-0.9, 2.3]) B.ext('decor', rm.dx + dx, y + 0.3, z0, rm.dx + dx + 0.08, y + 0.4, z1, plate);   // sockets
-    if (rm.kind === 'living' || rm.kind === 'bedroom') B.ext('decor', rm.dx - 1.35, y + 1.35, z0, rm.dx - 1.27, y + 1.47, z1, 0xe6e3dc);   // thermostat
+    for (const dx of [-0.9 * l, 2.3]) B.ext('decor', rm.dx + dx, y + 0.3, z0, rm.dx + dx + 0.08, y + 0.4, z1, plate);   // sockets
+    if (rm.kind === 'living' || rm.kind === 'bedroom') B.ext('decor', rm.dx - 1.35 * l, y + 1.35, z0, rm.dx - 1.35 * l + 0.08, y + 1.47, z1, 0xe6e3dc);   // thermostat
     B.cyl('decor', cx + 1.4, ceil - 0.035, cz - 1.2, 0.06, 0.035, 0xf6f6f2, 12);                                    // smoke detector
     B.cyl('decor', cx - 0.6, ceil - 0.03, cz + 1.0, 0.018, 0.03, 0xc8ccd2, 8);                                      // sprinkler head
     if (L.type === 'office' || L.type === 'hotel') {
@@ -788,12 +819,13 @@ export class Building {
       list.forEach((p, i) => { q.setFromAxisAngle(ax, p.ry); pv.set(p.x, y, p.z); m4.compose(pv, q, one); im.setMatrixAt(i, m4); });
       im.castShadow = false; im.receiveShadow = true; im.frustumCulled = true; fl.group.add(im);
     }
-    for (const p of list) {
-      const f = Math.cos(p.ry) < 0 ? -1 : 1;
-      for (const [x0, z0, x1, z1, h] of LIVING_COLLIDERS) {
-        const ax0 = p.x + f * x0, ax1 = p.x + f * x1, az0 = p.z + f * z0, az1 = p.z + f * z1;
-        fl.cc(Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1), y, y + h, 'furniture');
-      }
+  }
+  // the sofa set's colliders go in with its room (furnishRoom walks the room with them), its meshes with the floor (addLivingSets)
+  livingColliders(fl, p, y) {
+    const f = Math.cos(p.ry) < 0 ? -1 : 1;
+    for (const [x0, z0, x1, z1, h] of LIVING_COLLIDERS) {
+      const ax0 = p.x + f * x0, ax1 = p.x + f * x1, az0 = p.z + f * z0, az1 = p.z + f * z1;
+      fl.cc(Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1), y, y + h, 'furniture');
     }
   }
   sofa(fl, x, z, ry, color, w = 2.6) {

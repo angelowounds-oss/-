@@ -204,10 +204,11 @@ export class Life {
       if (rnd() < 0.5) it(rnd() < 0.5 ? 'watch' : 'cashroll', cx + 1.5, y + 0.6, back - dirIn * 0.5);
       this.stash(b, fl, y, rm.x0 + 0.7, back - dirIn * 0.5, '옷장', rnd);
     } else if (kind === 'living') {
-      this.fix(fl, cx, y + 0.9, back - dirIn * 3.0, 3, 'TV', [
+      const lx = rm.setX ?? cx;   // the sofa set's centre (building.js moves it clear of a corner doorway)
+      this.fix(fl, lx, y + 0.9, back - dirIn * 3.0, 3, 'TV', [
         { key: 'F', label: () => '채널 변경', run: () => (G.memory?.st.events.length && Math.random() < 0.6 ? G.toast('📺 뉴스', G.memory.latest(1)[0].text) : G.toast('📺', ['네온시티 뉴스: 폭우 경보', '사이버 격투기 중계', '드라마 재방송', '광고: NEXUS 임플란트'][Math.floor(Math.random() * 4)])) },
       ]);
-      this.fix(fl, cx, y + 0.5, back - dirIn * 0.9, 2.4, '소파', [{ key: 'F', label: () => '앉기', run: () => G.sitOn?.({ x: cx, y: y + 0.5, z: back - dirIn * 1.0 }, null) }]);
+      this.fix(fl, lx, y + 0.5, back - dirIn * 0.9, 2.4, '소파', [{ key: 'F', label: () => '앉기', run: () => G.sitOn?.({ x: lx, y: y + 0.5, z: back - dirIn * 1.0 }, null) }]);
       it('chair', rm.x0 + 1.3, y + 0.5, cz); it('houseplant', rm.x1 - 0.8, y + 0.3, cz + dirIn * 0.5);
       if (rnd() < 0.5) it('newspaper', cx, y + 0.45, back - dirIn * 3.4);
       if (rnd() < 0.3) it('bottle', cx + 0.4, y + 0.45, back - dirIn * 3.5);

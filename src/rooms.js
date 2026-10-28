@@ -20,8 +20,23 @@ class Frame {
     // world-space rectangles other builders have claimed (e.g. the bathroom cell)
     for (const r of rm.reserved || []) { const a = Math.abs(r.z0 - this.back), b = Math.abs(r.z1 - this.back); this.taken.push({ lx0: r.x0 - this.cx, lx1: r.x1 - this.cx, ld0: Math.min(a, b), ld1: Math.max(a, b) }); }
     // keep the door clear: a 2 m wide strip in front of the door wall (only the zone that touches it)
-    if (!sub || sub[1] >= full - 0.1) this.taken.push({ lx0: rm.dx - this.cx - 1.0, lx1: rm.dx - this.cx + 1.0, ld0: this.D - 1.7, ld1: this.D + 0.5 });
+    const fx = rm.dx - this.cx, bx = rm.bx != null ? rm.bx - this.cx : null, front = !sub || sub[1] >= full - 0.1, rear = !sub || sub[0] < 0.1;
+    if (front) this.taken.push({ lx0: fx - 1.0, lx1: fx + 1.0, ld0: this.D - 1.7, ld1: this.D + 0.5, door: true });
+    // the doorway in the back wall to the next room of the flat (the zone that touches the back wall), and a lane 1.2 m wide from it down the
+    // whole room to the front door's strip: the inner doorways sit in the left corner, so the lane runs along the left wall
+    if (bx != null) {
+      if (rear) this.taken.push({ lx0: bx - 0.7, lx1: bx + 0.7, ld0: -0.5, ld1: 1.55, door: true });
+      this.taken.push({ lx0: bx - 0.6, lx1: bx + 0.6, ld0: -0.5, ld1: this.D + 0.5 });
+      if (front) this.taken.push({ lx0: Math.min(fx, bx) - 0.6, lx1: Math.max(fx, bx) + 0.6, ld0: this.D - 1.7, ld1: this.D + 0.5 });
+    }
+    // a second try after the room could not be walked: walkways from the door down the whole room, and over to the back doorway
+    if (rm.level >= 1) {
+      this.taken.push({ lx0: fx - 0.55, lx1: fx + 0.55, ld0: -0.5, ld1: this.D + 0.5 });
+      if (bx != null) { this.taken.push({ lx0: bx - 0.55, lx1: bx + 0.55, ld0: -0.5, ld1: this.D + 0.5 }); this.taken.push({ lx0: Math.min(fx, bx) - 0.55, lx1: Math.max(fx, bx) + 0.55, ld0: this.D / 2 - 0.55, ld1: this.D / 2 + 0.55 }); }
+    }
   }
+  // is a wall piece on the back wall (a picture, a mirror, a screen) clear of a doorway there?
+  clearOfDoors(lx, ld, hx, hz) { return !this.taken.some((t) => t.door && lx + hx > t.lx0 && lx - hx < t.lx1 && ld + hz > t.ld0 && ld - hz < t.ld1); }
   wx(lx) { return this.cx + lx; }
   wz(ld) { return this.back - this.dirIn * ld; }
   // yaw so that the model front looks: 'in' (towards the door wall), 'back' (towards the back wall), 'l'/'r' (world -x / +x as seen from inside)
@@ -38,13 +53,20 @@ function put(F, deco, id, lx, ld, face, o = {}) {
   const ry = o.ry ?? F.ry(face) + (o.turn || 0), c = Math.abs(Math.cos(ry)), n = Math.abs(Math.sin(ry));
   // footprint in local (lateral, depth) axes: yaw multiples of 90 deg swap w and d
   const lat = F.dirIn > 0 ? 1 : 1, hxl = (c * sz.w + n * sz.d) / 2, hzl = (c * sz.d + n * sz.w) / 2;
-  if (!o.force && !o.ghost && !F.free(lx, ld, hxl, hzl, o.margin ?? 0.1)) return null;
+  if (!o.force && !o.ghost && !F.free(lx, ld, hxl, hzl, o.margin ?? 0.1)) {
+    // slide: the piece may move along the wall it stands against, to the nearest place it fits
+    const ok = o.slide && [0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6].find((d) => F.free(lx + d, ld, hxl, hzl, o.margin ?? 0.1));
+    if (ok == null || ok === false) return null; lx += ok;
+  }
+  if (o.ghost && (o.lift ?? 0) < 2.15 && ld - hzl < 0.35 && !F.clearOfDoors(lx, ld, hxl, hzl)) return null;   // nothing hangs across a doorway (ceiling pieces may)
   const rec = deco.put(id, F.wx(lx), F.wz(ld), ry, { s: o.s, lift: o.lift, solid: o.ghost ? false : o.solid, tag: o.tag });
   if (!o.ghost && !(o.lift > 0.3)) F.taken.push({ lx0: lx - hxl, lx1: lx + hxl, ld0: ld - hzl, ld1: ld + hzl });
   return rec;
 }
 // box in the room's local frame (lx lateral from centre, ld depth from the back wall); y absolute offset above the floor
 function pbox(F, deco, lx0, ld0, lx1, ld1, y0, y1, color, o = {}) {
+  // fit: a solid piece that must keep out of what is taken (doorways, walkways, other furniture); false when it does not fit
+  if (o.fit && !F.free((lx0 + lx1) / 2, (ld0 + ld1) / 2, Math.abs(lx1 - lx0) / 2, Math.abs(ld1 - ld0) / 2, 0.02)) return false;
   const xa = F.wx(lx0), xb = F.wx(lx1), za = F.wz(ld0), zb = F.wz(ld1), fl = deco.fl;
   const x0 = Math.min(xa, xb), x1 = Math.max(xa, xb), z0 = Math.min(za, zb), z1 = Math.max(za, zb);
   fl.B.ext(o.key || 'decor', x0, F.y + y0, z0, x1, F.y + y1, z1, color, o.em || 1);
@@ -58,56 +80,85 @@ function bathEdge(F) { let e = -F.W / 2; for (const t of F.taken) if (t.ld0 < 0.
 const HOTEL_ACCENT = [0x8f5a74, 0x4f7a8a, 0xa8744a, 0x5d6f9a, 0x7a8c5c];
 // a hotel room's bed end: striped headboard wall, upholstered headboard, bed with linens and duvet, bedside tables with lamps, bench, rug, desk with
 // chair and a wall TV. Everything is a merged box: the glTF beds do not suit a hotel and the old fit check failed next to the bathroom.
-function hotelBedroom(F, deco, L, cxBed) {
+// the widest stretch of wall in the band ld0..ld1 that nothing has taken (doorways, the en-suite): [lo, hi] in lx, or null
+function freeSpan(F, ld0, ld1) {
+  let runs = [[-F.W / 2 + 0.04, F.W / 2 - 0.04]];
+  for (const t of F.taken) if (t.ld0 < ld1 && t.ld1 > ld0) runs = runs.flatMap(([a, b]) => (t.lx1 <= a || t.lx0 >= b ? [[a, b]] : [[a, t.lx0 - 0.02], [t.lx1 + 0.02, b]]).filter(([p, q]) => q > p));
+  let best = null; for (const r of runs) if (!best || r[1] - r[0] > best[1] - best[0]) best = r;
+  return best;
+}
+function hotelBedroom(F, deco, L, cxPref) {
+  // the full set (a 2 m bed with a table either side) needs 3.6 m of wall; beside the en-suite there is often less, then a 1.6 m bed with one
+  // table; with less than that the caller puts in a plain bed
+  const sp = freeSpan(F, 0, 2.7); if (!sp) return false;
+  const full = sp[1] - sp[0] >= 3.6; if (!full && sp[1] - sp[0] < 2.5) return false;
+  const hb = full ? 1.0 : 0.8, left = full ? 1.8 : hb + 0.1, right = full ? 1.8 : hb + 0.77;
+  const cxBed = Math.min(Math.max(cxPref, sp[0] + left), sp[1] - right), e0 = cxBed - left + 0.05, e1 = cxBed + right - 0.05;
   const idx = Math.floor(((F.rm.x0 * 7.1 + F.rm.z0 * 3.3) % 5 + 5) % 5), acc = HOTEL_ACCENT[idx], accC = new THREE_C(acc), pale = 0xf4f0e8;
-  const l0 = cxBed - 1.0, l1 = cxBed + 1.0, dark = accC.clone().multiplyScalar(0.55), light = accC.clone().lerp(new THREE_C(0xffffff), 0.45);
-  surfBox(F, deco, SURF.paper, cxBed - 1.5, 0.0, cxBed + 1.5, 0.04, 0.3, 2.05, acc, { solid: false, claim: false });         // headboard wall, striped paper
+  const l0 = cxBed - hb, l1 = cxBed + hb, dark = accC.clone().multiplyScalar(0.55), light = accC.clone().lerp(new THREE_C(0xffffff), 0.45);
+  surfBox(F, deco, SURF.paper, Math.max(e0, cxBed - 1.5), 0.0, Math.min(e1, cxBed + 1.5), 0.04, 0.3, 2.05, acc, { solid: false, claim: false });         // headboard wall, striped paper
   pbox(F, deco, l0 - 0.05, 0.05, l1 + 0.05, 2.1, 0, 0.3, 0x3b2f27);                                                       // bed base
   pbox(F, deco, l0 - 0.1, 0.02, l1 + 0.1, 0.16, 0.3, 1.3, dark, { solid: false, claim: false });                          // headboard
   pbox(F, deco, l0, 0.16, l1, 2.06, 0.3, 0.56, pale, { solid: false, claim: false });                                      // mattress and sheets
   pbox(F, deco, l0 - 0.01, 0.8, l1 + 0.01, 2.08, 0.56, 0.63, acc, { solid: false, claim: false });                         // duvet
   pbox(F, deco, l0 + 0.55, 1.5, l1 - 0.55, 2.12, 0.63, 0.66, light, { solid: false, claim: false });                      // folded runner at the foot
-  for (const s of [-1, 1]) pbox(F, deco, cxBed + s * 0.52 - 0.34, 0.2, cxBed + s * 0.52 + 0.34, 0.66, 0.56, 0.7, 0xffffff, { solid: false, claim: false });   // pillows
-  for (const s of [-1, 1]) {
-    const c = cxBed + s * 1.5;
+  for (const s of [-1, 1]) pbox(F, deco, cxBed + s * hb * 0.52 - hb * 0.34, 0.2, cxBed + s * hb * 0.52 + hb * 0.34, 0.66, 0.56, 0.7, 0xffffff, { solid: false, claim: false });   // pillows
+  for (const s of full ? [-1, 1] : [1]) {
+    const c = cxBed + s * (hb + 0.5);
     pbox(F, deco, c - 0.25, 0.03, c + 0.25, 0.5, 0, 0.5, 0x4a3a30);                                                        // bedside table
     pbox(F, deco, c - 0.04, 0.22, c + 0.04, 0.3, 0.5, 0.7, 0xb8a070, { solid: false, claim: false });                       // lamp base
     pbox(F, deco, c - 0.13, 0.13, c + 0.13, 0.39, 0.7, 0.93, new THREE_C(1, 0.85, 0.55), { key: 'emit', em: 1.1, solid: false, claim: false });   // lamp shade
   }
-  pbox(F, deco, cxBed - 0.8, 2.2, cxBed + 0.8, 2.62, 0, 0.44, 0x4a3e36);                                                   // bench at the foot
-  pbox(F, deco, cxBed - 0.78, 2.22, cxBed + 0.78, 2.6, 0.44, 0.52, light, { solid: false, claim: false });
-  surfBox(F, deco, SURF.carpet, cxBed - 1.7, 0.7, cxBed + 1.7, 3.3, 0.016, 0.03, accC.clone().lerp(new THREE_C(0xdad2c2), 0.55), { solid: false, claim: false });   // rug
+  pbox(F, deco, cxBed - hb * 0.8, 2.2, cxBed + hb * 0.8, 2.62, 0, 0.44, 0x4a3e36);                                         // bench at the foot
+  pbox(F, deco, cxBed - hb * 0.78, 2.22, cxBed + hb * 0.78, 2.6, 0.44, 0.52, light, { solid: false, claim: false });
+  surfBox(F, deco, SURF.carpet, Math.max(sp[0], cxBed - 1.7), 0.7, Math.min(sp[1], cxBed + 1.7), 3.3, 0.016, 0.03, accC.clone().lerp(new THREE_C(0xdad2c2), 0.55), { solid: false, claim: false });   // rug
   const dx1 = F.W / 2 - 0.03, dx0 = dx1 - 0.6;                                                                                // desk, chair and TV on the right-hand wall
-  if (F.D > 4.8 && dx0 > cxBed + 2.1) {
+  if (F.D > 4.8 && dx0 > cxBed + 2.1 && F.free((dx0 - 0.5 + dx1) / 2, 4.0, (dx1 - dx0 + 0.5) / 2, 0.7, 0.02)) {
     pbox(F, deco, dx0, 3.3, dx1, 4.7, 0, 0.74, 0x6b5442);
     pbox(F, deco, dx0 - 0.5, 3.7, dx0 - 0.1, 4.3, 0, 0.46, 0x2a2d36); pbox(F, deco, dx0 - 0.5, 3.7, dx0 - 0.44, 4.3, 0.46, 0.95, 0x2a2d36, { solid: false, claim: false });
     pbox(F, deco, dx1 - 0.05, 3.45, dx1 - 0.01, 4.55, 1.15, 1.72, 0x0e0f13, { solid: false, claim: false });
     pbox(F, deco, dx1 - 0.065, 3.5, dx1 - 0.05, 4.5, 1.19, 1.68, new THREE_C(0.1, 0.14, 0.22), { key: 'emit', em: 0.9, solid: false, claim: false });
   }
 }
-// fitted kitchen along the back wall + island: cabinets, worktop, sink, hob with hood, fridge, upper cabinets
+// fitted kitchen along the back wall + island: cabinets, worktop, sink, hob with hood, fridge, upper cabinets. The run stops either side of
+// anything taken on the back wall (a doorway to the next room), so it never stands across one.
 function kitchenFixtures(F, deco, L) {
-  const x0 = -F.W / 2 + 0.05, x1 = F.W / 2 - 0.05, cab = 0xe6e2da, top = 0x2b2e36, dep = 0.62;
-  const fr = 0.78; // fridge column on the left end
-  // fridge at the right end, where life.js puts the openable fridge anchor
-  pbox(F, deco, x1 - fr, 0.04, x1, dep + 0.08, 0, 1.85, 0xc9ced6);
-  pbox(F, deco, x1 - fr + 0.04, 0.04 + dep + 0.08 - 0.03, x1 - fr + 0.1, dep + 0.08 + 0.01, 0.95, 1.5, 0x8a909a, { solid: false });   // fridge handle
-  const c0 = x0, cEnd = x1 - fr, mid = (c0 + cEnd) / 2;
-  pbox(F, deco, c0, 0.04, cEnd, dep, 0, 0.86, cab);                                  // base cabinets
-  pbox(F, deco, c0, 0.0, cEnd, dep + 0.03, 0.86, 0.92, top, { claim: false });        // worktop
-  surfBox(F, deco, SURF.tile, c0, 0.0, cEnd, 0.025, 0.92, 1.5, 0xe9ecf0, { solid: false, claim: false });   // tiled splashback under the wall cabinets
-  // sink bay (left of centre): dark basin + tap
-  pbox(F, deco, mid - 1.05, 0.12, mid - 0.3, dep - 0.1, 0.9, 0.93, 0x14161c, { solid: false, claim: false });
-  pbox(F, deco, mid - 0.7, 0.05, mid - 0.64, 0.11, 0.92, 1.18, 0xb8bec8, { solid: false, claim: false });
-  // hob (right of centre) with glowing rings and a hood above
-  pbox(F, deco, mid + 0.25, 0.1, mid + 0.95, dep - 0.04, 0.925, 0.945, 0x15171c, { solid: false, claim: false });
-  for (const [bx, bz] of [[0.42, 0.22], [0.78, 0.22], [0.42, 0.45], [0.78, 0.45]]) pbox(F, deco, mid + bx - 0.07, bz - 0.07, mid + bx + 0.07, bz + 0.07, 0.945, 0.955, new THREE_C(1, 0.35, 0.12), { key: 'emit', em: 1.6, solid: false, claim: false });
-  pbox(F, deco, mid + 0.2, 0.05, mid + 1.0, 0.5, 1.75, 2.2, 0x9aa0aa, { solid: false, claim: false });
-  // wall cabinets
-  pbox(F, deco, c0, 0.04, mid - 1.1, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
-  pbox(F, deco, mid + 1.05, 0.04, cEnd, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
+  const x0 = -F.W / 2 + 0.05, x1 = F.W / 2 - 0.05, cab = 0xe6e2da, top = 0x2b2e36, dep = 0.62, fr = 0.78;
+  // free stretches of the back wall
+  let runs = [[x0, x1]];
+  for (const t of F.taken) if (t.ld0 < dep + 0.15 && t.ld1 > 0.04) runs = runs.flatMap(([a, b]) => (t.lx1 <= a || t.lx0 >= b ? [[a, b]] : [[a, t.lx0 - 0.02], [t.lx1 + 0.02, b]]).filter(([p, q]) => q - p > 0.6));
+  // fridge at the right end, where life.js puts the openable fridge anchor (the left end when a doorway is there)
+  const last = runs[runs.length - 1], first = runs[0];
+  let fx = null;
+  if (last && last[1] > x1 - 0.01 && last[1] - last[0] >= fr) { fx = [last[1] - fr, last[1]]; last[1] -= fr; }
+  else if (first && first[1] - first[0] >= fr) { fx = [first[0], first[0] + fr]; first[0] += fr; }
+  if (fx) {
+    pbox(F, deco, fx[0], 0.04, fx[1], dep + 0.08, 0, 1.85, 0xc9ced6);
+    pbox(F, deco, fx[0] + 0.04, 0.04 + dep + 0.08 - 0.03, fx[0] + 0.1, dep + 0.08 + 0.01, 0.95, 1.5, 0x8a909a, { solid: false });   // fridge handle
+  }
+  runs = runs.filter(([a, b]) => b - a > 0.6);
+  let best = null; for (const r of runs) if (!best || r[1] - r[0] > best[1] - best[0]) best = r;
+  for (const r of runs) {
+    const [c0, cEnd] = r;
+    pbox(F, deco, c0, 0.04, cEnd, dep, 0, 0.86, cab);                                  // base cabinets
+    pbox(F, deco, c0, 0.0, cEnd, dep + 0.03, 0.86, 0.92, top, { claim: false });        // worktop
+    surfBox(F, deco, SURF.tile, c0, 0.0, cEnd, 0.025, 0.92, 1.5, 0xe9ecf0, { solid: false, claim: false });   // tiled splashback under the wall cabinets
+    const cook = r === best && cEnd - c0 >= 2.3, mid = (c0 + cEnd) / 2;   // sink and hob on the longest stretch
+    if (cook) {
+      // sink bay (left of centre): dark basin + tap
+      pbox(F, deco, mid - 1.05, 0.12, mid - 0.3, dep - 0.1, 0.9, 0.93, 0x14161c, { solid: false, claim: false });
+      pbox(F, deco, mid - 0.7, 0.05, mid - 0.64, 0.11, 0.92, 1.18, 0xb8bec8, { solid: false, claim: false });
+      // hob (right of centre) with glowing rings and a hood above
+      pbox(F, deco, mid + 0.25, 0.1, mid + 0.95, dep - 0.04, 0.925, 0.945, 0x15171c, { solid: false, claim: false });
+      for (const [bx, bz] of [[0.42, 0.22], [0.78, 0.22], [0.42, 0.45], [0.78, 0.45]]) pbox(F, deco, mid + bx - 0.07, bz - 0.07, mid + bx + 0.07, bz + 0.07, 0.945, 0.955, new THREE_C(1, 0.35, 0.12), { key: 'emit', em: 1.6, solid: false, claim: false });
+      pbox(F, deco, mid + 0.2, 0.05, mid + 1.0, 0.5, 1.75, 2.2, 0x9aa0aa, { solid: false, claim: false });
+      // wall cabinets either side of the hood
+      if (mid - 1.1 > c0 + 0.3) pbox(F, deco, c0, 0.04, mid - 1.1, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
+      if (cEnd > mid + 1.35) pbox(F, deco, mid + 1.05, 0.04, cEnd, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
+    } else pbox(F, deco, c0, 0.04, cEnd, 0.38, 1.5, 2.2, cab, { solid: false, claim: false });
+  }
   // island with stools' worth of space around it
-  if (F.D > 5.2) { pbox(F, deco, -0.9, 2.5, 0.9, 3.25, 0, 0.88, 0x3a3f4a); pbox(F, deco, -0.95, 2.45, 0.95, 3.3, 0.88, 0.93, 0xd8d4cc, { claim: false }); }
+  if (F.D > 5.2 && pbox(F, deco, -0.9, 2.5, 0.9, 3.25, 0, 0.88, 0x3a3f4a, { fit: true }) !== false) pbox(F, deco, -0.95, 2.45, 0.95, 3.3, 0.88, 0.93, 0xd8d4cc, { claim: false });
 }
 const wallSide = (F, side) => (side === 'l' ? -F.W / 2 : F.W / 2);
 
@@ -155,12 +206,13 @@ function decorateRoomCore(F, deco, kind, L) {
     const bw = F.W > 6.5 ? 'GothicBed_01' : 'old_bed_frame', b = deco.size(bw);
     // the bed stands beside the en-suite bathroom (reserved in the back corner), not centred where it used to fail to fit
     const cxBed = Math.max(0, bathEdge(F) + 0.6 + (L.type === 'hotel' ? 1.5 : b.w / 2 + 0.38));
-    if (L.type === 'hotel') hotelBedroom(F, deco, L, Math.min(cxBed, F.W / 2 - 2.0));
+    if (L.type === 'hotel' && hotelBedroom(F, deco, L, Math.min(cxBed, F.W / 2 - 2.0)) !== false) { /* the hotel bed set */ }
     else {
-      put(F, deco, bw, cxBed, b.d / 2 + 0.05, 'in', { margin: 0.02 });
-      for (const s of [-1, 1]) { const r = put(F, deco, 'painted_wooden_nightstand', cxBed + s * (b.w / 2 + 0.38), 0.4, 'in'); if (r && s > 0) put(F, deco, 'desk_lamp_arm_01', cxBed + s * (b.w / 2 + 0.38), 0.4, 'in', { ghost: true, lift: 0.62, s: 0.8 }); }
-      put(F, deco, 'vintage_lighter', cxBed - (b.w / 2 + 0.38), 0.3, 'in', { ghost: true, lift: 0.616, s: 1.4, turn: 1 });
-      surfBox(F, deco, SURF.carpet, cxBed - 1.5, 0.9, cxBed + 1.5, 3.0, 0.016, 0.03, [0x8a6a5a, 0x5a7a8a, 0x7a8a62][Math.floor(((F.rm.x0 * 2.3 + F.rm.z0) % 3 + 3) % 3)], { solid: false, claim: false });
+      const bed = put(F, deco, bw, Math.min(cxBed, F.W / 2 - b.w / 2 - 0.1), b.d / 2 + 0.05, 'in', { margin: 0.02, slide: true });
+      const bl = bed ? bed.x - F.cx : cxBed;   // where the bed ended up (it slides clear of a doorway): the rest follows it
+      for (const s of [-1, 1]) { const r = put(F, deco, 'painted_wooden_nightstand', bl + s * (b.w / 2 + 0.38), 0.4, 'in'); if (r && s > 0) put(F, deco, 'desk_lamp_arm_01', bl + s * (b.w / 2 + 0.38), 0.4, 'in', { ghost: true, lift: 0.62, s: 0.8 }); }
+      put(F, deco, 'vintage_lighter', bl - (b.w / 2 + 0.38), 0.3, 'in', { ghost: true, lift: 0.616, s: 1.4, turn: 1 });
+      surfBox(F, deco, SURF.carpet, bl - 1.5, 0.9, bl + 1.5, 3.0, 0.016, 0.03, [0x8a6a5a, 0x5a7a8a, 0x7a8a62][Math.floor(((F.rm.x0 * 2.3 + F.rm.z0) % 3 + 3) % 3)], { solid: false, claim: false });
     }
     put(F, deco, 'vintage_cabinet_01', -F.W / 2 + 0.45, 0.5, 'r', { turn: 0 });
     put(F, deco, 'drawer_cabinet', wallSide(F, 'r') - 0.3, 2.4, 'l');
@@ -185,18 +237,26 @@ function decorateRoomCore(F, deco, kind, L) {
     pend('hanging_industrial_lamp', -Math.min(1.4, F.W / 2 - 1.5), 2.8);
   } else if (kind === 'office') {
     let n = 0;
-    for (let a = -F.W / 2 + 1.35; a < F.W / 2 - 0.7; a += 2.2, n++) for (const d of [1.2, 3.3]) {
-      if (d > F.D - 1.9) continue;
-      const desk = put(F, deco, 'metal_office_desk', a, d, 'back', { s: 0.75, margin: 0.02 });
+    // two rows of desks, always with an aisle the player (0.72 m) gets through: in a deep zone the second row stands 1.2 m past the first row's
+    // chairs; in a shallow one the rows stand back to back (the first row's people sit with their backs to the wall); otherwise one row.
+    // A row is [desk depth, side the person sits on: +1 towards the door, -1 towards the back wall].
+    const d2 = Math.min(4.1, F.D - 1.9), rows = d2 >= 3.75 ? [[1.2, 1], [d2, 1]] : F.D - 1.9 >= 3.05 ? [[1.45, -1], [2.22, 1]] : [[1.2, 1]];
+    for (const [d, sg] of rows) {
+      // the desks of a row (and their chairs) start where the row's band is free: clear of a corner doorway
+      const sp = freeSpan(F, Math.min(d, d + sg * 0.95) - 0.45, Math.max(d, d + sg * 0.95) + 0.45); if (!sp) continue;
+      for (let a = sp[0] + 0.77; a + 0.77 <= sp[1]; a += 2.2, n++) {
+      const fc = sg > 0 ? 'back' : 'in', bk = sg > 0 ? 'in' : 'back';   // the desk and the person face away from the person's side
+      const desk = put(F, deco, 'metal_office_desk', a, d, fc, { s: 0.75, margin: 0.02 });
       if (!desk) continue;
-      put(F, deco, 'television_02', a, d - 0.05, 'in', { ghost: true, lift: 0.6, s: 0.78 });
-      put(F, deco, 'stationery_supplies', a + 0.5, d + 0.05, 'back', { ghost: true, lift: 0.6 }); put(F, deco, 'binder_notebook', a - 0.5, d + 0.15, 'back', { ghost: true, lift: 0.6, s: 0.7 }); put(F, deco, 'clipboard', a + 0.2, d + 0.25, 'back', { ghost: true, lift: 0.6 });
+      put(F, deco, 'television_02', a, d - sg * 0.05, bk, { ghost: true, lift: 0.6, s: 0.78 });
+      put(F, deco, 'stationery_supplies', a + 0.5, d + sg * 0.05, fc, { ghost: true, lift: 0.6 }); put(F, deco, 'binder_notebook', a - 0.5, d + sg * 0.15, fc, { ghost: true, lift: 0.6, s: 0.7 }); put(F, deco, 'clipboard', a + 0.2, d + sg * 0.25, fc, { ghost: true, lift: 0.6 });
       // cubicle panel beside each desk
-      pbox(F, deco, a + 0.78, d - 0.5, a + 0.82, d + 0.55, 0, 1.2, 0x6a7088, { claim: false });
-      put(F, deco, n % 2 ? 'modern_arm_chair_01' : 'painted_wooden_chair_01', a, d + 0.95, 'back', { turn: (Math.random() - 0.5) * 0.9, s: n % 2 ? 0.8 : 1 });
+      pbox(F, deco, a + 0.78, d - 0.5, a + 0.82, d + 0.55, 0, 1.2, 0x6a7088, { claim: false, fit: true });
+      put(F, deco, n % 2 ? 'modern_arm_chair_01' : 'painted_wooden_chair_01', a, d + sg * 0.95, fc, { turn: (Math.random() - 0.5) * 0.9, s: n % 2 ? 0.8 : 1 });
+      }
     }
     put(F, deco, 'steel_frame_shelves_01', wallSide(F, 'r') - 0.3, F.D / 2, 'l');
-    put(F, deco, 'metal_trash_can', -F.W / 2 + 0.4, F.D - 0.5, 'in', { s: 0.38 }); put(F, deco, 'office_notepads', 0, 0.6, 'in', { ghost: true, lift: 0.01 });
+    put(F, deco, 'metal_trash_can', -F.W / 2 + 0.4, F.D - 0.5, 'in', { s: 0.38, slide: true }); put(F, deco, 'office_notepads', 0, 0.6, 'in', { ghost: true, lift: 0.01 });
     put(F, deco, 'worn_metal_rack', wallSide(F, 'l') + 0.35, F.D - 1.6, 'r');
     plant(F.W / 2 - 0.5, 0.6);
     put(F, deco, 'fire_alarm', wallSide(F, 'r') - 0.03, F.D - 1.0, 'l', { ghost: true, lift: 1.5 });
@@ -219,7 +279,7 @@ function decorateRoomCore(F, deco, kind, L) {
         const lx = sd * 1.15, n = Math.max(1, Math.floor((F.D - 3.0) / 0.75));
         for (let i = 0; i < n; i++) {
           const ld = 1.3 + i * 0.75, a0 = lx - 0.32, a1 = lx + 0.32;
-          pbox(F, deco, a0, ld - 0.34, a1, ld + 0.34, 0, 2.05, 0x181b22);
+          if (pbox(F, deco, a0, ld - 0.34, a1, ld + 0.34, 0, 2.05, 0x181b22, { fit: true }) === false) continue;   // not across a doorway or walkway
           const fx = lx - sd * 0.33, hue = [[0.2, 1, 0.5], [0.3, 0.8, 1], [1, 0.7, 0.2]][(i + (sd > 0 ? 1 : 0)) % 3];
           for (let u = 0; u < 7; u++) pbox(F, deco, fx - sd * 0.015, ld - 0.26, fx + sd * 0.015, ld + 0.26, 0.3 + u * 0.24, 0.34 + u * 0.24, new THREE.Color(...hue).multiplyScalar(((i + u) % 3 === 0) ? 0.25 : 0.9), { key: 'emit', em: 1.2, solid: false, claim: false });
         }
