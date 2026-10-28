@@ -4,7 +4,28 @@
 //   B  streaming post -> f (pull, in place: f is not read in this phase), inlet moving-wall bounce-back, periodic y/z, solid nodes skipped
 //   C  outlet (fixed density, non-equilibrium extrapolation) + Bouzidi interpolated bounce-back on the body + momentum-exchange force
 // Everything in lattice units. Float32 storage, Float64 arithmetic. The TRT path performs the same arithmetic as lbm3d.mjs (checked bit-for-bit in tests/mt-equivalence.mjs).
+// Optional 16-bit storage emulation (CFD V3 P0, docs/CFD-V3-PLAN.md): every value written to population memory is rounded as a GPU kernel storing binary16 would:
+//   'f16s'   shifted and scaled: w_q + h((f - w_q) * 2^15) / 2^15   (h = round to IEEE binary16, ties to even)
+//   'f16'    shifted only:       w_q + h(f - w_q)
+//   'f16raw' no shift:           h(f)
+// Arithmetic stays Float64 and the arrays stay Float32, so only the rounding at the memory writes is emulated.
 export const Q = 19;
+const F16 = new Float32Array(1), U16 = new Uint32Array(F16.buffer), F16_SCALE = 32768;
+// nearest IEEE binary16 value of float32(x), ties to even; |x| above the largest half (65504) after rounding gives +-Infinity
+export function f16r(x) {
+  F16[0] = x; const b = U16[0], e = (b >>> 23) & 255;
+  if (e === 255) return F16[0];
+  if (e < 113) { const v = F16[0] * 16777216, t = Math.abs(v - Math.trunc(v)) === .5 ? 2 * Math.round(v / 2) : Math.round(v); return t / 16777216; } // below 2^-14: half subnormals, spacing 2^-24
+  U16[0] = (b + 0xfff + ((b >>> 13) & 1)) & 0xffffe000;
+  const y = F16[0]; return Math.abs(y) > 65504 ? (y > 0 ? Infinity : -Infinity) : y;
+}
+export const STORAGE = { f32: 0, f16s: 1, f16: 2, f16raw: 3 };
+export function storeVal(st, v, q) {
+  if (st === 1) return W[q] + f16r((v - W[q]) * F16_SCALE) / F16_SCALE;
+  if (st === 2) return W[q] + f16r(v - W[q]);
+  if (st === 3) return f16r(v);
+  return v;
+}
 export const C = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0], [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1], [0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1]];
 export const W = Float64Array.from(C, (c, k) => k === 0 ? 1 / 3 : (Math.abs(c[0]) + Math.abs(c[1]) + Math.abs(c[2]) === 1 ? 1 / 18 : 1 / 36));
 export const OPP = Int8Array.from(C, c => C.findIndex(d => d[0] === -c[0] && d[1] === -c[1] && d[2] === -c[2]));
@@ -23,7 +44,7 @@ export function createCtx(sh, rank) {
     sig[i] = sMax * s; tauI[i] = tau0 + dMax * s; wpI[i] = 1 / tauI[i]; wmI[i] = 1 / (lambda / (tauI[i] - .5) + .5);
   }
   return {
-    rank, T, nx, ny, nz, N, U: sh.U, model, cs, tau0, sig, tauI, wpI, wmI, hasSponge: sMax > 0 || dMax > 0, spFull: !!sp.full,
+    rank, T, nx, ny, nz, N, U: sh.U, model, cs, tau0, st: STORAGE[sh.storage || 'f32'], sig, tauI, wpI, wmI, hasSponge: sMax > 0 || dMax > 0, spFull: !!sp.full,
     eqT: Float64Array.from(C, (c, q) => W[q] * (1 + 3 * c[0] * sh.U + 4.5 * (c[0] * sh.U) ** 2 - 1.5 * sh.U * sh.U)), // equilibrium of the free stream (rho = 1, u = (U, 0, 0))
     f: new Float32Array(sh.fBuf), post: new Float32Array(sh.postBuf), isSolid: new Uint8Array(sh.solidBuf), L: new Int32Array(sh.linkBuf), nL: sh.nL,
     ctl: new Int32Array(sh.ctlBuf), bar: new Int32Array(sh.barBuf), par: new Float64Array(sh.parBuf), forces: new Float64Array(sh.forceBuf), feq: new Float64Array(Q),
@@ -40,7 +61,7 @@ export function runSteps(ctx, nSteps) {
 }
 
 function collide(ctx) {
-  const { nx, ny, nz, N, f, post, isSolid, rank, T, model, cs, tau0, sig, tauI, wpI, wmI, feq } = ctx, k0 = Math.floor(nz * rank / T), k1 = Math.floor(nz * (rank + 1) / T);
+  const { nx, ny, nz, N, f, post, isSolid, rank, T, model, cs, tau0, sig, tauI, wpI, wmI, feq, st } = ctx, k0 = Math.floor(nz * rank / T), k1 = Math.floor(nz * (rank + 1) / T);
   const les = cs * cs * 18 * Math.SQRT2;
   for (let k = k0; k < k1; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const n = i + nx * (j + ny * k); if (isSolid[n]) continue;
@@ -75,12 +96,13 @@ function collide(ctx) {
       const a = sig[i] * (1 - r);
       for (let q = 0; q < Q; q++) { const cu = CX[q] * ux + CY[q] * uy + CZ[q] * uz; post[q * N + n] += a * W[q] * (1 + 3 * cu + 4.5 * cu * cu - uu); }
     }
+    if (st) for (let q = 0; q < Q; q++) post[q * N + n] = storeVal(st, post[q * N + n], q);
     void tau0;
   }
 }
 
 function stream(ctx) {
-  const { nx, ny, nz, N, f, post, isSolid, rank, T, U } = ctx, k0 = Math.floor(nz * rank / T), k1 = Math.floor(nz * (rank + 1) / T), uin = U * ctx.par[0];
+  const { nx, ny, nz, N, f, post, isSolid, rank, T, U, st } = ctx, k0 = Math.floor(nz * rank / T), k1 = Math.floor(nz * (rank + 1) / T), uin = U * ctx.par[0];
   // Rows along x are contiguous. Populations that would come out of the body (and all populations of solid nodes) are written with stale but finite values here
   // and overwritten by the Bouzidi step, so no solid test is needed in the inner loop.
   void isSolid;
@@ -90,19 +112,19 @@ function stream(ctx) {
       const cx = CX[q]; let b = j - CY[q], c = k - CZ[q]; if (b < 0) b += ny; else if (b >= ny) b -= ny; if (c < 0) c += nz; else if (c >= nz) c -= nz;
       const pq = q * N, d = pq + dst, s = pq + nx * (b + ny * c) - cx, i0 = cx > 0 ? 1 : 0, i1 = cx < 0 ? nx - 1 : nx;
       for (let i = i0; i < i1; i++) f[d + i] = post[s + i];
-      if (cx > 0) f[d] = post[OPP[q] * N + dst] + 6 * W[q] * cx * uin; // inlet: moving-wall bounce-back
+      if (cx > 0) f[d] = st ? storeVal(st, post[OPP[q] * N + dst] + 6 * W[q] * cx * uin, q) : post[OPP[q] * N + dst] + 6 * W[q] * cx * uin; // inlet: moving-wall bounce-back
       else if (cx < 0) f[d + nx - 1] = post[d + nx - 1]; // outlet placeholder, replaced in boundary()
     }
   }
 }
 
 function boundary(ctx) {
-  const { nx, ny, nz, N, f, post, isSolid, rank, T, L, nL } = ctx, k0 = Math.floor(nz * rank / T), k1 = Math.floor(nz * (rank + 1) / T);
+  const { nx, ny, nz, N, f, post, isSolid, rank, T, L, nL, st } = ctx, k0 = Math.floor(nz * rank / T), k1 = Math.floor(nz * (rank + 1) / T);
   for (let k = k0; k < k1; k++) for (let j = 0; j < ny; j++) {
     const n = nx - 1 + nx * (j + ny * k), p = nx - 2 + nx * (j + ny * k); if (isSolid[n] || isSolid[p]) continue;
     let r = 0, ux = 0, uy = 0, uz = 0; for (let q = 0; q < Q; q++) { const v = f[q * N + p]; r += v; ux += v * CX[q]; uy += v * CY[q]; uz += v * CZ[q]; } ux /= r; uy /= r; uz /= r;
     const uu = 1.5 * (ux * ux + uy * uy + uz * uz);
-    for (let q = 1; q < Q; q++) if (CX[q] < 0) { const cu = CX[q] * ux + CY[q] * uy + CZ[q] * uz, e = cu * (3 + 4.5 * cu) - uu; f[q * N + n] = W[q] * (1 + e) + (f[q * N + p] - W[q] * r * (1 + e)); }
+    for (let q = 1; q < Q; q++) if (CX[q] < 0) { const cu = CX[q] * ux + CY[q] * uy + CZ[q] * uz, e = cu * (3 + 4.5 * cu) - uu; const v = W[q] * (1 + e) + (f[q * N + p] - W[q] * r * (1 + e)); f[q * N + n] = st ? storeVal(st, v, q) : v; }
   }
   const l0 = Math.floor(nL * rank / T), l1 = Math.floor(nL * (rank + 1) / T);
   let fx = 0, fy = 0, fz = 0;
@@ -112,6 +134,7 @@ function boundary(ctx) {
     if (qq < .5 && n2 >= 0) v = 2 * qq * pq + (1 - 2 * qq) * post[q * N + n2];
     else if (qq >= .5) v = pq / (2 * qq) + (2 * qq - 1) / (2 * qq) * post[o * N + n];
     else v = pq;
+    if (st) v = storeVal(st, v, o);
     f[o * N + n] = v; const m = pq + v; fx += CX[q] * m; fy += CY[q] * m; fz += CZ[q] * m;
   }
   ctx.forces[3 * rank] = fx; ctx.forces[3 * rank + 1] = fy; ctx.forces[3 * rank + 2] = fz;

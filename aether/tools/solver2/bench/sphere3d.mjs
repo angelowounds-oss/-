@@ -3,7 +3,8 @@
 //   reference Cd: 1.087 (Johnson & Patel 1999, unbounded); Clift–Grace–Weber correlation 1.09. Blockage of the periodic box is reported, not corrected.
 // node tools/solver2/bench/sphere3d.mjs lbm <D/h> [U0=0.06] [maxT in D/U = 60] [box: Lx,Ly in D = 12,6]
 // env: AETHER_MODEL = trt (default) | reg | regles (regularized + Smagorinsky), AETHER_CS (Smagorinsky constant, default 0.1 for regles),
-//      AETHER_SPONGE = "Lo,Li,sigma" absorbing layers: outlet length and inlet length in D, relaxation rate (full-state relaxation to the free stream), AETHER_THREADS, AETHER_CKPT
+//      AETHER_SPONGE = "Lo,Li,sigma" absorbing layers: outlet length and inlet length in D, relaxation rate (full-state relaxation to the free stream), AETHER_THREADS, AETHER_CKPT,
+//      AETHER_STORE = f32 (default) | f16s | f16 | f16raw (16-bit population storage emulation, see core3d-kernel.mjs)
 import fs from 'node:fs'; import path from 'node:path';
 import { createLBM3DMT } from '../core3d.mjs';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
@@ -17,11 +18,12 @@ const solid = (i, j, k) => { const [x, y, z] = pos(i, j, k); return x * x + y * 
 const linkQ = (i, j, k, q) => { const [x, y, z] = pos(i, j, k), [dx, dy, dz] = Cd3[q], a = dx * dx + dy * dy + dz * dz, b = 2 * (dx * x + dy * y + dz * z), c = x * x + y * y + z * z - R * R, disc = b * b - 4 * a * c; return Math.min(1, Math.max(1e-6, (-b - Math.sqrt(Math.max(disc, 0))) / (2 * a))); };
 const modelEnv = process.env.AETHER_MODEL || 'trt', model = modelEnv === 'trt' ? 'trt' : 'reg', cs = modelEnv === 'regles' ? +(process.env.AETHER_CS || .1) : 0;
 const spArg = process.env.AETHER_SPONGE ? process.env.AETHER_SPONGE.split(',').map(Number) : null, sponge = spArg ? { Lo: Math.round(spArg[0] * Nd), Li: Math.round(spArg[1] * Nd), sigma: spArg[2], full: true } : {};
-const t0 = Date.now(), S = createLBM3DMT({ nx, ny, nz, nu, solid, linkQ, U, model, cs, sponge, threads: +(process.env.AETHER_THREADS || 0) || undefined });
+const storage = process.env.AETHER_STORE || 'f32';
+const t0 = Date.now(), S = createLBM3DMT({ nx, ny, nz, nu, solid, linkQ, U, model, cs, sponge, storage, threads: +(process.env.AETHER_THREADS || 0) || undefined });
 const stepsPerT = Nd / U, ramp = Math.round(2 * stepsPerT) /* start-up transient excluded from the convergence test */, maxSteps = Math.round(+(maxTArg || 60) * stepsPerT), every = Math.round(stepsPerT / 2), A = Math.PI * R * R;
 const coef = () => 2 * S.force[0] / (U * U * A);
 // checkpoint every 10 min so a killed job resumes (AETHER_CKPT = directory, default /tmp/solver2-ckpt)
-const ckDir = process.env.AETHER_CKPT || '/tmp/solver2-ckpt', tag = `${method}_${Nd}${modelEnv !== 'trt' ? `_${modelEnv}${cs && cs !== .1 ? cs : ''}` : ''}${spArg ? `_sp${spArg.join('-')}` : ''}${U !== .06 ? `_u${U}` : ''}${boxArg && boxArg !== '12,6' ? `_box${LxD}x${LyD}` : ''}`, ck = path.join(ckDir, `sphere3d_${tag}`); fs.mkdirSync(ckDir, { recursive: true });
+const ckDir = process.env.AETHER_CKPT || '/tmp/solver2-ckpt', tag = `${method}_${Nd}${modelEnv !== 'trt' ? `_${modelEnv}${cs && cs !== .1 ? cs : ''}` : ''}${spArg ? `_sp${spArg.join('-')}` : ''}${U !== .06 ? `_u${U}` : ''}${boxArg && boxArg !== '12,6' ? `_box${LxD}x${LyD}` : ''}${storage !== 'f32' ? `_${storage}` : ''}`, ck = path.join(ckDir, `sphere3d_${tag}`); fs.mkdirSync(ckDir, { recursive: true });
 let last = null, hist = [], conv = false, lastSave = Date.now(), wallPrev = 0;
 if (S.load(ck + '.bin')) { const m = JSON.parse(fs.readFileSync(ck + '.json', 'utf8')); hist = m.hist; wallPrev = m.wallS; console.log(`resumed at step ${S.step}`); }
 // convergence: the slow pressure oscillation (reflecting inlet and outlet) defeats a step-to-step test, so require the last 10 D/U (20 samples) to stay within 0.5 % and report their mean
@@ -36,9 +38,9 @@ while (S.step < maxSteps) {
     if (Date.now() - lastSave > 6e5) { S.save(ck + '.bin'); fs.writeFileSync(ck + '.json', JSON.stringify({ hist, wallS: wallPrev + (Date.now() - t0) / 1000 })); lastSave = Date.now(); }
   }
 }
-const res = { method, model: modelEnv, cs, sponge: spArg, threads: S.T, Nd, grid: [nx, ny, nz], U, nu, tau: S.tau, Re, steps: S.step, converged: conv, Cd: last, ref: REF, err: (last - REF) / REF, blockage: Math.PI / 4 / (LyD * LyD), links: S.links, wallS: wallPrev + (Date.now() - t0) / 1000, window: `mean of the last ${WIN} samples (${WIN / 2} D/U)`, hist };
+const res = { method, model: modelEnv, cs, sponge: spArg, storage, threads: S.T, Nd, grid: [nx, ny, nz], U, nu, tau: S.tau, Re, steps: S.step, converged: conv, Cd: last, ref: REF, err: (last - REF) / REF, blockage: Math.PI / 4 / (LyD * LyD), links: S.links, wallS: wallPrev + (Date.now() - t0) / 1000, window: `mean of the last ${WIN} samples (${WIN / 2} D/U)`, hist };
 res.cellUpdates = nx * ny * nz * res.steps; res.mlups = res.cellUpdates / res.wallS / 1e6;
 const out = path.join(root, 'tools/solver2/out'); fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, `sphere3d_${tag}.json`), JSON.stringify(res, null, 1));
-console.log('\n' + JSON.stringify({ method, model: modelEnv, sponge: spArg, Nd, grid: res.grid, Cd: +last.toFixed(4), errPct: +(res.err * 100).toFixed(2), blockagePct: +(res.blockage * 100).toFixed(2), converged: conv, steps: res.steps, wallS: res.wallS, mlups: +res.mlups.toFixed(2) }));
+console.log('\n' + JSON.stringify({ method, model: modelEnv, sponge: spArg, storage, Nd, grid: res.grid, Cd: +last.toFixed(4), errPct: +(res.err * 100).toFixed(2), blockagePct: +(res.blockage * 100).toFixed(2), converged: conv, steps: res.steps, wallS: res.wallS, mlups: +res.mlups.toFixed(2) }));
 await S.close();
