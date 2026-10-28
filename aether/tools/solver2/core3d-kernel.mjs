@@ -8,6 +8,7 @@
 //   'f16s'   shifted and scaled: w_q + h((f - w_q) * 2^15) / 2^15   (h = round to IEEE binary16, ties to even)
 //   'f16'    shifted only:       w_q + h(f - w_q)
 //   'f16raw' no shift:           h(f)
+//   'f16c'   shifted, 11 stored mantissa bits (one more than binary16, as the FP16C format of Lehmann et al. 2022; normal range from 2^-14, spacing 2^-25 below)
 // Arithmetic stays Float64 and the arrays stay Float32, so only the rounding at the memory writes is emulated.
 export const Q = 19;
 const F16 = new Float32Array(1), U16 = new Uint32Array(F16.buffer), F16_SCALE = 32768;
@@ -19,11 +20,19 @@ export function f16r(x) {
   U16[0] = (b + 0xfff + ((b >>> 13) & 1)) & 0xffffe000;
   const y = F16[0]; return Math.abs(y) > 65504 ? (y > 0 ? Infinity : -Infinity) : y;
 }
-export const STORAGE = { f32: 0, f16s: 1, f16: 2, f16raw: 3 };
+// round x to a significand of (mbits + 1) bits with the smallest normal exponent eMin (spacing 2^(eMin - mbits) below it), ties to even; exact in Float64
+export function roundSig(x, mbits, eMin) {
+  if (x === 0 || !Number.isFinite(x)) return x;
+  const a = Math.abs(x); let e = Math.floor(Math.log2(a)); if (2 ** e > a) e--; if (2 ** (e + 1) <= a) e++;
+  const ulp = 2 ** (Math.max(e, eMin) - mbits), m = a / ulp; let r = Math.floor(m); const fr = m - r; if (fr > .5 || (fr === .5 && r % 2 === 1)) r++;
+  return x < 0 ? -r * ulp : r * ulp;
+}
+export const STORAGE = { f32: 0, f16s: 1, f16: 2, f16raw: 3, f16c: 4 };
 export function storeVal(st, v, q) {
   if (st === 1) return W[q] + f16r((v - W[q]) * F16_SCALE) / F16_SCALE;
   if (st === 2) return W[q] + f16r(v - W[q]);
   if (st === 3) return f16r(v);
+  if (st === 4) return W[q] + roundSig(Math.fround(v) - W[q], 11, -14);
   return v;
 }
 export const C = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0], [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1], [0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1]];
