@@ -50,4 +50,18 @@ export class WorldData {
 }
 export const memoryReader = (bytes) => async (o, n) => bytes.subarray(o, o + n);
 export const fileReader = (file) => async (o, n) => new Uint8Array(await file.slice(o, o + n).arrayBuffer());
+// A file of the game folder, served over http, in the shape fileReader and mountPack expect ({size, text(), slice(a, b).arrayBuffer()}): each
+// slice is one Range request, so a pack of any size is read a chunk at a time. Null when the file is not there.
+export async function httpFile(url) {
+  const h = await fetch(url, { method: 'HEAD', cache: 'no-cache' }); if (!h.ok) return null;
+  const size = +h.headers.get('content-length');
+  const slice = (a, b) => ({ async arrayBuffer() {
+    const r = await fetch(url, { headers: { Range: `bytes=${a}-${b - 1}` } });
+    if (!r.ok) throw new Error(`${url}: ${r.status}`);
+    if (r.headers.get('content-encoding')) throw new Error(url + ': compressed response, offsets would be wrong');
+    const buf = await r.arrayBuffer();
+    return r.status === 206 ? buf : buf.slice(a, b);   // a server that ignores Range sends the whole file
+  } });
+  return { name: url.split('/').pop(), size, slice, text: async () => (await fetch(url, { cache: 'no-cache' })).text() };
+}
 export { openContainer };

@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import lmB64 from '../assets/landmarks/landmarks.bin';
+import lmBinUrl from '../assets/landmarks/landmarks.bin';
+import { need, bytes } from './files.js';
 import { layouts } from './citylayout.js';
 import { cities } from './worldmap.js';
 import { nightU } from './shaders.js';
 import { rand } from './util.js';
+const lmBin = need(lmBinUrl);   // decoded by synchronous code (files.js)
 
 // Landmark towers (assets/landmarks, docs/ASSETS.md): the shapes of real skyscrapers from the supplied Manhattan and Camellia City models stand in the
 // blocks citylayout.js keeps free for them (L.lm). The faces carry a planar window tile (4 bays x 4 floors) that is drawn here, so the windows light up at
@@ -15,7 +17,7 @@ let models = null;
 
 function decode() {
   if (models) return models;
-  const bin = Uint8Array.from(atob(lmB64), (c) => c.charCodeAt(0)), dv = new DataView(bin.buffer), hl = dv.getUint32(0, true), head = JSON.parse(new TextDecoder().decode(bin.subarray(4, 4 + hl))), base = 4 + hl;
+  const bin = bytes(lmBin), dv = new DataView(bin.buffer), hl = dv.getUint32(0, true), head = JSON.parse(new TextDecoder().decode(bin.subarray(4, 4 + hl))), base = 4 + hl;
   models = head.models.map((m) => { const nv = m.nWall + m.nRoof; return { ...m, nv, posA: new Int16Array(bin.buffer.slice(base + m.pos, base + m.pos + nv * 6)), nrmA: new Int8Array(bin.buffer.slice(base + m.nrm, base + m.nrm + nv * 3)), uvA: new Float32Array(bin.buffer.slice(base + m.uv, base + m.uv + m.nWall * 8)) }; });
   return models;
 }

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { landHeight } from './landfn.js';
-import roadsB64 from '../assets/roads/country.bin';
+import roadsBinUrl from '../assets/roads/country.bin';
+import { need, bytes } from './files.js';
+const roadsBin = need(roadsBinUrl);   // decoded by synchronous code (files.js)
 
 // Country roads (ADR-0013): two-lane asphalt and gravel tracks that join the villages, farms, industry and cities. The plan is packed by
 // build/roads_pack.mjs (x, z points every 16 m); the heights are not stored: a road is laid on the ground that is drawn, a hand above it, with a low
@@ -13,7 +15,7 @@ const WIDTH = [8.8, 5.8], HALF_CAR = [3.3, 2.3];   // ribbon width (carriageway 
 let PLAN = null;
 function plan() {
   if (PLAN) return PLAN;
-  const bin = Uint8Array.from(atob(roadsB64), (c) => c.charCodeAt(0)), hl = new DataView(bin.buffer).getUint32(0, true), head = JSON.parse(new TextDecoder().decode(bin.subarray(4, 4 + hl))), base = 4 + hl;
+  const bin = bytes(roadsBin), hl = new DataView(bin.buffer).getUint32(0, true), head = JSON.parse(new TextDecoder().decode(bin.subarray(4, 4 + hl))), base = 4 + hl;
   const roads = head.roads.map((r) => ({ ...r, pts: new Float32Array(bin.buffer.slice(base + r.off, base + r.off + r.n * 8)) }));
   const grid = new Map(), key = (i, j) => i * 100003 + j;   // 64 m cells -> [road, sample] pairs, for "is this spot on a road"
   roads.forEach((r, ri) => { for (let s = 0; s < r.n; s++) { const k = key(Math.floor(r.pts[s * 2] / 64), Math.floor(r.pts[s * 2 + 1] / 64)); let a = grid.get(k); if (!a) grid.set(k, (a = [])); a.push(ri, s); } });

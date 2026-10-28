@@ -1,6 +1,6 @@
 // smoke (UX-06): the "Purge Day" loading screen shows real progress, ends on the start prompt, and starting the game hides it (no layer
-// left over the game). Fonts are embedded (no network request for them), the 40-segment bar is full at 100, portrait gets its own stage.
-const { pw, GL_ARGS, GAME, result } = require('../lib.cjs');
+// left over the game). Fonts ship with the game (no request leaves the local server), the 40-segment bar is full at 100, portrait gets its own stage.
+const { pw, GL_ARGS, gameUrl, result } = require('../lib.cjs');
 (async () => {
   const browser = await pw.chromium.launch({ args: GL_ARGS });
   let pass = false, o = {};
@@ -8,8 +8,9 @@ const { pw, GL_ARGS, GAME, result } = require('../lib.cjs');
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     const errors = [], reqs = [];
     page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
-    page.on('request', (r) => { if (/^https?:/.test(r.url())) reqs.push(r.url()); });
-    await page.goto('file://' + GAME + '?q=0');
+    const base = await gameUrl(), local = new URL(base).origin;
+    page.on('request', (r) => { if (/^https?:/.test(r.url()) && new URL(r.url()).origin !== local) reqs.push(r.url()); });
+    await page.goto(base + '?q=0');
     await page.waitForSelector('#pdP', { timeout: 30000 });
     o.segments = await page.evaluate(() => document.querySelectorAll('#loadBar div').length);
     await page.waitForSelector('#go.rdy', { timeout: 240000 });

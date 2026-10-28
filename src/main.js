@@ -17,11 +17,22 @@ import { applyView } from './views.js';
 import { initBuildingDev } from './buildingdev.js';
 import { keys as binds } from './keys.js';
 import { renderHelp, initKeyUI } from './keyui.js';
+import { preloadFiles } from './files.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
 let q = params.has('q') ? +params.get('q') : 1;
 try { const s = +sessionStorage.getItem('neon_q'); if (s >= 0 && s <= 3 && sessionStorage.getItem('neon_q') !== null && !params.has('q')) q = s; } catch (e) { /* ignore */ }
+
+// the launcher (launcher/main.go) ends itself once the page is gone: tell it we are here, and when we leave (a reload pings again)
+function keepLauncher() {
+  fetch('/__neoncity/id', { cache: 'no-store' }).then((r) => {
+    if (!r.ok) return;
+    const ping = () => fetch('/__neoncity/ping', { cache: 'no-store' }).catch(() => { /* launcher gone */ });
+    ping(); setInterval(ping, 15000);
+    addEventListener('pagehide', () => navigator.sendBeacon('/__neoncity/bye'));
+  }).catch(() => { /* not served by the launcher (tests, dev server) */ });
+}
 
 function fatal(e) {
   const p = el('err'); p.style.display = 'block'; p.textContent = '초기화 오류\n' + (e && e.stack || e);
@@ -31,11 +42,15 @@ function fatal(e) {
 (async () => {
   let eng, game;
   const loading = initLoading();
+  // opened as a file, the page cannot read the game files next to it
+  if (location.protocol === 'file:') { loading.set(0, 'NeonCity.exe로 실행해 주세요 (index.html을 직접 열면 게임 파일을 읽을 수 없습니다)'); return; }
+  keepLauncher();
   try {
+    await preloadFiles();   // files that synchronous set-up code decodes (engine HDRIs, block and landmark shapes, country roads)
     eng = createEngine(el('game'), q);
     await RAPIER.init();
     await loadBaked();   // the baked world must be in place before the first terrain/road query
-    await initDetail();   // reconnect the optional high-detail pack when the browser allows it without asking
+    await initDetail();   // mounts the high pack next to the page (world/) when the high detail is chosen
     // the high world detail starts at the 'high' graphics level (shadows, post-processing, textures) unless the player or the URL chose one
     { let stored = null; try { stored = sessionStorage.getItem('neon_q'); } catch (e) { /* ignore */ } if (detail.tier === 'high' && !params.has('q') && stored === null && !mobile) eng.setQuality(Math.max(q, 2)); }
     if (detail.tier === 'high') await loadHiAssets(eng.renderer);   // the pack's compressed textures, before the world that uses them is built

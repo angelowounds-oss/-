@@ -1,9 +1,9 @@
 # NEON CITY V9 · NIGHTFALL
 
-단일 HTML(`neon_city_v9.html`)로 실행되는 비 내리는 네온 도시 오픈월드 액션.
+비 내리는 네온 도시 오픈월드 액션. 배포는 zip 하나: 풀고 `NeonCity.exe`를 실행한다(Windows, Chrome/Edge 앱 창; ADR-0034).
 
-- 빌드: `cd build && npm i && cd .. && node build/build.mjs` (소스는 `src/`)
-- 조작: WASD 이동 · Shift 달리기 · 좌/우클릭 사격/조준 · R 재장전 · F 탑승/하차 · Space 점프/핸드브레이크 · C 카메라 · L 라이트 · Esc 일시정지
+- 빌드: `cd build && npm i && cd .. && node build/build.mjs [--zip]` → `dist/NeonCity/`(와 `dist/NeonCity-<날짜>-<커밋>.zip`). 소스는 `src/`, 런처는 `launcher/`(Go 1.24, 없으면 exe 생략)
+- 조작(GTA V 배치, 일시정지 → 조작키 설정에서 바꿈, ADR-0033): WASD 이동 · Shift 달리기 · 좌/우클릭 사격/조준 · R 재장전 · F 탑승/상호작용 · Space 점프/핸드브레이크 · V 시점 · H 라이트 · M 지도 · F1 조작법 · Esc 일시정지
 - 모바일 터치/게임패드 지원, 품질 4단계 + 자동 저하(`?q=0..3`)
 - 물리: Rapier(WASM 내장) 고정 60Hz — 레이캐스트 서스펜션 강체 차량, 정적 도시 콜라이더, 충돌로 밀리는 쓰레기통. 튜닝 테스트: `node build/phys_test.mjs`
 - 테스트: `node tests/run.cjs quick` (빌드 후, 상세는 [docs/TESTING.md](docs/TESTING.md))

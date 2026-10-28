@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import blocksB64 from '../assets/blocks/blocks.bin';
+import blocksBinUrl from '../assets/blocks/blocks.bin';
+import { need, bytes } from './files.js';
 import aoUrl from '../assets/blocks/ao.jpg';
+const blocksBin = need(blocksBinUrl);   // decoded by synchronous code (files.js)
 
 // The apartment blocks of the villages (assets/blocks, docs/ASSETS.md): three real models of 5, 6 and 8 floors from one set, decoded once. The wall
 // geometry shares its buffers between houses; a house only adds its own colour attribute and its own pick of lit panes.
@@ -9,7 +11,7 @@ const ROOF = [0.22, 0.22, 0.24];
 
 function decode() {
   if (packed) return packed;
-  const bin = Uint8Array.from(atob(blocksB64), (c) => c.charCodeAt(0)), dv = new DataView(bin.buffer), hl = dv.getUint32(0, true), head = JSON.parse(new TextDecoder().decode(bin.subarray(4, 4 + hl))), base = 4 + hl;
+  const bin = bytes(blocksBin), dv = new DataView(bin.buffer), hl = dv.getUint32(0, true), head = JSON.parse(new TextDecoder().decode(bin.subarray(4, 4 + hl))), base = 4 + hl;
   const f32 = (o, n) => new Float32Array(bin.buffer.slice(base + o, base + o + n * 4)), u16 = (o, n) => new Uint16Array(bin.buffer.slice(base + o, base + o + n * 2)), i8 = (o, n) => new Int8Array(bin.buffer.slice(base + o, base + o + n));
   packed = head.models.map((m) => {
     const pos = new THREE.BufferAttribute(f32(m.pos, m.nv * 3), 3), uv = new THREE.BufferAttribute(f32(m.uv, m.nv * 2), 2), nrm = new THREE.BufferAttribute(i8(m.nrm, m.nv * 3), 3, true);

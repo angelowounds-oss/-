@@ -1,17 +1,51 @@
 // Shared harness for the browser regression tests.
-// Headless Chromium renders WebGL2 with SwiftShader (no GPU needed). Every test opens the built single-file game, starts it, drives it
-// through window.__game, and ends with one `RESULT {...}` line that tests/run.cjs collects.
+// Headless Chromium renders WebGL2 with SwiftShader (no GPU needed). Every test opens the built game folder (dist/NeonCity/game, or GAME_DIR)
+// over a local http server like the launcher's, starts it, drives it through window.__game, and ends with one `RESULT {...}` line that
+// tests/run.cjs collects.
 //
 // Notes on the environment (see docs/TESTING.md):
 //  - SwiftShader is a CPU rasterizer: pixel comparisons and counts are exact, GPU timings are not meaningful (it also stalls for seconds
 //    when its JIT routine cache thrashes). Timing tests therefore stub rendering and measure the JavaScript side only.
 //  - The game keeps running from requestAnimationFrame; tests that step it by hand replace game.update with a no-op first (freeze()).
 const path = require('path');
+const fs = require('fs');
+const http = require('http');
 let pw;
 try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright'); }
 
 const ROOT = path.resolve(__dirname, '..');
-const GAME = process.env.GAME_HTML || path.join(ROOT, 'neon_city_v9.html');
+const GAME = path.resolve(process.env.GAME_DIR || path.join(ROOT, 'dist', 'NeonCity', 'game'));
+
+// Serves a game folder on 127.0.0.1 the way launcher/main.go does (fixed MIME types, Range requests answered with 206, nothing compressed), so the
+// page reads its files and world packs exactly as in the delivered game. One server per folder per test process; resolves to its base URL.
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.woff2': 'font/woff2', '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8' };
+const servers = new Map();
+function serve(dir = GAME) {
+  dir = path.resolve(dir);
+  if (!servers.has(dir)) servers.set(dir, new Promise((res, rej) => {
+    const srv = http.createServer((req, rsp) => {
+      let p; try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { p = '/'; }
+      const f = path.join(dir, path.normalize(p === '/' ? '/index.html' : p));
+      fs.stat(f, (err, st) => {
+        if (err || !st.isFile() || !f.startsWith(dir + path.sep)) { rsp.writeHead(404); rsp.end(); return; }
+        const h = { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+        const m = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || ''), a = m ? +m[1] : 0, b = m && m[2] ? Math.min(+m[2], st.size - 1) : st.size - 1;
+        if (m && a > b) { rsp.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); rsp.end(); return; }
+        rsp.writeHead(m ? 206 : 200, { ...h, 'Content-Length': b - a + 1, ...(m ? { 'Content-Range': `bytes ${a}-${b}/${st.size}` } : {}) });
+        if (req.method === 'HEAD' || st.size === 0) rsp.end(); else fs.createReadStream(f, { start: a, end: b }).pipe(rsp);
+      });
+    });
+    srv.on('error', rej);
+    srv.listen(0, '127.0.0.1', () => { srv.unref(); res(`http://127.0.0.1:${srv.address().port}/`); });
+  }));
+  return servers.get(dir);
+}
+// the page URL for a folder, an index.html inside one, or an http URL as given
+async function gameUrl(where = GAME) {
+  if (where.startsWith('http')) return where;
+  const st = fs.existsSync(where) && fs.statSync(where);
+  return st && st.isFile() ? (await serve(path.dirname(where))) + path.basename(where) : await serve(where);
+}
 const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 
 // open the game at quality tier q, wait until it is ready, start it; returns { browser, page, errors }
@@ -23,7 +57,7 @@ async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = 
   if (init) await page.addInitScript(init);
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 300)));
   page.on('console', (m) => { const t = m.text(); if (/GLSL|shader error|ERROR/i.test(t)) errors.push('console: ' + t.slice(0, 300)); else if (t.startsWith('##')) console.log(t.slice(2)); });
-  const href = (url.startsWith('file:') || url.startsWith('http') ? url : 'file://' + url) + '?q=' + q + extra;
+  const base = await gameUrl(url), href = base + (base.includes('?') ? '&' : '?') + 'q=' + q + extra;
   await page.goto(href);
   // a boot that threw never gets ready: fail at once with the error instead of after the timeout
   let failT = null;
@@ -63,4 +97,4 @@ async function run(name, opts, body) {
   }
 }
 
-module.exports = { pw, ROOT, GAME, GL_ARGS, openGame, freeze, shot, pixelDiff, result, run };
+module.exports = { pw, ROOT, GAME, GL_ARGS, serve, gameUrl, openGame, freeze, shot, pixelDiff, result, run };

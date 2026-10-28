@@ -323,7 +323,7 @@ body.touch #keysBtn{display:none}
     <div id="credit">Map data © OpenStreetMap contributors (ODbL) · Elevation: Terrarium tiles (SRTM, AWS Open Data) · Boundaries: KOSTAT · Models: Ferrari 458 by vicent091036, CC-BY 4.0 · Three.js (MIT) · Fonts: Anton, Space Mono (SIL OFL)</div>
   </div>
   <div id="pdScan" aria-hidden="true"></div>
-  <div id="detail" style="display:none"><span>월드 화질</span><select aria-label="월드 화질"><option value="auto">자동</option><option value="laptop">노트북</option><option value="high">고사양</option></select><button type="button" class="pbtn">고화질 팩 연결</button><span class="dmsg"></span></div>
+  <div id="detail" style="display:none"><span>월드 화질</span><select aria-label="월드 화질"><option value="auto">자동</option><option value="laptop">노트북</option><option value="high">고사양</option></select><span class="dmsg"></span></div>
   <button id="go" type="button" aria-label="시작"></button>
 </div>
 <div id="helpov"><div id="helpbox"><h2>조작법 <small>F1 키로 닫기</small></h2><div id="keys"></div></div></div>
@@ -332,9 +332,6 @@ body.touch #keysBtn{display:none}
 <script>
 window.addEventListener('error',function(e){var p=document.getElementById('err');if(p){p.style.display='block';p.textContent+=(e.message||'')+'\n'+((e.error&&e.error.stack)||'')+'\n'}});
 </script>
-/*__BAKED__*/
-<script>
-/*__BUNDLE__*/
-</script>
+<script src="main.js"></script>
 </body>
 </html>

@@ -6,9 +6,11 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { el, LIGHT_CAP } from './util.js';
-import hdriPlaza from '../assets/env/hansaplatz.rgbe';
-import hdriSuite from '../assets/env/interior_suite.rgbe';
-import hdriDay from '../assets/env/day_street.rgbe';
+import { need, bytes } from './files.js';
+import hdriPlazaUrl from '../assets/env/hansaplatz.rgbe';
+import hdriSuiteUrl from '../assets/env/interior_suite.rgbe';
+import hdriDayUrl from '../assets/env/day_street.rgbe';
+const hdriPlaza = need(hdriPlazaUrl), hdriSuite = need(hdriSuiteUrl), hdriDay = need(hdriDayUrl);   // decoded while the engine is set up
 
 // Point / spot lights stay in the scene at intensity 0 when unused (the light count is part of every lit shader; changing it recompiles them
 // all), and three.js evaluates the full BRDF for each of them on every lit pixel. Skip a light's BRDF where it contributes nothing:
@@ -239,11 +241,11 @@ function buildEnvironment(renderer) {
 }
 
 // Poly Haven 'hansaplatz' night HDRI (CC0), stored as 512x256 flat RGBE and decoded to half-float for reflections
-function hdriEnv(renderer, b64) {
-  const bin = atob(b64), w = 512, h = 256, data = new Uint16Array(w * h * 4), one = THREE.DataUtils.toHalfFloat(1);
+function hdriEnv(renderer, url) {
+  const bin = bytes(url), w = 512, h = 256, data = new Uint16Array(w * h * 4), one = THREE.DataUtils.toHalfFloat(1);
   for (let i = 0; i < w * h; i++) {
-    const e = bin.charCodeAt(i * 4 + 3), f = e ? 2 ** (e - 136) : 0;
-    for (let c = 0; c < 3; c++) data[i * 4 + c] = THREE.DataUtils.toHalfFloat(bin.charCodeAt(i * 4 + c) * f);
+    const e = bin[i * 4 + 3], f = e ? 2 ** (e - 136) : 0;
+    for (let c = 0; c < 3; c++) data[i * 4 + c] = THREE.DataUtils.toHalfFloat(bin[i * 4 + c] * f);
     data[i * 4 + 3] = one;
   }
   const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.HalfFloatType);

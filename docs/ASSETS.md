@@ -24,7 +24,7 @@
 | Soldier (이전 캐릭터, 보관만) | `assets/Soldier.glb` | three.js examples | 이번 교체 전 사용, 현재 번들에 포함하지 않음 | 교체 전 크레딧 문구 참고 |
 
 - 캐릭터: 게임은 `character_game.glb`를 쓴다. `Character.glb`는 원본 보관용이며 bone 이름과 프레임은 `src/assets.js`의 `adaptCharacter`가 게임 규약(Mixamo 이름, Soldier 기준 rest 프레임)으로 맞춘다.
-- 글꼴은 `build/build.mjs`가 base64로 템플릿에 넣는다(단일 HTML, 오프라인에서도 같은 모양). 한글은 글꼴을 넣지 않고 시스템 글꼴(`Noto Sans KR`/`Malgun Gothic`/`Apple SD Gothic Neo`)을 쓴다.
+- 글꼴은 `build/build.mjs`가 `game/fonts/`에 파일로 복사하고 `@font-face`로 건다(오프라인에서도 같은 모양, ADR-0034). OFL 원문은 `build/licences/`에 있고 `game/LICENSES.txt`에 들어간다. 한글은 글꼴을 넣지 않고 시스템 글꼴(`Noto Sans KR`/`Malgun Gothic`/`Apple SD Gothic Neo`)을 쓴다.
 - 로딩 화면 디자인 원본: 사용자가 준 `Purge Day — 로딩` 목업(1280×720 아트보드). 값(색·크기·간격)은 목업 그대로, 구현은 `src/template.html` + `src/loading.js`.
 - 주거 건물: 원본 OBJ 10종(001~010)에서 001~003만 쓴다. 텍스처 `Hotel_Hous_AO.png`는 색이 아니라 AO(그림자) 맵이라 벽 색은 마을 팔레트의 정점 색으로 곱한다. 유리 패널은 창 단위로 켜짐/꺼짐을 정한다. `Camellia City`, `Manhattan`, 저격 탄창(`Sniper_Ammo`)은 아직 적용하지 않았다(저격 탄창은 `assets/props/sniper_mag.glb`로 이미 사용 중).
 

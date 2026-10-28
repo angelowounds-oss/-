@@ -1,31 +1,32 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import characterB64 from '../assets/character_game.glb';
-import playerB64 from '../assets/player_female.glb';
-import ferrariB64 from '../assets/ferrari.glb';
-import hydrantB64 from '../assets/props/fire_hydrant.glb';
-import trashB64 from '../assets/props/metal_trash_can.glb';
-import boxB64 from '../assets/props/utility_box_01.glb';
-import bagB64 from '../assets/props/trashbag.glb';
-import plantB64 from '../assets/props/potted_plant_01.glb';
-import sniperMagB64 from '../assets/props/sniper_mag.glb';
-import sniperRifleB64 from '../assets/props/sniper_rifle.glb';
-import livingB64 from '../assets/props/living_set.glb';
-import streetPropsB64 from '../assets/props/street_props.glb';
-import streetSignsB64 from '../assets/props/street_signs.glb';
-import pistolB64 from '../assets/props/pistol.glb';
-import furnitureB64 from '../assets/interior/furniture.glb';
-import res01B64 from '../assets/res/res_01.glb';
-import res02B64 from '../assets/res/res_02.glb';
-import res03B64 from '../assets/res/res_03.glb';
-import res04B64 from '../assets/res/res_04.glb';
-import res05B64 from '../assets/res/res_05.glb';
-import res06B64 from '../assets/res/res_06.glb';
-import res07B64 from '../assets/res/res_07.glb';
-import res08B64 from '../assets/res/res_08.glb';
-import res09B64 from '../assets/res/res_09.glb';
-import res10B64 from '../assets/res/res_10.glb';
+import { fetchBytes } from './files.js';
+import characterUrl from '../assets/character_game.glb';
+import playerUrl from '../assets/player_female.glb';
+import ferrariUrl from '../assets/ferrari.glb';
+import hydrantUrl from '../assets/props/fire_hydrant.glb';
+import trashUrl from '../assets/props/metal_trash_can.glb';
+import boxUrl from '../assets/props/utility_box_01.glb';
+import bagUrl from '../assets/props/trashbag.glb';
+import plantUrl from '../assets/props/potted_plant_01.glb';
+import sniperMagUrl from '../assets/props/sniper_mag.glb';
+import sniperRifleUrl from '../assets/props/sniper_rifle.glb';
+import livingUrl from '../assets/props/living_set.glb';
+import streetPropsUrl from '../assets/props/street_props.glb';
+import streetSignsUrl from '../assets/props/street_signs.glb';
+import pistolUrl from '../assets/props/pistol.glb';
+import furnitureUrl from '../assets/interior/furniture.glb';
+import res01Url from '../assets/res/res_01.glb';
+import res02Url from '../assets/res/res_02.glb';
+import res03Url from '../assets/res/res_03.glb';
+import res04Url from '../assets/res/res_04.glb';
+import res05Url from '../assets/res/res_05.glb';
+import res06Url from '../assets/res/res_06.glb';
+import res07Url from '../assets/res/res_07.glb';
+import res08Url from '../assets/res/res_08.glb';
+import res09Url from '../assets/res/res_09.glb';
+import res10Url from '../assets/res/res_10.glb';
 
 // Embedded CC assets: the player character (assets/Character.glb, rig adapted below) and Ferrari 458 (CC-BY 4.0, vicent091036).
 // assets/Soldier.glb (three.js examples, Mixamo rig) is kept in the repo but is no longer embedded.
@@ -132,27 +133,27 @@ function adaptCharacter(gltf, clips = gltf.animations) {
   return gltf;
 }
 
-const b64ToBuf = (s) => { const bin = atob(s), n = bin.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
 export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, ok: false };
 
 export async function loadAssets() {
   const loader = new GLTFLoader();
+  const load = async (url) => loader.parseAsync(await fetchBytes(url), '');   // the build ships each model as its own file (files.js)
   try {
-    const [s, f] = await Promise.all([loader.parseAsync(b64ToBuf(characterB64), ''), loader.parseAsync(b64ToBuf(ferrariB64), '')]);
+    const [s, f] = await Promise.all([load(characterUrl), load(ferrariUrl)]);
     const rawClips = s.animations;
     A.soldier = adaptCharacter(s); A.ferrari = f;
     // the player's own body: the same rig and bind pose with a different mesh (build/fit_female.mjs), so every clip plays on it; a failure keeps the shared body
-    try { A.player = adaptCharacter(await loader.parseAsync(b64ToBuf(playerB64), ''), rawClips); } catch (e) { console.warn('player body failed', e); }
+    try { A.player = adaptCharacter(await load(playerUrl), rawClips); } catch (e) { console.warn('player body failed', e); }
     // CC0 Poly Haven street props (decimated, 256px textures); a failure here must not take the characters down with it
     try {
-      const src = { fire_hydrant: hydrantB64, metal_trash_can: trashB64, utility_box_01: boxB64, trashbag: bagB64, potted_plant_01: plantB64, sniper_mag: sniperMagB64, sniper_rifle: sniperRifleB64, living_set: livingB64, street_props: streetPropsB64, street_signs: streetSignsB64, furniture: furnitureB64, pistol: pistolB64 };
+      const src = { fire_hydrant: hydrantUrl, metal_trash_can: trashUrl, utility_box_01: boxUrl, trashbag: bagUrl, potted_plant_01: plantUrl, sniper_mag: sniperMagUrl, sniper_rifle: sniperRifleUrl, living_set: livingUrl, street_props: streetPropsUrl, street_signs: streetSignsUrl, furniture: furnitureUrl, pistol: pistolUrl };
       const out = {};
-      await Promise.all(Object.entries(src).map(async ([k, b]) => { out[k] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
+      await Promise.all(Object.entries(src).map(async ([k, b]) => { out[k] = (await load(b)).scene; }));
       A.props = out;
     } catch (e) { console.warn('prop load failed', e); }
     try {
-      const rs = [res01B64, res02B64, res03B64, res04B64, res05B64, res06B64, res07B64, res08B64, res09B64, res10B64], out = {};
-      await Promise.all(rs.map(async (b, k) => { out[k + 1] = (await loader.parseAsync(b64ToBuf(b), '')).scene; }));
+      const rs = [res01Url, res02Url, res03Url, res04Url, res05Url, res06Url, res07Url, res08Url, res09Url, res10Url], out = {};
+      await Promise.all(rs.map(async (b, k) => { out[k + 1] = (await load(b)).scene; }));
       A.res = out;
     } catch (e) { console.warn('skyline load failed', e); }
     const box = new THREE.Box3().setFromObject(A.soldier.scene);

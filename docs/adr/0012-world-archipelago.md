@@ -23,7 +23,7 @@
 
 ## 3단계: 구운 데이터와 로딩 (2026-10-16)
 - **구움** (`build/bake.mjs`): 순수 생성기(`world()`, `net()`)를 빌드 때 한 번 돌려 결과를 한 컨테이너로 묶는다. `src/bakefmt.js`가 JSON 뼈대 + 타입 배열 한 덩어리(blob)로 만들고(Map·공유 객체 동일성 보존), `deflate-raw` 9단계로 압축한다. 현재 2.6 MB → 0.66 MB. 같은 소스는 같은 바이트(매니페스트 `data` 해시, `unit/bake`가 두 번 구워 비교하고 생성기 출력과 원소 단위로 대조).
-- **내장**: `neon_city_v9.html`에 `<script type="application/octet-stream" id="baked">`(base64)로 들어간다. `WORLD=small node build/build.mjs`는 구움을 건너뛰고 페이지가 직접 생성한다(개발·빠른 시험용, 약 0.5 s 더 느린 시작).
+- **내장**: 게임 폴더의 `game/world/base.pak`으로 들어간다(ADR-0034; 그전에는 `neon_city_v9.html` 안의 base64 `<script id="baked">`). `WORLD=small node build/build.mjs`는 구움을 건너뛰고 페이지가 직접 생성한다(개발·빠른 시험용, 약 0.5 s 더 느린 시작).
 - **로드** (`src/bakedload.js`): 워커가 `DecompressionStream`으로 풀고(메인은 로딩 화면을 계속 그린다, 워커가 없으면 메인에서), 메인은 `unpack`만 한다(약 80 ms). `worldmap.build()`/`roadnet.net()`은 `globalThis.__BAKED`가 있으면 그것을 쓴다.
 - **히치 예산**: 원경 지형은 점프(순간이동·마하 8) 뒤 가까운 층부터 프레임당 6 ms 안에서 따라잡는다. 한 층 재계산이 약 30 ms라 최악 프레임은 40 ms 안쪽(테스트 `farland`), 층을 행 단위로 쪼개는 일은 4단계 도시 타일과 함께.
 - **데이터 정책**: 구운 파일은 리포에 없다(`build/baked/`는 무시). HTML도 릴리스/아티팩트로 배포한다(CLAUDE.md, BLD-02).

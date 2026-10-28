@@ -1,13 +1,13 @@
 # 테스트
 
-`tests/run.cjs`가 실행하는 회귀 스위트. 모든 브라우저 테스트는 헤드리스 Chromium(SwiftShader WebGL2)으로 빌드된 `neon_city_v9.html`을
-열고 `window.__game`을 직접 조작한다. 전략과 한계는 [ADR-0007](adr/0007-test-strategy-swiftshader.md).
+`tests/run.cjs`가 실행하는 회귀 스위트. 모든 브라우저 테스트는 헤드리스 Chromium(SwiftShader WebGL2)으로 빌드된 게임 폴더(`dist/NeonCity/game`)를
+`tests/lib.cjs`의 `serve()`(127.0.0.1 임의 포트, Range 206, 런처와 같은 MIME)로 열고 `window.__game`을 직접 조작한다(ADR-0034). 전략과 한계는 [ADR-0007](adr/0007-test-strategy-swiftshader.md).
 
 ## 실행
 
 ```bash
 cd build && npm i && cd ..          # 처음 한 번 (three, rapier, esbuild …)
-node build/build.mjs                # 테스트는 빌드 산출물을 연다
+node build/build.mjs                # 테스트는 빌드한 폴더 dist/NeonCity/game 을 연다 (--zip 은 전달용 zip도)
 node tests/run.cjs quick            # 단위 + 부팅 + 컬링·조명 동일성 (약 5분)
 node tests/run.cjs render gameplay  # 스위트 지정
 node tests/run.cjs --only breach    # 테스트 하나
@@ -15,7 +15,7 @@ node tests/run.cjs --only breach    # 테스트 하나
 node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 기준 · 2026-10-09 18/18 통과)
 ```
 
-- Playwright: `require('playwright')`가 안 되면 `PLAYWRIGHT` 환경변수 경로(기본 `/opt/node22/lib/node_modules/playwright`)를 쓴다. 다른 빌드 파일은 `GAME_HTML=/path/to.html`.
+- Playwright: `require('playwright')`가 안 되면 `PLAYWRIGHT` 환경변수 경로(기본 `/opt/node22/lib/node_modules/playwright`)를 쓴다. 다른 빌드 폴더는 `GAME_DIR=/path/to/NeonCity/game`(그 안의 `index.html`). `file://`로는 열리지 않는다.
 - 결과: 터미널 요약 + `tests/results/last-run.json`(git 제외).
 - 테스트는 **하나씩 순서대로** 돈다. 병렬로 돌리면 시간 측정 테스트가 흔들린다.
 
@@ -48,17 +48,21 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | gameplay | `worldnav` | 다른 도시의 거리 생활(보행자 26·차 14이 움직이고 도시를 떠나면 사라짐), 지도 4단계 그리기, 목적지 지정(기둥·HUD), 도시 간 경로, 자동 주행으로 고속도로 2.4 km 이상 달리고 브레이크로 해제 (`MAPSHOTS=1`) |
 | gameplay | `transit` | 역 32곳(도시마다 지하철·중앙역·공항), 고속철도 7선과 열차, 키오스크가 알맞은 이동을 보여줌, 지하철·고속철도·여객기·택시 이동이 끝까지 가서 도착·생존·프레임 450 ms 미만, 시각표 여객기 (`RIDESHOTS=1`) |
 | gameplay | `cityrules` | 현지 기후·틴트·시각, 관할별 수배 보존과 복귀, 공항·부두 경비 생성과 교대, 장거리 배달 보수, 안 보는 도시의 사건 뉴스, 2일 지난 폐허의 복구 |
-| gameplay | `water` | 강·바다 헤엄(수위·흐름·깊이), Z로 잠수·Space로 부상, 숨 소진 시 익사, 강 물살에 떠내려감 |
+| gameplay | `water` | 강·바다 헤엄(수위·흐름·깊이), C로 잠수·Space로 부상, 숨 소진 시 익사, 강 물살에 떠내려감 |
 | gameplay | `citydetail` | 도시 타일의 세부(차선·가구·옥상)가 구운 조각에서 한 프레임에 하나씩 올라오고, 멀리 가면 내려감 |
 | gameplay | `forest` | 숲 한가운데의 나무·빌보드·풀·줄기 충돌체, 사막 선인장, 절벽 바위, 도시에는 없음, 갱신 비용 |
 | gameplay | `village` | 마을이 가까이 가면 지어짐(문 있는 집·벽 충돌), 낮엔 주민이 걷고 밤엔 침대에서 자며 가게 문이 잠김, 폭발로 집 붕괴·복구 |
 | gameplay | `industry` | 터빈 로터 회전, 폭발에 터빈·통신탑(신호등 소등)·송전탑(전선 낙하)·정유탱크(화재)·교량 경간 붕괴와 저장 |
 | gameplay | `flightassist` | 화산(1,900 m)으로 1,000 m/s: 저고도 보조가 넘겨 줌(PULL UP), 고도 유지가 목표를 지키고 산에서 들림, 120 m/s 미만에서 해제 |
-| gameplay | `world-small` | `WORLD=small` 빌드(굽지 않음)와 기본 빌드가 같은 월드(지형 합·도시 건물 수·도로 점·역 수) |
+| gameplay | `world-small` | `WORLD=small` 빌드(굽지 않음, 시스템 임시 폴더의 `neon_city_small/NeonCity`에 따로 빌드)와 기본 빌드가 같은 월드(지형 합·도시 건물 수·도로 점·역 수) |
+| gameplay | `pack` | 고사양을 고르면 폴더의 `world/` 팩이 자동으로 붙고(`pack:*` 청크가 앞), 노트북이면 붙지 않음. 빌드에 팩이 없으면 건너뜀 |
+| gameplay | `hiassets` | 고사양 팩의 KTX2 텍스처가 로딩 중 올라가고 쓰는 쪽이 이름으로 찾음. 팩이 없으면 건너뜀 |
 | perf | `world-perf` | 5곳(수도 거리·도시 거리·항만·고속도로·도시 횡단)의 JS 프레임 시간과 한 프레임의 드로우콜·삼각형 |
 | unit | `bake` | 구움이 결정적이고(두 번 같은 해시) 생성기 출력과 원소 단위로 같다, 공유 객체 유지 |
 | unit | `keys` | 조작키(`src/keys.js`): GTA V 기본값, 기본 배치에 겹치는 키 0, 재지정은 서로 바꾸기, 금지 키 거절, 저장·복원·깨진 저장 처리, `src/`에 하드코딩 키 0 | 위반 0 |
 | unit | `chunkpack` | 팩 굽기(병렬·캐시 동일 바이트), 마운트, 팩 청크가 앞에 오는 순서, 크기 불일치·손상 청크 거부 |
+| unit | `launcher` | 런처(`launcher/`, Go): 고정 MIME·Range 206, 외부 Host 403·POST 405·목록·숨김·`..` 404, 핑 끊김·bye 뒤 종료, 기본 포트와 기억, 같은 폴더 두 번째 실행은 창만, 다른 폴더는 거절, Windows GUI(PE) 빌드. Go가 없으면 건너뜀 | 위반 0 |
+| unit | `package` | 배포 폴더의 README.txt(BOM·CRLF), LICENSES.txt(매니페스트 전부 + 원문), zip(상위 `NeonCity/`, 압축된 파일은 저장만, `unzip -t`), exe 없는 폴더는 zip 거부 | 위반 0 |
 | unit | `heightmap` | 구운 타일이 지면 함수와 노드에서 0.1 m 이내·중간 1 m 이내, 강 바닥, 물리 층, 색, 없는 타일은 NaN → 계산 |
 | unit | `citydetail` | 도시 세부의 결정성·타일 안·범위·삼각형 예산, 고사양이 더 촘촘함 |
 | gameplay | `ai-behaviour` | 등 돌린 적 미인지, 총성 조사·접근, 피격 시 엄폐/교전, 시민 공포 전파 | 상태 전이 일치 |
@@ -77,7 +81,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 ## 기준 장면 (AAA-PLAN Q0-3, `src/views.js`)
 - 열두 장면(장소, 시각, 날씨, 카메라 고정)으로 화면 변경을 전후로 비교한다. 화면이 바뀌는 PR은 전후 시트를 함께 낸다.
 - 시트: `node tests/tools/golden-views.cjs`(결과 `tests/results/golden-views.png`, 커밋 안 함). `PICK=1,5`로 일부만, `TWICE=1`로 같은 장면을 두 번 찍어 바이트 차이를 출력, `Q=0..3` 화질.
-- 실기기: `neon_city_v9.html?view=3&q=3`처럼 열고 시작하면 그 장면에 카메라가 고정되고 HUD가 숨는다(사진 모드의 촬영 버튼으로 저장).
+- 실기기: `NeonCity.exe`로 연 창의 주소 끝에 `?view=3&q=3`을 붙여 열고(또는 http://127.0.0.1:47820/?view=3&q=3) 시작하면 그 장면에 카메라가 고정되고 HUD가 숨는다(사진 모드의 촬영 버튼으로 저장).
 - 시작 전에 `Math.random`을 고정 시드로 바꾸고(`openGame({init})`), 땅 타일과 도시 근거리 타일이 다 들어올 때까지(최대 600프레임) 기다린다.
 
 ## 새 테스트 작성 규칙

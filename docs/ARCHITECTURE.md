@@ -1,7 +1,8 @@
 # 아키텍처
 
-three.js r180(WebGL2) + Rapier 0.21(WASM) 기반 단일 페이지 게임. `src/`의 ES 모듈을 esbuild가 하나의 IIFE로 묶고, 에셋(glb/jpg/rgbe)을
-base64/data URL로 내장해 `neon_city_v9.html` 한 파일로 만든다(ADR-0001). 서버 없이 파일을 열면 실행된다.
+three.js r180(WebGL2) + Rapier 0.21(WASM) 기반 단일 페이지 게임. `src/`의 ES 모듈을 esbuild가 하나의 IIFE(`main.js`)로 묶고, 에셋(glb/jpg/bin/rgbe)은
+`assets/<이름>-<해시>.*` 파일로 둔다. 배포는 게임 폴더 `dist/NeonCity/`(`NeonCity.exe` + `game/`)를 zip으로 묶은 것이고, Go 런처가 `game/`을 127.0.0.1에서
+서빙해 앱 창으로 연다(ADR-0034, ADR-0001 대체). 동기로 읽는 파일은 부팅 때 미리 받는다(`src/files.js`). 노트북 월드는 `game/world/base.pak`, 고사양 팩은 같은 폴더에 있다(ADR-0013).
 
 ## 1. 모듈 지도
 

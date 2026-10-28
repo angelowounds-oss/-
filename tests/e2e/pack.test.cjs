@@ -1,24 +1,20 @@
-// gameplay (ADR-0013): the high-detail pack. Without a pack the page runs on the embedded (laptop) world; connecting the pack folder (here through the file
-// chooser: the fallback of the folder picker) puts its chunks in front: 8 m ground tiles stream in around the player and are used for the height, the
-// denser city detail replaces the embedded chunk under the same key. Needs build/baked/pack (node build/bake.mjs --pack); skipped when it is not there.
+// gameplay (ADR-0013, ADR-0034): the high-detail pack. With the laptop detail the page runs on the base world; mounting the pack (game/world/, read
+// over http a chunk at a time) puts its chunks in front: 8 m ground tiles stream in around the player and are used for the height, the denser city
+// detail replaces the base chunk under the same key. Needs the pack in the built folder (node build/bake.mjs --pack, then build); skipped without it.
 const fs = require('node:fs');
 const path = require('node:path');
-const pw = require('playwright');
-const { GAME } = require('../lib.cjs');
-const dir = path.join(__dirname, '../../build/baked/pack');
+const { pw, GL_ARGS, GAME, gameUrl } = require('../lib.cjs');
+const dir = path.join(GAME, 'world');
 (async () => {
-  if (!fs.existsSync(path.join(dir, 'index.json'))) { console.log('RESULT ' + JSON.stringify({ test: 'pack', pass: true, metrics: { skipped: 'no pack baked' }, note: '' })); return; }
-  const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  if (!fs.existsSync(path.join(dir, 'index.json'))) { console.log('RESULT ' + JSON.stringify({ test: 'pack', pass: true, metrics: { skipped: 'no pack in the build' }, note: '' })); return; }
+  const browser = await pw.chromium.launch({ args: GL_ARGS });
   const page = await browser.newPage({ viewport: { width: 480, height: 270 } }), errors = [];
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
-  await page.addInitScript(() => { delete window.showDirectoryPicker; });   // the fallback path: a file input
-  await page.goto('file://' + GAME + '?q=1');
+  await page.addInitScript(() => { try { localStorage.setItem('neon_detail', 'laptop'); } catch (e) { /* ignore */ } });   // start without the pack
+  await page.goto((await gameUrl()) + '?q=1');
   await page.waitForSelector('#go.rdy', { timeout: 300000 });
   const before = await page.evaluate(() => ({ tier: window.__detail.detail.tier, state: window.__detail.detail.state, hasPackChunk: window.__WORLD.has('t8/12_12') }));
-  const chooser = page.waitForEvent('filechooser');
-  const connecting = page.evaluate(() => window.__detail.connectPack());
-  (await chooser).setFiles(fs.readdirSync(dir).map((f) => path.join(dir, f)));
-  const ok = await connecting;
+  const ok = await page.evaluate(() => window.__detail.mount());   // what the boot does when the high detail is chosen
   await page.evaluate(() => window.__detail.setPref('high'));
   await page.evaluate(() => { document.getElementById('go').click(); });
   await page.waitForFunction(() => window.__game && window.__game.running, null, { timeout: 60000 });

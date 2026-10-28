@@ -2,6 +2,7 @@ build/node_modules/
 tests/results/
 build/baked/
 neon_city_v9.html
+dist/
 build/.dem-tiles/
 build/.dem-cache/
 build/.osm-cache/

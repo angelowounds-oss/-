@@ -37,7 +37,7 @@ docs/prompts/LIFE-SIM.md §1~§3, docs/backlog/LIFE.md를 읽어라.
 - 새 테스트는 tests/e2e/<이름>.test.cjs로 만들고 tests/run.cjs에 등록한다. 테스트를 동시에 두 개 돌리지 않는다.
 - 끝나면: 해당 테스트 + node tests/run.cjs quick 통과(렌더·성능·월드를 건드렸으면 all), docs/backlog/LIFE.md 상태 갱신,
   필요하면 ADR-0014·ARCHITECTURE.md·PERF-BASELINE.md 갱신, 커밋 후 git push -u origin neon-city-v9.
-- 빌드 산출물(neon_city_v9.html, build/baked/, world/)은 커밋하지 않는다. node build/build.mjs로 빌드해 SendUserFile로 전달한다.
+- 빌드 산출물(dist/, zip, build/baked/)은 커밋하지 않는다. node build/build.mjs --zip으로 빌드해 zip을 SendUserFile로 전달한다(ADR-0034).
 - 사용자가 정해 주지 않은 세부는 §1~§3 설계를 따르고, 거기에도 없으면 가장 좋은 방법을 스스로 정해 진행한 뒤 보고에 적는다.
   디자인·에셋·라이선스처럼 사용자가 정할 일만 선택지와 권고안으로 묻는다.
 ```

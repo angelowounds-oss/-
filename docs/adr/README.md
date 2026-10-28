@@ -5,7 +5,7 @@
 
 | 번호 | 제목 | 상태 |
 |---|---|---|
-| [0001](0001-single-file-html.md) | 단일 HTML 파일 배포 | 채택 · 재검토 예정(PERF-05) |
+| [0001](0001-single-file-html.md) | 단일 HTML 파일 배포 | 대체됨(0034) |
 | [0002](0002-fixed-light-count-no-runtime-compile.md) | 조명 수 고정, 플레이 중 셰이더 컴파일 0 | 채택 |
 | [0003](0003-fixed-step-physics-render-interpolation.md) | 고정 스텝 물리 + 렌더 보간 | 채택 |
 | [0004](0004-floor-streaming-generators.md) | 층 스트리밍은 생성기 단계(프레임당 3 ms) | 채택 |
@@ -32,3 +32,4 @@
 | [0031](0031-room-walkways.md) | 실내 통로 보장: 안쪽 문은 모서리, 꾸민 방은 걸어 보고 다시 꾸민다 | 채택 |
 | [0032](0032-window-interiors.md) | 밖에서 창 안이 보이게: 가짜 방 + 만들어진 층은 창을 연다 | 채택 |
 | [0033](0033-key-layout.md) | 조작키: GTA V 배치 + 재지정 화면(keys.js, 하드코딩 금지) | 채택 |
+| [0034](0034-folder-launcher-zip.md) | 배포: 게임 폴더 + NeonCity.exe(Go 런처, 127.0.0.1) + zip 하나 | 채택 |

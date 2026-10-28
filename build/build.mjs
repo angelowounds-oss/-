@@ -1,25 +1,59 @@
 import { build } from 'esbuild';
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { writeReadme, writeLicences, zipDist, buildInfo } from './package.mjs';
+// The game is built as a folder (BLD-06, ADR-0034): dist/NeonCity/ holds the launcher NeonCity.exe and game/ (the page, the code, the asset
+// files, the baked world and the high pack). The launcher serves game/ on 127.0.0.1 and opens it in an app window.
+// usage: node build/build.mjs [--zip]   --zip also makes dist/NeonCity-<date>-<commit>.zip for delivery
+// env: DIST=<folder> (default dist/NeonCity), WORLD=small (no baked world: the page generates it), PACK=0 (no high pack), LAUNCHER=0 (no
+// launcher), DEV=1 (unminified code)
+const DIST = process.env.DIST || 'dist/NeonCity', GAME = path.join(DIST, 'game'), small = process.env.WORLD === 'small';
 // every shipped file is listed with its licence (ADR-0028): an unlisted file, a changed one or a licence outside the allowed list stops the build
 { const { check } = await import('./assets/fetch.mjs'), m = check(); if (m.errors.length) { for (const e of m.errors) console.error('asset:', e); process.exit(1); } }
 // the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
-if (process.env.WORLD !== 'small') {
+if (!small) {
   const out = 'build/baked/world/capital/region.bin', srcs = fs.readdirSync('build/world').map((f) => 'build/world/' + f);
   if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', '1/4', '--roads', '--emit'], { stdio: 'inherit' });
 }
 const { bake } = await import('./bake.mjs');
-const r = await build({
-  entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife',
-  write: false, loader: { '.glb': 'base64', '.jpg': 'dataurl', '.bin': 'base64', '.rgbe': 'base64' }, target: 'es2020', legalComments: 'none',
+fs.rmSync(DIST, { recursive: true, force: true });
+for (const d of ['fonts', 'world']) fs.mkdirSync(path.join(GAME, d), { recursive: true });
+
+// code to main.js; every imported model, texture and data file is copied to assets/ under a hashed name, and the import gives its URL (files.js)
+await build({
+  entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife', outdir: GAME, entryNames: 'main', assetNames: 'assets/[name]-[hash]',
+  loader: { '.glb': 'file', '.jpg': 'file', '.bin': 'file', '.rgbe': 'file' }, target: 'es2020', legalComments: 'none',
   nodePaths: ['build/node_modules'], logLevel: 'warning',
 });
-const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-// the loading screen's fonts (Anton, Space Mono; both SIL OFL) are embedded as data URIs: the game is one file and must look the same offline
-const font = (file, family, weight) => `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;font-display:swap;src:url(data:font/woff2;base64,${fs.readFileSync('assets/fonts/' + file).toString('base64')}) format('woff2')}`;
-const fonts = [font('Anton-400.woff2', 'Anton', 400), font('SpaceMono-400.woff2', 'Space Mono', 400), font('SpaceMono-700.woff2', 'Space Mono', 700)].join('\n');
-const tpl = fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts);
-// WORLD=small skips the bake: the page generates the world itself (slower to start, no big data; for quick tests and development)
-const baked = process.env.WORLD === 'small' ? '' : `<script type="application/octet-stream" id="baked">${Buffer.from((await bake()).embedded).toString('base64')}</script>`;
-fs.writeFileSync(process.env.OUT || 'neon_city_v9.html', tpl.replace('/*__BAKED__*/', () => baked).replace('/*__BUNDLE__*/', () => js));
-console.log('built', (fs.statSync(process.env.OUT || 'neon_city_v9.html').size/1024|0)+' KB');
+// the loading screen's fonts (Anton, Space Mono; both SIL OFL) ship as files: the game must look the same offline
+const FONTS = [['Anton-400.woff2', 'Anton', 400], ['SpaceMono-400.woff2', 'Space Mono', 400], ['SpaceMono-700.woff2', 'Space Mono', 700]];
+for (const [f] of FONTS) fs.copyFileSync('assets/fonts/' + f, path.join(GAME, 'fonts', f));
+const fonts = FONTS.map(([f, family, weight]) => `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;font-display:swap;src:url(fonts/${f}) format('woff2')}`).join('\n');
+fs.writeFileSync(path.join(GAME, 'index.html'), fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts));
+
+// the baked "laptop" world (bakedload.js); WORLD=small leaves it out and the page generates the world itself (slower to start; for quick tests)
+if (!small) fs.writeFileSync(path.join(GAME, 'world', 'base.pak'), (await bake()).embedded);
+// the high pack (detail.js), as build/bake.mjs --pack and build/assets/pack.mjs left it; only over the baked world it was made for
+const PACK = 'build/baked/pack';
+if (!small && process.env.PACK !== '0' && fs.existsSync(path.join(PACK, 'index.json'))) {
+  const idx = JSON.parse(fs.readFileSync(path.join(PACK, 'index.json'), 'utf8'));
+  for (const f of idx.files) fs.copyFileSync(path.join(PACK, f.name), path.join(GAME, 'world', f.name));
+  fs.copyFileSync(path.join(PACK, 'index.json'), path.join(GAME, 'world', 'index.json'));
+} else if (!small && process.env.PACK !== '0') console.warn('no high pack in build/baked/pack (node build/bake.mjs --pack; node build/assets/pack.mjs): the laptop detail only');
+
+// the Windows launcher (launcher/main.go); without Go the folder still works for tests, but cannot be delivered
+if (process.env.LAUNCHER !== '0') {
+  const go = ['go', '/usr/local/go/bin/go'].find((g) => { try { execFileSync(g, ['version'], { stdio: 'ignore' }); return true; } catch { return false; } });
+  if (go) execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', path.resolve(DIST, 'NeonCity.exe'), '.'], { cwd: 'launcher', stdio: 'inherit', env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
+  else console.warn('Go not found: no NeonCity.exe (https://go.dev/dl/)');
+}
+const info = buildInfo();
+writeReadme(DIST, info); writeLicences(GAME);
+
+// sizes by part
+const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+const parts = {}; for (const f of walk(DIST)) { const r = path.relative(DIST, f).split(path.sep), k = r[0] === 'game' && r.length > 2 ? r[1] : r[r.length - 1]; parts[k] = (parts[k] || 0) + fs.statSync(f).size; }
+const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
+console.log('built', DIST, mb(Object.values(parts).reduce((a, b) => a + b, 0)), '·', Object.entries(parts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${mb(v)}`).join(', '));
+if (process.argv.includes('--zip')) { const z = zipDist(DIST, info); console.log('zip', z, mb(fs.statSync(z).size)); }
