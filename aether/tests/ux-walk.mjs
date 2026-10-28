@@ -14,10 +14,19 @@ const say = (...a) => console.log('[' + T() + ']', ...a);
 const { browser, page, log } = await open('file://' + path.join(root, 'dist/aether.html') + hash, { width: W, height: H, ctx: phone ? { deviceScaleFactor: 2, isMobile: true, hasTouch: true } : {} });
 let n = 0;
 const shot = async name => { const f = String(++n).padStart(2, '0') + '-' + name + '.png'; await page.screenshot({ path: path.join(out, f), timeout: 600000 }); say('shot', f); };
+/* a tap at the element's centre with a real touch / mouse event. Playwright's own tap waits for the element to be "stable", which
+   never happens for the pulsing enter button, so visibility and occlusion are checked here instead (elementFromPoint at the centre). */
 const tap = async (sel, label) => {
   const s0 = Date.now();
-  try { if (phone) await page.tap(sel, { timeout: 90000 }); else await page.click(sel, { timeout: 90000 }); say('TAP ok', label || sel, (Date.now() - s0) + 'ms'); return true; }
-  catch (e) { say('TAP FAIL', label || sel, String(e).split('\n').slice(0, 3).join(' | ').slice(0, 300)); return false; }
+  try {
+    const hit = await page.evaluate(s => { const el = document.querySelector(s); if (!el) return { err: 'not in DOM' }; const b = el.getBoundingClientRect(), cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || b.width < 1) return { err: 'hidden' };
+      const x = b.left + b.width / 2, y = b.top + b.height / 2; if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) return { err: 'off screen ' + Math.round(x) + ',' + Math.round(y) };
+      const top = document.elementFromPoint(x, y); const ok = top && (top === el || el.contains(top) || top.contains(el) && false); return { x, y, ok, top: top ? (top.id ? '#' + top.id : top.tagName.toLowerCase() + '.' + top.className) : null }; }, sel);
+    if (hit.err) { say('TAP FAIL', label || sel, hit.err); return false; }
+    if (!hit.ok) { say('TAP FAIL', label || sel, 'covered by ' + hit.top); return false; }
+    if (phone) await page.touchscreen.tap(hit.x, hit.y); else await page.mouse.click(hit.x, hit.y);
+    say('TAP ok', label || sel, (Date.now() - s0) + 'ms'); return true;
+  } catch (e) { say('TAP FAIL', label || sel, String(e).split('\n').slice(0, 3).join(' | ').slice(0, 300)); return false; }
 };
 const audit = async tag => {
   const r = await page.evaluate(() => {
