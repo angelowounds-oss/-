@@ -160,7 +160,7 @@ export class Ragdoll {
       void qp; void qc;
     }
     this.bodies[0].setAdditionalSolverIterations?.(2); this.bodies[2].setAdditionalSolverIterations?.(2);
-    // pose snapshot to blend from when getting up, and to keep fingers / feet / shoulders as they were
+    // pose snapshot: the target for the bones the animation does not write when getting up (see getUpTick)
     this.localQ = {};
     for (const n of Object.keys(bones)) this.localQ[n] = bones[n].quaternion.clone();
     this.hipsPos0 = bones.Hips.position.clone();
@@ -399,6 +399,9 @@ export class Ragdoll {
     if (this.state !== 'GETUP') return false;
     const h = this.h, m = this.m, B = m.bones;
     this.gt += dt; const k = clamp(this.gt / this.gtDur, 0, 1), e = k * k * (3 - 2 * k);
+    // the mixer leaves some bones alone (Root, toes, fingers): start every frame from the pose before the fall, or their blend would compound
+    for (const n in B) B[n].quaternion.copy(this.localQ[n]);
+    B.Hips.position.copy(this.hipsPos0);
     m.mixer.update(dt);                                  // the standing animation writes its pose into the bones...
     h.group.updateMatrixWorld(true);
     // ...which we blend against the pose the body was lying in, parents first

@@ -407,6 +407,7 @@ Hips.position  = parentWorldMatrixInverse × pBoneWorld   (스케일 포함 변�
    `h.ry = atan2(pelvis 앞 방향 x, z)`
 4. 애니메이션을 재개한다: mixer weights를 `U_Crouch_Idle` 1로 두고 `mixer.update`를 시작한다.
 5. 블렌드 시간 T 동안 매 프레임:
+   - 먼저 모든 뼈를 넘어지기 직전 자세(생성자의 `localQ`, `hipsPos0`)로 되돌린다. mixer가 쓰지 않는 뼈(Root, 발가락, 손가락 끝)의 목표가 이 값이다. 이 단계가 없으면 그 뼈의 블렌드가 프레임마다 누적돼 몸이 틀어진 채 굳는다(PHY-04).
    - `mixer.update(dt)`로 목표 자세를 계산하고
    - 각 뼈 `quaternion = slerp(poseA[i], 애니메이션 결과, ease(t/T))`
    - Hips 높이: 누운 높이 → 서 있는 높이로 ease
