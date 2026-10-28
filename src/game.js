@@ -68,6 +68,7 @@ import * as AI from './ai.js';
 import { Military } from './military.js';
 import { instCull } from './instcull.js';
 import { idLabel } from './buildingdev.js';
+import { keys as binds } from './keys.js';
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'neon_city_v9';
@@ -584,8 +585,8 @@ export class Game {
     // swimming: Z held dives (as deep as the water is), Space comes up, the current of a river carries; under water the breath runs out (45 s)
     let cur = 0, curX = 0, curZ = 0;
     if (swim) {
-      const maxDive = Math.max(0, (wat.depth ?? 3) - 1.9), keys = this.input.keys;
-      pl.dive = clamp((pl.dive || 0) + ((keys.has('KeyZ') ? 2.4 : 0) - (keys.has('Space') ? 3.2 : 0.7)) * dt, 0, maxDive);
+      const maxDive = Math.max(0, (wat.depth ?? 3) - 1.9), I = this.input;
+      pl.dive = clamp((pl.dive || 0) + ((I.held('crouch') ? 2.4 : 0) - (I.held('jump') ? 3.2 : 0.7)) * dt, 0, maxDive);
       cur = wat.speed ? wat.speed * 0.6 : 0; curX = (wat.fx || 0) * cur; curZ = (wat.fz || 0) * cur;
     } else pl.dive = 0;
     {
@@ -708,7 +709,7 @@ export class Game {
     if (ph.ray(px, ty + 0.1, pz, 0, 1, 0, 1.75, 1 | 16 | 32)) return false; // no headroom
     if (h > 2.45) { // too high to vault: jump up and hang from the ledge
       const hx = pl.x + dx * (t - 0.32), hz = pl.z + dz * (t - 0.32), hy = ty - 1.85;
-      pl.hang = { x: hx, y: Math.max(hy, pl.y), z: hz, ty, px, pz, ry: yaw, t: 0 }; pl.vx = pl.vz = 0; this.audio.tone?.(220, 0.08, 'sine', 0.06, 120); this.toast('매달렸다', 'W/Space: 올라가기 · S/C: 놓기');
+      pl.hang = { x: hx, y: Math.max(hy, pl.y), z: hz, ty, px, pz, ry: yaw, t: 0 }; pl.vx = pl.vz = 0; this.audio.tone?.(220, 0.08, 'sine', 0.06, 120); this.toast('매달렸다', `${binds.label('moveF')}/${binds.label('jump')}: 올라가기 · ${binds.label('moveB')}/${binds.label('crouch')}: 놓기`);
       return true;
     }
     pl.mantle = { t: 0, dur: 0.35 + h * 0.2, from: [pl.x, pl.y, pl.z], to: [px, ty + 0.05, pz], h };
@@ -862,7 +863,7 @@ export class Game {
       if (alt > 5) {   // leaving an aircraft in the air: ejection, the parachute opens by itself from 25 m
         pl.y = gy + alt + 1; pl.vx = clamp(v.vx * 0.4, -25, 25); pl.vz = clamp(v.vz * 0.4, -25, 25); pl.vy = 3; pl.body3.teleport(pl.x, pl.y, pl.z);
         if (!this.items.count('parachute')) this.items.add('parachute');
-        if (alt > 25) this.mobility.deploy(); else this.toast('비상 탈출', '<kbd>Space</kbd> 낙하산');
+        if (alt > 25) this.mobility.deploy(); else this.toast('비상 탈출', `${binds.kbd('jump')} 낙하산`);
       } else { pl.y = gy; pl.vx = pl.vz = 0; pl.body3.teleport(pl.x, gy, pl.z); } }
     pl.hpv = Math.max(pl.hpv, 1);
     document.body.classList.add('onfoot'); document.body.classList.remove('incar');
@@ -876,7 +877,7 @@ export class Game {
     if (this.passenger) { this.taxiTick(); pl.x = v.x; pl.z = v.z; pl.body3.teleport(pl.x, 0, pl.z); if (this.input.edge('use') && v.speed < 3) this.endPassenger(false); if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3; return; }
     v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
     if (this.autonav?.active) this.autonav.control(v, inp, dt);   // the autopilot sets throttle / brake / steer; the driver's own input takes it back
-    if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.keys.has('Space'); }
+    if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.held('jump'); }
     if (this.input.edge('alt') && v.spec.craft === 'jet') { v.altHold = v.altHold != null ? null : v.by ?? v.pv.body.translation().y; this.toast(v.altHold != null ? '고도 유지 ON' : '고도 유지 OFF', v.altHold != null ? `${Math.round(v.altHold)} m · 마우스 위아래로 목표 고도 조절` : ''); }
     if (v.pullUp && !this._pullT) { this._pullT = 0.9; this.toast('<span style="color:#ff4560">PULL UP</span>', '저고도 경고 · 자동으로 기수를 든다'); this.audio.tone?.(1100, 0.15, 'square', 0.12); } else if (this._pullT) this._pullT -= dt, this._pullT <= 0 && (this._pullT = 0);
     if (this.input.edge('verb3') && v.speed < 4 && this.nearStation(v.x, v.z)) this.refuel(v);
@@ -1480,7 +1481,7 @@ export class Game {
     const G = this;
     return [
       // 1. tutorial: go to marker
-      (i) => { const spot = G.pickSpot(120, 260); return { title: '첫 만남', text: '의뢰인이 기다리고 있다. 표시된 장소로 이동하라. (차량 탑승: F)', reward: 300, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4) G.completeMission(); } }; },
+      (i) => { const spot = G.pickSpot(120, 260); return { title: '첫 만남', text: '의뢰인이 기다리고 있다. 표시된 장소로 이동하라. (차량 탑승: ' + binds.label('use') + ')', reward: 300, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4) G.completeMission(); } }; },
       // 2. steal car
       (i) => {
         const spot = G.pickSpot(140, 260), dest = G.pickSpot(260, 420);
@@ -1755,8 +1756,8 @@ export class Game {
     if (v) { this.setText('spd', ui.spd, String(Math.round(v.speed * 3.6))); ui.carHp.style.width = clamp(v.hp / v.maxHp * 100, 0, 100) + '%'; el('fuelFill').style.width = clamp(v.fuel, 0, 100) + '%'; const bb = el('boostBar'), bo = !!v.spec.boost; if (bb.style.display !== (bo ? 'block' : 'none')) bb.style.display = bo ? 'block' : 'none'; if (bo) el('boostFill').style.width = clamp(v.boostFuel ?? 100, 0, 100) + '%'; }
     // hint
     let hint = '';
-    if (this.playerOnFoot && this.nearInteract && !pl.dead && !this.frozen()) hint = this.nearInteract.verbs.map((v) => `<kbd>${v.key}</kbd>${typeof v.label === 'function' ? v.label() : v.label}`).join('　') + '';
-    else if (v && !this.passenger && this.nearStation(v.x, v.z) && v.speed < 4) hint = `<kbd>T</kbd>주유 · 연료 ${Math.round(v.fuel)}%`;
+    if (this.playerOnFoot && this.nearInteract && !pl.dead && !this.frozen()) hint = this.nearInteract.verbs.map((v) => `<kbd>${binds.verbLabel(v.key)}</kbd>${typeof v.label === 'function' ? v.label() : v.label}`).join('　') + '';
+    else if (v && !this.passenger && this.nearStation(v.x, v.z) && v.speed < 4) hint = `${binds.kbd('verb3')}주유 · 연료 ${Math.round(v.fuel)}%`;
     else if (v && v.fuel < 12 && this.time % 2 < 1) hint = '연료 부족!';
     this.setHTML('hint', ui.hint, hint); ui.hint.classList.toggle('on', !!hint);
     // direction

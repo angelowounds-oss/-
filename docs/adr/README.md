@@ -31,3 +31,4 @@
 | [0030](0030-building-ids.md) | 건물 고유번호(uid)와 목록(docs/buildings/registry.csv) | 채택 |
 | [0031](0031-room-walkways.md) | 실내 통로 보장: 안쪽 문은 모서리, 꾸민 방은 걸어 보고 다시 꾸민다 | 채택 |
 | [0032](0032-window-interiors.md) | 밖에서 창 안이 보이게: 가짜 방 + 만들어진 층은 창을 연다 | 채택 |
+| [0033](0033-key-layout.md) | 조작키: GTA V 배치 + 재지정 화면(keys.js, 하드코딩 금지) | 채택 |

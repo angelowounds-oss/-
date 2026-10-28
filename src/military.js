@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { N, roadC, roadIdx } from './world.js';
 import { clamp, rand, TAU, dampAngle, angDiff } from './util.js';
 import { Vehicle } from './vehicle.js';
+import { keys as binds } from './keys.js';
 
 // Escalating response to a high wanted level:
 //   4 stars: one attack helicopter (searchlight, machine gun) + heavier SWAT officers
@@ -316,7 +317,7 @@ export class Military {
     G.addVehicle(v); if (tank) v.turYaw = e.tur || 0;
     G.scene.remove(e.g); if (e.g.userData.beam) G.scene.remove(e.g.userData.beam); e.gone = true;
     for (let k = 0; k < 2; k++) G.spawnCop(e.x + (k ? 3.5 : -3.5), e.z + 2);
-    G.toast('<span style="color:#47ffa8">승무원 탈출</span>', (tank ? '전차' : '헬기') + '를 F로 탈취할 수 있다');
+    G.toast('<span style="color:#47ffa8">승무원 탈출</span>', (tank ? '전차' : '헬기') + `를 ${binds.label('use')}로 탈취할 수 있다`);
   }
   // one of each unit, for compiling their shaders during loading (see Game.prewarmShaders)
   warmModels() {

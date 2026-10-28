@@ -187,6 +187,17 @@ body.touch #helpov{display:none!important}
 #pause.on{display:flex}
 #pc{width:min(380px,92vw);padding:24px;border-radius:18px;max-height:92vh;overflow-y:auto}
 #pc h2{margin:0 0 14px;letter-spacing:.2em;font-size:15px;color:var(--cyan)}
+#kc{display:none;width:min(560px,94vw);padding:22px 24px;border-radius:18px;max-height:92vh;overflow-y:auto}
+#kc.on{display:block}
+#kc h2{margin:0 0 6px;letter-spacing:.2em;font-size:15px;color:var(--cyan)}
+#kc h3{margin:14px 0 4px;font-size:11px;letter-spacing:.18em;color:var(--muted)}
+#kc .kmsg{margin:0 0 6px;min-height:2.6em;font-size:12px;color:#ddd}
+.kline{display:grid;grid-template-columns:1fr 92px 92px;gap:6px;align-items:center;font-size:12px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.kslot{font:inherit;font-weight:700;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:5px 4px;cursor:pointer}
+.kslot.empty{color:var(--muted);font-weight:400}
+.kslot.wait{border-color:var(--cyan);color:var(--cyan)}
+#kc .krow{display:flex;gap:8px;margin-top:14px}#kc .krow .pbtn{flex:1;margin:0}
+body.touch #keysBtn{display:none}
 .set{display:flex;justify-content:space-between;align-items:center;margin:10px 0;font-size:13px}
 .set select,.set input[type=range]{width:150px;background:#0c1422;color:#fff;border:1px solid var(--line);border-radius:8px;padding:6px}
 .pbtn{width:100%;margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--line);background:#111b2c;color:#fff;font-weight:700;cursor:pointer}
@@ -315,21 +326,7 @@ body.touch #helpov{display:none!important}
   <div id="detail" style="display:none"><span>월드 화질</span><select aria-label="월드 화질"><option value="auto">자동</option><option value="laptop">노트북</option><option value="high">고사양</option></select><button type="button" class="pbtn">고화질 팩 연결</button><span class="dmsg"></span></div>
   <button id="go" type="button" aria-label="시작"></button>
 </div>
-<div id="helpov"><div id="helpbox"><h2>조작법 <small>K 키로 닫기</small></h2><div id="keys">
-  <span>이동 <b>W A S D</b></span><span>달리기 <b>Shift</b></span>
-  <span>점프 / 핸드브레이크 <b>Space</b></span><span>웅크리기 <b>Z</b></span>
-  <span>엎드리기 <b>P</b></span><span>시점 전환 (1인칭/3인칭) <b>C</b></span>
-  <span>사격 <b>좌클릭</b></span><span>조준 <b>우클릭</b></span>
-  <span>재장전 <b>R</b></span><span>무기 교체 <b>1~6 / Q</b></span>
-  <span>상호작용 (문·탑승·엘리베이터) <b>F / E</b></span><span>문 따기·걷어차기 <b>G / T</b></span>
-  <span>물건 들기 <b>V</b></span><span>버리기 <b>X</b></span>
-  <span>인벤토리 <b>I / Tab</b></span><span>휴대폰 <b>M</b></span>
-  <span>앉기 <b>N</b></span><span>수류탄 <b>B</b></span>
-  <span>항복 / 손 들기 <b>Y</b></span><span>경적 <b>H</b></span>
-  <span>헤드라이트 <b>L</b></span><span>일시정지 <b>Esc</b></span>
-  <span>그래플링 훅 <b>휠 클릭 / O</b></span><span>낙하산 (낙하 중) <b>Space</b> · 분리 <b>Z</b></span>
-  <span>폭파 장약 설치 (벽 앞) <b>G</b></span><span>조작법 보기 <b>K</b></span>
-</div></div></div>
+<div id="helpov"><div id="helpbox"><h2>조작법 <small>F1 키로 닫기</small></h2><div id="keys"></div></div></div>
 <div id="fps"></div>
 <pre id="err"></pre>
 <script>

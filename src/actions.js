@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp, rand } from './util.js';
 import { ITEMS } from './items.js';
+import { keys as binds } from './keys.js';
 
 // Game-level actions (mixed into Game.prototype)
 export const actions = {
@@ -37,7 +38,7 @@ export const actions = {
     pl.sitting = { x: pos.x, y: seatY, z: pos.z, ry: pl.ry };
     pl.body3.teleport(pos.x, seatY, pos.z); pl.x = pos.x; pl.y = seatY; pl.z = pos.z; pl.vx = pl.vz = 0;
     pl.lying = !!lie; if (lie) pl.sitting.ry = pl.ry; pl.m.applySit?.(lie ? 0 : 1);
-    this.toast(lie ? '누웠다' : '앉았다', 'Space/F로 일어서기');
+    this.toast(lie ? '누웠다' : '앉았다', `${binds.label('jump')}/${binds.label('use')}로 일어서기`);
   },
   standUp() {
     const pl = this.player; if (!pl.sitting) return;

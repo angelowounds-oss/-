@@ -2,6 +2,7 @@ import { ITEMS, itemName } from './items.js';
 import { ATT, SLOT_NAME, attOf, attach, detach } from './attachments.js';
 import { WEAPONS } from './human.js';
 import { el } from './util.js';
+import { keys as binds } from './keys.js';
 import { gesture } from './gesture.js';
 
 // Generic two-column modal: left = backpack, right = container / shop / ATM
@@ -11,7 +12,7 @@ export class Panels {
     el('invX').onclick = () => this.close();
     addEventListener('keydown', (e) => {
       if (!this.mode) return;
-      if (e.code === 'Escape' || e.code === 'Tab' || e.code === 'KeyI') { e.preventDefault(); e.stopImmediatePropagation(); this.close(); }
+      if (e.code === 'Escape' || binds.is(e.code, 'inv')) { e.preventDefault(); e.stopImmediatePropagation(); this.close(); }
     }, true);
   }
   get open() { return !!this.mode; }

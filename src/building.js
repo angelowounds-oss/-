@@ -8,6 +8,7 @@ import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
 import { livingSet, LIVING_COLLIDERS } from './livingset.js';
 import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
 import { roomWalkable } from './walkgrid.js';
+import { keys as binds } from './keys.js';
 
 // ====================================================================
 // Physically continuous buildings: every road-facing tower has a real entrance, real floors,
@@ -934,7 +935,7 @@ export class Door {
     ];
   }
   toggle(pl) {
-    if (this.locked) { this.G.toast('잠겨 있습니다', 'G 키로 따거나 걷어찰 수 있습니다'); this.G.audio.tone?.(200, 0.08, 'square', 0.08); return; }
+    if (this.locked) { this.G.toast('잠겨 있습니다', `${binds.label('horn')} 키로 따거나 ${binds.label('verb3')} 키로 걷어찰 수 있습니다`); this.G.audio.tone?.(200, 0.08, 'square', 0.08); return; }
     if (pl === this.G.player) gesture(pl, 'interact');
     if (this.target > 0.1) { this.target = 0; this.G.audio.door?.(); }
     else {

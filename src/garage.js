@@ -3,6 +3,7 @@ import { Builder } from './gfx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { roadC, R, SW } from './world.js';
 import { clamp, rand } from './util.js';
+import { keys as binds } from './keys.js';
 
 const STATION_NODES = [[1, 3], [3, 1], [5, 4], [7, 5], [3, 7], [6, 7], [2, 5]];
 const PRICE_L = 1.4;
@@ -102,7 +103,7 @@ export const garage = {
     const pl = this.player; v.doorFx?.();
     this.cam.mode = 2; this.passenger = v; this.vehicle = v; this.playerOnFoot = false; pl.group.visible = false; v.callTaxi = false; v.arrived = false; v.directDest = false;
     document.body.classList.remove('onfoot'); document.body.classList.add('incar');
-    if (bus) { v.fareStart = { x: pl.x, z: pl.z }; this.toast('버스 탑승', 'F로 정차 시 하차'); return; }
+    if (bus) { v.fareStart = { x: pl.x, z: pl.z }; this.toast('버스 탑승', `${binds.label('use')}로 정차 시 하차`); return; }
     const m = this.markerPos; v.dest = m ? { x: m.x, z: m.z } : { x: pl.x + rand(-250, 250), z: pl.z + rand(-250, 250) };
     v.fareStart = { x: pl.x, z: pl.z };
     this.toast('택시 출발', m ? '목적지: 표시된 장소' : '목적지: 임의 장소');

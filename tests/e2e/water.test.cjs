@@ -18,10 +18,10 @@ run('water', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const c = g.citysites.cities.find((q) => q.c.type === 'port').c, sx = c.x + c.seaDir.x * c.r * 3.2, sz = c.z + c.seaDir.z * c.r * 3.2;
     const sea = g.waterAt(sx, sz); o.sea = !!sea && sea.kind === 'sea' && sea.depth > 3; if (!sea) return o;
     park(sx, sea.y + 1, sz); step(90); o.seaSwim = pl.swimming;
-    const keys = g.input.keys; keys.add('KeyZ'); step(150); o.dive = +pl.dive.toFixed(2); const b0 = pl.breath; step(120); o.breathDrops = pl.breath < b0 - 1;
-    keys.delete('KeyZ'); keys.add('Space'); step(240); o.surfaced = pl.dive < 0.2; keys.delete('Space'); step(240); o.breathBack = pl.breath > 40;
+    const keys = g.input.keys; keys.add('KeyC'); step(150); o.dive = +pl.dive.toFixed(2); const b0 = pl.breath; step(120); o.breathDrops = pl.breath < b0 - 1;
+    keys.delete('KeyC'); keys.add('Space'); step(240); o.surfaced = pl.dive < 0.2; keys.delete('Space'); step(240); o.breathBack = pl.breath > 40;
     // out of air: dive and hold until the breath is gone
-    keys.add('KeyZ'); pl.breath = 1; step(400); keys.delete('KeyZ'); o.drowns = pl.hpv < 100 || pl.dead;
+    keys.add('KeyC'); pl.breath = 1; step(400); keys.delete('KeyC'); o.drowns = pl.hpv < 100 || pl.dead;
     return o;
   });
   const pass = o.river && o.dryBank && o.swim && o.drift > 3 && o.sea && o.seaSwim && o.dive > 1.5 && o.breathDrops && o.surfaced && o.breathBack && o.drowns;

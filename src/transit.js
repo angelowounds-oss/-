@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { net } from './roadnet.js';
+import { keys as binds } from './keys.js';
 import { cities } from './worldmap.js';
 import { Acc } from './citysites.js';
 import { FarGround } from './farland.js';
@@ -199,7 +200,7 @@ export class Transit {
     const root = document.createElement('div'); root.id = 'transit'; root.innerHTML = '<div id="trBox"></div>'; document.body.appendChild(root); this.root = root; this.box = root.querySelector('#trBox');
     this.fade = document.createElement('div'); this.fade.id = 'rideFade'; document.body.appendChild(this.fade);
     this.cap = document.createElement('div'); this.cap.id = 'rideCap'; document.body.appendChild(this.cap);
-    addEventListener('keydown', (e) => { if (e.code === 'Escape' && this.root.classList.contains('on')) { this.close(); e.stopImmediatePropagation(); e.preventDefault(); } if ((e.code === 'KeyF' || e.code === 'KeyE') && this.riding && !e.repeat) { this.skip(); e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+    addEventListener('keydown', (e) => { if (e.code === 'Escape' && this.root.classList.contains('on')) { this.close(); e.stopImmediatePropagation(); e.preventDefault(); } if (binds.is(e.code, 'use') && this.riding && !e.repeat) { this.skip(); e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   }
   // st = a station (from a kiosk), or a waypoint {x, z, name} (from the map: only the taxi is offered unless a station is near)
   open(st) {
@@ -227,7 +228,7 @@ export class Transit {
     }
     sect('택시 (장거리)');
     if (wp) { const f = G.focusPos(), d = Math.hypot(wp.x - f.x, wp.z - f.z); if (d < 400) row('목적지가 가깝다', '걸어서 가세요', 0, () => null); else row(wp.name, `직선 ${(d / 1000).toFixed(1)} km`, FARE.taxi(d), () => this.planTaxi(wp)); }
-    else { const e = document.createElement('div'); e.style.opacity = '.6'; e.textContent = '지도(J)에서 목적지를 지정하면 여기에 나타납니다'; B.appendChild(e); }
+    else { const e = document.createElement('div'); e.style.opacity = '.6'; e.textContent = `지도(${binds.label('map')})에서 목적지를 지정하면 여기에 나타납니다`; B.appendChild(e); }
     const x = document.createElement('button'); x.id = 'trClose'; x.type = 'button'; x.textContent = '닫기'; x.onclick = () => this.close(); B.appendChild(x);
     this.root.classList.add('on'); G.uiModal = true; G.input.unlock();
   }

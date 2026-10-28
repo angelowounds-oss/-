@@ -8,6 +8,7 @@ const MAP_C = { x: -CAPITAL.x, z: -CAPITAL.z };
 import { net } from './roadnet.js';
 import { N as GN, HALF, R as GR_, roadC } from './world.js';
 import { el } from './util.js';
+import { keys as binds } from './keys.js';
 
 // The world map (ADR-0012 phase 5): a full-screen overlay on key J (and the phone's "세계" tab shows the same). Four zoom levels (the whole 100 km,
 // a 26 km region, a 6.5 km district, a 1.6 km street view), terrain painted from the world data, highways, rings, city names, facilities, the
@@ -60,7 +61,7 @@ export class WorldMapUI {
     });
     addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.open) { this.toggle(false); e.stopImmediatePropagation(); e.preventDefault(); return; }
-      if (e.code === 'KeyJ' && !e.repeat && !e.metaKey && !e.ctrlKey && G.running && !G.riding && (this.open || !G.uiModal)) { this.toggle(!this.open); e.preventDefault(); }
+      if (binds.is(e.code, 'map') && !e.repeat && !e.metaKey && !e.ctrlKey && G.running && !G.riding && (this.open || !G.uiModal)) { this.toggle(!this.open); e.preventDefault(); }
     }, true);
     // the pillar that marks the waypoint in the world (made now so the load-time warm-up compiles it)
     this.pillar = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 3000, 10, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.9, 1).multiplyScalar(2), transparent: true, opacity: 0.35, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));

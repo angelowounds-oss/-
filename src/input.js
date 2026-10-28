@@ -1,4 +1,5 @@
 import { el, clamp } from './util.js';
+import { keys as binds } from './keys.js';
 
 export class Input {
   constructor() {
@@ -6,7 +7,8 @@ export class Input {
     this.mx = 0; this.my = 0;           // accumulated look delta
     this.move = { x: 0, y: 0 };         // touch / pad analog
     this.fire = false; this.aim = false; this.sprint = false; this.hand = false;
-    this.edges = { jump: 0, use: 0, reload: 0, swap: 0, cam: 0, lights: 0, pause: 0, w1: 0, w2: 0, horn: 0, verb3: 0, inv: 0, drop: 0, crouch: 0, grab: 0, phone: 0, sit: 0, nade: 0, w3: 0, w4: 0, w5: 0, w6: 0, sur: 0, prone: 0, grapple: 0 };
+    this.edges = { jump: 0, use: 0, reload: 0, swap: 0, cam: 0, lights: 0, pause: 0, w1: 0, w2: 0, horn: 0, verb3: 0, inv: 0, crouch: 0, phone: 0, nade: 0, w3: 0, w4: 0, w5: 0, w6: 0, sur: 0, prone: 0, grapple: 0, alt: 0, gest: 0 };
+    this.binds = binds;
     this.wheel = 0;
     this.touch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
     this.sens = 1;
@@ -15,15 +17,21 @@ export class Input {
     this.padActive = false;
     this.bind();
   }
+  // true while the action's key is down (crouch held to dive, jump held to climb)
+  held(id) { return binds.held(this.keys, id); }
   edge(n) { const v = this.edges[n]; this.edges[n] = 0; return v > 0; }
   bind() {
-    const keyMap = { Space: 'jump', KeyF: 'use', KeyE: 'use', KeyR: 'reload', KeyQ: 'swap', KeyC: 'cam', KeyL: 'lights', Digit1: 'w1', Digit2: 'w2', Digit3: 'w3', Digit4: 'w4', Digit5: 'w5', Digit6: 'w6', KeyH: 'horn', KeyG: 'horn', KeyT: 'verb3', KeyI: 'inv', Tab: 'inv', KeyX: 'drop', KeyZ: 'crouch', KeyP: 'prone', KeyV: 'grab', KeyM: 'phone', KeyN: 'sit', KeyB: 'nade', KeyY: 'sur', KeyO: 'grapple', KeyU: 'alt', KeyK: 'gest' };
+    // keys -> actions through the player's bindings (keys.js); Escape always pauses. Bound keys do not reach the page (Tab focus, Space scroll,
+    // F1 help), except while typing into a field.
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
-      const n = keyMap[e.code]; if (n) this.edges[n]++;
-      if (e.code === 'Escape' || e.code === 'KeyP') this.edges.pause++;
-      if (['Space', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.code)) e.preventDefault();
+      if (e.ctrlKey || e.metaKey) return;
+      const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+      const ids = binds.actionsOf(e.code);
+      for (const n of ids) if (n in this.edges) this.edges[n]++;
+      if (e.code === 'Escape') this.edges.pause++;
+      if (!typing && (ids.length || e.code === 'ArrowDown')) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => { this.keys.clear(); this.fire = this.aim = false; });
@@ -102,10 +110,11 @@ export class Input {
   read(dt) {
     this.pollPad();
     const k = this.keys;
-    let mx = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    let my = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const B = binds;
+    let mx = (B.held(k, 'moveR') ? 1 : 0) - (B.held(k, 'moveL') ? 1 : 0);
+    let my = (B.held(k, 'moveF') ? 1 : 0) - (B.held(k, 'moveB') ? 1 : 0);
     let lookX = this.mx, lookY = this.my; this.mx = this.my = 0;
-    let fire = this.fire, aim = this.aim, sprint = this.sprint || k.has('ShiftLeft') || k.has('ShiftRight'), hand = this.hand || k.has('Space');
+    let fire = this.fire, aim = this.aim, sprint = this.sprint || B.held(k, 'sprint'), hand = this.hand || B.held(k, 'jump');
     let gas = my > 0 ? my : 0, brake = my < 0 ? -my : 0;
     if (this.touch) { mx = mx || this.move.x; my = my || this.move.y; }
     if (this.touchBtn.gas) gas = 1; if (this.touchBtn.brake) brake = 1;

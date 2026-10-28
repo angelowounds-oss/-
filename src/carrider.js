@@ -1,10 +1,11 @@
 import { clamp, rand } from './util.js';
+import { keys as binds } from './keys.js';
 
 // Vehicle <-> person physics on foot: bailing out of a moving car, and standing / riding on a car roof.
 //  - leaving a moving vehicle (F) keeps the vehicle's speed: below 4 m/s you simply step out, 4..9 a stumble or a roll (hold Z),
 //    above that a tumbling ragdoll with fall damage from the speed (8 m/s ~ nothing, 14 m/s ~ 18, 20 m/s ~ 72; a roll takes 65 % off)
 //  - a stopped / slow car can be climbed onto; on the roof the person is carried with the car (position and turning), and a hard brake,
-//    sharp swerve or flipped car throws them off (lie flat with Z to hold on)
+//    sharp swerve or flipped car throws them off (lie flat (prone) to hold on)
 const MOUNT_MAX = 6;          // m/s: fastest car you can still climb onto
 const THROW_ACC = 10;         // m/s^2 that shakes a standing rider off
 const THROW_ACC_LOW = 17;     // ... a rider lying flat
@@ -24,7 +25,7 @@ export class CarRider {
     const G = this.G, pl = G.player;
     if (sp < 3.5) return;
     const l = Math.hypot(outX, outZ) || 1, dx = outX / l, dz = outZ / l;
-    const roll = G.input.keys.has('KeyZ');
+    const roll = G.input.held('crouch');
     pl.vx = v.vx * 0.92 + dx * 2; pl.vz = v.vz * 0.92 + dz * 2; pl.momentum = true;
     let dmg = sp > 8 ? (sp - 8) * (sp - 8) * 0.5 : sp > 6 ? (sp - 6) * 1.2 : 0;
     if (roll) dmg *= 0.35;
@@ -100,7 +101,7 @@ export class CarRider {
       const s = Math.sin(v.h), c = Math.cos(v.h), dx = pl.x - v.x, dz = pl.z - v.z;
       this.roof = { v, lx: dx * c - dz * s, lz: dx * s + dz * c, pvx: v.vx, pvz: v.vz, hx: v.vx, hz: v.vz }; this.accS = 0;
       c3.shift(0, top - pl.y, 0); pl.y = c3.y; c3.grounded = true; c3.vy = -2; pl.vx = pl.vz = 0;
-      if (!this._hint) { this._hint = true; G.toast('차 지붕 위', '급제동·급회전하면 떨어진다 · <kbd>Z</kbd> 엎드려 버티기'); }
+      if (!this._hint) { this._hint = true; G.toast('차 지붕 위', `급제동·급회전하면 떨어진다 · ${binds.kbd('prone')} 엎드려 버티기`); }
       break;
     }
   }

@@ -15,6 +15,8 @@ import { loadVeg } from './forest.js';
 import { loadHiAssets } from './hiassets.js';
 import { applyView } from './views.js';
 import { initBuildingDev } from './buildingdev.js';
+import { keys as binds } from './keys.js';
+import { renderHelp, initKeyUI } from './keyui.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -39,7 +41,7 @@ function fatal(e) {
     if (detail.tier === 'high') await loadHiAssets(eng.renderer);   // the pack's compressed textures, before the world that uses them is built
     if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
     if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
-    game = new Game(eng); game.RAPIER = RAPIER;
+    game = new Game(eng); game.RAPIER = RAPIER; initKeyUI();
     window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM; window.__gesture = { procGesture, gesture };
     await game.init((p, t) => loading.set(p, t));
     furnitureReady();   // prepare the furniture models during loading, not in the middle of the first building that opens
@@ -61,7 +63,7 @@ function fatal(e) {
   go.addEventListener('click', begin);
   addEventListener('keydown', (e) => {
     if (!game.running && go.classList.contains('rdy') && !e.metaKey && !e.ctrlKey && e.code !== 'F12') begin();
-    else if (e.code === 'KeyK' && game.running) el('helpov').classList.toggle('on');
+    else if (game.running && !e.repeat && (binds.is(e.code, 'help') || (e.code === 'Escape' && el('helpov').classList.contains('on')))) { const on = !el('helpov').classList.contains('on') && e.code !== 'Escape'; if (on) renderHelp(); el('helpov').classList.toggle('on', on); }
   });
   eng.onQuality = () => { try { sessionStorage.setItem('neon_q', String(eng.qIndex)); } catch (e) { /* ignore */ } };
   let last = performance.now();

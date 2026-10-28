@@ -1,6 +1,6 @@
 import { gesture, procGesture } from './gesture.js';
 
-// K opens a short list of gestures and short actions; the digit keys play one, 0 turns the page (the game's own digit keys are held back while it
+// The gesture key (B by default, keys.js) opens a short list of gestures and short actions; the digit keys play one, 0 turns the page (the game's own digit keys are held back while it
 // is open). Nearby calm people answer a wave, a nod, a bow, a handshake, a hug or a clap, so the motions are visible from both sides.
 const PAGES = [
   [['wave', '손 흔들기'], ['nod', '끄덕임'], ['yes', '맞아요'], ['no', '아니요'], ['shrug', '글쎄'], ['salute', '경례'], ['bow', '인사'], ['cheer2', '환호'], ['dance', '춤']],

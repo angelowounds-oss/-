@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { keys as binds } from './keys.js';
 import { clamp, dampAngle } from './util.js';
 
 // Movement gear: grappling hook (fire at any wall / roof edge, the winch reels you in, swing on the rope, jump off) and
@@ -32,7 +33,7 @@ export class Mobility {
         I.edge('jump');
         const gnd = G.phys.ray(pl.x, pl.y + 0.3, pl.z, 0, -1, 0, 300, WORLD | 32), h = gnd ? gnd.t - 0.3 : 300;
         if (h > 6) this.deploy(); else G.toast('너무 낮다', '낙하산을 펼칠 높이가 아니다');
-      } else if (c3.airT > 0.7 && (pl.vy || 0) < -9 && !this._hinted) { this._hinted = true; G.toast('낙하산', '<kbd>Space</kbd> 펼치기'); }
+      } else if (c3.airT > 0.7 && (pl.vy || 0) < -9 && !this._hinted) { this._hinted = true; G.toast('낙하산', `${binds.kbd('jump')} 펼치기`); }
     }
     if (c3.grounded) this._hinted = false;
     if (this.chute && I.edges.jump > 0) I.edge('jump');          // Space does nothing under the canopy (and must not jump on landing)
@@ -95,11 +96,11 @@ export class Mobility {
         const hx = g.x + g.nx * 0.32, hz = g.z + g.nz * 0.32;
         this.grap = null;
         pl.hang = { x: hx, y: ty - 1.85, z: hz, ty, px: lx, pz: lz, ry: Math.atan2(-g.nx, -g.nz), t: 0 }; pl.vx = pl.vz = 0;
-        G.toast('매달렸다', 'W/Space: 올라가기 · S/Z: 놓기'); return;
+        G.toast('매달렸다', `${binds.label('moveF')}/${binds.label('jump')}: 올라가기 · ${binds.label('moveB')}/${binds.label('crouch')}: 놓기`); return;
       }
     }
     g.hold = true; g.L = 1.5;                                              // dangle: Space to let go, wheel-click to drop
-    G.toast('줄에 매달렸다', '<kbd>Space</kbd> 뛰어내리기 · <kbd>휠클릭</kbd> 놓기');
+    G.toast('줄에 매달렸다', `${binds.kbd('jump')} 뛰어내리기 · <kbd>휠클릭</kbd> 놓기`);
   }
 
   // ---------------------------------------------------------------- parachute

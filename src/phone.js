@@ -1,4 +1,5 @@
 import { el, clamp } from './util.js';
+import { keys as binds } from './keys.js';
 import { N, P, R, HALF, roadC, roadIdx, hasEdge } from './world.js';
 import { ZONES } from './society.js';
 
@@ -35,7 +36,7 @@ export class Phone {
     const tabs = [['map', '지도'], ['world', '세계'], ['people', '주민'], ['news', '뉴스'], ['contacts', '연락처'], ['jobs', '일자리'], ['bank', '은행'], ['cam', '카메라'], ['set', '설정']];
     const tb = el('phTabs'); tabs.forEach(([k, n]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.dataset.k = k; b.onclick = () => { this.tab = k; this.render(); }; tb.appendChild(b); });
     el('phSnap').onclick = () => this.snap(); el('phExit').onclick = () => this.photo(false);
-    addEventListener('keydown', (e) => { if (this.open && (e.code === 'Escape' || e.code === 'KeyM')) { e.stopImmediatePropagation(); e.preventDefault(); this.close(); } }, true);
+    addEventListener('keydown', (e) => { if (this.open && (e.code === 'Escape' || binds.is(e.code, 'phone'))) { e.stopImmediatePropagation(); e.preventDefault(); this.close(); } }, true);
   }
   get open() { return this.root.classList.contains('on'); }
   show() { if (this.G.uiModal) return; this.root.classList.add('on'); this.G.uiModal = true; this.G.input.unlock(); this.render(); }
