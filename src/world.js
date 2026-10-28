@@ -493,9 +493,12 @@ function createFacadeMaterial() {
             em=mix(em,vec3(.35,.5,1.)*2.,tvf*(1.-k)*.0+tvf*.7);
             vec3 we=em*(shop?(.55+.45*vnoise(vec2(horiz*2.6,y*3.))):1.)*(lit>.5?1.:tvf);
             vec3 avg=vec3(1.,.8,.55)*dens*.55*(shop?.8:1.);
-            float rk=shop?0.:roomK*(1.-farF);   // near: the lit room itself instead of a flat glow
+            float rk=roomK*(1.-farF);   // near: the lit room (or shop) itself instead of a flat glow
             fEmit+=mix(we,avg,farF)*(1.-rk);
-            if(rk>0.)fRoom+=fakeRoom(vec2(f.x*sx,f.y*sy),vec2(sx,sy),dT,rnd*97.+seed,1.,em,day)*(1.-fres)*rk;
+            if(rk>0.){
+              if(shop){float sxm=fract(horiz/5.5);fRoom+=shopRoom(vec2((sxm-.07)*5.5,y-.55),vec2(.86*5.5,3.45),dT,floor(horiz/5.5)+seed*13.,max(wc*2.2,vec3(.5,.45,.4)),day)*(1.-fres)*rk;}
+              else fRoom+=fakeRoom(vec2(f.x*sx,f.y*sy),vec2(sx,sy),dT,rnd*97.+seed,1.,em,day)*(1.-fres)*rk;
+            }
             alb=wc*.03;fMetal=.2;fRough=.25;
           } else {alb=vec3(.012,.016,.028);fMetal=.92;fRough=mix(.1,.5,farF);
             fEmit+=vec3(1.,.8,.55)*dens*.55*farF*(shop?.8:1.);
@@ -540,7 +543,8 @@ function createFacadeMaterial() {
           if(gm>0.){
             float rw=setf<1.5?4.:(setf<2.5?8./3.:3.),uu=u*tw,litR=step(.06,dot(te,vec3(.333)));
             vec3 dR=vec3(dT.x*mir,dT.y,dT.z);
-            fRoom+=fakeRoom(vec2(uu-floor(uu/rw)*rw,yy-floor(yy/4.)*4.),vec2(rw,4.),dR,floor(uu/rw)+floor(yy/4.)*31.+seed*7.,litR,max(tem,vec3(.25,.2,.14)),day)*(1.-fres)*gm;
+            if(pod&&yy<4.&&setf<1.5)fRoom+=shopRoom(vec2(uu-floor(uu/rw)*rw,yy),vec2(rw,4.),dR,floor(uu/rw)+seed*13.,max(tem*1.6,vec3(.75,.68,.6)),day)*(1.-fres)*gm;   // the photo's ground-floor shop slot
+            else fRoom+=fakeRoom(vec2(uu-floor(uu/rw)*rw,yy-floor(yy/4.)*4.),vec2(rw,4.),dR,floor(uu/rw)+floor(yy/4.)*31.+seed*7.,litR,max(tem,vec3(.25,.2,.14)),day)*(1.-fres)*gm;
             alb=mix(alb,vec3(.012,.016,.024),gm*(1.-fres));
           }
           fEmit+=tem*(1.-gm);

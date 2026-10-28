@@ -59,6 +59,32 @@ vec3 fakeRoom(vec2 p,vec2 rs,vec3 d,float rid,float lit,vec3 lc,float day){
   if(p.x<cw*rs.x||p.x>rs.x*(1.-cw)||p.y>rs.y*(1.-bl)){col=mix(vec3(.55,.42,.36),vec3(.4,.45,.52),c);k=0.;L=lit>.5?lc*.9:vec3(.7)*day+vec3(.03);}
   return col*L;
 }
+// A shop behind a ground-floor window: a 6 m deep lit room with shelves of goods on the back and side walls, a counter half way in, a light
+// floor and ceiling panels. Same arguments as fakeRoom (rs = the shop window's size; shops are lit by day too).
+vec3 shopRoom(vec2 p,vec2 rs,vec3 d,float rid,vec3 lc,float day){
+  const float DEP=6.;
+  d.x=abs(d.x)<1e-4?1e-4:d.x;d.y=abs(d.y)<1e-4?1e-4:d.y;d.z=max(d.z,.05);
+  vec3 tq=vec3((d.x>0.?rs.x-p.x:-p.x)/d.x,(d.y>0.?rs.y-p.y:-p.y)/d.y,DEP/d.z);
+  float t=min(tq.x,min(tq.y,tq.z));vec3 h=vec3(p,0.)+d*t;
+  float a=frH(vec2(rid,3.1)),b=frH(vec2(rid,7.7)),c=frH(vec2(rid,1.3));
+  vec3 wall=mix(vec3(.9,.88,.84),mix(vec3(.7,.82,.86),vec3(.95,.8,.7),b),a*.7),col;
+  bool side=false;
+  if(tq.z<=min(tq.x,tq.y)){col=wall;}
+  else if(tq.y<tq.x){col=d.y<0.?mix(vec3(.62,.6,.58),vec3(.42,.36,.3),step(.6,b)):vec3(.95);
+    if(d.y>0.){vec2 q=fract(h.xz/vec2(1.2,1.5));col+=vec3(.6)*step(.15,q.x)*step(q.x,.85)*step(.3,q.y)*step(q.y,.7);}}   // ceiling light panels
+  else {col=wall*.92;side=true;}
+  // shelves of goods on the back and side walls between 0.3 and 2.2 m: boards every 0.45 m, products in hashed colours
+  if(!(tq.y<tq.x&&tq.y<tq.z)&&h.y>.3&&h.y<2.2){
+    float u=side?h.z:h.x,row=floor((h.y-.3)/.45),fy=fract((h.y-.3)/.45);
+    vec3 good=.25+.75*vec3(frH(vec2(floor(u/.3),row+rid)),frH(vec2(floor(u/.3)+7.,row)),frH(vec2(floor(u/.3)+3.,row*3.+rid)));
+    col=fy<.12?vec3(.45,.43,.4):mix(col,good,step(.25,fy)*step(fy,.92)*step(.15,fract(u/.3))*.85);
+  }
+  // the counter half way in, across the middle of the window
+  float tc=(DEP*.45)/d.z;vec3 hc=vec3(p,0.)+d*tc;
+  if(tc<t&&hc.y<1.&&hc.x>rs.x*(.2+.2*c)&&hc.x<rs.x*(.6+.2*c)){col=mix(vec3(.2,.18,.17),vec3(.55,.4,.28),b)*(hc.y>.92?1.6:1.);t=tc;h=hc;}
+  float k=h.z/DEP;
+  return col*lc*mix(.8,.9,day)*(1.1-.45*k);   // by day the street is brighter than the shop, as in a photograph
+}
 `;
 export const ZONE_GLSL = 'int zoneOf(vec2 p){if(length(p)<90.)return 0;if(abs(p.x)>abs(p.y))return p.x>0.?2:3;return p.y>0.?1:4;}';
 export const flashUniform = { value: 0 };
