@@ -16,9 +16,12 @@ const dir = path.join(GAME, 'world');
   const ground = () => page.evaluate(() => { const u = window.__hi.slot('asphalt_04_a'); const t = u ? u.value : null; return t ? { w: t.image?.width, compressed: !!t.isCompressedTexture, mips: t.mipmaps?.length || 0 } : null; });
   const before = await ground();
   const ok = await page.evaluate(() => window.__detail.mount());   // what the boot does when the high detail is chosen
-  const progs0 = await page.evaluate(() => window.__game.eng.renderer.info.programs.length);
+  // a frame drawn the game's way (eng.render: through the composer at q=1) before and after the swap; drawing the scene straight to the screen
+  // would compile the screen-target variants the game never uses at this level, and count them against the pack
+  const frame = () => page.evaluate(() => { window.__game.eng.render(0); return window.__game.eng.renderer.info.programs.length; });
+  const progs0 = await frame();
   const n = await page.evaluate(() => window.__hi.load());
-  const after = await ground(), progs1 = await page.evaluate(async () => { window.__game.eng.renderer.render(window.__game.scene, window.__game.camera); return window.__game.eng.renderer.info.programs.length; });
+  const after = await ground(), progs1 = await frame();
   const pass = ok === true && n >= 4 && after && after.compressed && after.w === 2048 && after.mips === 12 && progs1 === progs0 && errors.length === 0;
   console.log('RESULT ' + JSON.stringify({ test: 'hiassets', pass, metrics: { before, after, loaded: n, programs: [progs0, progs1], errors: errors.slice(0, 2) }, note: '' }));
   await browser.close();
