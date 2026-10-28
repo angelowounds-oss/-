@@ -1,0 +1,36 @@
+{
+ "model": "reg",
+ "tau0": 0.52,
+ "variants": [
+  "coarse",
+  "V0",
+  "N0",
+  "N1",
+  "N1C"
+ ],
+ "results": {
+  "pulse": {
+   "V0": {
+    "entryReflection": 0.008941,
+    "exitReflection": 0.00465
+   },
+   "N0": {
+    "entryReflection": 0.01617,
+    "exitReflection": 0.01195
+   },
+   "N1": {
+    "entryReflection": 0.006004,
+    "exitReflection": 0.00465
+   },
+   "N1C": {
+    "entryReflection": 0.003658,
+    "exitReflection": 0.00465
+   },
+   "referenceAmplitudeAtT2": 0.786,
+   "steps": [
+    62,
+    152
+   ]
+  }
+ }
+}

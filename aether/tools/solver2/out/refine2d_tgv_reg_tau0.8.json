@@ -1,0 +1,37 @@
+{
+ "model": "reg",
+ "tau0": 0.8,
+ "variants": [
+  "coarse",
+  "N1C"
+ ],
+ "results": {
+  "tgv": {
+   "rows": [
+    {
+     "N": 16,
+     "coarse": 0.001759,
+     "coarse_mass": 3e-15,
+     "N1C": 0.0067511,
+     "N1C_mass": 4e-15
+    },
+    {
+     "N": 32,
+     "coarse": 0.00044838,
+     "coarse_mass": 6.66e-15,
+     "N1C": 0.0018061,
+     "N1C_mass": 1.14e-14
+    }
+   ],
+   "order": {
+    "coarse": [
+     1.97
+    ],
+    "N1C": [
+     1.9
+    ]
+   },
+   "wallS": 0.533
+  }
+ }
+}

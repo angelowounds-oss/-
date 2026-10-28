@@ -1,0 +1,45 @@
+{
+ "model": "reg",
+ "tau0": 0.52,
+ "variants": [
+  "coarse",
+  "fine",
+  "N1C"
+ ],
+ "results": {
+  "tgv": {
+   "rows": [
+    {
+     "N": 16,
+     "coarse": 0.00033839,
+     "coarse_mass": 2.69e-14,
+     "fine": 0.00014825,
+     "fine_mass": 1.07e-13,
+     "N1C": 0.19643,
+     "N1C_mass": 3.22e-14
+    },
+    {
+     "N": 32,
+     "coarse": 0.00014825,
+     "coarse_mass": 1.07e-13,
+     "fine": 0.000041341,
+     "fine_mass": 4.4e-13,
+     "N1C": 0.051563,
+     "N1C_mass": 1.38e-13
+    }
+   ],
+   "order": {
+    "coarse": [
+     1.19
+    ],
+    "fine": [
+     1.84
+    ],
+    "N1C": [
+     1.93
+    ]
+   },
+   "wallS": 17.281
+  }
+ }
+}

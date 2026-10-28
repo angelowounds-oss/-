@@ -1,0 +1,45 @@
+{
+ "model": "reg",
+ "tau0": 0.52,
+ "variants": [
+  "coarse",
+  "fine",
+  "N1C"
+ ],
+ "results": {
+  "shear": {
+   "rows": [
+    {
+     "N": 16,
+     "coarse": 0.011982,
+     "coarse_mass": 5.55e-14,
+     "fine": 0.0029696,
+     "fine_mass": 2.19e-13,
+     "N1C": 0.075445,
+     "N1C_mass": 8.33e-14
+    },
+    {
+     "N": 32,
+     "coarse": 0.0029696,
+     "coarse_mass": 2.19e-13,
+     "fine": 0.00074075,
+     "fine_mass": 8.8e-13,
+     "N1C": 0.010079,
+     "N1C_mass": 3.34e-13
+    }
+   ],
+   "order": {
+    "coarse": [
+     2.01
+    ],
+    "fine": [
+     2
+    ],
+    "N1C": [
+     2.9
+    ]
+   },
+   "wallS": 5.098
+  }
+ }
+}
