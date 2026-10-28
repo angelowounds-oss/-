@@ -29,6 +29,37 @@ export const timeUniform = { value: 0 };
 export const doorCamU = { value: new THREE.Vector3() };
 // per-zone blackout (0 powered .. 1 dark), zones as in society.zoneAt: 0 centre, 1 north(+z), 2 east(+x), 3 west, 4 south
 export const blackU = { value: [0, 0, 0, 0, 0] };
+// The room behind a window, for facades that draw their windows (world.js) and for the skyline glass (skyline.js); see fakeRoom below.
+export const FAKE_ROOM_GLSL = /* glsl */ `
+float frH(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+// The room behind a window (interior mapping): a 3.6 m deep box seen through the glass. p = point in the room's window cell (metres,
+// x along the wall, y up), rs = the cell's size, d = view direction (x along the wall, y up, z into the building), rid = the room's hash,
+// lit / lc = its lamp and colour, day = daylight. Returns the light leaving the window. Walls, floor and ceiling take the room's colours,
+// a low block and a picture stand on the back wall, and a curtain or blind is drawn part way across some windows.
+vec3 fakeRoom(vec2 p,vec2 rs,vec3 d,float rid,float lit,vec3 lc,float day){
+  const float DEP=3.6;
+  d.x=abs(d.x)<1e-4?1e-4:d.x;d.y=abs(d.y)<1e-4?1e-4:d.y;d.z=max(d.z,.05);
+  vec3 tq=vec3((d.x>0.?rs.x-p.x:-p.x)/d.x,(d.y>0.?rs.y-p.y:-p.y)/d.y,DEP/d.z);
+  float t=min(tq.x,min(tq.y,tq.z));vec3 h=vec3(p,0.)+d*t;
+  float a=frH(vec2(rid,3.1)),b=frH(vec2(rid,7.7)),c=frH(vec2(rid,1.3)),cu=frH(vec2(rid,9.4));
+  vec3 wall=mix(vec3(.66,.62,.55),mix(vec3(.52,.58,.64),vec3(.7,.58,.48),b),a);
+  vec3 col;
+  if(tq.z<=min(tq.x,tq.y)){
+    col=wall*.92;
+    float fx=step(.16*rs.x,h.x)*step(h.x,(.5+.3*c)*rs.x)*step(h.y,.8);
+    col=mix(col,mix(vec3(.16,.14,.13),vec3(.36,.27,.2),b),fx);
+    float pic=step(.62*rs.x,h.x)*step(h.x,.86*rs.x)*step(1.3,h.y)*step(h.y,1.95)*step(.45,c);
+    col=mix(col,vec3(.25,.33,.42)*(.6+a),pic);
+  } else if(tq.y<tq.x){col=d.y<0.?mix(vec3(.34,.24,.16),vec3(.3,.31,.34),step(.5,b)):vec3(.86,.84,.8);}
+  else col=wall*.8;
+  float k=h.z/DEP;
+  vec3 L=lit>.5?lc*(1.25-.5*k)*(1.+.5*step(rs.y-.06,h.y)):vec3(.66,.68,.72)*day*(1.-.6*k)+vec3(.03,.032,.04);   // unlit: daylight from the window, at night only the city's glow
+  // drawn curtains (a third of the rooms) or a blind lowered from the top (a sixth)
+  float cw=cu<.33?.18+.25*a:0.,bl=cu>.83?.25+.45*b:0.;
+  if(p.x<cw*rs.x||p.x>rs.x*(1.-cw)||p.y>rs.y*(1.-bl)){col=mix(vec3(.55,.42,.36),vec3(.4,.45,.52),c);k=0.;L=lit>.5?lc*.9:vec3(.7)*day+vec3(.03);}
+  return col*L;
+}
+`;
 export const ZONE_GLSL = 'int zoneOf(vec2 p){if(length(p)<90.)return 0;if(abs(p.x)>abs(p.y))return p.x>0.?2:3;return p.y>0.?1:4;}';
 export const flashUniform = { value: 0 };
 export const nightU = { value: 1 };

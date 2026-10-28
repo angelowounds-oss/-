@@ -2,7 +2,7 @@ import { planTowerStages } from './shapes.js';
 import * as THREE from 'three';
 import { Builder , holeCU, holeHU } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLSL_NOISE, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky, setTowerFog } from './shaders.js';
+import { GLSL_NOISE, FAKE_ROOM_GLSL, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky, setTowerFog } from './shaders.js';
 import { mulberry32, clamp, lerp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { buildRelief } from './relief.js';
@@ -383,9 +383,9 @@ function createGround(fakeLights) {
 function createFacadeMaterial() {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
   const uniforms = { uSimple: { value: 0 }, uHoleC: holeCU, uHoleH: holeHU, uDoorCam: doorCamU, uBlack: blackU, uTime: timeUniform, uNight: nightU, uBumpK: { value: 0.8 }, ...facadeUniforms() };
-  patchStandard(mat, 'facade-v9', {
+  patchStandard(mat, 'facade-v10', {
     uniforms,
-    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;attribute vec4 aBurn;attribute float aFloor;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
+    vertexDecl: 'attribute vec4 aInfo;attribute vec4 aDoor;attribute vec4 aBurn;attribute vec4 aBuilt;attribute float aFloor;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;flat varying vec4 vBuilt;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;',
     vertexMain: `
       vec4 mw=vec4(transformed,1.);vec3 nn=objectNormal;
       #ifdef USE_INSTANCING
@@ -394,10 +394,11 @@ function createFacadeMaterial() {
       #else
         vSz=vec3(1.);
       #endif
-      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;vBurn=aBurn;vFl=aFloor;`,
+      vWP=(modelMatrix*mw).xyz;vWN=normalize(mat3(modelMatrix)*nn);vLoc=position;vInfo=aInfo;vDoor=aDoor;vBurn=aBurn;vBuilt=aBuilt;vFl=aFloor;`,
     fragDecl: `${GLSL_NOISE}${ZONE_GLSL}
-      uniform float uSimple;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
-      float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);
+      uniform float uSimple;flat varying float vFl;flat varying vec4 vBurn;flat varying vec4 vDoor;flat varying vec4 vBuilt;varying vec3 vWP;varying vec3 vWN;varying vec3 vLoc;flat varying vec3 vSz;flat varying vec4 vInfo;uniform vec4 uHoleC[16];uniform vec4 uHoleH[16];uniform vec3 uDoorCam;uniform float uBlack[5];uniform float uTime,uNight,uHasTex,uBumpK;uniform highp sampler2DArray tFC,tFE,tFN;
+      float fRough,fMetal;vec3 fEmit;vec3 fBump=vec3(0.);vec3 fRoom=vec3(0.);
+      ${FAKE_ROOM_GLSL}
       vec3 accentOf(float k){
         k=mod(floor(k),6.);
         if(k<.5)return vec3(1.,.18,.78);if(k<1.5)return vec3(.15,.85,1.);if(k<2.5)return vec3(1.,.55,.15);
@@ -424,6 +425,25 @@ function createFacadeMaterial() {
           float code=N.x<-.5?0.:(N.x>.5?1.:(N.z<-.5?2.:3.));
           if(abs(code-vDoor.z)<.5){float f=fract((horiz-vDoor.x)/vDoor.y);float pw=.35/vDoor.y;if(f>pw&&f<1.-pw)discard;}
         }
+        // floors whose interior is built (building.js -> world.setFloorOpen): the facade opens where the real windows are, on the same bays
+        // (len/round(len/3.2) from the stage's edge, 0.7 m pillars, sill to head), so the real glass and the room behind it show from outside.
+        // vBuilt = (floor height, first floor of the mask, 24-bit mask of built floors, 1 on a podium)
+        float roomK=uSimple<.5?1.:0.;
+        if(vBuilt.x>.5){
+          float yb=vLoc.y*vSz.y,fi=floor(yb/vBuilt.x),bi=fi-vBuilt.y;
+          if(bi>=0.&&bi<24.&&mod(floor(vBuilt.z/exp2(bi)),2.)>.5){
+            roomK=0.;
+            float ly=yb-fi*vBuilt.x,sill=fi<.5&&vBuilt.w>.5?.3:.95,head=min(vBuilt.x-.6,3.1);
+            bool xf=abs(N.x)>.5;float len=xf?vSz.z:vSz.x,lx=xf?(vLoc.z+.5)*vSz.z:(vLoc.x+.5)*vSz.x;
+            float bay=len/max(3.,floor(len/3.2+.5)),fb=lx-floor(lx/bay)*bay;
+            if(fb>.35&&fb<bay-.35&&(!xf||(lx>.5&&lx<len-.5))&&ly>sill&&ly<head)discard;
+          }
+        }
+        // the view direction in the wall's frame (x along horiz, y up, z into the building) and the glass's reflectance (Schlick)
+        vec3 vd=normalize(vWP-cameraPosition);
+        vec3 dT=vec3(abs(N.x)>.5?vd.z:vd.x,vd.y,-dot(vd,N));
+        float fres=.04+.96*pow(1.-clamp(dT.z,0.,1.),5.);
+        float day=1.-uNight;
         float sx=style>.5&&style<1.5?2.2:3.1;float sy=3.6;
         // shopfront / podium band
         bool shop=y<4.6&&vSz.y>0.&&mod(vInfo.w,2.)>.5;
@@ -473,10 +493,14 @@ function createFacadeMaterial() {
             em=mix(em,vec3(.35,.5,1.)*2.,tvf*(1.-k)*.0+tvf*.7);
             vec3 we=em*(shop?(.55+.45*vnoise(vec2(horiz*2.6,y*3.))):1.)*(lit>.5?1.:tvf);
             vec3 avg=vec3(1.,.8,.55)*dens*.55*(shop?.8:1.);
-            fEmit+=mix(we,avg,farF);
+            float rk=shop?0.:roomK*(1.-farF);   // near: the lit room itself instead of a flat glow
+            fEmit+=mix(we,avg,farF)*(1.-rk);
+            if(rk>0.)fRoom+=fakeRoom(vec2(f.x*sx,f.y*sy),vec2(sx,sy),dT,rnd*97.+seed,1.,em,day)*(1.-fres)*rk;
             alb=wc*.03;fMetal=.2;fRough=.25;
           } else {alb=vec3(.012,.016,.028);fMetal=.92;fRough=mix(.1,.5,farF);
-            fEmit+=vec3(1.,.8,.55)*dens*.55*farF*(shop?.8:1.);}
+            fEmit+=vec3(1.,.8,.55)*dens*.55*farF*(shop?.8:1.);
+            float rk=shop?0.:roomK*(1.-farF);
+            if(rk>0.)fRoom+=fakeRoom(vec2(f.x*sx,f.y*sy),vec2(sx,sy),dT,rnd*97.+seed,0.,vec3(0.),day)*(1.-fres)*rk;}
         }
         if(style>2.5){
           // LED vertical strips + horizontal bands
@@ -510,7 +534,16 @@ function createFacadeMaterial() {
           vec3 te=textureGrad(tFE,vec3(u,vv,eL),gx,gy).rgb;
           vec4 tn=textureGrad(tFN,vec3(u,vv,setf),gx,gy);
           alb=tc*mix(vec3(1.),base*2.2,.2);fRough=mix(.85,tn.b,.85);fMetal=0.;
-          fEmit+=te*1.7*(.75+.5*h11(seed*5.5));
+          vec3 tem=te*1.7*(.75+.5*h11(seed*5.5));
+          // the photo's glass (its roughness map is black there) shows the room behind it: rooms on the photo's 4 m floors, a few metres wide
+          float gm=(1.-smoothstep(.18,.4,tn.b))*roomK*(1.-farF);
+          if(gm>0.){
+            float rw=setf<1.5?4.:(setf<2.5?8./3.:3.),uu=u*tw,litR=step(.06,dot(te,vec3(.333)));
+            vec3 dR=vec3(dT.x*mir,dT.y,dT.z);
+            fRoom+=fakeRoom(vec2(uu-floor(uu/rw)*rw,yy-floor(yy/4.)*4.),vec2(rw,4.),dR,floor(uu/rw)+floor(yy/4.)*31.+seed*7.,litR,max(tem,vec3(.25,.2,.14)),day)*(1.-fres)*gm;
+            alb=mix(alb,vec3(.012,.016,.024),gm*(1.-fres));
+          }
+          fEmit+=tem*(1.-gm);
           vec3 tw3=abs(N.x)>.5?vec3(0.,0.,1.):vec3(1.,0.,0.);
           fBump=tw3*((tn.r*2.-1.)*mir)+vec3(0.,1.,0.)*(tn.g*2.-1.);
         }
@@ -526,6 +559,7 @@ function createFacadeMaterial() {
       }
       fEmit*=mix(.14,1.,uNight);
       float bk=uBlack[zoneOf(vWP.xz)];
+      fEmit+=fRoom;   // rooms carry their own day and night light
       fEmit*=1.-bk*.96;
       // building fire (blaze.js): vBurn = (fire band bottom, fire band top, heat, charred below this height); zero = untouched
       if(vBurn.z>0.||vBurn.w>0.){
@@ -1138,6 +1172,7 @@ export function buildWorld(scene, quality) {
     m.geometry.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4));
     m.geometry.setAttribute('aDoor', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
     m.geometry.setAttribute('aBurn', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));
+    m.geometry.setAttribute('aBuilt', new THREE.InstancedBufferAttribute(new Float32Array(list.length * 4), 4));   // see world.setFloorOpen
     const FHT = 4.0, fl = new Float32Array(list.length);
     if (relief) list.forEach((t, k) => { fl[k] = t.podium || t.crown ? Math.max(1, Math.round(t.h / FHT)) : Math.max(2, Math.floor(t.h / FHT)); });
     m.geometry.setAttribute('aFloor', new THREE.InstancedBufferAttribute(fl, 1));
@@ -1466,6 +1501,17 @@ export function buildWorld(scene, quality) {
       for (let i = r.start; i < r.start + r.count; i++) if (a.getW(i) !== v) { a.setW(i, v); changed = true; }
       if (changed) { a.addUpdateRange(r.start * 4, r.count * 4); a.needsUpdate = true; }
     }
+  };
+  // A built floor's windows are cut open in the facade (so its real glass and rooms show from outside), and only while it is built: the
+  // stage's instance carries (floor height, first floor of the mask, 24-bit mask of built floors, podium flag). Building calls this when a
+  // floor appears / goes. Floors further than 24 above the lowest built one stay closed (they would need a second mask; never seen in play).
+  world.setFloorOpen = (lot, L, on) => {
+    const s = L.rect; if (!s || s.inst == null || L.tier === 'roof') return;
+    const mesh = lot.fac ? lot.fac.mesh : lot.far ? farMesh : facade, a = mesh.geometry.attributes.aBuilt; if (!a) return;
+    const fi = Math.round((L.y - (s.y0 || 0)) / L.h), set = s.openFloors || (s.openFloors = new Set());
+    if (on) set.add(fi); else set.delete(fi);
+    let base = 0, mask = 0; if (set.size) { base = Math.min(...set); for (const f of set) if (f - base < 24) mask += 2 ** (f - base); }
+    a.setXYZW(s.inst, set.size ? L.h : 0, base, mask, L.tier === 'podium' ? 1 : 0); a.addUpdateRange(s.inst * 4, 4); a.needsUpdate = true;
   };
   buildWaters(world, scene);
   world.objects = scene.children.slice(objStart);

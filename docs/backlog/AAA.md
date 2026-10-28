@@ -32,8 +32,10 @@
 - AC: NEON 560채 재점검에서 room-shut-in·room-blocked-physically·room-squeeze·room-tight 0, room-bare는 보고, 가구 감소 층당 15% 이내, 층 생성 단계 8 ms 미만.
 - 검증: 단위 `room-walkways`, `node tests/tools/building-audit.cjs`, `building-registry --check` 차이 0. 사용자: quick, `--only floor-population`, `--only ai-behaviour`.
 
-### Q0-9 밖에서 안이 보이는 창 — P0 · L · Q0 · Backlog (2026-10-28 사용자 요청, 방식 결정: 가짜 방 + 진짜 층)
-- 범위: 외관 셰이더 창 칸 인테리어 매핑(모든 도시·층), 만들어진 층은 창 칸을 열어 진짜 실내·반투명 유리가 보이게(`entrance-holes` 규칙 유지). ADR-0032.
+### Q0-9 밖에서 안이 보이는 창 — P0 · L · Q0 · Review (ADR-0032, 2026-10-28 사용자 요청, 방식 결정: 가짜 방 + 진짜 층)
+- 범위: `FAKE_ROOM_GLSL`(외관·링 탑 유리), 사진 유리 = 거칠기 맵, `aBuilt`·`world.setFloorOpen`(만들어진 층만 BAY 칸 열기), relief 기둥 BAY 정렬.
+- AC: 만들어지지 않은 층은 열리지 않음(e2e `window-interiors`), 플레이 중 셰이더 컴파일 0, LOW에서 꺼짐, 전후 대조 승인.
+- 검증: 사용자 실행 quick, `--only window-interiors`, `--only no-runtime-compile`, `--only entrance-holes`, `--only low-tier`, `--only facade-relief`, `--only golden-views`, 실기기 프레임(PERF-01).
 
 ### Q0-4 물 셰이더 교체(GPL 제거) — P0 · M · Q0 · Backlog
 - 범위: three.js `Water`(MIT)를 바탕으로 다시 쓴다. Q2-4와 합친다.

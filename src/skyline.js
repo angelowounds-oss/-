@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
-import { doorCamU, blackU, ZONE_GLSL } from './shaders.js';
+import { doorCamU, blackU, ZONE_GLSL, FAKE_ROOM_GLSL, nightU } from './shaders.js';
 
 // Exterior skin of the outer-ring towers (supplied residential models). Interiors come from building.js; this is the one-sided shell.
 
@@ -73,13 +73,40 @@ function haze(m) {
   m.customProgramCacheKey = () => 'skyline-haze-door-power';
 }
 
+// The glass of the ring towers: a room behind every 3.2 x 4 m of it (FAKE_ROOM_GLSL, the same rooms as the city facades), lit at night in about
+// half the windows, instead of one flat glow; the glass reflection stays on top by the Fresnel term.
+function glassRooms(m) {
+  haze(m);
+  const base = m.onBeforeCompile;
+  m.onBeforeCompile = (sh) => {
+    base(sh);
+    sh.uniforms.uNightR = nightU;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('uniform float uBlack[5];', 'uniform float uBlack[5];uniform float uNightR;' + FAKE_ROOM_GLSL)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      {
+        vec3 Nr=normalize(vWNs);
+        if(abs(Nr.y)<.5){
+          bool ax=abs(Nr.x)>abs(Nr.z);vec3 vd=normalize(vWPs-cameraPosition);
+          vec3 dT=vec3(ax?vd.z*sign(Nr.x):-vd.x*sign(Nr.z),vd.y,-dot(vd,Nr));
+          float h=ax?vWPs.z*sign(Nr.x):-vWPs.x*sign(Nr.z),y=vWPs.y;
+          vec2 cell=vec2(floor(h/3.2),floor(y/4.)),f=vec2(h-cell.x*3.2,y-cell.y*4.);
+          float rid=cell.x*7.31+cell.y*31.7+floor(vWPs.x/40.)*3.1+floor(vWPs.z/40.)*5.7,lit=step(frH(vec2(rid,2.2)),.5)*step(.5,uNightR);
+          vec3 lc=mix(vec3(1.,.74,.45),vec3(.8,.9,1.),step(.7,frH(vec2(rid,4.4))))*(.8+.6*frH(vec2(rid,5.5)));
+          float fres=.04+.96*pow(1.-clamp(dT.z,0.,1.),5.);
+          totalEmissiveRadiance=fakeRoom(f,vec2(3.2,4.),dT,rid,lit,lc,1.-uNightR)*(1.-fres)*(1.-uBlack[zoneOf(vWPs.xz)]*.96);
+        }
+      }`);
+  };
+  m.customProgramCacheKey = () => 'skyline-haze-door-power-rooms';
+}
+
 export function buildSkyline(scene, world, wallUrl) {
   const lots = world.lots.filter((l) => l.model);
   if (!A.res || !lots.length) return null;
   const wall = wallMaterial(wallUrl);
   const glass = new THREE.MeshStandardMaterial({ color: 0x1a2c44, roughness: 0.08, metalness: 0.7, emissive: 0xffc27a, emissiveIntensity: 0, envMapIntensity: 1.2 });
-  haze(glass);
-  (world.nightEmit = world.nightEmit || []).push({ m: glass, k: 0.9 });
+  glassRooms(glass);   // the rooms carry the night light now (the flat night glow, world.nightEmit, is replaced in the shader)
   const parts = {};
   for (const i of new Set(lots.map((l) => l.model.variant))) {
     const prim = [];

@@ -30,3 +30,4 @@
 | [0029](0029-ktx2-asset-pack.md) | KTX2 압축 텍스처와 에셋 팩(assets.pak, transcoder 포함) | 채택 |
 | [0030](0030-building-ids.md) | 건물 고유번호(uid)와 목록(docs/buildings/registry.csv) | 채택 |
 | [0031](0031-room-walkways.md) | 실내 통로 보장: 안쪽 문은 모서리, 꾸민 방은 걸어 보고 다시 꾸민다 | 채택 |
+| [0032](0032-window-interiors.md) | 밖에서 창 안이 보이게: 가짜 방 + 만들어진 층은 창을 연다 | 채택 |

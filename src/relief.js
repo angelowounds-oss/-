@@ -78,8 +78,10 @@ export function buildRelief(world, scene, instCull, tiers) {
           for (const side of ['n', 's', 'w', 'e']) {
             const alongX = side === 'n' || side === 's', len = alongX ? tow.x1 - tow.x0 : tow.z1 - tow.z0, n = Math.floor(len / bay);
             if (n < 3) continue;
+            const nb = Math.max(3, Math.round(len / 3.2));   // building.js perimeter(): the window bays (BAY 3.2 m) of the real floors behind
             for (let i = 1; i < n; i++) {
-              const u = (alongX ? tow.x0 : tow.z0) + (i / n) * len, w = 0.4;
+              // on a pillar between two window bays, so an open window (world.setFloorOpen) is never half behind a pilaster
+              const u = (alongX ? tow.x0 : tow.z0) + Math.round((i / n) * nb) * (len / nb), w = 0.4;
               if (alongX) { const z = side === 'n' ? tow.z0 : tow.z1, o = side === 'n' ? -0.22 : 0.22; push(u - w / 2, tow.y0, Math.min(z, z + o), u + w / 2, tow.y1 - 0.4, Math.max(z, z + o), trim, 0.95); }
               else { const x = side === 'w' ? tow.x0 : tow.x1, o = side === 'w' ? -0.22 : 0.22; push(Math.min(x, x + o), tow.y0, u - w / 2, Math.max(x, x + o), tow.y1 - 0.4, u + w / 2, trim, 0.95); }
             }
