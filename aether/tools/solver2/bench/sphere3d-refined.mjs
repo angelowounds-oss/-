@@ -11,7 +11,7 @@ const [ndArg = '8', refArg = '1', method = 'N1C', model = 'reg', maxTArg = '60']
 const nx = 12 * Nd, ny = 6 * Nd, nz = ny, cxS = 3 * Nd, cyS = ny / 2, czS = nz / 2, R = Nd / 2, nu0 = U * Nd / Re, tau0 = .5 + 3 * nu0;
 // box around the sphere in the cell coordinates of level l - 1 (scale s = 2^(l - 1)): from up D upstream to dn D downstream, +-w D across
 const boxAt = (s, up, dn, w) => ({ lo: [s * (cxS - up * Nd), Math.round(s * (cyS - w * Nd)), Math.round(s * (czS - w * Nd))], hi: [s * (cxS + dn * Nd), Math.round(s * (cyS + w * Nd)), Math.round(s * (czS + w * Nd))] });
-const boxes = nLev === 1 ? [boxAt(1, 1, 3, 1.25)] : nLev === 2 ? [boxAt(1, 2, 5, 1.75), boxAt(2, 1, 3, 1.25)] : [], { lo, hi } = boxes.length ? boxes[boxes.length - 1] : { lo: null, hi: null };
+const boxes = nLev === 1 ? [boxAt(1, 1, 3, 1.25)] : nLev === 2 ? [boxAt(1, 2, 5, 1.75), boxAt(2, 1, 3, 1.25)] : [];
 const solid = p => (p[0] - cxS) ** 2 + (p[1] - cyS) ** 2 + (p[2] - czS) ** 2 < R * R;
 // fraction of the link from p along c (level-0 units) to the sphere surface
 const frac = (p, c) => { const x = p[0] - cxS, y = p[1] - cyS, z = p[2] - czS, a = c[0] * c[0] + c[1] * c[1] + c[2] * c[2], b = 2 * (c[0] * x + c[1] * y + c[2] * z), cc = x * x + y * y + z * z - R * R, disc = b * b - 4 * a * cc; return (-b - Math.sqrt(Math.max(disc, 0))) / (2 * a); };
