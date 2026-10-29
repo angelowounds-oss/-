@@ -20,6 +20,51 @@ const SW_MID = R / 2 + SW / 2;
 let uid = 0;
 
 const _fq = new THREE.Quaternion(), _fe = new THREE.Euler();
+
+// CHR-06a (ADR-0035): stand-set legs. Aimed and fighting actors face one way and move another, so the leg clip is picked by the way the body
+// moves relative to where it faces (ahead, back steps, or a side step: the clip whose measured direction is nearest, ahead favoured and the
+// current one kept within a margin), and the hips are turned by what is left over (Model.turnHips) so the feet step exactly that way. Ahead
+// splits into Walk / Run / Sprint by speed. All of them play on one step phase (each at its left foot's stance), advanced so the mix carries
+// the body exactly as far as it moved (distance matching on the step tables measured per body at load, assets.js measureGait): the planted
+// foot stays put on the ground.
+const CARD = ['Walk', 'U_Walk_Backwards', 'U_Strafe_left', 'U_Strafe_right'];
+const GAIT_TS = { Walk: [0.5, 3], Run: [0.6, 1.6], U_Sprint: [0.7, 1.3], U_Walk_Backwards: [0.5, 3.4], U_Strafe_left: [0.5, 3.4], U_Strafe_right: [0.5, 3.4] };
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+function stepGait(h, dt, sp, move, wt) {
+  const G = h.m.gait;
+  if (!G.Walk) { wt.Walk = move; h.m.act.Walk.timeScale = clamp(sp / 0.94, 0.5, 3); return; }
+  const vf = h.vx * Math.sin(h.ry) + h.vz * Math.cos(h.ry), vl = h.vx * Math.cos(h.ry) - h.vz * Math.sin(h.ry);
+  if (sp > 0.15) h.gaitDir = Math.atan2(vl, vf);
+  const th = h.gaitDir || 0;
+  let cur = h.gaitCard || 'Walk', best = cur, bs = 1e9;
+  for (const n of CARD) { if (!G[n]) continue; const s = Math.abs(wrapA(th - G[n].dir)) - (n === 'Walk' ? 0.26 : 0) - (n === cur ? 0.12 : 0); if (s < bs) { bs = s; best = n; } }
+  h.gaitCard = cur = best;
+  // ahead: Walk -> Run from 3.4 m/s, Run -> Sprint from 6.5 m/s
+  const r = G.Run ? clamp((sp - 3.4) / 2, 0, 1) : 0, s = G.U_Sprint ? clamp((sp - 6.5) / 1.5, 0, 1) : 0;
+  const share = cur === 'Walk' ? { Walk: 1 - r, Run: r * (1 - s), U_Sprint: r * s } : { [cur]: 1 };
+  // the phase moves on by what carries the body sp*dt at this point of the mix's step table; the cadence limits (each active clip's
+  // playback range) scale the whole cycle, so a clip past its range slides evenly rather than in one part of the step
+  const ph = h.gaitPh ?? Math.random();
+  let stride = 0, slope = 0, lo = 0, hi = 1e9;
+  for (const n in share) {
+    const w = share[n]; if (w <= 0) continue; const g = G[n]; wt[n] = move * w;
+    stride += w * g.stride; slope += w * g.step[(((ph + g.off) % 1) * g.step.length) | 0];
+    if (w > 0.05) { lo = Math.max(lo, GAIT_TS[n][0] / g.dur); hi = Math.min(hi, GAIT_TS[n][1] / g.dur); }
+  }
+  h.gaitPh = (ph + dt * clamp(sp / stride, lo, Math.max(lo, hi)) * stride / slope) % 1;
+}
+// after the weights eased: puts the leg clips on the shared phase and returns the hip turn, each clip's leftover angle by the weight it plays at
+// (so a change of clip turns the hips over as the clips cross-fade, and an actor at a standstill keeps them straight)
+function syncGait(h) {
+  const G = h.m.gait, a = h.m.act, th = h.gaitDir || 0, ph = h.gaitPh || 0; let warp = 0;   // no phase yet: never stood (sat, swam ... since spawn)
+  for (const n in GAIT_TS) {
+    const ac = a[n], g = G[n]; if (!ac || !g) continue;
+    ac.timeScale = 0; ac.time = ((ph + g.off) % 1) * g.dur;
+    if (ac.weight > 0.001 && h.speed > 0.15) warp += ac.weight * clamp(wrapA(th - g.dir), -1.2, 1.2);
+  }
+  return warp;
+}
+
 export class Human {
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
@@ -243,7 +288,7 @@ export class Human {
       else { m.mixer.update(dt); m.applyPose(0, 0); this.group.position.set(this.x, this.y, this.z); this.group.rotation.y = this.ry; return; }
     }
     if (m.onceName && !this.dead) m.stopOnce();
-    const idle = clamp(1 - sp / 0.6, 0, 1), run = clamp((sp - 3.4) / 2, 0, 1), walk = clamp(1 - idle - run, 0, 1);
+    const idle = clamp(1 - sp / 0.6, 0, 1);
     const k = 1 - Math.exp(-10 * dt);
     // stance sets: retargeted UAL crouch / swim clips replace the stand set (idle+walk+run) while active
     const swimC = this.swimming, crouchC = !swimC && !this.prone && !this.lying && this.crouching !== false && this.crouch > 0.3 && !m.sit;
@@ -255,11 +300,12 @@ export class Human {
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = ladC ? 1 : clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: set ? 0 : walk, Run: set ? 0 : run, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
+    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
+    else stepGait(this, dt, sp, 1 - idle, wt);
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
     if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : set[1] === 'U_Crouch_Fwd' ? clamp(sp / 0.66, 0.6, 3) : clamp(sp / 1.6, 0.6, 1.8);
-    a.Walk.timeScale = clamp(sp / 1.0, 0.6, 2.4);   // the clip's feet move back at ~0.9 m/s in stance (tests/e2e/motions) a.Run.timeScale = clamp(sp / 5.2, 0.8, 1.7);
+    const hipTurn = (this.hipTurn = syncGait(this));
     const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
     this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
     // distance LOD: fog hides far actors anyway, so skip their skinning and animation
@@ -314,6 +360,7 @@ export class Human {
     if (m.setProp) m.setProp((this.gestUB || this.reactT > 0) && !this.dead ? PROPS[this.gestName] || null : null);
     if (m.setMelee) m.setMelee(this.melee && this.cur === 9 ? this.melee.name : null);
     m.mixer.update(dt);
+    if (Math.abs(hipTurn) > 0.01 && m.turnHips) m.turnHips(hipTurn);
     m.applyPose(pistolish || riflish ? 0 : this.pose, this.aimPitch || 0);
     if (this.proc) updateProc(this, dt);
     if (riflish) {

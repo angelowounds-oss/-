@@ -133,6 +133,52 @@ function adaptCharacter(gltf, clips = gltf.animations) {
   return gltf;
 }
 
+// CHR-06a (ADR-0035): the leg clips the stand set mixes by direction and speed (forward by speed, then back steps and side steps)
+const GAIT = ['Walk', 'Run', 'U_Sprint', 'U_Walk_Backwards', 'U_Strafe_left', 'U_Strafe_right'];
+// The locomotion clips walk in place, so the planted foot slides back under the body by as much as the clip carries the body. Measured
+// once per body on its template, so the game can play each clip at the pace that holds that foot still on the ground: per clip, at 96 steps
+// of its cycle, how far the body goes (`step`, m per whole cycle, as the planted foot slides; in a run's flight the cycle's mean), the
+// stride (m per cycle), the way it goes (dir: radians from ahead, + to its left) and the circular mean phase of the left foot's stance
+// (off), so clips of different lengths play step for step. The artists' feet do not slide evenly (a side step lunges, then settles), hence
+// the table rather than one speed. A foot touches with the lower of its ankle and toe (runs land on the forefoot); it is planted when that
+// point is the lower of both feet and within 3 cm of its usual lowest (10th percentile).
+function measureGait(S, scale) {
+  const scene = S.scene, by = new Map(S.animations.map((c) => [c.name, c])), mixer = new THREE.AnimationMixer(scene), out = {};
+  const pts = ['LeftFoot', 'LeftToeBase', 'RightFoot', 'RightToeBase'].map((n) => scene.getObjectByName(n));
+  if (pts.some((b) => !b)) return out;
+  scene.updateWorldMatrix(true, false);
+  const inv = scene.matrixWorld.clone().invert(), v = new THREE.Vector3(), N = 96;
+  for (const name of GAIT) {
+    const c = by.get(name); if (!c) continue;
+    const a = mixer.clipAction(c), dur = c.duration, P = []; a.play();
+    for (let i = 0; i <= N; i++) {
+      a.time = (i / N) * dur * 0.9999; mixer.update(0);
+      P.push(pts.map((b) => { b.updateWorldMatrix(true, false); return v.setFromMatrixPosition(b.matrixWorld).applyMatrix4(inv).multiplyScalar(scale).toArray(); }));
+    }
+    a.stop(); mixer.uncacheAction(c);
+    const lowOf = (p, f) => (p[2 * f][1] < p[2 * f + 1][1] ? 2 * f : 2 * f + 1), h = (p, f) => p[lowOf(p, f)][1];
+    const lo = [0, 1].map((f) => { const s = P.map((p) => h(p, f)).sort((p, q) => p - q); return s[(s.length * 0.1) | 0]; });
+    const planted = (i, f) => h(P[i], f) <= h(P[i], 1 - f) + 0.005 && h(P[i], f) < lo[f] + 0.03;
+    // per step: how the body moves over the planted foot (null in flight); the sum gives the way it goes
+    const d = []; let tx = 0, tz = 0, ps = 0, pc = 0, nd = 0;
+    for (let i = 0; i < N; i++) {
+      if (planted(i, 0)) { ps += Math.sin((i / N) * Math.PI * 2); pc += Math.cos((i / N) * Math.PI * 2); }
+      const fs = [0, 1].filter((f) => planted(i, f) && planted(i + 1, f)); if (!fs.length) { d.push(null); continue; }
+      const f = fs.length > 1 && h(P[i], 1) < h(P[i], 0) ? 1 : fs[0], b = lowOf(P[i], f);
+      const dx = P[i][b][0] - P[i + 1][b][0], dz = P[i][b][2] - P[i + 1][b][2]; d.push([dx, dz]); tx += dx; tz += dz; nd++;
+    }
+    if (!nd) continue;
+    const dir = Math.atan2(tx, tz), ux = Math.sin(dir), uz = Math.cos(dir), mean = Math.hypot(tx, tz) / nd;
+    // along the way it goes, flight at the mean, never below a quarter of it (a foot settling back must not stall the clip), lightly smoothed
+    const s = d.map((p) => Math.max(mean * 0.25, p ? p[0] * ux + p[1] * uz : mean));
+    const step = new Float32Array(N); let stride = 0;
+    for (let i = 0; i < N; i++) { step[i] = ((s[(i + N - 1) % N] + 2 * s[i] + s[(i + 1) % N]) / 4) * N; stride += step[i] / N; }
+    out[name] = { stride, spd: stride / dur, dir, dur, step, off: ((Math.atan2(ps, pc) / (Math.PI * 2)) % 1 + 1) % 1 };
+  }
+  mixer.uncacheRoot(scene);
+  return out;
+}
+
 export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, ok: false };
 
 export async function loadAssets() {
@@ -159,6 +205,7 @@ export async function loadAssets() {
     const box = new THREE.Box3().setFromObject(A.soldier.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     if (A.player) { const pb = new THREE.Box3().setFromObject(A.player.scene); A.playerScale = 1.82 / (pb.max.y - pb.min.y); }
+    A.soldier.gait = measureGait(A.soldier, A.soldierScale); if (A.player) A.player.gait = measureGait(A.player, A.playerScale);   // after the boxes: it poses the templates
     A.ok = true;
   } catch (e) { console.warn('asset load failed, procedural fallback', e); }
   return A.ok;
@@ -293,7 +340,13 @@ export function buildSoldier(look = {}, gunParts) {
       twoBoneIK(bones.RightArm, bones.RightForeArm, bones.RightHand, W(grip), poleR);
       twoBoneIK(bones.LeftArm, bones.LeftForeArm, bones.LeftHand, W(fore), poleL);
     },
-    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0,
+    // CHR-06a (ADR-0035): orientation warp. Turns the hips (so both legs) by `ang` about the vertical and the spine back by as much over
+    // its three bones, so the legs step the way the body goes while the chest and arms keep facing ahead
+    turnHips(ang) {
+      const r = (b, a) => { b.parent.updateWorldMatrix(true, false); b.parent.getWorldQuaternion(pq).invert(); la.copy(Y).applyQuaternion(pq).normalize(); qa.setFromAxisAngle(la, a); b.quaternion.premultiply(qa); };
+      r(bones.Hips, ang); r(bones.Spine, -ang * 0.4); r(bones.Spine1, -ang * 0.3); r(bones.Spine2, -ang * 0.3);
+    },
+    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0, gait: S.gait || {},
     // called after mixer update each frame
     applyPose(pose, pitch) {
       if (this.sit > 0.01 && !this.sitClip) {

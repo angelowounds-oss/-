@@ -41,7 +41,8 @@ run('motions', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     g.items.add('knife'); g.equipMelee('knife'); step(5);
     o.knifeShown = !!m.bones && pl.melee && pl.melee.name === '단검';
     pl.fireCd = 0; g.meleeAttack(); o.hitDelay = +(pl.meleeHitT || 0).toFixed(2); o.gesturing = !!pl.gestUB; step(40); o.hitDone = !(pl.meleeHitT > 0) && !pl.gestUB;
-    // foot slide: the speed at which the stance foot moves back in a locomotion clip, which the playback speed constants in Human.animateSkinned assume
+    // foot slide: the speed at which the stance foot moves back in a locomotion clip (a check on the clips; the game measures its own step
+    // tables from them at load, assets.js measureGait)
     const THREE = window.__THREE; pl.group.rotation.set(0, 0, 0); pl.group.updateMatrixWorld(true); o.stance = {};
     for (const n of ['Walk', 'Run']) {
       const a = m.act[n] || m.clip(n); m.playOnce(n, true); const dur = a.getClip().duration, N = 120, z = [], y = [];
