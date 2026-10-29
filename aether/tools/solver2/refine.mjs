@@ -65,7 +65,7 @@ export function createRefined(o) {
   const T = Math.max(1, Math.min(o.threads || 1, os.cpus().length)), alloc = (Ctor, n) => T > 1 ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n);
   const r = [2, 2, d === 3 ? 2 : 1]; // refinement factor per axis
   // mirror sign of the 10 interface moments (rho, u, Pi xx yy zz xy xz yz) under reflection of axis a, MSIGN[10 a + j]; o.mirror = false: one-sided stencils at slip faces
-  const MIRROR = o.mirror !== false, MSIGN = new Float64Array(30).fill(1); for (let a = 0; a < 3; a++) { MSIGN[10 * a + 1 + a] = -1; [[7, 0, 1], [8, 0, 2], [9, 1, 2]].forEach(([j, p, q]) => { if (a === p || a === q) MSIGN[10 * a + j] = -1; }); }
+  const CGGRAD = !!o.cgGrad, MIRROR = o.mirror !== false, MSIGN = new Float64Array(30).fill(1); for (let a = 0; a < 3; a++) { MSIGN[10 * a + 1 + a] = -1; [[7, 0, 1], [8, 0, 2], [9, 1, 2]].forEach(([j, p, q]) => { if (a === p || a === q) MSIGN[10 * a + j] = -1; }); }
   const faces = o.faces || {}, faceSpec = (a, side) => (a === 1 ? (side ? faces.yHi : faces.yLo) : a === 2 ? (side ? faces.zHi : faces.zLo) : null) || null, wallFace = (a, side) => !!faceSpec(a, side);
   const levels = [];
   // ---------- level geometry ----------
@@ -197,11 +197,16 @@ export function createRefined(o) {
       L.sten = new Int32Array(9 * ring.length);
       // per ring cell and axis pair (xy, xz, yz): [kind, sa, sb, nA, nB, nAB, nC] kind 0 central (nA..nC = ++, +-, -+, --), 1 one-sided towards (sa, sb), 2 none
       L.mix = new Int32Array(21 * ring.length);
-      const ok = s2 => s2 >= 0 && L.mask[s2] === INTERIOR;
+      // o.cgGrad: a coarse cell inside the box (cg, holding the restricted fine state) may serve as the second point of a central difference.
+      // Without it the gradient normal to the box is the one-sided second-order stencil 1.5 v0 - 2 v1 + 0.5 v2, which reads an odd-even mode as
+      // four times its amplitude, so the ghosts next to the box receive up to twice the coarse checkerboard: near tau = 1/2 that loop grows
+      // (tests/pulse-faces.mjs). The central difference has zero gain for that mode.
+      const isCg = new Uint8Array(L.N); if (CGGRAD) for (const n of cg) isCg[n] = 1;
+      const ok = s2 => s2 >= 0 && L.mask[s2] === INTERIOR, okc = s2 => ok(s2) || (s2 >= 0 && isCg[s2] === 1);
       ring.forEach((n, i) => { const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]], at = (da, db, ea, eb) => { const v = c.slice(); v[ea] += da; if (eb >= 0) v[eb] += db; return idx(L, v[0], v[1], v[2]); };
         for (let a = 0; a < 3; a++) { if (a >= d) { L.sten.set([3, -1, -1], 9 * i + 3 * a); continue; }
           const p1 = at(1, 0, a, -1), m1 = at(-1, 0, a, -1);
-          if (ok(p1) && ok(m1)) L.sten.set([0, p1, m1], 9 * i + 3 * a);
+          if (okc(p1) && okc(m1)) L.sten.set([0, p1, m1], 9 * i + 3 * a);
           else if (MIRROR && m1 < 0 && c[a] === 0 && faceSpec(a, 0) === 'slip' && ok(p1)) L.sten.set([4, p1, n], 9 * i + 3 * a);
           else if (MIRROR && p1 < 0 && c[a] === L.ext[a] - 1 && faceSpec(a, 1) === 'slip' && ok(m1)) L.sten.set([5, m1, n], 9 * i + 3 * a);
           else if (!ok(p1) && ok(m1) && ok(at(-2, 0, a, -1))) L.sten.set([1, m1, at(-2, 0, a, -1)], 9 * i + 3 * a);
@@ -393,19 +398,20 @@ export function createRefined(o) {
   }
   function restrictN0(P) { // coarse cells just inside the box <- mean moments of their children (time t), inverse rescale
     const ch = P.child, tC = P.ifC, tF = ch.ifF, kc = (1 - 1 / tC) * 2 * tC / tF, m = new Float64Array(10), acc = new Float64Array(10), G = new Float64Array(9);
+    if (!P.cgM) P.cgM = new Float64Array(10 * P.cg.length);
     P.cg.forEach((n, i) => { acc.fill(0); G.fill(0); const ks = P.cgKids[i], sten = P.cgSten && P.cgSten[i];
       if (sten) { for (let t = 0; t < sten.length; t += 2) { moments(ch, ch.f, sten[t], m, 0); for (let a = 0; a < 4; a++) acc[a] += sten[t + 1] * m[a]; }
         for (const s2 of ks) { moments(ch, ch.f, s2, m, 0); for (let a = 4; a < 10; a++) acc[a] += m[a] / ks.length; }
         for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / tC); // Pi_neq in the coarse level's units (2 tau_c / tau_f)
         if (o.oracleCg) o.oracleCg(centre(P, P.coord.subarray(3 * n, 3 * n + 3)), st.step, acc, P.tau, P.h);
-        fromMoments(P, P.post, n, acc, 0, 1 - 1 / tC); return; }
+        P.cgM.set(acc, 10 * i); fromMoments(P, P.post, n, acc, 0, 1 - 1 / tC); return; }
       ks.forEach((s, c) => { moments(ch, ch.f, s, m, 0); for (let a = 0; a < 10; a++) acc[a] += m[a];
         if (neqGrad) for (let a = 0; a < d; a++) { const sg = ((c >> a) & 1) ? 1 : -1; for (let b = 0; b < 3; b++) G[3 * a + b] += sg * m[1 + b]; } }); // children ordered x fastest: bit a of c = offset along a
       for (let a = 0; a < 10; a++) acc[a] /= ks.length;
       if (neqGrad) { for (let j = 0; j < 9; j++) G[j] /= ks.length / 2; stressFromGrad(acc, G, 2, tC); }
       else for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / tC);
       if (o.oracleCg) o.oracleCg(centre(P, P.coord.subarray(3 * n, 3 * n + 3)), st.step, acc, P.tau, P.h);
-      fromMoments(P, P.post, n, acc, 0, 1 - 1 / tC); });
+      P.cgM.set(acc, 10 * i); fromMoments(P, P.post, n, acc, 0, 1 - 1 / tC); });
   }
   // refluxing (N1C). rf[4 i ..] accumulates, per ring cell, (sent by coarse - received by fine) of mass and momentum, in coarse-cell density units
   function refluxCoarse(P) { // after the coarse stream: post of the ring cell went into the box (+), f pulled from the box came out (-)
@@ -421,7 +427,8 @@ export function createRefined(o) {
   function refluxApply(P) { const N = P.N, rf = P.rf, nr = P.ring.length; let dm = 0, jx = 0, jy = 0, jz = 0; for (let i = 0; i < nr; i++) { dm += rf[4 * i]; jx += rf[4 * i + 1]; jy += rf[4 * i + 2]; jz += rf[4 * i + 3]; }
     dm /= nr; jx /= nr; jy /= nr; jz /= nr; P.reflux = [dm, jx, jy, jz]; for (const n of P.ring) for (let q = 0; q < Q; q++) P.f[q * N + n] += W[q] * (dm + 3 * (cx[q] * jx + cy[q] * jy + cz[q] * jz)); }
   function ringMoments(P, M) { P.ring.forEach((n, i) => moments(P, P.f, n, M, 10 * i)); }
-  function fieldMoments(P, MF) { for (const n of P.stenCells) moments(P, P.f, n, MF, 10 * n); }
+  // moments of the stencil cells; cg cells (o.cgGrad) take the restricted moments of time t (held over the coarse step: the fine level has not advanced yet)
+  function fieldMoments(P, MF) { for (const n of P.stenCells) moments(P, P.f, n, MF, 10 * n); if (CGGRAD) P.cg.forEach((n, i) => { for (let j = 0; j < 10; j++) MF[10 * n + j] = P.cgM[10 * i + j]; }); }
   function coalesceV0(P) {
     const ch = P.child, N = P.N, CN = ch.N, co = P.coal;
     for (let t = 0; t < co.length; t += 2) { const i = co[t], q = co[t + 1], ks = P.ringKids[i]; let s = 0; for (const c of ks) s += ch.f[q * CN + c]; P.f[q * N + P.ring[i]] = s / ks.length; }

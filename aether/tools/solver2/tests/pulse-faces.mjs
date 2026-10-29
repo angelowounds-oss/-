@@ -13,7 +13,8 @@
 //   pz-box, px-box  no faces, box spanning periodic z / x                       tall-box       no faces, box 10 cells tall
 // node tools/solver2/tests/pulse-faces.mjs [config ...]   (default: all, four at a time)   env: STEPS (3000), METHOD (N1C), HRR (1), TAU (1e-5), U (0.05),
 //   MODEL (reg), CS (0.15), MIRROR=0 (one-sided interface gradients at slip faces), NEQ=grad (interface stress from the velocity gradient), RR=1 (recursive regularization),
-//   IFT, IFW (interface damping band: tau - 1/2 floor in coarse units, width in coarse cells), TB (bulk relaxation time)
+//   IFT, IFW (interface damping band: tau - 1/2 floor in coarse units, width in coarse cells), TB (bulk relaxation time),
+//   CGG=1 (central interface gradients through the restricted coarse cells)
 import { spawn } from 'node:child_process';
 import { createRefined } from '../refine.mjs';
 const SLIP4 = { yLo: 'slip', yHi: 'slip', zLo: 'slip', zHi: 'slip' }, FLOOR = { yLo: 'slip', yHi: 'slip' }, U = +(process.env.U ?? .05), BELT = { yLo: { type: 'wall', u: [U, 0, 0] }, yHi: 'slip' };
@@ -27,14 +28,14 @@ const CFG = {
   'tall-box': [undefined, [{ lo: [8, 3, 4], hi: [24, 13, 12] }], [16, 8, 8]] };
 const args = process.argv.slice(2);
 if (args.length === 1 && CFG[args[0]]) { // one configuration: print one JSON line
-  const name = args[0], [faces, boxes, pc] = CFG[name], steps = +(process.env.STEPS || 3000), method = process.env.METHOD || 'N1C', hrr = +(process.env.HRR || 1), tau0 = .5 + +(process.env.TAU || 1e-5), model = process.env.MODEL || 'reg', cs = +(process.env.CS ?? .15), mirror = process.env.MIRROR !== '0', neq = process.env.NEQ || undefined, recursive = process.env.RR === '1', tauBulk = +(process.env.TB || 0), iface = process.env.IFT ? { tau: +process.env.IFT, width: +(process.env.IFW || 2) } : undefined;
-  const S = createRefined({ lattice: 'D3Q19', E: [32, 16, 16], tau0, model, cs, method, hrr, mirror, neq, recursive, iface, tauBulk, faces, boxes,
+  const name = args[0], [faces, boxes, pc] = CFG[name], steps = +(process.env.STEPS || 3000), method = process.env.METHOD || 'N1C', hrr = +(process.env.HRR || 1), tau0 = .5 + +(process.env.TAU || 1e-5), model = process.env.MODEL || 'reg', cs = +(process.env.CS ?? .15), mirror = process.env.MIRROR !== '0', neq = process.env.NEQ || undefined, recursive = process.env.RR === '1', tauBulk = +(process.env.TB || 0), cgGrad = process.env.CGG === '1', iface = process.env.IFT ? { tau: +process.env.IFT, width: +(process.env.IFW || 2) } : undefined;
+  const S = createRefined({ lattice: 'D3Q19', E: [32, 16, 16], tau0, model, cs, method, hrr, mirror, neq, recursive, iface, tauBulk, cgGrad, faces, boxes,
     init: p => { const r2 = (p[0] - pc[0]) ** 2 + (p[1] - pc[1]) ** 2 + (p[2] - pc[2]) ** 2; return [1 + .01 * Math.exp(-r2 / 4), U, 0, 0]; } });
   const energy = () => { let e = 0; S.forEachCell((p, r, ux, uy, uz, vol) => { e += vol * ((r - 1) ** 2 / 3 + r * ((ux - U) ** 2 + uy * uy + uz * uz)); }); return e; };
   const e0 = energy(), hist = [];
   for (let s = 0; s < steps; s += 250) { S.advance(Math.min(250, steps - s)); const e = energy() / e0; hist.push(+e.toExponential(2)); if (!Number.isFinite(e)) break; }
   const end = hist[hist.length - 1], peak = Math.max(...hist);
-  console.log(JSON.stringify({ name, model, cs, method, hrr, recursive, iface, tauBulk, mirror, neq, tau0, steps, energyRatio: hist, end, peak, ok: Number.isFinite(end) && end <= 1 && peak <= 2 && end <= 1.5 * Math.min(...hist) }));
+  console.log(JSON.stringify({ name, model, cs, method, hrr, recursive, iface, tauBulk, cgGrad, mirror, neq, tau0, steps, energyRatio: hist, end, peak, ok: Number.isFinite(end) && end <= 1 && peak <= 2 && end <= 1.5 * Math.min(...hist) }));
   await S.close();
 } else {
   const names = args.length ? args : Object.keys(CFG), res = []; let next = 0;
