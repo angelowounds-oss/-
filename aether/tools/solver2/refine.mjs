@@ -34,6 +34,9 @@
 // Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
 // One body (Bouzidi interpolated bounce-back + momentum exchange) on one level. Float64 throughout (method error, not precision, is under test).
+import os from 'node:os';
+import { Worker } from 'node:worker_threads';
+import { collideRange, streamRange } from './refine-kernel.mjs';
 export const LAT = {};
 {
   const mk = (d, C) => {
@@ -52,6 +55,8 @@ const INTERIOR = 0, INACTIVE = 1, GHOST = 2;
 export function createRefined(o) {
   const lat = LAT[o.lattice], { d, Q, C, W, OPP } = lat, model = o.model || 'reg', method = o.method || 'V0', U = o.U || 0, io = !!o.inletOutlet, interpSpace = o.interpSpace || 1, interpTime = o.interpTime || 1, neqGrad = o.neq === 'grad', restrictOrder = o.restrict || 2;
   const cx = C.map(c => c[0]), cy = C.map(c => c[1]), cz = C.map(c => c[2]);
+  // o.threads > 1: the per-cell kernels (refine-kernel.mjs) run on worker threads over shared memory; everything else stays on this thread
+  const T = Math.max(1, Math.min(o.threads || 1, os.cpus().length)), alloc = (Ctor, n) => T > 1 ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n);
   const r = [2, 2, d === 3 ? 2 : 1]; // refinement factor per axis
   const levels = [];
   // ---------- level geometry ----------
@@ -73,7 +78,7 @@ export function createRefined(o) {
   for (const L of levels) {
     L.n = [0, 1, 2].map(a => L.hi[a] - L.lo[a] + 2 * L.g[a]); L.N = L.n[0] * L.n[1] * L.n[2];
     L.tau = .5 + 2 ** L.l * (L0tau - .5); L.vol = 2 ** (-d * L.l); L.h = 2 ** -L.l;
-    L.f = new Float64Array(Q * L.N); L.post = new Float64Array(Q * L.N); L.mask = new Uint8Array(L.N); L.solid = new Uint8Array(L.N);
+    L.f = alloc(Float64Array, Q * L.N); L.post = alloc(Float64Array, Q * L.N); L.mask = alloc(Uint8Array, L.N); L.solid = alloc(Uint8Array, L.N);
     L.child = null; L.parent = null; L.force = [0, 0, 0]; L.forceAcc = [0, 0, 0]; L.forceN = 0;
   }
   for (let i = 1; i < levels.length; i++) { levels[i].parent = levels[i - 1]; levels[i - 1].child = levels[i]; }
@@ -90,14 +95,14 @@ export function createRefined(o) {
   const coord = (L, n) => { const i = n % L.n[0], j = Math.floor(n / L.n[0]) % L.n[1], k = Math.floor(n / (L.n[0] * L.n[1])); return [i + L.lo[0] - L.g[0], j + L.lo[1] - L.g[1], k + L.lo[2] - L.g[2]]; };
   const centre = (L, c) => [(c[0] + .5) * L.h, (c[1] + .5) * L.h, d === 3 ? (c[2] + .5) * L.h : 0];
   for (const L of levels) {
-    L.coord = new Int32Array(3 * L.N);
+    L.coord = alloc(Int32Array, 3 * L.N);
     for (let n = 0; n < L.N; n++) {
       const c = coord(L, n); L.coord.set(c, 3 * n);
       let inside = true; for (let a = 0; a < 3; a++) if (!L.per[a] && (c[a] < L.lo[a] || c[a] >= L.hi[a])) inside = false;
       L.mask[n] = inside ? INTERIOR : GHOST;
       const ch = L.child; if (ch && inside) { let cov = true; for (let a = 0; a < 3; a++) if (c[a] < ch.plo[a] || c[a] >= ch.phi[a]) cov = false; if (cov) L.mask[n] = INACTIVE; }
     }
-    L.src = new Int32Array(Q * L.N).fill(-1);
+    L.src = alloc(Int32Array, Q * L.N).fill(-1);
     for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE) continue; const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 0; q < Q; q++) L.src[q * L.N + n] = idx(L, x - cx[q], y - cy[q], z - cz[q]); }
   }
   // ring cells (interior active cells with an inactive lattice neighbour) and their children; coarse "ghost" cells (inactive cells with an active neighbour)
@@ -186,7 +191,7 @@ export function createRefined(o) {
     B.links = Int32Array.from(links); B.nL = links.length / 4;
     if (o.body.wallModel) {
       const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
-      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = new Float64Array(B.N).fill(B.tau);
+      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau);
       cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.bcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.bcY[i] = Math.max(1e-3, o.body.dist(p) / B.h); });
     }
   }
@@ -222,46 +227,20 @@ export function createRefined(o) {
   const eqT = new Float64Array(Q); feqInto(eqT, 1, U, 0, 0); const eqTc = eqT.slice();
   const PAIRS = []; for (let q = 1; q < Q; q++) if (OPP[q] > q) PAIRS.push(q, OPP[q]);
   const les = (o.cs || 0) ** 2 * 18 * Math.SQRT2, F0 = o.force || null;
-  function collide(L) {
-    const { N, f, post, mask, solid, tau } = L, wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), m = new Float64Array(10), fs = 2 ** -L.l;
-    const Fx = F0 ? F0[0] * fs : 0, Fy = F0 ? F0[1] * fs : 0, Fz = F0 ? F0[2] * fs : 0, te = L.tauEff;
-    for (let n = 0; n < N; n++) {
-      if (mask[n] === GHOST) { for (let q = 0; q < Q; q++) post[q * N + n] = f[q * N + n]; continue; } // ghosts only transport (V0 second sub-step); N* overwrite them
-      if (mask[n] !== INTERIOR || solid[n]) continue;
-      if (model === 'reg' && !F0) { // fast path: Pi_neq = sum c c f - rho (I/3 + u u) (exact for the second-order equilibrium on D2Q9 / D3Q19)
-        let rho = 0, jx = 0, jy = 0, jz = 0, pxx = 0, pyy = 0, pzz = 0, pxy = 0, pxz = 0, pyz = 0;
-        for (let q = 0; q < Q; q++) { const v = f[q * N + n], a = cx[q], b = cy[q], c = cz[q]; rho += v; jx += v * a; jy += v * b; jz += v * c; pxx += v * a * a; pyy += v * b * b; pzz += v * c * c; pxy += v * a * b; pxz += v * a * c; pyz += v * b * c; }
-        const ux = jx / rho, uy = jy / rho, uz = jz / rho, r3 = rho / 3;
-        pxx -= r3 + rho * ux * ux; pyy -= r3 + rho * uy * uy; pzz -= (d === 3 ? r3 : 0) + rho * uz * uz; pxy -= rho * ux * uy; pxz -= rho * ux * uz; pyz -= rho * uy * uz;
-        let t = tau; if (les > 0) { const pn = Math.sqrt(pxx * pxx + pyy * pyy + pzz * pzz + 2 * (pxy * pxy + pxz * pxz + pyz * pyz)); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / rho)); }
-        if (te) te[n] = t;
-        const k = 4.5 * (1 - 1 / t), tr = (pxx + pyy + pzz) / 3, uu = 1.5 * (ux * ux + uy * uy + uz * uz);
-        for (let q = 0; q < Q; q++) { const a = cx[q], b = cy[q], c = cz[q], cu = a * ux + b * uy + c * uz, w = W[q];
-          post[q * N + n] = w * rho * (1 + 3 * cu + 4.5 * cu * cu - uu) + k * w * (a * a * pxx + b * b * pyy + c * c * pzz + 2 * (a * b * pxy + a * c * pxz + b * c * pyz) - tr); }
-      } else if (model === 'reg') {
-        moments(L, f, n, m, 0); let t = tau;
-        if (les > 0) { const pn = Math.sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6] + 2 * (m[7] * m[7] + m[8] * m[8] + m[9] * m[9])); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / m[0])); }
-        if (te) te[n] = t;
-        if (F0) { m[1] += .5 * Fx / m[0]; m[2] += .5 * Fy / m[0]; m[3] += .5 * Fz / m[0]; }
-        fromMoments(L, post, n, m, 0, 1 - 1 / t);
-        if (F0) { guo(post, N, n, m[1], m[2], m[3], Fx, Fy, Fz, 1 - .5 / t);
-          // the regularized projection drops the first-order part of f - f_eq(u), whose momentum is -F/2; keep it (relaxed like the rest), else the
-          // momentum gain per step is F (3/2 - 1/(2 tau)) instead of F
-          const k1 = -1.5 * (1 - 1 / t); for (let q = 0; q < Q; q++) post[q * N + n] += k1 * W[q] * (cx[q] * Fx + cy[q] * Fy + cz[q] * Fz); }
-      } else {
-        let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = f[q * N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
-        if (te) te[n] = tau;
-        if (F0) { jx += .5 * Fx; jy += .5 * Fy; jz += .5 * Fz; }
-        feqInto(fe, rho, jx / rho, jy / rho, jz / rho);
-        if (model === 'bgk') { for (let q = 0; q < Q; q++) post[q * N + n] = f[q * N + n] - wp * (f[q * N + n] - fe[q]); if (F0) guo(post, N, n, jx / rho, jy / rho, jz / rho, Fx, Fy, Fz, 1 - .5 * wp); }
-        else { post[n] = f[n] - wp * (f[n] - fe[0]); for (let p = 0; p < PAIRS.length; p += 2) { const a = PAIRS[p], b = PAIRS[p + 1], fa = f[a * N + n], fb = f[b * N + n], dp = wp * (.5 * (fa + fb) - .5 * (fe[a] + fe[b])), dm = wm * (.5 * (fa - fb) - .5 * (fe[a] - fe[b])); post[a * N + n] = fa - dp - dm; post[b * N + n] = fb - dp + dm; } }
-      }
-      if (L.l === 0 && sig0[L.coord[3 * n]] > 0) { const s = sig0[L.coord[3 * n]]; for (let q = 0; q < Q; q++) post[q * N + n] += s * (eqTc[q] - post[q * N + n]); }
-    }
-  }
+  // per-cell kernels: run constants and level views (the same arrays on every thread)
+  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null }));
+  let ctl = null, workers = [];
+  const dispatch = (phase, L) => {
+    const LV = LVs[L.l];
+    if (T === 1) { if (phase === 0) collideRange(K, LV, 0, L.N); else streamRange(K, LV, 0, L.N); return; }
+    Atomics.store(ctl, 3, 0); Atomics.store(ctl, 1, phase); Atomics.store(ctl, 2, L.l); Atomics.add(ctl, 0, 1); Atomics.notify(ctl, 0);
+    const n1 = Math.floor(L.N / T); if (phase === 0) collideRange(K, LV, 0, n1); else streamRange(K, LV, 0, n1);
+    for (;;) { const c = Atomics.load(ctl, 3); if (c === T - 1) break; Atomics.wait(ctl, 3, c, 50); }
+  };
+  function collide(L) { dispatch(0, L); }
   function stream(L, uin) {
-    const { N, f, post, src } = L;
-    for (let q = 0; q < Q; q++) { const b = q * N; for (let n = 0; n < N; n++) { const s = src[b + n]; if (s >= 0) f[b + n] = post[b + s]; } } // src is -1 for inactive cells
+    const { N, f, post } = L;
+    dispatch(1, L); // pull streaming (src is -1 for inactive cells)
     if (L.l === 0 && io) for (let q = 1; q < Q; q++) { if (!(cx[q] > 0)) continue; const b = q * N, ob = OPP[q] * N, k = 6 * W[q] * cx[q] * uin; for (let n = 0; n < N; n += L.n[0]) f[b + n] = post[ob + n] + k; } // inlet (x = 0): moving-wall bounce-back
     if (L.l === 0 && io) { // outlet: fixed density, non-equilibrium extrapolation from the previous plane
       const nx = L.n[0];
@@ -404,6 +383,9 @@ export function createRefined(o) {
   st.forEachCell = cb => { for (const L of levels) for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR || L.solid[n]) continue; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = L.f[q * L.N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; } cb(centre(L, L.coord.subarray(3 * n, 3 * n + 3)), rho, jx / rho, jy / rho, jz / rho, L.vol, L.l); } };
   st.cells = () => levels.map(L => { let a = 0; for (let n = 0; n < L.N; n++) if (L.mask[n] === INTERIOR) a++; return a; });
   st.taus = () => levels.map(L => L.tau);
+  if (T > 1) { ctl = new Int32Array(new SharedArrayBuffer(16)); const ctlBuf = ctl.buffer; for (let r = 1; r < T; r++) workers.push(new Worker(new URL('./refine-worker.mjs', import.meta.url), { workerData: { K, levels: LVs, ctlBuf, rank: r, T } })); }
+  st.threads = T;
+  st.close = async () => { if (!workers.length) return; Atomics.store(ctl, 1, 9); Atomics.add(ctl, 0, 1); Atomics.notify(ctl, 0); await Promise.all(workers.map(w => w.terminate())); workers = []; };
   st.wall = () => B && B.bc ? { cells: B.bc.length, utauMean: B.utau.reduce((a, b) => a + b, 0) / B.bc.length } : null;
   return st;
 }
