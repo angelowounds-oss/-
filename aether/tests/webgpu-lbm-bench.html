@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AETHER CFD 처리량 측정</title>
+<style>:root{--bg:#0b1016;--fg:#e8f1f6;--mut:#8ba0ae;--ac:#6fd4ff}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,"Apple SD Gothic Neo",sans-serif;word-break:keep-all}
+button{min-height:44px;padding:0 18px;border-radius:12px;border:0;background:var(--ac);color:#04121c;font:700 15px inherit;margin:4px 8px 4px 0}pre{white-space:pre-wrap;background:#070c11;border:1px solid #223;border-radius:10px;padding:10px;font:12px/1.5 ui-monospace,Menlo,monospace}small{color:var(--mut)}</style></head>
+<body><h1 style="font-size:20px">CFD 처리량 측정 (WebGPU)</h1>
+<p><small>AETHER 다음 솔버(격자 볼츠만, D3Q19)의 GPU 계산 속도를 이 기기에서 잽니다. 격자 크기별로 초당 셀 갱신 수(MLUPS)를 측정합니다. 약 30초 걸리며, 화면을 그대로 두세요. 결과는 아래 버튼으로 복사해 보내 주세요.</small></p>
+<button id="go">측정 시작</button><button id="cp" hidden>결과 복사</button><pre id="out">대기 중</pre>
+<script type="module">
+/*__LBM__*/
+const out = document.getElementById('out'), log = t => { out.textContent += '\n' + t; };
+document.getElementById('go').onclick = async () => {
+  out.textContent = '기기: ' + navigator.userAgent + '\n화면: ' + innerWidth + 'x' + innerHeight + ' @' + devicePixelRatio;
+  if (!navigator.gpu) { log('WebGPU를 쓸 수 없습니다 (이 브라우저·기기에서 지원하지 않음).'); return; }
+  const a = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }); if (!a) { log('어댑터 없음'); return; }
+  log('어댑터: ' + [a.info?.vendor, a.info?.architecture, a.info?.description].filter(Boolean).join(' ') + (a.info?.isFallbackAdapter ? ' (소프트웨어 대체)' : ''));
+  const dev = await a.requestDevice({ requiredLimits: { maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, maxBufferSize: a.limits.maxBufferSize } });
+  for (const n of [32, 48, 64, 96, 128]) {
+    const nx = 2 * n, ny = n, nz = n, N = nx * ny * nz; if (4 * 19 * N > a.limits.maxStorageBufferBindingSize) { log(n + ': 버퍼 한도 초과, 건너뜀'); continue; }
+    const f0 = new Float32Array(19 * N), W = [1/3, ...Array(6).fill(1/18), ...Array(12).fill(1/36)]; for (let q = 0; q < 19; q++) f0.fill(W[q], q * N, (q + 1) * N);
+    // a size the device cannot allocate fails silently (dispatches become no-ops and look very fast): catch it with error scopes and a readback
+    dev.pushErrorScope('out-of-memory'); dev.pushErrorScope('validation');
+    const G = await createLbmGpu(dev, { nx, ny, nz, tau: .52, cs: .1, U: .05, sponge: null, solid: new Uint8Array(N), links: new Int32Array(0) });
+    G.upload(f0); G.advance(5); await G.finish();
+    const ve = await dev.popErrorScope(), oe = await dev.popErrorScope();
+    if (ve || oe) { log(`${nx}x${ny}x${nz}: 이 기기에서 메모리를 확보하지 못함, 건너뜀 (${(ve || oe).message.slice(0, 80)})`); continue; }
+    const chk = await G.readF(), mid = Math.floor(N / 2); if (!(Math.abs(chk[mid] - 1 / 3) < .05)) { log(`${nx}x${ny}x${nz}: 계산 결과 이상, 건너뜀`); continue; } // rest population of a mid-domain cell stays near 1/3
+    let steps = 0; const t0 = performance.now(); while (performance.now() - t0 < 2500) { G.advance(10); await G.finish(); steps += 10; }
+    const s = (performance.now() - t0) / 1000; log(`${nx}x${ny}x${nz} (${(N / 1e6).toFixed(2)} M셀): ${(N * steps / s / 1e6).toFixed(0)} MLUPS · ${(1000 * s / steps).toFixed(2)} ms/스텝`);
+  }
+  log('측정 끝. f32 저장, 스텝당 4개 패스(충돌·스트리밍·출구·물체), 정규화 충돌 + Smagorinsky.');
+  const cp = document.getElementById('cp'); cp.hidden = false; cp.onclick = async () => { try { await navigator.clipboard.writeText(out.textContent); cp.textContent = '복사됨'; } catch (e) { cp.textContent = '복사 실패: 글자를 길게 눌러 복사하세요'; } };
+};
+</script></body></html>

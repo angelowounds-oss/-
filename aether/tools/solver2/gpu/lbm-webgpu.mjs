@@ -23,8 +23,9 @@ ${arr('CZ', 'i32', C19.map(c => c[2]))}
 ${arr('W', 'f32', W19)}
 ${arr('OPP', 'u32', OPP19)}
 fn idx3(i: u32, j: u32, k: u32) -> u32 { return i + p.nx * (j + p.ny * k); }
-@compute @workgroup_size(64) fn collide(@builtin(global_invocation_id) g: vec3u) {
-  let n = g.x; if (n >= p.N || solid[n] != 0u) { return; }
+@compute @workgroup_size(64) fn collide(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) nw: vec3u) {
+  let gi = g.x + g.y * nw.x * 64u;
+  let n = gi; if (n >= p.N || solid[n] != 0u) { return; }
   var rho = 0.0; var jx = 0.0; var jy = 0.0; var jz = 0.0; var pxx = 0.0; var pyy = 0.0; var pzz = 0.0; var pxy = 0.0; var pxz = 0.0; var pyz = 0.0;
   var fv: array<f32, 19>;
   for (var q = 0u; q < 19u; q++) { let v = f[q * p.N + n]; fv[q] = v; let a = f32(CX[q]); let b = f32(CY[q]); let c = f32(CZ[q]);
@@ -40,8 +41,9 @@ fn idx3(i: u32, j: u32, k: u32) -> u32 { return i + p.nx * (j + p.ny * k); }
     if (s > 0.0) { let ce = a * p.uin; let et = W[q] * (1.0 + 3.0 * ce + 4.5 * ce * ce - 1.5 * p.uin * p.uin); v += s * (et - v); }
     post[q * p.N + n] = v; }
 }
-@compute @workgroup_size(64) fn stream(@builtin(global_invocation_id) g: vec3u) {
-  let n = g.x; if (n >= p.N) { return; }
+@compute @workgroup_size(64) fn stream(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) nw: vec3u) {
+  let gi = g.x + g.y * nw.x * 64u;
+  let n = gi; if (n >= p.N) { return; }
   let i = i32(n % p.nx); let j = i32((n / p.nx) % p.ny); let k = i32(n / (p.nx * p.ny));
   let nx = i32(p.nx); let ny = i32(p.ny); let nz = i32(p.nz);
   for (var q = 0u; q < 19u; q++) {
@@ -50,8 +52,9 @@ fn idx3(i: u32, j: u32, k: u32) -> u32 { return i + p.nx * (j + p.ny * k); }
     else if (si < nx) { f[q * p.N + n] = post[q * p.N + idx3(u32(si), u32(sj), u32(sk))]; }
   }
 }
-@compute @workgroup_size(64) fn outlet(@builtin(global_invocation_id) g: vec3u) {
-  let m = g.x; if (m >= p.ny * p.nz) { return; }
+@compute @workgroup_size(64) fn outlet(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) nw: vec3u) {
+  let gi = g.x + g.y * nw.x * 64u;
+  let m = gi; if (m >= p.ny * p.nz) { return; }
   let j = m % p.ny; let k = m / p.ny; let n = idx3(p.nx - 1u, j, k); let pn = idx3(p.nx - 2u, j, k);
   if (solid[n] != 0u || solid[pn] != 0u) { return; }
   var rho = 0.0; var jx = 0.0; var jy = 0.0; var jz = 0.0;
@@ -61,8 +64,9 @@ fn idx3(i: u32, j: u32, k: u32) -> u32 { return i + p.nx * (j + p.ny * k); }
     let cu = f32(CX[q]) * ux + f32(CY[q]) * uy + f32(CZ[q]) * uz; let e = cu * (3.0 + 4.5 * cu) - uu;
     f[q * p.N + n] = W[q] * (1.0 + e) + (f[q * p.N + pn] - W[q] * rho * (1.0 + e)); }
 }
-@compute @workgroup_size(64) fn body(@builtin(global_invocation_id) g: vec3u) {
-  let l = g.x; if (l >= p.nLinks) { return; }
+@compute @workgroup_size(64) fn body(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) nw: vec3u) {
+  let gi = g.x + g.y * nw.x * 64u;
+  let l = gi; if (l >= p.nLinks) { return; }
   let n = u32(links[4u * l]); let q = u32(links[4u * l + 1u]); let n2 = links[4u * l + 2u]; let qq = f32(links[4u * l + 3u]) * 1e-6; let oq = OPP[q];
   let pq = post[q * p.N + n]; var v = pq;
   if (qq < 0.5 && n2 >= 0) { v = 2.0 * qq * pq + (1.0 - 2.0 * qq) * post[q * p.N + u32(n2)]; }
@@ -86,13 +90,15 @@ export async function createLbmGpu(device, o) {
   const layout = device.createBindGroupLayout({ entries: [0, 1, 2, 3, 4, 5, 6].map(b => ({ binding: b, visibility: GPUShaderStage.COMPUTE, buffer: { type: b === 0 ? 'uniform' : [3, 4, 5].includes(b) ? 'read-only-storage' : 'storage' } })) });
   const bg = device.createBindGroup({ layout, entries: [uB, fB, pB, solidB, spB, lkB, lfB].map((b, i) => ({ binding: i, resource: { buffer: b } })) });
   const pl = device.createPipelineLayout({ bindGroupLayouts: [layout] }), pipe = e => device.createComputePipeline({ layout: pl, compute: { module: mod, entryPoint: e } });
-  const P = { collide: pipe('collide'), stream: pipe('stream'), outlet: pipe('outlet'), body: pipe('body') }, wg = n => Math.ceil(n / 64);
+  const P = { collide: pipe('collide'), stream: pipe('stream'), outlet: pipe('outlet'), body: pipe('body') };
+  // 2D dispatch: at most 65535 workgroups per dimension, the kernels rebuild the linear index from (x, y)
+  const dispatch = (c, n) => { const w = Math.ceil(n / 64), x = Math.min(w, 65535); c.dispatchWorkgroups(x, Math.ceil(w / x)); };
   const st = { N, nL, step: 0 };
   st.upload = f64 => { const a = Float32Array.from(f64); device.queue.writeBuffer(fB, 0, a); device.queue.writeBuffer(pB, 0, a); }; // post too: solid cells never collide
   st.advance = n => { const e = device.createCommandEncoder();
     for (let s = 0; s < n; s++) { const c = e.beginComputePass(); c.setBindGroup(0, bg);
-      c.setPipeline(P.collide); c.dispatchWorkgroups(wg(N)); c.setPipeline(P.stream); c.dispatchWorkgroups(wg(N));
-      c.setPipeline(P.outlet); c.dispatchWorkgroups(wg(ny * nz)); if (nL) { c.setPipeline(P.body); c.dispatchWorkgroups(wg(nL)); } c.end(); }
+      c.setPipeline(P.collide); dispatch(c, N); c.setPipeline(P.stream); dispatch(c, N);
+      c.setPipeline(P.outlet); dispatch(c, ny * nz); if (nL) { c.setPipeline(P.body); dispatch(c, nL); } c.end(); }
     device.queue.submit([e.finish()]); st.step += n; };
   const read = async (src, bytes) => { const r = device.createBuffer({ size: bytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }), e = device.createCommandEncoder(); e.copyBufferToBuffer(src, 0, r, 0, bytes); device.queue.submit([e.finish()]); await r.mapAsync(GPUMapMode.READ); const out = new Float32Array(r.getMappedRange().slice(0)); r.unmap(); r.destroy(); return out; };
   st.readF = () => read(fB, 4 * 19 * N);
