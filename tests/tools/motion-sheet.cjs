@@ -25,7 +25,7 @@ const fs = require('fs');
       const dir = c.dir || 0, vx = Math.sin(dir) * c.speed, vz = Math.cos(dir) * c.speed;
       for (let i = 0; i < 90 + cols * 6; i++) {
         pl.x += vx * dt; pl.z += vz * dt; pl.vx = vx; pl.vz = vz; pl.speed = c.speed; pl.ry = 0; if (c.aim) pl.aimT = 1;
-        pl.animateSkinned(dt);
+        pl.constructor.camX = pl.x; pl.constructor.camZ = pl.z; pl.animateSkinned(dt);   // distance LOD measured from the body itself
         if (i >= 90 && (i - 90) % 6 === 0) {
           const k = (i - 90) / 6, y = pl.y + 0.9;
           cam.position.set(pl.x + 3.4, y + 0.3, pl.z + 4.2); cam.lookAt(pl.x, y, pl.z); g.scene.updateMatrixWorld(true); R.render(g.scene, cam);

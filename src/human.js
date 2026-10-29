@@ -65,6 +65,49 @@ function syncGait(h) {
   return warp;
 }
 
+// CHR-06b (ADR-0035): turning in place. Standing, the legs keep their own heading (legYaw) while the body (ry) turns: the hips stay over
+// the feet and the spine takes the twist. Past TURN_AT the legs step round with a turn clip (one that really turns that way, of the size
+// nearest the twist it is heading for; measured in assets.js measureTurns), its turn spread over what is left so it ends square under the
+// body. A twist below that relaxes slowly once the body holds still; on the move the legs come square at once and the gait warp steers them.
+const TURNS = ['U_Turn_Left_90', 'U_Turn_Right_90', 'U_Turn_Left_180', 'U_Turn_Right_180'];
+const TURN_AT = 0.87, TURN_MAX = 2, TURN_RATE = 1.8;
+const yawAt = (t, arr, time) => { const u = clamp(time / t.dur, 0, 1) * (arr.length - 1), i = Math.min(arr.length - 2, u | 0); return arr[i] + (arr[i + 1] - arr[i]) * (u - i); };
+function stepTurn(h, dt, still, wt) {
+  const T = h.m.turn;
+  if (h.legYaw === undefined) h.legYaw = h.ry;
+  const dry = wrapA(h.ry - (h.ryPrev ?? h.ry)); h.ryPrev = h.ry;
+  h.ryStill = Math.abs(dry) < 0.2 * dt ? (h.ryStill || 0) + dt : 0;
+  let off = wrapA(h.legYaw - h.ry);
+  if (!still) { h.turnClip = null; off *= Math.exp(-12 * dt); }
+  else if (h.turnClip) {
+    // the clip's own turn this frame, scaled so what is left of it covers what is left of the twist
+    const t = T[h.turnClip], y0 = yawAt(t, t.yaw, h.turnT); h.turnT = Math.min(t.t1, h.turnT + dt * TURN_RATE);
+    const rest = yawAt(t, t.yaw, t.t1) - y0, s = Math.abs(rest) > 0.05 ? clamp(-off / rest, 0.5, 1.6) : 1;
+    off += s * (yawAt(t, t.yaw, h.turnT) - y0);
+    if (h.turnT >= t.t1) h.turnClip = null;
+  } else if (Math.abs(off) > TURN_AT) {
+    // sized for where the twist is heading (the body's turn rate 0.12 s on), so a quick about-face steps the 180
+    const want = dt > 0 ? off - (dry / dt) * 0.12 : off;
+    let best = null, bs = 1e9;
+    for (const n of TURNS) { const t = T[n]; if (!t || t.end * off >= 0) continue; const s = Math.abs(Math.log(Math.abs(want / t.end))); if (s < bs) { bs = s; best = n; } }
+    if (best) { h.turnClip = h.turnLast = best; h.turnT = T[best].t0; }
+  } else if (h.ryStill > 1) off *= Math.exp(-dt);
+  off = clamp(off, -TURN_MAX, TURN_MAX);   // past that the body drags the legs round
+  h.legYaw = h.ry + off; h.legOff = off;
+  if (h.turnClip) { wt[h.turnClip] = wt.Idle; wt.Idle = 0; }
+}
+// after the weights eased: holds the turn clips on their set time and keeps how far they turn the pelvis and the chest by the weight they play at
+function syncTurn(h) {
+  const T = h.m.turn, a = h.m.act; let p = 0, c = 0;
+  for (const n of TURNS) {
+    const ac = a[n], t = T[n]; if (!ac || !t) continue;
+    ac.timeScale = 0; if (n === h.turnLast) ac.time = h.turnT;
+    // the mixer blends a turned pose with the others the short way round, so a 180 held past half a turn blends from the other side
+    if (ac.weight > 0.001) { const y = yawAt(t, t.yaw, ac.time), w = wrapA(y); p += ac.weight * w; c += ac.weight * (w + yawAt(t, t.chest, ac.time) - y); }
+  }
+  h.turnYaw = p; h.turnChest = c;
+}
+
 export class Human {
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
@@ -300,12 +343,21 @@ export class Human {
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = ladC ? 1 : clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
+    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Turn_Left_90: 0, U_Turn_Right_90: 0, U_Turn_Left_180: 0, U_Turn_Right_180: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     else stepGait(this, dt, sp, 1 - idle, wt);
+    stepTurn(this, dt, !set && sp < 0.15 && !m.rideOn && !this.dead, wt);
+    // CHR-06b: the push on the ground that curves or changes the pace, in the body's frame (smoothed: the player's velocity comes from physics steps)
+    if (dt > 0) {
+      const ax = (this.vx - (this._pvx ?? this.vx)) / dt, az = (this.vz - (this._pvz ?? this.vz)) / dt, s = Math.sin(this.ry), c = Math.cos(this.ry);
+      this.accF = damp(this.accF || 0, ax * s + az * c, 6, dt); this.accL = damp(this.accL || 0, ax * c - az * s, 6, dt);
+    }
+    this._pvx = this.vx; this._pvz = this.vz;
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
     if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : set[1] === 'U_Crouch_Fwd' ? clamp(sp / 0.66, 0.6, 3) : clamp(sp / 1.6, 0.6, 1.8);
-    const hipTurn = (this.hipTurn = syncGait(this));
+    // pelvis to where the steps go (gait warp) or where the feet stand (turn in place), net of what a turn clip turns it itself; chest to ry
+    syncTurn(this);
+    const hipTurn = (this.hipTurn = syncGait(this) + this.legOff - this.turnYaw), backTurn = hipTurn + this.turnChest;
     const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
     this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
     // distance LOD: fog hides far actors anyway, so skip their skinning and animation
@@ -359,8 +411,9 @@ export class Human {
     if (!this.gestUB && !(this.reactT > 0)) this.gestName = null;
     if (m.setProp) m.setProp((this.gestUB || this.reactT > 0) && !this.dead ? PROPS[this.gestName] || null : null);
     if (m.setMelee) m.setMelee(this.melee && this.cur === 9 ? this.melee.name : null);
+    if (m.unturnHips) m.unturnHips();
     m.mixer.update(dt);
-    if (Math.abs(hipTurn) > 0.01 && m.turnHips) m.turnHips(hipTurn);
+    if ((Math.abs(hipTurn) > 0.01 || Math.abs(backTurn) > 0.01) && m.turnHips) m.turnHips(hipTurn, backTurn);
     m.applyPose(pistolish || riflish ? 0 : this.pose, this.aimPitch || 0);
     if (this.proc) updateProc(this, dt);
     if (riflish) {
@@ -372,7 +425,13 @@ export class Human {
     m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone && !this.crawling ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
     const freefall = !!this.body3 && !this.body3.grounded && !this.swimming && !this.hang && (this.vy || 0) < -9;
-    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone && !this.crawling ? 1.35 : this.lying ? -1.5 : freefall ? 0.45 : (this.punchT > 0 ? 0.35 : 0), freefall ? 3 : 14, dt);
+    // CHR-06b: lean as far as that push tips a body (atan(a/g)), pivoting at the feet: into a curve from a walk up (12 deg at most), and
+    // forward or back with a change of pace by about a third of it (7 deg at most), less from a standstill
+    const lean = !this.stanceSet && !m.rideOn && !this.dead && !this.prone && !this.lying && !this.swimming ? 1 : 0;
+    const leanZ = -lean * clamp(Math.atan(this.accL / 9.81) * clamp((sp - 1) / 3, 0, 1), -0.21, 0.21);
+    const leanX = lean * clamp(Math.atan(this.accF / 9.81) * 0.35, -0.12, 0.12) * clamp(0.3 + sp / 3, 0.3, 1);
+    m.body.rotation.z = damp(m.body.rotation.z, leanZ, 10, dt);
+    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone && !this.crawling ? 1.35 : this.lying ? -1.5 : freefall ? 0.45 : (this.punchT > 0 ? 0.35 : 0) + leanX, freefall ? 3 : 14, dt);
     // freefall: arms and legs flail against the wind
     if (freefall && m.bones) { const t = performance.now() * 0.001, B = m.bones, a = 0.55 + clamp((-this.vy - 9) / 20, 0, 1) * 0.5;
       const sw = (b, x, y, z) => { if (b) { _fq.setFromEuler(_fe.set(x, y, z)); b.quaternion.multiply(_fq); } };

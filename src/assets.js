@@ -178,6 +178,38 @@ function measureGait(S, scale) {
   mixer.uncacheRoot(scene);
   return out;
 }
+// CHR-06b (ADR-0035): the turn-in-place clips, measured the same way: how far the pelvis (across the thighs) and the chest (across the
+// shoulders) are turned at 48 steps of the clip (radians, + to the body's left) from where they stand in Idle (which stands a little
+// bladed, the pelvis 13 deg and the chest 18 deg to the right, while the turns start square), how far the clip turns in all (end), and when
+// the turn starts (t0: 4 % of the way) and is done (t1: 96 %), so the game can play just the turn, pick the clip by the way it really
+// turns and scale it to fit
+const TURNS = ['U_Turn_Left_90', 'U_Turn_Right_90', 'U_Turn_Left_180', 'U_Turn_Right_180'];
+function measureTurns(S) {
+  const scene = S.scene, by = new Map(S.animations.map((c) => [c.name, c])), mixer = new THREE.AnimationMixer(scene), out = {};
+  const pts = ['LeftUpLeg', 'RightUpLeg', 'LeftArm', 'RightArm'].map((n) => scene.getObjectByName(n));
+  if (pts.some((b) => !b) || !by.get('Idle')) return out;
+  scene.updateWorldMatrix(true, false);
+  const inv = scene.matrixWorld.clone().invert(), l = new THREE.Vector3(), r = new THREE.Vector3(), N = 48;
+  const yawOf = (lb, rb) => { l.setFromMatrixPosition(lb.matrixWorld).applyMatrix4(inv); r.setFromMatrixPosition(rb.matrixWorld).applyMatrix4(inv); return Math.atan2(l.x - r.x, l.z - r.z) - Math.PI / 2; };
+  const pose = (c, t) => { const a = mixer.clipAction(c); a.play(); a.time = t; mixer.update(0); for (const b of pts) b.updateWorldMatrix(true, false); return [yawOf(pts[0], pts[1]), yawOf(pts[2], pts[3]), a]; };
+  const idle = pose(by.get('Idle'), 0); idle[2].stop(); mixer.uncacheAction(idle[2].getClip());
+  const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+  for (const name of TURNS) {
+    const c = by.get(name); if (!c) continue;
+    const dur = c.duration, yaw = new Float32Array(N + 1), chest = new Float32Array(N + 1); let a = null;
+    for (let i = 0; i <= N; i++) {
+      const p = pose(c, (i / N) * dur * 0.9999); a = p[2];
+      // unwrapped, from the Idle stance
+      yaw[i] = i ? yaw[i - 1] + wrap(p[0] - idle[0] - yaw[i - 1]) : wrap(p[0] - idle[0]);
+      chest[i] = i ? chest[i - 1] + wrap(p[1] - idle[1] - chest[i - 1]) : wrap(p[1] - idle[1]);
+    }
+    a.stop(); mixer.uncacheAction(c);
+    const end = yaw[N] - yaw[0], at = (f) => { for (let i = 0; i <= N; i++) if (Math.abs(yaw[i] - yaw[0]) >= Math.abs(end) * f) return (i / N) * dur; return dur; };
+    out[name] = { dur, yaw, chest, t0: at(0.04), t1: at(0.96), end };
+  }
+  mixer.uncacheRoot(scene);
+  return out;
+}
 
 export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, ok: false };
 
@@ -205,7 +237,8 @@ export async function loadAssets() {
     const box = new THREE.Box3().setFromObject(A.soldier.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     if (A.player) { const pb = new THREE.Box3().setFromObject(A.player.scene); A.playerScale = 1.82 / (pb.max.y - pb.min.y); }
-    A.soldier.gait = measureGait(A.soldier, A.soldierScale); if (A.player) A.player.gait = measureGait(A.player, A.playerScale);   // after the boxes: it poses the templates
+    // after the boxes: these pose the templates
+    for (const [S, s] of [[A.soldier, A.soldierScale], [A.player, A.playerScale]]) if (S) { S.gait = measureGait(S, s); S.turn = measureTurns(S); }
     A.ok = true;
   } catch (e) { console.warn('asset load failed, procedural fallback', e); }
   return A.ok;
@@ -284,6 +317,7 @@ export function buildSoldier(look = {}, gunParts) {
     return g;
   };
   const stub = () => new THREE.Object3D();
+  const hipChain = [bones.Hips, bones.Spine, bones.Spine1, bones.Spine2], turned = hipChain.map(() => new THREE.Quaternion());
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
@@ -340,13 +374,17 @@ export function buildSoldier(look = {}, gunParts) {
       twoBoneIK(bones.RightArm, bones.RightForeArm, bones.RightHand, W(grip), poleR);
       twoBoneIK(bones.LeftArm, bones.LeftForeArm, bones.LeftHand, W(fore), poleL);
     },
-    // CHR-06a (ADR-0035): orientation warp. Turns the hips (so both legs) by `ang` about the vertical and the spine back by as much over
-    // its three bones, so the legs step the way the body goes while the chest and arms keep facing ahead
-    turnHips(ang) {
+    // CHR-06a/b (ADR-0035): orientation warp. Turns the hips (so both legs) by `ang` about the vertical and the spine back by `back` over
+    // its three bones, so the legs step the way the body goes (or stay planted while it turns) while the chest and arms face where it looks
+    turnHips(ang, back = ang) {
+      for (let i = 0; i < 4; i++) turned[i].copy(hipChain[i].quaternion); this.hipsTurned = true;
       const r = (b, a) => { b.parent.updateWorldMatrix(true, false); b.parent.getWorldQuaternion(pq).invert(); la.copy(Y).applyQuaternion(pq).normalize(); qa.setFromAxisAngle(la, a); b.quaternion.premultiply(qa); };
-      r(bones.Hips, ang); r(bones.Spine, -ang * 0.4); r(bones.Spine1, -ang * 0.3); r(bones.Spine2, -ang * 0.3);
+      r(bones.Hips, ang); r(bones.Spine, -back * 0.4); r(bones.Spine1, -back * 0.3); r(bones.Spine2, -back * 0.3);
     },
-    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0, gait: S.gait || {},
+    // before the mixer runs: the mixer writes a bone only when its blended value changed since its last frame, so under a held clip last
+    // frame's turn would stay and this frame's would add to it; put back the pose the clips gave
+    unturnHips() { if (!this.hipsTurned) return; for (let i = 0; i < 4; i++) hipChain[i].quaternion.copy(turned[i]); this.hipsTurned = false; },
+    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0, gait: S.gait || {}, turn: S.turn || {},
     // called after mixer update each frame
     applyPose(pose, pitch) {
       if (this.sit > 0.01 && !this.sitClip) {

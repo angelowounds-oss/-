@@ -8,11 +8,18 @@ run('ragdoll-getup', { q: 1 }, async ({ page }) => {
   const res = await page.evaluate(() => {
     const g = window.__game, pl = g.player, H = g.humans[0].constructor; g.eng.render = () => {};
     const step = (n) => { for (let i = 0; i < n; i++) window.__upd(1 / 60); };
-    // bones the mixer does not write: nudge each one, run the mixer, see whether it came back
-    const unwritten = (m) => Object.keys(m.bones).filter((n) => {
-      const b = m.bones[n], q0 = b.quaternion.clone(); b.quaternion.set(0.5, 0.5, 0.5, 0.5); m.mixer.update(1e-6);
-      const kept = Math.abs(b.quaternion.x - 0.5) < 1e-6 && Math.abs(b.quaternion.w - 0.5) < 1e-6; b.quaternion.copy(q0); return kept;
-    });
+    // bones the mixer does not write: nudge them all, run the mixer once, see which came back. The mixer only writes a value that changed
+    // since it last ran, and the leg and turn clips play on a set time (CHR-06a/b: timeScale 0), so every clip is first moved on by a step
+    // no probe has used yet
+    let probe = 0;
+    const unwritten = (m) => {
+      const names = Object.keys(m.bones), q0 = names.map((n) => m.bones[n].quaternion.clone()), e = 1e-4 * ++probe;
+      for (const n of names) m.bones[n].quaternion.set(0.5, 0.5, 0.5, 0.5);
+      for (const k in m.act) m.act[k].time += e; m.mixer.update(1e-6); for (const k in m.act) m.act[k].time -= e;
+      const kept = names.filter((n) => { const q = m.bones[n].quaternion; return Math.abs(q.x - 0.5) < 1e-6 && Math.abs(q.w - 0.5) < 1e-6; });
+      names.forEach((n, i) => m.bones[n].quaternion.copy(q0[i]));
+      return kept;
+    };
     const deg = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b)))) * 57.2958;
     const test = (h, knock) => {
       step(60);

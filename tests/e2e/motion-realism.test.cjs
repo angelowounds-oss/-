@@ -4,6 +4,12 @@
 //     and toe and is planted when that point is the lower of both feet and within 3 cm of its usual lowest (10th percentile), as in
 //     assets.js measureGait. The clip carrying the most weight must be one that moves the body that way (its measured direction within 63 deg;
 //     the file's strafe clips are named for the viewer's side, so they are told apart by what they do, not by name), and a sprint plays Sprint.
+// (b) turning in place: standing, the body turns 90 deg left, 90 deg right or 180 deg within 0.2 s; a turn clip that turns that way must
+//     carry the legs round (weight over 0.5), the pelvis must end within 10 deg of the new facing, the chest (across the shoulders) must keep
+//     within 15 deg of it meanwhile, and the planted foot must stay put (median below 0.25 m/s). The total it slides is only reported:
+//     Idle stands with its feet apart front to back and the turns start square, so blending in and out still drags both feet (CHR-06c).
+//     Leaning: running at 5.2 m/s on a left curve (1.2 rad/s) leans the body left (between 3 and 12 deg); speeding up from a standstill
+//     leans it forward, stopping leans it back.
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
@@ -11,7 +17,9 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const g = window.__game, pl = g.player, m = pl.m, THREE = window.__THREE, B = m.bones; g.eng.render = () => {};
     pl.dead = false; pl.reactT = 0; pl.stance = 0; pl.crouch = 0; pl.crouching = false; pl.prone = false; pl.swimming = false; pl.gestUB = null; pl.proc = null;
     const body3 = pl.body3; pl.body3 = null;   // on the ground wherever the stepping takes it (the physics body is frozen with the loop)
-    const pts = [B.LeftFoot, B.LeftToeBase, B.RightFoot, B.RightToeBase], v3 = new THREE.Vector3(), dt = 1 / 60;
+    const pts = [B.LeftFoot, B.LeftToeBase, B.RightFoot, B.RightToeBase], v3 = new THREE.Vector3(), dt = 1 / 60, H = pl.constructor;
+    // one animation step, the distance LOD's camera kept on the body (the cases walk it far from where the frozen camera stands)
+    const anim = () => { H.camX = pl.x; H.camZ = pl.z; pl.animateSkinned(dt); };
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     // moves the body for `frames` frames at `speed` towards `dir` (radians from its facing; + is its left), returns the planted foot's median
     // ground speed and the leg clips that carried the most weight
@@ -20,18 +28,56 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const vx = Math.sin(dir) * speed, vz = Math.cos(dir) * speed, P = [];
       for (let i = 0; i < frames + 90; i++) {
         pl.x += vx * dt; pl.z += vz * dt; pl.vx = vx; pl.vz = vz; pl.speed = speed; pl.ry = 0; if (aim) pl.aimT = 1;
-        pl.animateSkinned(dt); pl.group.updateMatrixWorld(true);
+        anim(); pl.group.updateMatrixWorld(true);
         if (i >= 90) P.push(pts.map((b) => b.getWorldPosition(v3).toArray()));
       }
+      const { slip, share } = slipOf(P);
+      const legs = Object.entries(m.act).filter(([k, a]) => !/^UB_/.test(k) && a.weight > 0.15).sort((p, q) => q[1].weight - p[1].weight);
+      const top = legs[0] ? legs[0][0] : '', gd = m.gait[top];
+      return { slip, plantedShare: share, clips: legs.slice(0, 3).map(([k, a]) => `${k}:${a.weight.toFixed(2)}`),
+        top, dirOk: !!gd && Math.abs(wrap(gd.dir - dir)) < 1.1, hipTurn: +(pl.hipTurn ?? 0).toFixed(2) };
+    };
+    // planted foot's median ground speed over a run of foot samples
+    const slipOf = (P) => {
       const lowOf = (p, f) => (p[2 * f][1] < p[2 * f + 1][1] ? 2 * f : 2 * f + 1), h = (p, f) => p[lowOf(p, f)][1];
       const lo = [0, 1].map((f) => { const s = P.map((p) => h(p, f)).sort((p, q) => p - q); return s[(s.length * 0.1) | 0]; });
       const planted = (i, f) => h(P[i], f) <= h(P[i], 1 - f) + 0.005 && h(P[i], f) < lo[f] + 0.03, v = [];
       for (let i = 0; i + 1 < P.length; i++) for (let f = 0; f < 2; f++) if (planted(i, f) && planted(i + 1, f)) { const b = lowOf(P[i], f); v.push(Math.hypot(P[i + 1][b][0] - P[i][b][0], P[i + 1][b][2] - P[i][b][2]) / dt); }
-      v.sort((p, q) => p - q);
-      const legs = Object.entries(m.act).filter(([k, a]) => !/^UB_/.test(k) && a.weight > 0.15).sort((p, q) => q[1].weight - p[1].weight);
-      const top = legs[0] ? legs[0][0] : '', gd = m.gait[top];
-      return { slip: +(v[v.length >> 1] ?? 99).toFixed(2), plantedShare: +(v.length / P.length).toFixed(2), clips: legs.slice(0, 3).map(([k, a]) => `${k}:${a.weight.toFixed(2)}`),
-        top, dirOk: !!gd && Math.abs(wrap(gd.dir - dir)) < 1.1, hipTurn: +(pl.hipTurn ?? 0).toFixed(2) };
+      const slide = v.reduce((a, x) => a + x * dt, 0); v.sort((p, q) => p - q);
+      return { slip: +(v[v.length >> 1] ?? 99).toFixed(2), share: +(v.length / P.length).toFixed(2), slide: +slide.toFixed(2) };
+    };
+    // yaw of the line across two bones (thighs: pelvis, shoulders: chest), 0 when it faces +z like the body at ry 0
+    const yawOf = (l, r) => { const L = l.getWorldPosition(new THREE.Vector3()), R = r.getWorldPosition(new THREE.Vector3()); return Math.atan2(L.x - R.x, L.z - R.z) - Math.PI / 2; };
+    const deg = (a) => +(Math.abs(a) * 57.3).toFixed(1);
+    const turn = (to) => {
+      pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.vx = pl.vz = 0; pl.speed = 0;
+      for (let i = 0; i < 90; i++) { pl.ry = 0; anim(); }
+      pl.group.updateMatrixWorld(true);
+      const p0 = yawOf(B.LeftUpLeg, B.RightUpLeg), c0 = yawOf(B.LeftArm, B.RightArm), P = [];
+      let maxW = 0, clip = '', chest = 0;
+      for (let i = 0; i < 180; i++) {
+        pl.ry = to * Math.min(1, i / 12); anim(); pl.group.updateMatrixWorld(true);
+        for (const n in m.turn) { const a = m.act[n]; if (a && a.weight > maxW) { maxW = a.weight; clip = n; } }
+        if (i >= 12) chest = Math.max(chest, Math.abs(wrap(yawOf(B.LeftArm, B.RightArm) - c0 - pl.ry)));
+        P.push(pts.map((b) => b.getWorldPosition(v3).toArray()));
+      }
+      const t = m.turn[clip];
+      return { clip, weight: +maxW.toFixed(2), way: !!t && t.end * to > 0, pelvisErr: deg(wrap(yawOf(B.LeftUpLeg, B.RightUpLeg) - p0 - to)), chestErr: deg(chest), slip: slipOf(P).slip, slideM: slipOf(P).slide };
+    };
+    const lean = () => {
+      let hd = 0, vz = 0, fwd = 0, back = 0;
+      for (let i = 0; i < 150; i++) {   // a 5.2 m/s run curving left
+        hd += 1.2 * dt; const vx = Math.sin(hd) * 5.2, vzz = Math.cos(hd) * 5.2;
+        pl.x += vx * dt; pl.z += vzz * dt; pl.vx = vx; pl.vz = vzz; pl.speed = 5.2; pl.ry = hd; anim();
+      }
+      const side = m.body.rotation.z;
+      pl.vx = pl.vz = 0; pl.speed = 0; for (let i = 0; i < 90; i++) { pl.ry = 0; anim(); }
+      for (let i = 0; i < 240; i++) {   // from a standstill to 5.2 m/s and back, eased as the NPCs' velocity is (rate 9)
+        vz += ((i < 120 ? 5.2 : 0) - vz) * (1 - Math.exp(-9 * dt));
+        pl.z += vz * dt; pl.vx = 0; pl.vz = vz; pl.speed = vz; pl.ry = 0; anim();
+        if (i < 120) fwd = Math.max(fwd, m.body.rotation.x); else back = Math.min(back, m.body.rotation.x);
+      }
+      return { sideDeg: +(side * 57.3).toFixed(1), startDeg: +(fwd * 57.3).toFixed(1), stopDeg: +(back * 57.3).toFixed(1) };
     };
     const cases = {
       walk: { speed: 1.4 }, aimFwd: { speed: 2.6, aim: true }, aimRight: { speed: 2.6, dir: -Math.PI / 2, aim: true }, aimLeft: { speed: 2.6, dir: Math.PI / 2, aim: true },
@@ -39,11 +85,16 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       run: { speed: 5.2 }, sprint: { speed: 8.4 },
     };
     const out = {}; for (const k in cases) out[k] = drive(cases[k]);
+    const turns = { left90: turn(Math.PI / 2), right90: turn(-Math.PI / 2), back180: turn(Math.PI * 0.98) };
+    const leanOut = lean();
     pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.speed = 0; pl.vx = pl.vz = 0; pl.body3 = body3;
-    out.gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
-    return out;
+    const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
+    const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
+    return { move: out, turns, lean: leanOut, gait, turnClips };
   });
   const limit = { aimRight: 0.9, aimLeft: 0.9 };
-  const bad = Object.keys(o).filter((k) => k !== 'gait' && (!(o[k].slip < (limit[k] || 0.25)) || !o[k].dirOk || (k === 'sprint' && o[k].top !== 'U_Sprint')));
+  const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < (limit[k] || 0.25)) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
+  for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25)) bad.push(k); }
+  const L = o.lean; if (!(L.sideDeg <= -3 && L.sideDeg >= -12.1 && L.startDeg >= 1.5 && L.startDeg <= 7 && L.stopDeg <= -1)) bad.push('lean');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });
