@@ -121,8 +121,15 @@ export function createRefined(o) {
       for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE || L.coord[3 * n + a] !== edge) continue; const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]];
         for (let q = 1; q < Q; q++) { if (C[q][a] !== dir) continue; // arrives from outside the face
           if (!slip) { fl.push(n, q, n, OPP[q]); fk.push(6 * W[q] * (C[q][0] * u[0] + C[q][1] * u[1] + C[q][2] * u[2])); }
-          else { const s2 = idx(L, c[0] - (a === 0 ? 0 : C[q][0]), c[1] - (a === 1 ? 0 : C[q][1]), c[2] - (a === 2 ? 0 : C[q][2])); if (s2 >= 0 && L.mask[s2] !== INACTIVE) { fl.push(n, q, s2, mirror(q, a)); fk.push(0); } } } } }
+          // slip: the mirror source may be a coarse cell inside a refined box; its post is the restricted state (N methods), like for streaming
+          else { const s2 = idx(L, c[0] - (a === 0 ? 0 : C[q][0]), c[1] - (a === 1 ? 0 : C[q][1]), c[2] - (a === 2 ? 0 : C[q][2])); if (s2 >= 0) { fl.push(n, q, s2, mirror(q, a)); fk.push(0); } } } } }
     L.faceLinks = Int32Array.from(fl); L.faceK = Float64Array.from(fk);
+    // the same reflections arriving at inactive cells (only for the refluxing balance: the coarse grid loses those populations into the box)
+    const fo = [];
+    for (const [a, side] of [[1, 0], [1, 1], [2, 0], [2, 1]]) { const spec = faceSpec(a, side); if (spec !== 'slip') continue; const edge = side ? L.ext[a] - 1 : 0, dir = side ? -1 : 1;
+      for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INACTIVE || L.coord[3 * n + a] !== edge) continue; const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]];
+        for (let q = 1; q < Q; q++) { if (C[q][a] !== dir) continue; const s2 = idx(L, c[0] - (a === 0 ? 0 : C[q][0]), c[1] - (a === 1 ? 0 : C[q][1]), c[2] - (a === 2 ? 0 : C[q][2])); if (s2 >= 0 && L.mask[s2] === INTERIOR) fo.push(n, q, s2, mirror(q, a)); } } }
+    L.faceOut = Int32Array.from(fo);
   }
   // ring cells (interior active cells with an inactive lattice neighbour) and their children; coarse "ghost" cells (inactive cells with an active neighbour)
   for (const L of levels) {
@@ -155,14 +162,21 @@ export function createRefined(o) {
     const co = []; ring.forEach((n, i) => { for (let q = 1; q < Q; q++) { const s = L.src[q * L.N + n]; if (s >= 0 && (L.mask[s] === INACTIVE || L.isRing[s])) co.push(i, q); } });
     L.coal = Int32Array.from(co);
     if (method === 'N1C') {
-      // coarse links of each ring cell into the box (out) and from the box (in): [ringIdx, q, sign]
-      const cl = []; ring.forEach((n, i) => { const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 1; q < Q; q++) { const dn = idx(L, x + cx[q], y + cy[q], z + cz[q]); if (dn >= 0 && L.mask[dn] === INACTIVE) cl.push(i, q, 1); const s2 = L.src[q * L.N + n]; if (s2 >= 0 && L.mask[s2] === INACTIVE) cl.push(i, q, -1); } });
+      // coarse links of each ring cell into the box (out, +1: its post) and from the box (in, -1: what it pulled): [ringIdx, value direction, sign,
+      // arrival direction]; wall-face reflections are included (value and arrival directions differ there)
+      const cl = [], ri = new Map(ring.map((n, i) => [n, i]));
+      ring.forEach((n, i) => { const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 1; q < Q; q++) { const dn = idx(L, x + cx[q], y + cy[q], z + cz[q]); if (dn >= 0 && L.mask[dn] === INACTIVE) cl.push(i, q, 1, q); const s2 = L.src[q * L.N + n]; if (s2 >= 0 && L.mask[s2] === INACTIVE) cl.push(i, q, -1, q); } });
+      for (let t = 0; t < L.faceLinks.length; t += 4) { const n = L.faceLinks[t], q = L.faceLinks[t + 1], s2 = L.faceLinks[t + 2]; if (ri.has(n) && L.mask[s2] === INACTIVE) cl.push(ri.get(n), q, -1, q); }
+      for (let t = 0; t < L.faceOut.length; t += 4) { const q = L.faceOut[t + 1], s2 = L.faceOut[t + 2], qs = L.faceOut[t + 3]; if (ri.has(s2)) cl.push(ri.get(s2), qs, 1, q); }
       L.rcl = Int32Array.from(cl);
-      // fine links between ghost children and interior fine cells: [ringIdx, q, from, sign] (+1 ghost -> interior, -1 interior -> ghost)
+      // fine links between ghost children and interior fine cells: [ringIdx, value direction, from, sign, arrival direction] (+1 ghost -> interior, -1 interior -> ghost)
       const fl = [];
       for (let n2 = 0; n2 < ch.N; n2++) for (let q = 1; q < Q; q++) { const s2 = ch.src[q * ch.N + n2]; if (s2 < 0) continue;
-        if (ch.mask[n2] === INTERIOR && ch.mask[s2] === GHOST) fl.push(ch.ghostRing[s2], q, s2, 1);
-        else if (ch.mask[n2] === GHOST && ch.mask[s2] === INTERIOR) fl.push(ch.ghostRing[n2], q, s2, -1); }
+        if (ch.mask[n2] === INTERIOR && ch.mask[s2] === GHOST) fl.push(ch.ghostRing[s2], q, s2, 1, q);
+        else if (ch.mask[n2] === GHOST && ch.mask[s2] === INTERIOR) fl.push(ch.ghostRing[n2], q, s2, -1, q); }
+      for (let t = 0; t < ch.faceLinks.length; t += 4) { const n2 = ch.faceLinks[t], q = ch.faceLinks[t + 1], s2 = ch.faceLinks[t + 2], qs = ch.faceLinks[t + 3];
+        if (ch.mask[n2] === INTERIOR && ch.mask[s2] === GHOST && ch.ghostRing[s2] >= 0) fl.push(ch.ghostRing[s2], qs, s2, 1, q);
+        else if (ch.mask[n2] === GHOST && ch.mask[s2] === INTERIOR && ch.ghostRing[n2] >= 0) fl.push(ch.ghostRing[n2], qs, s2, -1, q); }
       L.rfl = Int32Array.from(fl); L.rf = new Float64Array(4 * ring.length);
     }
     L.M0 = new Float64Array(10 * ring.length); L.M1 = new Float64Array(10 * ring.length);
@@ -356,11 +370,11 @@ export function createRefined(o) {
   // refluxing (N1C). rf[4 i ..] accumulates, per ring cell, (sent by coarse - received by fine) of mass and momentum, in coarse-cell density units
   function refluxCoarse(P) { // after the coarse stream: post of the ring cell went into the box (+), f pulled from the box came out (-)
     const N = P.N, cl = P.rcl, rf = P.rf;
-    for (let t = 0; t < cl.length; t += 3) { const i = cl[t], q = cl[t + 1], sg = cl[t + 2], n = P.ring[i], v = sg > 0 ? P.post[q * N + n] : -P.f[q * N + n]; rf[4 * i] += v; rf[4 * i + 1] += v * cx[q]; rf[4 * i + 2] += v * cy[q]; rf[4 * i + 3] += v * cz[q]; }
+    for (let t = 0; t < cl.length; t += 4) { const i = cl[t], q = cl[t + 1], sg = cl[t + 2], qa = cl[t + 3], n = P.ring[i], v = sg > 0 ? P.post[q * N + n] : -P.f[q * N + n]; rf[4 * i] += v; rf[4 * i + 1] += v * cx[qa]; rf[4 * i + 2] += v * cy[qa]; rf[4 * i + 3] += v * cz[qa]; }
   }
   function refluxFine(L) { // before each fine stream: packets crossing between ghost children and the box, weighted by the fine/coarse volume ratio
     const P = L.parent, N = L.N, fl = P.rfl, rf = P.rf, wv = 2 ** -d;
-    for (let t = 0; t < fl.length; t += 4) { const i = fl[t], q = fl[t + 1], from = fl[t + 2], v = -fl[t + 3] * wv * L.post[q * N + from]; rf[4 * i] += v; rf[4 * i + 1] += v * cx[q]; rf[4 * i + 2] += v * cy[q]; rf[4 * i + 3] += v * cz[q]; }
+    for (let t = 0; t < fl.length; t += 5) { const i = fl[t], q = fl[t + 1], from = fl[t + 2], qa = fl[t + 4], v = -fl[t + 3] * wv * L.post[q * N + from]; rf[4 * i] += v; rf[4 * i + 1] += v * cx[qa]; rf[4 * i + 2] += v * cy[qa]; rf[4 * i + 3] += v * cz[qa]; }
   }
   // The per-cell balance is not local at box corners (a fine diagonal path through a ghost child of one ring cell corresponds to a coarse link of a
   // neighbouring ring cell), so the summed imbalance of the whole interface is returned, shared equally by its ring cells.
@@ -410,6 +424,12 @@ export function createRefined(o) {
   st.mass = () => { let m = 0; for (const L of levels) for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR || L.solid[n]) continue; let r0 = 0; for (let q = 0; q < Q; q++) r0 += L.f[q * L.N + n]; m += r0 * L.vol; } return m; };
   // visit every active interior fluid cell: cb(p, rho, ux, uy, uz, vol, level)
   st.forEachCell = cb => { for (const L of levels) for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR || L.solid[n]) continue; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = L.f[q * L.N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; } cb(centre(L, L.coord.subarray(3 * n, 3 * n + 3)), rho, jx / rho, jy / rho, jz / rho, L.vol, L.l); } };
+  // diagnostics: per level, the largest |u| and the largest |rho - 1| over active fluid cells, with their positions (level-0 units)
+  st.extremes = () => levels.map(L => { let um = 0, rm = 0, pu = null, pr = null, bad = 0;
+    for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR || L.solid[n]) continue; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = L.f[q * L.N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
+      if (!Number.isFinite(rho)) { bad++; if (!pu) pu = centre(L, L.coord.subarray(3 * n, 3 * n + 3)); continue; }
+      const u = Math.hypot(jx, jy, jz) / rho; if (u > um) { um = u; pu = centre(L, L.coord.subarray(3 * n, 3 * n + 3)); } if (Math.abs(rho - 1) > rm) { rm = Math.abs(rho - 1); pr = centre(L, L.coord.subarray(3 * n, 3 * n + 3)); } }
+    return { level: L.l, umax: um, at: pu && pu.map(v => +v.toFixed(2)), drhoMax: rm, rhoAt: pr && pr.map(v => +v.toFixed(2)), nonFinite: bad }; });
   st.cells = () => levels.map(L => { let a = 0; for (let n = 0; n < L.N; n++) if (L.mask[n] === INTERIOR) a++; return a; });
   st.taus = () => levels.map(L => L.tau);
   if (T > 1) { ctl = new Int32Array(new SharedArrayBuffer(16)); const ctlBuf = ctl.buffer; for (let r = 1; r < T; r++) workers.push(new Worker(new URL('./refine-worker.mjs', import.meta.url), { workerData: { K, levels: LVs, ctlBuf, rank: r, T } })); }

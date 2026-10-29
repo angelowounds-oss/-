@@ -46,7 +46,8 @@ const save = final => { const tail = hist.filter(h => h.tLU >= Tend / 2), m = ta
 while (Sim.step < maxSteps) {
   Sim.advance(every); const F = Sim.force, Cd = 2 * F[0] / (Ul * Ul * A), Cl = 2 * F[1] / (Ul * Ul * A); hist.push({ step: Sim.step, tLU: +(Sim.step / stepsPerLU).toFixed(3), Cd, Cl });
   if (!Number.isFinite(Cd)) { console.log('diverged at', Sim.step); break; }
-  if (hist.length % 8 === 0) { process.stdout.write(`t ${(Sim.step / stepsPerLU).toFixed(2)} L/U  Cd ${Cd.toFixed(4)}  Cl ${Cl.toFixed(4)}  ${((Date.now() - t0) / 1000).toFixed(0)} s\n`); save(false); }
+  if (hist.length % 8 === 0) { process.stdout.write(`t ${(Sim.step / stepsPerLU).toFixed(2)} L/U  Cd ${Cd.toFixed(4)}  Cl ${Cl.toFixed(4)}  ${((Date.now() - t0) / 1000).toFixed(0)} s\n`); save(false);
+    if (process.env.DIAG) console.log(JSON.stringify(Sim.extremes().map(e => ({ l: e.level, u: +(e.umax / Ul).toFixed(2), at: e.at && toM(e.at).map(v => +v.toFixed(2)), drho: +e.drhoMax.toExponential(2), rhoAt: e.rhoAt && toM(e.rhoAt).map(v => +v.toFixed(2)) })))); }
 }
 const r = save(true); await Sim.close();
 console.log(JSON.stringify({ nH, tLU: r.tLU, CdMean: r.CdMean && +r.CdMean.toFixed(4), CdStd: r.CdStd && +r.CdStd.toFixed(4), pass: r.pass, wallS: +r.wallS.toFixed(0) }));
