@@ -54,7 +54,7 @@ $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('�
 {let ac=null,gain=null,bp=null,on=false;
  const audio=()=>{if(ac)return;const C=window.AudioContext||window.webkitAudioContext;if(!C)return;ac=new C();const n=ac.sampleRate*2,buf=ac.createBuffer(1,n,ac.sampleRate),d=buf.getChannelData(0);let l=0;for(let i=0;i<n;i++){l=(l+.02*(Math.random()*2-1))/1.02;d[i]=l*3.5}
   const src=ac.createBufferSource();src.buffer=buf;src.loop=true;bp=ac.createBiquadFilter();bp.type='bandpass';bp.Q.value=.7;bp.frequency.value=400;gain=ac.createGain();gain.gain.value=0;src.connect(bp);bp.connect(gain);gain.connect(ac.destination);src.start()};
- const label=()=>{$('bdSnd').textContent=on?'바람 소리 끄기':'바람 소리 켜기'};
+ const label=()=>{$('bdSnd').textContent='바람 소리: '+(on?'켜짐':'꺼짐')};
  $('bdSnd').onclick=()=>{on=!on;try{audio();ac&&ac.resume()}catch(e){}label()};
  go.addEventListener('click',()=>{try{audio();ac&&ac.resume();on=true;label()}catch(e){}});
  setInterval(()=>{const B=window.__BODY,h=$('bdHud');if(!B||!h)return;const act=B.active&&B.inTunnel;h.style.display=act?'block':'none';
@@ -63,13 +63,13 @@ $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('�
 
 /* ---------- smoke menu: rake pattern, velocity colour, wand, live CFD on/off ---------- */
 {const RK=[['RAKE_V','세로 레이크'],['RAKE_H','가로 레이크'],['BOTH','세로+가로'],['OFF','끄기']];
- const refresh=()=>{const l=L();if(!l)return;const r=RK.find(x=>x[0]===l.mode)||RK[0];$('lvRake').textContent='연기: '+r[1];$('scCol').textContent=l.colorMode?'유속 색 끄기':'유속 색 보기';$('scCol').classList.toggle('active',!!l.colorMode);$('lvWand').textContent=l.wand?'스모크 완드 끄기':'스모크 완드 켜기';$('lvWand').classList.toggle('active',!!l.wand);$('lvOn').textContent=l.enabled?'실시간 CFD 끄기':'실시간 CFD 켜기';$('scLeg').style.display=l.colorMode?'flex':'none'};
+ const refresh=()=>{const l=L();if(!l)return;const r=RK.find(x=>x[0]===l.mode)||RK[0];$('lvRake').textContent='연기: '+r[1];$('scCol').textContent='유속 색: '+(l.colorMode?'켜짐':'꺼짐');$('scCol').classList.toggle('active',!!l.colorMode);$('lvWand').textContent='스모크 완드: '+(l.wand?'켜짐':'꺼짐');$('lvWand').classList.toggle('active',!!l.wand);$('lvOn').textContent='실시간 CFD: '+(l.enabled?'켜짐':'꺼짐');$('scLeg').style.display=l.colorMode?'flex':'none'};
  const SM=[['both','입자선+볼륨'],['streak','입자선만'],['vol','볼륨만']],stk=()=>window.__STREAK;
  $('stkMode').onclick=()=>{const S=stk();if(!S)return;S.mode=SM[(SM.findIndex(m=>m[0]===S.mode)+1)%SM.length][0];$('stkMode').textContent='표현: '+SM.find(m=>m[0]===S.mode)[1]};
  {const S=stk();if(S)$('stkMode').textContent='표현: '+SM.find(m=>m[0]===S.mode)[1]}
- $('cpMode').onclick=()=>{const C=window.__CPMAP;if(!C)return;C.on=!C.on;C.err=null;$('cpMode').textContent='차체 압력: '+(C.on?'켬':'끔');$('cpLeg').hidden=!C.on};
- if(window.__CPMAP?.on){$('cpMode').textContent='차체 압력: 켬';$('cpLeg').hidden=false}
- {const V=window.__VIZ,b=$('vtxMode');if(V&&b){const show=()=>{b.textContent='후류 소용돌이: '+(V.vortex?'켬':'끔')};b.onclick=()=>{V.vortex=!V.vortex;show()};show()}}
+ $('cpMode').onclick=()=>{const C=window.__CPMAP;if(!C)return;C.on=!C.on;C.err=null;$('cpMode').textContent='차체 압력: '+(C.on?'켜짐':'꺼짐');$('cpLeg').hidden=!C.on};
+ if(window.__CPMAP?.on){$('cpMode').textContent='차체 압력: 켜짐';$('cpLeg').hidden=false}
+ {const V=window.__VIZ,b=$('vtxMode');if(V&&b){const show=()=>{b.textContent='후류 소용돌이: '+(V.vortex?'켜짐':'꺼짐')};b.onclick=()=>{V.vortex=!V.vortex;show()};show()}}
  $('nzMode').onclick=()=>{const l=L();if(!l)return;const on=l.api.setNozzle(!l.nozzleSolid);$('nzMode').textContent='노즐 계산 반영: '+(on?'켜짐':'꺼짐')+'(실험)';capFor(on?'노즐을 계산에 반영합니다':'노즐 계산 반영을 끕니다','흐름을 처음부터 다시 계산합니다')};
  if(L()?.nozzleSolid)$('nzMode').textContent='노즐 계산 반영: 켜짐(실험)';
  $('lvRake').onclick=()=>{const l=L();l.mode=RK[(RK.findIndex(r=>r[0]===l.mode)+1)%RK.length][0];refresh()};
