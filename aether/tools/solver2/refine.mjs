@@ -228,7 +228,17 @@ export function createRefined(o) {
     for (let n = 0; n < N; n++) {
       if (mask[n] === GHOST) { for (let q = 0; q < Q; q++) post[q * N + n] = f[q * N + n]; continue; } // ghosts only transport (V0 second sub-step); N* overwrite them
       if (mask[n] !== INTERIOR || solid[n]) continue;
-      if (model === 'reg') {
+      if (model === 'reg' && !F0) { // fast path: Pi_neq = sum c c f - rho (I/3 + u u) (exact for the second-order equilibrium on D2Q9 / D3Q19)
+        let rho = 0, jx = 0, jy = 0, jz = 0, pxx = 0, pyy = 0, pzz = 0, pxy = 0, pxz = 0, pyz = 0;
+        for (let q = 0; q < Q; q++) { const v = f[q * N + n], a = cx[q], b = cy[q], c = cz[q]; rho += v; jx += v * a; jy += v * b; jz += v * c; pxx += v * a * a; pyy += v * b * b; pzz += v * c * c; pxy += v * a * b; pxz += v * a * c; pyz += v * b * c; }
+        const ux = jx / rho, uy = jy / rho, uz = jz / rho, r3 = rho / 3;
+        pxx -= r3 + rho * ux * ux; pyy -= r3 + rho * uy * uy; pzz -= (d === 3 ? r3 : 0) + rho * uz * uz; pxy -= rho * ux * uy; pxz -= rho * ux * uz; pyz -= rho * uy * uz;
+        let t = tau; if (les > 0) { const pn = Math.sqrt(pxx * pxx + pyy * pyy + pzz * pzz + 2 * (pxy * pxy + pxz * pxz + pyz * pyz)); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / rho)); }
+        if (te) te[n] = t;
+        const k = 4.5 * (1 - 1 / t), tr = (pxx + pyy + pzz) / 3, uu = 1.5 * (ux * ux + uy * uy + uz * uz);
+        for (let q = 0; q < Q; q++) { const a = cx[q], b = cy[q], c = cz[q], cu = a * ux + b * uy + c * uz, w = W[q];
+          post[q * N + n] = w * rho * (1 + 3 * cu + 4.5 * cu * cu - uu) + k * w * (a * a * pxx + b * b * pyy + c * c * pzz + 2 * (a * b * pxy + a * c * pxz + b * c * pyz) - tr); }
+      } else if (model === 'reg') {
         moments(L, f, n, m, 0); let t = tau;
         if (les > 0) { const pn = Math.sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6] + 2 * (m[7] * m[7] + m[8] * m[8] + m[9] * m[9])); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / m[0])); }
         if (te) te[n] = t;
@@ -250,15 +260,9 @@ export function createRefined(o) {
     }
   }
   function stream(L, uin) {
-    const { N, f, post, mask, src } = L;
-    for (let n = 0; n < N; n++) {
-      if (mask[n] === INACTIVE) continue;
-      for (let q = 0; q < Q; q++) {
-        const s = src[q * N + n];
-        if (s >= 0) f[q * N + n] = post[q * N + s];
-        else if (L.l === 0 && io && cx[q] > 0 && L.coord[3 * n] === 0) f[q * N + n] = post[OPP[q] * N + n] + 6 * W[q] * cx[q] * uin; // inlet: moving-wall bounce-back
-      }
-    }
+    const { N, f, post, src } = L;
+    for (let q = 0; q < Q; q++) { const b = q * N; for (let n = 0; n < N; n++) { const s = src[b + n]; if (s >= 0) f[b + n] = post[b + s]; } } // src is -1 for inactive cells
+    if (L.l === 0 && io) for (let q = 1; q < Q; q++) { if (!(cx[q] > 0)) continue; const b = q * N, ob = OPP[q] * N, k = 6 * W[q] * cx[q] * uin; for (let n = 0; n < N; n += L.n[0]) f[b + n] = post[ob + n] + k; } // inlet (x = 0): moving-wall bounce-back
     if (L.l === 0 && io) { // outlet: fixed density, non-equilibrium extrapolation from the previous plane
       const nx = L.n[0];
       for (let n = 0; n < N; n++) {
