@@ -8,7 +8,7 @@ function draw(){raf=0;if(!gl||!program||gl.isContextLost()||document.hidden)retu
 
 const PRESET_KO={Hero:'정면',Side:'측면',Top:'상단',Fan:'팬',Control:'제어실',Outlet:'후류'};
 function setPreset(name){CINE.cancel('preset');fpv.enabled=false;clearWalk();if(document.exitPointerLock)document.exitPointerLock();camera.fov=50;camera.preset=name;camera.cutaway=name!=='Hero';const p=AETHER.VEHICLE_TRANSFORM.position,l=AETHER.FLOW_LAYOUT.get(FLOW_FRAME);if(TUNNEL_V2.active){const zh=TUNNEL_SPEC.plenum.zh,nx=TUNNEL_SPEC.nozzle.x1,cx=TUNNEL_SPEC.collector.x0;camera.cutaway=false;
-  if(name==='Hero'){camera.eye=[-1.6,2.3,zh+3.9];camera.target=[0,1.0,0];camera.up=[0,1,0]}
+  if(name==='Hero'){camera.eye=[-4.6,1.5,3.4];camera.target=[.2,.75,0];camera.up=[0,1,0]} /* three-quarter front view inside the plenum: outside the jet (nozzle half-width 2.6 m), inside the wedges; the control-room view is the 'Control' preset */
   if(name==='Side'){camera.fov=62;camera.eye=[.35,1.35,-zh+1.6];camera.target=[.35,.72,0];camera.up=[0,1,0]}
   if(name==='Top'){camera.fov=78;camera.eye=[0,TUNNEL_SPEC.plenum.y1-1.2,.001];camera.target=[0,0,0];camera.up=[0,0,-1]}
   if(name==='Fan'){camera.eye=[TUNNEL_SPEC.fanRoom.ret.x1-.4,2.1,1.0];camera.target=[TUNNEL_SPEC.fanRoom.fanX+.3,2.5,0];camera.up=[0,1,0]}

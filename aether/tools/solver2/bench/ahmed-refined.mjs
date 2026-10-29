@@ -5,7 +5,7 @@
 //   Free-slip floor, ceiling and side walls (blockage about 1.4 %), inlet, outlet with an absorbing layer. Regularized collision + Smagorinsky, wall model.
 // Reference: Cd ~ 0.285 with stilts (Ahmed et al. 1984); this simplified body is expected in 0.25-0.30. Pass (docs/CFD-V3-PLAN.md P2): within 0.285 +- 15 %
 // and monotone with nH = 12, 16, 24.
-// node tools/solver2/bench/ahmed-refined.mjs [nH = 16] [T in L/U = 12] [threads = 4] [Cs = 0.12]
+// node tools/solver2/bench/ahmed-refined.mjs [nH = 16] [T in L/U = 12] [threads = 4] [Cs = 0.12]   env: WM=0 (no wall model), WMF (filter steps, 400)
 import fs from 'node:fs'; import path from 'node:path';
 import { createRefined } from '../refine.mjs';
 const [nHArg = '16', tArg = '12', thArg = '4', csArg = '.12'] = process.argv.slice(2), nH = +nHArg, Tend = +tArg, Cs = +csArg;
@@ -36,10 +36,10 @@ const boxM = [[-Lb / 2 - 1.6 * Lb, Lb / 2 + 5 * Lb, clear + Hb + 2.5 * Hb, Wb / 
 const boxes = boxM.map(([xa, xb, yt, zw], i) => { const hp = h0 / 2 ** i; return { lo: [Math.floor((xa - X0) / hp), 0, Math.floor((zc - zw) / hp)], hi: [Math.ceil((xb - X0) / hp), Math.ceil(yt / hp), Math.ceil((zc + zw) / hp)] }; });
 const nuF = nuPhys * Ul / (Uphys * hf), tauF = .5 + 3 * nuF, tau0 = .5 + (tauF - .5) / 2 ** NL;
 const t0 = Date.now(), Sim = createRefined({ lattice: 'D3Q19', E, inletOutlet: true, U: Ul, tau0, model: 'reg', cs: Cs, method: 'N1C', threads: +thArg, sponge: { Lo: Math.round(1.5 * Lb / h0), sigma: .1 },
-  faces: { yLo: 'slip', yHi: 'slip', zLo: 'slip', zHi: 'slip' }, boxes, body: { level: NL, solid, frac, normal, dist, wallModel: true } });
+  faces: { yLo: 'slip', yHi: 'slip', zLo: 'slip', zHi: 'slip' }, boxes, body: { level: NL, solid, frac, normal, dist, wallModel: process.env.WM === '0' ? false : { filter: +(process.env.WMF || 400) } } });
 const cells = Sim.cells(), A = Wb * Hb / (hf * hf), stepsPerLU = Lb / h0 / Ul, every = Math.max(1, Math.round(stepsPerLU / 8)), maxSteps = Math.round(Tend * stepsPerLU), hist = [];
 console.log(JSON.stringify({ nH, E, boxes, cells, total: cells.reduce((a, b) => a + b, 0), work: cells.reduce((a, c, l) => a + c * 2 ** l, 0), tauF, tau0, stepsPerLU, setupS: (Date.now() - t0) / 1000, threads: Sim.threads }));
-const out = path.join(path.dirname(new URL(import.meta.url).pathname), `../out/ahmed_refined_nH${nH}.json`);
+const out = path.join(path.dirname(new URL(import.meta.url).pathname), `../out/ahmed_refined_nH${nH}_cs${Cs}${process.env.WM === '0' ? '_noWM' : '_wmf' + (process.env.WMF || 400)}.json`);
 const save = final => { const tail = hist.filter(h => h.tLU >= Tend / 2), m = tail.length ? tail.reduce((a, h) => a + h.Cd, 0) / tail.length : null, sd = tail.length ? Math.sqrt(tail.reduce((a, h) => a + (h.Cd - m) ** 2, 0) / tail.length) : null;
   const res = { nH, Uphys, nuPhys, hf, h0, E, boxes, cells, tauF, Cs, steps: Sim.step, tLU: +(Sim.step / stepsPerLU).toFixed(2), CdMean: m, CdStd: sd, window: `t >= ${Tend / 2} L/U`, ref: { Cd: .285, band: [.285 * .85, .285 * 1.15] }, pass: final && m !== null ? m >= .285 * .85 && m <= .285 * 1.15 : null, wall: Sim.wall(), wallS: (Date.now() - t0) / 1000, hist };
   fs.writeFileSync(out, JSON.stringify(res, null, 1)); return res; };

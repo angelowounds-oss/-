@@ -10,7 +10,7 @@ const [dArg = '12', reArg = '1000', spinArg = '6', avgArg = '6', csArg = '.1'] =
 const Ub = .06, Ubp = 20, utau = Ub / Ubp, nu = utau * delta / ReT, tau0 = .5 + 3 * nu, F = utau * utau / delta; // U_b+ ~ 20 at Re_tau = 1000 (Dean) only sets the lattice speed
 const nx = 6 * delta, nz = 3 * delta, y0 = 1, y1 = 1 + 2 * delta, ny = y1 + 1, turn = delta / utau;
 const law = yp => Math.log(1 + .41 * yp) / .41 + 7.8 * (1 - Math.exp(-yp / 11) - yp / 11 * Math.exp(-yp / 3));
-const wall = { level: 0, wallModel: process.env.WM !== '0', solid: p => p[1] < y0 || p[1] > y1, frac: (p, c) => c[1] < 0 ? (p[1] - y0) / -c[1] : (y1 - p[1]) / c[1],
+const wall = { level: 0, wallModel: process.env.WM === '0' ? false : { filter: +(process.env.WMF || 1) }, solid: p => p[1] < y0 || p[1] > y1, frac: (p, c) => c[1] < 0 ? (p[1] - y0) / -c[1] : (y1 - p[1]) / c[1],
   normal: p => [0, p[1] - y0 < y1 - p[1] ? 1 : -1, 0], dist: p => Math.min(p[1] - y0, y1 - p[1]) };
 // initial state: law-of-the-wall mean profile + streamwise streaks and spanwise vortices (deterministic, so runs are repeatable)
 const init = p => { const yw = Math.min(p[1] - y0, y1 - p[1]), yp = yw * utau / nu, s = (p[1] - y0) / (2 * delta), kx = 2 * Math.PI / nx, kz = 2 * Math.PI / nz;
@@ -25,7 +25,7 @@ const report = final => {
   const rows = []; for (let j = 0; j < ny; j++) if (cnt[j]) { const yc = j + .5, yw = Math.min(yc - y0, y1 - yc), yp = yw * utau / nu, up = prof[j] / cnt[j] / utau, rms = Math.sqrt(Math.max(0, prof2[j] / cnt[j] - (prof[j] / cnt[j]) ** 2)) / utau; rows.push({ y: yc, ywOverDelta: +(yw / delta).toFixed(3), yPlus: +yp.toFixed(1), uPlus: +up.toFixed(3), law: +law(yp).toFixed(3), err: +((up - law(yp)) / law(yp)).toFixed(4), urmsPlus: +rms.toFixed(3) }); }
   const logRegion = rows.filter(r => r.ywOverDelta <= .3), maxErr = logRegion.length && samples ? Math.max(...logRegion.map(r => Math.abs(r.err))) : NaN;
   const res = { delta, ReT, Cs, nu, tau0, F, utau, steps: S.step, turnovers: +(S.step / turn).toFixed(2), samples, maxLogErr: +maxErr.toFixed(4), pass: final ? Number.isFinite(maxErr) && maxErr <= .05 && !diverged : null, diverged, wallUtauMean: S.wall() && +S.wall().utauMean.toExponential(4), wallS: +((Date.now() - t0) / 1000).toFixed(0), rows, hist };
-  fs.writeFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), `../out/channel_wmles_d${delta}_Re${ReT}_cs${Cs}${process.env.WM === '0' ? '_noWM' : ''}.json`), JSON.stringify(res, null, 1)); return res; };
+  fs.writeFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), `../out/channel_wmles_d${delta}_Re${ReT}_cs${Cs}${process.env.WM === '0' ? '_noWM' : ''}${process.env.WMF ? '_f' + process.env.WMF : ''}.json`), JSON.stringify(res, null, 1)); return res; };
 while (S.step < spin + avg) {
   S.advance(every); const acc = S.step > spin, st = sample(acc); hist.push({ step: S.step, tTurn: +(S.step / turn).toFixed(2), UbPlus: +(st.Ub / utau).toFixed(3), urmsPlus: +(st.urms / utau).toFixed(3) });
   if (!Number.isFinite(st.Ub)) { console.log('diverged at step', S.step); diverged = true; break; }

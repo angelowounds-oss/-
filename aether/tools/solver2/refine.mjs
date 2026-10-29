@@ -29,7 +29,8 @@
 // u+ = ln(1 + 0.41 y+) / 0.41 + 7.8 (1 - e^(-y+/11) - (y+/11) e^(-y+/3)) at the cell's wall distance y with the cell's tangential speed (Newton);
 // nu_eff = the larger of the cell's (molecular + Smagorinsky) viscosity and the log-law one, kappa u_tau y, which also bounds the cell's relaxation time from
 // below (Malaspinas & Sagaut 2014 use the same mixing-length closure at the first node). Moving-wall Bouzidi terms after Lallemand & Luo 2003. Needs o.body.normal(p) (unit, into the
-// fluid) and o.body.dist(p) (distance from the cell centre to the wall, level-0 units).
+// fluid) and o.body.dist(p) (distance from the cell centre to the wall, level-0 units). wallModel = { filter: n } averages the input velocity
+// exponentially over n steps (temporal filtering against the slip-velocity feedback).
 // Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
 // units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
 // Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky). Level 0 may have an inlet (moving-wall bounce-back,
@@ -209,7 +210,8 @@ export function createRefined(o) {
     B.links = Int32Array.from(links); B.nL = links.length / 4;
     if (o.body.wallModel) {
       const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
-      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau); B.tauMin = alloc(Float64Array, B.N);
+      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau); B.tauMin = alloc(Float64Array, B.N); B.utF = new Float64Array(3 * cells.length).fill(NaN);
+      B.wmFilter = typeof o.body.wallModel === 'object' && o.body.wallModel.filter > 1 ? o.body.wallModel.filter : 1;
       cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.bcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.bcY[i] = Math.max(1e-3, o.body.dist(p) / B.h); });
     }
   }
@@ -273,7 +275,11 @@ export function createRefined(o) {
     if (L === B && B.bc) { // wall model: slip velocity per boundary cell from the post-collision state
       const nu = (B.tau - .5) / 3, bc = B.bc;
       for (let i = 0; i < bc.length; i++) { const n = bc[i]; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = post[q * N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
-        const ux = jx / rho, uy = jy / rho, uz = jz / rho, nx = B.bcN[3 * i], ny = B.bcN[3 * i + 1], nz = B.bcN[3 * i + 2], un = ux * nx + uy * ny + uz * nz, tx = ux - un * nx, ty = uy - un * ny, tz = uz - un * nz, ut = Math.hypot(tx, ty, tz), y = B.bcY[i];
+        const ux = jx / rho, uy = jy / rho, uz = jz / rho, nx = B.bcN[3 * i], ny = B.bcN[3 * i + 1], nz = B.bcN[3 * i + 2], un = ux * nx + uy * ny + uz * nz;
+        // temporal filter of the wall-model input (Yang et al. 2015): exponential moving average over wallModel.filter steps of this level
+        let tx = ux - un * nx, ty = uy - un * ny, tz = uz - un * nz; const uf = B.utF, a = 1 / B.wmFilter;
+        if (Number.isNaN(uf[3 * i])) { uf[3 * i] = tx; uf[3 * i + 1] = ty; uf[3 * i + 2] = tz; } else { uf[3 * i] += a * (tx - uf[3 * i]); uf[3 * i + 1] += a * (ty - uf[3 * i + 1]); uf[3 * i + 2] += a * (tz - uf[3 * i + 2]); }
+        tx = uf[3 * i]; ty = uf[3 * i + 1]; tz = uf[3 * i + 2]; const ut = Math.hypot(tx, ty, tz), y = B.bcY[i];
         // log-law-consistent eddy viscosity at the cell (mixing length kappa y): nu + nu_t = kappa u_tau y in the log layer, -> nu in the sublayer;
         // it bounds the cell's relaxation time from below (used from the next collision on) and sets the slip so that nu_eff (u_t - u_s) / y = u_tau^2
         const utau = solveUtau(ut, y, nu), nuT = Math.max(0, .41 * utau * y - nu), nuE = Math.max(nu + nuT, (B.tauEff[n] - .5) / 3);
