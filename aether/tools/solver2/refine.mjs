@@ -34,7 +34,7 @@
 // Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
 // units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
 // Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky; o.hrr < 1: hybrid regularization; o.recursive: third-order
-// recursive regularization; see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
+// recursive regularization; o.tauBulk: relaxation time of the trace of Pi (bulk viscosity); see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
 // One body (Bouzidi interpolated bounce-back + momentum exchange) on one level. Float64 throughout (method error, not precision, is under test).
 import os from 'node:os';
@@ -299,7 +299,7 @@ export function createRefined(o) {
     const basis = d === 3 ? [c => H(c, 0, 0, 1) + H(c, 1, 2, 2), c => H(c, 0, 0, 1) - H(c, 1, 2, 2), c => H(c, 0, 2, 2) + H(c, 0, 1, 1), c => H(c, 0, 2, 2) - H(c, 0, 1, 1), c => H(c, 1, 1, 2) + H(c, 0, 0, 2), c => H(c, 1, 1, 2) - H(c, 0, 0, 2)]
       : [c => H(c, 0, 0, 1), c => H(c, 0, 1, 1)];
     basis.forEach((B, k) => { const nrm = C.reduce((a, c, q) => a + W[q] * B(c) ** 2, 0); for (let q = 0; q < Q; q++) h3[6 * q + k] = B(C[q]) / nrm; }); }
-  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null, tauIf: L.tauIf }));
+  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3, tauBulk: model === 'reg' ? o.tauBulk || 0 : 0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null, tauIf: L.tauIf }));
   let ctl = null, workers = [];
   const dispatch = (phase, L) => {
     const LV = LVs[L.l];

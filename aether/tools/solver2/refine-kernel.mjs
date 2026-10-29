@@ -6,6 +6,8 @@
 // non-equilibrium stress of the regularized collision is hrr Pi(populations) + (1 - hrr) Pi(finite differences), Pi = -(2/3) rho tau S from the
 // neighbours' velocities (mac, filled by macroRange). Grid-scale modes that the populations carry but the differences do not see then relax towards
 // equilibrium instead of flipping sign every step near tau = 1/2; resolved flow keeps its stress. qp / qm: direction of +e_a / -e_a.
+// tauBulk > tau (Dellar 2001): the trace of Pi relaxes more strongly, which raises the bulk viscosity only, so acoustic and odd-even density modes
+// that nothing else damps near tau = 1/2 decay while the (nearly incompressible) shear flow keeps its viscosity.
 // rr (recursive regularization, Malaspinas 2015): the third-order Hermite terms the lattice supports are kept, a3 = rho u u u (equilibrium) +
 // (1 - 1/tau) (u_a Pi_bc + u_b Pi_ac + u_c Pi_ab) (non-equilibrium, built recursively from Pi). K.h3: per direction the basis values
 // B_k(c_q) / <B_k, B_k>_w of the supported combinations (D3Q19: xxy +- yzz, xzz +- xyy, yyz +- xxz; D2Q9: xxy, xyy).
@@ -13,7 +15,7 @@
 const INTERIOR = 0, GHOST = 2;
 
 export function collideRange(K, LV, n0, n1) {
-  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3 } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord, src, mac, tauIf: ti } = LV;
+  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3, tauBulk } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord, src, mac, tauIf: ti } = LV;
   const wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), fs = 2 ** -LV.l, fe = new Float64Array(Q), G = new Float64Array(9), own = new Float64Array(3);
   const Fx = F0 ? F0[0] * fs : 0, Fy = F0 ? F0[1] * fs : 0, Fz = F0 ? F0[2] * fs : 0;
   const feqInto = (rho, ux, uy, uz) => { const uu = 1.5 * (ux * ux + uy * uy + uz * uz); for (let q = 0; q < Q; q++) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz; fe[q] = W[q] * rho * (1 + 3 * cu + 4.5 * cu * cu - uu); } };
@@ -45,6 +47,9 @@ export function collideRange(K, LV, n0, n1) {
       const k = 4.5 * (1 - 1 / t), tr = (pxx + pyy + pzz) / 3, uu = 1.5 * (ux * ux + uy * uy + uz * uz);
       for (let q = 0; q < Q; q++) { const a = cx[q], b = cy[q], c = cz[q], cu = a * ux + b * uy + c * uz, w = W[q];
         post[q * N + n] = w * rho * (1 + 3 * cu + 4.5 * cu * cu - uu) + k * w * (a * a * pxx + b * b * pyy + c * c * pzz + 2 * (a * b * pxy + a * c * pxz + b * c * pyz) - tr); }
+      if (tauBulk > t) { // bulk viscosity: the isotropic part (P / d) I of Pi relaxes with tauBulk instead of t (sound is damped, shear is not touched)
+        const kb = 4.5 * (1 / t - 1 / tauBulk) * (pxx + pyy + (d === 3 ? pzz : 0)) / d;
+        for (let q = 0; q < Q; q++) post[q * N + n] += kb * W[q] * (cx[q] * cx[q] + cy[q] * cy[q] + cz[q] * cz[q] - d / 3); }
       if (rr) { // third-order coefficients a_abc (equilibrium + relaxed recursive non-equilibrium), combined as the basis K.h3 expects
         const r1 = 1 - 1 / t, A = (ua, ub, uc, pbc, pac, pab) => rho * ua * ub * uc + r1 * (ua * pbc + ub * pac + uc * pab);
         const xxy = A(ux, ux, uy, pxy, pxy, pxx), xyy = A(ux, uy, uy, pyy, pxy, pxy);
