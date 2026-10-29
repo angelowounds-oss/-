@@ -1,10 +1,11 @@
 // CFD V3: per-cell kernels of refine.mjs (collision and pull streaming over a cell range), shared by the main thread and the worker threads.
-// K: run constants { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0 }; LV: one level { l, N, f, post, mask, solid, coord, src, tau, tauEff }.
+// K: run constants { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0 }; LV: one level { l, N, f, post, mask, solid, coord, src, tau, tauEff, tauMin }.
+// tauMin (wall-model cells): lower bound of the relaxation time, so the eddy viscosity next to a wall is at least the log-law one.
 // Cell masks: 0 interior, 1 inactive (covered by a finer level), 2 ghost.
 const INTERIOR = 0, GHOST = 2;
 
 export function collideRange(K, LV, n0, n1) {
-  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0 } = K, { N, f, post, mask, solid, tau, tauEff: te, coord } = LV;
+  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0 } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord } = LV;
   const wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), fs = 2 ** -LV.l, fe = new Float64Array(Q);
   const Fx = F0 ? F0[0] * fs : 0, Fy = F0 ? F0[1] * fs : 0, Fz = F0 ? F0[2] * fs : 0;
   const feqInto = (rho, ux, uy, uz) => { const uu = 1.5 * (ux * ux + uy * uy + uz * uz); for (let q = 0; q < Q; q++) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz; fe[q] = W[q] * rho * (1 + 3 * cu + 4.5 * cu * cu - uu); } };
@@ -19,6 +20,7 @@ export function collideRange(K, LV, n0, n1) {
       let ux = jx / rho, uy = jy / rho, uz = jz / rho; const r3 = rho / 3;
       pxx -= r3 + rho * ux * ux; pyy -= r3 + rho * uy * uy; pzz -= (d === 3 ? r3 : 0) + rho * uz * uz; pxy -= rho * ux * uy; pxz -= rho * ux * uz; pyz -= rho * uy * uz;
       let t = tau; if (les > 0) { const pn = Math.sqrt(pxx * pxx + pyy * pyy + pzz * pzz + 2 * (pxy * pxy + pxz * pxz + pyz * pyz)); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / rho)); }
+      if (tm && tm[n] > t) t = tm[n];
       if (te) te[n] = t;
       // Guo forcing: equilibrium at u + F/(2 rho); Pi_neq stays the one around the unshifted velocity (O(u F), negligible for weak forces)
       if (F0) { ux += .5 * Fx / rho; uy += .5 * Fy / rho; uz += .5 * Fz / rho; }

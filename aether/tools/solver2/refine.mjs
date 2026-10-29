@@ -27,7 +27,8 @@
 // Wall model (o.body.wallModel, CFD V3 P2): every fluid cell with a Bouzidi link gets a tangential slip velocity for its links, u_s = |u_t| - u_tau^2 y / nu_eff,
 // so that the stress the scheme produces between the wall and the cell equals the wall-law stress rho u_tau^2. u_tau solves Reichardt's law
 // u+ = ln(1 + 0.41 y+) / 0.41 + 7.8 (1 - e^(-y+/11) - (y+/11) e^(-y+/3)) at the cell's wall distance y with the cell's tangential speed (Newton);
-// nu_eff = molecular + Smagorinsky viscosity of the cell. Moving-wall Bouzidi terms after Lallemand & Luo 2003. Needs o.body.normal(p) (unit, into the
+// nu_eff = the larger of the cell's (molecular + Smagorinsky) viscosity and the log-law one, kappa u_tau y, which also bounds the cell's relaxation time from
+// below (Malaspinas & Sagaut 2014 use the same mixing-length closure at the first node). Moving-wall Bouzidi terms after Lallemand & Luo 2003. Needs o.body.normal(p) (unit, into the
 // fluid) and o.body.dist(p) (distance from the cell centre to the wall, level-0 units).
 // Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
 // units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
@@ -208,7 +209,7 @@ export function createRefined(o) {
     B.links = Int32Array.from(links); B.nL = links.length / 4;
     if (o.body.wallModel) {
       const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
-      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau);
+      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau); B.tauMin = alloc(Float64Array, B.N);
       cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.bcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.bcY[i] = Math.max(1e-3, o.body.dist(p) / B.h); });
     }
   }
@@ -245,7 +246,7 @@ export function createRefined(o) {
   const PAIRS = []; for (let q = 1; q < Q; q++) if (OPP[q] > q) PAIRS.push(q, OPP[q]);
   const les = (o.cs || 0) ** 2 * 18 * Math.SQRT2, F0 = o.force || null;
   // per-cell kernels: run constants and level views (the same arrays on every thread)
-  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null }));
+  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null }));
   let ctl = null, workers = [];
   const dispatch = (phase, L) => {
     const LV = LVs[L.l];
@@ -273,7 +274,11 @@ export function createRefined(o) {
       const nu = (B.tau - .5) / 3, bc = B.bc;
       for (let i = 0; i < bc.length; i++) { const n = bc[i]; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = post[q * N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
         const ux = jx / rho, uy = jy / rho, uz = jz / rho, nx = B.bcN[3 * i], ny = B.bcN[3 * i + 1], nz = B.bcN[3 * i + 2], un = ux * nx + uy * ny + uz * nz, tx = ux - un * nx, ty = uy - un * ny, tz = uz - un * nz, ut = Math.hypot(tx, ty, tz), y = B.bcY[i];
-        const utau = solveUtau(ut, y, nu), nuE = Math.max(nu, (B.tauEff[n] - .5) / 3), us = ut > 0 ? Math.min(ut, Math.max(0, ut - utau * utau * y / nuE)) : 0, k = ut > 0 ? us / ut : 0;
+        // log-law-consistent eddy viscosity at the cell (mixing length kappa y): nu + nu_t = kappa u_tau y in the log layer, -> nu in the sublayer;
+        // it bounds the cell's relaxation time from below (used from the next collision on) and sets the slip so that nu_eff (u_t - u_s) / y = u_tau^2
+        const utau = solveUtau(ut, y, nu), nuT = Math.max(0, .41 * utau * y - nu), nuE = Math.max(nu + nuT, (B.tauEff[n] - .5) / 3);
+        B.tauMin[n] = .5 + 3 * (nu + nuT);
+        const us = ut > 0 ? Math.min(ut, Math.max(0, ut - utau * utau * y / nuE)) : 0, k = ut > 0 ? us / ut : 0;
         B.utau[i] = utau; B.uw[3 * i] = k * tx; B.uw[3 * i + 1] = k * ty; B.uw[3 * i + 2] = k * tz; }
     }
     if (L === B) { // Bouzidi interpolated bounce-back + momentum exchange (moving-wall terms when the wall model is on)
