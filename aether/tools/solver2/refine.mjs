@@ -33,12 +33,12 @@
 // exponentially over n steps (temporal filtering against the slip-velocity feedback).
 // Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
 // units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
-// Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky). Level 0 may have an inlet (moving-wall bounce-back,
+// Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky; o.hrr < 1: hybrid regularization, see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
 // One body (Bouzidi interpolated bounce-back + momentum exchange) on one level. Float64 throughout (method error, not precision, is under test).
 import os from 'node:os';
 import { Worker } from 'node:worker_threads';
-import { collideRange, streamRange } from './refine-kernel.mjs';
+import { collideRange, streamRange, macroRange } from './refine-kernel.mjs';
 export const LAT = {};
 {
   const mk = (d, C) => {
@@ -63,6 +63,8 @@ export function createRefined(o) {
   // o.threads > 1: the per-cell kernels (refine-kernel.mjs) run on worker threads over shared memory; everything else stays on this thread
   const T = Math.max(1, Math.min(o.threads || 1, os.cpus().length)), alloc = (Ctor, n) => T > 1 ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n);
   const r = [2, 2, d === 3 ? 2 : 1]; // refinement factor per axis
+  // mirror sign of the 10 interface moments (rho, u, Pi xx yy zz xy xz yz) under reflection of axis a, MSIGN[10 a + j]; o.mirror = false: one-sided stencils at slip faces
+  const MIRROR = o.mirror !== false, MSIGN = new Float64Array(30).fill(1); for (let a = 0; a < 3; a++) { MSIGN[10 * a + 1 + a] = -1; [[7, 0, 1], [8, 0, 2], [9, 1, 2]].forEach(([j, p, q]) => { if (a === p || a === q) MSIGN[10 * a + j] = -1; }); }
   const faces = o.faces || {}, faceSpec = (a, side) => (a === 1 ? (side ? faces.yHi : faces.yLo) : a === 2 ? (side ? faces.zHi : faces.zLo) : null) || null, wallFace = (a, side) => !!faceSpec(a, side);
   const levels = [];
   // ---------- level geometry ----------
@@ -189,7 +191,8 @@ export function createRefined(o) {
     L.M0 = new Float64Array(10 * ring.length); L.M1 = new Float64Array(10 * ring.length);
     if (method === 'N1' || method === 'N1C') {
       L.MF0 = new Float64Array(10 * L.N); L.MF1 = new Float64Array(10 * L.N); L.MFm = new Float64Array(10 * L.N); L.hasMFm = false;
-      // per ring cell and axis: [kind, n1, n2] (kind 0 central: n1 = +1, n2 = -1; 1 backward: n1 = -1, n2 = -2; 2 forward: n1 = +1, n2 = +2; 3 unused axis)
+      // per ring cell and axis: [kind, n1, n2] (kind 0 central: n1 = +1, n2 = -1; 1 backward: n1 = -1, n2 = -2; 2 forward: n1 = +1, n2 = +2; 3 unused axis;
+      // 4 / 5 the cell lies on a free-slip face on the low / high side: central with the mirror image of the cell itself (n1 = the inner neighbour, n2 = the cell))
       L.sten = new Int32Array(9 * ring.length);
       // per ring cell and axis pair (xy, xz, yz): [kind, sa, sb, nA, nB, nAB, nC] kind 0 central (nA..nC = ++, +-, -+, --), 1 one-sided towards (sa, sb), 2 none
       L.mix = new Int32Array(21 * ring.length);
@@ -198,6 +201,8 @@ export function createRefined(o) {
         for (let a = 0; a < 3; a++) { if (a >= d) { L.sten.set([3, -1, -1], 9 * i + 3 * a); continue; }
           const p1 = at(1, 0, a, -1), m1 = at(-1, 0, a, -1);
           if (ok(p1) && ok(m1)) L.sten.set([0, p1, m1], 9 * i + 3 * a);
+          else if (MIRROR && m1 < 0 && c[a] === 0 && faceSpec(a, 0) === 'slip' && ok(p1)) L.sten.set([4, p1, n], 9 * i + 3 * a);
+          else if (MIRROR && p1 < 0 && c[a] === L.ext[a] - 1 && faceSpec(a, 1) === 'slip' && ok(m1)) L.sten.set([5, m1, n], 9 * i + 3 * a);
           else if (!ok(p1) && ok(m1) && ok(at(-2, 0, a, -1))) L.sten.set([1, m1, at(-2, 0, a, -1)], 9 * i + 3 * a);
           else if (ok(p1) && !ok(m1) && ok(at(2, 0, a, -1))) L.sten.set([2, p1, at(2, 0, a, -1)], 9 * i + 3 * a);
           else throw Error('no gradient stencil for ring cell'); }
@@ -269,16 +274,19 @@ export function createRefined(o) {
   const PAIRS = []; for (let q = 1; q < Q; q++) if (OPP[q] > q) PAIRS.push(q, OPP[q]);
   const les = (o.cs || 0) ** 2 * 18 * Math.SQRT2, F0 = o.force || null;
   // per-cell kernels: run constants and level views (the same arrays on every thread)
-  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null }));
+  const hrr = model === 'reg' && o.hrr < 1 ? o.hrr : 1, qp = [0, 1, 2].map(a => C.findIndex(c => c[a] === 1 && c[0] ** 2 + c[1] ** 2 + c[2] ** 2 === 1)), qm = qp.map(q => OPP[q]);
+  if (hrr < 1) for (const L of levels) L.mac = alloc(Float64Array, 4 * L.N);
+  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null }));
   let ctl = null, workers = [];
   const dispatch = (phase, L) => {
     const LV = LVs[L.l];
-    if (T === 1) { if (phase === 0) collideRange(K, LV, 0, L.N); else streamRange(K, LV, 0, L.N); return; }
+    const run = (a, b) => phase === 0 ? collideRange(K, LV, a, b) : phase === 2 ? macroRange(K, LV, a, b) : streamRange(K, LV, a, b);
+    if (T === 1) { run(0, L.N); return; }
     Atomics.store(ctl, 3, 0); Atomics.store(ctl, 1, phase); Atomics.store(ctl, 2, L.l); Atomics.add(ctl, 0, 1); Atomics.notify(ctl, 0);
-    const n1 = Math.floor(L.N / T); if (phase === 0) collideRange(K, LV, 0, n1); else streamRange(K, LV, 0, n1);
+    run(0, Math.floor(L.N / T));
     for (;;) { const c = Atomics.load(ctl, 3); if (c === T - 1) break; Atomics.wait(ctl, 3, c, 50); }
   };
-  function collide(L) { dispatch(0, L); }
+  function collide(L) { if (hrr < 1) dispatch(2, L); dispatch(0, L); }
   function stream(L, uin) {
     const { N, f, post } = L;
     dispatch(1, L); // pull streaming (src is -1 for inactive cells)
@@ -330,9 +338,9 @@ export function createRefined(o) {
       const recon = (MF, i, pn, off, out) => {
         for (let j = 0; j < 10; j++) out[j] = MF[10 * pn + j];
         for (let a = 0; a < 3; a++) { const k0 = sten[9 * i + 3 * a], n1 = sten[9 * i + 3 * a + 1], n2 = sten[9 * i + 3 * a + 2]; if (k0 === 3) continue; const oa = off[a];
-          for (let j = 0; j < 10; j++) { const v0 = MF[10 * pn + j], v1 = MF[10 * n1 + j], v2 = MF[10 * n2 + j];
-            const g = k0 === 0 ? .5 * (v1 - v2) : k0 === 1 ? 1.5 * v0 - 2 * v1 + .5 * v2 : -1.5 * v0 + 2 * v1 - .5 * v2;
-            out[j] += oa * g; if (quad) out[j] += .5 * oa * oa * (k0 === 0 ? v1 - 2 * v0 + v2 : v0 - 2 * v1 + v2); } }
+          for (let j = 0; j < 10; j++) { const v0 = MF[10 * pn + j], v1 = MF[10 * n1 + j], v2 = MF[10 * n2 + j], vm = MSIGN[10 * a + j] * v0;
+            const g = k0 === 0 ? .5 * (v1 - v2) : k0 === 1 ? 1.5 * v0 - 2 * v1 + .5 * v2 : k0 === 2 ? -1.5 * v0 + 2 * v1 - .5 * v2 : k0 === 4 ? .5 * (v1 - vm) : .5 * (vm - v1);
+            out[j] += oa * g; if (quad) out[j] += .5 * oa * oa * (k0 === 0 ? v1 - 2 * v0 + v2 : k0 >= 4 ? v1 - 2 * v0 + vm : v0 - 2 * v1 + v2); } }
         if (quad) for (let k = 0; k < 3; k++) { const o7 = 21 * i + 7 * k, kind = mix[o7]; if (kind === 2) continue; const a = k === 2 ? 1 : 0, b = k === 0 ? 1 : 2, oab = off[a] * off[b];
           for (let j = 0; j < 10; j++) { let h; const v0 = MF[10 * pn + j];
             if (kind === 0) h = .25 * (MF[10 * mix[o7 + 3] + j] - MF[10 * mix[o7 + 4] + j] - MF[10 * mix[o7 + 5] + j] + MF[10 * mix[o7 + 6] + j]);
@@ -342,7 +350,8 @@ export function createRefined(o) {
       const off = [0, 0, 0], G0 = new Float64Array(9), G1 = new Float64Array(9);
       // velocity gradient (coarse lattice units) at ring cell i: G[3 a + b] = d u_b / d x_a
       const gradU = (MF, i, pn, G) => { G.fill(0); for (let a = 0; a < 3; a++) { const k0 = sten[9 * i + 3 * a], n1 = sten[9 * i + 3 * a + 1], n2 = sten[9 * i + 3 * a + 2]; if (k0 === 3) continue;
-        for (let b = 0; b < 3; b++) { const j = 1 + b, v0 = MF[10 * pn + j], v1 = MF[10 * n1 + j], v2 = MF[10 * n2 + j]; G[3 * a + b] = k0 === 0 ? .5 * (v1 - v2) : k0 === 1 ? 1.5 * v0 - 2 * v1 + .5 * v2 : -1.5 * v0 + 2 * v1 - .5 * v2; } } };
+        for (let b = 0; b < 3; b++) { const j = 1 + b, v0 = MF[10 * pn + j], v1 = MF[10 * n1 + j], v2 = MF[10 * n2 + j], vm = MSIGN[10 * a + j] * v0;
+          G[3 * a + b] = k0 === 0 ? .5 * (v1 - v2) : k0 === 1 ? 1.5 * v0 - 2 * v1 + .5 * v2 : k0 === 2 ? -1.5 * v0 + 2 * v1 - .5 * v2 : k0 === 4 ? .5 * (v1 - vm) : .5 * (vm - v1); } } };
       for (let s = 0; s < N; s++) { const i = L.ghostRing[s]; if (i < 0) continue; const pn = L.ghostParent[s];
         for (let a = 0; a < 3; a++) off[a] = a < d ? (L.coord[3 * s + a] - 2 * P.coord[3 * pn + a]) / 2 - .25 : 0;
         recon(P.MF0, i, pn, off, m);
