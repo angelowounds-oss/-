@@ -115,15 +115,22 @@ export function createRefined(o) {
   // wall faces: per level, [cell, q, source cell, source direction] for every population that would come from outside through a wall face, and the
   // moving-wall term 6 w_q c_q . u_wall (0 for slip)
   const mirror = (q, a) => C.findIndex(c => [0, 1, 2].every(b => c[b] === (b === a ? -C[q][b] : C[q][b])));
+  // A population arriving from outside through one or two wall faces (a box edge) is set once: by bounce-back from the cell itself if any of those faces
+  // is a no-slip/moving wall (velocity of that face, the y face first), else by specular reflection with every crossed component mirrored.
+  const mirrorMask = (q, axes) => C.findIndex(c => [0, 1, 2].every(b => c[b] === (axes.includes(b) ? -C[q][b] : C[q][b])));
   for (const L of levels) {
     const fl = [], fk = [];
-    for (const [a, side] of [[1, 0], [1, 1], [2, 0], [2, 1]]) { const spec = faceSpec(a, side); if (!spec) continue; const edge = side ? L.ext[a] - 1 : 0, dir = side ? -1 : 1, slip = spec === 'slip', u = slip ? [0, 0, 0] : (spec.u || [0, 0, 0]);
-      for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE || L.coord[3 * n + a] !== edge) continue; const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]];
-        for (let q = 1; q < Q; q++) { if (C[q][a] !== dir) continue; // arrives from outside the face
-          if (!slip) { fl.push(n, q, n, OPP[q]); fk.push(6 * W[q] * (C[q][0] * u[0] + C[q][1] * u[1] + C[q][2] * u[2])); }
-          // slip: the mirror source may be a coarse cell inside a refined box; its post is the restricted state (N methods), like for streaming
-          else { const s2 = idx(L, c[0] - (a === 0 ? 0 : C[q][0]), c[1] - (a === 1 ? 0 : C[q][1]), c[2] - (a === 2 ? 0 : C[q][2])); if (s2 >= 0) { fl.push(n, q, s2, mirror(q, a)); fk.push(0); } } } } }
+    if (o.faces) for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE) continue; const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]];
+      for (let q = 1; q < Q; q++) { const out = [];
+        for (const a of [1, 2]) { if (C[q][a] === 1 && c[a] === 0 && wallFace(a, 0)) out.push([a, 0]); if (C[q][a] === -1 && c[a] === L.ext[a] - 1 && wallFace(a, 1)) out.push([a, 1]); }
+        if (!out.length) continue;
+        const walls = out.map(([a, sd]) => faceSpec(a, sd)).filter(sp => sp !== 'slip');
+        if (walls.length) { const u = walls[0].u || [0, 0, 0]; fl.push(n, q, n, OPP[q]); fk.push(6 * W[q] * (C[q][0] * u[0] + C[q][1] * u[1] + C[q][2] * u[2])); continue; }
+        const axes = out.map(([a]) => a), sc = [0, 1, 2].map(b => c[b] - (axes.includes(b) ? 0 : C[q][b])), s2 = idx(L, sc[0], sc[1], sc[2]);
+        if (s2 >= 0) { fl.push(n, q, s2, mirrorMask(q, axes)); fk.push(0); } } } // slip: the source may be a coarse cell inside a refined box (its post is the restricted state)
     L.faceLinks = Int32Array.from(fl); L.faceK = Float64Array.from(fk);
+    // populations set by a no-slip wall face (bounce-back from the cell itself): the inlet and the outlet leave them alone
+    L.wallPop = null; for (let t = 0; t < fl.length; t += 4) if (fl[t + 2] === fl[t] && fl[t + 3] === OPP[fl[t + 1]]) { if (!L.wallPop) L.wallPop = new Uint8Array(Q * L.N); L.wallPop[fl[t + 1] * L.N + fl[t]] = 1; }
     // the same reflections arriving at inactive cells (only for the refluxing balance: the coarse grid loses those populations into the box)
     const fo = [];
     for (const [a, side] of [[1, 0], [1, 1], [2, 0], [2, 1]]) { const spec = faceSpec(a, side); if (spec !== 'slip') continue; const edge = side ? L.ext[a] - 1 : 0, dir = side ? -1 : 1;
@@ -276,14 +283,15 @@ export function createRefined(o) {
     const { N, f, post } = L;
     dispatch(1, L); // pull streaming (src is -1 for inactive cells)
     { const fl = L.faceLinks, fk = L.faceK; for (let t = 0, u = 0; t < fl.length; t += 4, u++) f[fl[t + 1] * N + fl[t]] = post[fl[t + 3] * N + fl[t + 2]] + fk[u]; } // wall faces
-    if (L.l === 0 && io) for (let q = 1; q < Q; q++) { if (!(cx[q] > 0)) continue; const b = q * N, ob = OPP[q] * N, k = 6 * W[q] * cx[q] * uin; for (let n = 0; n < N; n += L.n[0]) f[b + n] = post[ob + n] + k; } // inlet (x = 0): moving-wall bounce-back
+    // inlet (x = 0): moving-wall bounce-back; populations that also cross a no-slip wall face keep the wall value (the same rule as the GPU kernel)
+    if (L.l === 0 && io) for (let q = 1; q < Q; q++) { if (!(cx[q] > 0)) continue; const b = q * N, ob = OPP[q] * N, k = 6 * W[q] * cx[q] * uin, wp = L.wallPop; for (let n = 0; n < N; n += L.n[0]) if (!wp || !wp[b + n]) f[b + n] = post[ob + n] + k; }
     if (L.l === 0 && io) { // outlet: fixed density, non-equilibrium extrapolation from the previous plane
       const nx = L.n[0];
       for (let n = 0; n < N; n++) {
         if (L.coord[3 * n] !== nx - 1) continue; const p = n - 1; let rho = 0, jx = 0, jy = 0, jz = 0;
         for (let q = 0; q < Q; q++) { const v = f[q * N + p]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
         const ux = jx / rho, uy = jy / rho, uz = jz / rho, uu = 1.5 * (ux * ux + uy * uy + uz * uz);
-        for (let q = 1; q < Q; q++) if (cx[q] < 0) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz, e = cu * (3 + 4.5 * cu) - uu; f[q * N + n] = W[q] * (1 + e) + (f[q * N + p] - W[q] * rho * (1 + e)); }
+        for (let q = 1; q < Q; q++) if (cx[q] < 0 && !(L.wallPop && L.wallPop[q * N + n])) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz, e = cu * (3 + 4.5 * cu) - uu; f[q * N + n] = W[q] * (1 + e) + (f[q * N + p] - W[q] * rho * (1 + e)); }
       }
     }
     if (L === B && B.bc) { // wall model: slip velocity per boundary cell from the post-collision state
