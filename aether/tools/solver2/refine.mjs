@@ -51,32 +51,37 @@ const INTERIOR = 0, INACTIVE = 1, GHOST = 2;
 
 // o: { lattice, E: [ex, ey, ez] level-0 cells, inletOutlet: bool (x not periodic), boxes: [{ lo, hi }] child box of each level in its parent's cell coordinates,
 //      tau0, model = 'reg', cs = 0, U = 0 (inlet velocity), sponge = { Lo, sigma } (level 0, outlet), method = 'V0' | 'N0', init(p) -> [rho, ux, uy, uz],
-//      body = { level, solid(p), frac(p, c) -> fraction of the link from cell centre p along c (level-l lattice vector, level-0 units) to the surface } }
+//      body = { level, solid(p), frac(p, c) -> fraction of the link from cell centre p along c (level-l lattice vector, level-0 units) to the surface },
+//      faces = { yLo, yHi, zLo, zHi: 'slip' | { type: 'wall', u: [ux, uy, uz] } } walls on domain faces (instead of periodicity) for every level, half a
+//      cell outside the first cells: 'slip' is specular reflection (free slip), 'wall' a moving-wall bounce-back (u = 0: no-slip; u = belt speed: rolling
+//      road). Refined boxes may touch these faces. }
 export function createRefined(o) {
   const lat = LAT[o.lattice], { d, Q, C, W, OPP } = lat, model = o.model || 'reg', method = o.method || 'V0', U = o.U || 0, io = !!o.inletOutlet, interpSpace = o.interpSpace || 1, interpTime = o.interpTime || 1, neqGrad = o.neq === 'grad', restrictOrder = o.restrict || 2;
   const cx = C.map(c => c[0]), cy = C.map(c => c[1]), cz = C.map(c => c[2]);
   // o.threads > 1: the per-cell kernels (refine-kernel.mjs) run on worker threads over shared memory; everything else stays on this thread
   const T = Math.max(1, Math.min(o.threads || 1, os.cpus().length)), alloc = (Ctor, n) => T > 1 ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n);
   const r = [2, 2, d === 3 ? 2 : 1]; // refinement factor per axis
+  const faces = o.faces || {}, faceSpec = (a, side) => (a === 1 ? (side ? faces.yHi : faces.yLo) : a === 2 ? (side ? faces.zHi : faces.zLo) : null) || null, wallFace = (a, side) => !!faceSpec(a, side);
   const levels = [];
   // ---------- level geometry ----------
   {
     const E = o.E.slice(); if (d === 2) E[2] = 1;
-    levels.push({ l: 0, lo: [0, 0, 0], hi: E.slice(), ext: E.slice(), per: [!io, true, true], g: [0, 0, 0] });
+    levels.push({ l: 0, lo: [0, 0, 0], hi: E.slice(), ext: E.slice(), per: [!io, !(faces.yLo || faces.yHi), !(faces.zLo || faces.zHi)], gLo: [0, 0, 0], gHi: [0, 0, 0] });
     (o.boxes || []).forEach((b, i) => {
-      const P = levels[i], lo = [0, 0, 0], hi = [0, 0, 0], per = [false, false, false], g = [0, 0, 0], ext = P.ext.map((e, a) => e * r[a]);
+      const P = levels[i], lo = [0, 0, 0], hi = [0, 0, 0], per = [false, false, false], gLo = [0, 0, 0], gHi = [0, 0, 0], ext = P.ext.map((e, a) => e * r[a]);
       for (let a = 0; a < 3; a++) {
-        const blo = a < d ? b.lo[a] : 0, bhi = a < d ? b.hi[a] : 1;
+        const blo = a < d ? b.lo[a] : 0, bhi = a < d ? b.hi[a] : 1, wl = wallFace(a, 0) && blo === 0, wh = wallFace(a, 1) && bhi === P.ext[a];
         per[a] = P.per[a] && blo === P.lo[a] && bhi === P.hi[a] && P.hi[a] - P.lo[a] === P.ext[a];
-        lo[a] = blo * r[a]; hi[a] = bhi * r[a]; g[a] = per[a] || a >= d ? 0 : 2;
-        const mg = /^N1/.test(o.method || 'V0') ? 3 : 2; if (!per[a] && a < d && (blo - P.lo[a] < mg || P.hi[a] - bhi < mg)) throw Error(`level ${i + 1} box must be at least ${mg} parent cells inside level ${i} on axis ${a}`);
+        lo[a] = blo * r[a]; hi[a] = bhi * r[a]; gLo[a] = per[a] || a >= d || wl ? 0 : 2; gHi[a] = per[a] || a >= d || wh ? 0 : 2;
+        const mg = /^N1/.test(o.method || 'V0') ? 3 : 2;
+        if (!per[a] && a < d && ((!wl && blo - P.lo[a] < mg) || (!wh && P.hi[a] - bhi < mg))) throw Error(`level ${i + 1} box must be at least ${mg} parent cells inside level ${i} on axis ${a} (or touch a wall face)`);
       }
-      levels.push({ l: i + 1, lo, hi, ext, per, g, plo: b.lo.concat(d === 2 ? [0] : []).slice(0, 3), phi: b.hi.concat(d === 2 ? [1] : []).slice(0, 3) });
+      levels.push({ l: i + 1, lo, hi, ext, per, gLo, gHi, plo: b.lo.concat(d === 2 ? [0] : []).slice(0, 3), phi: b.hi.concat(d === 2 ? [1] : []).slice(0, 3) });
     });
   }
   const L0tau = o.tau0;
   for (const L of levels) {
-    L.n = [0, 1, 2].map(a => L.hi[a] - L.lo[a] + 2 * L.g[a]); L.N = L.n[0] * L.n[1] * L.n[2];
+    L.n = [0, 1, 2].map(a => L.hi[a] - L.lo[a] + L.gLo[a] + L.gHi[a]); L.N = L.n[0] * L.n[1] * L.n[2];
     L.tau = .5 + 2 ** L.l * (L0tau - .5); L.vol = 2 ** (-d * L.l); L.h = 2 ** -L.l;
     L.f = alloc(Float64Array, Q * L.N); L.post = alloc(Float64Array, Q * L.N); L.mask = alloc(Uint8Array, L.N); L.solid = alloc(Uint8Array, L.N);
     L.child = null; L.parent = null; L.force = [0, 0, 0]; L.forceAcc = [0, 0, 0]; L.forceN = 0;
@@ -86,13 +91,13 @@ export function createRefined(o) {
   const idx = (L, x, y, z) => {
     const c = [x, y, z], n = L.n; let s = 0, m = 1;
     for (let a = 0; a < 3; a++) {
-      let v = c[a] - (L.lo[a] - L.g[a]);
+      let v = c[a] - (L.lo[a] - L.gLo[a]);
       if (L.per[a]) { v = ((v % n[a]) + n[a]) % n[a]; } else if (v < 0 || v >= n[a]) return -1;
       s += v * m; m *= n[a];
     }
     return s;
   };
-  const coord = (L, n) => { const i = n % L.n[0], j = Math.floor(n / L.n[0]) % L.n[1], k = Math.floor(n / (L.n[0] * L.n[1])); return [i + L.lo[0] - L.g[0], j + L.lo[1] - L.g[1], k + L.lo[2] - L.g[2]]; };
+  const coord = (L, n) => { const i = n % L.n[0], j = Math.floor(n / L.n[0]) % L.n[1], k = Math.floor(n / (L.n[0] * L.n[1])); return [i + L.lo[0] - L.gLo[0], j + L.lo[1] - L.gLo[1], k + L.lo[2] - L.gLo[2]]; };
   const centre = (L, c) => [(c[0] + .5) * L.h, (c[1] + .5) * L.h, d === 3 ? (c[2] + .5) * L.h : 0];
   for (const L of levels) {
     L.coord = alloc(Int32Array, 3 * L.N);
@@ -104,6 +109,18 @@ export function createRefined(o) {
     }
     L.src = alloc(Int32Array, Q * L.N).fill(-1);
     for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE) continue; const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 0; q < Q; q++) L.src[q * L.N + n] = idx(L, x - cx[q], y - cy[q], z - cz[q]); }
+  }
+  // wall faces: per level, [cell, q, source cell, source direction] for every population that would come from outside through a wall face, and the
+  // moving-wall term 6 w_q c_q . u_wall (0 for slip)
+  const mirror = (q, a) => C.findIndex(c => [0, 1, 2].every(b => c[b] === (b === a ? -C[q][b] : C[q][b])));
+  for (const L of levels) {
+    const fl = [], fk = [];
+    for (const [a, side] of [[1, 0], [1, 1], [2, 0], [2, 1]]) { const spec = faceSpec(a, side); if (!spec) continue; const edge = side ? L.ext[a] - 1 : 0, dir = side ? -1 : 1, slip = spec === 'slip', u = slip ? [0, 0, 0] : (spec.u || [0, 0, 0]);
+      for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE || L.coord[3 * n + a] !== edge) continue; const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]];
+        for (let q = 1; q < Q; q++) { if (C[q][a] !== dir) continue; // arrives from outside the face
+          if (!slip) { fl.push(n, q, n, OPP[q]); fk.push(6 * W[q] * (C[q][0] * u[0] + C[q][1] * u[1] + C[q][2] * u[2])); }
+          else { const s2 = idx(L, c[0] - (a === 0 ? 0 : C[q][0]), c[1] - (a === 1 ? 0 : C[q][1]), c[2] - (a === 2 ? 0 : C[q][2])); if (s2 >= 0 && L.mask[s2] !== INACTIVE) { fl.push(n, q, s2, mirror(q, a)); fk.push(0); } } } } }
+    L.faceLinks = Int32Array.from(fl); L.faceK = Float64Array.from(fk);
   }
   // ring cells (interior active cells with an inactive lattice neighbour) and their children; coarse "ghost" cells (inactive cells with an active neighbour)
   for (const L of levels) {
@@ -241,6 +258,7 @@ export function createRefined(o) {
   function stream(L, uin) {
     const { N, f, post } = L;
     dispatch(1, L); // pull streaming (src is -1 for inactive cells)
+    { const fl = L.faceLinks, fk = L.faceK; for (let t = 0, u = 0; t < fl.length; t += 4, u++) f[fl[t + 1] * N + fl[t]] = post[fl[t + 3] * N + fl[t + 2]] + fk[u]; } // wall faces
     if (L.l === 0 && io) for (let q = 1; q < Q; q++) { if (!(cx[q] > 0)) continue; const b = q * N, ob = OPP[q] * N, k = 6 * W[q] * cx[q] * uin; for (let n = 0; n < N; n += L.n[0]) f[b + n] = post[ob + n] + k; } // inlet (x = 0): moving-wall bounce-back
     if (L.l === 0 && io) { // outlet: fixed density, non-equilibrium extrapolation from the previous plane
       const nx = L.n[0];
