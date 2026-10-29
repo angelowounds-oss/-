@@ -6,10 +6,14 @@
 //     the file's strafe clips are named for the viewer's side, so they are told apart by what they do, not by name), and a sprint plays Sprint.
 // (b) turning in place: standing, the body turns 90 deg left, 90 deg right or 180 deg within 0.2 s; a turn clip that turns that way must
 //     carry the legs round (weight over 0.5), the pelvis must end within 10 deg of the new facing, the chest (across the shoulders) must keep
-//     within 15 deg of it meanwhile, and the planted foot must stay put (median below 0.25 m/s). The total it slides is only reported:
-//     Idle stands with its feet apart front to back and the turns start square, so blending in and out still drags both feet (CHR-06c).
+//     within 15 deg of it meanwhile, and the planted foot must stay put (median below 0.25 m/s). Idle stands with its feet apart front to
+//     back and the turns start square, so the blends in and out drag both feet unless they are held (CHR-06c): the total both slide must stay
+//     under 0.7 m for a quarter turn and 1.2 m for a half (it was 1.35 and 2.56 before CHR-06b, 2.29 and 2.14 with its turn clips alone).
 //     Leaning: running at 5.2 m/s on a left curve (1.2 rad/s) leans the body left (between 3 and 12 deg); speeding up from a standstill
 //     leans it forward, stopping leans it back.
+// (c) stairs (CHR-06c): the body climbs a tower's stairs (NC-B00_08-0 in the default world) through the game loop, stands on them, turns and
+//     goes back down; wherever a foot is slower than 0.3 m/s over a flight, its sole must be within 3 cm of the tread under its ball 95% of
+//     the time (the capsule glides up the flight's ramp, the treads are drawn as 14 steps).
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
@@ -17,6 +21,8 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const g = window.__game, pl = g.player, m = pl.m, THREE = window.__THREE, B = m.bones; g.eng.render = () => {};
     pl.dead = false; pl.reactT = 0; pl.stance = 0; pl.crouch = 0; pl.crouching = false; pl.prone = false; pl.swimming = false; pl.gestUB = null; pl.proc = null;
     const body3 = pl.body3; pl.body3 = null;   // on the ground wherever the stepping takes it (the physics body is frozen with the loop)
+    // (a) and (b) step the body on through whatever stands there at a fixed height: the feet are not put on that ground (CHR-06c), only held
+    const footY = g.phys.footY; g.phys.footY = () => NaN;
     const pts = [B.LeftFoot, B.LeftToeBase, B.RightFoot, B.RightToeBase], v3 = new THREE.Vector3(), dt = 1 / 60, H = pl.constructor;
     // one animation step, the distance LOD's camera kept on the body (the cases walk it far from where the frozen camera stands)
     const anim = () => { H.camX = pl.x; H.camZ = pl.z; pl.animateSkinned(dt); };
@@ -79,6 +85,34 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       }
       return { sideDeg: +(side * 57.3).toFixed(1), startDeg: +(fwd * 57.3).toFixed(1), stopDeg: +(back * 57.3).toFixed(1) };
     };
+    // (c) stairs, through the game's own loop (W held, the camera along the flight): the tallest open tower's first tower floor, flight A (the
+    // core's west column, 14 steps up from south to north), run halfway up, stand a second, run to the landing, turn and run back down. Every
+    // frame, each foot that is not moving (below 0.3 m/s) over the flight must stand with its sole (from its bones: the lower of ankle and toe
+    // joint, less their height over the sole in Idle, m.feet) on the tread under the ball of the foot
+    const stairs = () => {
+      pl.body3 = body3; g.phys.footY = footY; const keys = g.input.keys, V = THREE.Vector3;
+      const bd = g.buildings.list.filter((x) => x.lot.h > 60 && !x.lot.model && !x.lot.far).sort((p, q) => q.lot.h - p.lot.h)[0], d = bd.lot.door;
+      body3.teleport(d.px + d.nx * 3, 0, d.pz + d.nz * 3); pl.x = d.px + d.nx * 3; pl.z = d.pz + d.nz * 3;
+      for (let i = 0; i < 600 && !bd.open; i++) window.__upd(dt);
+      const K = bd.levels.findIndex((l) => l.tier === 'tower'); bd.ensureRange(K - 1, K + 1, true); for (let i = 0; i < 400; i++) window.__upd(dt);
+      const L = bd.levels[K], c = bd.core, y0 = L.y, ly = y0 + L.h * 0.45, za = c.zc, zb = c.z0 + 1.6, x = c.x0 + 0.8, n = 14;
+      const tread = (z) => y0 + ((ly - y0) * (Math.min(n - 1, Math.max(0, Math.floor(((z - za) / (zb - za)) * n))) + 1)) / n;
+      body3.teleport(x, y0, za + 1.5); pl.x = x; pl.y = body3.y; pl.z = za + 1.5; pl.vx = pl.vz = 0; pl.ry = Math.PI;
+      const R = m.feet, gaps = [], prev = [null, null]; let top = y0;
+      const sample = () => {
+        pl.group.updateMatrixWorld(true); top = Math.max(top, pl.y);
+        for (let f = 0; f < 2; f++) {
+          const A = (f ? B.RightFoot : B.LeftFoot).getWorldPosition(new V()), T = (f ? B.RightToeBase : B.LeftToeBase).getWorldPosition(new V()), p = prev[f], mz = (A.z + T.z) / 2;
+          prev[f] = A; if (!p || A.distanceTo(p) / dt > 0.3 || mz > za - 0.05 || mz < zb + 0.05) continue;
+          gaps.push(Math.min(A.y - R.ankle, T.y - R.toe) - tread(mz));
+        }
+      };
+      const go = (yaw, until, hold = true) => { for (let i = 0; i < 400; i++) { g.cam.yaw = yaw; if (hold) keys.add('KeyW'); else keys.delete('KeyW'); window.__upd(dt); sample(); if (until(i)) break; } keys.delete('KeyW'); };
+      go(Math.PI, () => pl.z < (za + zb) / 2); go(Math.PI, (i) => i >= 60, false);
+      go(Math.PI, () => pl.z < zb - 0.4); go(0, (i) => i >= 30, false); go(0, () => pl.z > za + 1);
+      const s = gaps.map(Math.abs).sort((p, q) => p - q), pc = (k) => +((s[Math.min(s.length - 1, (s.length * k) | 0)] || 0) * 100).toFixed(1);
+      return { uid: bd.uid || bd.lot.uid, samples: s.length, within3cm: +(s.filter((v) => v < 0.03).length / Math.max(1, s.length)).toFixed(3), p50cm: pc(0.5), p95cm: pc(0.95), maxCm: pc(1), climbed: +(top - y0).toFixed(2) };
+    };
     const cases = {
       walk: { speed: 1.4 }, aimFwd: { speed: 2.6, aim: true }, aimRight: { speed: 2.6, dir: -Math.PI / 2, aim: true }, aimLeft: { speed: 2.6, dir: Math.PI / 2, aim: true },
       aimBack: { speed: 2.6, dir: Math.PI, aim: true }, aimDiag: { speed: 2.6, dir: -Math.PI / 4, aim: true }, aimBackDiag: { speed: 2.6, dir: Math.PI * 0.75, aim: true },
@@ -87,14 +121,15 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const out = {}; for (const k in cases) out[k] = drive(cases[k]);
     const turns = { left90: turn(Math.PI / 2), right90: turn(-Math.PI / 2), back180: turn(Math.PI * 0.98) };
     const leanOut = lean();
-    pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.speed = 0; pl.vx = pl.vz = 0; pl.body3 = body3;
+    pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.speed = 0; pl.vx = pl.vz = 0;
+    const stairsOut = stairs();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
-    return { move: out, turns, lean: leanOut, gait, turnClips };
+    return { move: out, turns, lean: leanOut, stairs: stairsOut, gait, turnClips, feet: m.feet };
   });
-  const limit = { aimRight: 0.9, aimLeft: 0.9 };
-  const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < (limit[k] || 0.25)) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
-  for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25)) bad.push(k); }
+  const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < 0.25) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
+  for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25 && t.slideM < (k === 'back180' ? 1.2 : 0.7))) bad.push(k); }
   const L = o.lean; if (!(L.sideDeg <= -3 && L.sideDeg >= -12.1 && L.startDeg >= 1.5 && L.startDeg <= 7 && L.stopDeg <= -1)) bad.push('lean');
+  const S = o.stairs; if (!(S.samples >= 40 && S.within3cm >= 0.95 && S.climbed > 1)) bad.push('stairs');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });

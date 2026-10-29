@@ -108,6 +108,91 @@ function syncTurn(h) {
   h.turnYaw = p; h.turnChest = c;
 }
 
+// CHR-06c (ADR-0035): the feet on what they stand over, for people within 35 m. Each foot goes up or down by how far the ground under it
+// (Physics.footY: a stair's treads, not its ramp) lies from the level the clips stand on, eased while it swings and never below that
+// ground; the pelvis drops to the lower foot so the other leg bends to reach, and a planted foot tips to the slope. Within 20 m a planted foot
+// is also held where it came down (foot lock): the point it bears on stays put and the foot keeps pointing the way it did, 25 deg at most
+// (past that it pivots on that point as the clip turns it). Once the clip lifts it, it eases back under the clip as it rises; one the clip
+// drags 16 cm off on the ground (a blend between stances), or that a standing body has left off its place, steps there instead, a short
+// lifted step while the other foot stays down. That takes out what the clips still slide or pivot (side steps past their cadence, back
+// steps, the blend into and out of a turn in place).
+const IK_NEAR = 35, LOCK_NEAR = 20, LOCK_OFF = 0.16, LOCK_YAW = 0.44, LIFT = 0.025, TILT_MAX = 0.42, STEP_T = 0.28, STEP_UP = 0.06;
+const _fA = new THREE.Vector3(), _fT = new THREE.Vector3(), _fP = new THREE.Vector3(), _fQ = new THREE.Quaternion(), _fI = new THREE.Quaternion(), _fY = new THREE.Quaternion(), _fUp = new THREE.Vector3(0, 1, 0), _fN = new THREE.Vector3();
+const FOOT = ['LeftFoot', 'LeftToeBase', 'RightFoot', 'RightToeBase'];
+function stepFeet(h, dt, cd, on) {
+  const m = h.m, rest = m.feet, P = h.G && h.G.phys;
+  if (!rest || !P || !m.legIK) return;
+  const F = h.feet || (h.feet = [0, 1].map(() => ({ d: 0, ox: 0, oz: 0, oy: 0, lx: NaN, lz: NaN, ly: 0, c: 0, st: -1, arc: 0, s0x: 0, s0z: 0, s0y: 0, off: 0, cx: NaN, cz: 0, cc: -1, qx: NaN, qz: 0, qb: 0, g: NaN, nx: 0, ny: 1, nz: 0 })));
+  h.ikW = damp(h.ikW || 0, on && cd < IK_NEAR ? 1 : 0, 8, dt);
+  if (h.ikW < 0.01) { h.ikW = 0; h.pelvis = 0; for (const f of F) { f.d = 0; f.ox = f.oz = f.oy = 0; f.lx = NaN; f.st = -1; f.arc = 0; } return; }
+  const w = h.ikW, base = h.y + m.body.position.y + rest.sole, lock = on && cd < LOCK_NEAR, B = m.bones;
+  // a jump in place (teleport, a ride's seat) lets go of everything held
+  const jump = Math.hypot(h.x - (h._fx ?? h.x), h.z - (h._fz ?? h.z)) > 1; h._fx = h.x; h._fz = h.z;
+  const still = h.speed < 0.1 && !h.turnClip;
+  let low = 0, any = false; m.legsWorld();
+  for (let i = 0; i < 2; i++) {
+    const f = F[i], other = F[1 - i];
+    _fA.setFromMatrixPosition(B[FOOT[2 * i]].matrixWorld); _fT.setFromMatrixPosition(B[FOOT[2 * i + 1]].matrixWorld);
+    // how high the heel (ankle) and the ball (toe joint) are off the clips' ground, each less what it stands over the sole in Idle; the foot
+    // bears on its ball whenever that is down, else on its heel
+    const la = _fA.y - rest.ankle - base, lt = _fT.y - rest.toe - base, lift = Math.min(la, lt), c = lt < LIFT ? 1 : 0;
+    const tx = _fT.x - _fA.x, tz = _fT.z - _fA.z, yaw = Math.atan2(tx, tz);
+    if (jump) { f.lx = NaN; f.ox = f.oz = f.oy = 0; f.cc = -1; f.st = -1; f.arc = 0; }
+    const cpx = c ? _fT.x : _fA.x, cpz = c ? _fT.z : _fA.z, cv = dt > 0 && f.cc === c ? Math.hypot(cpx - f.cx, cpz - f.cz) / dt : 99; f.cx = cpx; f.cz = cpz; f.cc = c;
+    if (f.st >= 0) {
+      // the step: up and over to where the clip has the foot
+      f.st = Math.min(1, f.st + dt / STEP_T); const e = 1 - f.st * f.st * (3 - 2 * f.st);
+      f.ox = f.s0x * e; f.oz = f.s0z * e; f.oy = f.s0y * e; f.arc = STEP_UP * Math.sin(Math.PI * f.st);
+      if (f.st >= 1) { f.st = -1; f.arc = 0; }
+    } else {
+      // taken once the clip has slowed the point it bears on to a walk's pace over the ground (not while it still lands); rolling from the
+      // heel onto the ball moves the hold to the ball where it is drawn, so nothing jumps
+      const held = f.lx === f.lx, planted = lock && lift < LIFT && (held || cv < 1);
+      const cs = Math.cos(f.oy), sn = Math.sin(f.oy);
+      if (planted && (!held || c !== f.c)) { f.lx = _fA.x + f.ox + (c ? tx * cs + tz * sn : 0); f.lz = _fA.z + f.oz + (c ? -tx * sn + tz * cs : 0); f.ly = yaw + f.oy; f.c = c; }
+      if (planted) {
+        f.oy = wrapA(f.ly - yaw); if (Math.abs(f.oy) > LOCK_YAW) { f.oy = Math.sign(f.oy) * LOCK_YAW; f.ly = yaw + f.oy; }
+        const c2 = Math.cos(f.oy), s2 = Math.sin(f.oy);
+        f.ox = f.lx - _fA.x - (c ? tx * c2 + tz * s2 : 0); f.oz = f.lz - _fA.z - (c ? -tx * s2 + tz * c2 : 0);
+        const far = Math.hypot(f.ox, f.oz); f.off = still && (far > 0.05 || Math.abs(f.oy) > 0.25) ? f.off + dt : 0;
+        if ((far > LOCK_OFF || f.off > 0.35) && other.st < 0) { f.st = 0; f.s0x = f.ox; f.s0z = f.oz; f.s0y = f.oy; f.lx = NaN; f.off = 0; }
+      } else {
+        f.lx = NaN;
+        // let go, the foot comes back under the clip as it rises (on the ground it moves as the clip moves it, no faster)
+        const k = Math.exp(-14 * dt * clamp((lift - LIFT) / 0.04, 0, 1)); f.ox *= k; f.oz *= k; f.oy *= k;
+      }
+    }
+    // the ground under the ball of the foot where it is drawn, asked again once the foot has moved 3 cm (15 cm while it swings high, half a tread) or the
+    // body 1 cm up or down; a level within 2 cm of the clips' is left alone (the player's capsule stands 3 cm up, the clips sink the soles 1.6 cm)
+    const gx = _fA.x + f.ox + tx * 0.5, gz = _fA.z + f.oz + tz * 0.5, qr = lift > 0.04 ? 0.15 : 0.03;
+    if (!(Math.abs(gx - f.qx) < qr && Math.abs(gz - f.qz) < qr && Math.abs(base - f.qb) < 0.01)) {
+      f.g = P.footY(gx, base + 0.6, gz, 1.2); f.qx = gx; f.qz = gz; f.qb = base; const n = f.g === f.g && P.footN; f.nx = n ? n.x : 0; f.ny = n ? n.y : 1; f.nz = n ? n.z : 0;
+    }
+    let want = f.g === f.g && f.g > base - 0.5 ? clamp(f.g - base, -0.45, 0.45) : 0; if (Math.abs(want) < 0.02) want = 0;
+    f.d = damp(f.d, want, lift < 0.04 ? 30 : 12, dt); f.d = Math.max(f.d, want - Math.max(0, lift));
+    f.lift = lift; f.px = _fA.x; f.py = _fA.y; f.pz = _fA.z;
+    low = Math.min(low, f.d);
+    if (Math.abs(f.d) > 0.004 || Math.abs(f.ox) > 0.004 || Math.abs(f.oz) > 0.004 || Math.abs(f.oy) > 0.01 || f.arc > 0) any = true;
+  }
+  h.pelvis = damp(h.pelvis || 0, low, 20, dt);
+  if (!any && Math.abs(h.pelvis) < 0.004) return;
+  // the hips go down with the pelvis (on level ground they stay, and the legs' matrices from above stand)
+  if (Math.abs(h.pelvis * w) > 1e-4) { m.body.position.y += h.pelvis * w; m.legsWorld(); }
+  const fx = Math.sin(h.ry + (h.hipTurn || 0)), fz = Math.cos(h.ry + (h.hipTurn || 0));
+  for (let i = 0; i < 2; i++) {
+    const f = F[i], pw = clamp(1 - (f.lift + f.arc) / 0.08, 0, 1) * w;
+    _fP.set(f.px + f.ox * w, f.py + (f.d + f.arc) * w, f.pz + f.oz * w);
+    // the foot's world turn: the held yaw, then tipped to the slope under it
+    let tilt = null;
+    if (Math.abs(f.oy) > 0.001) tilt = _fY.setFromAxisAngle(_fUp, f.oy * w);
+    if (pw > 0.01 && f.ny < 0.9995) {
+      _fN.set(f.nx, Math.max(f.ny, Math.cos(TILT_MAX)), f.nz).normalize(); _fQ.setFromUnitVectors(_fUp, _fN); _fI.identity().slerp(_fQ, pw);
+      tilt = tilt ? _fI.multiply(tilt) : _fI;
+    }
+    m.legIK(i, _fP, tilt, fx, fz);
+  }
+}
+
 export class Human {
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
@@ -205,7 +290,7 @@ export class Human {
       const k = Math.min(1, this.deadT * 3);
       if (this.clipDeath) {
         const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
-        if (cd < 75) { this.m.mixer.update(dt); this.m.applyPose(0, 0); }
+        if (cd < 75) { if (this.m.unturnHips) this.m.unturnHips(); this.m.mixer.update(dt); this.m.applyPose(0, 0); }
         if (this.knock) { this.stepKnock(dt); }
         if (this.deadT > 22) this.group.scale.setScalar(Math.max(0.001, 1 - (this.deadT - 22) * 0.8));
         return;
@@ -324,11 +409,18 @@ export class Human {
   }
 
   animateSkinned(dt) {
-    const m = this.m, a = m.act, sp = this.speed;
+    const m = this.m, a = m.act;
+    // CHR-06c: the player's legs step at the pace the body really covers the ground (the capsule climbs a stair flight at about three
+    // quarters of a run, and stops at a wall), never faster than it is pushed; a jump of 0.5 m in a frame is a teleport, not a pace
+    let sp = this.speed;
+    if (this.body3 && dt > 0) {
+      const real = Math.hypot(this.x - (this._gx ?? this.x), this.z - (this._gz ?? this.z)) / dt; this._gx = this.x; this._gz = this.z;
+      this.gSp = real * dt > 0.5 ? sp : damp(this.gSp ?? sp, Math.min(sp, real), 16, dt); sp = Math.min(sp, this.gSp);
+    }
     if (this.reactT > 0) {
       this.reactT -= dt;
       if (this.reactT <= 0) { m.stopOnce(); a.Idle.weight = 1; }
-      else { m.mixer.update(dt); m.applyPose(0, 0); this.group.position.set(this.x, this.y, this.z); this.group.rotation.y = this.ry; return; }
+      else { if (m.unturnHips) m.unturnHips(); m.mixer.update(dt); m.applyPose(0, 0); this.group.position.set(this.x, this.y, this.z); this.group.rotation.y = this.ry; return; }
     }
     if (m.onceName && !this.dead) m.stopOnce();
     const idle = clamp(1 - sp / 0.6, 0, 1);
@@ -440,6 +532,10 @@ export class Human {
       sw(B.LeftUpLeg, Math.sin(t * 6) * a * 0.6, 0, 0); sw(B.RightUpLeg, -Math.sin(t * 6) * a * 0.6, 0, 0); }
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
+    // CHR-06c: standing or stepping on the ground in the stand set (or crouched), not carried, lying, falling or driven by a one-shot clip
+    const feetOn = !this.dead && !m.rideOn && !this.inCar && !this.swimming && !this.prone && !this.lying && !m.sit && !this.knock && !this.rag && !this.hang && !this.mantle && !this.ladder &&
+      (!this.stanceSet || this.stanceSet[0] === 'U_Crouch_Idle') && (!this.body3 || this.body3.grounded) && !(this.G && this.G.carRider && this.G.carRider.roof && this.isPlayer);
+    stepFeet(this, dt, cd, feetOn);
     if (this.aimT > 0) this.aimT -= dt * 0.5;
   }
   animate(dt, desired) {

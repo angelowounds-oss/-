@@ -1,7 +1,9 @@
 // gameplay (PHY-04): getting up from a knock-down must give back the body it started with. The mixer does not write every bone (Root, toes,
 // fingers); those must end where they were before the fall, or the body faces away from the character and the feet twist, worse with every
 // fall. The player (fall) and a civilian (shove) are knocked down twice each; after every get-up, each bone the mixer leaves alone must be
-// within 1 degree of its pose before the first fall, and no bone may go non-finite during the blend.
+// within 1 degree of its pose before the first fall, and no bone may go non-finite during the blend. Bones are compared as the clips leave
+// them (the hips' turn and the leg IK taken back, CHR-06b/c: they are put back before the mixer every frame, so they cannot build up), and
+// once a turn in place has played out (the player turns back to where it faced, and the turn clips move the toes Idle holds still)
 const { run, freeze, result } = require('../lib.cjs');
 run('ragdoll-getup', { q: 1 }, async ({ page }) => {
   await freeze(page);
@@ -21,8 +23,10 @@ run('ragdoll-getup', { q: 1 }, async ({ page }) => {
       return kept;
     };
     const deg = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b)))) * 57.2958;
+    const turning = (h) => !!h.turnClip || Object.keys(h.m.act).some((k) => /^U_Turn/.test(k) && h.m.act[k].weight > 1e-3);
+    const settle = (h) => { for (let i = 0; i < 240 && turning(h); i++) window.__upd(1 / 60); if (h.m.unturnHips) h.m.unturnHips(); };
     const test = (h, knock) => {
-      step(60);
+      step(60); settle(h);
       const names = unwritten(h.m), ref = Object.fromEntries(names.map((n) => [n, h.m.bones[n].quaternion.clone()]));
       const rounds = [];
       for (let r = 0; r < 2; r++) {
@@ -32,7 +36,7 @@ run('ragdoll-getup', { q: 1 }, async ({ page }) => {
           window.__upd(1 / 60);
           if (h.rag && h.rag.state === 'GETUP') { sawGetUp = true; for (const n in h.m.bones) { const q = h.m.bones[n].quaternion; if (!Number.isFinite(q.x + q.y + q.z + q.w)) nonFinite++; } }
         }
-        step(60);
+        step(60); settle(h);
         // a civilian runs off afterwards: bones the running clip writes are animated again, not left over from the fall
         const still = new Set(unwritten(h.m)); let worst = 0, worstBone = null;
         for (const n of names) { if (!still.has(n)) continue; const d = deg(ref[n], h.m.bones[n].quaternion); if (d > worst) { worst = d; worstBone = n; } }

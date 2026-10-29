@@ -69,6 +69,24 @@ export class Physics {
     const R = this.R;
     return this.world.createCollider(R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy - hy, cz).setRotation(q).setFriction(0.8).setCollisionGroups(grp(GR.STATIC, ALL)));
   }
+  // a stair flight of n steps along z, from (za, ya) to (zb, yb), x0..x1 wide: walked as a ramp (the character glides up it), while the
+  // collider keeps the steps so footY puts feet on the treads it is drawn with
+  addStairs(x0, x1, za, zb, ya, yb, n) {
+    const col = this.addRamp((x0 + x1) / 2, (ya + yb) / 2, (za + zb) / 2, (x1 - x0) / 2, 0.08, Math.hypot(zb - za, yb - ya) / 2, yb - ya, zb - za);
+    col.steps = { za, zb, ya, yb, n };
+    return col;
+  }
+  // CHR-06c: height of what a foot stands on at (x, z), looking down from y as far as `reach` (NaN over nothing); the surface normal is
+  // left in this.footN (straight up on a stair's tread). The stair's steps, not its ramp; people, ragdolls and loose props are not ground
+  footY(x, y, z, reach) {
+    const h = this.world.castRayAndGetNormal(this._rayOf(x, y, z, 0, -1, 0), reach, true, undefined, grp(0xffff, GR.STATIC | GR.VEH | GR.OBJ | GR.GLASS));
+    const n = this.footN || (this.footN = { x: 0, y: 1, z: 0 });
+    if (!h) return NaN;
+    const s = h.collider.steps;
+    if (s) { const i = Math.min(s.n - 1, Math.max(0, Math.floor(((z - s.za) / (s.zb - s.za)) * s.n))); n.x = 0; n.y = 1; n.z = 0; return s.ya + ((s.yb - s.ya) * (i + 1)) / s.n; }
+    n.x = h.normal.x; n.y = h.normal.y; n.z = h.normal.z;
+    return y - h.timeOfImpact;
+  }
   drainEvents() {
     this.events.drainCollisionEvents((h1, h2, started) => {
       if (!started || !this.onGlassHit) return;

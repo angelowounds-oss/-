@@ -388,7 +388,7 @@ export class Building {
       const z0 = za + dz * i, z1 = za + dz * (i + 1), top = ya + dy * (i + 1);
       B.ext('decor', x0, ya, Math.min(z0, z1), x1, top, Math.max(z0, z1), color);
     }
-    fl.bodies.push(this.G.phys.addRamp((x0 + x1) / 2, (ya + yb) / 2, (za + zb) / 2, (x1 - x0) / 2, 0.08, Math.hypot(zb - za, yb - ya) / 2, yb - ya, zb - za));
+    fl.bodies.push(this.G.phys.addStairs(x0, x1, za, zb, ya, yb, n));
   }
   lighting(fl, B, L, r, y, top, acc) {
     const em = new THREE.Color(1, 0.88, 0.7).multiplyScalar(1.15);

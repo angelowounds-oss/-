@@ -160,7 +160,9 @@ export class Ragdoll {
       void qp; void qc;
     }
     this.bodies[0].setAdditionalSolverIterations?.(2); this.bodies[2].setAdditionalSolverIterations?.(2);
-    // pose snapshot: the target for the bones the animation does not write when getting up (see getUpTick)
+    // pose snapshot: the target for the bones the animation does not write when getting up (see getUpTick), as the clips left them (the
+    // hips' turn and the leg IK taken back, CHR-06b/c; the bodies above already took the pose as drawn)
+    if (m.unturnHips) m.unturnHips();
     this.localQ = {};
     for (const n of Object.keys(bones)) this.localQ[n] = bones[n].quaternion.clone();
     this.hipsPos0 = bones.Hips.position.clone();

@@ -210,6 +210,27 @@ function measureTurns(S) {
   mixer.uncacheRoot(scene);
   return out;
 }
+// CHR-06c (ADR-0035): where the sole is from the foot bones: how high the ankle and the toe joints stand over the lowest point of the skin
+// the feet carry, and where that point is from the body's origin (sole: < 0 when the clips stand the feet a little into the ground), in Idle
+function measureFeet(S, scale) {
+  const scene = S.scene, idle = S.animations.find((c) => c.name === 'Idle'), fb = ['LeftFoot', 'LeftToeBase', 'RightFoot', 'RightToeBase'].map((n) => scene.getObjectByName(n));
+  if (!idle || fb.some((b) => !b)) return null;
+  const mixer = new THREE.AnimationMixer(scene), a = mixer.clipAction(idle); a.play(); mixer.update(0); scene.updateMatrixWorld(true);
+  const inv = scene.matrixWorld.clone().invert(), v = new THREE.Vector3(); let sole = Infinity;
+  scene.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    const G = o.geometry.attributes, ids = fb.map((b) => o.skeleton.bones.indexOf(b));
+    for (let i = 0; i < G.position.count; i++) {
+      let w = 0; for (let k = 0; k < 4; k++) if (ids.includes(G.skinIndex.getComponent(i, k))) w += G.skinWeight.getComponent(i, k);
+      if (w < 0.5) continue;
+      o.getVertexPosition(i, v); o.localToWorld(v).applyMatrix4(inv); if (v.y < sole) sole = v.y;
+    }
+  });
+  const y = (b) => v.setFromMatrixPosition(b.matrixWorld).applyMatrix4(inv).y;
+  const out = sole < Infinity ? { ankle: ((y(fb[0]) + y(fb[2])) / 2 - sole) * scale, toe: ((y(fb[1]) + y(fb[3])) / 2 - sole) * scale, sole: sole * scale } : null;
+  a.stop(); mixer.uncacheRoot(scene);
+  return out;
+}
 
 export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, ok: false };
 
@@ -238,7 +259,7 @@ export async function loadAssets() {
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     if (A.player) { const pb = new THREE.Box3().setFromObject(A.player.scene); A.playerScale = 1.82 / (pb.max.y - pb.min.y); }
     // after the boxes: these pose the templates
-    for (const [S, s] of [[A.soldier, A.soldierScale], [A.player, A.playerScale]]) if (S) { S.gait = measureGait(S, s); S.turn = measureTurns(S); }
+    for (const [S, s] of [[A.soldier, A.soldierScale], [A.player, A.playerScale]]) if (S) { S.gait = measureGait(S, s); S.turn = measureTurns(S); S.feet = measureFeet(S, s); }
     A.ok = true;
   } catch (e) { console.warn('asset load failed, procedural fallback', e); }
   return A.ok;
@@ -318,6 +339,7 @@ export function buildSoldier(look = {}, gunParts) {
   };
   const stub = () => new THREE.Object3D();
   const hipChain = [bones.Hips, bones.Spine, bones.Spine1, bones.Spine2], turned = hipChain.map(() => new THREE.Quaternion());
+  const legChain = [bones.LeftUpLeg, bones.LeftLeg, bones.LeftFoot, bones.RightUpLeg, bones.RightLeg, bones.RightFoot], legQ = legChain.map(() => new THREE.Quaternion());
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
@@ -383,8 +405,41 @@ export function buildSoldier(look = {}, gunParts) {
     },
     // before the mixer runs: the mixer writes a bone only when its blended value changed since its last frame, so under a held clip last
     // frame's turn would stay and this frame's would add to it; put back the pose the clips gave
-    unturnHips() { if (!this.hipsTurned) return; for (let i = 0; i < 4; i++) hipChain[i].quaternion.copy(turned[i]); this.hipsTurned = false; },
-    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0, gait: S.gait || {}, turn: S.turn || {},
+    unturnHips() {
+      if (this.hipsTurned) { for (let i = 0; i < 4; i++) hipChain[i].quaternion.copy(turned[i]); this.hipsTurned = false; }
+      if (this.legsMoved) { for (let i = 0; i < 6; i++) legChain[i].quaternion.copy(legQ[i]); this.legsMoved = false; }
+    },
+    // CHR-06c: the legs' world matrices brought up to date from the hips down, once for both (getWorldPosition walks up to the scene on
+    // every call, and the IK runs for every leg near the camera); legIK reads them, so this goes after anything that moves the hips
+    legsWorld() {
+      const hp = legChain[0].parent; hp.updateWorldMatrix(true, false); hp.matrixWorld.decompose(lA, hipQ, lB);
+      legChain[0].updateMatrixWorld(true); legChain[3].updateMatrixWorld(true);
+    },
+    // CHR-06c (ADR-0035): leg i (0 left, 1 right) reaches with its ankle for `t` (world), the knee bent the way it already bends (fx, fz: the
+    // way the body faces, for a straight leg); the foot keeps pointing where the clip points it, tipped by `tilt` (a world rotation, or null).
+    // Two-bone IK as twoBoneIK, on the world matrices legsWorld left and the world turns chained down from the hips'
+    legIK(i, t, tilt, fx, fz) {
+      if (!this.legsMoved) { for (let k = 0; k < 6; k++) legQ[k].copy(legChain[k].quaternion); this.legsMoved = true; }
+      const up = legChain[i * 3], lo = legChain[i * 3 + 1], ft = legChain[i * 3 + 2];
+      lqU.multiplyQuaternions(hipQ, up.quaternion); lqL.multiplyQuaternions(lqU, lo.quaternion); lq.multiplyQuaternions(lqL, ft.quaternion);
+      const a = lA.setFromMatrixPosition(up.matrixWorld), b = lB.setFromMatrixPosition(lo.matrixWorld), c = lC.setFromMatrixPosition(ft.matrixWorld);
+      lP.addVectors(a, c).multiplyScalar(0.5).sub(b).multiplyScalar(-4).add(b); lP.x += fx * 0.15; lP.z += fz * 0.15;
+      const L1 = a.distanceTo(b), L2 = b.distanceTo(c), dist = Math.min(L1 + L2 - 1e-3, Math.max(Math.abs(L1 - L2) + 1e-3, a.distanceTo(t)));
+      const d = tkD.copy(t).sub(a).normalize();
+      const cosA = Math.min(1, Math.max(-1, (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist))), sinA = Math.sqrt(1 - cosA * cosA);
+      ikN.subVectors(lP, a); ikN.addScaledVector(d, -ikN.dot(d)); if (ikN.lengthSq() < 1e-8) ikN.set(0, -1, 0); ikN.normalize();
+      // the thigh turns the knee onto its circle; the shin and ankle go round with it
+      tkE.copy(a).addScaledVector(d, L1 * cosA).addScaledVector(ikN, L1 * sinA);
+      ikQ.setFromUnitVectors(ikD.subVectors(b, a).normalize(), ikE.subVectors(tkE, a).normalize());
+      lqU.premultiply(ikQ); up.quaternion.copy(pq.copy(hipQ).invert().multiply(lqU)); lqL.premultiply(ikQ);
+      c.sub(a).applyQuaternion(ikQ).add(a);
+      // the shin turns the ankle onto the target (as far as the leg reaches)
+      ikQ.setFromUnitVectors(ikD.subVectors(c, tkE).normalize(), ikE.copy(a).addScaledVector(d, dist).sub(tkE).normalize());
+      lqL.premultiply(ikQ); lo.quaternion.copy(pq.copy(lqU).invert().multiply(lqL));
+      if (tilt) lq.premultiply(tilt);
+      ft.quaternion.copy(pq.copy(lqL).invert().multiply(lq)); up.updateMatrixWorld(true);
+    },
+    mixer, act, clip, bones, skinMeshes, skinned: true, aim: 0, aimYaw: 0, aimPitch: 0, phase: 0, gait: S.gait || {}, turn: S.turn || {}, feet: S.feet || null,
     // called after mixer update each frame
     applyPose(pose, pitch) {
       if (this.sit > 0.01 && !this.sitClip) {
@@ -415,8 +470,10 @@ export function buildSoldier(look = {}, gunParts) {
   };
 }
 const wq = new THREE.Quaternion(), pq = new THREE.Quaternion(), la = new THREE.Vector3();
+const lq = new THREE.Quaternion(), lqU = new THREE.Quaternion(), lqL = new THREE.Quaternion(), hipQ = new THREE.Quaternion(), lA = new THREE.Vector3(), lB = new THREE.Vector3(), lC = new THREE.Vector3(), lP = new THREE.Vector3();
 // ---- two-bone IK (world space) ----
 const ikA = new THREE.Vector3(), ikB = new THREE.Vector3(), ikD = new THREE.Vector3(), ikE = new THREE.Vector3(), ikN = new THREE.Vector3(), ikQ = new THREE.Quaternion(), ikQ2 = new THREE.Quaternion(), ikPW = new THREE.Quaternion();
+const tkA = new THREE.Vector3(), tkB = new THREE.Vector3(), tkC = new THREE.Vector3(), tkD = new THREE.Vector3(), tkE = new THREE.Vector3();
 // rotate `bone` so that the direction to `child` points at `target`
 function aimBone(bone, child, target) {
   bone.getWorldPosition(ikA); child.getWorldPosition(ikB);
@@ -426,16 +483,15 @@ function aimBone(bone, child, target) {
   bone.parent.getWorldQuaternion(ikPW); bone.quaternion.copy(ikPW.invert().multiply(ikQ2));
   bone.updateMatrixWorld(true);
 }
-// upper/lower/end bones reach `target`, elbow bent towards `pole`
+// upper/lower/end bones reach `target`, elbow bent towards `pole` (scratch vectors only)
 function twoBoneIK(up, lo, end, target, pole) {
-  const a = up.getWorldPosition(new THREE.Vector3()), b = lo.getWorldPosition(new THREE.Vector3()), c = end.getWorldPosition(new THREE.Vector3());
+  const a = up.getWorldPosition(tkA), b = lo.getWorldPosition(tkB), c = end.getWorldPosition(tkC);
   const L1 = a.distanceTo(b), L2 = b.distanceTo(c), dist = Math.min(L1 + L2 - 1e-3, Math.max(Math.abs(L1 - L2) + 1e-3, a.distanceTo(target)));
-  const d = target.clone().sub(a).normalize();
+  const d = tkD.copy(target).sub(a).normalize();
   const cosA = Math.min(1, Math.max(-1, (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist))), sinA = Math.sqrt(1 - cosA * cosA);
   ikN.subVectors(pole, a); ikN.addScaledVector(d, -ikN.dot(d)); if (ikN.lengthSq() < 1e-8) ikN.set(0, -1, 0); ikN.normalize();
-  const elbow = a.clone().addScaledVector(d, L1 * cosA).addScaledVector(ikN, L1 * sinA);
-  aimBone(up, lo, elbow);
-  aimBone(lo, end, a.clone().addScaledVector(d, dist));
+  aimBone(up, lo, tkE.copy(a).addScaledVector(d, L1 * cosA).addScaledVector(ikN, L1 * sinA));
+  aimBone(lo, end, tkE.copy(a).addScaledVector(d, dist));
 }
 const RIFLE_M4 = new THREE.Matrix4(), ORIGIN = new THREE.Vector3();
 const clamp01 = (v) => Math.max(-0.7, Math.min(0.7, v));
