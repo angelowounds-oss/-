@@ -97,7 +97,7 @@ function rendererOk(){return !!gl&&!gl.isContextLost()&&!!wow.ready&&diagnostics
 function smokeReadiness(){const live=window.__LIVE;if(!live)return{ready:false,p:0,why:'live'};if(live.err)return{ready:true,p:1,why:'live-unavailable',smoke:false};const calDone=!!(window.__PERF&&window.__PERF.cal&&window.__PERF.cal.done);if(!live.ok||!calDone)return{ready:false,p:.05,why:'calibrating'};const p=clamp(live.t/SMOKE_READY_T,0,1);return{ready:p>=1,p:.1+.9*p,why:p>=1?'ready':'developing',smoke:true}}
 function readiness(){if(!rendererOk())return{ready:false,p:0,why:'renderer'};return smokeReadiness()}
 function takeCamera(){fpv.enabled=false;clearWalk();try{if(document.exitPointerLock)document.exitPointerLock()}catch(_){}document.querySelectorAll('[data-camera]').forEach(b=>b.classList.remove('active'));camera.cutaway=false}
-function applyHud(){try{document.getElementById('viewName').textContent='AETHER';document.getElementById('viewHint').textContent=state===ST.PLAYING||state===ST.PREPARING?'시네마틱':'Drag to orbit · wheel/pinch to zoom';document.getElementById('cutaway').textContent='Cutaway: Off'}catch(_){}}
+function applyHud(){try{const cine=state===ST.PLAYING||state===ST.PREPARING;document.getElementById('viewName').textContent=cine?'시네마틱':'자유 시점';document.getElementById('viewHint').textContent=cine?'화면을 누르면 멈춥니다':(MOBILE?'한 손가락: 회전 · 두 손가락: 확대':'드래그: 회전 · 휠: 확대');document.getElementById('cutaway').textContent='단면 보기: '+(camera.cutaway?'켜짐':'꺼짐')}catch(_){}}
 
 function start(opts){
  if(!rendererOk()||estopped(true))return false;

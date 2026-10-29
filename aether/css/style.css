@@ -7,7 +7,7 @@
   --font:Inter,Pretendard,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word} /* Korean: break between words, not inside them */
 body{display:grid;grid-template-rows:auto 1fr}
 button,select,input{font-family:inherit}
 code{font-family:var(--mono);font-size:.92em;color:var(--accent-2)}
@@ -46,7 +46,8 @@ body.walking .fpv-help{display:block}
 .hud{position:absolute;left:16px;bottom:22px;z-index:6;display:flex;flex-direction:column;gap:2px;pointer-events:none;text-shadow:0 1px 4px #000}
 .hud strong{font-size:13px;font-weight:800;color:#f2f8fb;letter-spacing:.04em}
 .hud span{font-size:11px;color:#b6c6d1}
-#lvStat{position:absolute;z-index:7;left:14px;top:14px;width:min(440px,calc(100% - 28px));padding:9px 74px 9px 12px;border-radius:var(--r);background:var(--surface);backdrop-filter:blur(12px);border:1px solid var(--line);color:#c8e6f4;font:600 11px/1.5 var(--mono);white-space:pre-wrap;max-height:52px;overflow:hidden;cursor:pointer;transition:max-height .25s ease,background .2s}
+#lvStat{position:absolute;z-index:7;left:14px;top:14px;width:min(440px,calc(100% - 28px));padding:9px 74px 9px 12px;border-radius:var(--r);background:var(--surface);backdrop-filter:blur(12px);border:1px solid var(--line);color:#c8e6f4;font:600 11px/1.5 var(--mono);white-space:pre-wrap;overflow:hidden;cursor:pointer;transition:background .2s}
+#lvStat .more{display:none}#lvStat.open .more{display:inline} /* collapsed: exactly the two summary lines */
 #lvStat::after{content:"자세히 ▾";position:absolute;right:12px;top:9px;font:600 10px var(--font);color:var(--accent)}
 #lvStat.open{max-height:70vh;overflow:auto}
 #lvStat.open::after{content:"접기 ▴"}
@@ -140,25 +141,31 @@ body.mobile{height:100dvh;overflow:hidden;display:block}
 body.mobile header.top{position:fixed;z-index:30;top:0;left:0;right:0;height:auto;padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 12px) 8px calc(env(safe-area-inset-left) + 12px);background:linear-gradient(rgba(5,8,12,.86),rgba(5,8,12,0));border:0;pointer-events:none}
 body.mobile header.top .icon-btn{pointer-events:auto}
 body.mobile .brand small{display:none}body.mobile .brand h1{font-size:13px}body.mobile .logo{width:22px;height:22px;border-radius:7px}body.mobile .logo::after{inset:5px}
-body.mobile .badge{font-size:10px;padding:4px 9px;max-width:42vw}
-body.mobile .icon-btn span{display:none}body.mobile .icon-btn{width:36px;padding:0;justify-content:center}
+body.mobile .badge{font-size:11px;padding:5px 10px;max-width:46vw}
+body.mobile .icon-btn span{display:none}body.mobile .icon-btn{width:44px;height:44px;padding:0;justify-content:center} /* 44 pt touch targets */
 body.mobile main{position:fixed;inset:0;height:100dvh}
 body.mobile .sc-bar{display:none!important}
-body.mobile #lvStat{top:calc(env(safe-area-inset-top) + 52px);left:calc(env(safe-area-inset-left) + 10px);right:calc(env(safe-area-inset-right) + 10px);width:auto;font-size:10px;padding:7px 70px 7px 10px;max-height:46px}
+body.mobile #lvStat{top:calc(env(safe-area-inset-top) + 56px);left:calc(env(safe-area-inset-left) + 10px);right:calc(env(safe-area-inset-right) + 10px);width:auto;font-size:10.5px;padding:7px 70px 7px 10px}
 body.mobile #lvStat.open{max-height:58dvh}
 body.mobile .hud{display:none}
 body.mobile .sc-leg{top:calc(env(safe-area-inset-top) + 100px);right:10px}
-body.mobile .dock{bottom:calc(env(safe-area-inset-bottom) + 12px);gap:6px;padding:6px;max-width:calc(100% - 16px)}
-body.mobile .btn{min-height:40px;padding:0 13px;font-size:12px}
-body.mobile .menu-pop{min-width:206px}
+/* phone dock: five equal columns that always fit the width; the menus open as a sheet above the whole dock */
+body.mobile .dock{left:calc(env(safe-area-inset-left) + 8px);right:calc(env(safe-area-inset-right) + 8px);transform:none;max-width:none;bottom:calc(env(safe-area-inset-bottom) + 10px);display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr 1fr;gap:5px;padding:5px}
+body.mobile .btn{min-height:44px;padding:0 6px;font-size:13px;min-width:0}
+body.mobile .dock .btn{width:100%}
+body.mobile .menu{position:static}
+body.mobile .menu-btn::after{display:none}
+body.mobile .menu-pop{left:0;right:0;min-width:0;transform:translateY(8px)}
+body.mobile .menu.open .menu-pop{transform:none}
+body.mobile .menu-pop button{min-height:44px;font-size:14px}
 body.mobile .joystick{left:calc(env(safe-area-inset-left) + 18px);bottom:calc(env(safe-area-inset-bottom) + 84px);width:104px;height:104px}
 body.mobile .fpv-help{bottom:calc(env(safe-area-inset-bottom) + 196px);left:calc(env(safe-area-inset-left) + 14px);font-size:11px}
 body.mobile .sc-cap{font-size:13px;bottom:calc(env(safe-area-inset-bottom) + 76px);max-width:90vw;margin:0 auto}
-body.mobile #scSkip{bottom:calc(env(safe-area-inset-bottom) + 18px);right:12px;min-height:40px}
+body.mobile #scSkip{bottom:calc(env(safe-area-inset-bottom) + 18px);right:12px;min-height:44px}
 body.mobile aside#panel{left:0;right:0;top:auto;bottom:0;width:auto;max-height:68dvh;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:0 12px calc(env(safe-area-inset-bottom) + 14px);transform:translateY(105%)}
 body.mobile.eng aside#panel{transform:none}
 body.mobile #engClose{margin:0 -12px 10px;padding:12px}
-body.mobile #engClose button{min-height:40px}
+body.mobile #engClose button{min-height:44px}
 body.mobile select,body.mobile input{font-size:16px} /* iOS zooms into focused fields below 16px */
 body.mobile .form{grid-template-columns:1fr}
 @media (orientation:landscape) and (max-height:480px){

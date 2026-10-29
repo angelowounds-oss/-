@@ -1,4 +1,4 @@
-/* global __CINE */
+/* global __CINE, NodeFilter */
 // UX walkthrough: does every user-facing action the way a person would (real taps / clicks, no API shortcuts), screenshots each step
 // and audits the visible UI (touch-target size, overlaps, clipped text, tiny text, text volume). Layout/flow only: SwiftShader, so
 // nothing here says anything about smoothness or frame rate on a real device.

@@ -5,7 +5,9 @@ const $=id=>document.getElementById(id),L=()=>window.__LIVE,CN=window.__CINE;
 document.body.classList.add('sc');
 const vp=document.querySelector('.viewport');
 vp.insertAdjacentHTML('beforeend','<div class="sc-vig"></div><div class="sc-bar t"></div><div class="sc-bar b"></div><i class="sc-prog" id="scProg"></i><button id="scSkip" type="button" aria-label="시네마틱 건너뛰기">건너뛰기 ›</button><div class="sc-cap" id="scCap" aria-live="polite"></div><div class="sc-leg" id="scLeg"><span>느림</span><i></i><span>빠름</span><small style="opacity:.75">(기준풍속 대비)</small></div><div id="lvStat" role="button" tabindex="0" aria-label="계산 상태 자세히 보기"></div><div id="bdHud"></div>');
-document.body.insertAdjacentHTML('beforeend','<div class="sc-splash" id="scSplash"><h1>AETHER</h1><p>BMW M4 GT3 를 감싸는 공기의 흐름<br>수십만 개 격자에서 실시간으로 계산되는 연기를 눈앞에서 보세요</p><button id="scGo" type="button">입장하기</button><div class="sc-load" id="scLoad">엔진 준비 중</div></div>');
+const carName=(window.__VEHICLE&&window.__VEHICLE.label)||'BMW M4 GT3 EVO';
+document.body.insertAdjacentHTML('beforeend','<div class="sc-splash" id="scSplash"><h1>AETHER</h1><p>'+carName+'를 감싸는 공기의 흐름<br>수십만 개 격자에서 실시간으로 계산되는 연기를 눈앞에서 보세요</p><button id="scGo" type="button">입장하기</button><div class="sc-load" id="scLoad">엔진 준비 중</div></div>');
+{const sub=document.querySelector('.brand small');if(sub)sub.textContent=carName+' · 실시간 GPU 풍동'}
 $('scLeg').style.display='none';
 
 /* ---------- captions ---------- */
@@ -43,10 +45,10 @@ const pt0=performance.now(),WHY={renderer:'렌더러 준비',calibrating:'GPU �
 const poll=setInterval(()=>{if(!$('scLoad')){clearInterval(poll);return}const r=CN.readiness(),late=performance.now()-pt0>25000&&r.why!=='renderer';
  if((r.ready||late)&&!ready){ready=true;go.classList.add('rdy');$('scLoad').textContent='준비 완료'}
  else if(!ready)$('scLoad').textContent=(WHY[r.why]||'엔진 준비')+' '+Math.round(r.p*100)+'%'},300);
-go.onclick=()=>{if(!ready)return;clearInterval(poll);$('scSplash').classList.add('off');setTimeout(()=>$('scSplash').remove(),1100);cine()};
+go.onclick=()=>{if(!ready)return;clearInterval(poll);$('scSplash').classList.add('off');setTimeout(()=>$('scSplash')?.remove(),1100);cine()};
 
 /* ---------- walking, body and wind sound ---------- */
-$('scDoor').onclick=()=>{stop();$('walkMode').click();setTimeout(()=>{try{window.__doorPlace()}catch(e){}},60);capFor('정면의 자동문으로 걸어가세요','W / 이동 스틱으로 전진',5000)};
+$('scDoor').onclick=()=>{stop();$('walkMode').click();setTimeout(()=>{try{window.__doorPlace()}catch(e){}},60);capFor('정면의 자동문으로 걸어가세요',window.__MOBILE?'왼쪽 이동 스틱을 위로 밀어 전진':'W 키로 전진',5000)};
 $('bdOut').onclick=()=>{if(!(window.__bodyOutside&&window.__bodyOutside()))capFor('먼저 풍동 안으로 들어가세요','"걷기 → 풍동 안으로 걸어 들어가기"를 누르세요');else capFor('당신이 서 있던 자리','연기가 몸을 비켜 흐르고 뒤로 소용돌이가 남습니다')};
 $('bdBack').onclick=()=>{if(window.__bodyReturn&&window.__bodyReturn())capFor('다시 1인칭','움직이면 연기가 따라 바뀝니다')};
 {let ac=null,gain=null,bp=null,on=false;
@@ -85,11 +87,13 @@ $('scEng').onclick=()=>setPanel(!document.body.classList.contains('eng'));
 document.querySelector('#engClose button').onclick=()=>setPanel(false);
 
 /* ---------- live CFD readout: two lines by default, tap for details ---------- */
-{const hud=$('lvStat');const toggle=()=>hud.classList.toggle('open');hud.addEventListener('click',toggle);hud.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
+{const hud=$('lvStat');hud.innerHTML='<span class="sum"></span><span class="more"></span>';const hs=hud.firstChild,hm=hud.lastChild;
+ const hudSet=(a,b)=>{if(hs.textContent!==a)hs.textContent=a;const m=b?'\n'+b:'';if(hm.textContent!==m)hm.textContent=m};
+ const toggle=()=>hud.classList.toggle('open');hud.addEventListener('click',toggle);hud.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
  setInterval(()=>{const l=L();if(!l)return;document.body.classList.toggle('live-cfd',!!(l.ok&&l.enabled));
   const M=window.__MAC,mac=l.impl==='MAC'&&M,b=$('readyBadge');
   if(l.ok&&l.enabled){const N=l.N,F=l.forces,r=l.benchRes,cells=(N[0]*N[1]*N[2]/1e4).toFixed(1);
-   if(b){const t='실시간 CFD · '+(mac?'MAC 격자':'collocated(대체)')+' · 등급 '+l.q;if(b.textContent!==t){b.textContent=t;b.className='badge live'}}
+   if(b){const t='실시간 CFD · '+l.q;if(b.textContent!==t){b.textContent=t;b.className='badge live';b.title=(mac?'MAC 엇갈린 격자':'collocated 대체 솔버')+' · 등급 '+l.q}}
    let x='실시간 GPU CFD · '+(mac?'MAC 격자':'collocated(대체)')+' · 등급 '+l.q+' · '+cells+'만 셀\n풍속 '+l.U+' m/s · 모의 '+l.t.toFixed(1)+' s'+(F&&F.n>2?' · Cd '+(F.CdMean??F.Cd).toFixed(2)+' · Cl '+(F.ClMean??F.Cl).toFixed(2):'');
    x+='\n'+(mac?'MAC 엇갈린 격자 · LES(Smagorinsky) · 압력 '+(M.solver==='RBGS'?'RBGS-MG':M.solver):'collocated 대체 솔버(비점성)')+' · '+N.join('×')+' · '+l.step.toLocaleString()+' 스텝 · 연기원 '+l.emitters.length+'개';
    if(F&&F.n>2)x+='\nCd '+(F.CdMean??F.Cd).toFixed(2)+' ± '+(F.CdStd??0).toFixed(2)+' · Cl '+(F.ClMean??F.Cl).toFixed(2)+' ± '+(F.ClStd??0).toFixed(2)+' (최근 '+(F.window||0).toFixed(1)+' s 평균±표준편차 · '+(mac?(M.ibm==='vf'?'운동량 수지: 압력·점성·경계 강제':'압력+벽전단'):'압력항력만')+' · Cl은 차 밑 틈(약 7 cm)이 셀보다 작아 신뢰 낮음)';
@@ -97,9 +101,9 @@ document.querySelector('#engClose button').onclick=()=>setPanel(false);
    x+='\n계산값: 유동·연기·풍속·Cd/Cl  |  근사: 사람 형상(원기둥)·부분체적 경계·셀 크기 '+(l.h?Math.round(Math.min(...l.h)*100):'?')+' cm  |  연출: 팬 회전 속도·바람 소리·자막·연기 서서히 옅어짐(수명 3 s)·연기 표시 곡선';
    if(l.bench)x+='\n벤치마크(계산 형상은 원기둥, 화면의 차량은 계산에 포함되지 않음): 원기둥 D=0.5m '+(r&&r.ok?'스트라우할 수 St = '+r.St.toFixed(3)+' (문헌 약 0.2 · 격자 '+r.cells.toFixed(1)+'셀/지름)':'측정 중 '+Math.min(100,Math.round(100*l.t/8))+'%');
    if(/perf=1/.test(location.hash)&&window.__PERF)x+='\n'+window.__perfHudText();
-   x+='\n정성적 시각화이며 공학 해석 도구가 아닙니다';hud.textContent=x}
-  else if(l.err)hud.textContent='실시간 CFD 사용 불가: '+l.err;
-  else hud.textContent=l.enabled?'실시간 CFD 준비 중':'실시간 CFD 꺼짐'},300)}
+   x+='\n정성적 시각화이며 공학 해석 도구가 아닙니다';const ls=x.split('\n');hudSet(ls.slice(0,2).join('\n'),ls.slice(2).join('\n'))}
+  else if(l.err)hudSet('실시간 CFD 사용 불가','오류: '+l.err);
+  else hudSet(l.enabled?'실시간 CFD 준비 중':'실시간 CFD 꺼짐','')},300)}
 
 /* ---------- quality panel (any tier selectable on any device; warns above the measured recommendation) ---------- */
 {const q=id=>$(id),P=()=>window.__PERF;
