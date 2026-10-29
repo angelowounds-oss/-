@@ -22,6 +22,13 @@
 //         the summed difference is returned to the ring cells as w_q (d_rho + 3 c_q . d_j), which carries exactly that mass and momentum. Exactly conservative.
 //         o.restrict = 3: the coarse cells inside the box get a third/fourth-order Lagrange interpolation of the fine moments to their centre instead of
 //         the mean of their children (the mean is off by (h_f^2 / 8) lap u, a systematic smoothing that accumulates when the viscosity is low).
+// Body force (o.force, level-0 lattice units; level l uses 2^-l of it): Guo et al. 2002 forcing, u = (j + F/2) / rho in the equilibrium (Pi_neq is
+// taken around the unshifted velocity, an O(u F) difference that is negligible for the weak driving forces used here).
+// Wall model (o.body.wallModel, CFD V3 P2): every fluid cell with a Bouzidi link gets a tangential slip velocity for its links, u_s = |u_t| - u_tau^2 y / nu_eff,
+// so that the stress the scheme produces between the wall and the cell equals the wall-law stress rho u_tau^2. u_tau solves Reichardt's law
+// u+ = ln(1 + 0.41 y+) / 0.41 + 7.8 (1 - e^(-y+/11) - (y+/11) e^(-y+/3)) at the cell's wall distance y with the cell's tangential speed (Newton);
+// nu_eff = molecular + Smagorinsky viscosity of the cell. Moving-wall Bouzidi terms after Lallemand & Luo 2003. Needs o.body.normal(p) (unit, into the
+// fluid) and o.body.dist(p) (distance from the cell centre to the wall, level-0 units).
 // Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
 // units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
 // Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky). Level 0 may have an inlet (moving-wall bounce-back,
@@ -177,6 +184,11 @@ export function createRefined(o) {
       }
     }
     B.links = Int32Array.from(links); B.nL = links.length / 4;
+    if (o.body.wallModel) {
+      const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
+      B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = new Float64Array(B.N).fill(B.tau);
+      cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.bcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.bcY[i] = Math.max(1e-3, o.body.dist(p) / B.h); });
+    }
   }
   // ---------- helpers ----------
   const feqInto = (out, rho, ux, uy, uz) => { const uu = 1.5 * (ux * ux + uy * uy + uz * uz); for (let q = 0; q < Q; q++) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz; out[q] = W[q] * rho * (1 + 3 * cu + 4.5 * cu * cu - uu); } };
@@ -198,24 +210,40 @@ export function createRefined(o) {
   // scale converts the gradient to the receiving level's lattice units (1/2 coarse -> fine, 2 fine -> coarse)
   const stressFromGrad = (m, G, scale, tau) => { const k0 = -2 / 3 * m[0] * tau * scale;
     m[4] = k0 * G[0]; m[5] = k0 * G[4]; m[6] = k0 * G[8]; m[7] = k0 * .5 * (G[1] + G[3]); m[8] = k0 * .5 * (G[2] + G[6]); m[9] = k0 * .5 * (G[5] + G[7]); };
+  // Guo forcing term added to post-collision populations: k w_q [3 (c - u) . F + 9 (c . u)(c . F)], k = 1 - 1 / (2 tau)
+  const guo = (post, N, n, ux, uy, uz, Fx, Fy, Fz, k) => { for (let q = 0; q < Q; q++) { const cF = cx[q] * Fx + cy[q] * Fy + cz[q] * Fz, cu = cx[q] * ux + cy[q] * uy + cz[q] * uz; post[q * N + n] += k * W[q] * (3 * (cF - (ux * Fx + uy * Fy + uz * Fz)) + 9 * cu * cF); } };
+  // Reichardt's wall law and its derivative in y+
+  const reich = yp => Math.log(1 + .41 * yp) / .41 + 7.8 * (1 - Math.exp(-yp / 11) - yp / 11 * Math.exp(-yp / 3));
+  const reichD = yp => 1 / (1 + .41 * yp) + 7.8 * (Math.exp(-yp / 11) / 11 - Math.exp(-yp / 3) / 11 + yp / 33 * Math.exp(-yp / 3));
+  // u_tau from the tangential speed ut at wall distance y (lattice units), molecular viscosity nu: Newton on ut_ = u_tau * u+(y u_tau / nu)
+  const solveUtau = (ut, y, nu) => { if (!(ut > 0)) return 0; let u = Math.sqrt(nu * ut / y); for (let i = 0; i < 30; i++) { const yp = y * u / nu, g = u * reich(yp) - ut, dg = reich(yp) + yp * reichD(yp); const un = Math.max(u - g / dg, .1 * u); if (Math.abs(un - u) < 1e-12 * u) { u = un; break; } u = un; } return u; };
   // ---------- per-level operations ----------
   const sig0 = new Float64Array(levels[0].n[0]); if (o.sponge && o.sponge.Lo > 0) { const nx = levels[0].n[0], Lo = o.sponge.Lo; for (let i = nx - Lo; i < nx; i++) sig0[i] = o.sponge.sigma * ((i - (nx - Lo) + 1) / Lo) ** 2; }
   const eqT = new Float64Array(Q); feqInto(eqT, 1, U, 0, 0); const eqTc = eqT.slice();
   const PAIRS = []; for (let q = 1; q < Q; q++) if (OPP[q] > q) PAIRS.push(q, OPP[q]);
-  const les = (o.cs || 0) ** 2 * 18 * Math.SQRT2;
+  const les = (o.cs || 0) ** 2 * 18 * Math.SQRT2, F0 = o.force || null;
   function collide(L) {
-    const { N, f, post, mask, solid, tau } = L, wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), m = new Float64Array(10);
+    const { N, f, post, mask, solid, tau } = L, wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), m = new Float64Array(10), fs = 2 ** -L.l;
+    const Fx = F0 ? F0[0] * fs : 0, Fy = F0 ? F0[1] * fs : 0, Fz = F0 ? F0[2] * fs : 0, te = L.tauEff;
     for (let n = 0; n < N; n++) {
       if (mask[n] === GHOST) { for (let q = 0; q < Q; q++) post[q * N + n] = f[q * N + n]; continue; } // ghosts only transport (V0 second sub-step); N* overwrite them
       if (mask[n] !== INTERIOR || solid[n]) continue;
       if (model === 'reg') {
         moments(L, f, n, m, 0); let t = tau;
         if (les > 0) { const pn = Math.sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6] + 2 * (m[7] * m[7] + m[8] * m[8] + m[9] * m[9])); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / m[0])); }
+        if (te) te[n] = t;
+        if (F0) { m[1] += .5 * Fx / m[0]; m[2] += .5 * Fy / m[0]; m[3] += .5 * Fz / m[0]; }
         fromMoments(L, post, n, m, 0, 1 - 1 / t);
+        if (F0) { guo(post, N, n, m[1], m[2], m[3], Fx, Fy, Fz, 1 - .5 / t);
+          // the regularized projection drops the first-order part of f - f_eq(u), whose momentum is -F/2; keep it (relaxed like the rest), else the
+          // momentum gain per step is F (3/2 - 1/(2 tau)) instead of F
+          const k1 = -1.5 * (1 - 1 / t); for (let q = 0; q < Q; q++) post[q * N + n] += k1 * W[q] * (cx[q] * Fx + cy[q] * Fy + cz[q] * Fz); }
       } else {
         let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = f[q * N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
+        if (te) te[n] = tau;
+        if (F0) { jx += .5 * Fx; jy += .5 * Fy; jz += .5 * Fz; }
         feqInto(fe, rho, jx / rho, jy / rho, jz / rho);
-        if (model === 'bgk') for (let q = 0; q < Q; q++) post[q * N + n] = f[q * N + n] - wp * (f[q * N + n] - fe[q]);
+        if (model === 'bgk') { for (let q = 0; q < Q; q++) post[q * N + n] = f[q * N + n] - wp * (f[q * N + n] - fe[q]); if (F0) guo(post, N, n, jx / rho, jy / rho, jz / rho, Fx, Fy, Fz, 1 - .5 * wp); }
         else { post[n] = f[n] - wp * (f[n] - fe[0]); for (let p = 0; p < PAIRS.length; p += 2) { const a = PAIRS[p], b = PAIRS[p + 1], fa = f[a * N + n], fb = f[b * N + n], dp = wp * (.5 * (fa + fb) - .5 * (fe[a] + fe[b])), dm = wm * (.5 * (fa - fb) - .5 * (fe[a] - fe[b])); post[a * N + n] = fa - dp - dm; post[b * N + n] = fb - dp + dm; } }
       }
       if (L.l === 0 && sig0[L.coord[3 * n]] > 0) { const s = sig0[L.coord[3 * n]]; for (let q = 0; q < Q; q++) post[q * N + n] += s * (eqTc[q] - post[q * N + n]); }
@@ -240,11 +268,19 @@ export function createRefined(o) {
         for (let q = 1; q < Q; q++) if (cx[q] < 0) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz, e = cu * (3 + 4.5 * cu) - uu; f[q * N + n] = W[q] * (1 + e) + (f[q * N + p] - W[q] * rho * (1 + e)); }
       }
     }
-    if (L === B) { // Bouzidi interpolated bounce-back + momentum exchange
+    if (L === B && B.bc) { // wall model: slip velocity per boundary cell from the post-collision state
+      const nu = (B.tau - .5) / 3, bc = B.bc;
+      for (let i = 0; i < bc.length; i++) { const n = bc[i]; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = post[q * N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; }
+        const ux = jx / rho, uy = jy / rho, uz = jz / rho, nx = B.bcN[3 * i], ny = B.bcN[3 * i + 1], nz = B.bcN[3 * i + 2], un = ux * nx + uy * ny + uz * nz, tx = ux - un * nx, ty = uy - un * ny, tz = uz - un * nz, ut = Math.hypot(tx, ty, tz), y = B.bcY[i];
+        const utau = solveUtau(ut, y, nu), nuE = Math.max(nu, (B.tauEff[n] - .5) / 3), us = ut > 0 ? Math.min(ut, Math.max(0, ut - utau * utau * y / nuE)) : 0, k = ut > 0 ? us / ut : 0;
+        B.utau[i] = utau; B.uw[3 * i] = k * tx; B.uw[3 * i + 1] = k * ty; B.uw[3 * i + 2] = k * tz; }
+    }
+    if (L === B) { // Bouzidi interpolated bounce-back + momentum exchange (moving-wall terms when the wall model is on)
       const { links, nL } = B; let fx = 0, fy = 0, fz = 0;
       for (let l = 0; l < nL; l++) {
         const n = links[4 * l], q = links[4 * l + 1], n2 = links[4 * l + 2], qq = links[4 * l + 3] * 1e-6, oq = OPP[q], pq = post[q * N + n]; let v;
         if (qq < .5 && n2 >= 0) v = 2 * qq * pq + (1 - 2 * qq) * post[q * N + n2]; else if (qq >= .5) v = pq / (2 * qq) + (2 * qq - 1) / (2 * qq) * post[oq * N + n]; else v = pq;
+        if (B.bc) { const i = B.bcIndex[n], cw = cx[oq] * B.uw[3 * i] + cy[oq] * B.uw[3 * i + 1] + cz[oq] * B.uw[3 * i + 2]; v += (qq >= .5 ? 1 / (2 * qq) : 1) * 6 * W[oq] * cw; }
         f[oq * N + n] = v; const mm = pq + v; fx += cx[q] * mm; fy += cy[q] * mm; fz += cz[q] * mm;
       }
       B.force = [fx, fy, fz]; B.forceAcc[0] += fx; B.forceAcc[1] += fy; B.forceAcc[2] += fz; B.forceN++;
@@ -364,5 +400,6 @@ export function createRefined(o) {
   st.forEachCell = cb => { for (const L of levels) for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR || L.solid[n]) continue; let rho = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < Q; q++) { const v = L.f[q * L.N + n]; rho += v; jx += v * cx[q]; jy += v * cy[q]; jz += v * cz[q]; } cb(centre(L, L.coord.subarray(3 * n, 3 * n + 3)), rho, jx / rho, jy / rho, jz / rho, L.vol, L.l); } };
   st.cells = () => levels.map(L => { let a = 0; for (let n = 0; n < L.N; n++) if (L.mask[n] === INTERIOR) a++; return a; });
   st.taus = () => levels.map(L => L.tau);
+  st.wall = () => B && B.bc ? { cells: B.bc.length, utauMean: B.utau.reduce((a, b) => a + b, 0) / B.bc.length } : null;
   return st;
 }
