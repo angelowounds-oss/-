@@ -20,6 +20,10 @@
 //   'N1C' N1 + refluxing (Berger & Colella 1989 style): per ring cell, the mass and momentum the coarse grid sent into / received from the box during
 //         the coarse step are compared with what the fine grid actually received / sent through that cell's ghost children over its two sub-steps;
 //         the summed difference is returned to the ring cells as w_q (d_rho + 3 c_q . d_j), which carries exactly that mass and momentum. Exactly conservative.
+//         o.restrict = 3: the coarse cells inside the box get a third/fourth-order Lagrange interpolation of the fine moments to their centre instead of
+//         the mean of their children (the mean is off by (h_f^2 / 8) lap u, a systematic smoothing that accumulates when the viscosity is low).
+// Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
+// units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
 // Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
 // One body (Bouzidi interpolated bounce-back + momentum exchange) on one level. Float64 throughout (method error, not precision, is under test).
@@ -39,7 +43,7 @@ const INTERIOR = 0, INACTIVE = 1, GHOST = 2;
 //      tau0, model = 'reg', cs = 0, U = 0 (inlet velocity), sponge = { Lo, sigma } (level 0, outlet), method = 'V0' | 'N0', init(p) -> [rho, ux, uy, uz],
 //      body = { level, solid(p), frac(p, c) -> fraction of the link from cell centre p along c (level-l lattice vector, level-0 units) to the surface } }
 export function createRefined(o) {
-  const lat = LAT[o.lattice], { d, Q, C, W, OPP } = lat, model = o.model || 'reg', method = o.method || 'V0', U = o.U || 0, io = !!o.inletOutlet, interpSpace = o.interpSpace || 1, interpTime = o.interpTime || 1, neqGrad = o.neq === 'grad';
+  const lat = LAT[o.lattice], { d, Q, C, W, OPP } = lat, model = o.model || 'reg', method = o.method || 'V0', U = o.U || 0, io = !!o.inletOutlet, interpSpace = o.interpSpace || 1, interpTime = o.interpTime || 1, neqGrad = o.neq === 'grad', restrictOrder = o.restrict || 2;
   const cx = C.map(c => c[0]), cy = C.map(c => c[1]), cz = C.map(c => c[2]);
   const r = [2, 2, d === 3 ? 2 : 1]; // refinement factor per axis
   const levels = [];
@@ -100,6 +104,17 @@ export function createRefined(o) {
     const kids = n => { const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2], out = []; for (let k = 0; k < r[2]; k++) for (let j = 0; j < r[1]; j++) for (let i = 0; i < r[0]; i++) { const s = idx(ch, 2 * x + i, 2 * y + j, r[2] * z + k); if (s < 0) throw Error('missing child cell'); out.push(s); } return out; };
     L.ring = Int32Array.from(ring); L.ringKids = ring.map(kids); L.cg = Int32Array.from(cg); L.cgKids = cg.map(kids);
     L.isRing = new Uint8Array(L.N); for (const n of ring) L.isRing[n] = 1;
+    // restriction stencils (o.restrict = 3): per coarse cell inside the box, fine interior cells and weights of a tensor-product Lagrange interpolation
+    // to the coarse cell centre (offsets in fine cells: symmetric -1.5..1.5 cubic, else one-sided quadratic towards the box, else the 2-point mean)
+    if (restrictOrder === 3) L.cgSten = cg.map(n => {
+      const c = [L.coord[3 * n], L.coord[3 * n + 1], L.coord[3 * n + 2]], fineOk = f => { const s2 = idx(ch, f[0], f[1], f[2]); return s2 >= 0 && ch.mask[s2] === INTERIOR && !ch.solid[s2]; };
+      const axes = [0, 1, 2].map(a => { if (a >= d) return [[r[2] * c[2], 1]]; const b = 2 * c[a], line = off => { const f = [2 * c[0], 2 * c[1], r[2] * c[2]]; f[a] = b + off; return fineOk(f); };
+        if (line(-1) && line(2)) return [[b - 1, -1 / 16], [b, 9 / 16], [b + 1, 9 / 16], [b + 2, -1 / 16]];
+        if (line(2)) return [[b, .375], [b + 1, .75], [b + 2, -.125]];
+        if (line(-1)) return [[b - 1, -.125], [b, .75], [b + 1, .375]];
+        return [[b, .5], [b + 1, .5]]; });
+      const out = []; for (const [x, wx] of axes[0]) for (const [y, wy] of axes[1]) for (const [z, wz] of axes[2]) { const s2 = idx(ch, x, y, z); if (s2 < 0 || ch.mask[s2] !== INTERIOR) return null; out.push(s2, wx * wy * wz); }
+      return out; });
     for (const ks of L.ringKids) for (const s of ks) if (ch.mask[s] !== GHOST) throw Error('ring child is not a ghost cell');
     // every ghost cell of the child must have a ring parent
     ch.ghostParent = new Int32Array(ch.N).fill(-1); ch.ghostRing = new Int32Array(ch.N).fill(-1); L.ringKids.forEach((ks, i) => { for (const s of ks) { ch.ghostParent[s] = ring[i]; ch.ghostRing[s] = i; } });
@@ -264,9 +279,10 @@ export function createRefined(o) {
         if (k === 1) { recon(P.MF1, i, pn, off, t1);
           if (interpTime === 2 && P.hasMFm) { const tm = new Float64Array(10); recon(P.MFm, i, pn, off, tm); for (let j = 0; j < 10; j++) m[j] = -.125 * tm[j] + .75 * m[j] + .375 * t1[j]; } // quadratic through t - 1, t, t + 1 at t + 1/2
           else for (let j = 0; j < 10; j++) m[j] = .5 * (m[j] + t1[j]); }
-        if (neqGrad) { gradU(P.MF0, i, pn, G0); if (k === 1) { gradU(P.MF1, i, pn, G1); for (let j = 0; j < 9; j++) G0[j] = .5 * (G0[j] + G1[j]); }
-          stressFromGrad(m, G0, .5, L.tau); fromMoments(L, L.post, s, m, 0, 1 - 1 / L.tau); }
-        else fromMoments(L, L.post, s, m, 0, kf); }
+        if (neqGrad) { gradU(P.MF0, i, pn, G0); if (k === 1) { gradU(P.MF1, i, pn, G1); for (let j = 0; j < 9; j++) G0[j] = .5 * (G0[j] + G1[j]); } stressFromGrad(m, G0, .5, L.tau); }
+        else for (let j = 4; j < 10; j++) m[j] *= kf / (1 - 1 / L.tau); // Pi_neq in the fine level's units (tau_f / (2 tau_c))
+        if (o.oracleGhost) o.oracleGhost(centre(L, L.coord.subarray(3 * s, 3 * s + 3)), st.step + k / 2, m, L.tau, L.h);
+        fromMoments(L, L.post, s, m, 0, 1 - 1 / L.tau); }
       return;
     }
     // N0: moments of the ring parent at time t + k/2 (linear in time), non-equilibrium rescaled to the fine level
@@ -275,12 +291,19 @@ export function createRefined(o) {
   }
   function restrictN0(P) { // coarse cells just inside the box <- mean moments of their children (time t), inverse rescale
     const ch = P.child, kc = (1 - 1 / P.tau) * 2 * P.tau / ch.tau, m = new Float64Array(10), acc = new Float64Array(10), G = new Float64Array(9);
-    P.cg.forEach((n, i) => { acc.fill(0); G.fill(0); const ks = P.cgKids[i];
+    P.cg.forEach((n, i) => { acc.fill(0); G.fill(0); const ks = P.cgKids[i], sten = P.cgSten && P.cgSten[i];
+      if (sten) { for (let t = 0; t < sten.length; t += 2) { moments(ch, ch.f, sten[t], m, 0); for (let a = 0; a < 4; a++) acc[a] += sten[t + 1] * m[a]; }
+        for (const s2 of ks) { moments(ch, ch.f, s2, m, 0); for (let a = 4; a < 10; a++) acc[a] += m[a] / ks.length; }
+        for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / P.tau); // Pi_neq in the coarse level's units (2 tau_c / tau_f)
+        if (o.oracleCg) o.oracleCg(centre(P, P.coord.subarray(3 * n, 3 * n + 3)), st.step, acc, P.tau, P.h);
+        fromMoments(P, P.post, n, acc, 0, 1 - 1 / P.tau); return; }
       ks.forEach((s, c) => { moments(ch, ch.f, s, m, 0); for (let a = 0; a < 10; a++) acc[a] += m[a];
         if (neqGrad) for (let a = 0; a < d; a++) { const sg = ((c >> a) & 1) ? 1 : -1; for (let b = 0; b < 3; b++) G[3 * a + b] += sg * m[1 + b]; } }); // children ordered x fastest: bit a of c = offset along a
       for (let a = 0; a < 10; a++) acc[a] /= ks.length;
-      if (neqGrad) { for (let j = 0; j < 9; j++) G[j] /= ks.length / 2; stressFromGrad(acc, G, 2, P.tau); fromMoments(P, P.post, n, acc, 0, 1 - 1 / P.tau); }
-      else fromMoments(P, P.post, n, acc, 0, kc); });
+      if (neqGrad) { for (let j = 0; j < 9; j++) G[j] /= ks.length / 2; stressFromGrad(acc, G, 2, P.tau); }
+      else for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / P.tau);
+      if (o.oracleCg) o.oracleCg(centre(P, P.coord.subarray(3 * n, 3 * n + 3)), st.step, acc, P.tau, P.h);
+      fromMoments(P, P.post, n, acc, 0, 1 - 1 / P.tau); });
   }
   // refluxing (N1C). rf[4 i ..] accumulates, per ring cell, (sent by coarse - received by fine) of mass and momentum, in coarse-cell density units
   function refluxCoarse(P) { // after the coarse stream: post of the ring cell went into the box (+), f pulled from the box came out (-)
