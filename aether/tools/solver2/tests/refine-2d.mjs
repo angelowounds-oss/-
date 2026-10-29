@@ -9,7 +9,7 @@
 // Initial state: equilibrium plus the Navier-Stokes non-equilibrium part (initNeq), so the start-up layer does not hide the interface error.
 // Reported: relative L2 velocity error over all active cells (volume weighted) after one decay time, its observed order, and the largest relative
 // change of the total mass during the run.
-// node tools/solver2/tests/refine-2d.mjs [shear|tgv|pulse|all] [model = reg] [tau0 = 0.8] [sizes = 16,32,64]
+// node tools/solver2/tests/refine-2d.mjs [shear|tgv|pulse|all] [model = reg] [tau0 = 0.8] [sizes = 16,32,64]   env: REFINE_VARIANTS, HRR (hybrid regularization)
 import fs from 'node:fs'; import path from 'node:path';
 import { createRefined } from '../refine.mjs';
 const [which = 'all', model = 'reg', tauArg = '.8', sizeArg = '16,32,64'] = process.argv.slice(2), tau0 = +tauArg, nu = (tau0 - .5) / 3, Ns = sizeArg.split(',').map(Number);
@@ -32,7 +32,7 @@ const CASES = {
 };
 function run(c, N, v) {
   const n = v === 'fine' ? 2 * N : N, refined = v !== 'coarse' && v !== 'fine';
-  const S = createRefined({ lattice: 'D2Q9', E: [...c.box(n), 1], tau0, model, initNeq: true, method: refined ? v : 'V0', boxes: refined ? [c.patch(N)] : [],
+  const S = createRefined({ lattice: 'D2Q9', E: [...c.box(n), 1], tau0, model, hrr: +(process.env.HRR || 1), initNeq: true, method: refined ? v : 'V0', boxes: refined ? [c.patch(N)] : [],
     init: p => { const [ux, uy] = c.exact(n, p, 0); return [c.rho ? c.rho(n, p) : 1, ux, uy, 0]; } });
   const steps = c.steps(n), m0 = S.mass(); let drift = 0;
   for (let s = 0; s < steps; s++) { S.advance(1); if (s % 8 === 0) drift = Math.max(drift, Math.abs(S.mass() - m0) / m0); }
@@ -45,7 +45,7 @@ function pulse() {
   const init = p => { const g = eps * Math.exp(-(((p[0] - x0) / sg) ** 2)); return [1 + g, cs * g, 0, 0]; };
   const field = S => { const m = new Map(); S.forEachCell((p, rho) => { const k = Math.round(p[0] * 4); m.set(k, (m.get(k) || []).concat(rho - 1)); }); return m; };
   const at = (fl, x) => { const v = fl.get(Math.round(x * 4)); return v ? v.reduce((a, b) => a + b, 0) / v.length : null; };
-  const mk = v => createRefined({ lattice: 'D2Q9', E: [NX, NY, 1], tau0, model, initNeq: false, method: v === 'coarse' ? 'V0' : v, boxes: v === 'coarse' ? [] : [{ lo: [48, 0], hi: [80, NY] }], init });
+  const mk = v => createRefined({ lattice: 'D2Q9', E: [NX, NY, 1], tau0, model, hrr: +(process.env.HRR || 1), initNeq: false, method: v === 'coarse' ? 'V0' : v, boxes: v === 'coarse' ? [] : [{ lo: [48, 0], hi: [80, NY] }], init });
   const ref = mk('coarse'), runsP = {}; for (const v of VARIANTS.filter(v => v !== 'coarse' && v !== 'fine')) runsP[v] = mk(v);
   // t1: the pulse has entered the band (entry reflection travelling left, x < 44); t2: it has left the band (exit reflection inside/left of the band)
   const t1 = Math.round((60 - x0) / cs), t2 = Math.round((112 - x0) / cs);

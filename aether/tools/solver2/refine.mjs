@@ -33,7 +33,8 @@
 // exponentially over n steps (temporal filtering against the slip-velocity feedback).
 // Test hooks: o.oracleGhost(p, t, m, tau, h) / o.oracleCg(p, t, m, tau, h) may overwrite the 10 moments (rho, u, Pi_neq in the receiving level's lattice
 // units) given to fine ghosts / coarse cells inside the box; t in level-0 steps. Used only to locate interface errors against analytic solutions.
-// Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky; o.hrr < 1: hybrid regularization, see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
+// Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky; o.hrr < 1: hybrid regularization; o.recursive: third-order
+// recursive regularization; see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
 // One body (Bouzidi interpolated bounce-back + momentum exchange) on one level. Float64 throughout (method error, not precision, is under test).
 import os from 'node:os';
@@ -219,6 +220,22 @@ export function createRefined(o) {
       L.stenCells = Int32Array.from(sc);
     }
   }
+  // ---------- interface damping band (o.iface = { tau: eps, width: w }) ----------
+  // Near tau = 1/2 nothing damps sound, and a refinement interface passes acoustic waves with a small gain (tests/pulse-faces.mjs: a pulse grows
+  // without bound, at every box geometry, only more slowly with hybrid regularization). The band gives the cells within w coarse cells of each
+  // interface (coarse side: active cells around the box; fine side: interior cells within 2 w fine cells of its ghosts) a relaxation time of at
+  // least 1/2 + eps (coarse lattice units of that interface) and 1/2 + 2 eps (fine: the same physical viscosity), and the interface itself
+  // (ghost reconstruction, restriction) uses those relaxation times. Artificial viscosity confined to the band: keep interfaces where gradients are small.
+  const ifc = o.iface && o.iface.tau > 0 ? { eps: o.iface.tau, w: o.iface.width || 2 } : null;
+  for (const L of levels) { L.tauIf = ifc ? alloc(Float64Array, L.N) : null; L.ifC = L.tau; L.ifF = L.tau; } // ifC / ifF: tau of this level as the coarse / fine side
+  if (ifc) for (const L of levels) { if (!L.child) continue; const ch = L.child, fc = .5 + ifc.eps, ff = .5 + 2 * ifc.eps;
+    L.ifC = Math.max(L.tau, fc); ch.ifF = Math.max(ch.tau, ff);
+    for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR) continue; let dist = 0;
+      for (let a = 0; a < d; a++) { if (ch.per[a]) continue; const c = L.coord[3 * n + a]; dist = Math.max(dist, ch.plo[a] - c, c - (ch.phi[a] - 1)); }
+      if (dist >= 1 && dist <= ifc.w) L.tauIf[n] = Math.max(L.tauIf[n], L.ifC); }
+    for (let n = 0; n < ch.N; n++) { if (ch.mask[n] !== INTERIOR) continue; let e = Infinity;
+      for (let a = 0; a < d; a++) { const c = ch.coord[3 * n + a]; if (ch.gLo[a] > 0) e = Math.min(e, c - ch.lo[a]); if (ch.gHi[a] > 0) e = Math.min(e, ch.hi[a] - 1 - c); }
+      if (e < 2 * ifc.w) ch.tauIf[n] = Math.max(ch.tauIf[n], ch.ifF); } }
   // ---------- body ----------
   const B = o.body ? levels[o.body.level] : null;
   if (B) {
@@ -276,7 +293,13 @@ export function createRefined(o) {
   // per-cell kernels: run constants and level views (the same arrays on every thread)
   const hrr = model === 'reg' && o.hrr < 1 ? o.hrr : 1, qp = [0, 1, 2].map(a => C.findIndex(c => c[a] === 1 && c[0] ** 2 + c[1] ** 2 + c[2] ** 2 === 1)), qm = qp.map(q => OPP[q]);
   if (hrr < 1) for (const L of levels) L.mac = alloc(Float64Array, 4 * L.N);
-  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null }));
+  // o.recursive (model 'reg'): third-order Hermite terms (refine-kernel.mjs); basis values B_k(c_q) / <B_k, B_k>_w, 6 per direction
+  const rr = model === 'reg' && !!o.recursive, h3 = new Float64Array(6 * Q);
+  if (rr) { const H = (c, a, b, g) => c[a] * c[b] * c[g] - ((a === b ? c[g] : 0) + (a === g ? c[b] : 0) + (b === g ? c[a] : 0)) / 3;
+    const basis = d === 3 ? [c => H(c, 0, 0, 1) + H(c, 1, 2, 2), c => H(c, 0, 0, 1) - H(c, 1, 2, 2), c => H(c, 0, 2, 2) + H(c, 0, 1, 1), c => H(c, 0, 2, 2) - H(c, 0, 1, 1), c => H(c, 1, 1, 2) + H(c, 0, 0, 2), c => H(c, 1, 1, 2) - H(c, 0, 0, 2)]
+      : [c => H(c, 0, 0, 1), c => H(c, 0, 1, 1)];
+    basis.forEach((B, k) => { const nrm = C.reduce((a, c, q) => a + W[q] * B(c) ** 2, 0); for (let q = 0; q < Q; q++) h3[6 * q + k] = B(C[q]) / nrm; }); }
+  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null, tauIf: L.tauIf }));
   let ctl = null, workers = [];
   const dispatch = (phase, L) => {
     const LV = LVs[L.l];
@@ -333,7 +356,7 @@ export function createRefined(o) {
     const P = L.parent, N = L.N, PN = P.N;
     if (method === 'V0') { if (k !== 0) return; for (let s = 0; s < N; s++) { const pn = L.ghostParent[s]; if (pn < 0) continue; for (let q = 0; q < Q; q++) L.post[q * N + s] = P.post[q * PN + pn]; } return; }
     if (method === 'N1' || method === 'N1C') {
-      const kf = (1 - 1 / L.tau) * L.tau / (2 * P.tau), m = new Float64Array(10), t1 = new Float64Array(10), sten = P.sten, mix = P.mix, quad = interpSpace === 2;
+      const tF = L.ifF, tC = P.ifC, kf = (1 - 1 / tF) * tF / (2 * tC), m = new Float64Array(10), t1 = new Float64Array(10), sten = P.sten, mix = P.mix, quad = interpSpace === 2;
       // Taylor reconstruction of the 10 moments of ring cell i at offset off (coarse units): first derivatives, and with interpSpace 2 also second derivatives
       const recon = (MF, i, pn, off, out) => {
         for (let j = 0; j < 10; j++) out[j] = MF[10 * pn + j];
@@ -358,31 +381,31 @@ export function createRefined(o) {
         if (k === 1) { recon(P.MF1, i, pn, off, t1);
           if (interpTime === 2 && P.hasMFm) { const tm = new Float64Array(10); recon(P.MFm, i, pn, off, tm); for (let j = 0; j < 10; j++) m[j] = -.125 * tm[j] + .75 * m[j] + .375 * t1[j]; } // quadratic through t - 1, t, t + 1 at t + 1/2
           else for (let j = 0; j < 10; j++) m[j] = .5 * (m[j] + t1[j]); }
-        if (neqGrad) { gradU(P.MF0, i, pn, G0); if (k === 1) { gradU(P.MF1, i, pn, G1); for (let j = 0; j < 9; j++) G0[j] = .5 * (G0[j] + G1[j]); } stressFromGrad(m, G0, .5, L.tau); }
-        else for (let j = 4; j < 10; j++) m[j] *= kf / (1 - 1 / L.tau); // Pi_neq in the fine level's units (tau_f / (2 tau_c))
+        if (neqGrad) { gradU(P.MF0, i, pn, G0); if (k === 1) { gradU(P.MF1, i, pn, G1); for (let j = 0; j < 9; j++) G0[j] = .5 * (G0[j] + G1[j]); } stressFromGrad(m, G0, .5, tF); }
+        else for (let j = 4; j < 10; j++) m[j] *= kf / (1 - 1 / tF); // Pi_neq in the fine level's units (tau_f / (2 tau_c))
         if (o.oracleGhost) o.oracleGhost(centre(L, L.coord.subarray(3 * s, 3 * s + 3)), st.step + k / 2, m, L.tau, L.h);
-        fromMoments(L, L.post, s, m, 0, 1 - 1 / L.tau); }
+        fromMoments(L, L.post, s, m, 0, 1 - 1 / tF); }
       return;
     }
     // N0: moments of the ring parent at time t + k/2 (linear in time), non-equilibrium rescaled to the fine level
-    const kf = (1 - 1 / L.tau) * L.tau / (2 * P.tau), m = new Float64Array(10);
+    const kf = (1 - 1 / L.ifF) * L.ifF / (2 * P.ifC), m = new Float64Array(10);
     for (let s = 0; s < N; s++) { const i = L.ghostRing[s]; if (i < 0) continue; for (let a = 0; a < 10; a++) m[a] = k === 0 ? P.M0[10 * i + a] : .5 * (P.M0[10 * i + a] + P.M1[10 * i + a]); fromMoments(L, L.post, s, m, 0, kf); }
   }
   function restrictN0(P) { // coarse cells just inside the box <- mean moments of their children (time t), inverse rescale
-    const ch = P.child, kc = (1 - 1 / P.tau) * 2 * P.tau / ch.tau, m = new Float64Array(10), acc = new Float64Array(10), G = new Float64Array(9);
+    const ch = P.child, tC = P.ifC, tF = ch.ifF, kc = (1 - 1 / tC) * 2 * tC / tF, m = new Float64Array(10), acc = new Float64Array(10), G = new Float64Array(9);
     P.cg.forEach((n, i) => { acc.fill(0); G.fill(0); const ks = P.cgKids[i], sten = P.cgSten && P.cgSten[i];
       if (sten) { for (let t = 0; t < sten.length; t += 2) { moments(ch, ch.f, sten[t], m, 0); for (let a = 0; a < 4; a++) acc[a] += sten[t + 1] * m[a]; }
         for (const s2 of ks) { moments(ch, ch.f, s2, m, 0); for (let a = 4; a < 10; a++) acc[a] += m[a] / ks.length; }
-        for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / P.tau); // Pi_neq in the coarse level's units (2 tau_c / tau_f)
+        for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / tC); // Pi_neq in the coarse level's units (2 tau_c / tau_f)
         if (o.oracleCg) o.oracleCg(centre(P, P.coord.subarray(3 * n, 3 * n + 3)), st.step, acc, P.tau, P.h);
-        fromMoments(P, P.post, n, acc, 0, 1 - 1 / P.tau); return; }
+        fromMoments(P, P.post, n, acc, 0, 1 - 1 / tC); return; }
       ks.forEach((s, c) => { moments(ch, ch.f, s, m, 0); for (let a = 0; a < 10; a++) acc[a] += m[a];
         if (neqGrad) for (let a = 0; a < d; a++) { const sg = ((c >> a) & 1) ? 1 : -1; for (let b = 0; b < 3; b++) G[3 * a + b] += sg * m[1 + b]; } }); // children ordered x fastest: bit a of c = offset along a
       for (let a = 0; a < 10; a++) acc[a] /= ks.length;
-      if (neqGrad) { for (let j = 0; j < 9; j++) G[j] /= ks.length / 2; stressFromGrad(acc, G, 2, P.tau); }
-      else for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / P.tau);
+      if (neqGrad) { for (let j = 0; j < 9; j++) G[j] /= ks.length / 2; stressFromGrad(acc, G, 2, tC); }
+      else for (let a = 4; a < 10; a++) acc[a] *= kc / (1 - 1 / tC);
       if (o.oracleCg) o.oracleCg(centre(P, P.coord.subarray(3 * n, 3 * n + 3)), st.step, acc, P.tau, P.h);
-      fromMoments(P, P.post, n, acc, 0, 1 - 1 / P.tau); });
+      fromMoments(P, P.post, n, acc, 0, 1 - 1 / tC); });
   }
   // refluxing (N1C). rf[4 i ..] accumulates, per ring cell, (sent by coarse - received by fine) of mass and momentum, in coarse-cell density units
   function refluxCoarse(P) { // after the coarse stream: post of the ring cell went into the box (+), f pulled from the box came out (-)

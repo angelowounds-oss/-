@@ -1,15 +1,19 @@
 // CFD V3: per-cell kernels of refine.mjs (collision and pull streaming over a cell range), shared by the main thread and the worker threads.
-// K: run constants { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm }; LV: one level { l, N, f, post, mask, solid, coord, src, tau, tauEff, tauMin, mac }.
-// tauMin (wall-model cells): lower bound of the relaxation time, so the eddy viscosity next to a wall is at least the log-law one.
+// K: run constants { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm }; LV: one level { l, N, f, post, mask, solid, coord, src, tau, tauEff, tauMin, mac, tauIf }.
+// tauMin (wall-model cells): lower bound of the relaxation time, so the eddy viscosity next to a wall is at least the log-law one; tauIf: the same for
+// the interface damping band (refine.mjs, o.iface).
 // hrr < 1 (the stress blend of hybrid recursive regularization, Jacob, Malaspinas & Sagaut 2018, without its recursive third-order terms): the
 // non-equilibrium stress of the regularized collision is hrr Pi(populations) + (1 - hrr) Pi(finite differences), Pi = -(2/3) rho tau S from the
 // neighbours' velocities (mac, filled by macroRange). Grid-scale modes that the populations carry but the differences do not see then relax towards
 // equilibrium instead of flipping sign every step near tau = 1/2; resolved flow keeps its stress. qp / qm: direction of +e_a / -e_a.
+// rr (recursive regularization, Malaspinas 2015): the third-order Hermite terms the lattice supports are kept, a3 = rho u u u (equilibrium) +
+// (1 - 1/tau) (u_a Pi_bc + u_b Pi_ac + u_c Pi_ab) (non-equilibrium, built recursively from Pi). K.h3: per direction the basis values
+// B_k(c_q) / <B_k, B_k>_w of the supported combinations (D3Q19: xxy +- yzz, xzz +- xyy, yyz +- xxz; D2Q9: xxy, xyy).
 // Cell masks: 0 interior, 1 inactive (covered by a finer level), 2 ghost.
 const INTERIOR = 0, GHOST = 2;
 
 export function collideRange(K, LV, n0, n1) {
-  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord, src, mac } = LV;
+  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3 } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord, src, mac, tauIf: ti } = LV;
   const wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), fs = 2 ** -LV.l, fe = new Float64Array(Q), G = new Float64Array(9), own = new Float64Array(3);
   const Fx = F0 ? F0[0] * fs : 0, Fy = F0 ? F0[1] * fs : 0, Fz = F0 ? F0[2] * fs : 0;
   const feqInto = (rho, ux, uy, uz) => { const uu = 1.5 * (ux * ux + uy * uy + uz * uz); for (let q = 0; q < Q; q++) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz; fe[q] = W[q] * rho * (1 + 3 * cu + 4.5 * cu * cu - uu); } };
@@ -25,6 +29,7 @@ export function collideRange(K, LV, n0, n1) {
       pxx -= r3 + rho * ux * ux; pyy -= r3 + rho * uy * uy; pzz -= (d === 3 ? r3 : 0) + rho * uz * uz; pxy -= rho * ux * uy; pxz -= rho * ux * uz; pyz -= rho * uy * uz;
       let t = tau; if (les > 0) { const pn = Math.sqrt(pxx * pxx + pyy * pyy + pzz * pzz + 2 * (pxy * pxy + pxz * pxz + pyz * pyz)); t = .5 * (tau + Math.sqrt(tau * tau + les * pn / rho)); }
       if (tm && tm[n] > t) t = tm[n];
+      if (ti && ti[n] > t) t = ti[n]; // interface damping band
       if (te) te[n] = t;
       if (hrr < 1) { // velocity gradient G[3 a + b] = d u_b / d x_a: central, one-sided next to a cell without a velocity (wall face, solid, ghost, inactive)
         let ok = true; own[0] = ux; own[1] = uy; own[2] = uz; G.fill(0);
@@ -40,6 +45,13 @@ export function collideRange(K, LV, n0, n1) {
       const k = 4.5 * (1 - 1 / t), tr = (pxx + pyy + pzz) / 3, uu = 1.5 * (ux * ux + uy * uy + uz * uz);
       for (let q = 0; q < Q; q++) { const a = cx[q], b = cy[q], c = cz[q], cu = a * ux + b * uy + c * uz, w = W[q];
         post[q * N + n] = w * rho * (1 + 3 * cu + 4.5 * cu * cu - uu) + k * w * (a * a * pxx + b * b * pyy + c * c * pzz + 2 * (a * b * pxy + a * c * pxz + b * c * pyz) - tr); }
+      if (rr) { // third-order coefficients a_abc (equilibrium + relaxed recursive non-equilibrium), combined as the basis K.h3 expects
+        const r1 = 1 - 1 / t, A = (ua, ub, uc, pbc, pac, pab) => rho * ua * ub * uc + r1 * (ua * pbc + ub * pac + uc * pab);
+        const xxy = A(ux, ux, uy, pxy, pxy, pxx), xyy = A(ux, uy, uy, pyy, pxy, pxy);
+        if (d === 3) { const yzz = A(uy, uz, uz, pzz, pyz, pyz), xzz = A(ux, uz, uz, pzz, pxz, pxz), yyz = A(uy, uy, uz, pyz, pyz, pyy), xxz = A(ux, ux, uz, pxz, pxz, pxx);
+          const c0 = xxy + yzz, c1 = xxy - yzz, c2 = xzz + xyy, c3 = xzz - xyy, c4 = yyz + xxz, c5 = yyz - xxz;
+          for (let q = 0; q < Q; q++) { const o = 6 * q; post[q * N + n] += W[q] * (h3[o] * c0 + h3[o + 1] * c1 + h3[o + 2] * c2 + h3[o + 3] * c3 + h3[o + 4] * c4 + h3[o + 5] * c5); } }
+        else for (let q = 0; q < Q; q++) { const o = 6 * q; post[q * N + n] += W[q] * (h3[o] * xxy + h3[o + 1] * xyy); } }
       if (F0) { guo(n, ux, uy, uz, 1 - .5 / t);
         // the regularized projection drops the first-order part of f - f_eq(u), whose momentum is -F/2; keep it (relaxed like the rest), else the
         // momentum gain per step is F (3/2 - 1/(2 tau)) instead of F
