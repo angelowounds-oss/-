@@ -25,12 +25,17 @@ run('ragdoll-getup', { q: 1 }, async ({ page }) => {
     const deg = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b)))) * 57.2958;
     const turning = (h) => !!h.turnClip || Object.keys(h.m.act).some((k) => /^U_Turn/.test(k) && h.m.act[k].weight > 1e-3);
     const settle = (h) => { for (let i = 0; i < 240 && turning(h); i++) window.__upd(1 / 60); if (h.m.unturnHips) h.m.unturnHips(); };
+    // ragdolls the world starts on the body besides the test's own (traffic and gunfire are not seeded: a car that ran the fleeing civilian
+    // over left it dead on the ground, never getting up)
+    const R = g.ragdolls, spawn0 = R.spawn.bind(R); let who = null, own = false, others = 0;
+    R.spawn = (x, opt) => { if (x === who && !own) others++; return spawn0(x, opt); };
     const test = (h, knock) => {
-      step(60); settle(h);
+      who = h; step(60); settle(h);
       const names = unwritten(h.m), ref = Object.fromEntries(names.map((n) => [n, h.m.bones[n].quaternion.clone()]));
       const rounds = [];
       for (let r = 0; r < 2; r++) {
-        if (!knock()) { rounds.push({ spawned: false }); continue; }
+        others = 0; own = true; const k = knock(); own = false;
+        if (!k) { rounds.push({ spawned: false }); continue; }
         let f = 0, sawGetUp = false, nonFinite = 0;
         for (; f < 900 && (h.rag || f < 5); f++) {
           window.__upd(1 / 60);
@@ -40,13 +45,14 @@ run('ragdoll-getup', { q: 1 }, async ({ page }) => {
         // a civilian runs off afterwards: bones the running clip writes are animated again, not left over from the fall
         const still = new Set(unwritten(h.m)); let worst = 0, worstBone = null;
         for (const n of names) { if (!still.has(n)) continue; const d = deg(ref[n], h.m.bones[n].quaternion); if (d > worst) { worst = d; worstBone = n; } }
-        rounds.push({ spawned: true, sawGetUp, frames: f, back: !h.rag, nonFinite, worst: +worst.toFixed(2), worstBone });
+        rounds.push({ spawned: true, sawGetUp, frames: f, back: !h.rag, nonFinite, worst: +worst.toFixed(2), worstBone, others, dead: !!h.dead });
       }
       return { unwritten: names.length, rounds };
     };
     const out = {};
     out.player = test(pl, () => !!g.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: 4, y: 0, z: 1 } }));
-    const h = new H(g, 'civ', { hp: 50 }); h.x = pl.x + 3; h.z = pl.z + 3; h.y = pl.y; h.static = true; h.group.visible = true; g.humans.push(h); g.scene.add(h.group);
+    // no car or stray shot kills it while it runs off between the rounds (it is knocked down again where it ran to)
+    const h = new H(g, 'civ', { hp: 1e9 }); h.x = pl.x + 3; h.z = pl.z + 3; h.y = pl.y; h.static = true; h.group.visible = true; g.humans.push(h); g.scene.add(h.group);
     out.npc = test(h, () => { h.state = 'idle'; return g.ragdolls.knock(h, 6, -2, 3); });
     return out;
   });
