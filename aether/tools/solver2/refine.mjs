@@ -37,9 +37,10 @@
 // recursive regularization; o.tauBulk: relaxation time of the trace of Pi (bulk viscosity); see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
 // One body (Bouzidi interpolated bounce-back + momentum exchange) on one level; o.body.region(p, n) adds a pressure / friction breakdown per region. Float64 throughout (method error, not precision, is under test).
-import os from 'node:os';
-import { Worker } from 'node:worker_threads';
 import { collideRange, streamRange, macroRange } from './refine-kernel.mjs';
+// Node-only parts (worker threads) load lazily, so the geometry and interface tables can also be built in a browser (o.topologyOnly, for the GPU solver)
+const NODE = typeof process !== 'undefined' && !!(process.versions && process.versions.node);
+const os = NODE ? (await import('node:os')).default : null, WT = NODE ? await import('node:worker_threads') : null;
 export const LAT = {};
 {
   const mk = (d, C) => {
@@ -62,7 +63,7 @@ export function createRefined(o) {
   const lat = LAT[o.lattice], { d, Q, C, W, OPP } = lat, model = o.model || 'reg', method = o.method || 'V0', U = o.U || 0, io = !!o.inletOutlet, interpSpace = o.interpSpace || 1, interpTime = o.interpTime || 1, neqGrad = o.neq === 'grad', restrictOrder = o.restrict || 2;
   const cx = C.map(c => c[0]), cy = C.map(c => c[1]), cz = C.map(c => c[2]);
   // o.threads > 1: the per-cell kernels (refine-kernel.mjs) run on worker threads over shared memory; everything else stays on this thread
-  const T = Math.max(1, Math.min(o.threads || 1, os.cpus().length)), alloc = (Ctor, n) => T > 1 ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n);
+  const topo = !!o.topologyOnly, T = topo || !os ? 1 : Math.max(1, Math.min(o.threads || 1, os.cpus().length)), alloc = (Ctor, n) => T > 1 ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n);
   const r = [2, 2, d === 3 ? 2 : 1]; // refinement factor per axis
   // mirror sign of the 10 interface moments (rho, u, Pi xx yy zz xy xz yz) under reflection of axis a, MSIGN[10 a + j]; o.mirror = false: one-sided stencils at slip faces
   const CGGRAD = !!o.cgGrad, MIRROR = o.mirror !== false, MSIGN = new Float64Array(30).fill(1); for (let a = 0; a < 3; a++) { MSIGN[10 * a + 1 + a] = -1; [[7, 0, 1], [8, 0, 2], [9, 1, 2]].forEach(([j, p, q]) => { if (a === p || a === q) MSIGN[10 * a + j] = -1; }); }
@@ -88,7 +89,8 @@ export function createRefined(o) {
   for (const L of levels) {
     L.n = [0, 1, 2].map(a => L.hi[a] - L.lo[a] + L.gLo[a] + L.gHi[a]); L.N = L.n[0] * L.n[1] * L.n[2];
     L.tau = .5 + 2 ** L.l * (L0tau - .5); L.vol = 2 ** (-d * L.l); L.h = 2 ** -L.l;
-    L.f = alloc(Float64Array, Q * L.N); L.post = alloc(Float64Array, Q * L.N); L.mask = alloc(Uint8Array, L.N); L.solid = alloc(Uint8Array, L.N);
+    // o.topologyOnly: no populations (the GPU solver keeps its own), only the geometry and the interface tables
+    L.f = topo ? null : alloc(Float64Array, Q * L.N); L.post = topo ? null : alloc(Float64Array, Q * L.N); L.mask = alloc(Uint8Array, L.N); L.solid = alloc(Uint8Array, L.N);
     L.child = null; L.parent = null; L.force = [0, 0, 0]; L.forceAcc = [0, 0, 0]; L.forceN = 0;
   }
   for (let i = 1; i < levels.length; i++) { levels[i].parent = levels[i - 1]; levels[i - 1].child = levels[i]; }
@@ -112,9 +114,11 @@ export function createRefined(o) {
       L.mask[n] = inside ? INTERIOR : GHOST;
       const ch = L.child; if (ch && inside) { let cov = true; for (let a = 0; a < 3; a++) if (c[a] < ch.plo[a] || c[a] >= ch.phi[a]) cov = false; if (cov) L.mask[n] = INACTIVE; }
     }
-    L.src = alloc(Int32Array, Q * L.N).fill(-1);
-    for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE) continue; const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 0; q < Q; q++) L.src[q * L.N + n] = idx(L, x - cx[q], y - cy[q], z - cz[q]); }
+    L.src = topo ? null : alloc(Int32Array, Q * L.N).fill(-1);
+    if (!topo) for (let n = 0; n < L.N; n++) { if (L.mask[n] === INACTIVE) continue; const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 0; q < Q; q++) L.src[q * L.N + n] = idx(L, x - cx[q], y - cy[q], z - cz[q]); }
   }
+  // upstream cell of direction q at cell n (as L.src, computed on the fly so that o.topologyOnly needs no Q x N table)
+  const srcOf = (L, n, q) => L.mask[n] === INACTIVE ? -1 : idx(L, L.coord[3 * n] - cx[q], L.coord[3 * n + 1] - cy[q], L.coord[3 * n + 2] - cz[q]);
   // wall faces: per level, [cell, q, source cell, source direction] for every population that would come from outside through a wall face, and the
   // moving-wall term 6 w_q c_q . u_wall (0 for slip)
   const mirror = (q, a) => C.findIndex(c => [0, 1, 2].every(b => c[b] === (b === a ? -C[q][b] : C[q][b])));
@@ -167,21 +171,21 @@ export function createRefined(o) {
     // every ghost cell of the child must have a ring parent
     ch.ghostParent = new Int32Array(ch.N).fill(-1); ch.ghostRing = new Int32Array(ch.N).fill(-1); L.ringKids.forEach((ks, i) => { for (const s of ks) { ch.ghostParent[s] = ring[i]; ch.ghostRing[s] = i; } });
     // ghosts in the 3D box corners (offset on all three axes) have no D3Q19 path into the box and stay unused; every ghost an interior cell pulls from must have a parent
-    for (let n2 = 0; n2 < ch.N; n2++) if (ch.mask[n2] === INTERIOR) for (let q = 0; q < Q; q++) { const s2 = ch.src[q * ch.N + n2]; if (s2 >= 0 && ch.mask[s2] === GHOST && ch.ghostParent[s2] < 0) throw Error('ghost cell without a ring parent'); }
+    for (let n2 = 0; n2 < ch.N; n2++) if (ch.mask[n2] === INTERIOR) for (let q = 0; q < Q; q++) { const s2 = srcOf(ch, n2, q); if (s2 >= 0 && ch.mask[s2] === GHOST && ch.ghostParent[s2] < 0) throw Error('ghost cell without a ring parent'); }
     // V0 coalescence links: ring cell n, direction q, when the coarse upstream cell is inside the box or a ring cell
-    const co = []; ring.forEach((n, i) => { for (let q = 1; q < Q; q++) { const s = L.src[q * L.N + n]; if (s >= 0 && (L.mask[s] === INACTIVE || L.isRing[s])) co.push(i, q); } });
+    const co = []; ring.forEach((n, i) => { for (let q = 1; q < Q; q++) { const s = srcOf(L, n, q); if (s >= 0 && (L.mask[s] === INACTIVE || L.isRing[s])) co.push(i, q); } });
     L.coal = Int32Array.from(co);
     if (method === 'N1C') {
       // coarse links of each ring cell into the box (out, +1: its post) and from the box (in, -1: what it pulled): [ringIdx, value direction, sign,
       // arrival direction]; wall-face reflections are included (value and arrival directions differ there)
       const cl = [], ri = new Map(ring.map((n, i) => [n, i]));
-      ring.forEach((n, i) => { const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 1; q < Q; q++) { const dn = idx(L, x + cx[q], y + cy[q], z + cz[q]); if (dn >= 0 && L.mask[dn] === INACTIVE) cl.push(i, q, 1, q); const s2 = L.src[q * L.N + n]; if (s2 >= 0 && L.mask[s2] === INACTIVE) cl.push(i, q, -1, q); } });
+      ring.forEach((n, i) => { const x = L.coord[3 * n], y = L.coord[3 * n + 1], z = L.coord[3 * n + 2]; for (let q = 1; q < Q; q++) { const dn = idx(L, x + cx[q], y + cy[q], z + cz[q]); if (dn >= 0 && L.mask[dn] === INACTIVE) cl.push(i, q, 1, q); const s2 = srcOf(L, n, q); if (s2 >= 0 && L.mask[s2] === INACTIVE) cl.push(i, q, -1, q); } });
       for (let t = 0; t < L.faceLinks.length; t += 4) { const n = L.faceLinks[t], q = L.faceLinks[t + 1], s2 = L.faceLinks[t + 2]; if (ri.has(n) && L.mask[s2] === INACTIVE) cl.push(ri.get(n), q, -1, q); }
       for (let t = 0; t < L.faceOut.length; t += 4) { const q = L.faceOut[t + 1], s2 = L.faceOut[t + 2], qs = L.faceOut[t + 3]; if (ri.has(s2)) cl.push(ri.get(s2), qs, 1, q); }
       L.rcl = Int32Array.from(cl);
       // fine links between ghost children and interior fine cells: [ringIdx, value direction, from, sign, arrival direction] (+1 ghost -> interior, -1 interior -> ghost)
       const fl = [];
-      for (let n2 = 0; n2 < ch.N; n2++) for (let q = 1; q < Q; q++) { const s2 = ch.src[q * ch.N + n2]; if (s2 < 0) continue;
+      for (let n2 = 0; n2 < ch.N; n2++) for (let q = 1; q < Q; q++) { const s2 = srcOf(ch, n2, q); if (s2 < 0) continue;
         if (ch.mask[n2] === INTERIOR && ch.mask[s2] === GHOST) fl.push(ch.ghostRing[s2], q, s2, 1, q);
         else if (ch.mask[n2] === GHOST && ch.mask[s2] === INTERIOR) fl.push(ch.ghostRing[n2], q, s2, -1, q); }
       for (let t = 0; t < ch.faceLinks.length; t += 4) { const n2 = ch.faceLinks[t], q = ch.faceLinks[t + 1], s2 = ch.faceLinks[t + 2], qs = ch.faceLinks[t + 3];
@@ -465,7 +469,7 @@ export function createRefined(o) {
   // ---------- initial state ----------
   // o.initNeq: add the Navier-Stokes non-equilibrium part, Pi = -rho tau_l / 3 * h_l * (grad u + grad u^T) (velocity gradient of o.init by central differences)
   const im = new Float64Array(10);
-  for (const L of levels) for (let n = 0; n < L.N; n++) {
+  if (!topo) for (const L of levels) for (let n = 0; n < L.N; n++) {
     if (L.mask[n] === INACTIVE) continue; const p = centre(L, L.coord.subarray(3 * n, 3 * n + 3)), [rho, ux, uy, uz] = L.solid[n] ? [1, 0, 0, 0] : (o.init ? o.init(p) : [1, U, 0, 0]);
     im.fill(0); im[0] = rho; im[1] = ux; im[2] = uy; im[3] = uz;
     if (o.initNeq && o.init && !L.solid[n]) {
@@ -475,7 +479,7 @@ export function createRefined(o) {
     }
     fromMoments(L, L.f, n, im, 0, 1); for (let q = 0; q < Q; q++) L.post[q * L.N + n] = L.f[q * L.N + n];
   }
-  for (const L of levels) if (L.child) { for (const n of L.cg) { const p = centre(L, L.coord.subarray(3 * n, 3 * n + 3)), [rho, ux, uy, uz] = o.init ? o.init(p) : [1, U, 0, 0]; feqInto(fe, rho, ux, uy, uz); for (let q = 0; q < Q; q++) L.post[q * L.N + n] = fe[q]; } }
+  if (!topo) for (const L of levels) if (L.child) { for (const n of L.cg) { const p = centre(L, L.coord.subarray(3 * n, 3 * n + 3)), [rho, ux, uy, uz] = o.init ? o.init(p) : [1, U, 0, 0]; feqInto(fe, rho, ux, uy, uz); for (let q = 0; q < Q; q++) L.post[q * L.N + n] = fe[q]; } }
   const st = { levels, lat, method, model, step: 0, ramp: 1 };
   st.advance = (n = 1) => { for (let s = 0; s < n; s++) { if (B) { B.forceAcc = [0, 0, 0]; B.forceN = 0; if (B.fcAcc) B.fcAcc.fill(0); } advance(levels[0], 0); st.step++; } };
   // per region { pressure: [x, y, z], friction: [x, y, z] } relative to the free-stream pressure, averaged like st.force over the last coarse step
@@ -497,7 +501,7 @@ export function createRefined(o) {
     return { level: L.l, umax: um, at: pu && pu.map(v => +v.toFixed(2)), drhoMax: rm, rhoAt: pr && pr.map(v => +v.toFixed(2)), nonFinite: bad }; });
   st.cells = () => levels.map(L => { let a = 0; for (let n = 0; n < L.N; n++) if (L.mask[n] === INTERIOR) a++; return a; });
   st.taus = () => levels.map(L => L.tau);
-  if (T > 1) { ctl = new Int32Array(new SharedArrayBuffer(16)); const ctlBuf = ctl.buffer; for (let r = 1; r < T; r++) workers.push(new Worker(new URL('./refine-worker.mjs', import.meta.url), { workerData: { K, levels: LVs, ctlBuf, rank: r, T } })); }
+  if (T > 1) { ctl = new Int32Array(new SharedArrayBuffer(16)); const ctlBuf = ctl.buffer; for (let r = 1; r < T; r++) workers.push(new WT.Worker(new URL('./refine-worker.mjs', import.meta.url), { workerData: { K, levels: LVs, ctlBuf, rank: r, T } })); }
   st.threads = T;
   st.close = async () => { if (!workers.length) return; Atomics.store(ctl, 1, 9); Atomics.add(ctl, 0, 1); Atomics.notify(ctl, 0); await Promise.all(workers.map(w => w.terminate())); workers = []; };
   st.wall = () => B && B.bc ? { cells: B.bc.length, utauMean: B.utau.reduce((a, b) => a + b, 0) / B.bc.length } : null;
