@@ -340,6 +340,9 @@ export function buildSoldier(look = {}, gunParts) {
   const stub = () => new THREE.Object3D();
   const hipChain = [bones.Hips, bones.Spine, bones.Spine1, bones.Spine2], turned = hipChain.map(() => new THREE.Quaternion());
   const legChain = [bones.LeftUpLeg, bones.LeftLeg, bones.LeftFoot, bones.RightUpLeg, bones.RightLeg, bones.RightFoot], legQ = legChain.map(() => new THREE.Quaternion());
+  // bones a procedural pose turned after the mixer (keep), with the clips' turn to put back before the next mixer update
+  const keptB = [], keptQ = []; let kept = 0;
+  const keep = (b) => { for (let i = 0; i < kept; i++) if (keptB[i] === b) return; if (!keptQ[kept]) keptQ[kept] = new THREE.Quaternion(); keptB[kept] = b; keptQ[kept++].copy(b.quaternion); };
   return {
     group: wrap, body, torso: stub(), head: stub(), armL: stub(), armR: stub(), legL: stub(), legR: stub(), hand: mount, pistol, rifle, muzzle: mz,
     applySit(k) { this.sit = k; },
@@ -406,8 +409,23 @@ export function buildSoldier(look = {}, gunParts) {
     // before the mixer runs: the mixer writes a bone only when its blended value changed since its last frame, so under a held clip last
     // frame's turn would stay and this frame's would add to it; put back the pose the clips gave
     unturnHips() {
-      if (this.hipsTurned) { for (let i = 0; i < 4; i++) hipChain[i].quaternion.copy(turned[i]); this.hipsTurned = false; }
+      // the last turned first: the leg IK, then the poses kept, then the hips' turn
       if (this.legsMoved) { for (let i = 0; i < 6; i++) legChain[i].quaternion.copy(legQ[i]); this.legsMoved = false; }
+      while (kept > 0) { kept--; keptB[kept].quaternion.copy(keptQ[kept]); }
+      if (this.hipsTurned) { for (let i = 0; i < 4; i++) hipChain[i].quaternion.copy(turned[i]); this.hipsTurned = false; }
+    },
+    // CHR-06d (ADR-0035): turns bone b so the bone towards `child` points along the world direction d, by w (the shortest turn, so it keeps
+    // its twist); the bone and what hangs from it are brought up to date for the next one down the limb
+    pointBone(b, child, d, w) {
+      keep(b); b.parent.updateWorldMatrix(true, false); b.updateMatrixWorld(true); b.parent.matrixWorld.decompose(lA, pq, lB);
+      lA.setFromMatrixPosition(b.matrixWorld); lB.setFromMatrixPosition(child.matrixWorld);
+      ikQ.setFromUnitVectors(ikD.subVectors(lB, lA).normalize(), d); kpQ.identity().slerp(ikQ, w);
+      b.quaternion.premultiply(kpQ.premultiply(lq.copy(pq).invert()).multiply(pq)); b.updateMatrixWorld(true);
+    },
+    // turns bone b about the body-frame axis (world direction) by a, as a procedural pose (kept like pointBone)
+    turnBone(b, axis, a) {
+      keep(b); b.parent.updateWorldMatrix(true, false); b.parent.matrixWorld.decompose(lA, pq, lB);
+      la.copy(axis).applyQuaternion(lq.copy(pq).invert()).normalize(); kpQ.setFromAxisAngle(la, a); b.quaternion.premultiply(kpQ); b.updateMatrixWorld(true);
     },
     // CHR-06c: the legs' world matrices brought up to date from the hips down, once for both (getWorldPosition walks up to the scene on
     // every call, and the IK runs for every leg near the camera); legIK reads them, so this goes after anything that moves the hips
@@ -470,7 +488,7 @@ export function buildSoldier(look = {}, gunParts) {
   };
 }
 const wq = new THREE.Quaternion(), pq = new THREE.Quaternion(), la = new THREE.Vector3();
-const lq = new THREE.Quaternion(), lqU = new THREE.Quaternion(), lqL = new THREE.Quaternion(), hipQ = new THREE.Quaternion(), lA = new THREE.Vector3(), lB = new THREE.Vector3(), lC = new THREE.Vector3(), lP = new THREE.Vector3();
+const kpQ = new THREE.Quaternion(), lq = new THREE.Quaternion(), lqU = new THREE.Quaternion(), lqL = new THREE.Quaternion(), hipQ = new THREE.Quaternion(), lA = new THREE.Vector3(), lB = new THREE.Vector3(), lC = new THREE.Vector3(), lP = new THREE.Vector3();
 // ---- two-bone IK (world space) ----
 const ikA = new THREE.Vector3(), ikB = new THREE.Vector3(), ikD = new THREE.Vector3(), ikE = new THREE.Vector3(), ikN = new THREE.Vector3(), ikQ = new THREE.Quaternion(), ikQ2 = new THREE.Quaternion(), ikPW = new THREE.Quaternion();
 const tkA = new THREE.Vector3(), tkB = new THREE.Vector3(), tkC = new THREE.Vector3(), tkD = new THREE.Vector3(), tkE = new THREE.Vector3();

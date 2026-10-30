@@ -21,7 +21,7 @@ const dur = (a) => a.getClip().duration / (a.timeScale || 1);
 export const PROPS = { phone: 'phone', drink: 'cup', eat: 'food', lantern: 'lantern', torch: 'torch', carry: 'box', repair: 'tool', chop: 'tool', harvest: 'tool', plant: 'tool', water: 'cup' };
 export function gesture(h, name, opts = {}) {
   const clip = GESTURES[name] || name, m = h.m;
-  if (!m || !m.skinned || h.dead || h.rag || h.reactT > 0 || h.swimming) return false;
+  if (!m || !m.skinned || h.dead || h.rag || h.reactT > 0 || h.landK || h.swimming) return false;
   const speed = opts.speed || 1;
   const moving = (h.speed || 0) > 0.8;
   const ub = m.clip('UB_' + clip);
@@ -71,7 +71,7 @@ const _wq = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _qa = new THRE
 // Starts a procedural motion (only while standing still, on foot); returns false otherwise.
 export function procGesture(h, name) {
   const P = PROC[name], m = h.m;
-  if (!P || !m || !m.skinned || !m.bones || h.dead || h.rag || h.reactT > 0 || h.swimming || h.prone || (m.sit || 0) > 0.3 || m.rideOn || (h.speed || 0) > 0.8) return false;
+  if (!P || !m || !m.skinned || !m.bones || h.dead || h.rag || h.reactT > 0 || h.landK || h.swimming || h.prone || (m.sit || 0) > 0.3 || m.rideOn || (h.speed || 0) > 0.8) return false;
   h.proc = { name, t: 0, dur: P.dur }; return true;
 }
 

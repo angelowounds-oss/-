@@ -14,12 +14,20 @@
 // (c) stairs (CHR-06c): the body climbs a tower's stairs (NC-B00_08-0 in the default world) through the game loop, stands on them, turns and
 //     goes back down; wherever a foot is slower than 0.3 m/s over a flight, its sole must be within 3 cm of the tread under its ball 95% of
 //     the time (the capsule glides up the flight's ramp, the treads are drawn as 14 steps).
+// (d) jumps, drops and falls (CHR-06d), through the game loop in the open where the game starts. A jump plays the take-off (Jump_Start over
+//     half the pose within 0.12 s of leaving the ground). Dropped from 1 m, 2.5 m and 6 m the body lands as the impact calls for (game.land's
+//     speed: a shallow squat, a deep one, onto a hand), and from 6 m running with crouch pressed in the air, it rolls. Nothing jumps from
+//     the air pose into the landing: no main bone turns more than 30 deg in a frame from 0.1 s before the touchdown to 0.4 s after (the old
+//     one-shot cut to the landing clip's first frame turned bones 70+ deg; the roll clip itself turns a shoulder up to ~28 deg a frame). Falling past 25 m/s the arms and legs are spread (hands at least 2.2 shoulder widths
+//     apart), the body tipped forward 35 to 75 deg, and the wind's flutter moves a hand at most 3 cm a frame; under the canopy both hands are
+//     above the head.
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
   const o = await page.evaluate(() => {
     const g = window.__game, pl = g.player, m = pl.m, THREE = window.__THREE, B = m.bones; g.eng.render = () => {};
     pl.dead = false; pl.reactT = 0; pl.stance = 0; pl.crouch = 0; pl.crouching = false; pl.prone = false; pl.swimming = false; pl.gestUB = null; pl.proc = null;
+    const home = { x: pl.x, y: pl.y, z: pl.z };
     const body3 = pl.body3; pl.body3 = null;   // on the ground wherever the stepping takes it (the physics body is frozen with the loop)
     // (a) and (b) step the body on through whatever stands there at a fixed height: the feet are not put on that ground (CHR-06c), only held
     const footY = g.phys.footY; g.phys.footY = () => NaN;
@@ -113,6 +121,59 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const s = gaps.map(Math.abs).sort((p, q) => p - q), pc = (k) => +((s[Math.min(s.length - 1, (s.length * k) | 0)] || 0) * 100).toFixed(1);
       return { uid: bd.uid || bd.lot.uid, samples: s.length, within3cm: +(s.filter((v) => v < 0.03).length / Math.max(1, s.length)).toFixed(3), p50cm: pc(0.5), p95cm: pc(0.95), maxCm: pc(1), climbed: +(top - y0).toFixed(2) };
     };
+    const air = () => {
+      const keys = g.input.keys, V = THREE.Vector3, deg = 180 / Math.PI;
+      let lastV = 0; const land0 = g.land; g.land = function (v, w) { lastV = v; return land0.call(this, v, w); };
+      const reset = (dy = 0) => {
+        keys.clear(); pl.dead = false; pl.hpv = 100; pl.vx = pl.vz = 0; pl.stunT = 0; pl.crouching = false; g.cam.yaw = 0; if (g.mobility.chute) g.mobility.cutAway('land');
+        body3.teleport(home.x, home.y, home.z); pl.x = home.x; pl.y = body3.y; pl.z = home.z;
+        for (let i = 0; i < 180 && (i < 60 || !body3.grounded); i++) window.__upd(dt);   // settled on the ground (a jump needs it)
+        if (dy) { body3.teleport(pl.x, pl.y + dy, pl.z); pl.y = body3.y; }
+      };
+      // the biggest turn (deg) any main bone made against its parent since the last call
+      const main = [B.Hips, B.Spine, B.Spine2, B.Neck, B.Head, B.LeftArm, B.RightArm, B.LeftForeArm, B.RightForeArm, B.LeftUpLeg, B.RightUpLeg, B.LeftLeg, B.RightLeg];
+      const prevQ = main.map((b) => b.quaternion.clone());
+      const snap = () => { let mx = 0; main.forEach((b, i) => { mx = Math.max(mx, 2 * Math.acos(Math.min(1, Math.abs(b.quaternion.dot(prevQ[i]))))); prevQ[i].copy(b.quaternion); }); return mx * deg; };
+      const LAND = ['U_Jump_Land', 'U_Land_Three_Point', 'U_Roll'];
+      const share = () => { let l = 0, t = 0; for (const k in m.act) { if (k.startsWith('UB_')) continue; const w = m.act[k].weight; t += w; if (LAND.includes(k)) l += w; } return t > 0 ? l / t : 0; };
+      const out = {};
+      // take-off
+      reset(); g.input.edges.jump = 1; let up = -1, js = 0, vy = 0, jt = -1;
+      for (let i = 0; i < 60; i++) { window.__upd(dt); if (up < 0 && !body3.grounded) { up = i; vy = pl.vy; } if (up >= 0 && i - up <= 7) { js = Math.max(js, (m.act.U_Jump_Start && m.act.U_Jump_Start.weight) || 0); jt = Math.max(jt, pl.jumpT ?? -1); } }
+      out.takeoff = { startW: +js.toFixed(2), upFrame: up, vy: +vy.toFixed(1), jumpT: +jt.toFixed(2), reactT: +(pl.reactT || 0).toFixed(2) };
+      // drops (and the roll)
+      for (const [name, H, roll] of [['drop1m', 1, false], ['drop2_5m', 2.5, false], ['drop6m', 6, false], ['roll6m', 6, true]]) {
+        reset(); if (roll) { keys.add('KeyW'); for (let i = 0; i < 30; i++) window.__upd(dt); } body3.teleport(pl.x, pl.y + H, pl.z); pl.y = body3.y; lastV = 0;
+        const snaps = []; let down = -1, kind = 'none', peak = 0;
+        for (let i = 0; i < 60 * 3.5; i++) {
+          if (roll && !body3.grounded && pl.vy < -7 && !(pl.rollReq > 0)) g.input.edges.crouch = 1;
+          window.__upd(dt); snaps.push(snap());
+          if (down < 0 && lastV > 0) { down = i; kind = pl.landK ? pl.landK.kind : pl.rag ? 'ragdoll' : 'none'; }
+          if (down >= 0) peak = Math.max(peak, share());
+          if (down >= 0 && i > down + 60) break;
+        }
+        keys.clear(); pl.rollReq = -9;
+        out[name] = { v: +lastV.toFixed(1), kind, peak: +peak.toFixed(2), snapDeg: down < 0 ? 999 : +Math.max(...snaps.slice(Math.max(0, down - 6), down + 24)).toFixed(1) };
+      }
+      // freefall
+      reset(200); let spread = 0, tip = 0, flut = 0, n = 0, prevH = null;
+      for (let i = 0; i < 60 * 4; i++) {
+        window.__upd(dt); if (pl.vy > -25) continue;
+        pl.group.updateMatrixWorld(true);
+        const L = B.LeftHand.getWorldPosition(new V()), R = B.RightHand.getWorldPosition(new V()), sw = B.LeftArm.getWorldPosition(new V()).distanceTo(B.RightArm.getWorldPosition(new V()));
+        spread += L.distanceTo(R) / sw; tip += m.body.rotation.x; n++;
+        const hl = m.body.worldToLocal(L); if (prevH) flut = Math.max(flut, hl.distanceTo(prevH)); prevH = hl;
+      }
+      out.freefall = { samples: n, spread: +(spread / Math.max(1, n)).toFixed(2), tipDeg: +(tip / Math.max(1, n) * deg).toFixed(0), flutterCm: +(flut * 100).toFixed(1) };
+      // parachute
+      reset(120); if (!g.items.count('parachute')) g.items.add('parachute');
+      for (let i = 0; i < 90; i++) window.__upd(dt);
+      g.mobility.deploy(); for (let i = 0; i < 120; i++) window.__upd(dt); pl.group.updateMatrixWorld(true);
+      const hy = B.Head.getWorldPosition(new V()).y;
+      out.canopy = { open: !!g.mobility.chute, handsUp: B.LeftHand.getWorldPosition(new V()).y > hy && B.RightHand.getWorldPosition(new V()).y > hy };
+      reset(); g.land = land0;
+      return out;
+    };
     const cases = {
       walk: { speed: 1.4 }, aimFwd: { speed: 2.6, aim: true }, aimRight: { speed: 2.6, dir: -Math.PI / 2, aim: true }, aimLeft: { speed: 2.6, dir: Math.PI / 2, aim: true },
       aimBack: { speed: 2.6, dir: Math.PI, aim: true }, aimDiag: { speed: 2.6, dir: -Math.PI / 4, aim: true }, aimBackDiag: { speed: 2.6, dir: Math.PI * 0.75, aim: true },
@@ -123,13 +184,20 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const leanOut = lean();
     pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.speed = 0; pl.vx = pl.vz = 0;
     const stairsOut = stairs();
+    const airOut = air();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
-    return { move: out, turns, lean: leanOut, stairs: stairsOut, gait, turnClips, feet: m.feet };
+    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, gait, turnClips, feet: m.feet };
   });
   const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < 0.25) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
   for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25 && t.slideM < (k === 'back180' ? 1.2 : 0.7))) bad.push(k); }
   const L = o.lean; if (!(L.sideDeg <= -3 && L.sideDeg >= -12.1 && L.startDeg >= 1.5 && L.startDeg <= 7 && L.stopDeg <= -1)) bad.push('lean');
   const S = o.stairs; if (!(S.samples >= 40 && S.within3cm >= 0.95 && S.climbed > 1)) bad.push('stairs');
+  const A = o.air, want = { drop1m: 'land', drop2_5m: 'land', drop6m: 'hard', roll6m: 'roll' };
+  if (!(A.takeoff.startW > 0.5)) bad.push('takeoff');
+  for (const k in want) if (!(A[k].kind === want[k] && A[k].snapDeg < 30)) bad.push(k);
+  if (!(A.drop1m.peak < A.drop2_5m.peak)) bad.push('land depth');
+  const F = A.freefall; if (!(F.samples > 20 && F.spread >= 2.2 && F.tipDeg >= 35 && F.tipDeg <= 75 && F.flutterCm <= 3)) bad.push('freefall');
+  if (!(A.canopy.open && A.canopy.handsUp)) bad.push('canopy');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });

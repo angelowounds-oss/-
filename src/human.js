@@ -19,8 +19,6 @@ export const WEAPONS = [
 const SW_MID = R / 2 + SW / 2;
 let uid = 0;
 
-const _fq = new THREE.Quaternion(), _fe = new THREE.Euler();
-
 // CHR-06a (ADR-0035): stand-set legs. Aimed and fighting actors face one way and move another, so the leg clip is picked by the way the body
 // moves relative to where it faces (ahead, back steps, or a side step: the clip whose measured direction is nearest, ahead favoured and the
 // current one kept within a margin), and the hips are turned by what is left over (Model.turnHips) so the feet step exactly that way. Ahead
@@ -125,7 +123,8 @@ function stepFeet(h, dt, cd, on) {
   const F = h.feet || (h.feet = [0, 1].map(() => ({ d: 0, ox: 0, oz: 0, oy: 0, lx: NaN, lz: NaN, ly: 0, c: 0, st: -1, arc: 0, s0x: 0, s0z: 0, s0y: 0, off: 0, cx: NaN, cz: 0, cc: -1, qx: NaN, qz: 0, qb: 0, g: NaN, nx: 0, ny: 1, nz: 0 })));
   h.ikW = damp(h.ikW || 0, on && cd < IK_NEAR ? 1 : 0, 8, dt);
   if (h.ikW < 0.01) { h.ikW = 0; h.pelvis = 0; for (const f of F) { f.d = 0; f.ox = f.oz = f.oy = 0; f.lx = NaN; f.st = -1; f.arc = 0; } return; }
-  const w = h.ikW, base = h.y + m.body.position.y + rest.sole, lock = on && cd < LOCK_NEAR, B = m.bones;
+  // a roll or a landing run out of lets the feet go where the clip puts them (held, they would drag the body back)
+  const lk = h.landK, w = h.ikW, base = h.y + m.body.position.y + rest.sole, lock = on && cd < LOCK_NEAR && !(lk && (lk.kind === 'roll' || h.speed > 1)), B = m.bones;
   // a jump in place (teleport, a ride's seat) lets go of everything held
   const jump = Math.hypot(h.x - (h._fx ?? h.x), h.z - (h._fz ?? h.z)) > 1; h._fx = h.x; h._fz = h.z;
   const still = h.speed < 0.1 && !h.turnClip;
@@ -193,6 +192,68 @@ function stepFeet(h, dt, cd, on) {
   }
 }
 
+// CHR-06d (ADR-0035): touchdowns (Human.landAnim, from game.land and the car roof). The landing part of a clip plays over the stand set as a
+// layer, not a one-shot that cuts everything else: it comes in from the air pose as the feet meet the ground and goes out into whatever the
+// player goes on to do. Segments [clip, from s, to s, rate] play one after the other with LAND_X s of cross-fade. Jump_Land squats from the
+// feet's contact (hips 0.5 m down at 0.21 s) and is up by 1 s, played by as much of it as the drop calls for; Land_Three_Point comes down
+// onto a hand and Jump_Land's rise lifts the body out of it; Roll goes over the shoulder from the landing crouch (its dive, quicker) and up.
+const LANDS = {
+  land: [['U_Jump_Land', 0, 1, 1]],
+  hard: [['U_Land_Three_Point', 0.47, 1.2, 1], ['U_Jump_Land', 0.3, 1, 1]],
+  roll: [['U_Roll', 0.06, 1.65, 1.3]],
+};
+const LAND_X = 0.2, LAND_OUT = 0.3;
+const ss01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+// an action held on one time of its clip (timeScale 0), whatever a one-shot left it in
+function holdAt(ac, t) { ac.enabled = true; ac.paused = false; ac.timeScale = 0; ac.time = t; }
+function endLand(h) {
+  const L = h.landK; h.landK = null; if (!L) return;
+  for (const sg of LANDS[L.kind]) { const ac = h.m.act[sg[0]]; if (ac) ac.weight = 0; }
+}
+// the layer's weight is a share of the pose (the mixer averages by weight): each segment's action gets w / (1 - share) times the rest
+function stepLand(h, dt, sp) {
+  const L = h.landK, m = h.m, a = m.act, segs = LANDS[L.kind], w = L.w;
+  L.t += dt;
+  // running on out of it cuts it short; a roll is seen through
+  if (L.cut < 0 && L.kind !== 'roll' && sp > 2.5 && L.t > 0.25) L.cut = L.t;
+  const fade = L.cut < 0 ? 1 : 1 - (L.t - L.cut) / 0.2;
+  let s0 = 0, share = 0, rest = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const [n, t0, t1, r0] = segs[i], r = r0 * L.rate, len = (t1 - t0) / r, u = L.t - s0, ac = m.clip(n);
+    w[i] = ac ? ss01(u / (i ? LAND_X : L.in)) * ss01((len - u) / (i === segs.length - 1 ? LAND_OUT : LAND_X)) * L.peak * Math.max(0, fade) : 0;
+    if (ac) holdAt(ac, t0 + r * clamp(u, 0, len));
+    share += w[i]; s0 += len - LAND_X;
+  }
+  if (L.t >= s0 + LAND_X || fade <= 0) { endLand(h); return; }
+  for (const k in a) if (k !== segs[0][0] && (!segs[1] || k !== segs[1][0]) && !k.startsWith('UB_')) rest += a[k].weight;
+  share = Math.min(share, 0.995);
+  for (let i = 0; i < segs.length; i++) { const ac = a[segs[i][0]]; if (ac) ac.weight = (w[i] / (1 - share)) * rest; }
+}
+// CHR-06d (ADR-0035): in the air. Past 9 m/s down (a drop of 4 m or more) the limbs go out into the spread a body falls stable in (upper arms
+// out level with the shoulders, forearms up by the head, thighs apart, knees bent so the shins trail), as far as the speed has built, with a
+// flutter in the wind that grows with it; the body tips forward about the hips towards lying on the air (AIR_TIP at 30 m/s). Under the
+// canopy the hands are up on the brake toggles and the legs hang together. Body-frame directions of the left limbs (+x), mirrored for the right.
+const SPREAD = { arm: [0.93, 0.3, -0.15], fore: [0.3, 0.92, -0.22], thigh: [0.3, -0.94, -0.15], shin: [0.26, -0.38, -0.89] };
+const CANOPY = { arm: [0.32, 0.94, 0.08], fore: [0.12, 0.99, 0.06], thigh: [0.06, -0.99, 0.1], shin: [0.05, -0.99, -0.06] };
+const AIR_TIP = 1.2, HIP_H = 0.95;
+const _bq = new THREE.Quaternion(), _ad = new THREE.Vector3(), _ax = new THREE.Vector3();
+function poseAir(h, t) {
+  const m = h.m, B = m.bones, f = h.ffK, c = h.chK, wl = Math.max(f, c), fl = f * (0.05 + 0.08 * clamp((-(h.vy || 0) - 15) / 30, 0, 1));
+  m.body.getWorldQuaternion(_bq);
+  const dir = (k, s, dy, dz) => _ad.set(s * (SPREAD[k][0] * f + CANOPY[k][0] * c), SPREAD[k][1] * f + CANOPY[k][1] * c + dy, SPREAD[k][2] * f + CANOPY[k][2] * c + dz).normalize().applyQuaternion(_bq);
+  // the back arches and the head comes up to keep the eyes ahead of a tipped body
+  _ax.set(1, 0, 0).applyQuaternion(_bq);
+  if (f > 0.01) { m.turnBone(B.Spine1, _ax, -0.12 * f); m.turnBone(B.Spine2, _ax, -0.1 * f); }
+  if (h.ffTip > 0.01) { m.turnBone(B.Neck, _ax, -0.45 * h.ffTip); m.turnBone(B.Head, _ax, -0.25 * h.ffTip); }
+  for (const s of [1, -1]) {
+    const L = s > 0, ph = L ? 0 : 2.1;
+    m.pointBone(L ? B.LeftArm : B.RightArm, L ? B.LeftForeArm : B.RightForeArm, dir('arm', s, Math.sin(t * 6.3 + ph) * fl * 0.5, 0), wl);
+    m.pointBone(L ? B.LeftForeArm : B.RightForeArm, L ? B.LeftHand : B.RightHand, dir('fore', s, 0, Math.sin(t * 9.1 + ph) * fl), wl);
+    m.pointBone(L ? B.LeftUpLeg : B.RightUpLeg, L ? B.LeftLeg : B.RightLeg, dir('thigh', s, 0, Math.sin(t * 5.7 + ph) * fl * 0.5), wl);
+    m.pointBone(L ? B.LeftLeg : B.RightLeg, L ? B.LeftFoot : B.RightFoot, dir('shin', s, 0, Math.sin(t * 8.3 + ph) * fl), wl);
+  }
+}
+
 export class Human {
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
@@ -244,6 +305,15 @@ export class Human {
     let t = Math.random() * tot, pick = opts[0][0];
     for (const o of opts) { t -= o.w; if (t <= 0) { pick = o[0]; break; } }
     this.prevNode = n; this.node = pick;
+  }
+  // CHR-06d (ADR-0035): a touchdown at v m/s down (game.land, off a car roof); roll: the player rolled out of it. Below 3 m/s (a 0.5 m drop)
+  // the legs take it unseen; to 10 a squat as deep as the drop calls for, shallower and quicker from a lighter one or at a run; harder, onto a hand
+  landAnim(v, roll) {
+    if (!this.m.skinned || this.dead || (!roll && v < 3)) return;
+    endLand(this);
+    const kind = roll ? 'roll' : v < 10 ? 'land' : 'hard', hs = Math.hypot(this.vx || 0, this.vz || 0);
+    const peak = kind === 'land' ? clamp((v - 2.2) / 6.5, 0, 1) * clamp(1 - (hs - 2) / 4, 0.35, 1) : 1;
+    this.landK = { kind, t: 0, cut: -1, peak, in: kind === 'land' ? 0.08 : 0.12, rate: kind === 'land' ? clamp(1 + (9 - v) / 8, 1, 1.6) : 1, w: [0, 0] };
   }
   hurt(dmg, from, headshot, src) {
     if (this.dead) return;
@@ -424,10 +494,15 @@ export class Human {
     }
     if (m.onceName && !this.dead) m.stopOnce();
     const idle = clamp(1 - sp / 0.6, 0, 1);
-    const k = 1 - Math.exp(-10 * dt);
     // stance sets: retargeted UAL crouch / swim clips replace the stand set (idle+walk+run) while active
     const swimC = this.swimming, crouchC = !swimC && !this.prone && !this.lying && this.crouching !== false && this.crouch > 0.3 && !m.sit;
     const sitC = (m.sit || 0) > 0.5, airC = !sitC && !swimC && !!this.body3 && !this.body3.grounded && !this.hang && !this.mantle && !this.ladder;
+    // CHR-06d: a jump (the ground left going up fast) plays the take-off from where the legs push off, then the air loop; off a ledge, the
+    // air loop alone. The take-off comes in quicker than the usual blend, the push lasting a tenth of a second
+    if (airC !== !!this._air) { this._air = airC; this.jumpT = airC && (this.vy || 0) > 2 ? 0 : -1; this.jump0 = sp > 3 ? 0.14 : 0.08; }
+    if (this.jumpT >= 0) this.jumpT += dt;
+    if (this.landK && (airC || this.dead || this.rag || swimC || sitC || m.rideOn || this.inCar)) endLand(this);
+    const k = 1 - Math.exp(-(this.jumpT >= 0 && this.jumpT < 0.3 ? 22 : 10) * dt);
     const crawlC = !swimC && !sitC && this.prone && !!m.clip('U_Crawl');
     this.crawling = crawlC;
     const hangC = !!this.hang && !!m.clip('U_Ledge_Hang'), ladC = !hangC && !!(this.mantle && this.mantle.ladder) && !!m.clip('U_Climb_Ladder');
@@ -435,9 +510,10 @@ export class Human {
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = ladC ? 1 : clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Turn_Left_90: 0, U_Turn_Right_90: 0, U_Turn_Left_180: 0, U_Turn_Right_180: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
+    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Turn_Left_90: 0, U_Turn_Right_90: 0, U_Turn_Left_180: 0, U_Turn_Right_180: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Jump_Start: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     else stepGait(this, dt, sp, 1 - idle, wt);
+    if (airC && this.jumpT >= 0) { const js = 1 - ss01((this.jumpT - 0.8) / 0.6); wt.U_Jump_Start = js; wt.U_Jump = 1 - js; }
     stepTurn(this, dt, !set && sp < 0.15 && !m.rideOn && !this.dead, wt);
     // CHR-06b: the push on the ground that curves or changes the pace, in the body's frame (smoothed: the player's velocity comes from physics steps)
     if (dt > 0) {
@@ -446,6 +522,8 @@ export class Human {
     }
     this._pvx = this.vx; this._pvz = this.vz;
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
+    if (this.jumpT >= 0 && a.U_Jump_Start) holdAt(a.U_Jump_Start, Math.min(1.66, this.jump0 + this.jumpT));
+    if (this.landK) stepLand(this, dt, sp);
     if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : set[1] === 'U_Crouch_Fwd' ? clamp(sp / 0.66, 0.6, 3) : clamp(sp / 1.6, 0.6, 1.8);
     // pelvis to where the steps go (gait warp) or where the feet stand (turn in place), net of what a turn clip turns it itself; chest to ry
     syncTurn(this);
@@ -516,25 +594,27 @@ export class Human {
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
     m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone && !this.crawling ? 0.62 : 0) - (this.lying ? 0.62 : 0);
     if (this.punchT > 0) this.punchT -= dt;
-    const freefall = !!this.body3 && !this.body3.grounded && !this.swimming && !this.hang && (this.vy || 0) < -9;
+    const mob = this.body3 && this.G && this.G.mobility, chute = !!(mob && mob.chute) && !this.body3.grounded;
+    const freefall = !!this.body3 && !this.body3.grounded && !this.swimming && !this.hang && !chute && !(mob && mob.grap) && (this.vy || 0) < -9;
+    this.ffK = damp(this.ffK || 0, freefall ? clamp((-(this.vy || 0) - 9) / 6, 0, 1) : 0, this.body3 && this.body3.grounded ? 14 : 5, dt); this.chK = damp(this.chK || 0, chute ? 1 : 0, 4, dt);
+    this.ffTip = damp(this.ffTip || 0, freefall ? AIR_TIP * clamp((-(this.vy || 0) - 12) / 18, 0, 1) : 0, freefall ? 1.5 : 5, dt);
+    if (this.ffTip < 1e-3) this.ffTip = 0;
     // CHR-06b: lean as far as that push tips a body (atan(a/g)), pivoting at the feet: into a curve from a walk up (12 deg at most), and
     // forward or back with a change of pace by about a third of it (7 deg at most), less from a standstill
     const lean = !this.stanceSet && !m.rideOn && !this.dead && !this.prone && !this.lying && !this.swimming ? 1 : 0;
     const leanZ = -lean * clamp(Math.atan(this.accL / 9.81) * clamp((sp - 1) / 3, 0, 1), -0.21, 0.21);
     const leanX = lean * clamp(Math.atan(this.accF / 9.81) * 0.35, -0.12, 0.12) * clamp(0.3 + sp / 3, 0.3, 1);
     m.body.rotation.z = damp(m.body.rotation.z, leanZ, 10, dt);
-    m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone && !this.crawling ? 1.35 : this.lying ? -1.5 : freefall ? 0.45 : (this.punchT > 0 ? 0.35 : 0) + leanX, freefall ? 3 : 14, dt);
-    // freefall: arms and legs flail against the wind
-    if (freefall && m.bones) { const t = performance.now() * 0.001, B = m.bones, a = 0.55 + clamp((-this.vy - 9) / 20, 0, 1) * 0.5;
-      const sw = (b, x, y, z) => { if (b) { _fq.setFromEuler(_fe.set(x, y, z)); b.quaternion.multiply(_fq); } };
-      sw(B.LeftArm, 0, 0, Math.sin(t * 9) * a - 0.6); sw(B.RightArm, 0, 0, -Math.sin(t * 9 + 1) * a + 0.6);
-      sw(B.LeftForeArm, 0, 0, Math.sin(t * 7) * 0.4); sw(B.RightForeArm, 0, 0, -Math.sin(t * 7 + 2) * 0.4);
-      sw(B.LeftUpLeg, Math.sin(t * 6) * a * 0.6, 0, 0); sw(B.RightUpLeg, -Math.sin(t * 6) * a * 0.6, 0, 0); }
+    // a falling body tips about its hips (the capsule's middle), not its feet
+    if (this.ffTip > 0) { m.body.rotation.x = this.ffTip; m.body.position.y += HIP_H * (1 - Math.cos(this.ffTip)); }
+    else m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone && !this.crawling ? 1.35 : this.lying ? -1.5 : (this.punchT > 0 ? 0.35 : 0) + leanX, 14, dt);
+    m.body.position.z = -HIP_H * Math.sin(this.ffTip);
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
+    if ((this.ffK > 0.01 || this.chK > 0.01) && m.pointBone) { this.windT = (this.windT || 0) + dt; poseAir(this, this.windT); }
     // CHR-06c: standing or stepping on the ground in the stand set (or crouched), not carried, lying, falling or driven by a one-shot clip
     const feetOn = !this.dead && !m.rideOn && !this.inCar && !this.swimming && !this.prone && !this.lying && !m.sit && !this.knock && !this.rag && !this.hang && !this.mantle && !this.ladder &&
-      (!this.stanceSet || this.stanceSet[0] === 'U_Crouch_Idle') && (!this.body3 || this.body3.grounded) && !(this.G && this.G.carRider && this.G.carRider.roof && this.isPlayer);
+      (!this.stanceSet || this.stanceSet[0] === 'U_Crouch_Idle') && (!this.body3 || this.body3.grounded) && !(this.G && this.G.carRider && this.G.carRider.roof && this === this.G.player);
     stepFeet(this, dt, cd, feetOn);
     if (this.aimT > 0) this.aimT -= dt * 0.5;
   }

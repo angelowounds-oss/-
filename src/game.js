@@ -1112,11 +1112,11 @@ export class Game {
     if (roll) dmg *= 0.35;
     if (v > 4.5) this.audio.impact(clamp(v / 14, 0.3, 1.2), 0);
     if (v > 5) {
-      if (roll && pl.m.playOnce?.('U_Roll', false)) { pl.reactT = 0.75; pl.vx *= 1.1; pl.vz *= 1.1; }
-      else if (pl.m.playOnce?.('U_Jump_Land', false)) pl.reactT = clamp(0.2 + v * 0.03, 0.25, 0.6);
+      if (roll) { pl.vx *= 1.1; pl.vz *= 1.1; }
       this.shake(clamp(v * 0.03, 0.08, 0.6));
     }
     if (dmg > 0) this.hurtPlayer(dmg, null, 'fall');
+    if (roll || v <= 12.5) pl.landAnim?.(v, roll);   // the body takes it (CHR-06d); harder, it goes down
     if (!roll && v > 12.5 && !pl.dead) {   // knocked flat: a living ragdoll that gets back up on its own
       pl.stunT = clamp((v - 12.5) * 0.25 + 0.8, 0.8, 2.2); this.audio.tone?.(160, 0.12, 'square', 0.12, 60);
       this.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: pl.vx * 0.5, y: 0, z: pl.vz * 0.5 } });

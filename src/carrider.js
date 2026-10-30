@@ -34,10 +34,10 @@ export class CarRider {
       this.prepareBones(pl);
       const r = G.ragdolls.spawn(pl, { cause: 'bail', alive: true, vel: { x: pl.vx, y: 1.5, z: pl.vz } });
       if (r) { r.tone = roll ? 1.6 : 0.4; G.toast('차에서 뛰어내렸다', roll ? '구르며 충격을 줄였다' : `시속 ${(sp * 3.6) | 0} km`); }
-      else if (pl.m.playOnce?.(roll ? 'U_Roll' : 'U_Jump_Land', false)) pl.reactT = 0.7;
+      else pl.landAnim?.(9, roll);
       G.shake?.(0.4);
     } else {
-      if (pl.m.playOnce?.(roll || sp > 6 ? 'U_Roll' : 'U_Jump_Land', false)) pl.reactT = roll ? 0.75 : 0.4;
+      pl.landAnim?.(Math.max(sp, 5.5), roll || sp > 6);
       G.toast('차에서 내렸다', `시속 ${(sp * 3.6) | 0} km`);
     }
     G.audio.impact?.(clamp(sp / 16, 0.3, 1), 0);
