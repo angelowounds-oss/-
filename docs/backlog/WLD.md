@@ -248,7 +248,7 @@
   - 생성기 출력(`world`, `net`, `layouts`, 표본 타일)은 21a와 같다. 단위 테스트 worldmap, bake, chunkpack도 통과했다.
 - 비용: 해시 규칙이 바뀌어 다음 굽기는 캐시를 한 번 모두 버린다(팩 포함 약 20분). 21c와 함께 한 번 굽는다.
 
-### WLD-21c 지역별 월드 파일 — P1 · M · Backlog (21b 뒤)
+### WLD-21c 지역별 월드 파일 — P1 · M · Review (2026-10-30, `feat/WLD-21c-region-files`)
 - 범위:
   - 노트북 화질: `game/world/base/{index.json, core.pak, <id>.pak}`. 고사양: `game/world/high/` 같은 구조, 애셋 팩은 그대로 한 파일이다.
   - `bakedload.js`와 `detail.js`가 목록을 읽어 붙인다.
@@ -256,6 +256,30 @@
   - 청크 키 집합과 각 청크 바이트(해시)가 나누기 전 빌드(BLD-07)와 같다.
   - 지역별 크기 표를 만든다(`PERF-BASELINE`).
   - e2e `boot`, `pack`, `world-small`은 사용자가 실행한다.
+- 한 것:
+  - `build/bake.mjs`:
+    - 단계마다 `core.pak`(core 청크와 바다)과 청크가 있는 시·도마다 `<id>.pak`을 만든다.
+    - `index.json`에 파일마다 지역, 청크 수, 크기, 해시를 적는다.
+    - `writeBase`는 노트북 월드를 `game/world/base/`에 쓴다.
+    - `writePack`은 이전 굽기의 월드 파일(`high.pak` 등)을 지우고 애셋 팩 줄은 남긴다.
+  - `build/build.mjs`: 고사양 팩을 `game/world/high/`로 복사한다.
+  - `src/bakedload.js`: `world/base/index.json`을 읽고 목록의 파일을 한꺼번에 받는다. 목록에 있는 파일이 없거나 잘렸으면 부팅을 멈추고 "게임 폴더를 다시 풀어 주세요"를 띄운다.
+  - `src/detail.js`: `world/high/`를 붙인다.
+  - 테스트 갱신: `unit/chunkpack`(지역별 파일, 로더, 없는·잘린 파일 거부), `unit/package`, e2e `pack`·`hiassets`의 경로.
+- 결과 (BLD-07 빌드 `8845325`의 컨테이너 색인과 청크마다 키·해시·크기를 비교):
+
+  | 단계 | 청크 (전 → 후) | 없음 / 더함 / 다름 | 크기 | 월드 id |
+  |---|---|---|---|---|
+  | 노트북 | 1747 → 1747 | 0 / 0 / 0 | 41.74 MB, 같음 | 같음 |
+  | 고사양 | 2897 → 2897 | 0 / 0 / 0 | 78.04 MB, 같음 | 같음 |
+
+  - 애셋 팩 `assets.pak`은 바이트가 같다.
+  - 지역별 크기 표는 `docs/PERF-BASELINE.md`의 "시·도별 월드 파일"이다.
+  - e2e `pack` 통과: 팩 파일 19개 89 MB, 8 m 타일이 `pack:incheon.pak`에서 온다. 도시 상세는 `pack:daegu.pak`에서 온다. 8 m와 16 m 높이 차 0.19 m.
+  - e2e `hiassets` 통과(2048 px KTX2, 셰이더 94 → 94).
+  - 부팅 때 노트북 월드 읽기: 0.76~0.80 s → 0.82~0.93 s(파일 18개).
+  - 단위 테스트 chunkpack, package, bake, regions 통과.
+- 사용자가 돌릴 것: `boot`, `world-small`(quick/all에 들어 있다).
 
 ### WLD-21d 지역 하나만 굽기와 확인 도구 — P2 · S · Backlog (21c 뒤)
 - 범위:
