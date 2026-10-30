@@ -280,6 +280,47 @@ function poseAir(h, t) {
   }
 }
 
+// CHR-06g (ADR-0035): the head goes to what the actor looks at before the body does. Within 70 deg either side of the way the body faces
+// and 30 deg up or down, the upper back, neck and head turn there (15/35/50% of the turn, the tip 40/60% on neck and head), damped as a
+// glance is (350 deg/s at most); past 110 deg the target is out of sight and the head comes back ahead (it would have to go round through
+// the back). On a target, where it looks is kept in the world, so the head stays on it while the body turns under it
+const LOOK_YAW = 1.22, LOOK_PITCH = 0.52, LOOK_DROP = 1.92, LOOK_SPEED = 6, LOOK_BONES = [['Spine2', 0.15, 0], ['Neck', 0.35, 0.4], ['Head', 0.5, 0.6]];
+const LOOK_ALERT = new Set(['attack', 'cover', 'search', 'investigate', 'retreat']);
+const _lUp = new THREE.Vector3(0, 1, 0), _lAx = new THREE.Vector3(), _lP = new THREE.Quaternion(), _lB = [], _lQs = LOOK_BONES.map(() => new THREE.Quaternion());
+// what h looks at, [yaw, pitch] in the world: the player where the camera looks (not aiming: the aim has the upper body); the others at
+// the player's head when near (a guard on alert, within 30 m)
+function lookAt(h, aiming) {
+  const G = h.G, pl = G && G.player; if (!pl) return null;
+  if (h === pl) return G.playerOnFoot && !aiming && G.cam ? [G.cam.yaw, G.cam.pitch] : null;
+  if (pl.dead || (h.team === 'civ' && (h.state === 'flee' || h.scared))) return null;
+  const alert = h.team !== 'civ' && LOOK_ALERT.has(h.state), dx = pl.x - h.x, dz = pl.z - h.z, d = Math.hypot(dx, dz);
+  if (d < 0.3 || d > (alert ? 30 : h.static ? 9 : 6)) return null;
+  return [Math.atan2(dx, dz), Math.atan2(pl.y + 1.5 - 0.5 * (pl.crouch || 0) - (h.y + 1.6), d)];
+}
+// eased towards the target, never faster than LOOK_SPEED
+const lookStep = (x, to, dt) => { const s = LOOK_SPEED * dt; return x + clamp((to - x) * (1 - Math.exp(-6 * dt)), -s, s); };
+function stepLook(h, dt, on, aiming) {
+  const t = on ? lookAt(h, aiming) : null, off = t ? angDiff(h.ry, t[0]) : 0, see = !!t && Math.abs(off) < LOOK_DROP;
+  if (h.lookW === undefined) { h.lookRel = 0; h.lookYw = h.ry; h.lookP = 0; h.lookW = 0; }
+  h.lookW = damp(h.lookW, on ? 1 : 0, 5, dt);
+  // in the body's frame, across the front (the short way round in the world may be through the back), never further round than LOOK_DROP
+  // however fast the body turns; on a target, from where the head looked in the world (it stays on it), else from where it looked in the
+  // body (it does not lag behind the body's turns)
+  const was = see ? angDiff(h.ry, h.lookYw) : h.lookRel;
+  let rel = clamp(lookStep(was, see ? clamp(off, -LOOK_YAW, LOOK_YAW) : 0, dt), -LOOK_DROP, LOOK_DROP), p = lookStep(h.lookP, see ? clamp(t[1], -LOOK_PITCH, LOOK_PITCH) : 0, dt);
+  if (!see && Math.abs(rel) < 1e-3 && Math.abs(p) < 1e-3) rel = p = 0;
+  h.lookRel = rel; h.lookYw = h.ry + rel; h.lookP = p;
+  const a = clamp(rel, -LOOK_YAW, LOOK_YAW) * h.lookW, m = h.m; p *= h.lookW;
+  if ((!a && !p) || !m.turnChain) return;
+  let turned = 0, n = 0;
+  for (const [name, ky, kp] of LOOK_BONES) {
+    const b = m.bones[name]; if (!b) continue;
+    turned += ky; const f = h.ry + a * turned; _lAx.set(-Math.cos(f), 0, Math.sin(f));   // facing x up: turning about it tips the face up
+    _lB[n] = b; _lQs[n++].setFromAxisAngle(_lUp, a * ky).premultiply(_lP.setFromAxisAngle(_lAx, p * kp));
+  }
+  _lB.length = n; m.turnChain(_lB, _lQs);
+}
+
 export class Human {
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
@@ -422,9 +463,14 @@ export class Human {
     if (this.knock) { this.stepKnock(dt); if (this.knock) return; }
     const px = G.player.x, pz = G.player.z;
     const dxp = px - this.x, dzp = pz - this.z, dp = Math.hypot(dxp, dzp);
-    let wantX = 0, wantZ = 0, spd = 0, face = null;
+    let wantX = 0, wantZ = 0, spd = 0, face = null, faceK = 12;
     if (this.team === 'civ' && this.static && this.state !== 'flee') {
-      face = this.lookAtPlayer && dp < 9 ? Math.atan2(dxp, dzp) : null;
+      // CHR-06g: the head turns to the player first (stepLook); the body comes round once the player has stood past 60 deg of where it
+      // faces for 0.3 s, until it faces within 10 deg, at the pace a body turns on its feet (it swung round at once before)
+      const off = this.lookAtPlayer && dp < 9 ? Math.abs(angDiff(this.ry, Math.atan2(dxp, dzp))) : 0;
+      this.lookOffT = off > 1.05 ? (this.lookOffT || 0) + dt : 0;
+      this.lookTurn = this.lookOffT > 0.3 || (!!this.lookTurn && off > 0.17);
+      face = this.lookTurn ? Math.atan2(dxp, dzp) : null; faceK = 4;
     } else if (this.team === 'civ') {
       if (this.report && this.state !== 'flee') {
         this.report.t -= dt; face = Math.atan2(dxp, dzp);
@@ -489,7 +535,7 @@ export class Human {
       }
     }
     // facing
-    if (face != null) this.ry = dampAngle(this.ry, face, 12, dt);
+    if (face != null) this.ry = dampAngle(this.ry, face, faceK, dt);
     else if (this.speed > 0.4) this.ry = dampAngle(this.ry, Math.atan2(this.vx, this.vz), 9, dt);
     this.animate(dt, spd);
   }
@@ -667,6 +713,10 @@ export class Human {
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if ((this.ffK > 0.01 || this.chK > 0.01) && m.pointBone) { this.windT = (this.windT || 0) + dt; poseAir(this, this.windT); }
+    // CHR-06g: the head to what it looks at, near the camera, standing, walking or seated; lying, in the air or the water, hanging, carried,
+    // or while a gesture, a landing or a get-up has the body, the clip keeps it
+    if (cd < IK_NEAR) stepLook(this, dt, !this.dead && !this.rag && !this.knock && !this.landK && !airC && !swimC && !lieC && !crawlC && !hangC && !ladC &&
+      !this.prone && !this.lying && !this.proc && !this.gestUB && !m.rideOn && !this.inCar && !this.mantle && !(this.ffK > 0.01) && !(this.chK > 0.01), aiming);
     // CHR-06c: standing or stepping on the ground in the stand set (or crouched), not carried, lying, falling or driven by a one-shot clip
     const feetOn = !this.dead && !m.rideOn && !this.inCar && !this.swimming && !this.prone && !this.lying && !m.sit && !this.knock && !this.rag && !this.hang && !this.mantle && !this.ladder && !(this.landK && UPS.has(this.landK.kind)) &&
       (!this.stanceSet || this.stanceSet[0] === 'U_Crouch_Idle') && (!this.body3 || this.body3.grounded) && !(this.G && this.G.carRider && this.G.carRider.roof && this === this.G.player);

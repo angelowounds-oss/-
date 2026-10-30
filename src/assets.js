@@ -427,6 +427,16 @@ export function buildSoldier(look = {}, gunParts) {
       keep(b); b.parent.updateWorldMatrix(true, false); b.parent.matrixWorld.decompose(lA, pq, lB);
       la.copy(axis).applyQuaternion(lq.copy(pq).invert()).normalize(); kpQ.setFromAxisAngle(la, a); b.quaternion.premultiply(kpQ); b.updateMatrixWorld(true);
     },
+    // CHR-06g: turns the bones bs, each the child of the one before, by the world rotations qs about their own joints (kept like pointBone).
+    // The world turns are chained down from the first one's parent; no matrix is brought up to date (the renderer does it), as bringing
+    // the arms and fingers under the chest up to date for each bone cost 50 us an actor
+    turnChain(bs, qs) {
+      for (let i = 0; i < bs.length; i++) {
+        const b = bs[i]; keep(b);
+        if (!i || b.parent !== bs[i - 1]) { b.parent.updateWorldMatrix(true, false); b.parent.matrixWorld.decompose(lA, pq, lB); }
+        kpQ.copy(qs[i]).premultiply(lq.copy(pq).invert()).multiply(pq); b.quaternion.premultiply(kpQ); pq.multiply(b.quaternion);
+      }
+    },
     // CHR-06c: the legs' world matrices brought up to date from the hips down, once for both (getWorldPosition walks up to the scene on
     // every call, and the IK runs for every leg near the camera); legIK reads them, so this goes after anything that moves the hips
     legsWorld() {

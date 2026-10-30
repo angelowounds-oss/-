@@ -36,6 +36,14 @@
 //     instead of nothing, and a citizen knocked down (Human.ragdoll) is thrown onto its back by Hit_Knockback and gets up with LayToIdle (each
 //     over 90% of the pose), never lies in the air, does not tumble (it spun 9 rad/s on its feet), faces the push while down (within 15 deg),
 //     stands at the end and runs off, down under 4 s.
+// (g) looking (CHR-06g), through the game loop; the head's direction against the way the body faces. The player looks where the camera
+//     looks: 40 deg aside the head turns 40 (within 8), 100 deg aside it stops at the 70 deg limit, 160 deg (behind) it looks ahead (within
+//     12); the camera 52 deg up or down tips it 22 to 36 deg; swung from 100 deg one side to the other in a frame, the head goes round the
+//     front at most 7 deg a frame (a head's pace, about 350 deg/s) and stops at the other limit; lying, it is the clip's. A citizen that
+//     stands still: with the player 40 deg off its facing the head is on the player (within 8 deg) and the body stays (within 3); 100 deg off
+//     the head is half way round within 0.2 s, the body comes round at least 0.2 s after it, ends within 12 deg of the player with the head on
+//     the player (within 5) and the head never goes past the limit. Before CHR-06g the head never turned and the citizen swung its whole
+//     body round at once (40 deg off: the body turned 40 deg; head and body half way round together at 0.05 s).
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
@@ -281,6 +289,41 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       pl.stance = 0; pl.crouching = false; pl.prone = false; pl.crouch = 0; for (let i = 0; i < 90; i++) anim();
       return r;
     };
+    // (g) looking (CHR-06g), through the game loop. The head's forward in its own frame is taken once from the pose it holds while it looks
+    // where the body faces; yaw and pitch are of that direction against the body's facing
+    const look = () => {
+      pl.body3 = body3; g.phys.footY = footY; reset(); pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.lying = false;
+      const V = THREE.Vector3, q = new THREE.Quaternion(), deg = 180 / Math.PI, r = (x) => +x.toFixed(1), out = {};
+      const calib = (h) => { h.group.updateMatrixWorld(true); return new V(Math.sin(h.ry), 0, Math.cos(h.ry)).applyQuaternion(h.m.bones.Head.getWorldQuaternion(q).invert()); };
+      const dir = (h, f) => { h.group.updateMatrixWorld(true); const d = f.clone().applyQuaternion(h.m.bones.Head.getWorldQuaternion(q)); return { yaw: Math.atan2(d.x, d.z), pitch: Math.asin(Math.max(-1, Math.min(1, d.y))) }; };
+      const rel = (h, f) => { const d = dir(h, f); return { yaw: wrap(d.yaw - h.ry) * deg, pitch: d.pitch * deg }; };
+      // the player looks where the camera looks: 40 deg aside, 100 deg (past the limit), 160 deg (behind: lets go), up and down past the limit
+      const hold = (yaw, pitch, n = 90) => { for (let i = 0; i < n; i++) { g.cam.yaw = pl.ry + yaw; g.cam.pitch = pitch; window.__upd(dt); } };
+      hold(0, 0, 120); const fP = calib(pl);
+      for (const [k, yaw, pitch] of [['side40', 0.7, 0], ['side100', 1.75, 0], ['behind160', 2.8, 0], ['up', 0, 0.9], ['down', 0, -0.9]]) { hold(yaw, pitch); const x = rel(pl, fP); out[k] = { yawDeg: r(x.yaw), pitchDeg: r(x.pitch) }; }
+      // the camera swung from 100 deg one side to 100 deg the other in a frame: the head goes round the front at a head's pace (deg a frame)
+      hold(1.75, 0); { let mx = 0, prev = dir(pl, fP).yaw; for (let i = 0; i < 60; i++) { g.cam.yaw = pl.ry - 1.75; window.__upd(dt); const y = dir(pl, fP).yaw; mx = Math.max(mx, Math.abs(wrap(y - prev))); prev = y; } out.swing = { maxDegFrame: r(mx * deg), endYawDeg: r(rel(pl, fP).yaw) }; }
+      // lying down, the head is the clip's
+      pl.lying = true; hold(0.7, 0); out.lying = { w: +(pl.lookW || 0).toFixed(2) }; pl.lying = false; hold(0, 0, 60);
+      // a citizen 4 m away facing away from the player at first; the player then stands 40 deg off its facing (the head turns, the body
+      // stays) and 100 deg off (the head turns at once, the body comes round after it)
+      const C = g.humans[0].constructor, h = new C(g, 'civ', { hp: 50 });
+      const at = (a, d) => { pl.x = h.x + Math.sin(a) * d; pl.z = h.z + Math.cos(a) * d; body3.teleport(pl.x, pl.y, pl.z); };
+      h.x = pl.x; h.z = pl.z + 4; h.y = h.floorY = pl.y; h.ry = 0; h.static = true; h.lookAtPlayer = true; h.state = 'stand'; h.home = { x: h.x, z: h.z }; h.group.visible = true;
+      g.humans.push(h); g.scene.add(h.group);
+      at(Math.PI, 20); hold(0, 0, 120); const fN = calib(h);
+      at(0.7, 3.5); hold(0, 0, 90);
+      { const want = Math.atan2(pl.x - h.x, pl.z - h.z); out.npc40 = { errDeg: r(Math.abs(wrap(dir(h, fN).yaw - want)) * deg), bodyDeg: r(Math.abs(wrap(h.ry)) * deg) }; }
+      at(Math.PI, 20); hold(0, 0, 120); h.ry = 0; hold(0, 0, 30);
+      at(1.75, 3.5);
+      { let tH = -1, tB = -1, mx = 0;
+        for (let f = 0; f < 180; f++) { window.__upd(dt); if (tH < 0 && Math.abs(wrap(dir(h, fN).yaw)) > 0.8) tH = f; if (tB < 0 && Math.abs(wrap(h.ry)) > 0.8) tB = f; mx = Math.max(mx, Math.abs(rel(h, fN).yaw)); }
+        const want = Math.atan2(pl.x - h.x, pl.z - h.z);
+        out.npc100 = { headS: +(tH / 60).toFixed(2), bodyS: +(tB / 60).toFixed(2), faceErrDeg: r(Math.abs(wrap(h.ry - want)) * deg), headErrDeg: r(Math.abs(wrap(dir(h, fN).yaw - want)) * deg), headRelMaxDeg: r(mx) }; }
+      g.humans.splice(g.humans.indexOf(h), 1); g.scene.remove(h.group);
+      g.cam.pitch = -0.15; reset();
+      return out;
+    };
     const cases = {
       walk: { speed: 1.4 }, aimFwd: { speed: 2.6, aim: true }, aimRight: { speed: 2.6, dir: -Math.PI / 2, aim: true }, aimLeft: { speed: 2.6, dir: Math.PI / 2, aim: true },
       aimBack: { speed: 2.6, dir: Math.PI, aim: true }, aimDiag: { speed: 2.6, dir: -Math.PI / 4, aim: true }, aimBackDiag: { speed: 2.6, dir: Math.PI * 0.75, aim: true },
@@ -294,9 +337,10 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const airOut = air();
     const posesOut = poses();
     const upOut = getUp();
+    const lookOut = look();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
-    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, up: upOut, gait, turnClips, feet: m.feet };
+    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, up: upOut, look: lookOut, gait, turnClips, feet: m.feet };
   });
   const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < 0.25) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
   for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25 && t.slideM < (k === 'back180' ? 1.2 : 0.7))) bad.push(k); }
@@ -322,5 +366,12 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   if (!(U.hardNoRag.kind === 'hard' && !U.hardNoRag.rag)) bad.push('hard landing, no ragdoll');
   const N = U.npcKnock;
   if (!(!N.rag && N.spinDeg < 5 && N.kbShare > 0.9 && N.layShare > 0.9 && N.airLying === 0 && N.snapDeg < 30 && N.faceErrDeg < 15 && N.hipsEndCm > 85 && N.state === 'flee' && N.downS < 4)) bad.push('knock-down, no ragdoll');
+  const K = o.look, near = (x, a, b) => x >= a && x <= b;
+  if (!(Math.abs(K.side40.yawDeg - 40) < 8 && near(K.side100.yawDeg, 62, 76) && Math.abs(K.behind160.yawDeg) < 12)) bad.push('look aside');
+  if (!(near(K.up.pitchDeg, 22, 36) && near(K.down.pitchDeg, -36, -22))) bad.push('look up/down');
+  if (!(K.swing.maxDegFrame <= 7 && near(K.swing.endYawDeg, -76, -62))) bad.push('look swing');
+  if (!(K.lying.w < 0.05)) bad.push('look lying');
+  if (!(K.npc40.errDeg < 8 && K.npc40.bodyDeg < 3)) bad.push('npc look 40');
+  const N100 = K.npc100; if (!(N100.headS >= 0 && N100.headS < 0.2 && N100.bodyS > N100.headS + 0.2 && N100.faceErrDeg < 12 && N100.headErrDeg < 5 && N100.headRelMaxDeg < 76)) bad.push('npc look 100');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });
