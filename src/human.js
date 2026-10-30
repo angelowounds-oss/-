@@ -3,7 +3,7 @@ import { buildHuman, rifleLook } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
-import { updateGesture, updateProc, gesture, procGesture, PROPS } from './gesture.js';
+import { updateGesture, updateProc, gesture, procGesture, PROPS, PROC } from './gesture.js';
 
 const STAFF = { cashier: ['typing', 'interact', 'fidget', 'nod'], reception: ['typing', 'listen', 'nod', 'phone'], nurse: ['listen', 'nod', 'fidget', 'wipe'] };
 // small calm gestures that read well over a walk or stand
@@ -290,6 +290,8 @@ const _lUp = new THREE.Vector3(0, 1, 0), _lAx = new THREE.Vector3(), _lP = new T
 // what h looks at, [yaw, pitch] in the world: the player where the camera looks (not aiming: the aim has the upper body); the others at
 // the player's head when near (a guard on alert, within 30 m)
 function lookAt(h, aiming) {
+  // CHR-06h: a procedural gesture looks where its hands work, net of the chest's turn the head rides on
+  const pr = h.proc, pk = pr && PROC[pr.name] && PROC[pr.name].look; if (pk) return [h.ry + pk[0] - (pr.twist || 0), pk[1]];
   const G = h.G, pl = G && G.player; if (!pl) return null;
   if (h === pl) return G.playerOnFoot && !aiming && G.cam ? [G.cam.yaw, G.cam.pitch] : null;
   if (pl.dead || (h.team === 'civ' && (h.state === 'flee' || h.scared))) return null;
@@ -713,10 +715,10 @@ export class Human {
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;
     if ((this.ffK > 0.01 || this.chK > 0.01) && m.pointBone) { this.windT = (this.windT || 0) + dt; poseAir(this, this.windT); }
-    // CHR-06g: the head to what it looks at, near the camera, standing, walking or seated; lying, in the air or the water, hanging, carried,
-    // or while a gesture, a landing or a get-up has the body, the clip keeps it
+    // CHR-06g: the head to what it looks at, near the camera, standing, walking or seated (or where a procedural gesture's hands work,
+    // CHR-06h); lying, in the air or the water, hanging, carried, or while a gesture clip, a landing or a get-up has the body, the clip keeps it
     if (cd < IK_NEAR) stepLook(this, dt, !this.dead && !this.rag && !this.knock && !this.landK && !airC && !swimC && !lieC && !crawlC && !hangC && !ladC &&
-      !this.prone && !this.lying && !this.proc && !this.gestUB && !m.rideOn && !this.inCar && !this.mantle && !(this.ffK > 0.01) && !(this.chK > 0.01), aiming);
+      !this.prone && !this.lying && !this.gestUB && !m.rideOn && !this.inCar && !this.mantle && !(this.ffK > 0.01) && !(this.chK > 0.01), aiming);
     // CHR-06c: standing or stepping on the ground in the stand set (or crouched), not carried, lying, falling or driven by a one-shot clip
     const feetOn = !this.dead && !m.rideOn && !this.inCar && !this.swimming && !this.prone && !this.lying && !m.sit && !this.knock && !this.rag && !this.hang && !this.mantle && !this.ladder && !(this.landK && UPS.has(this.landK.kind)) &&
       (!this.stanceSet || this.stanceSet[0] === 'U_Crouch_Idle') && (!this.body3 || this.body3.grounded) && !(this.G && this.G.carRider && this.G.carRider.roof && this === this.G.player);

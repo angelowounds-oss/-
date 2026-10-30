@@ -324,6 +324,30 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       g.cam.pitch = -0.15; reset();
       return out;
     };
+    // (h) procedural gestures (CHR-06h), the animation stepped alone, the camera ahead (the look-at has nothing else to look at). The chest's
+    // and head's forward in their own frames are taken from the pose standing still; each motion is played to its end and 0.5 s on
+    const procs = () => {
+      pl.body3 = null; g.phys.footY = () => NaN; pl.vx = pl.vz = 0; pl.speed = 0; pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.ry = 0; g.cam.yaw = 0; g.cam.pitch = 0;
+      const V = THREE.Vector3, q = new THREE.Quaternion(), deg = 180 / Math.PI, r = (x) => +x.toFixed(1), out = {};
+      for (let i = 0; i < 90; i++) anim();
+      pl.group.updateMatrixWorld(true);
+      const fwdOf = (b) => new V(0, 0, 1).applyQuaternion(b.getWorldQuaternion(q).invert()), fC = fwdOf(B.Spine2), fH = fwdOf(B.Head);
+      const ang = (b, f) => { pl.group.updateMatrixWorld(true); const d = f.clone().applyQuaternion(b.getWorldQuaternion(q)); return { yaw: Math.atan2(d.x, d.z) * deg, pitch: Math.asin(Math.max(-1, Math.min(1, d.y))) * deg }; };
+      const NAMES = ['handshake', 'hug', 'clap', 'point', 'typing', 'stir', 'stretch', 'think', 'facepalm', 'wipe'], snap = snapper(pl);
+      for (const name of NAMES) {
+        g.gestures.play(name); if (!pl.proc || pl.proc.name !== name) { out[name] = { started: false }; continue; }
+        let tw = 0, hp = 0, hy = 0, sn = 0, snAt = '', n = 0;
+        snap();
+        for (; n < 60 * 6 && (pl.proc || n < 30); n++) {
+          anim(); const s = snap(); if (s > sn) { sn = s; snAt = snap.bone + '@' + (n / 60).toFixed(2); }
+          const c = ang(B.Spine2, fC), hd = ang(B.Head, fH); if (Math.abs(c.yaw) > Math.abs(tw)) tw = c.yaw; if (Math.abs(hd.pitch) > Math.abs(hp)) hp = hd.pitch; if (Math.abs(hd.yaw) > Math.abs(hy)) hy = hd.yaw;
+        }
+        for (let i = 0; i < 30; i++) { anim(); const s = snap(); if (s > sn) { sn = s; snAt = snap.bone + '@end+' + (i / 60).toFixed(2); } }
+        const c = ang(B.Spine2, fC), hd = ang(B.Head, fH);
+        out[name] = { chestYawDeg: r(tw), headPitchDeg: r(hp), headYawDeg: r(hy), snapDeg: r(sn), snapAt: snAt, restDeg: r(Math.max(Math.abs(c.yaw), Math.abs(hd.yaw), Math.abs(hd.pitch))) };
+      }
+      return out;
+    };
     const cases = {
       walk: { speed: 1.4 }, aimFwd: { speed: 2.6, aim: true }, aimRight: { speed: 2.6, dir: -Math.PI / 2, aim: true }, aimLeft: { speed: 2.6, dir: Math.PI / 2, aim: true },
       aimBack: { speed: 2.6, dir: Math.PI, aim: true }, aimDiag: { speed: 2.6, dir: -Math.PI / 4, aim: true }, aimBackDiag: { speed: 2.6, dir: Math.PI * 0.75, aim: true },
@@ -338,9 +362,10 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const posesOut = poses();
     const upOut = getUp();
     const lookOut = look();
+    const procOut = procs();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
-    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, up: upOut, look: lookOut, gait, turnClips, feet: m.feet };
+    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, up: upOut, look: lookOut, procs: procOut, gait, turnClips, feet: m.feet };
   });
   const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < 0.25) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
   for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25 && t.slideM < (k === 'back180' ? 1.2 : 0.7))) bad.push(k); }
@@ -373,5 +398,13 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   if (!(K.lying.w < 0.05)) bad.push('look lying');
   if (!(K.npc40.errDeg < 8 && K.npc40.bodyDeg < 3)) bad.push('npc look 40');
   const N100 = K.npc100; if (!(N100.headS >= 0 && N100.headS < 0.2 && N100.bodyS > N100.headS + 0.2 && N100.faceErrDeg < 12 && N100.headErrDeg < 5 && N100.headRelMaxDeg < 76)) bad.push('npc look 100');
+  const G2 = o.procs;
+  for (const k in G2) {
+    const x = G2[k]; if (!(x.snapDeg < 10 && x.restDeg < 3)) { bad.push('gesture ' + k); continue; }
+    if (['handshake', 'point', 'stir', 'facepalm', 'wipe'].includes(k) && !near(x.chestYawDeg, 4, 14)) bad.push('gesture chest ' + k);
+    if (['hug', 'clap', 'typing', 'stretch'].includes(k) && !(Math.abs(x.chestYawDeg) < 2)) bad.push('gesture chest ' + k);
+  }
+  if (Object.values(G2).some((x) => x.started === false)) bad.push('gesture start');
+  if (!(G2.typing.headPitchDeg < -15 && G2.stir.headPitchDeg < -15 && G2.facepalm.headPitchDeg < -12 && G2.stretch.headPitchDeg > 12)) bad.push('gesture head');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });
