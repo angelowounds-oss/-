@@ -20,30 +20,69 @@ const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 // the high-detail pack), `run` (in jobs.mjs) returns the object to store. Later steps add the terrain tiles, city tiles, forests... here.
 // the compiled region (build/world/compile.mjs --emit) is a source of every job that reads the ground or the roads, when it exists
 const REGION_SRC = fs.existsSync(path.join(root, 'build/baked/world/capital/region.bin')) ? ['build/baked/world/capital/region.bin', 'src/region.js'] : ['src/region.js'];
-// the region files (src/regions/, ADR-0036) hold the cities' places, styles and detail; imports are not followed by the hash, so they are listed
-// with every job that reads the cities
-const REGION_FILES = fs.readdirSync(path.join(root, 'src/regions')).filter((f) => f.endsWith('.js')).sort().map((f) => 'src/regions/' + f);
-const TERRAIN_SRC = ['src/worldmap.js', ...REGION_FILES, 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs',
+const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs',
   'src/roadgrade.js', 'src/countryplan.js', ...REGION_SRC];
 // which tiles each city has (cheap to compute here: the plan only gives the radius)
 const CITY_IDS = ['harbor', 'airfield', 'mid1', 'mid2', 'mid3', 'mid4'];
 const CITY_TILES = await (async () => { const { CITY_DEFS } = await imp('src/worldmap.js'), { tilesOf } = await imp('src/citydetail.js'), o = {}; for (const id of CITY_IDS) { const d = CITY_DEFS.find((c) => c.id === id); o[id] = tilesOf({ R: d.r }); } return o; })();
+// The region files (src/regions/<id>.js, ADR-0036) enter the hash as data, not as files, so that a change to one province redoes only what
+// reads it. Every job depends on what the files say about the cities' places, the villages and anything else (`place`); a city's style,
+// roofs and trees are read only by its own layout (seeded per city, citylayout.js) and tiles, so they are a dependency of that city's tiles
+// and of the core (which stores every layout); the rules only the running game reads (cityrules.js, no job imports it: tests/unit/regions).
+// A value nobody has sorted yet counts as `place` (redoing too much is safe, too little is not)
+const CITY_OWN = new Set(['style', 'pitched', 'treeRows']), RUNTIME = new Set(['rules']);
+const { REGIONS: PROVINCES, regionOf, regionCity } = await imp('src/regions/index.js');
+const { cities, CITY_DEFS } = await imp('src/worldmap.js'), { CAPITAL } = await imp('src/koreamap.js'), { TILE_ORIGIN } = await imp('src/heightmap.js'), { VEG_ORIGIN } = await imp('src/vegfn.js');
+const without = (f, drop) => f && { ...f, cities: f.cities.map((c) => Object.fromEntries(Object.entries(c).filter(([k]) => !drop.has(k)))) };
+const regionDeps = () => {
+  const place = sha(JSON.stringify(PROVINCES.map((r) => without(r.data, new Set([...CITY_OWN, ...RUNTIME]))))), of = (r) => JSON.stringify(without(r?.data, RUNTIME));
+  return { place, all: sha(place + PROVINCES.map(of).join('\n')), of: (id) => sha(place + of(PROVINCES.find((r) => r.id === id))) };
+};
 export function jobsFor({ pack = false } = {}) {
-  const out = [{ key: 'core', tier: 'embed', src: ['src/worldmap.js', ...REGION_FILES, 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs', ...REGION_SRC] }];
-  const tiles = (g, key, tier) => { const n = Math.ceil(100000 / (g * 256)); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, src: TERRAIN_SRC }); };
+  // `region`: the province a chunk belongs to (the file it goes into, WLD-21c), null = the core. A city's is its file's, else where its city
+  // hall is (its wished place: the placement may push it off by up to 30 km, the airport city lies 13 km south of Incheon's hall). A tile
+  // goes by its centre, and the ground a city flattens (1.15 r) goes with the city, so a province's file holds the ground of its own towns
+  const D = regionDeps(), C = cities(), defOf = (id) => CITY_DEFS.find((d) => d.id === id);
+  const cityRegion = (id) => regionCity(id)?.region || regionOf(defOf(id).x - CAPITAL.x, defOf(id).z - CAPITAL.z);
+  const chunkRegion = (x, z) => { const c = C.find((q) => Math.hypot(x - q.x, z - q.z) < q.r * 1.15); return c ? cityRegion(c.id) : regionOf(x, z); };
+  const out = [{ key: 'core', tier: 'embed', region: null, dep: D.all, src: ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs', ...REGION_SRC] }];
+  const tiles = (g, key, tier) => {
+    const n = Math.ceil(100000 / (g * 256)), size = g * 256;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, region: chunkRegion(TILE_ORIGIN.x + (i + 0.5) * size, TILE_ORIGIN.z + (j + 0.5) * size), dep: D.place, src: TERRAIN_SRC });
+  };
   tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
   // where trees, grass and rocks grow (vegfn.js): one byte per 32 m cell, tiles of 4096 m
-  for (let j = 0; j < 25; j++) for (let i = 0; i < 25; i++) out.push({ key: `veg/${i}_${j}`, gen: 'veg', tier: 'embed', i, j, src: [...TERRAIN_SRC, 'src/vegfn.js'] });
+  for (let j = 0; j < 25; j++) for (let i = 0; i < 25; i++) out.push({ key: `veg/${i}_${j}`, gen: 'veg', tier: 'embed', i, j, region: chunkRegion(VEG_ORIGIN.x + (i + 0.5) * 4096, VEG_ORIGIN.z + (j + 0.5) * 4096), dep: D.place, src: [...TERRAIN_SRC, 'src/vegfn.js'] });
   // the small things of the cities (citydetail.js): one chunk per city tile; the pack makes the denser variant under the same keys
-  const CITY_SRC = ['src/worldmap.js', ...REGION_FILES, 'src/citylayout.js', 'src/citydetail.js', 'src/bakefmt.js', 'build/jobs.mjs'];
-  for (const hi of pack ? [false, true] : [false]) for (const [ci, id] of CITY_IDS.entries()) { const L = CITY_TILES[id]; for (const [i, j] of L) out.push({ key: `city/${id}/${i}_${j}`, gen: 'citytile', tier: hi ? 'pack' : 'embed', id, i, j, hi, src: CITY_SRC }); void ci; }
+  const CITY_SRC = ['src/worldmap.js', 'src/citylayout.js', 'src/citydetail.js', 'src/bakefmt.js', 'build/jobs.mjs'];
+  for (const hi of pack ? [false, true] : [false]) for (const id of CITY_IDS) {
+    const region = cityRegion(id), dep = D.of(region);
+    for (const [i, j] of CITY_TILES[id]) out.push({ key: `city/${id}/${i}_${j}`, gen: 'citytile', tier: hi ? 'pack' : 'embed', id, i, j, hi, region, dep, src: CITY_SRC });
+  }
   return out;
 }
 
-const fileHash = new Map();
+// A job's sources are its listed files and every module they import, followed through `import ... from './x.js'` and the bake's
+// `imp('src/x.js')` (listing them by hand had left out the elevation, the rivers and the OSM roads the ground is made of). The region files
+// are not followed: their data is the job's `dep` (above)
+const fileHash = new Map(), deps = new Map();
 const hashOf = (f) => fileHash.get(f) || (fileHash.set(f, sha(fs.readFileSync(path.join(root, f)))), fileHash.get(f));
+const isRegionFile = (f) => /^src\/regions\/(?!index\.js$)[\w-]+\.js$/.test(f);
+function importsOf(f) {
+  if (deps.has(f)) return deps.get(f);
+  const s = /\.m?js$/.test(f) ? fs.readFileSync(path.join(root, f), 'utf8') : '', dir = path.posix.dirname(f), found = [];
+  for (const m of s.matchAll(/(?:^|\n)\s*(?:import\s*|(?:import|export)\b[^'"]*?\bfrom\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) found.push(path.posix.normalize(path.posix.join(dir, m[1])));
+  for (const m of s.matchAll(/\bimp\(\s*'([^']+)'\s*\)/g)) found.push(m[1]);
+  // a match inside a comment may name a file that is not there; a real import of a missing file fails the job anyway
+  const out = found.filter((g) => fs.existsSync(path.join(root, g))); deps.set(f, out); return out;
+}
+export function sourcesOf(src) {
+  const seen = new Set(), todo = [...src];
+  while (todo.length) { const f = todo.pop(); if (seen.has(f) || isRegionFile(f)) continue; seen.add(f); todo.push(...importsOf(f)); }
+  return [...seen].sort();
+}
 const rid = (j) => j.tier + ':' + j.key;
-const jobHash = (j) => sha(JSON.stringify([FORMAT, j.tier, j.key, j.gen || '', j.g || 0, j.hi ? 1 : 0, j.src.map(hashOf)])).slice(0, 24);
+export const jobHash = (j) => sha(JSON.stringify([FORMAT, j.tier, j.key, j.gen || '', j.g || 0, j.hi ? 1 : 0, j.dep || '', sourcesOf(j.src).map((f) => [f, hashOf(f)])])).slice(0, 24);
 
 async function runJob(j) {
   const { RUN } = await imp('build/jobs.mjs'), { encodeChunk } = await imp('src/bakefmt.js');
