@@ -16,7 +16,7 @@ if (!small) {
   const out = 'build/baked/world/capital/region.bin', srcs = fs.readdirSync('build/world').map((f) => 'build/world/' + f);
   if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', '1/4', '--roads', '--emit'], { stdio: 'inherit' });
 }
-const { bake } = await import('./bake.mjs');
+const { bake, writePack } = await import('./bake.mjs');
 fs.rmSync(DIST, { recursive: true, force: true });
 for (const d of ['fonts', 'world']) fs.mkdirSync(path.join(GAME, d), { recursive: true });
 
@@ -32,15 +32,17 @@ for (const [f] of FONTS) fs.copyFileSync('assets/fonts/' + f, path.join(GAME, 'f
 const fonts = FONTS.map(([f, family, weight]) => `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;font-display:swap;src:url(fonts/${f}) format('woff2')}`).join('\n');
 fs.writeFileSync(path.join(GAME, 'index.html'), fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts));
 
-// the baked "laptop" world (bakedload.js); WORLD=small leaves it out and the page generates the world itself (slower to start; for quick tests)
-if (!small) fs.writeFileSync(path.join(GAME, 'world', 'base.pak'), (await bake()).embedded);
-// the high pack (detail.js), as build/bake.mjs --pack and build/assets/pack.mjs left it; only over the baked world it was made for
-const PACK = 'build/baked/pack';
-if (!small && process.env.PACK !== '0' && fs.existsSync(path.join(PACK, 'index.json'))) {
+// the baked "laptop" world (bakedload.js); WORLD=small leaves it out and the page generates the world itself (slower to start; for quick tests).
+// The high pack's world part is baked with it every time (the cache redoes only what changed): copied from the folder as an older bake left
+// it, it carried 8 m ground up to 1.4 km off the base ground and city detail of old layouts (BLD-07)
+const PACK = 'build/baked/pack', withPack = !small && process.env.PACK !== '0';
+if (!small) { const r = await bake({ pack: withPack }); fs.writeFileSync(path.join(GAME, 'world', 'base.pak'), r.embedded); if (r.pack) writePack(r); }
+// the high pack (detail.js): the world part just baked and the asset pack of build/assets/pack.mjs
+if (withPack && fs.existsSync(path.join(PACK, 'index.json'))) {
   const idx = JSON.parse(fs.readFileSync(path.join(PACK, 'index.json'), 'utf8'));
   for (const f of idx.files) fs.copyFileSync(path.join(PACK, f.name), path.join(GAME, 'world', f.name));
   fs.copyFileSync(path.join(PACK, 'index.json'), path.join(GAME, 'world', 'index.json'));
-} else if (!small && process.env.PACK !== '0') console.warn('no high pack in build/baked/pack (node build/bake.mjs --pack; node build/assets/pack.mjs): the laptop detail only');
+} else if (withPack) console.warn('no high pack in build/baked/pack (node build/assets/pack.mjs): the laptop detail only');
 
 // the Windows launcher (launcher/main.go); without Go the folder still works for tests, but cannot be delivered
 if (process.env.LAUNCHER !== '0') {

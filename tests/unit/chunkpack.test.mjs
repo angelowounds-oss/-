@@ -1,5 +1,6 @@
 // The pack path end to end in node: bake a pack with the parallel job runner, mount it with detail.js, and check that its chunks come in front of the
-// embedded ones, that a wrong size or damaged chunk is refused, and that the cache gives the same bytes.
+// embedded ones, that a wrong size or damaged chunk is refused, that a pack baked for another base world is refused, and that the cache gives
+// the same bytes.
 import { bake } from '../../build/bake.mjs';
 import { WorldData, memoryReader } from '../../src/chunkstore.js';
 import { openContainer } from '../../src/bakefmt.js';
@@ -31,5 +32,11 @@ await mountPack(dir(files2), wd2);
 let refused = 0; for (const k of ['h/a', 'h/b']) { try { await wd2.get(k); } catch (e) { refused++; } }
 if (refused < 1) bad.push(['damaged chunk accepted']);
 try { await mountPack(dir(new Map([...a.pack, ['high.pak', hp.subarray(0, 40)]])), new WorldData()); bad.push(['short pack accepted']); } catch (e) { /* expected */ }
+// the pack belongs to the base world it was baked with (BLD-07): the same world id in both, and a pack is refused over another base world
+const idOf = async (bytes) => (await openContainer(memoryReader(bytes))).meta.world;
+if (!(await idOf(a.embedded)) || (await idOf(a.embedded)) !== (await idOf(a.pack.get('high.pak')))) bad.push(['world id', await idOf(a.embedded), await idOf(a.pack.get('high.pak'))]);
+const other = await bake({ pack: true, jobs: jobs.filter((j) => j.key !== 'selftest'), cache: false, threads: 2 }), wd3 = new WorldData();
+wd3.add('embedded', await openContainer(memoryReader(other.embedded)));
+try { await mountPack(dir(a.pack), wd3); bad.push(['pack of another world accepted']); } catch (e) { if (wd3.sources.length !== 1) bad.push(['refused pack left mounted']); }
 console.log('RESULT ' + JSON.stringify({ test: 'chunkpack', pass: bad.length === 0, metrics: { cached: b.manifest.cached, jobs: b.manifest.jobs.length }, note: bad.slice(0, 5).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

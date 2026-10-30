@@ -1,6 +1,7 @@
 # ADR-0013: world detail tiers and the chunk container
 
 Status: accepted (2026-10-16), step 1 of the bake expansion (plan: more baked data, "laptop" world embedded + optional "high" pack).
+Amended 2026-10-30 (BLD-07): the build bakes the pack's world part together with the base world every time (through the cache), and both containers carry the same world id in their meta; `detail.mountPack` refuses a world pack whose id differs from the base world's (a pack copied from an older bake had put 8 m ground up to 1.4 km off the base ground).
 Amended 2026-10-28 by [ADR-0034](0034-folder-launcher-zip.md) (BLD-06): the game ships as a folder served by `NeonCity.exe`; the laptop world is the file `game/world/base.pak` and the high pack always ships next to it and mounts by itself when the "high" detail is chosen. The folder picker, IndexedDB handle and file input below are gone.
 
 ## Decision

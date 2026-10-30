@@ -18,15 +18,21 @@ export function suggest() { return (navigator.deviceMemory || 4) >= 8 && (naviga
 // the pack folder as {get(name) -> file-like | null} over http (chunkstore.js httpFile)
 const fromHttp = (base) => ({ name: base, get: (n) => httpFile(base + n) });
 
-// open every file the folder's index lists and add its chunks to the store; throws when the index is missing or a file does not match
+// open every file the folder's index lists and add its chunks to the store; throws when the index is missing or a file does not match. A
+// world file of the pack must have been baked with the base world in the store (the same world id, build/bake.mjs): an older pack's 8 m ground
+// stood up to 1.4 km off the base ground (BLD-07). The asset pack holds no world data and is not tied to one
 export async function mountPack(dir, wd = globalThis.__WORLD) {
   const ix = await dir.get('index.json'); if (!ix) throw new Error('index.json 없음');
-  const idx = JSON.parse(await ix.text()); let bytes = 0;
+  const idx = JSON.parse(await ix.text()), base = wd.sources.find((s) => !s.name.startsWith('pack:') && s.c.meta?.world); let bytes = 0;
+  const opened = [];
   for (const f of idx.files) {
     const file = await dir.get(f.name); if (!file) throw new Error(f.name + ' 없음');
     if (file.size !== f.bytes) throw new Error(f.name + ' 크기가 다름');
-    wd.add('pack:' + f.name, await openContainer(fileReader(file)), true); bytes += file.size;
+    const c = await openContainer(fileReader(file));
+    if (c.meta?.kind !== 'assets' && base && c.meta?.world !== base.c.meta.world) throw new Error(f.name + '이(가) 이 월드와 맞지 않음(다시 구워야 함)');
+    opened.push([f.name, c]); bytes += file.size;
   }
+  for (const [n, c] of opened) wd.add('pack:' + n, c, true);
   return { files: idx.files.length, bytes };
 }
 function drop(wd = globalThis.__WORLD) { for (const s of [...wd.sources]) if (s.name.startsWith('pack:')) wd.remove(s.name); }

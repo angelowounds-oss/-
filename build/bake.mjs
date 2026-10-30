@@ -86,31 +86,36 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
   }
   const { buildContainer } = await imp('src/bakefmt.js');
   const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, ...results.get(rid(j)) }));
-  const embedded = buildContainer(entries('embed'), { tier: 'embed' });
+  // the base world's id (from its chunks) goes into the base container and into the pack: the page refuses a pack made for another world
+  // (detail.js), as the high detail's 8 m ground from an older bake stood up to 1.4 km off the base ground (BLD-07)
+  const emb = entries('embed'), world = sha(emb.map((e) => e.key + ':' + sha(e.z)).join('\n')).slice(0, 16);
+  const embedded = buildContainer(emb, { tier: 'embed', world });
   const out = { embedded, pack: null };
   if (pack) {
     const e = entries('pack'); out.pack = new Map();
     if (e.length) {
-      const c = buildContainer(e, { tier: 'high' }); out.pack.set('high.pak', c);
-      out.pack.set('index.json', Buffer.from(JSON.stringify({ format: FORMAT, tier: 'high', files: [{ name: 'high.pak', bytes: c.length, h: sha(c).slice(0, 32) }] }, null, 1)));
+      const c = buildContainer(e, { tier: 'high', world }); out.pack.set('high.pak', c);
+      out.pack.set('index.json', Buffer.from(JSON.stringify({ format: FORMAT, tier: 'high', world, files: [{ name: 'high.pak', bytes: c.length, h: sha(c).slice(0, 32) }] }, null, 1)));
     }
   }
   out.manifest = {
-    format: FORMAT, jobs: todo.map((j) => ({ key: j.key, tier: j.tier, bytes: results.get(rid(j)).z.length, raw: results.get(rid(j)).r })),
+    format: FORMAT, world, jobs: todo.map((j) => ({ key: j.key, tier: j.tier, bytes: results.get(rid(j)).z.length, raw: results.get(rid(j)).r })),
     bytes: embedded.length, data: sha(embedded).slice(0, 32), cached: todo.length - miss.length, ms: Math.round(performance.now() - t0),
   };
   return out;
+}
+
+// writes a bake's pack into build/baked/pack/ next to the asset pack (build/assets/pack.mjs), whose line in the index stays
+export function writePack(r, dir = path.join(root, 'build/baked/pack')) {
+  const ixf = path.join(dir, 'index.json'); fs.mkdirSync(dir, { recursive: true });
+  const old = fs.existsSync(ixf) ? JSON.parse(fs.readFileSync(ixf, 'utf8')).files.filter((f) => f.name !== 'high.pak') : [];
+  for (const [n, b] of r.pack) { if (n !== 'index.json') { fs.writeFileSync(path.join(dir, n), b); continue; } const ix = JSON.parse(b); ix.files = ix.files.concat(old); fs.writeFileSync(ixf, JSON.stringify(ix, null, 1)); }
 }
 
 if (isMainThread && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const withPack = process.argv.includes('--pack'), r = await bake({ pack: withPack }), dir = path.join(root, 'build/baked');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'world.bin'), r.embedded); fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(r.manifest, null, 1));
-  if (r.pack) {
-    const pd = path.join(dir, 'pack'), ixf = path.join(pd, 'index.json'); fs.mkdirSync(pd, { recursive: true });
-    // the folder also holds the asset pack (build/assets/pack.mjs): its line in the index stays
-    const old = fs.existsSync(ixf) ? JSON.parse(fs.readFileSync(ixf, 'utf8')).files.filter((f) => f.name !== 'high.pak') : [];
-    for (const [n, b] of r.pack) { if (n !== 'index.json') { fs.writeFileSync(path.join(pd, n), b); continue; } const ix = JSON.parse(b); ix.files = ix.files.concat(old); fs.writeFileSync(ixf, JSON.stringify(ix, null, 1)); }
-  }
+  if (r.pack) writePack(r);
   console.log('baked', r.manifest.bytes, 'bytes', 'hash', r.manifest.data, `${r.manifest.ms} ms (${r.manifest.cached}/${r.manifest.jobs.length} from cache)`);
 }
