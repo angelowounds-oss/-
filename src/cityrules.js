@@ -1,15 +1,16 @@
 import { cities } from './worldmap.js';
 import { Human } from './human.js';
 import { rand } from './util.js';
+import { cityPart } from './regions/index.js';
 
 // What differs from city to city (ADR-0012 phase 5): each city has its own police and its own record of the player (heat is kept per jurisdiction:
 // leaving one is leaving its wanted level behind, coming back finds it again, a little cooler), its own local time, weather and light colour, a pay
 // level for jobs, and the people its facilities need (airport security, dock guards). Cities the player is not in are kept as a few numbers
 // (a statistical simulation: how busy the streets are, an occasional incident that turns up in the news) and are brought up to date on arrival.
 export const RULES = {
-  neon:     { police: 'NCPD 네온 경찰', econ: 1.0,  wet: 0,    tint: [1, 1, 1],             pop: 1.0,  tag: '수도' },
+  neon:     cityPart('neon', 'rules'),   // src/regions/seoul.js
   harbor:   { police: '항만 경찰대',     econ: 1.25, wet: 0.45, tint: [0.86, 1.0, 1.12],    pop: 0.8,  tag: '항만' },
-  airfield: { police: '공항 경찰대',     econ: 1.15, wet: -0.2, tint: [1.0, 1.03, 1.1],     pop: 0.7,  tag: '공항' },
+  airfield: cityPart('airfield', 'rules'),   // src/regions/incheon.js
   mid1:     { police: '레드우드 보안관', econ: 0.9,  wet: 0.25, tint: [1.06, 1.0, 0.86],    pop: 0.35, tag: '삼림' },
   mid2:     { police: '앰버 카운티 경찰', econ: 0.85, wet: -9,   tint: [1.2, 1.0, 0.76],     pop: 0.3,  tag: '사막' },
   mid3:     { police: '피오르드 경찰',   econ: 0.95, wet: 0.15, tint: [0.88, 1.0, 1.14],    pop: 0.3,  tag: '피오르드' },

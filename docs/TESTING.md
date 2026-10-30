@@ -66,6 +66,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | unit | `package` | 배포 폴더의 README.txt(BOM·CRLF), LICENSES.txt(매니페스트 전부 + 원문), zip(상위 `NeonCity/`, 압축된 파일은 저장만, `unzip -t`), exe 없는 폴더는 zip 거부 | 위반 0 |
 | unit | `heightmap` | 구운 타일이 지면 함수와 노드에서 0.1 m 이내·중간 1 m 이내, 강 바닥, 물리 층, 색, 없는 타일은 NaN → 계산 |
 | unit | `citydetail` | 도시 세부의 결정성·타일 안·범위·삼각형 예산, 고사양이 더 촘촘함 |
+| unit | `regions` | 지역 파일(`src/regions/`, ADR-0036): 시·도 17개(이름·상자·시청), 폴더의 파일은 모두 목록에 있고, 도시는 한 지역에만 있으며 그 상자 안, 생성기(`CITY_DEFS`·`STYLES`)가 파일의 값을 쓰고, 도시를 읽는 굽기 작업이 지역 파일을 모두 소스로 든다 |
 | gameplay | `ai-behaviour` | 등 돌린 적 미인지, 총성 조사·접근, 피격 시 엄폐/교전, 시민 공포 전파 | 상태 전이 일치 |
 | gameplay | `military` | 5성 헬기·탱크 투입, 폭발 피해, 수배 해제 시 철수 | 모두 충족 |
 | gameplay | `pool-integrity` | 4,000프레임 보행 후 살아 있는 지오메트리끼리 버퍼 공유 없음 | 시작 시 공유 수와 동일 |

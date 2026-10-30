@@ -1,4 +1,5 @@
 import { KIND } from './citylayout.js';
+import { cityPart } from './regions/index.js';
 
 // The small things of the other cities, as data (pure, no three.js): lane marks and zebra crossings, traffic signals, benches, bins, hydrants and
 // street trees, and what stands on the roofs (mechanical units, water tanks, masts, helipads, parapets, penthouses, pitched roofs). One chunk per
@@ -10,7 +11,8 @@ import { KIND } from './citylayout.js';
 export const TILE = 600;
 const hash = (n) => { let h = Math.imul(Math.floor(n * 1000) | 0, 0x9e3779b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); return ((h ^ (h >>> 13)) >>> 0) / 4294967296; };
 const byte = (v) => Math.max(0, Math.min(255, Math.round(Math.sqrt(Math.max(0, v)) * 255)));
-const PITCHED = { mid1: 0.8, mid3: 0.7, mid2: 0.25, mid4: 0.1, harbor: 0.1, airfield: 0 };
+// the share of pitched roofs and the street trees (1 = every row) of a city: from its region file (ADR-0036), else these tables (WLD-21e)
+const PITCHED = { mid1: 0.8, mid3: 0.7, mid2: 0.25, mid4: 0.1, harbor: 0.1 };
 const ROOF = [[0.36, 0.14, 0.09], [0.2, 0.2, 0.24], [0.3, 0.2, 0.12], [0.16, 0.2, 0.17]];
 const WHITE = [0.8, 0.8, 0.76], YELLOW = [0.7, 0.55, 0.15], GREY = [0.22, 0.23, 0.26], DARK = [0.05, 0.05, 0.06], GREEN = [0.05, 0.16, 0.06], RED = [0.5, 0.06, 0.05];
 
@@ -29,7 +31,7 @@ export const kOf = (b) => (b >= 100 ? 100 - b : b);
 export const tileBox = (L, i, j) => { const x0 = -L.R * 1.1 + i * TILE, z0 = -L.R * 1.1 + j * TILE; return { x0, z0, x1: x0 + TILE, z1: z0 + TILE, ox: x0 + TILE / 2, oz: z0 + TILE / 2 }; };
 
 export function tileDetail(c, L, S, i, j, hi = false) {
-  const T = tileBox(L, i, j), O = new Out(), dens = hi ? 2 : 1, pitched = PITCHED[c.id] ?? 0.2;
+  const T = tileBox(L, i, j), O = new Out(), dens = hi ? 2 : 1, pitched = cityPart(c.id, 'pitched') ?? PITCHED[c.id] ?? 0.2;
   const inT = (x, z, m = 0) => x >= T.x0 - m && x < T.x1 + m && z >= T.z0 - m && z < T.z1 + m;
   // axis-aligned roads: v = x constant (running along z), h = z constant
   const V = [], H = [];
@@ -68,7 +70,7 @@ export function tileDetail(c, L, S, i, j, hi = false) {
   }
   // ---- street furniture along the roads: every ~34 m a bench, bin, hydrant or a tree; bus shelters on avenues; none near a crossing
   const nearCross = (x, z) => V.some((v) => Math.abs(v.p - x) < v.w / 2 + 7 && z >= v.lo && z <= v.hi) && H.some((h) => Math.abs(h.p - z) < h.w / 2 + 7 && x >= h.lo && x <= h.hi);
-  const treeRows = c.id === 'mid1' || c.id === 'mid3' || c.id === 'harbor' ? 1 : 0.35;
+  const treeRows = cityPart(c.id, 'treeRows') ?? (c.id === 'mid1' || c.id === 'mid3' || c.id === 'harbor' ? 1 : 0.35);
   const furn = (x, z, ry, seed, avenueRoad) => {   // ry: 0 = along x, 1 = along z (the street direction)
     const k = hash(seed), px = rx(x), pz = rz(z);
     if (k < treeRows * 0.55) { const hh = 4.5 + hash(seed + 1) * 3.5; O.box(px - 0.25, 0, pz - 0.25, px + 0.25, hh * 0.45, pz + 0.25, [0.1, 0.07, 0.04]); O.box(px - 1.9, hh * 0.35, pz - 1.9, px + 1.9, hh, pz + 1.9, [0.04 + hash(seed + 2) * 0.04, 0.16 + hash(seed + 3) * 0.08, 0.05]); O.box(px - 1.1, hh, pz - 1.1, px + 1.1, hh + 1.3, pz + 1.1, [0.05, 0.19, 0.06]); }

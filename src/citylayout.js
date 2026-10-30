@@ -4,10 +4,11 @@
 // precise in Float32 far from the origin). Pure and seeded: the bake stores the result, the browser only draws it.
 import { cities, farHeight, SEA } from './worldmap.js';
 import { LM_DIMS } from './landmarkdims.js';
+import { cityPart } from './regions/index.js';
 
 export const STYLES = {
   harbor:   { pattern: 'grid',   pitch: [118, 88],  jitter: 0.12, roadW: 16, hMax: 150,  hBase: 14, palette: [0x56606b, 0x6b7480, 0x4a5560, 0x7b6a5a, 0x8a8f96, 0x3f4a55, 0x5f6b72, 0x716456], accents: [1, 4, 2],   lang: 'en', words: ['PORT AUTHORITY', 'HARBOR BANK', 'SEA FREIGHT', 'DOCK 7', 'GATE MART', 'CARGO INN', 'TIDE CAFE', 'FERRY'],        density: 0.9 },
-  airfield: { pattern: 'radial', pitch: [104, 104], jitter: 0.08, roadW: 18, hMax: 110,  hBase: 12,  palette: [0xb8bec6, 0xa4adb8, 0xc9ccd2, 0x8f99a6, 0xd5d8dc, 0x7d8794, 0x9aa5b1, 0xbfc3c8], accents: [1, 3, 5],   lang: 'en', words: ['SKYPORT', 'DEPARTURES', 'JET FUEL', 'AIR CAFE', 'HANGAR 3', 'CREW INN', 'DUTY FREE', 'RUNWAY BAR'],     density: 0.8 },
+  airfield: cityPart('airfield', 'style'),   // src/regions/incheon.js
   mid1:     { pattern: 'organic',pitch: [96, 82],   jitter: 0.42, roadW: 12, hMax: 110,  hBase: 12,  palette: [0x6b5a48, 0x7c6650, 0x5a4a3a, 0x8a7560, 0x4f5a45, 0x6e5f52, 0x796b58, 0x5d4f41], accents: [4, 2, 0],   lang: 'sv', words: ['REDWOOD', 'SAGVERK', 'BAGERI', 'KAFFE', 'JAKT & FISKE', 'BYGGMAX', 'APOTEK', 'HERRGARD'],           density: 0.82 },
   mid2:     { pattern: 'grid',   pitch: [150, 110], jitter: 0.1,  roadW: 22, hMax: 100,  hBase: 11,  palette: [0xb59b72, 0xc7ac80, 0xa88c64, 0xd1bc92, 0x9b8460, 0xbea57a, 0xc4a77d, 0xa89068], accents: [2, 0, 5],   lang: 'es', words: ['AMBER FLATS', 'CANTINA', 'MERCADO', 'FARMACIA', 'TALLER', 'HOTEL SOL', 'TACOS', 'BANCO'],              density: 0.72 },
   mid3:     { pattern: 'organic',pitch: [78, 70],   jitter: 0.3,  roadW: 11, hMax: 100,  hBase: 12,  palette: [0xd8d2c6, 0xc9c0b0, 0xb9c4cc, 0xe0dccf, 0xa8b4bd, 0xd2c9bb, 0xbfb9ad, 0xc4cdd3], accents: [1, 3, 4],   lang: 'sv', words: ['SILVERFJORD', 'FISKTORG', 'KONDITORI', 'BIBLIOTEK', 'HAMN', 'BRYGGERI', 'FJORD INN', 'SAUNA'],      density: 0.85 },

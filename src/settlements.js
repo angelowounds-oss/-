@@ -1,5 +1,6 @@
 import { regionWeight, regionPlaces } from './region.js';
 import { cities, farHeight, highways, rivers, biomeAt, SEA } from './worldmap.js';
+import { cityPart } from './regions/index.js';
 
 // The places between the cities (ADR-0013), as data (pure): about thirty villages (eight beside the highways, the rest over the countryside), the farms
 // near them, the industry (wind farms, solar fields, mines, refineries), the comms towers and the pylon lines. Everything is a function of the seed and the
@@ -15,7 +16,8 @@ const NAMES = {
   es: [['San ', 'Santa ', 'Villa ', 'Los ', 'El ', 'Puerto ', 'Nueva '], ['Pedro', 'Rosa', 'Verde', 'Alta', 'Piedras', 'Cruz', 'Luz', 'Sol', 'Paloma', 'Mesa']],
   ja: [['Kita', 'Minami', 'Higashi', 'Nishi', 'Aka', 'Kuro', 'Shiro', 'Naka', 'Ao', 'Tsuki'], ['mura', 'machi', 'hama', 'yama', 'gawa', 'saki', 'no', 'hara']],
 };
-const LANG = { mid1: 'sv', mid3: 'sv', mid2: 'es', mid4: 'ja', harbor: 'en', airfield: 'en', neon: 'en' };
+// the language of the village names near a city: from its region file (ADR-0036), else this table (WLD-21e)
+const LANG = { mid1: 'sv', mid3: 'sv', mid2: 'es', mid4: 'ja', harbor: 'en' };
 const PALETTES = { en: [0xb9a58a, 0xa8b0b8, 0xc9b79a, 0x9a8a78, 0xb8b0a0], sv: [0xa6402f, 0xd8c9a0, 0x6b4a32, 0xb08a4a, 0x8a3a2c], es: [0xe0cfa8, 0xd8b88a, 0xe8dcc0, 0xc79a6a], ja: [0x9a8f84, 0xb8aea0, 0x7a746e, 0xcfc6b6], ko: [0xc9c4b8, 0xb5b0a4, 0xd8d0c0, 0xa7a79f, 0xcbbfa8] };
 const ROOFS = [0x7a2f22, 0x3a3f4a, 0x5a4a38, 0x4a5a48];
 
@@ -34,7 +36,7 @@ export function settlements() {
     return !riverNear(x, z, 260) && farFrom(x, z, V, 5800);
   };
   const add = (x, z, tag) => {
-    const nc = nearest(x, z).c, lang = LANG[nc.id] || 'en', [a, b] = NAMES[lang], seed = Math.floor(rnd() * 1e6);
+    const nc = nearest(x, z).c, lang = cityPart(nc.id, 'villageLang') || LANG[nc.id] || 'en', [a, b] = NAMES[lang], seed = Math.floor(rnd() * 1e6);
     const name = lang === 'es' ? a[Math.floor(rnd() * a.length)] + b[Math.floor(rnd() * b.length)] : a[Math.floor(rnd() * a.length)] + b[Math.floor(rnd() * b.length)];
     V.push({ id: 'v' + V.length, name, x, z, y: farHeight(x, z, 100), seed, lang, tag, city: nc.id });
   };

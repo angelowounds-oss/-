@@ -14,6 +14,7 @@ import { osmRoute } from './osmroads.js';
 import { RIVERS } from './korerivers.js';
 import { KOREA_SCALE } from './koreamap.js';
 import { regionWeight, regionHeight } from './region.js';
+import { cityPart } from './regions/index.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
@@ -121,11 +122,13 @@ function carveRivers(W) {
 }
 
 // ------------------------------------------------------------------ cities: wished position -> nearest suitable site (flat land; the port at a coast)
+// the order is the order of placement and of the layout seeds (citylayout.js): a new city goes at the end. The cities of the provinces with a
+// file come from it (src/regions/, ADR-0036); the others stay here until they move (WLD-21e)
 export const CITY_DEFS = [
-  { id: 'neon', name: 'NEON CITY', type: 'metropolis', x: CAPITAL.x, z: CAPITAL.z, r: 4200, fixed: true },   // at Seoul (ADR-0017)
+  cityPart('neon', 'def'),   // 서울 (src/regions/seoul.js)
   // the seven detailed towns sit on real city halls now (WLD-20d): the ids stay for the tests and the bake
   { id: 'harbor', name: '부산', type: 'port', ...project(129.0756, 35.1796), r: 3000, coast: true },
-  { id: 'airfield', name: '인천', type: 'airport', ...project(126.7052, 37.4563), r: 3400 },
+  cityPart('airfield', 'def'),   // 인천 (src/regions/incheon.js)
   { id: 'mid1', name: '대구', type: 'town', ...project(128.6014, 35.8714), r: 1900 },
   { id: 'mid2', name: '광주', type: 'town', ...project(126.8526, 35.1595), r: 1800 },
   { id: 'mid3', name: '대전', type: 'town', ...project(127.3845, 36.3504), r: 1700 },

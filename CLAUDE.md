@@ -28,5 +28,6 @@ node tests/run.cjs --only <이름> # 테스트 하나
 - 에셋을 추가하면 출처·라이선스를 `docs/ASSETS.md`(BLD-04)에 적는다. GPL·CC-BY 표기 의무에 주의.
 - 사용자와의 대화는 한국어. 디자인·라이선스·에셋 도입 같은 결정은 선택지와 권고안을 정리해 묻는다.
 - 건물을 말할 때는 고유번호(uid, 예 `HARBOR-0123`, `NC-B04_06-2`)로 한다. 목록은 `docs/buildings/registry.csv`, 규칙은 ADR-0030. 생성기를 바꾸면 `node tests/tools/building-registry.cjs --check` 결과를 PR에 적고 목록을 다시 만든다.
+- 지역(시·도)마다 다른 값은 `src/regions/<id>.js`에 둔다(ADR-0036, WLD-21). 그 지역의 도시 정의, 스타일, 규칙, 소품이 여기에 있다. 생성기는 모든 지역이 함께 쓴다. 지역 파일을 더하면 `src/regions/index.js`에 등록하고 `unit/regions`로 확인한다.
 - 조작키는 `src/keys.js` 한 곳에서 정한다(GTA V 배치, ADR-0033). 코드에 키 코드를 쓰지 말고 `binds.is/held/label`을 쓴다. 기본: M·J 세계 지도(목적지·자동 주행·빠른 이동), U 고도 유지(전투기·다크스타), F 상호작용·키오스크·이동 건너뛰기, F1 조작법. 월드 구조는 `docs/adr/0012-world-archipelago.md`.
 - 구운 데이터(`build/baked/`)와 빌드 산출물(`dist/`, zip)은 커밋하지 않는다(2026-10-16 결정, ADR-0013). 빌드 결과는 **zip 하나**(`node build/build.mjs --zip`)로 대화에 전달한다(ADR-0034). 월드 화질 2단계(노트북 내장 / 고사양 팩)와 청크 컨테이너는 `docs/adr/0013-world-detail-tiers.md`.
