@@ -44,6 +44,13 @@
 //     the head is half way round within 0.2 s, the body comes round at least 0.2 s after it, ends within 12 deg of the player with the head on
 //     the player (within 5) and the head never goes past the limit. Before CHR-06g the head never turned and the citizen swung its whole
 //     body round at once (40 deg off: the body turned 40 deg; head and body half way round together at 0.05 s).
+// (h) procedural gestures (CHR-06h), the animation stepped alone, the camera ahead; each of the ten is played to its end and 0.5 s on.
+//     One arm reaching forward brings the chest round with it: handshake, point, stir, facepalm and wipe turn it 4 to 14 deg, the ones
+//     both arms do alike (hug, clap, typing, stretch) under 2. While the chest turns, the head stays ahead (within 3 deg: handshake,
+//     point, facepalm, wipe), and it looks where the hands work: down for typing and stirring (past 15 deg) and the facepalm (past 12), up
+//     for the stretch (past 12). No bone turns 10 deg in a frame, and 0.5 s after the end the chest and head face ahead again within 3 deg
+//     (the head's nod within 5: Idle nods it 3.2 deg by itself). Before CHR-06h only the arms moved: the chest never turned and the head
+//     kept Idle's pose (3 deg down) whatever the hands did.
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
@@ -344,7 +351,7 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
         }
         for (let i = 0; i < 30; i++) { anim(); const s = snap(); if (s > sn) { sn = s; snAt = snap.bone + '@end+' + (i / 60).toFixed(2); } }
         const c = ang(B.Spine2, fC), hd = ang(B.Head, fH);
-        out[name] = { chestYawDeg: r(tw), headPitchDeg: r(hp), headYawDeg: r(hy), snapDeg: r(sn), snapAt: snAt, restDeg: r(Math.max(Math.abs(c.yaw), Math.abs(hd.yaw), Math.abs(hd.pitch))) };
+        out[name] = { chestYawDeg: r(tw), headPitchDeg: r(hp), headYawDeg: r(hy), snapDeg: r(sn), snapAt: snAt, restYawDeg: r(Math.max(Math.abs(c.yaw), Math.abs(hd.yaw))), restPitchDeg: r(hd.pitch) };
       }
       return out;
     };
@@ -400,8 +407,9 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   const N100 = K.npc100; if (!(N100.headS >= 0 && N100.headS < 0.2 && N100.bodyS > N100.headS + 0.2 && N100.faceErrDeg < 12 && N100.headErrDeg < 5 && N100.headRelMaxDeg < 76)) bad.push('npc look 100');
   const G2 = o.procs;
   for (const k in G2) {
-    const x = G2[k]; if (!(x.snapDeg < 10 && x.restDeg < 3)) { bad.push('gesture ' + k); continue; }
+    const x = G2[k]; if (!(x.snapDeg < 10 && x.restYawDeg < 3 && Math.abs(x.restPitchDeg) < 5)) { bad.push('gesture ' + k); continue; }
     if (['handshake', 'point', 'stir', 'facepalm', 'wipe'].includes(k) && !near(x.chestYawDeg, 4, 14)) bad.push('gesture chest ' + k);
+    if (['handshake', 'point', 'facepalm', 'wipe'].includes(k) && !(Math.abs(x.headYawDeg) < 3)) bad.push('gesture head ahead ' + k);
     if (['hug', 'clap', 'typing', 'stretch'].includes(k) && !(Math.abs(x.chestYawDeg) < 2)) bad.push('gesture chest ' + k);
   }
   if (Object.values(G2).some((x) => x.started === false)) bad.push('gesture start');

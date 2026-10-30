@@ -290,8 +290,8 @@ const _lUp = new THREE.Vector3(0, 1, 0), _lAx = new THREE.Vector3(), _lP = new T
 // what h looks at, [yaw, pitch] in the world: the player where the camera looks (not aiming: the aim has the upper body); the others at
 // the player's head when near (a guard on alert, within 30 m)
 function lookAt(h, aiming) {
-  // CHR-06h: a procedural gesture looks where its hands work, net of the chest's turn the head rides on
-  const pr = h.proc, pk = pr && PROC[pr.name] && PROC[pr.name].look; if (pk) return [h.ry + pk[0] - (pr.twist || 0), pk[1]];
+  // CHR-06h: a procedural gesture looks where its hands work; the third is the chest's turn the head rides on, taken off as it is (stepLook)
+  const pr = h.proc, pk = pr && PROC[pr.name] && PROC[pr.name].look; if (pk) return [h.ry + pk[0], pk[1], pr.twist || 0];
   const G = h.G, pl = G && G.player; if (!pl) return null;
   if (h === pl) return G.playerOnFoot && !aiming && G.cam ? [G.cam.yaw, G.cam.pitch] : null;
   if (pl.dead || (h.team === 'civ' && (h.state === 'flee' || h.scared))) return null;
@@ -312,7 +312,9 @@ function stepLook(h, dt, on, aiming) {
   let rel = clamp(lookStep(was, see ? clamp(off, -LOOK_YAW, LOOK_YAW) : 0, dt), -LOOK_DROP, LOOK_DROP), p = lookStep(h.lookP, see ? clamp(t[1], -LOOK_PITCH, LOOK_PITCH) : 0, dt);
   if (!see && Math.abs(rel) < 1e-3 && Math.abs(p) < 1e-3) rel = p = 0;
   h.lookRel = rel; h.lookYw = h.ry + rel; h.lookP = p;
-  const a = clamp(rel, -LOOK_YAW, LOOK_YAW) * h.lookW, m = h.m; p *= h.lookW;
+  // the turn of the chest under the head is taken off undamped: eased with the look, the head swung 6 deg past the front as the chest came
+  // back at a gesture's end (CHR-06h)
+  const a = clamp(rel - (see && t[2] || 0), -LOOK_YAW, LOOK_YAW) * h.lookW, m = h.m; p *= h.lookW;
   if ((!a && !p) || !m.turnChain) return;
   let turned = 0, n = 0;
   for (const [name, ky, kp] of LOOK_BONES) {
