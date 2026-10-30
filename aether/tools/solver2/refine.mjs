@@ -337,7 +337,9 @@ export function createRefined(o) {
   function stream(L, uin) {
     const { N, f, post } = L;
     dispatch(1, L); // pull streaming (src is -1 for inactive cells)
-    { const fl = L.faceLinks, fk = L.faceK; for (let t = 0, u = 0; t < fl.length; t += 4, u++) f[fl[t + 1] * N + fl[t]] = post[fl[t + 3] * N + fl[t + 2]] + fk[u]; } // wall faces
+    { const fl = L.faceLinks, fk = L.faceK; // wall faces; o.wallRho: the moving-wall term scaled by the cell's density (Ladd), not by 1
+      if (o.wallRho) for (let t = 0, u = 0; t < fl.length; t += 4, u++) { let r = 1; if (fk[u] !== 0) { r = 0; const n = fl[t]; for (let q = 0; q < Q; q++) r += post[q * N + n]; } f[fl[t + 1] * N + fl[t]] = post[fl[t + 3] * N + fl[t + 2]] + r * fk[u]; }
+      else for (let t = 0, u = 0; t < fl.length; t += 4, u++) f[fl[t + 1] * N + fl[t]] = post[fl[t + 3] * N + fl[t + 2]] + fk[u]; }
     // inlet (x = 0): moving-wall bounce-back; populations that also cross a no-slip wall face keep the wall value (the same rule as the GPU kernel)
     if (L.l === 0 && io) for (let q = 1; q < Q; q++) { if (!(cx[q] > 0)) continue; const b = q * N, ob = OPP[q] * N, k = 6 * W[q] * cx[q] * uin, wp = L.wallPop; for (let n = 0; n < N; n += L.n[0]) if (!wp || !wp[b + n]) f[b + n] = post[ob + n] + k; }
     if (L.l === 0 && io) { // outlet: fixed density, non-equilibrium extrapolation from the previous plane
