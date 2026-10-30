@@ -23,7 +23,7 @@ export function writeReadme(dist, info) {
 - 방화벽 허용 창은 뜨지 않습니다: 이 컴퓨터 안(127.0.0.1)에서만 열고, 다른 컴퓨터에서는 접속할 수 없습니다.
 
 [화질]
-- 타이틀 화면 왼쪽 아래 "월드 화질"에서 노트북 / 고사양을 고릅니다. 고사양 팩(game\\world\\high.pak)은 함께 들어 있습니다.
+- 타이틀 화면 왼쪽 아래 "월드 화질"에서 노트북 / 고사양을 고릅니다. 고사양 팩(game\\world\\high 폴더)은 함께 들어 있습니다. 월드 파일은 시·도별로 나뉘어 있습니다(game\\world\\base, game\\world\\high).
 
 [저장]
 - 저장·설정·조작키는 %LOCALAPPDATA%\\NeonCity 에 남습니다. 새 버전 zip을 다른 곳에 풀어도 이어집니다.

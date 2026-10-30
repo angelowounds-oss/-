@@ -1,10 +1,10 @@
-// gameplay (ADR-0013, ADR-0034): the high-detail pack. With the laptop detail the page runs on the base world; mounting the pack (game/world/, read
+// gameplay (ADR-0013, ADR-0034): the high-detail pack. With the laptop detail the page runs on the base world; mounting the pack (game/world/high/, read
 // over http a chunk at a time) puts its chunks in front: 8 m ground tiles stream in around the player and are used for the height, the denser city
 // detail replaces the base chunk under the same key. Needs the pack in the built folder (node build/bake.mjs --pack, then build); skipped without it.
 const fs = require('node:fs');
 const path = require('node:path');
 const { pw, GL_ARGS, GAME, gameUrl } = require('../lib.cjs');
-const dir = path.join(GAME, 'world');
+const dir = path.join(GAME, 'world', 'high');
 (async () => {
   if (!fs.existsSync(path.join(dir, 'index.json'))) { console.log('RESULT ' + JSON.stringify({ test: 'pack', pass: true, metrics: { skipped: 'no pack in the build' }, note: '' })); return; }
   const browser = await pw.chromium.launch({ args: GL_ARGS });

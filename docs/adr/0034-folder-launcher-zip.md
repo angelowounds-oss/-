@@ -41,6 +41,7 @@
   - glb는 쓸 때 받는다.
   - 노트북 월드 `world/base.pak`은 통째로 한 번 받는다. 부팅 때 16 m 지면과 식생 약 1250청크를 어차피 읽기 때문이다.
   - 고사양 팩(`world/index.json`, `high.pak`, `assets.pak`)은 화질을 '고사양'으로 골랐을 때만 Range 요청으로 붙는다(`chunkstore.httpFile`). 연결 버튼과 IndexedDB는 없앴다.
+  - 2026-10-30 WLD-21c(ADR-0036): 두 월드를 시·도별 파일로 나눴다. 노트북 월드는 `world/base/`(`index.json`, `core.pak`, `<id>.pak`)이고, 목록의 파일을 모두 한 번에 받는다. 고사양 팩은 `world/high/`(같은 구조와 `assets.pak`)다.
   - 페이지를 `file://`로 열면 "NeonCity.exe로 실행해 주세요"를 띄우고 멈춘다.
 - **빌드:**
   - `node build/build.mjs`는 `dist/NeonCity/`를 만든다. `--zip`을 주면 zip도 만든다(`build/package.mjs`).

@@ -1,5 +1,5 @@
 // The high-detail asset pack (ADR-0029): every `pack` recipe of the manifest becomes a KTX2 texture (Basis Universal: ETC1S for colour,
-// UASTC + zstd for normals and data) in build/baked/pack/assets.pak, a chunk container (src/bakefmt.js) next to the world pack's high.pak, with
+// UASTC + zstd for normals and data) in build/baked/pack/assets.pak, a chunk container (src/bakefmt.js) next to the world pack's files (one per province), with
 // the Basis transcoder as one more chunk so the page carries none of it. The pack's index.json lists both files (src/detail.js mounts them).
 // usage: node build/assets/pack.mjs   (downloads what is missing first: node build/assets/fetch.mjs --fetch)
 import fs from 'node:fs';

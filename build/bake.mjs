@@ -2,7 +2,8 @@
 // does not regenerate the world on every start. Jobs (one per chunk or group of chunks) run in parallel worker threads and each result is cached
 // under build/baked/cache by a hash of the job's source files, so a build after a change that touches one job redoes only that job.
 // Deterministic: same sources -> same bytes (the manifest's `data` hash proves it). Usage: `node build/bake.mjs [--pack]` writes
-// build/baked/world.bin (+ manifest.json); with --pack also build/baked/pack/ (the optional high-detail files). build.mjs embeds world.bin.
+// build/baked/world.bin (+ manifest.json); with --pack also build/baked/pack/ (the optional high-detail files). build.mjs writes the base
+// world's files by province into the game's world/base/ (writeBase) and copies the pack to world/high/.
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
@@ -127,19 +128,27 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
     for (const f of fs.readdirSync(dir)) if (!keep.has(f)) fs.unlinkSync(path.join(dir, f));
   }
   const { buildContainer } = await imp('src/bakefmt.js');
-  const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, ...results.get(rid(j)) }));
-  // the base world's id (from its chunks) goes into the base container and into the pack: the page refuses a pack made for another world
-  // (detail.js), as the high detail's 8 m ground from an older bake stood up to 1.4 km off the base ground (BLD-07)
+  const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, region: j.region, ...results.get(rid(j)) }));
+  // the base world's id (from its chunks) goes into every world file: the page refuses a pack made for another world (detail.js), as the high
+  // detail's 8 m ground from an older bake stood up to 1.4 km off the base ground (BLD-07)
   const emb = entries('embed'), world = sha(emb.map((e) => e.key + ':' + sha(e.z)).join('\n')).slice(0, 16);
-  const embedded = buildContainer(emb, { tier: 'embed', world });
-  const out = { embedded, pack: null };
-  if (pack) {
-    const e = entries('pack'); out.pack = new Map();
-    if (e.length) {
-      const c = buildContainer(e, { tier: 'high', world }); out.pack.set('high.pak', c);
-      out.pack.set('index.json', Buffer.from(JSON.stringify({ format: FORMAT, tier: 'high', world, files: [{ name: 'high.pak', bytes: c.length, h: sha(c).slice(0, 32) }] }, null, 1)));
+  // the world files by province (ADR-0036, WLD-21c): core.pak (the core chunk and the sea) and <id>.pak for each province with chunks, listed in
+  // the tier's index.json; a chunk keeps its key and bytes, so the readers of the store do not change. `embedded` is the same chunks in one
+  // container (the tests, build/baked/world.bin)
+  const split = (e, tier) => {
+    const by = new Map([['core', []]]);
+    for (const x of e) { const n = !x.region || x.region === 'sea' ? 'core' : x.region; if (!by.has(n)) by.set(n, []); by.get(n).push(x); }
+    const files = new Map(), list = [], names = [...by.keys()].filter((n) => by.get(n).length).sort((a, b) => (a === 'core' ? -1 : b === 'core' ? 1 : a < b ? -1 : 1));
+    for (const n of names) {
+      const c = buildContainer(by.get(n), { tier, world, region: n }); files.set(n + '.pak', c);
+      list.push({ name: n + '.pak', region: n === 'core' ? null : n, chunks: by.get(n).length, bytes: c.length, h: sha(c).slice(0, 32) });
     }
-  }
+    files.set('index.json', Buffer.from(JSON.stringify({ format: FORMAT, tier, world, files: list }, null, 1)));
+    return files;
+  };
+  const embedded = buildContainer(emb, { tier: 'embed', world });
+  const out = { embedded, base: split(emb, 'embed'), pack: null };
+  if (pack) { const e = entries('pack'); out.pack = e.length ? split(e, 'high') : new Map(); }
   out.manifest = {
     format: FORMAT, world, jobs: todo.map((j) => ({ key: j.key, tier: j.tier, bytes: results.get(rid(j)).z.length, raw: results.get(rid(j)).r })),
     bytes: embedded.length, data: sha(embedded).slice(0, 32), cached: todo.length - miss.length, ms: Math.round(performance.now() - t0),
@@ -147,11 +156,20 @@ export async function bake({ pack = false, jobs: given = null, cache = true, thr
   return out;
 }
 
-// writes a bake's pack into build/baked/pack/ next to the asset pack (build/assets/pack.mjs), whose line in the index stays
+// writes a bake's pack into build/baked/pack/ next to the asset pack (build/assets/pack.mjs), whose line in the index stays; the world files
+// of an older bake that this one does not make go (high.pak was the one file before WLD-21c, and a province can lose its last chunk)
 export function writePack(r, dir = path.join(root, 'build/baked/pack')) {
+  if (!r.pack?.has('index.json')) return;
   const ixf = path.join(dir, 'index.json'); fs.mkdirSync(dir, { recursive: true });
-  const old = fs.existsSync(ixf) ? JSON.parse(fs.readFileSync(ixf, 'utf8')).files.filter((f) => f.name !== 'high.pak') : [];
-  for (const [n, b] of r.pack) { if (n !== 'index.json') { fs.writeFileSync(path.join(dir, n), b); continue; } const ix = JSON.parse(b); ix.files = ix.files.concat(old); fs.writeFileSync(ixf, JSON.stringify(ix, null, 1)); }
+  const prev = fs.existsSync(ixf) ? JSON.parse(fs.readFileSync(ixf, 'utf8')).files : [], isWorld = (f) => 'region' in f || f.name === 'high.pak';
+  for (const f of prev) if (isWorld(f) && !r.pack.has(f.name)) fs.rmSync(path.join(dir, f.name), { force: true });
+  for (const [n, b] of r.pack) if (n !== 'index.json') fs.writeFileSync(path.join(dir, n), b);
+  const ix = JSON.parse(r.pack.get('index.json')); ix.files = ix.files.concat(prev.filter((f) => !isWorld(f))); fs.writeFileSync(ixf, JSON.stringify(ix, null, 1));
+}
+// writes a bake's base world files into a folder (the game's world/base/, bakedload.js)
+export function writeBase(r, dir) {
+  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  for (const [n, b] of r.base) fs.writeFileSync(path.join(dir, n), b);
 }
 
 if (isMainThread && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -16,7 +16,7 @@ if (!small) {
   const out = 'build/baked/world/capital/region.bin', srcs = fs.readdirSync('build/world').map((f) => 'build/world/' + f);
   if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', '1/4', '--roads', '--emit'], { stdio: 'inherit' });
 }
-const { bake, writePack } = await import('./bake.mjs');
+const { bake, writePack, writeBase } = await import('./bake.mjs');
 fs.rmSync(DIST, { recursive: true, force: true });
 for (const d of ['fonts', 'world']) fs.mkdirSync(path.join(GAME, d), { recursive: true });
 
@@ -36,12 +36,13 @@ fs.writeFileSync(path.join(GAME, 'index.html'), fs.readFileSync('src/template.ht
 // The high pack's world part is baked with it every time (the cache redoes only what changed): copied from the folder as an older bake left
 // it, it carried 8 m ground up to 1.4 km off the base ground and city detail of old layouts (BLD-07)
 const PACK = 'build/baked/pack', withPack = !small && process.env.PACK !== '0';
-if (!small) { const r = await bake({ pack: withPack }); fs.writeFileSync(path.join(GAME, 'world', 'base.pak'), r.embedded); if (r.pack) writePack(r); }
+// Both are a folder of files by province (ADR-0036): world/base/ and world/high/
+if (!small) { const r = await bake({ pack: withPack }); writeBase(r, path.join(GAME, 'world', 'base')); if (r.pack) writePack(r); }
 // the high pack (detail.js): the world part just baked and the asset pack of build/assets/pack.mjs
 if (withPack && fs.existsSync(path.join(PACK, 'index.json'))) {
-  const idx = JSON.parse(fs.readFileSync(path.join(PACK, 'index.json'), 'utf8'));
-  for (const f of idx.files) fs.copyFileSync(path.join(PACK, f.name), path.join(GAME, 'world', f.name));
-  fs.copyFileSync(path.join(PACK, 'index.json'), path.join(GAME, 'world', 'index.json'));
+  const idx = JSON.parse(fs.readFileSync(path.join(PACK, 'index.json'), 'utf8')), HIGH = path.join(GAME, 'world', 'high'); fs.mkdirSync(HIGH, { recursive: true });
+  for (const f of idx.files) fs.copyFileSync(path.join(PACK, f.name), path.join(HIGH, f.name));
+  fs.copyFileSync(path.join(PACK, 'index.json'), path.join(HIGH, 'index.json'));
 } else if (withPack) console.warn('no high pack in build/baked/pack (node build/assets/pack.mjs): the laptop detail only');
 
 // the Windows launcher (launcher/main.go); without Go the folder still works for tests, but cannot be delivered

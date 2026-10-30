@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { pw, GL_ARGS, GAME, gameUrl } = require('../lib.cjs');
-const dir = path.join(GAME, 'world');
+const dir = path.join(GAME, 'world', 'high');
 (async () => {
   if (!fs.existsSync(path.join(dir, 'assets.pak'))) { console.log('RESULT ' + JSON.stringify({ test: 'hiassets', pass: true, metrics: { skipped: 'no asset pack' }, note: '' })); return; }
   const browser = await pw.chromium.launch({ args: GL_ARGS });

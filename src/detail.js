@@ -1,12 +1,12 @@
 import { openContainer, hash53 } from './bakefmt.js';
 import { WorldData, fileReader, httpFile } from './chunkstore.js';
 
-// World detail (ADR-0013, ADR-0034): the game folder carries the "laptop" world (world/base.pak: 16 m terrain, city tiles, forests...) and, next
-// to it, the "high" pack (world/index.json + *.pak, made by `node build/bake.mjs --pack` and `build/assets/pack.mjs`: 8 m terrain, 4 m ground
-// texture, denser cities, compressed textures). When the high detail is chosen, the pack's chunks are put in front of the base ones in the chunk
+// World detail (ADR-0013, ADR-0034): the game folder carries the "laptop" world (world/base/: 16 m terrain, city tiles, forests...) and, next
+// to it, the "high" pack (world/high/index.json + *.pak, made by `node build/bake.mjs --pack` and `build/assets/pack.mjs`: 8 m terrain, 4 m
+// ground texture, denser cities, compressed textures). Both hold a file per province (ADR-0036). When the high detail is chosen, the pack's chunks are put in front of the base ones in the chunk
 // store, so everything that reads the store gets the better data, and the base data where the pack has none. The page is served by the launcher,
 // so the pack is read over http, a chunk at a time (Range requests). The detail is chosen at the title screen (never during play) and remembered.
-const PREF = 'neon_detail', PACK_DIR = 'world/';
+const PREF = 'neon_detail', PACK_DIR = 'world/high/';
 export const detail = { tier: 'laptop', pref: 'auto', state: 'none', files: 0, bytes: 0, available: 0 };   // state: none | ready | bad; available: pack bytes (0 = no pack)
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };

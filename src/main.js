@@ -50,7 +50,7 @@ function fatal(e) {
     eng = createEngine(el('game'), q);
     await RAPIER.init();
     await loadBaked();   // the baked world must be in place before the first terrain/road query
-    await initDetail();   // mounts the high pack next to the page (world/) when the high detail is chosen
+    await initDetail();   // mounts the high pack next to the page (world/high/) when the high detail is chosen
     // the high world detail starts at the 'high' graphics level (shadows, post-processing, textures) unless the player or the URL chose one
     { let stored = null; try { stored = sessionStorage.getItem('neon_q'); } catch (e) { /* ignore */ } if (detail.tier === 'high' && !params.has('q') && stored === null && !mobile) eng.setQuality(Math.max(q, 2)); }
     if (detail.tier === 'high') await loadHiAssets(eng.renderer);   // the pack's compressed textures, before the world that uses them is built

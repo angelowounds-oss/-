@@ -9,9 +9,9 @@ import { writeReadme, writeLicences, zipDist } from '../../build/package.mjs';
 
 const bad = [], metrics = {};
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'neon-package-')), dist = path.join(tmp, 'Build Folder'), game = path.join(dist, 'game');
-fs.mkdirSync(path.join(game, 'world'), { recursive: true });
+fs.mkdirSync(path.join(game, 'world', 'base'), { recursive: true });
 fs.writeFileSync(path.join(game, 'index.html'), '<!doctype html>'.repeat(100));
-fs.writeFileSync(path.join(game, 'world', 'base.pak'), Buffer.alloc(50000, 7));
+fs.writeFileSync(path.join(game, 'world', 'base', 'core.pak'), Buffer.alloc(50000, 7));
 const info = { date: '2026-10-28', commit: 'abc1234' };
 writeReadme(dist, info); writeLicences(game);
 
@@ -31,9 +31,9 @@ fs.writeFileSync(path.join(dist, 'NeonCity.exe'), Buffer.from('MZ fake'));
 const zip = zipDist(dist, info);
 if (path.basename(zip) !== 'NeonCity-20261028-abc1234.zip') bad.push(['zip name', path.basename(zip)]);
 const names = execFileSync('unzip', ['-Z1', zip]).toString().trim().split('\n');
-for (const n of ['NeonCity/NeonCity.exe', 'NeonCity/README.txt', 'NeonCity/game/index.html', 'NeonCity/game/LICENSES.txt', 'NeonCity/game/world/base.pak']) if (!names.includes(n)) bad.push(['zip misses', n]);
+for (const n of ['NeonCity/NeonCity.exe', 'NeonCity/README.txt', 'NeonCity/game/index.html', 'NeonCity/game/LICENSES.txt', 'NeonCity/game/world/base/core.pak']) if (!names.includes(n)) bad.push(['zip misses', n]);
 if (names.some((n) => !n.startsWith('NeonCity/'))) bad.push(['zip entry outside NeonCity/']);
-const verbose = execFileSync('unzip', ['-v', zip]).toString(), pakLine = verbose.split('\n').find((l) => l.includes('world/base.pak')) || '';
+const verbose = execFileSync('unzip', ['-v', zip]).toString(), pakLine = verbose.split('\n').find((l) => l.includes('world/base/core.pak')) || '';
 if (!/Stored/.test(pakLine)) bad.push(['pak not stored as is', pakLine.trim()]);
 metrics.entries = names.length;
 fs.rmSync(tmp, { recursive: true, force: true });
