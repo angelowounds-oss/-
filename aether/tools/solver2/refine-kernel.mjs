@@ -15,7 +15,7 @@
 const INTERIOR = 0, GHOST = 2;
 
 export function collideRange(K, LV, n0, n1) {
-  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3, tauBulk } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord, src, mac, tauIf: ti } = LV;
+  const { Q, d, cx, cy, cz, W, PAIRS, model, les, F0, eqTc, sig0, hrr: hrrG, hrrL, qp, qm, rr, h3, tauBulk } = K, { N, f, post, mask, solid, tau, tauEff: te, tauMin: tm, coord, src, mac, tauIf: ti, hloc } = LV;
   const wp = 1 / tau, wm = 1 / (3 / 16 / (tau - .5) + .5), fs = 2 ** -LV.l, fe = new Float64Array(Q), G = new Float64Array(9), own = new Float64Array(3);
   const Fx = F0 ? F0[0] * fs : 0, Fy = F0 ? F0[1] * fs : 0, Fz = F0 ? F0[2] * fs : 0;
   const feqInto = (rho, ux, uy, uz) => { const uu = 1.5 * (ux * ux + uy * uy + uz * uz); for (let q = 0; q < Q; q++) { const cu = cx[q] * ux + cy[q] * uy + cz[q] * uz; fe[q] = W[q] * rho * (1 + 3 * cu + 4.5 * cu * cu - uu); } };
@@ -33,6 +33,7 @@ export function collideRange(K, LV, n0, n1) {
       if (tm && tm[n] > t) t = tm[n];
       if (ti && ti[n] > t) t = ti[n]; // interface damping band
       if (te) te[n] = t;
+      const hrr = hloc && hloc[n] ? hrrL : hrrG; // local hybrid weight (refine.mjs, o.hrrLocal)
       if (hrr < 1) { // velocity gradient G[3 a + b] = d u_b / d x_a: central, one-sided next to a cell without a velocity (wall face, solid, ghost, inactive)
         let ok = true; own[0] = ux; own[1] = uy; own[2] = uz; G.fill(0);
         for (let a = 0; a < d && ok; a++) { const np = src[qm[a] * N + n], nm = src[qp[a] * N + n], hp = np >= 0 && mac[4 * np] > 0, hm = nm >= 0 && mac[4 * nm] > 0;

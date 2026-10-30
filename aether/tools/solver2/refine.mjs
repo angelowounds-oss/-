@@ -319,14 +319,26 @@ export function createRefined(o) {
   const les = (o.cs || 0) ** 2 * 18 * Math.SQRT2, F0 = o.force || null;
   // per-cell kernels: run constants and level views (the same arrays on every thread)
   const hrr = model === 'reg' && o.hrr < 1 ? o.hrr : 1, qp = [0, 1, 2].map(a => C.findIndex(c => c[a] === 1 && c[0] ** 2 + c[1] ** 2 + c[2] ** 2 === 1)), qm = qp.map(q => OPP[q]);
-  if (hrr < 1) for (const L of levels) L.mac = alloc(Float64Array, 4 * L.N);
+  // o.hrrLocal = { sigma, wall: layers, iface: coarse cells, body: bool }: a lower hybrid weight only where the stencils are cut (within `wall` cells of a
+  // no-slip wall face, within `iface` coarse cells of a refinement interface on both sides, the body's boundary cells), o.hrr elsewhere
+  const hl = model === 'reg' && o.hrrLocal && o.hrrLocal.sigma < 1 ? o.hrrLocal : null, hrrL = hl ? hl.sigma : 1;
+  if (hl) for (const L of levels) { L.hloc = alloc(Uint8Array, L.N); const wl = hl.wall || 0;
+    if (wl > 0) for (let n = 0; n < L.N; n++) for (const [a, side] of [[1, 0], [1, 1], [2, 0], [2, 1]]) { const sp = faceSpec(a, side); if (!sp || sp === 'slip') continue; const c = L.coord[3 * n + a];
+      if (side ? c >= L.ext[a] - wl : c < wl) L.hloc[n] = 1; }
+    if (hl.iface > 0) { const w = hl.iface;
+      if (L.child) { const ch = L.child; for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR) continue; let dist = 0;
+        for (let a = 0; a < d; a++) { if (ch.per[a]) continue; const c = L.coord[3 * n + a]; dist = Math.max(dist, ch.plo[a] - c, c - (ch.phi[a] - 1)); } if (dist >= 1 && dist <= w) L.hloc[n] = 1; } }
+      if (L.parent) for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR) continue; let e = Infinity;
+        for (let a = 0; a < d; a++) { const c = L.coord[3 * n + a]; if (L.gLo[a] > 0) e = Math.min(e, c - L.lo[a]); if (L.gHi[a] > 0) e = Math.min(e, L.hi[a] - 1 - c); } if (e < 2 * w) L.hloc[n] = 1; } } }
+  if (hl && hl.body && B) for (let l = 0; l < B.nL; l++) B.hloc[B.links[4 * l]] = 1;
+  if (hrr < 1 || hl) for (const L of levels) L.mac = alloc(Float64Array, 4 * L.N);
   // o.recursive (model 'reg'): third-order Hermite terms (refine-kernel.mjs); basis values B_k(c_q) / <B_k, B_k>_w, 6 per direction
   const rr = model === 'reg' && !!o.recursive, h3 = new Float64Array(6 * Q);
   if (rr) { const H = (c, a, b, g) => c[a] * c[b] * c[g] - ((a === b ? c[g] : 0) + (a === g ? c[b] : 0) + (b === g ? c[a] : 0)) / 3;
     const basis = d === 3 ? [c => H(c, 0, 0, 1) + H(c, 1, 2, 2), c => H(c, 0, 0, 1) - H(c, 1, 2, 2), c => H(c, 0, 2, 2) + H(c, 0, 1, 1), c => H(c, 0, 2, 2) - H(c, 0, 1, 1), c => H(c, 1, 1, 2) + H(c, 0, 0, 2), c => H(c, 1, 1, 2) - H(c, 0, 0, 2)]
       : [c => H(c, 0, 0, 1), c => H(c, 0, 1, 1)];
     basis.forEach((B, k) => { const nrm = C.reduce((a, c, q) => a + W[q] * B(c) ** 2, 0); for (let q = 0; q < Q; q++) h3[6 * q + k] = B(C[q]) / nrm; }); }
-  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, qp, qm, rr, h3, tauBulk: model === 'reg' ? o.tauBulk || 0 : 0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null, tauIf: L.tauIf }));
+  const K = { Q, d, cx, cy, cz, W, OPP, PAIRS, model, les, F0, eqTc, sig0, hrr, hrrL, qp, qm, rr, h3, tauBulk: model === 'reg' ? o.tauBulk || 0 : 0 }, LVs = levels.map(L => ({ l: L.l, N: L.N, f: L.f, post: L.post, mask: L.mask, solid: L.solid, coord: L.coord, src: L.src, tau: L.tau, tauEff: L.tauEff || null, tauMin: L.tauMin || null, mac: L.mac || null, tauIf: L.tauIf, hloc: L.hloc || null }));
   let ctl = null, workers = [];
   const dispatch = (phase, L) => {
     const LV = LVs[L.l];
@@ -336,7 +348,7 @@ export function createRefined(o) {
     run(0, Math.floor(L.N / T));
     for (;;) { const c = Atomics.load(ctl, 3); if (c === T - 1) break; Atomics.wait(ctl, 3, c, 50); }
   };
-  function collide(L) { if (hrr < 1) dispatch(2, L); dispatch(0, L); }
+  function collide(L) { if (L.mac) dispatch(2, L); dispatch(0, L); }
   function stream(L, uin) {
     const { N, f, post } = L;
     dispatch(1, L); // pull streaming (src is -1 for inactive cells)
