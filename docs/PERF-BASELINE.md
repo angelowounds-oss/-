@@ -70,7 +70,7 @@ GPU 시간은 이 환경에서 의미가 없다(ADR-0007).
 | 항목 | 크기 |
 |---|---|
 | 내장판 `neon_city_v9.html` (노트북 화질) | 81.6 MB (목표 ≤ 150 MB) |
-| 고사양 팩 `world/high.pak` + `index.json` | 87.1 MB |
+| 고사양 팩 `world/high.pak` + `index.json` | 81.8 MB (2026-10-30 BLD-07: 지금 월드로 다시 구움, 이전 87.1 MB는 2026-10-17 월드) |
 | 구운 월드 `build/baked/world.bin` | 35 MB |
 | 굽기 캐시 `build/baked/cache` (커밋 안 함) | 169 MB |
 
@@ -81,7 +81,7 @@ GPU 시간은 이 환경에서 의미가 없다(ADR-0007).
 |---|---|
 | 폴더 `dist/NeonCity/` 전체 | 180 MB |
 | `game/world/base.pak` (노트북 월드, 예전 HTML 안 base64 58 MB) | 43.8 MB |
-| `game/world/high.pak` + `assets.pak` (고사양 팩, 늘 포함) | 87.1 + 11.6 MB |
+| `game/world/high.pak` + `assets.pak` (고사양 팩, 늘 포함) | 81.8 + 11.6 MB (BLD-07) |
 | `game/assets/` (glb·jpg·bin·rgbe 41개) | 28 MB |
 | `game/main.js` | 10.5 MB |
 | `NeonCity.exe` | 6.6 MB |
