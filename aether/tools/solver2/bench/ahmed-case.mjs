@@ -3,7 +3,7 @@
 //   Standard geometry (L 1.044, W 0.389, H 0.288, nose radius 0.1, slant 0.222 m at 25 deg), 0.05 m above a free-slip floor, no stilts (as tests/ahmed.mjs),
 //   U = 40 m/s, nu = 1.5e-5 (Re_L = 2.8e6; the drag of this body is nearly Reynolds-independent above ~5e5). Four levels, the finest has H / h = nH.
 //   Free-slip floor, ceiling and side walls (blockage about 1.4 %), inlet, outlet with an absorbing layer. Regularized collision + Smagorinsky, wall model.
-// ahmedCase(nH, { cs = 0.12, hrr = 1, wallModel = { filter: 400 } | false }) -> { o (createRefined options), Ul, A (frontal area, finest lattice units),
+// ahmedCase(nH, { cs = 0.12, hrr = 1, wallModel = { filter: 400, slip: 'filtered' | 'instant' } | false }) -> { o (createRefined options), Ul, A (frontal area, finest lattice units),
 //   stepsPerLU (coarse steps per L / U), toM (level-0 units -> metres), REGIONS, E, boxes, hf, h0, tauF, tau0 }
 export const AHMED = { Lb: 1.044, Wb: .389, Hb: .288, Rn: .1, ls: .222, th: 25 * Math.PI / 180, clear: .05, Uphys: 40, nuPhys: 1.5e-5, CdRef: .285 };
 export const REGIONS = ['front', 'roof', 'slant', 'base', 'sides', 'underbody'];

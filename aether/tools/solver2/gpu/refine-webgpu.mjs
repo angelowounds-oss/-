@@ -21,7 +21,7 @@ const MSIGN = []; for (let a = 0; a < 3; a++) for (let j = 0; j < 10; j++) MSIGN
 
 const WGSL = `
 struct LP { n0: u32, n1: u32, n2: u32, N: u32, ox: i32, oy: i32, oz: i32, per: u32, tau: f32, les: f32, hrr: f32, uin: f32, sponge: u32, wm: u32, cnt: u32, nu: f32,
-  filt: f32, pad0: u32, pad1: u32, pad2: u32 }
+  filt: f32, inst: u32, pad1: u32, pad2: u32 }
 struct IP { pN: u32, cN: u32, cnt: u32, off: u32, tC: f32, tF: f32, kc: f32, kf: f32, wv: f32, nr: f32, k: u32, pad: u32 }
 @group(0) @binding(0) var<uniform> lp: LP;
 @group(0) @binding(1) var<storage, read_write> f: array<f32>;
@@ -164,8 +164,9 @@ fn reichD(yp: f32) -> f32 { return 1.0 / (1.0 + 0.41 * yp) + 7.8 * (exp(-yp / 11
       if (abs(un - ut2) < 1e-7 * ut2) { ut2 = un; break; } ut2 = un; } }
   let nuT = max(0.0, 0.41 * ut2 * y - nu); let nuE = max(nu + nuT, (tauEff[n] - 0.5) / 3.0);
   tauMin[n] = 0.5 + 3.0 * (nu + nuT);
-  var k = 0.0; if (ut > 0.0) { k = min(ut, max(0.0, ut - ut2 * ut2 * y / nuE)) / ut; }
-  utauO[i] = ut2; uw[3u * i] = k * uf.x; uw[3u * i + 1u] = k * uf.y; uw[3u * i + 2u] = k * uf.z;
+  let sv = select(uf, tv, lp.inst != 0u); let us0 = length(sv); // slip along the filtered (default) or the instantaneous tangential velocity
+  var k = 0.0; if (us0 > 0.0) { k = min(us0, max(0.0, us0 - ut2 * ut2 * y / nuE)) / us0; }
+  utauO[i] = ut2; uw[3u * i] = k * sv.x; uw[3u * i + 1u] = k * sv.y; uw[3u * i + 2u] = k * sv.z;
 }
 // Bouzidi interpolated bounce-back + momentum exchange, accumulated per link over the sub-steps of one coarse step; links: n, q, n2, q * 1e6, wall-model slot
 @compute @workgroup_size(64) fn bouzidi(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) nw: vec3u) {
@@ -302,7 +303,7 @@ export async function createRefineGpu(device, S, o) {
     const lpB = (cnt, extra = {}) => { const ab = new ArrayBuffer(80), v = new DataView(ab);
       [L.n[0], L.n[1], L.n[2], N].forEach((x, i) => v.setUint32(4 * i, x, true)); [0, 1, 2].forEach(a => v.setInt32(16 + 4 * a, L.lo[a] - L.gLo[a], true));
       v.setUint32(28, (L.per[0] ? 1 : 0) | (L.per[1] ? 2 : 0) | (L.per[2] ? 4 : 0), true); v.setFloat32(32, L.tau, true); v.setFloat32(36, les, true); v.setFloat32(40, hrr, true); v.setFloat32(44, U, true);
-      v.setUint32(48, g.hasSponge ? 1 : 0, true); v.setUint32(52, isB && wmOn ? 1 : 0, true); v.setUint32(56, cnt, true); v.setFloat32(60, (L.tau - .5) / 3, true); v.setFloat32(64, isB && wmOn ? 1 / L.wmFilter : 1, true);
+      v.setUint32(48, g.hasSponge ? 1 : 0, true); v.setUint32(52, isB && wmOn ? 1 : 0, true); v.setUint32(56, cnt, true); v.setFloat32(60, (L.tau - .5) / 3, true); v.setFloat32(64, isB && wmOn ? 1 / L.wmFilter : 1, true); v.setUint32(68, isB && wmOn && L.wmInstant ? 1 : 0, true);
       return uni(ab); };
     g.lp = lpB(0); g.lpFace = lpB(g.nFace); if (isB) { g.lpLinks = lpB(g.nL); if (wmOn) g.lpBc = lpB(g.nb); }
     g.bg = {

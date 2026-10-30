@@ -4,12 +4,12 @@
 // Reference: Cd ~ 0.285 with stilts (Ahmed et al. 1984); this simplified body is expected in 0.25-0.30. CdBreakdown: drag per surface region,
 // pressure (normal part of the momentum exchange per wall cell) and friction (the rest), averaged over the window. Pass (docs/CFD-V3-PLAN.md P2): within 0.285 +- 15 %
 // and monotone with nH = 12, 16, 24.
-// node tools/solver2/bench/ahmed-refined.mjs [nH = 16] [T in L/U = 12] [threads = 4] [Cs = 0.12]   env: WM=0 (no wall model), WMF (filter steps, 400), HRR (hybrid regularization), DIAG=1, TAG (output file suffix)
+// node tools/solver2/bench/ahmed-refined.mjs [nH = 16] [T in L/U = 12] [threads = 4] [Cs = 0.12]   env: WM=0 (no wall model), WMF (filter steps, 400), HRR (hybrid regularization), WMS=instant (wall-model slip direction), DIAG=1, TAG (output file suffix)
 import fs from 'node:fs'; import path from 'node:path';
 import { createRefined } from '../refine.mjs';
 import { ahmedCase, AHMED } from './ahmed-case.mjs';
 const [nHArg = '16', tArg = '12', thArg = '4', csArg = '.12'] = process.argv.slice(2), nH = +nHArg, Tend = +tArg, Cs = +csArg;
-const { o, Ul, A, stepsPerLU, toM, REGIONS, E, boxes, hf, h0, tauF } = ahmedCase(nH, { cs: Cs, hrr: +(process.env.HRR || 1), wallModel: process.env.WM === '0' ? false : { filter: +(process.env.WMF || 400) } });
+const { o, Ul, A, stepsPerLU, toM, REGIONS, E, boxes, hf, h0, tauF } = ahmedCase(nH, { cs: Cs, hrr: +(process.env.HRR || 1), wallModel: process.env.WM === '0' ? false : { filter: +(process.env.WMF || 400), ...(process.env.WMS ? { slip: process.env.WMS } : {}) } });
 const { Uphys, nuPhys } = AHMED;
 const t0 = Date.now(), Sim = createRefined({ ...o, threads: +thArg });
 const regAcc = REGIONS.map(() => ({ pressure: 0, friction: 0 })); let regN = 0;

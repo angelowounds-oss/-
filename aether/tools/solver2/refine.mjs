@@ -275,6 +275,10 @@ export function createRefined(o) {
       const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
       B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau); B.tauMin = alloc(Float64Array, B.N); B.utF = new Float64Array(3 * cells.length).fill(NaN);
       B.wmFilter = typeof o.body.wallModel === 'object' && o.body.wallModel.filter > 1 ? o.body.wallModel.filter : 1;
+      // wallModel.slip = 'instant': u_tau from the filtered velocity, but the slip along the cell's instantaneous tangential velocity and never above
+      // its speed, so the wall always resists the current motion ('filtered', default: the slip follows the filtered velocity, which can push the
+      // fluid where the instantaneous flow is slower or reversed: negative friction on the flat Ahmed sides)
+      B.wmInstant = typeof o.body.wallModel === 'object' && o.body.wallModel.slip === 'instant';
       cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.bcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.bcY[i] = Math.max(1e-3, o.body.dist(p) / B.h); });
     }
   }
@@ -352,12 +356,13 @@ export function createRefined(o) {
         // temporal filter of the wall-model input (Yang et al. 2015): exponential moving average over wallModel.filter steps of this level
         let tx = ux - un * nx, ty = uy - un * ny, tz = uz - un * nz; const uf = B.utF, a = 1 / B.wmFilter;
         if (Number.isNaN(uf[3 * i])) { uf[3 * i] = tx; uf[3 * i + 1] = ty; uf[3 * i + 2] = tz; } else { uf[3 * i] += a * (tx - uf[3 * i]); uf[3 * i + 1] += a * (ty - uf[3 * i + 1]); uf[3 * i + 2] += a * (tz - uf[3 * i + 2]); }
-        tx = uf[3 * i]; ty = uf[3 * i + 1]; tz = uf[3 * i + 2]; const ut = Math.hypot(tx, ty, tz), y = B.bcY[i];
+        const ix = tx, iy = ty, iz = tz; tx = uf[3 * i]; ty = uf[3 * i + 1]; tz = uf[3 * i + 2]; const ut = Math.hypot(tx, ty, tz), y = B.bcY[i];
         // log-law-consistent eddy viscosity at the cell (mixing length kappa y): nu + nu_t = kappa u_tau y in the log layer, -> nu in the sublayer;
         // it bounds the cell's relaxation time from below (used from the next collision on) and sets the slip so that nu_eff (u_t - u_s) / y = u_tau^2
         const utau = solveUtau(ut, y, nu), nuT = Math.max(0, .41 * utau * y - nu), nuE = Math.max(nu + nuT, (B.tauEff[n] - .5) / 3);
         B.tauMin[n] = .5 + 3 * (nu + nuT);
-        const us = ut > 0 ? Math.min(ut, Math.max(0, ut - utau * utau * y / nuE)) : 0, k = ut > 0 ? us / ut : 0;
+        if (B.wmInstant) { tx = ix; ty = iy; tz = iz; } const us0 = Math.hypot(tx, ty, tz); // the speed the slip is taken from
+        const us = us0 > 0 ? Math.min(us0, Math.max(0, us0 - utau * utau * y / nuE)) : 0, k = us0 > 0 ? us / us0 : 0;
         B.utau[i] = utau; B.uw[3 * i] = k * tx; B.uw[3 * i + 1] = k * ty; B.uw[3 * i + 2] = k * tz; }
     }
     if (L === B) { // Bouzidi interpolated bounce-back + momentum exchange (moving-wall terms when the wall model is on)

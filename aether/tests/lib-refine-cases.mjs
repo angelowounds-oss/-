@@ -14,6 +14,8 @@ export const CASES = {
   uniform: () => ({ ...base, tau0: .51, cs: .15, body: { level: 0, ...sphere([14, 8, 8], 2) } }),
   // three levels, slip floor and ceiling (z periodic), sphere on level 2, Smagorinsky + hybrid regularization + wall model
   refined: () => ({ ...base, tau0: .502, cs: .15, hrr: .95, faces: { yLo: 'slip', yHi: 'slip' }, boxes: boxes2, body: { level: 2, ...sphere([22, 3.5, 8], 1.5), wallModel: { filter: 20 } } }),
+  // the same, wall-model slip along the instantaneous tangential velocity (wallModel.slip = 'instant')
+  instant: () => ({ ...base, tau0: .502, cs: .15, hrr: .95, faces: { yLo: 'slip', yHi: 'slip' }, boxes: boxes2, body: { level: 2, ...sphere([22, 3.5, 8], 1.5), wallModel: { filter: 20, slip: 'instant' } } }),
   // the same with a moving no-slip floor (rolling road), slip ceiling and side walls (box edges where faces meet), no wall model
   walls: () => ({ ...base, tau0: .502, cs: .15, hrr: .95, faces: { yLo: { type: 'wall', u: [.05, 0, 0] }, yHi: 'slip', zLo: 'slip', zHi: 'slip' },
     boxes: boxes2, body: { level: 2, ...sphere([22, 3.5, 8], 1.5) } })
