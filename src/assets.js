@@ -422,10 +422,15 @@ export function buildSoldier(look = {}, gunParts) {
       ikQ.setFromUnitVectors(ikD.subVectors(lB, lA).normalize(), d); kpQ.identity().slerp(ikQ, w);
       b.quaternion.premultiply(kpQ.premultiply(lq.copy(pq).invert()).multiply(pq)); b.updateMatrixWorld(true);
     },
-    // turns bone b about the body-frame axis (world direction) by a, as a procedural pose (kept like pointBone)
+    // turns bone b about the body-frame axis (world direction) by a, as a procedural pose (kept like pointBone). The parent's turn in the
+    // world is chained up through the local turns to the model's own; no matrix is brought up to date (the renderer does it, pointBone and
+    // turnChain bring up what they read), as bringing the upper body under a spine bone up to date on every turn cost 54 us an actor mid-
+    // gesture (CHR-06h)
     turnBone(b, axis, a) {
-      keep(b); b.parent.updateWorldMatrix(true, false); b.parent.matrixWorld.decompose(lA, pq, lB);
-      la.copy(axis).applyQuaternion(lq.copy(pq).invert()).normalize(); kpQ.setFromAxisAngle(la, a); b.quaternion.premultiply(kpQ); b.updateMatrixWorld(true);
+      keep(b); pq.identity(); let p = b.parent;
+      for (; p && p !== wrap; p = p.parent) pq.premultiply(p.quaternion);
+      if (p) { wrap.updateWorldMatrix(true, false); wrap.matrixWorld.decompose(lA, lq, lB); pq.premultiply(lq); }
+      la.copy(axis).applyQuaternion(lq.copy(pq).invert()).normalize(); kpQ.setFromAxisAngle(la, a); b.quaternion.premultiply(kpQ);
     },
     // CHR-06g: turns the bones bs, each the child of the one before, by the world rotations qs about their own joints (kept like pointBone).
     // The world turns are chained down from the first one's parent; no matrix is brought up to date (the renderer does it), as bringing
