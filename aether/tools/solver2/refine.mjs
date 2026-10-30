@@ -279,6 +279,9 @@ export function createRefined(o) {
       // its speed, so the wall always resists the current motion ('filtered', default: the slip follows the filtered velocity, which can push the
       // fluid where the instantaneous flow is slower or reversed: negative friction on the flat Ahmed sides)
       B.wmInstant = typeof o.body.wallModel === 'object' && o.body.wallModel.slip === 'instant';
+      // wallModel.slip = 'clamp': the filtered slip, but never faster than the instantaneous velocity along the filtered direction (and zero where
+      // the instantaneous flow runs against it), so the filter still damps the feedback and the wall cannot push the fluid
+      B.wmClamp = typeof o.body.wallModel === 'object' && o.body.wallModel.slip === 'clamp';
       cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.bcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.bcY[i] = Math.max(1e-3, o.body.dist(p) / B.h); });
     }
   }
@@ -365,7 +368,8 @@ export function createRefined(o) {
         B.tauMin[n] = .5 + 3 * (nu + nuT);
         if (B.wmInstant) { tx = ix; ty = iy; tz = iz; } const us0 = Math.hypot(tx, ty, tz); // the speed the slip is taken from
         const us = us0 > 0 ? Math.min(us0, Math.max(0, us0 - utau * utau * y / nuE)) : 0, k = us0 > 0 ? us / us0 : 0;
-        B.utau[i] = utau; B.uw[3 * i] = k * tx; B.uw[3 * i + 1] = k * ty; B.uw[3 * i + 2] = k * tz; }
+        let kk = k; if (B.wmClamp && us0 > 0) { const ui = Math.max(0, (ix * tx + iy * ty + iz * tz) / us0); kk = Math.min(k, ui / us0); }
+        B.utau[i] = utau; B.uw[3 * i] = kk * tx; B.uw[3 * i + 1] = kk * ty; B.uw[3 * i + 2] = kk * tz; }
     }
     if (L === B) { // Bouzidi interpolated bounce-back + momentum exchange (moving-wall terms when the wall model is on)
       const { links, nL } = B; let fx = 0, fy = 0, fz = 0;
