@@ -191,18 +191,43 @@ function stepFeet(h, dt, cd, on) {
     m.legIK(i, _fP, tilt, fx, fz);
   }
 }
+// CHR-06f: getting up, no foot goes into the ground. The blends from the lying pose and between the get-up clips swing the legs through it
+// (the push-up's straight legs into the crouch's bent ones took a toe 53 cm under); the ankle lifts by as much and the knee bends. The heel
+// is taken as 6 cm round the ankle joint (a flat foot's sole is the toe's to hold up), so a foot on its heel or its toes rests where it is.
+// A straight leg bends its knee the way the pelvis faces (down, on all fours), not the way the body stands
+function liftFeet(h) {
+  const m = h.m, rest = m.feet; if (!rest || !m.legIK) return;
+  const base = h.y + m.body.position.y + rest.sole, B = m.bones;
+  m.legsWorld(); _fN.set(0, 0, 1).applyQuaternion(B.Hips.getWorldQuaternion(_fQ));
+  for (let i = 0; i < 2; i++) {
+    _fA.setFromMatrixPosition(B[FOOT[2 * i]].matrixWorld); _fT.setFromMatrixPosition(B[FOOT[2 * i + 1]].matrixWorld);
+    const under = base - Math.min(_fA.y - 0.06, _fT.y - rest.toe);
+    if (under > 0.005) { _fA.y += under; m.legIK(i, _fA, null, _fN.x, _fN.z, _fN.y); }
+  }
+}
 
 // CHR-06d (ADR-0035): touchdowns (Human.landAnim, from game.land and the car roof). The landing part of a clip plays over the stand set as a
 // layer, not a one-shot that cuts everything else: it comes in from the air pose as the feet meet the ground and goes out into whatever the
-// player goes on to do. Segments [clip, from s, to s, rate] play one after the other with LAND_X s of cross-fade. Jump_Land squats from the
+// player goes on to do. Segments [clip, from s, to s, rate, cross-fade in s (LAND_X)] play one after the other. Jump_Land squats from the
 // feet's contact (hips 0.5 m down at 0.21 s) and is up by 1 s, played by as much of it as the drop calls for; Land_Three_Point comes down
 // onto a hand and Jump_Land's rise lifts the body out of it; Roll goes over the shoulder from the landing crouch (its dive, quicker) and up.
+// CHR-06f: getting up the same way (Human.upAnim, from the ragdoll's get-up). From the back LayToIdle sits up and stands; from the belly the
+// arms push the chest up from Pushup's low point while the feet come in under the body to Land_Three_Point's crouch on one hand, and
+// Jump_Land's rise stands up out of it. A knock-down with no ragdoll to spare (knock) is thrown onto its back by Hit_Knockback, whose
+// lying pose at 0.62 s is LayToIdle's first frame within 2 cm at the hips, and gets up from there
 const LANDS = {
   land: [['U_Jump_Land', 0, 1, 1]],
   hard: [['U_Land_Three_Point', 0.47, 1.2, 1], ['U_Jump_Land', 0.3, 1, 1]],
   roll: [['U_Roll', 0.06, 1.65, 1.3]],
+  upBack: [['U_LayToIdle', 0, 1.5, 1]],
+  upFront: [['U_Pushup', 0.72, 1.39, 1.2], ['U_Land_Three_Point', 0.69, 1.38, 1, 0.3], ['U_Jump_Land', 0.3, 1, 1]],
+  knock: [['U_Hit_Knockback', 0.02, 0.62, 1], ['U_LayToIdle', 0, 1.5, 1]],
 };
-const LAND_X = 0.2, LAND_OUT = 0.3;
+const LAND_X = 0.2, LAND_OUT = 0.3, LAND_CLIPS = new Set(Object.values(LANDS).flatMap((s) => s.map((g) => g[0])));
+// getting up and knocked down: the feet go where the clip puts them (no lock, no ground IK) and the body does not turn in place
+const UPS = new Set(['upBack', 'upFront', 'knock']);
+// Hit_Knockback flies back with the feet up until 0.2 s and is down at 0.31 s: a knock-down holds the flight until the body comes down
+const KNOCK_AIR = 0.2;
 const ss01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 // an action held on one time of its clip (timeScale 0), whatever a one-shot left it in
 function holdAt(ac, t) { ac.enabled = true; ac.paused = false; ac.timeScale = 0; ac.time = t; }
@@ -211,23 +236,24 @@ function endLand(h) {
   for (const sg of LANDS[L.kind]) { const ac = h.m.act[sg[0]]; if (ac) ac.weight = 0; }
 }
 // the layer's weight is a share of the pose (the mixer averages by weight): each segment's action gets w / (1 - share) times the rest
-function stepLand(h, dt, sp) {
-  const L = h.landK, m = h.m, a = m.act, segs = LANDS[L.kind], w = L.w;
-  L.t += dt;
-  // running on out of it cuts it short; a roll is seen through
-  if (L.cut < 0 && L.kind !== 'roll' && sp > 2.5 && L.t > 0.25) L.cut = L.t;
+function stepLand(h, dt, sp, aim = false) {
+  const L = h.landK, m = h.m, a = m.act, segs = LANDS[L.kind], w = L.w, n = segs.length;
+  L.t = Math.min(L.t + dt, L.until ?? Infinity);
+  // running on out of it cuts it short, and so does raising a weapon out of a get-up; a roll is seen through
+  if (L.cut < 0 && L.kind !== 'roll' && (sp > 2.5 || (aim && L.kind.startsWith('up'))) && L.t > 0.25) L.cut = L.t;
   const fade = L.cut < 0 ? 1 : 1 - (L.t - L.cut) / 0.2;
-  let s0 = 0, share = 0, rest = 0;
-  for (let i = 0; i < segs.length; i++) {
-    const [n, t0, t1, r0] = segs[i], r = r0 * L.rate, len = (t1 - t0) / r, u = L.t - s0, ac = m.clip(n);
-    w[i] = ac ? ss01(u / (i ? LAND_X : L.in)) * ss01((len - u) / (i === segs.length - 1 ? LAND_OUT : LAND_X)) * L.peak * Math.max(0, fade) : 0;
+  let s0 = 0, end = 0, share = 0, rest = 0;
+  for (let i = 0; i < n; i++) {
+    const [c, t0, t1, r0] = segs[i], r = r0 * L.rate, len = (t1 - t0) / r, u = L.t - s0, ac = m.clip(c);
+    const xi = i ? segs[i][4] || LAND_X : L.in, xo = i === n - 1 ? LAND_OUT : segs[i + 1][4] || LAND_X;
+    w[i] = ac ? (xi > 0 ? ss01(u / xi) : 1) * ss01((len - u) / xo) * L.peak * Math.max(0, fade) : 0;
     if (ac) holdAt(ac, t0 + r * clamp(u, 0, len));
-    share += w[i]; s0 += len - LAND_X;
+    share += w[i]; end = s0 + len; s0 += len - xo;
   }
-  if (L.t >= s0 + LAND_X || fade <= 0) { endLand(h); return; }
-  for (const k in a) if (k !== segs[0][0] && (!segs[1] || k !== segs[1][0]) && !k.startsWith('UB_')) rest += a[k].weight;
+  if (L.t >= end || fade <= 0) { endLand(h); return; }
+  for (const k in a) if (!LAND_CLIPS.has(k) && !k.startsWith('UB_')) rest += a[k].weight;
   share = Math.min(share, 0.995);
-  for (let i = 0; i < segs.length; i++) { const ac = a[segs[i][0]]; if (ac) ac.weight = (w[i] / (1 - share)) * rest; }
+  for (let i = 0; i < n; i++) { const ac = a[segs[i][0]]; if (ac) ac.weight = (w[i] / (1 - share)) * rest; }
 }
 // CHR-06d (ADR-0035): in the air. Past 9 m/s down (a drop of 4 m or more) the limbs go out into the spread a body falls stable in (upper arms
 // out level with the shoulders, forearms up by the head, thighs apart, knees bent so the shins trail), as far as the speed has built, with a
@@ -315,6 +341,16 @@ export class Human {
     const peak = kind === 'land' ? clamp((v - 2.2) / 6.5, 0, 1) * clamp(1 - (hs - 2) / 4, 0.35, 1) : 1;
     this.landK = { kind, t: 0, cut: -1, peak, in: kind === 'land' ? 0.08 : 0.12, rate: kind === 'land' ? clamp(1 + (9 - v) / 8, 1, 1.6) : 1, w: [0, 0] };
   }
+  // CHR-06f (ADR-0035): getting up from a knock-down (Ragdoll.startGetUp; front: on the belly). The clip starts at full weight, the ragdoll
+  // blending the pose it lies in into it, and runs on as a layer once control is back, cut short by running off. False without the clips
+  upAnim(front) {
+    const kind = front ? 'upFront' : 'upBack';
+    if (!this.m.skinned || !LANDS[kind].every((s) => this.m.clip(s[0]))) return false;
+    endLand(this); this.landK = { kind, t: 0, cut: -1, peak: 1, in: 0, rate: 1, w: [0, 0, 0] };
+    return true;
+  }
+  upTick(dt) { if (this.landK) stepLand(this, dt, 0); }
+  liftFeet() { liftFeet(this); }
   hurt(dmg, from, headshot, src) {
     if (this.dead) return;
     const G = this.G;
@@ -329,7 +365,7 @@ export class Human {
     return false;
   }
   die(from, src) {
-    const sp0 = this.speed;
+    const sp0 = this.speed; endLand(this); this.knockClip = false;
     this.dead = true; this.deadT = 0; this.state = 'dead'; this.speed = 0;
     this.G.onHumanKilled?.(this, src);
     this.fallDir = rand(-1, 1);
@@ -344,7 +380,17 @@ export class Human {
   }
   ragdoll(vx, vz, up = 4) {
     if (this.G.ragdolls?.knock(this, vx, vz, up)) return;
+    const down = this.knock && this.landK && this.landK.kind === 'knock';
     this.knock = 1; this.vx = vx; this.vz = vz; this.vy = up;
+    if (down) return;   // already going down: pushed on, the clip plays on
+    // CHR-06f: no ragdoll to spare: the clips throw the body onto its back (turned to take the push in the chest) and get it up again; it
+    // stays down until it is up, as long as a ragdoll's knock-down takes, where it used to tumble on its feet and run off once it slid to a stop
+    this.knockClip = this.m.skinned && !this.dead && LANDS.knock.every((s) => this.m.clip(s[0]));
+    if (this.knockClip) {
+      endLand(this); if (this.reactT > 0) { this.reactT = 0; this.m.stopOnce(); }
+      this.knockRy = Math.hypot(vx, vz) > 0.5 ? Math.atan2(-vx, -vz) : this.ry;
+      this.landK = { kind: 'knock', t: 0, cut: -1, peak: 1, in: 0.12, rate: 1, w: [0, 0], until: KNOCK_AIR }; this.ikW = 0;
+    }
   }
 
   update(dt) {
@@ -461,10 +507,13 @@ export class Human {
     this.vy -= 9.81 * dt; this.vy -= Math.sign(this.vy) * this.vy * this.vy * (9.81 / 3025) * dt;
     this.x += this.vx * dt; this.z += this.vz * dt; this.y += this.vy * dt;
     const r = this.G.world.colliders.resolve(this.x, this.z, this.radius, this.y); this.x = r.x; this.z = r.z;
-    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (this.vy < -9 && !this.dead) this.hurt((-this.vy - 9) * (-this.vy - 9) * 1.5, null, false, null); if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) this.knock = 0; } }
+    const K = this.landK && this.landK.kind === 'knock' ? this.landK : null;
+    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (K) K.until = Infinity; if (this.vy < -9 && !this.dead) this.hurt((-this.vy - 9) * (-this.vy - 9) * 1.5, null, false, null); if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) { if (K) this.vx = this.vz = 0; else this.knock = 0; } } }
     this.group.position.set(this.x, this.y, this.z);
-    if (!this.dead) { this.m.body.rotation.x += dt * 9; this.group.rotation.y = this.ry; }
-    else this.group.rotation.y = this.ry;
+    if (this.knockClip && !K) this.knock = 0;   // up on its feet (or the clip cut short): done, slid to a stop or not
+    if (this.dead) this.group.rotation.y = this.ry;
+    else if (this.knock && K) { this.ry = dampAngle(this.ry, this.knockRy, 10, dt); this.speed = 0; this.animateSkinned(dt); }
+    else { if (this.knock) this.m.body.rotation.x += dt * 9; this.group.rotation.y = this.ry; }   // no clips: the old tumble
     if (!this.knock && !this.dead) { this.m.body.rotation.x = 0; this.state = 'flee'; this.fleeT = 5; }
   }
 
@@ -516,7 +565,8 @@ export class Human {
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     else stepGait(this, dt, sp, 1 - idle, wt);
     if (airC && this.jumpT >= 0) { const js = 1 - ss01((this.jumpT - 0.8) / 0.6); wt.U_Jump_Start = js; wt.U_Jump = 1 - js; }
-    stepTurn(this, dt, !set && sp < 0.15 && !m.rideOn && !this.dead, wt);
+    const upL = !!this.landK && UPS.has(this.landK.kind);
+    stepTurn(this, dt, !set && sp < 0.15 && !m.rideOn && !this.dead && !upL, wt);
     // CHR-06b: the push on the ground that curves or changes the pace, in the body's frame (smoothed: the player's velocity comes from physics steps)
     if (dt > 0) {
       const ax = (this.vx - (this._pvx ?? this.vx)) / dt, az = (this.vz - (this._pvz ?? this.vz)) / dt, s = Math.sin(this.ry), c = Math.cos(this.ry);
@@ -525,12 +575,12 @@ export class Human {
     this._pvx = this.vx; this._pvz = this.vz;
     for (const key in wt) { const act = a[key] || (wt[key] > 0 ? m.clip(key) : null); if (act) act.weight = lerp(act.weight, wt[key], k); }
     if (this.jumpT >= 0 && a.U_Jump_Start) holdAt(a.U_Jump_Start, Math.min(1.66, this.jump0 + this.jumpT));
-    if (this.landK) stepLand(this, dt, sp);
+    const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
+    if (this.landK) stepLand(this, dt, sp, aiming);
     if (set && a[set[1]]) a[set[1]].timeScale = crawlC ? clamp(sp / 0.8, 0, 1.6) : set[1] === 'U_Crouch_Fwd' ? clamp(sp / 0.66, 0.6, 3) : clamp(sp / 1.6, 0.6, 1.8);
     // pelvis to where the steps go (gait warp) or where the feet stand (turn in place), net of what a turn clip turns it itself; chest to ry
     syncTurn(this);
     const hipTurn = (this.hipTurn = syncGait(this) + this.legOff - this.turnYaw), backTurn = hipTurn + this.turnChest;
-    const aiming = (this.aimT > 0 || this.forceAim) && this.armed;
     this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
     // distance LOD: fog hides far actors anyway, so skip their skinning and animation
     const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
@@ -540,8 +590,9 @@ export class Human {
     if (cd > 35) { this.lodT = (this.lodT || 0) + dt; if ((this.lodF = !this.lodF)) return; dt = this.lodT; this.lodT = 0; }
     // pistol-class weapons use the retargeted UAL upper-body clips (idle / aim up-neutral-down / shoot / reload); the limbs below keep walking
     const freeStance = !m.sit && !this.swimming && !this.prone && !this.lying && !m.rideOn;
-    // a gesture or procedural arm motion takes the arms from the held-weapon pose until the weapon is raised again
-    const busy = !!this.proc || (!!this.gestUB && !aiming);
+    // a gesture or procedural arm motion takes the arms from the held-weapon pose until the weapon is raised again; getting up or knocked
+    // down, the clip has them (on the ground) until it is over (CHR-06f: the weapon's upper-body clips under it took the arms back as it faded)
+    const busy = !!this.proc || (!!this.gestUB && !aiming) || upL;
     const pistolish = this.armed && this.weapon && this.weapon.short === 'pistol' && freeStance && !busy;
     const riflish = this.armed && this.weapon && this.weapon.short === 'rifle' && freeStance && !!m.setRifleMode && !busy;
     if (m.setRifleMode) m.setRifleMode(riflish);
@@ -605,7 +656,7 @@ export class Human {
     if (this.ffTip < 1e-3) this.ffTip = 0;
     // CHR-06b: lean as far as that push tips a body (atan(a/g)), pivoting at the feet: into a curve from a walk up (12 deg at most), and
     // forward or back with a change of pace by about a third of it (7 deg at most), less from a standstill
-    const lean = !this.stanceSet && !m.rideOn && !this.dead && !this.prone && !this.lying && !this.swimming ? 1 : 0;
+    const lean = !this.stanceSet && !m.rideOn && !this.dead && !this.prone && !this.lying && !this.swimming && !upL ? 1 : 0;
     const leanZ = -lean * clamp(Math.atan(this.accL / 9.81) * clamp((sp - 1) / 3, 0, 1), -0.21, 0.21);
     const leanX = lean * clamp(Math.atan(this.accF / 9.81) * 0.35, -0.12, 0.12) * clamp(0.3 + sp / 3, 0.3, 1);
     m.body.rotation.z = damp(m.body.rotation.z, leanZ, 10, dt);
@@ -617,9 +668,10 @@ export class Human {
     this.group.rotation.y = this.ry;
     if ((this.ffK > 0.01 || this.chK > 0.01) && m.pointBone) { this.windT = (this.windT || 0) + dt; poseAir(this, this.windT); }
     // CHR-06c: standing or stepping on the ground in the stand set (or crouched), not carried, lying, falling or driven by a one-shot clip
-    const feetOn = !this.dead && !m.rideOn && !this.inCar && !this.swimming && !this.prone && !this.lying && !m.sit && !this.knock && !this.rag && !this.hang && !this.mantle && !this.ladder &&
+    const feetOn = !this.dead && !m.rideOn && !this.inCar && !this.swimming && !this.prone && !this.lying && !m.sit && !this.knock && !this.rag && !this.hang && !this.mantle && !this.ladder && !(this.landK && UPS.has(this.landK.kind)) &&
       (!this.stanceSet || this.stanceSet[0] === 'U_Crouch_Idle') && (!this.body3 || this.body3.grounded) && !(this.G && this.G.carRider && this.G.carRider.roof && this === this.G.player);
     stepFeet(this, dt, cd, feetOn);
+    if (upL && cd < IK_NEAR) liftFeet(this);
     if (this.aimT > 0) this.aimT -= dt * 0.5;
   }
   animate(dt, desired) {

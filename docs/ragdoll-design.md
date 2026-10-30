@@ -416,6 +416,13 @@ Hips.position  = parentWorldMatrixInverse × pBoneWorld   (스케일 포함 변�
 
 > 개선 여지: UAL 같은 애니메이션 묶음에 "GetUp_Front/Back" 클립이 있으면 `build/retarget_ual.mjs`로 리타깃해 4번 단계 목표 클립으로 쓴다. 블렌드 방식은 그대로 둔다.
 
+> CHR-06f(ADR-0035)에서 바뀐 점:
+> - 목표 클립은 누운 쪽에 맞는 일어나기 클립이다(`Human.upAnim`). 등은 `LayToIdle`, 배는 `Pushup` → `Land_Three_Point` → `Jump_Land`를 이어 붙인다. 블렌드는 0.35초이고, 클립은 조작이 돌아온 뒤에도 착지 레이어로 이어진다. 클립이 없는 모델은 위 4번 그대로다.
+> - 5번의 slerp는 뼈마다 월드 회전으로 하고, 처음 고른 쪽 호를 따른다. 그래서 반 바퀴 넘게 다른 뼈가 뒤집히지 않는다.
+> - 매 프레임 되돌리는 값은 `localQ` 대신 믹서가 지난 프레임에 쓴 값이다. 믹서는 값이 바뀔 때만 쓰기 때문이다.
+> - 발이 땅 아래로 가면 다리 IK로 올린다.
+> - 랙돌을 쓸 수 없는 넉다운(`Human.ragdoll`)은 `Hit_Knockback` → `LayToIdle` 클립으로 넘어졌다 일어난다.
+
 ---
 
 ## 11. 원인별 연결 지점(코드 변경 목록)

@@ -51,6 +51,13 @@ const q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), q3 = new THREE.Q
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
 const qP = new THREE.Quaternion(), vP = new THREE.Vector3();
 const m4 = new THREE.Matrix4();
+const UP_BLEND = 0.35;   // s from the pose lying to the get-up clip (CHR-06f)
+// slerp from a to b along the arc between the two quaternions as given (no switch to the shorter way when they are over half a turn apart)
+function slerpArc(out, a, b, t) {
+  const c = clamp(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w, -1, 1), th = Math.acos(c), s = Math.sin(th);
+  const ka = s < 1e-4 ? 1 - t : Math.sin((1 - t) * th) / s, kb = s < 1e-4 ? t : Math.sin(t * th) / s;
+  return out.set(a.x * ka + b.x * kb, a.y * ka + b.y * kb, a.z * ka + b.z * kb, a.w * ka + b.w * kb).normalize();
+}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // Bind data: segment frames, offsets, anchors and limit axes in body-local coordinates (computed once from the T-pose clip)
@@ -380,13 +387,24 @@ export class Ragdoll {
     this.poseW = {}; for (const n of Object.keys(B)) this.poseW[n] = this.worldBoneQuat(n);
     this.hipsW = B.Hips.getWorldPosition(new THREE.Vector3());
     this.release();
-    // move the group to where the body lies
-    const g = h.group; h.x = lying.x; h.z = lying.z; h.ry = face;
+    // move the group to where the body lies (facing that way: the legs stand there, no turn in place left over from before the fall)
+    const g = h.group; h.x = lying.x; h.z = lying.z; h.ry = h.legYaw = h.ryPrev = face; h.legOff = 0; h.turnClip = null; h.ikW = 0; h.reactT = 0;
     g.position.set(h.x, h.y, h.z); g.rotation.y = face; m.body.position.set(0, 0, 0); m.body.rotation.set(0, 0, 0);
     g.updateMatrixWorld(true);
     for (const k in m.act) m.act[k].weight = 0; m.act.Idle.weight = 1; m.act.Idle.time = 0;
+    // CHR-06f (ADR-0035): the get-up clip for the side the body lies on (Human.upAnim), moved so its hips at the first frame are where the
+    // pelvis lies; without one the standing pose, as before
+    this.upK = !!(h.upAnim && h.upAnim(this.chestDown));
+    for (const n of Object.keys(B)) B[n].quaternion.copy(this.localQ[n]);
+    B.Hips.position.copy(this.hipsPos0);
+    if (this.upK) h.upTick(0);
+    m.mixer.update(0); g.updateMatrixWorld(true);
+    if (this.upK) { const hp = B.Hips.getWorldPosition(v1); h.x = g.position.x += this.hipsW.x - hp.x; h.z = g.position.z += this.hipsW.z - hp.z; g.updateMatrixWorld(true); }
+    this.animQ = {}; for (const n of Object.keys(B)) this.animQ[n] = B[n].quaternion.clone();
+    this.animP = B.Hips.position.clone();
     this.state = 'GETUP'; this.gt = 0; this.gtDur = this.chestDown ? RAG_TUNE.getUpFront : RAG_TUNE.getUpBack;
-    if (h.isPlayer && h.stunT !== undefined) h.stunT = Math.max(h.stunT || 0, this.gtDur);
+    if (h === this.G.player && h.stunT !== undefined) h.stunT = Math.max(h.stunT || 0, this.gtDur);
+    this.getUpTick(0);   // this frame shows the body as it lies, not the animation's first frame
   }
   facingYaw() {
     const c = this.worldBoneQuat('Spine2'), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(c);
@@ -400,19 +418,32 @@ export class Ragdoll {
   getUpTick(dt) {
     if (this.state !== 'GETUP') return false;
     const h = this.h, m = this.m, B = m.bones;
-    this.gt += dt; const k = clamp(this.gt / this.gtDur, 0, 1), e = k * k * (3 - 2 * k);
-    // the mixer leaves some bones alone (Root, toes, fingers): start every frame from the pose before the fall, or their blend would compound
-    for (const n in B) B[n].quaternion.copy(this.localQ[n]);
-    B.Hips.position.copy(this.hipsPos0);
-    m.mixer.update(dt);                                  // the standing animation writes its pose into the bones...
+    this.gt += dt; const k = clamp(this.gt / this.gtDur, 0, 1);
+    // the get-up clip starts from a body lying the same way up: it takes over in UP_BLEND s and plays on; the standing pose takes the whole
+    // get-up to morph into
+    const u = this.upK ? clamp(this.gt / UP_BLEND, 0, 1) : k, e = u * u * (3 - 2 * u);
+    // the mixer writes a value only when it changed (and never the bones no clip moves: Root, toes, fingers, which keep the pose before the
+    // fall): start every frame from what it wrote last, or the blend below would compound
+    for (const n in B) B[n].quaternion.copy(this.animQ[n]);
+    B.Hips.position.copy(this.animP);
+    if (this.upK) h.upTick(dt);
+    m.mixer.update(dt);                                  // the animation writes its pose into the bones...
+    for (const n in B) this.animQ[n].copy(B[n].quaternion);
+    this.animP.copy(B.Hips.position);
     h.group.updateMatrixWorld(true);
-    // ...which we blend against the pose the body was lying in, parents first
-    const order = Object.keys(B);
+    // ...which we blend against the pose the body was lying in, each bone's turn in the world, parents first, along the way round it took
+    // at the start. (The shorter way changes sides where the two come to differ by half a turn: a forearm the ragdoll left twisted flipped
+    // 110-180 deg in a frame.) The animation's quaternion is kept on the side it was last frame, as the matrix gives either sign
+    const order = Object.keys(B), first = !this.animW, aw = this.animW || (this.animW = {});
+    for (const n of order) {
+      B[n].matrixWorld.decompose(v2, q3, v3);
+      if (q3.dot(first ? this.poseW[n] : aw[n]) < 0) q3.set(-q3.x, -q3.y, -q3.z, -q3.w);
+      (aw[n] || (aw[n] = new THREE.Quaternion())).copy(q3);
+    }
     for (const n of order) {
       const b = B[n], par = b.parent; if (!par) continue;
-      const qPar = par.getWorldQuaternion(q2);
-      const target = q1.copy(qPar).invert().multiply(this.poseW[n]);          // lying pose, relative to the (already blended) parent
-      b.quaternion.slerpQuaternions(target, b.quaternion.clone(), e);
+      slerpArc(q1, this.poseW[n], aw[n], e);
+      b.quaternion.copy(par.getWorldQuaternion(q2).invert()).multiply(q1);
       b.updateWorldMatrix(false, false);
     }
     // hips height: from the lying hips up to the standing animation height
@@ -420,6 +451,8 @@ export class Ragdoll {
     v1.copy(this.hipsW); B.Hips.parent.updateWorldMatrix(true, false); this.parentInvNow = this.parentInvNow || new THREE.Matrix4(); this.parentInvNow.copy(B.Hips.parent.matrixWorld).invert();
     v1.applyMatrix4(this.parentInvNow);
     B.Hips.position.lerpVectors(v1, hipsAnim, e);
+    // no foot through the ground on the way (this tick starts from the animation's pose again, so nothing of the lift is kept)
+    if (this.upK && h.liftFeet) { h.liftFeet(); m.legsMoved = false; }
     if (k >= 1) { this.state = 'BAKED'; if (h.rag === this) h.rag = null; this.G.ragdolls.afterGetUp(h); }
     return true;
   }
@@ -487,7 +520,8 @@ export class RagdollSystem {
   afterGetUp(h) {
     const G = this.G; h.rag = null; h.knock = 0;
     h.m.body.rotation.set(0, 0, 0); h.m.body.position.y = 0;
-    if (h === G.player) { h.stunT = 0; h.body3.teleport(h.x, h.y, h.z); h.y = h.body3.y; h.vx = h.vz = 0; h.reactT = 0; }
+    // the player stands where the body got up (on the ground: the get-up clip plays on, and a frame in the air would cut it)
+    if (h === G.player) { h.stunT = 0; h.body3.teleport(h.x, h.y, h.z); h.body3.grounded = true; h.y = h.body3.y; h.vx = h.vz = 0; h.reactT = 0; }
     else { h.state = 'flee'; h.fleeT = 5; }
   }
   // physics step hooks

@@ -433,15 +433,15 @@ export function buildSoldier(look = {}, gunParts) {
       const hp = legChain[0].parent; hp.updateWorldMatrix(true, false); hp.matrixWorld.decompose(lA, hipQ, lB);
       legChain[0].updateMatrixWorld(true); legChain[3].updateMatrixWorld(true);
     },
-    // CHR-06c (ADR-0035): leg i (0 left, 1 right) reaches with its ankle for `t` (world), the knee bent the way it already bends (fx, fz: the
-    // way the body faces, for a straight leg); the foot keeps pointing where the clip points it, tipped by `tilt` (a world rotation, or null).
+    // CHR-06c (ADR-0035): leg i (0 left, 1 right) reaches with its ankle for `t` (world), the knee bent the way it already bends (fx, fz, fy:
+    // the way the body faces, for a straight leg); the foot keeps pointing where the clip points it, tipped by `tilt` (a world rotation, or null).
     // Two-bone IK as twoBoneIK, on the world matrices legsWorld left and the world turns chained down from the hips'
-    legIK(i, t, tilt, fx, fz) {
+    legIK(i, t, tilt, fx, fz, fy = 0) {
       if (!this.legsMoved) { for (let k = 0; k < 6; k++) legQ[k].copy(legChain[k].quaternion); this.legsMoved = true; }
       const up = legChain[i * 3], lo = legChain[i * 3 + 1], ft = legChain[i * 3 + 2];
       lqU.multiplyQuaternions(hipQ, up.quaternion); lqL.multiplyQuaternions(lqU, lo.quaternion); lq.multiplyQuaternions(lqL, ft.quaternion);
       const a = lA.setFromMatrixPosition(up.matrixWorld), b = lB.setFromMatrixPosition(lo.matrixWorld), c = lC.setFromMatrixPosition(ft.matrixWorld);
-      lP.addVectors(a, c).multiplyScalar(0.5).sub(b).multiplyScalar(-4).add(b); lP.x += fx * 0.15; lP.z += fz * 0.15;
+      lP.addVectors(a, c).multiplyScalar(0.5).sub(b).multiplyScalar(-4).add(b); lP.x += fx * 0.15; lP.y += fy * 0.15; lP.z += fz * 0.15;
       const L1 = a.distanceTo(b), L2 = b.distanceTo(c), dist = Math.min(L1 + L2 - 1e-3, Math.max(Math.abs(L1 - L2) + 1e-3, a.distanceTo(t)));
       const d = tkD.copy(t).sub(a).normalize();
       const cosA = Math.min(1, Math.max(-1, (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist))), sinA = Math.sqrt(1 - cosA * cosA);

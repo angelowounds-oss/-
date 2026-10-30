@@ -25,6 +25,17 @@
 //     clip); crouching down and back up as game.js eases it, the body is not lowered under the clips (it sank 8 and 17 cm) and the crouch
 //     still takes the hips 30 cm or more down; lying, the Sleeping clip holds the body on its back on the support (no tip, no drop, hips
 //     under 25 cm over it and nothing more than 5 cm under it: it lay 56 cm under before); prone and still, the Crawl clip holds it likewise.
+// (f) getting up (CHR-06f), through the game loop. The player's ragdoll is tipped over its feet forward and back (chest pushed one way,
+//     shins the other, so it lands on the belly and on the back): the get-up plays the clip for that side (LayToIdle from the back, the
+//     push-up and crouch from the belly) with over 90% of the pose 0.4 s in, control comes back when it always did (0.9 s from the belly,
+//     1.1 s from the back), a hand is down within 12 cm of the ground while the hips are under 0.5 m (the body pushes itself up; the old
+//     get-up floated it up in a morph from the lying pose, hands 24-33 cm up), no bone the skin hangs on goes 10 cm into the ground once
+//     the clip has taken over (LayToIdle props itself on an elbow 8 cm down; the old morph swung a toe 34 cm under), no main bone turns more
+//     than 30 deg in a frame from the ragdoll's last pose until the clip has played out (the old morph flipped a bone 70-170 deg where the
+//     shorter way round changed sides), and the body stands at the end (hips over 0.9 m). With no ragdoll to spare, a 10 m drop lands onto a hand ('hard')
+//     instead of nothing, and a citizen knocked down (Human.ragdoll) is thrown onto its back by Hit_Knockback and gets up with LayToIdle (each
+//     over 90% of the pose), never lies in the air, does not tumble (it spun 9 rad/s on its feet), faces the push while down (within 15 deg),
+//     stands at the end and runs off, down under 4 s.
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
@@ -125,19 +136,27 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const s = gaps.map(Math.abs).sort((p, q) => p - q), pc = (k) => +((s[Math.min(s.length - 1, (s.length * k) | 0)] || 0) * 100).toFixed(1);
       return { uid: bd.uid || bd.lot.uid, samples: s.length, within3cm: +(s.filter((v) => v < 0.03).length / Math.max(1, s.length)).toFixed(3), p50cm: pc(0.5), p95cm: pc(0.95), maxCm: pc(1), climbed: +(top - y0).toFixed(2) };
     };
+    // (d) and (f) run the game loop on the player, set back on the ground where the game starts (and dy over it)
+    const keys = g.input.keys;
+    let lastV = 0; const land0 = g.land; g.land = function (v, w) { lastV = v; return land0.call(this, v, w); };
+    const reset = (dy = 0) => {
+      keys.clear(); pl.dead = false; pl.hpv = 100; pl.vx = pl.vz = 0; pl.stunT = 0; pl.crouching = false; g.cam.yaw = 0; if (g.mobility.chute) g.mobility.cutAway('land');
+      body3.teleport(home.x, home.y, home.z); pl.x = home.x; pl.y = body3.y; pl.z = home.z;
+      for (let i = 0; i < 180 && (i < 60 || !body3.grounded); i++) window.__upd(dt);   // settled on the ground (a jump needs it)
+      if (dy) { body3.teleport(pl.x, pl.y + dy, pl.z); pl.y = body3.y; }
+    };
+    // the biggest turn (deg) any main bone of h made since the last call: against its parent, or in the world (world: a get-up turns the
+    // body's frame under the lying pose, the pose in the world goes on)
+    const MAIN = ['Hips', 'Spine', 'Spine2', 'Neck', 'Head', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg'];
+    const snapper = (h, world = false) => {
+      const main = MAIN.map((n) => h.m.bones[n]), q = new THREE.Quaternion(), get = (b) => (world ? b.getWorldQuaternion(q) : b.quaternion);
+      const prevQ = main.map((b) => get(b).clone());
+      const fn = () => { let mx = 0; if (world) h.group.updateMatrixWorld(true); main.forEach((b, i) => { const c = get(b), a = 2 * Math.acos(Math.min(1, Math.abs(c.dot(prevQ[i])))); if (a > mx) { mx = a; fn.bone = MAIN[i]; } prevQ[i].copy(c); }); return mx * 57.2958; };
+      return fn;
+    };
     const air = () => {
-      const keys = g.input.keys, V = THREE.Vector3, deg = 180 / Math.PI;
-      let lastV = 0; const land0 = g.land; g.land = function (v, w) { lastV = v; return land0.call(this, v, w); };
-      const reset = (dy = 0) => {
-        keys.clear(); pl.dead = false; pl.hpv = 100; pl.vx = pl.vz = 0; pl.stunT = 0; pl.crouching = false; g.cam.yaw = 0; if (g.mobility.chute) g.mobility.cutAway('land');
-        body3.teleport(home.x, home.y, home.z); pl.x = home.x; pl.y = body3.y; pl.z = home.z;
-        for (let i = 0; i < 180 && (i < 60 || !body3.grounded); i++) window.__upd(dt);   // settled on the ground (a jump needs it)
-        if (dy) { body3.teleport(pl.x, pl.y + dy, pl.z); pl.y = body3.y; }
-      };
-      // the biggest turn (deg) any main bone made against its parent since the last call
-      const main = [B.Hips, B.Spine, B.Spine2, B.Neck, B.Head, B.LeftArm, B.RightArm, B.LeftForeArm, B.RightForeArm, B.LeftUpLeg, B.RightUpLeg, B.LeftLeg, B.RightLeg];
-      const prevQ = main.map((b) => b.quaternion.clone());
-      const snap = () => { let mx = 0; main.forEach((b, i) => { mx = Math.max(mx, 2 * Math.acos(Math.min(1, Math.abs(b.quaternion.dot(prevQ[i]))))); prevQ[i].copy(b.quaternion); }); return mx * deg; };
+      const V = THREE.Vector3, deg = 180 / Math.PI;
+      const snap = snapper(pl);
       const LAND = ['U_Jump_Land', 'U_Land_Three_Point', 'U_Roll'];
       const share = () => { let l = 0, t = 0; for (const k in m.act) { if (k.startsWith('UB_')) continue; const w = m.act[k].weight; t += w; if (LAND.includes(k)) l += w; } return t > 0 ? l / t : 0; };
       const out = {};
@@ -175,6 +194,66 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       g.mobility.deploy(); for (let i = 0; i < 120; i++) window.__upd(dt); pl.group.updateMatrixWorld(true);
       const hy = B.Head.getWorldPosition(new V()).y;
       out.canopy = { open: !!g.mobility.chute, handsUp: B.LeftHand.getWorldPosition(new V()).y > hy && B.RightHand.getWorldPosition(new V()).y > hy };
+      reset();
+      return out;
+    };
+    // (f) getting up. Bone heights are over the body's origin (the ground it gets up on)
+    const getUp = () => {
+      pl.body3 = body3; g.phys.footY = footY;
+      const V = THREE.Vector3, w = new V(), r = (x) => +x.toFixed(2), cm = (x) => +(x * 100).toFixed(0);
+      const UP = ['U_LayToIdle', 'U_Pushup', 'U_Land_Three_Point', 'U_Jump_Land', 'U_Hit_Knockback'];
+      const shareOf = (h, names) => { let l = 0, t = 0; for (const k in h.m.act) { if (k.startsWith('UB_')) continue; const x = h.m.act[k].weight; t += x; if (names.includes(k)) l += x; } return t > 0 ? l / t : 0; };
+      const over = (h, b) => b.getWorldPosition(w).y - h.group.position.y;
+      // the bones the skin hangs on (the file's end markers, *_leaf, carry none and stick out past the toes and fingers)
+      const skinBones = (h) => h.skinB || (h.skinB = [...new Set(h.m.skinMeshes.flatMap((o) => { const I = o.geometry.attributes.skinIndex, W = o.geometry.attributes.skinWeight, s = [];
+        for (let i = 0; i < I.count; i++) { const ix = [I.getX(i), I.getY(i), I.getZ(i), I.getW(i)], wx = [W.getX(i), W.getY(i), W.getZ(i), W.getW(i)]; for (let c = 0; c < 4; c++) if (wx[c] > 0.05) s.push(o.skeleton.bones[ix[c]]); }
+        return s; }))]);
+      let lowB = ''; const lowest = (h) => { let lo = 9; for (const b of skinBones(h)) { const y = over(h, b); if (y < lo) { lo = y; lowB = b.name; } } return lo; };
+      const out = {};
+      // the player knocked down by a fall moving forward and backward (onto the belly and the back, as the ragdoll lands)
+      for (const [name, sx] of [['fwd', 1], ['back', -1]]) {
+        reset(); const snap = snapper(pl, true);
+        // tipped over the feet: the chest pushed one way, the shins the other (a push alone lands either way up, by the pose it starts from)
+        const d = { x: Math.sin(pl.ry) * sx, z: Math.cos(pl.ry) * sx }, R0 = g.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: 0, y: 0, z: 0 } });
+        if (!R0) { out[name] = { spawned: false }; continue; }
+        R0.impulse('chest', { x: d.x * 30, y: 0, z: d.z * 30 }); for (const sg of ['shinL', 'shinR']) R0.impulse(sg, { x: -d.x * 10, y: 0, z: -d.z * 10 });
+        let gu = -1, back = -1, end = -1, kind = 'none', front = null, share04 = 0, shareBack = 0, hand = 9, low = 9, snapDeg = 0, snapAt = '', lowAt = '', hipsBack = 0, hipsEnd = 0;
+        for (let f = 0; f < 60 * 9 && (end < 0 || f < end + 30); f++) {
+          window.__upd(dt); const s = snap(), R = pl.rag;
+          if (gu < 0 && R && R.state === 'GETUP') { gu = f; kind = pl.landK ? pl.landK.kind : 'none'; front = R.chestDown; }
+          if (gu < 0) continue;
+          if (s > snapDeg) { snapDeg = s; snapAt = snap.bone + '@' + ((f - gu) / 60).toFixed(2); } pl.group.updateMatrixWorld(true);
+          const hips = over(pl, B.Hips);
+          if (f - gu === 24) share04 = shareOf(pl, UP);
+          if (f - gu > 21) { const lo = lowest(pl); if (lo < low) { low = lo; lowAt = lowB + '@' + ((f - gu) / 60).toFixed(2); } if (hips < 0.5) hand = Math.min(hand, over(pl, B.LeftHand), over(pl, B.RightHand)); }
+          if (back < 0 && !R) { back = f; shareBack = shareOf(pl, UP); hipsBack = hips; }
+          if (back >= 0 && end < 0 && !(pl.landK && /^up/.test(pl.landK.kind))) { end = f; hipsEnd = hips; }
+        }
+        out[name] = { kind, chestDown: front, controlS: r((back - gu) / 60), layerS: r((end - back) / 60), share04: r(share04), shareBack: r(shareBack), handCm: cm(hand), lowCm: cm(low), lowAt, snapDeg: +snapDeg.toFixed(1), snapAt, hipsBackCm: cm(hipsBack), hipsEndCm: cm(hipsEnd) };
+      }
+      // the same with no ragdoll to spare: a hard landing from 10 m (v 14 m/s) comes down onto a hand instead
+      const q = g.eng.q, cap0 = q.ragdolls; q.ragdolls = 0;
+      reset(10); lastV = 0; let kind = 'none', rag = false;
+      for (let i = 0; i < 240 && !(lastV > 0); i++) { window.__upd(dt); if (lastV > 0) { kind = pl.landK ? pl.landK.kind : 'none'; rag = !!pl.rag; } }
+      out.hardNoRag = { v: +lastV.toFixed(1), kind, rag };
+      for (let i = 0; i < 120; i++) window.__upd(dt);
+      // a citizen knocked down with no ragdoll to spare (Human.ragdoll, legacy path), pushed along +x
+      reset(); const C = g.humans[0].constructor, h = new C(g, 'civ', { hp: 50 });
+      h.x = pl.x + 3; h.z = pl.z + 3; h.y = h.floorY = pl.y; h.ry = 0; h.static = true; h.group.visible = true; g.humans.push(h); g.scene.add(h.group);
+      for (let i = 0; i < 30; i++) window.__upd(dt);
+      const snap = snapper(h, true); h.ragdoll(4, 0, 3);
+      let f = 0, spin = 0, kb = 0, lay = 0, airLying = 0, snapDeg = 0, snapAt = '', face = 9;
+      for (; f < 60 * 6 && h.knock; f++) {
+        window.__upd(dt); const s = snap(); if (s > snapDeg) { snapDeg = s; snapAt = snap.bone + '@' + (h.landK ? h.landK.kind + h.landK.t.toFixed(2) : f); } spin = Math.max(spin, Math.abs(h.m.body.rotation.x));
+        kb = Math.max(kb, shareOf(h, ['U_Hit_Knockback'])); lay = Math.max(lay, shareOf(h, ['U_LayToIdle']));
+        if (h.landK && h.landK.t > 0.31 && h.landK.t < 0.62 && h.y > (h.floorY || 0) + 0.05) airLying++;
+        if (h.knock) face = Math.abs(Math.atan2(Math.sin(h.ry + Math.PI / 2), Math.cos(h.ry + Math.PI / 2)));   // while down (up, it runs off)
+      }
+      h.group.updateMatrixWorld(true);
+      out.npcKnock = { rag: !!h.rag, downS: r(f / 60), spinDeg: +(spin * 57.3).toFixed(0), kbShare: r(kb), layShare: r(lay), airLying, snapDeg: +snapDeg.toFixed(1), snapAt,
+        faceErrDeg: +(face * 57.3).toFixed(0), hipsEndCm: cm(over(h, h.m.bones.Hips)), state: h.state };
+      if (cap0 === undefined) delete q.ragdolls; else q.ragdolls = cap0;
+      g.humans.splice(g.humans.indexOf(h), 1); g.scene.remove(h.group);
       reset(); g.land = land0;
       return out;
     };
@@ -214,9 +293,10 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const stairsOut = stairs();
     const airOut = air();
     const posesOut = poses();
+    const upOut = getUp();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
-    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, gait, turnClips, feet: m.feet };
+    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, up: upOut, gait, turnClips, feet: m.feet };
   });
   const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < 0.25) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
   for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25 && t.slideM < (k === 'back180' ? 1.2 : 0.7))) bad.push(k); }
@@ -233,5 +313,14 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   if (!(P.crouch.downDropCm > -0.5 && P.crouch.upDropCm > -0.5 && P.crouch.hipsDownCm >= 30)) bad.push('crouch drop');
   if (!flat(P.lie)) bad.push('lying');
   if (!flat(P.prone)) bad.push('prone');
+  const U = o.up;
+  for (const k of ['fwd', 'back']) {
+    const u = U[k], dur = u.chestDown ? 0.9 : 1.1;
+    if (!(u.kind === (u.chestDown ? 'upFront' : 'upBack') && u.share04 > 0.9 && Math.abs(u.controlS - dur) < 0.05 && u.snapDeg < 30 && u.handCm < 12 && u.lowCm > -10 && u.hipsEndCm > 90)) bad.push('get up ' + k);
+  }
+  if (U.fwd.kind === U.back.kind) bad.push('get up sides');
+  if (!(U.hardNoRag.kind === 'hard' && !U.hardNoRag.rag)) bad.push('hard landing, no ragdoll');
+  const N = U.npcKnock;
+  if (!(!N.rag && N.spinDeg < 5 && N.kbShare > 0.9 && N.layShare > 0.9 && N.airLying === 0 && N.snapDeg < 30 && N.faceErrDeg < 15 && N.hipsEndCm > 85 && N.state === 'flee' && N.downS < 4)) bad.push('knock-down, no ragdoll');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });

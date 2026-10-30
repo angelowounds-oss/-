@@ -1119,7 +1119,7 @@ export class Game {
     if (roll || v <= 12.5) pl.landAnim?.(v, roll);   // the body takes it (CHR-06d); harder, it goes down
     if (!roll && v > 12.5 && !pl.dead) {   // knocked flat: a living ragdoll that gets back up on its own
       pl.stunT = clamp((v - 12.5) * 0.25 + 0.8, 0.8, 2.2); this.audio.tone?.(160, 0.12, 'square', 0.12, 60);
-      this.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: pl.vx * 0.5, y: 0, z: pl.vz * 0.5 } });
+      if (!this.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: pl.vx * 0.5, y: 0, z: pl.vz * 0.5 } })) pl.landAnim?.(v, false);   // no ragdoll to spare: down onto a hand (CHR-06f)
       pl.vx *= 0.2; pl.vz *= 0.2;
     }
     if (roll) this.toast('낙법', '굴러서 충격을 줄였다');
