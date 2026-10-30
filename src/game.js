@@ -937,7 +937,7 @@ export class Game {
         const clip = m.swing[(pl.swingN = ((pl.swingN || 0) + (this.time - (pl.swingT || -9) < 1.2 ? 1 : 0)) % m.swing.length)]; pl.swingT = this.time;
         if (gesture(pl, clip, { upper: true, speed: m.swingSpeed || 1.6 })) { pl.meleeHitT = m.hitDelay || 0.18; this.audio.tone?.(520, 0.09, 'sawtooth', 0.025, 180); this.lastShotT = this.time - 1; return; }
       }
-      pl.punchT = 0.22; if (pl.m.playOnce && pl.m.playOnce(Math.random() < 0.5 ? 'U_Punch_Jab' : 'U_Punch_Cross', false)) pl.reactT = 0.42; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
+      if (pl.m.playOnce && pl.m.playOnce(Math.random() < 0.5 ? 'U_Punch_Jab' : 'U_Punch_Cross', false)) pl.reactT = 0.42; this.audio.tone?.(160, 0.07, 'sine', 0.08, 80); this.lastShotT = this.time - 1;
     }
     const fx = Math.sin(pl.ry), fz = Math.cos(pl.ry);
     let best = null, bd = 2.2;

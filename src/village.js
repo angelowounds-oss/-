@@ -300,7 +300,8 @@ export class Villages {
       if (!want) { if (s.h) { s.h.remove = true; s.h = null; } continue; }
       if (!s.h) s.h = this.spawn(L, r, asleep, rt);
       const h = s.h; if (!h) continue;
-      if (asleep) { if (!h.sleeping && !h.threat) { h.sleeping = true; h.lying = true; h.static = true; h.x = L.v.x + home.bed.x; h.z = L.v.z + home.bed.z; h.y = h.floorY = L.pad.y + 0.62; h.ry = home.side < 0 ? 0 : Math.PI; } continue; }
+      // asleep on the mattress (0.55 m over the pad): the Sleeping clip lies on the body's origin (CHR-06e)
+      if (asleep) { if (!h.sleeping && !h.threat) { h.sleeping = true; h.lying = true; h.static = true; h.x = L.v.x + home.bed.x; h.z = L.v.z + home.bed.z; h.y = h.floorY = L.pad.y + 0.55; h.ry = home.side < 0 ? 0 : Math.PI; } continue; }
       if (h.sleeping) continue;   // woken (talk): it runs its own way for a while
       h.static = false; h.lying = false; h.target = this.at(rt, d);
     }

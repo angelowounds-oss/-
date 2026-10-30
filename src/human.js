@@ -496,7 +496,9 @@ export class Human {
     const idle = clamp(1 - sp / 0.6, 0, 1);
     // stance sets: retargeted UAL crouch / swim clips replace the stand set (idle+walk+run) while active
     const swimC = this.swimming, crouchC = !swimC && !this.prone && !this.lying && this.crouching !== false && this.crouch > 0.3 && !m.sit;
-    const sitC = (m.sit || 0) > 0.5, airC = !sitC && !swimC && !!this.body3 && !this.body3.grounded && !this.hang && !this.mantle && !this.ladder;
+    // CHR-06e: lying (a bed, a bench) is the Sleeping clip, on its back with the hips 8 cm over the support at the body's origin
+    const sitC = (m.sit || 0) > 0.5, lieC = (this.sleepC = !!this.lying && !sitC && !swimC && !!m.clip('U_Sleeping'));
+    const airC = !sitC && !lieC && !swimC && !!this.body3 && !this.body3.grounded && !this.hang && !this.mantle && !this.ladder;
     // CHR-06d: a jump (the ground left going up fast) plays the take-off from where the legs push off, then the air loop; off a ledge, the
     // air loop alone. The take-off comes in quicker than the usual blend, the push lasting a tenth of a second
     if (airC !== !!this._air) { this._air = airC; this.jumpT = airC && (this.vy || 0) > 2 ? 0 : -1; this.jump0 = sp > 3 ? 0.14 : 0.08; }
@@ -506,11 +508,11 @@ export class Human {
     const crawlC = !swimC && !sitC && this.prone && !!m.clip('U_Crawl');
     this.crawling = crawlC;
     const hangC = !!this.hang && !!m.clip('U_Ledge_Hang'), ladC = !hangC && !!(this.mantle && this.mantle.ladder) && !!m.clip('U_Climb_Ladder');
-    const set = hangC ? ['U_Ledge_Hang', 'U_Ledge_Hang'] : ladC ? ['U_Ladder_Idle', 'U_Climb_Ladder'] : sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : airC ? ['U_Jump', 'U_Jump'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crawlC ? ['U_Crawl', 'U_Crawl'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
+    const set = hangC ? ['U_Ledge_Hang', 'U_Ledge_Hang'] : ladC ? ['U_Ladder_Idle', 'U_Climb_Ladder'] : sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : lieC ? ['U_Sleeping', 'U_Sleeping'] : airC ? ['U_Jump', 'U_Jump'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crawlC ? ['U_Crawl', 'U_Crawl'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = ladC ? 1 : clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Turn_Left_90: 0, U_Turn_Right_90: 0, U_Turn_Left_180: 0, U_Turn_Right_180: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Jump: 0, U_Jump_Start: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
+    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Turn_Left_90: 0, U_Turn_Right_90: 0, U_Turn_Left_180: 0, U_Turn_Right_180: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Sleeping: 0, U_Jump: 0, U_Jump_Start: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     else stepGait(this, dt, sp, 1 - idle, wt);
     if (airC && this.jumpT >= 0) { const js = 1 - ss01((this.jumpT - 0.8) / 0.6); wt.U_Jump_Start = js; wt.U_Jump = 1 - js; }
@@ -592,8 +594,10 @@ export class Human {
     }
     { const sl = m.pistol.userData.slide; if (sl) sl.node.position.x = sl.x0 - Math.min(1, this.recoil || 0) * 0.028; }
     if (this.recoil > 0) { this.recoil = Math.max(0, this.recoil - dt * 8); }
-    m.body.position.y = -(this.stanceSet ? 0 : this.crouch * 0.3) - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.swimming ? 0 : 0) - (this.prone && !this.crawling ? 0.62 : 0) - (this.lying ? 0.62 : 0);
-    if (this.punchT > 0) this.punchT -= dt;
+    // CHR-06e: the whole body is lowered or tipped only where no clip holds the pose. The crouch clips take the hips down themselves; a drop
+    // under the stand set while the crouch eased in and out sank the body, feet and all, 8 cm going down and 17 cm getting up
+    const crouchDrop = !this.stanceSet && this.crouch > 0 && !m.clip('U_Crouch_Idle') ? this.crouch * 0.3 : 0;
+    m.body.position.y = -crouchDrop - (m.sitClip ? 0 : (m.sit || 0) * 0.5) - (this.prone && !this.crawling ? 0.62 : 0) - (this.lying && !this.sleepC ? 0.62 : 0);
     const mob = this.body3 && this.G && this.G.mobility, chute = !!(mob && mob.chute) && !this.body3.grounded;
     const freefall = !!this.body3 && !this.body3.grounded && !this.swimming && !this.hang && !chute && !(mob && mob.grap) && (this.vy || 0) < -9;
     this.ffK = damp(this.ffK || 0, freefall ? clamp((-(this.vy || 0) - 9) / 6, 0, 1) : 0, this.body3 && this.body3.grounded ? 14 : 5, dt); this.chK = damp(this.chK || 0, chute ? 1 : 0, 4, dt);
@@ -607,7 +611,7 @@ export class Human {
     m.body.rotation.z = damp(m.body.rotation.z, leanZ, 10, dt);
     // a falling body tips about its hips (the capsule's middle), not its feet
     if (this.ffTip > 0) { m.body.rotation.x = this.ffTip; m.body.position.y += HIP_H * (1 - Math.cos(this.ffTip)); }
-    else m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone && !this.crawling ? 1.35 : this.lying ? -1.5 : (this.punchT > 0 ? 0.35 : 0) + leanX, 14, dt);
+    else m.body.rotation.x = damp(m.body.rotation.x, this.swimming ? 0 : this.prone && !this.crawling ? 1.35 : this.lying && !this.sleepC ? -1.5 : leanX, 14, dt);
     m.body.position.z = -HIP_H * Math.sin(this.ffTip);
     this.group.position.set(this.x, this.y, this.z);
     this.group.rotation.y = this.ry;

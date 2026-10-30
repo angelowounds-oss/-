@@ -21,6 +21,10 @@
 //     one-shot cut to the landing clip's first frame turned bones 70+ deg; the roll clip itself turns a shoulder up to ~28 deg a frame). Falling past 25 m/s the arms and legs are spread (hands at least 2.2 shoulder widths
 //     apart), the body tipped forward 35 to 75 deg, and the wind's flutter moves a hand at most 3 cm a frame; under the canopy both hands are
 //     above the head.
+// (e) no whole-body tricks (CHR-06e), the animation stepped alone: after a punch the body does not tip (it leaned 19 deg for 0.2 s after the
+//     clip); crouching down and back up as game.js eases it, the body is not lowered under the clips (it sank 8 and 17 cm) and the crouch
+//     still takes the hips 30 cm or more down; lying, the Sleeping clip holds the body on its back on the support (no tip, no drop, hips
+//     under 25 cm over it and nothing more than 5 cm under it: it lay 56 cm under before); prone and still, the Crawl clip holds it likewise.
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
@@ -174,6 +178,30 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       reset(); g.land = land0;
       return out;
     };
+    const poses = () => {
+      pl.body3 = null; g.phys.footY = () => NaN; pl.vx = pl.vz = 0; pl.speed = 0; pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.ry = 0;
+      const ease = (to) => { pl.crouch += (to - pl.crouch) * (1 - Math.exp(-10 * dt)); };
+      const loc = (b) => pl.group.worldToLocal(b.getWorldPosition(new THREE.Vector3())), bones = Object.values(B).filter((b) => b && b.isBone);
+      const shape = () => { pl.group.updateMatrixWorld(true); let lo = 9; for (const b of bones) lo = Math.min(lo, loc(b).y); return { hipsCm: +(loc(B.Hips).y * 100).toFixed(0), lowCm: +(lo * 100).toFixed(0) }; };
+      const cm = (v) => +(v * 100).toFixed(1), held = (n) => +((m.act[n] && m.act[n].weight) || 0).toFixed(2), r = {};
+      for (let i = 0; i < 60; i++) anim();
+      const stand = shape();
+      m.playOnce('U_Punch_Jab', false); pl.reactT = 0.42; let rx = 0;   // as game.js's melee plays it
+      for (let i = 0; i < 60; i++) { anim(); rx = Math.max(rx, Math.abs(m.body.rotation.x)); }
+      r.punch = { tiltDeg: deg(rx) };
+      let dn = 0, upd = 0; pl.stance = 1; pl.crouching = true;
+      for (let i = 0; i < 60; i++) { ease(0.65); anim(); dn = Math.min(dn, m.body.position.y); }
+      const low = shape(); pl.stance = 0; pl.crouching = false;
+      for (let i = 0; i < 60; i++) { ease(0); anim(); upd = Math.min(upd, m.body.position.y); }
+      pl.crouch = 0; r.crouch = { downDropCm: cm(dn), upDropCm: cm(upd), hipsDownCm: stand.hipsCm - low.hipsCm };
+      pl.lying = true; for (let i = 0; i < 90; i++) anim();
+      r.lie = { tiltDeg: deg(m.body.rotation.x), dropCm: cm(m.body.position.y), clipW: held('U_Sleeping'), ...shape() };
+      pl.lying = false; for (let i = 0; i < 90; i++) anim();
+      pl.stance = 2; pl.crouching = true; pl.prone = true; for (let i = 0; i < 90; i++) { ease(0.2); anim(); }
+      r.prone = { tiltDeg: deg(m.body.rotation.x), dropCm: cm(m.body.position.y), clipW: held('U_Crawl'), ...shape() };
+      pl.stance = 0; pl.crouching = false; pl.prone = false; pl.crouch = 0; for (let i = 0; i < 90; i++) anim();
+      return r;
+    };
     const cases = {
       walk: { speed: 1.4 }, aimFwd: { speed: 2.6, aim: true }, aimRight: { speed: 2.6, dir: -Math.PI / 2, aim: true }, aimLeft: { speed: 2.6, dir: Math.PI / 2, aim: true },
       aimBack: { speed: 2.6, dir: Math.PI, aim: true }, aimDiag: { speed: 2.6, dir: -Math.PI / 4, aim: true }, aimBackDiag: { speed: 2.6, dir: Math.PI * 0.75, aim: true },
@@ -185,9 +213,10 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.speed = 0; pl.vx = pl.vz = 0;
     const stairsOut = stairs();
     const airOut = air();
+    const posesOut = poses();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));
-    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, gait, turnClips, feet: m.feet };
+    return { move: out, turns, lean: leanOut, stairs: stairsOut, air: airOut, poses: posesOut, gait, turnClips, feet: m.feet };
   });
   const bad = Object.keys(o.move).filter((k) => { const c = o.move[k]; return !(c.slip < 0.25) || !c.dirOk || (k === 'sprint' && c.top !== 'U_Sprint'); });
   for (const k in o.turns) { const t = o.turns[k]; if (!(t.weight > 0.5 && t.way && t.pelvisErr < 10 && t.chestErr < 15 && t.slip < 0.25 && t.slideM < (k === 'back180' ? 1.2 : 0.7))) bad.push(k); }
@@ -199,5 +228,10 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   if (!(A.drop1m.peak < A.drop2_5m.peak)) bad.push('land depth');
   const F = A.freefall; if (!(F.samples > 20 && F.spread >= 2.2 && F.tipDeg >= 35 && F.tipDeg <= 75 && F.flutterCm <= 3)) bad.push('freefall');
   if (!(A.canopy.open && A.canopy.handsUp)) bad.push('canopy');
+  const P = o.poses, flat = (q) => q.tiltDeg < 1 && Math.abs(q.dropCm) < 0.5 && q.clipW > 0.9 && q.hipsCm < 25 && q.lowCm > -5;
+  if (!(P.punch.tiltDeg < 1)) bad.push('punch tilt');
+  if (!(P.crouch.downDropCm > -0.5 && P.crouch.upDropCm > -0.5 && P.crouch.hipsDownCm >= 30)) bad.push('crouch drop');
+  if (!flat(P.lie)) bad.push('lying');
+  if (!flat(P.prone)) bad.push('prone');
   result('motion-realism', bad.length === 0, o, bad.length ? 'off: ' + bad.join(', ') : '');
 });
