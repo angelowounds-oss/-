@@ -14,7 +14,7 @@ pre{white-space:pre-wrap;word-break:break-all;background:#070c11;border:1px soli
 <script type="module">
 import { runAhmedGpu, ahmedEstimate } from 'aether/ahmed-gpu.mjs';
 const $ = id => document.getElementById(id), st = t => { $('st').textContent = t; };
-let nH = 0, adapter = null, device = null, stop = false, result = null, lock = null;
+let nH = 0, adapter = null, device = null, stop = false, result = null, lock = null, lost = false;
 const HQ = new URLSearchParams(location.hash.slice(1)), T = +HQ.get('T') || 12, HRR = +HQ.get('hrr') || .9; // #nH=..&T=..&hrr=.. overrides (defaults 12 L/U, 0.9)
 const OPTS = [16, 24, 32, 48];
 async function setup() {
@@ -34,7 +34,7 @@ $('go').onclick = async () => {
   try { lock = await navigator.wakeLock?.request('screen'); } catch (e) { lock = null; }
   try {
     device = await adapter.requestDevice({ requiredLimits: { maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, maxBufferSize: adapter.limits.maxBufferSize } });
-    device.lost.then(i => { st('GPU 장치가 끊겼습니다: ' + i.message); });
+    device.lost.then(i => { lost = true; st('GPU가 초기화되어 계산이 중단됐습니다. ' + (/HUNG|hung|removed|TDR/i.test(i.message) ? '한 번에 맡긴 계산이 운영체제의 GPU 응답 시간 제한(Windows 약 2초)을 넘은 경우입니다. 페이지를 새로 고친 뒤 한 단계 낮은 해상도로 해 보거나, 다른 프로그램을 닫고 다시 시도하세요.' : '') + ' (' + i.message.slice(0, 160) + ')'); });
     result = await runAhmedGpu(device, { nH, T, hrr: HRR, onProgress: p => {
       if (p.stage === 'topology') st('격자 구성 중 (큰 해상도는 1분 이상 걸릴 수 있음)…');
       else if (p.stage === 'upload') st(`GPU 메모리 확보 중… 셀 ${(p.cells.reduce((a, b) => a + b, 0) / 1e6).toFixed(2)}백만 개`);
@@ -44,7 +44,7 @@ $('go').onclick = async () => {
     const pass = result.CdMean !== null && result.CdMean >= result.ref.band[0] && result.CdMean <= result.ref.band[1];
     st(`${result.complete ? '완료' : '중단됨(부분 결과)'} · Cd ${result.CdMean} ± ${result.CdStd} (실험 0.285, 범위 ${result.ref.band.join('~')}) · ${pass ? '범위 안' : '범위 밖'} · 계산 ${Math.round(result.runS / 60)}분`);
     $('out').textContent = JSON.stringify(result);
-  } catch (e) { st('오류: ' + e.message); $('out').textContent = String(e.stack || e); }
+  } catch (e) { if (!lost) st('오류: ' + e.message); $('out').textContent = String(e.stack || e); }
   finally { $('stop').hidden = true; $('cp').hidden = !result; $('dl').hidden = !result; try { await lock?.release(); } catch (e) { /* already released */ } }
 };
 $('stop').onclick = () => { stop = true; st('현재 구간이 끝나면 멈춥니다…'); };

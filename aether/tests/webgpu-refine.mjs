@@ -4,7 +4,8 @@
 // the wall model; three levels with a moving floor and slip side walls). Headless Chromium, SwiftShader Vulkan adapter (correctness only).
 // Pass (each case, plan P3): relative L2 of the populations over active fluid cells of every level < 1e-3, drag within 1e-3 relative, total mass
 // of the GPU state within 1e-6 of the CPU state (inlet and outlet make the system open, so both change), no device errors.
-// node tests/webgpu-refine.mjs [case ...]   env: STEPS (coarse steps, 20)
+// node tests/webgpu-refine.mjs [case ...]   env: STEPS (coarse steps, 20), BUDGET (invocations per GPU submission; small values check that cutting
+// the work into many submissions changes nothing)
 import fs from 'node:fs'; import http from 'node:http'; import path from 'node:path';
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { CHROME } from './lib.mjs';
@@ -21,15 +22,15 @@ try {
   await page.goto(base + '/tests/lib.mjs'); // any same-origin document
   for (const name of names) {
     const o = CASES[name](), t0 = Date.now(), S = createRefined({ ...o, threads: 1 }), m0 = S.mass(); S.advance(steps); const cpuMs = Date.now() - t0;
-    const res = await page.evaluate(async ({ name, steps }) => {
+    const res = await page.evaluate(async ({ name, steps, budget }) => {
       const { createRefined } = await import('/tools/solver2/refine.mjs'), { createRefineGpu } = await import('/tools/solver2/gpu/refine-webgpu.mjs'), { CASES } = await import('/tests/lib-refine-cases.mjs');
       const a = await navigator.gpu.requestAdapter(), dev = await a.requestDevice({ requiredLimits: { maxStorageBufferBindingSize: a.limits.maxStorageBufferBindingSize, maxStorageBuffersPerShaderStage: Math.min(10, a.limits.maxStorageBuffersPerShaderStage) } }), errs = [];
       dev.addEventListener('uncapturederror', e => errs.push(String(e.error.message)));
       const o = CASES[name](), T = createRefined({ ...o, topologyOnly: true }), G = await createRefineGpu(dev, T, o);
-      G.init(); const t = performance.now(); G.advance(steps); await G.finish(); const ms = performance.now() - t;
+      if (budget) G.budget = budget; G.init(); const t = performance.now(); G.advance(steps); await G.finish(); const ms = performance.now() - t;
       const lv = []; for (let l = 0; l < T.levels.length; l++) lv.push(Array.from(await G.readLevelF(l)));
       return { lv, force: await G.force(), wall: await G.wall(), ms, errs };
-    }, { name, steps });
+    }, { name, steps, budget: +(process.env.BUDGET || 0) });
     // compare populations over active fluid cells, per level; mass of the GPU state before / after (the initial GPU state is the CPU initial state)
     let e2 = 0, a2 = 0, maxD = 0, mG = 0; const perLevel = [];
     S.levels.forEach((L, l) => { let le = 0, la = 0; const g = res.lv[l];

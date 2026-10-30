@@ -258,14 +258,23 @@ var<workgroup> red: array<vec4f, 256>;
   let n = u32(ringC[i]); let dm = rfSum[0]; let jv = vec3f(rfSum[1], rfSum[2], rfSum[3]);
   for (var q = 0u; q < 19u; q++) { f[q * ip.pN + n] += W[q] * (dm + 3.0 * (f32(CX[q]) * jv.x + f32(CY[q]) * jv.y + f32(CZ[q]) * jv.z)); }
 }
-// per level: largest |rho - 1| and |u| over active fluid cells (one workgroup; extremes for the diagnostics)
-@compute @workgroup_size(256) fn extremes(@builtin(local_invocation_id) li: vec3u) {
-  var mx = vec4f(0.0);
-  for (var n = li.x; n < lp.N; n += 256u) { if (flags[n] != 0u) { continue; } var rho = 0.0; var j = vec3f(0.0);
+// per level: largest |rho - 1| and |u| over active fluid cells, in two stages (16384 cells per workgroup, then one workgroup over the partial results):
+// a single workgroup over millions of cells can run past the driver's GPU watchdog
+@group(0) @binding(35) var<storage, read_write> extP: array<vec4f>;
+@compute @workgroup_size(256) fn extremes(@builtin(local_invocation_id) li: vec3u, @builtin(workgroup_id) wg: vec3u, @builtin(num_workgroups) nw: vec3u) {
+  var mx = vec4f(0.0); let b = (wg.x + wg.y * nw.x) * 16384u;
+  for (var t = li.x; t < 16384u; t += 256u) { let n = b + t; if (n >= lp.N) { break; } if (flags[n] != 0u) { continue; } var rho = 0.0; var j = vec3f(0.0);
     for (var q = 0u; q < 19u; q++) { let v = f[q * lp.N + n]; rho += v; j += v * vec3f(f32(CX[q]), f32(CY[q]), f32(CZ[q])); }
     let dr = abs(rho - 1.0); let um = length(j) / rho; if (dr > mx.x) { mx.x = dr; mx.y = f32(n); } if (um > mx.z) { mx.z = um; mx.w = f32(n); } }
   red[li.x] = mx; workgroupBarrier();
-  for (var w = 128u; w > 0u; w >>= 1u) { if (li.x < w) { let a = red[li.x]; let b = red[li.x + w]; red[li.x] = vec4f(select(a.xy, b.xy, b.x > a.x), select(a.zw, b.zw, b.z > a.z)); } workgroupBarrier(); }
+  for (var w = 128u; w > 0u; w >>= 1u) { if (li.x < w) { let a = red[li.x]; let c = red[li.x + w]; red[li.x] = vec4f(select(a.xy, c.xy, c.x > a.x), select(a.zw, c.zw, c.z > a.z)); } workgroupBarrier(); }
+  let wi = wg.x + wg.y * nw.x; if (li.x == 0u && wi < arrayLength(&extP)) { extP[wi] = red[0]; }
+}
+@compute @workgroup_size(256) fn extremesFinal(@builtin(local_invocation_id) li: vec3u) {
+  var mx = vec4f(0.0);
+  for (var t = li.x; t < lp.cnt; t += 256u) { let a = extP[t]; mx = vec4f(select(mx.xy, a.xy, a.x > mx.x), select(mx.zw, a.zw, a.z > mx.z)); }
+  red[li.x] = mx; workgroupBarrier();
+  for (var w = 128u; w > 0u; w >>= 1u) { if (li.x < w) { let a = red[li.x]; let c = red[li.x + w]; red[li.x] = vec4f(select(a.xy, c.xy, c.x > a.x), select(a.zw, c.zw, c.z > a.z)); } workgroupBarrier(); }
   if (li.x == 0u) { rfSum[0] = red[0].x; rfSum[1] = red[0].y; rfSum[2] = red[0].z; rfSum[3] = red[0].w; }
 }
 `;
@@ -281,7 +290,7 @@ export async function createRefineGpu(device, S, o) {
   let bytes = 0; const mk = (data, usage = SU) => { const size = Math.max(16, Math.ceil(data.byteLength / 4) * 4); bytes += size; const b = device.createBuffer({ size, usage }); if (data.byteLength) device.queue.writeBuffer(b, 0, data); return b; };
   const zeros = (n, C = Float32Array) => mk(new C(Math.max(4, n)));
   const uni = ab => mk(ab, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-  const pipes = {}; for (const e of ['initEq', 'macroVel', 'collide', 'pull', 'faces', 'inlet', 'outlet', 'wallModel', 'bouzidi', 'restrictCg', 'fieldMoments0', 'fieldMoments1', 'fillGhosts', 'refluxCoarse', 'refluxFine', 'refluxSum', 'refluxApply', 'extremes'])
+  const pipes = {}; for (const e of ['initEq', 'macroVel', 'collide', 'pull', 'faces', 'inlet', 'outlet', 'wallModel', 'bouzidi', 'restrictCg', 'fieldMoments0', 'fieldMoments1', 'fillGhosts', 'refluxCoarse', 'refluxFine', 'refluxSum', 'refluxApply', 'extremes', 'extremesFinal'])
     pipes[e] = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: e } });
   const bind = (e, map) => device.createBindGroup({ layout: pipes[e].getBindGroupLayout(0), entries: Object.entries(map).map(([b, buf]) => ({ binding: +b, resource: { buffer: buf } })) });
   const hrr = o.hrr < 1 ? o.hrr : 1, les = (o.cs || 0) ** 2 * 18 * Math.SQRT2, U = o.U || 0, io = !!o.inletOutlet, Bl = o.body ? o.body.level : -1, wmOn = !!(o.body && o.body.wallModel);
@@ -314,7 +323,8 @@ export async function createRefineGpu(device, S, o) {
       wallModel: isB && wmOn ? bind('wallModel', { 0: g.lpBc, 2: g.post, 6: g.tauEff, 7: g.tauMin, 13: g.bcCell, 14: g.bcGeo, 15: g.utF, 16: g.uw, 17: g.utau }) : null,
       bouzidi: isB ? bind('bouzidi', { 0: g.lpLinks, 1: g.f, 2: g.post, 11: g.links, 12: g.lfAcc, 16: wmOn ? g.uw : dummy() }) : null,
       extremes: null };
-    g.ext = zeros(4); g.bg.extremes = bind('extremes', { 0: g.lp, 1: g.f, 3: g.flags, 32: g.ext });
+    g.nExt = Math.ceil(N / 16384); g.ext = zeros(4); g.extP = zeros(4 * g.nExt); g.lpExt = lpB(g.nExt);
+    g.bg.extremes = bind('extremes', { 0: g.lp, 1: g.f, 3: g.flags, 35: g.extP }); g.bg.extremesFinal = bind('extremesFinal', { 0: g.lpExt, 32: g.ext, 35: g.extP });
     return g;
   });
   // ---------- per interface (parent P with child level) ----------
@@ -342,8 +352,14 @@ export async function createRefineGpu(device, S, o) {
     g.I = I;
   }
   // ---------- stepping ----------
-  const disp = (c, e, bg, n) => { if (!n || !bg) return; c.setPipeline(pipes[e]); c.setBindGroup(0, bg); const w = Math.ceil(n / 64), x = Math.min(w, 65535); c.dispatchWorkgroups(x, Math.ceil(w / x)); };
-  const one = (c, e, bg) => { c.setPipeline(pipes[e]); c.setBindGroup(0, bg); c.dispatchWorkgroups(1); };
+  // Windows (D3D12) resets the GPU when one submission runs for about 2 s (TDR: DXGI_ERROR_DEVICE_HUNG), so the dispatches are cut into submissions
+  // of about st.budget invocations (default 4 M, a few tens of ms on a desktop GPU); their order is unchanged and the state lives in buffers
+  let enc = null, pass = null, work = 0;
+  const open = clear => { enc = device.createCommandEncoder(); if (clear) enc.clearBuffer(clear); pass = enc.beginComputePass(); work = 0; };
+  const flush = () => { if (!enc) return; pass.end(); device.queue.submit([enc.finish()]); enc = null; pass = null; };
+  const maybeFlush = () => { if (work >= st.budget) flush(); };
+  const disp = (c, e, bg, n) => { if (!n || !bg) return; if (!enc) open(); pass.setPipeline(pipes[e]); pass.setBindGroup(0, bg); const w = Math.ceil(n / 64), x = Math.min(w, 65535); pass.dispatchWorkgroups(x, Math.ceil(w / x)); work += n; };
+  const one = (c, e, bg) => { if (!enc) open(); pass.setPipeline(pipes[e]); pass.setBindGroup(0, bg); pass.dispatchWorkgroups(1); work += 1e4; };
   function adv(c, g, k) {
     const L = g.L, I = g.I;
     if (I) { disp(c, 'restrictCg', I.bg.restrict, I.ncg); disp(c, 'fieldMoments0', I.bg.fm0, I.ns); }
@@ -353,16 +369,17 @@ export async function createRefineGpu(device, S, o) {
     disp(c, 'pull', g.bg.pull, g.N); disp(c, 'faces', g.bg.faces, g.nFace);
     if (L.l === 0 && io) { const nyz = L.n[1] * L.n[2]; disp(c, 'inlet', g.bg.inlet, nyz); disp(c, 'outlet', g.bg.outlet, nyz); }
     if (L.l === Bl) { if (wmOn) disp(c, 'wallModel', g.bg.wallModel, g.nb); disp(c, 'bouzidi', g.bg.bouzidi, g.nL); }
-    if (I) { disp(c, 'fieldMoments1', I.bg.fm1, I.ns); disp(c, 'refluxCoarse', I.bg.rc, I.nrcl); const gc = G[L.child.l]; adv(c, gc, 0); adv(c, gc, 1); one(c, 'refluxSum', I.bg.sum); disp(c, 'refluxApply', I.bg.apply, I.nr); }
+    maybeFlush();
+    if (I) { disp(c, 'fieldMoments1', I.bg.fm1, I.ns); disp(c, 'refluxCoarse', I.bg.rc, I.nrcl); const gc = G[L.child.l]; adv(c, gc, 0); adv(c, gc, 1); one(c, 'refluxSum', I.bg.sum); disp(c, 'refluxApply', I.bg.apply, I.nr); maybeFlush(); }
   }
-  const st = { levels: G, step: 0, subSteps: Bl >= 0 ? 2 ** Bl : 0, bytes };
+  const st = { levels: G, step: 0, subSteps: Bl >= 0 ? 2 ** Bl : 0, bytes, budget: 4e6 };
   // initial state: the CPU instance's populations (tests), or uniform free stream (o.topologyOnly)
   st.upload = () => { for (const g of G) { device.queue.writeBuffer(g.f, 0, Float32Array.from(g.L.f)); device.queue.writeBuffer(g.post, 0, Float32Array.from(g.L.post)); } };
   st.init = () => { const e = device.createCommandEncoder(), c = e.beginComputePass(); for (const g of G) disp(c, 'initEq', g.bg.initEq, g.N); c.end(); device.queue.submit([e.finish()]); };
   // n coarse steps; the momentum exchange is summed over the body level's sub-steps of the last coarse step (as st.force in refine.mjs)
-  st.advance = (n = 1) => { const e = device.createCommandEncoder(); const gB = Bl >= 0 ? G[Bl] : null;
-    for (let s = 0; s < n; s++) { if (gB) e.clearBuffer(gB.lfAcc); const c = e.beginComputePass(); adv(c, G[0], 0); c.end(); }
-    device.queue.submit([e.finish()]); st.step += n; };
+  st.advance = (n = 1) => { const gB = Bl >= 0 ? G[Bl] : null;
+    for (let s = 0; s < n; s++) { flush(); open(gB ? gB.lfAcc : null); adv(null, G[0], 0); }
+    flush(); st.step += n; };
   st.finish = () => device.queue.onSubmittedWorkDone();
   const read = async (src, bytes, C = Float32Array) => { const r = device.createBuffer({ size: bytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }), e = device.createCommandEncoder();
     e.copyBufferToBuffer(src, 0, r, 0, bytes); device.queue.submit([e.finish()]); await r.mapAsync(GPUMapMode.READ); const out = new C(r.getMappedRange().slice(0)); r.unmap(); r.destroy(); return out; };
@@ -378,7 +395,8 @@ export async function createRefineGpu(device, S, o) {
       for (let k = 0; k < 3; k++) { r.pressure[k] += fn * nv[k]; r.friction[k] += f[k] - fn * nv[k]; } }
     return out; };
   st.wall = async () => { if (!wmOn) return null; const g = G[Bl], u = await read(g.utau, 4 * g.nb); let m = 0; for (const v of u) m += v; return { cells: g.nb, utauMean: m / g.nb }; };
-  st.extremes = async () => { const out = []; for (const g of G) { const e = device.createCommandEncoder(), c = e.beginComputePass(); c.setPipeline(pipes.extremes); c.setBindGroup(0, g.bg.extremes); c.dispatchWorkgroups(1); c.end(); device.queue.submit([e.finish()]);
+  st.extremes = async () => { const out = []; for (const g of G) { const e = device.createCommandEncoder(), c = e.beginComputePass(); c.setPipeline(pipes.extremes); c.setBindGroup(0, g.bg.extremes);
+    const x = Math.min(g.nExt, 65535); c.dispatchWorkgroups(x, Math.ceil(g.nExt / x)); c.setPipeline(pipes.extremesFinal); c.setBindGroup(0, g.bg.extremesFinal); c.dispatchWorkgroups(1); c.end(); device.queue.submit([e.finish()]);
     const r = await read(g.ext, 16); out.push({ level: g.L.l, drhoMax: r[0], rhoCell: r[1], umax: r[2], uCell: r[3] }); } return out; };
   return st;
 }
