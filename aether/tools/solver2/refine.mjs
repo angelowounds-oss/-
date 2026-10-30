@@ -263,6 +263,9 @@ export function createRefined(o) {
       B.fcN = new Float64Array(3 * cells.length); B.fcReg = new Int32Array(cells.length); B.fcAcc = new Float64Array(3 * cells.length);
       cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.fcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.fcReg[i] = o.body.region(p, [nv[0] / ln, nv[1] / ln, nv[2] / ln]); });
       B.nReg = Math.max(...B.fcReg) + 1;
+      // reference force of the free-stream pressure (rho = 1 at rest: every link exchanges 2 w_q, the Bouzidi interpolation keeps a uniform state):
+      // it cancels over the closed surface but not per cell or region, so it is removed before the split
+      B.fcRef = new Float64Array(3 * cells.length); for (let l = 0; l < B.nL; l++) { const i = 3 * B.fcIdx[B.links[4 * l]], q = B.links[4 * l + 1]; B.fcRef[i] += 2 * W[q] * cx[q]; B.fcRef[i + 1] += 2 * W[q] * cy[q]; B.fcRef[i + 2] += 2 * W[q] * cz[q]; }
     }
     if (o.body.wallModel) {
       const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
@@ -475,9 +478,10 @@ export function createRefined(o) {
   for (const L of levels) if (L.child) { for (const n of L.cg) { const p = centre(L, L.coord.subarray(3 * n, 3 * n + 3)), [rho, ux, uy, uz] = o.init ? o.init(p) : [1, U, 0, 0]; feqInto(fe, rho, ux, uy, uz); for (let q = 0; q < Q; q++) L.post[q * L.N + n] = fe[q]; } }
   const st = { levels, lat, method, model, step: 0, ramp: 1 };
   st.advance = (n = 1) => { for (let s = 0; s < n; s++) { if (B) { B.forceAcc = [0, 0, 0]; B.forceN = 0; if (B.fcAcc) B.fcAcc.fill(0); } advance(levels[0], 0); st.step++; } };
-  // per region { pressure: [x, y, z], friction: [x, y, z] }, averaged like st.force over the last coarse step (body level lattice units)
+  // per region { pressure: [x, y, z], friction: [x, y, z] } relative to the free-stream pressure, averaged like st.force over the last coarse step
+  // (body level lattice units)
   st.forceRegions = () => { if (!B || !B.fcAcc) return null; const out = Array.from({ length: B.nReg }, () => ({ pressure: [0, 0, 0], friction: [0, 0, 0] }));
-    for (let i = 0; i < B.fcReg.length; i++) { const F = [0, 1, 2].map(k => B.fcAcc[3 * i + k] / B.forceN), nv = [B.fcN[3 * i], B.fcN[3 * i + 1], B.fcN[3 * i + 2]], fn = F[0] * nv[0] + F[1] * nv[1] + F[2] * nv[2], r = out[B.fcReg[i]];
+    for (let i = 0; i < B.fcReg.length; i++) { const F = [0, 1, 2].map(k => B.fcAcc[3 * i + k] / B.forceN - B.fcRef[3 * i + k]), nv = [B.fcN[3 * i], B.fcN[3 * i + 1], B.fcN[3 * i + 2]], fn = F[0] * nv[0] + F[1] * nv[1] + F[2] * nv[2], r = out[B.fcReg[i]];
       for (let k = 0; k < 3; k++) { r.pressure[k] += fn * nv[k]; r.friction[k] += F[k] - fn * nv[k]; } }
     return out; };
   // force averaged over the body level's sub-steps of the last coarse step, in the body level's lattice units
