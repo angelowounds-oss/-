@@ -1,13 +1,15 @@
 // CFD V3 P3: the Ahmed run (bench/ahmed-case.mjs) on the WebGPU solver, for the on-device page dist/AETHER_CFD_AHMED_GPU.html and its headless check.
 // Builds the topology in the page (createRefined, topologyOnly), checks the buffer sizes against the adapter's limits, starts from the free stream and
 // samples drag and lift 8 times per L/U; the drag breakdown and the averages are taken over t >= T / 2 (as bench/ahmed-refined.mjs).
-// runAhmedGpu(device, { nH, T = 12, cs = 0.15, hrr = 0.95, wm = true, wmf = 400, onProgress(info), shouldStop() }) -> result (JSON-safe)
+// runAhmedGpu(device, { nH, T = 12, cs = 0.15, hrr = 0.9, wm = true, wmf = 400, onProgress(info), shouldStop() }) -> result (JSON-safe)
+// hrr 0.9: in tests/pulse-faces.mjs 0.95 lets a box spanning a periodic axis regrow after 3500 coarse steps, 0.9 stays stable through 6000;
+// H/48 needs about 5200 coarse steps for 12 L/U
 import { createRefined } from '../refine.mjs';
 import { createRefineGpu } from './refine-webgpu.mjs';
 import { ahmedCase, AHMED } from '../bench/ahmed-case.mjs';
 // expected cells with ghosts at nH (measured at nH = 12 and 48, cells scale with nH^3): for the size check before anything is built
 export const ahmedEstimate = nH => { const total = 7663128 * (nH / 48) ** 3, finest = 3436992 * (nH / 48) ** 3; return { cells: Math.round(total), bytes: Math.round(total * 176), finestBuffer: Math.round(76 * finest) }; };
-export async function runAhmedGpu(device, { nH, T = 12, cs = .15, hrr = .95, wm = true, wmf = 400, onProgress = () => {}, shouldStop = () => false } = {}) {
+export async function runAhmedGpu(device, { nH, T = 12, cs = .15, hrr = .9, wm = true, wmf = 400, onProgress = () => {}, shouldStop = () => false } = {}) {
   const t0 = performance.now(), say = (stage, extra = {}) => onProgress({ stage, s: (performance.now() - t0) / 1000, ...extra });
   const c = ahmedCase(nH, { cs, hrr, wallModel: wm ? { filter: wmf } : false });
   say('topology');

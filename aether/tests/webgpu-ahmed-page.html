@@ -15,7 +15,7 @@ pre{white-space:pre-wrap;word-break:break-all;background:#070c11;border:1px soli
 import { runAhmedGpu, ahmedEstimate } from 'aether/ahmed-gpu.mjs';
 const $ = id => document.getElementById(id), st = t => { $('st').textContent = t; };
 let nH = 0, adapter = null, device = null, stop = false, result = null, lock = null;
-const HQ = new URLSearchParams(location.hash.slice(1)), T = +HQ.get('T') || 12; // #nH=..&T=.. for checks (default T = 12 L/U)
+const HQ = new URLSearchParams(location.hash.slice(1)), T = +HQ.get('T') || 12, HRR = +HQ.get('hrr') || .9; // #nH=..&T=..&hrr=.. overrides (defaults 12 L/U, 0.9)
 const OPTS = [16, 24, 32, 48];
 async function setup() {
   if (!navigator.gpu) { st('이 브라우저·기기에서는 WebGPU를 쓸 수 없습니다. PC의 최신 Chrome 또는 Edge에서 열어 주세요.'); return; }
@@ -35,7 +35,7 @@ $('go').onclick = async () => {
   try {
     device = await adapter.requestDevice({ requiredLimits: { maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, maxBufferSize: adapter.limits.maxBufferSize } });
     device.lost.then(i => { st('GPU 장치가 끊겼습니다: ' + i.message); });
-    result = await runAhmedGpu(device, { nH, T, onProgress: p => {
+    result = await runAhmedGpu(device, { nH, T, hrr: HRR, onProgress: p => {
       if (p.stage === 'topology') st('격자 구성 중 (큰 해상도는 1분 이상 걸릴 수 있음)…');
       else if (p.stage === 'upload') st(`GPU 메모리 확보 중… 셀 ${(p.cells.reduce((a, b) => a + b, 0) / 1e6).toFixed(2)}백만 개`);
       else { $('pb').style.width = (100 * p.tLU / p.T).toFixed(1) + '%'; st(`진행 ${p.tLU.toFixed(2)} / ${p.T} L/U · Cd ${p.Cd.toFixed(3)} · 남은 시간 약 ${Math.ceil(p.eta / 60)}분 · ${p.mlups.toFixed(0)} MLUPS`); } },

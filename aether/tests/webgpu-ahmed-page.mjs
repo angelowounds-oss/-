@@ -10,8 +10,8 @@ import { CHROME } from './lib.mjs';
 import { createRefined } from '../tools/solver2/refine.mjs';
 import { ahmedCase } from '../tools/solver2/bench/ahmed-case.mjs';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), nH = 12, T = +(process.env.T || .4);
-// CPU reference with the page's defaults (Smagorinsky 0.15, hybrid regularization 0.95, wall model with a 400-step filter)
-const c = ahmedCase(nH, { cs: .15, hrr: .95, wallModel: { filter: 400 } }), S = createRefined({ ...c.o, threads: 4 }), every = Math.max(1, Math.round(c.stepsPerLU / 8)), maxSteps = Math.round(T * c.stepsPerLU), cpu = [];
+// CPU reference with the page's defaults (Smagorinsky 0.15, hybrid regularization 0.9, wall model with a 400-step filter)
+const c = ahmedCase(nH, { cs: .15, hrr: .9, wallModel: { filter: 400 } }), S = createRefined({ ...c.o, threads: 4 }), every = Math.max(1, Math.round(c.stepsPerLU / 8)), maxSteps = Math.round(T * c.stepsPerLU), cpu = [];
 const t0 = Date.now(); while (S.step < maxSteps) { S.advance(Math.min(every, maxSteps - S.step)); const F = S.force; cpu.push({ Cd: 2 * F[0] / (c.Ul * c.Ul * c.A), Cl: 2 * F[1] / (c.Ul * c.Ul * c.A) }); } const cpuS = (Date.now() - t0) / 1000; await S.close();
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--allow-file-access-from-files', '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 let res, txt, copyShown, errs = [];
