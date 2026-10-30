@@ -36,7 +36,7 @@
 // Collision per level: 'bgk', 'trt' (magic 3/16) or 'reg' (regularized, optional Smagorinsky; o.hrr < 1: hybrid regularization; o.recursive: third-order
 // recursive regularization; o.tauBulk: relaxation time of the trace of Pi (bulk viscosity); see refine-kernel.mjs). Level 0 may have an inlet (moving-wall bounce-back,
 // x = 0), an outlet (fixed density, non-equilibrium extrapolation, x = last) and an outlet absorbing layer; other axes periodic.
-// One body (Bouzidi interpolated bounce-back + momentum exchange) on one level. Float64 throughout (method error, not precision, is under test).
+// One body (Bouzidi interpolated bounce-back + momentum exchange) on one level; o.body.region(p, n) adds a pressure / friction breakdown per region. Float64 throughout (method error, not precision, is under test).
 import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { collideRange, streamRange, macroRange } from './refine-kernel.mjs';
@@ -256,6 +256,14 @@ export function createRefined(o) {
       }
     }
     B.links = Int32Array.from(links); B.nL = links.length / 4;
+    // force breakdown (o.body.region(p, n) -> region index): per boundary cell, the summed link momentum exchange split into its component along the
+    // wall normal (pressure) and the rest (friction); summed per region by st.forceRegions()
+    if (o.body.region && o.body.normal) {
+      const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.fcIdx = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.fcIdx[n] = i; });
+      B.fcN = new Float64Array(3 * cells.length); B.fcReg = new Int32Array(cells.length); B.fcAcc = new Float64Array(3 * cells.length);
+      cells.forEach((n, i) => { const p = centre(B, B.coord.subarray(3 * n, 3 * n + 3)), nv = o.body.normal(p), ln = Math.hypot(nv[0], nv[1], nv[2]) || 1; B.fcN.set([nv[0] / ln, nv[1] / ln, nv[2] / ln], 3 * i); B.fcReg[i] = o.body.region(p, [nv[0] / ln, nv[1] / ln, nv[2] / ln]); });
+      B.nReg = Math.max(...B.fcReg) + 1;
+    }
     if (o.body.wallModel) {
       const cells = [...new Set(Array.from({ length: B.nL }, (_, l) => B.links[4 * l]))]; B.bc = Int32Array.from(cells); B.bcIndex = new Int32Array(B.N).fill(-1); cells.forEach((n, i) => { B.bcIndex[n] = i; });
       B.bcN = new Float64Array(3 * cells.length); B.bcY = new Float64Array(cells.length); B.uw = new Float64Array(3 * cells.length); B.utau = new Float64Array(cells.length); B.tauEff = alloc(Float64Array, B.N).fill(B.tau); B.tauMin = alloc(Float64Array, B.N); B.utF = new Float64Array(3 * cells.length).fill(NaN);
@@ -352,6 +360,7 @@ export function createRefined(o) {
         if (qq < .5 && n2 >= 0) v = 2 * qq * pq + (1 - 2 * qq) * post[q * N + n2]; else if (qq >= .5) v = pq / (2 * qq) + (2 * qq - 1) / (2 * qq) * post[oq * N + n]; else v = pq;
         if (B.bc) { const i = B.bcIndex[n], cw = cx[oq] * B.uw[3 * i] + cy[oq] * B.uw[3 * i + 1] + cz[oq] * B.uw[3 * i + 2]; v += (qq >= .5 ? 1 / (2 * qq) : 1) * 6 * W[oq] * cw; }
         f[oq * N + n] = v; const mm = pq + v; fx += cx[q] * mm; fy += cy[q] * mm; fz += cz[q] * mm;
+        if (B.fcAcc) { const i = 3 * B.fcIdx[n]; B.fcAcc[i] += cx[q] * mm; B.fcAcc[i + 1] += cy[q] * mm; B.fcAcc[i + 2] += cz[q] * mm; }
       }
       B.force = [fx, fy, fz]; B.forceAcc[0] += fx; B.forceAcc[1] += fy; B.forceAcc[2] += fz; B.forceN++;
     }
@@ -465,7 +474,12 @@ export function createRefined(o) {
   }
   for (const L of levels) if (L.child) { for (const n of L.cg) { const p = centre(L, L.coord.subarray(3 * n, 3 * n + 3)), [rho, ux, uy, uz] = o.init ? o.init(p) : [1, U, 0, 0]; feqInto(fe, rho, ux, uy, uz); for (let q = 0; q < Q; q++) L.post[q * L.N + n] = fe[q]; } }
   const st = { levels, lat, method, model, step: 0, ramp: 1 };
-  st.advance = (n = 1) => { for (let s = 0; s < n; s++) { if (B) { B.forceAcc = [0, 0, 0]; B.forceN = 0; } advance(levels[0], 0); st.step++; } };
+  st.advance = (n = 1) => { for (let s = 0; s < n; s++) { if (B) { B.forceAcc = [0, 0, 0]; B.forceN = 0; if (B.fcAcc) B.fcAcc.fill(0); } advance(levels[0], 0); st.step++; } };
+  // per region { pressure: [x, y, z], friction: [x, y, z] }, averaged like st.force over the last coarse step (body level lattice units)
+  st.forceRegions = () => { if (!B || !B.fcAcc) return null; const out = Array.from({ length: B.nReg }, () => ({ pressure: [0, 0, 0], friction: [0, 0, 0] }));
+    for (let i = 0; i < B.fcReg.length; i++) { const F = [0, 1, 2].map(k => B.fcAcc[3 * i + k] / B.forceN), nv = [B.fcN[3 * i], B.fcN[3 * i + 1], B.fcN[3 * i + 2]], fn = F[0] * nv[0] + F[1] * nv[1] + F[2] * nv[2], r = out[B.fcReg[i]];
+      for (let k = 0; k < 3; k++) { r.pressure[k] += fn * nv[k]; r.friction[k] += F[k] - fn * nv[k]; } }
+    return out; };
   // force averaged over the body level's sub-steps of the last coarse step, in the body level's lattice units
   Object.defineProperty(st, 'force', { get() { return B ? B.forceAcc.map(v => v / B.forceN) : [0, 0, 0]; } });
   st.mass = () => { let m = 0; for (const L of levels) for (let n = 0; n < L.N; n++) { if (L.mask[n] !== INTERIOR || L.solid[n]) continue; let r0 = 0; for (let q = 0; q < Q; q++) r0 += L.f[q * L.N + n]; m += r0 * L.vol; } return m; };
