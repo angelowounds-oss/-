@@ -10,7 +10,7 @@
 // interface keeps the stencil moments of time t and t + 1 (10 f32 per stencil cell). Refluxing: every link of the three passes (coarse, fine
 // sub-step 0 and 1) writes its packet to a list that one workgroup sums (Kahan); the mean goes back to the ring cells, as refluxApply in refine.mjs.
 // createRefineGpu(device, S, o): S = createRefined(o) (full or topologyOnly), o = the same options. Returns { upload(), init(), advance(n), finish(),
-//   readLevelF(l), force(), forceLinks(), wall(), extremes(), levels }.
+//   readLevelF(l), force(), forceLinks(), forceRegions(), wall(), extremes(), levels, bytes }.
 import { C19 } from './lbm-webgpu.mjs';
 const W19 = C19.map(c => { const s = Math.abs(c[0]) + Math.abs(c[1]) + Math.abs(c[2]); return s === 0 ? 1 / 3 : s === 1 ? 1 / 18 : 1 / 36; });
 const OPP19 = C19.map(c => C19.findIndex(e => e[0] === -c[0] && e[1] === -c[1] && e[2] === -c[2]));
@@ -277,7 +277,7 @@ export async function createRefineGpu(device, S, o) {
   const mod = device.createShaderModule({ code: WGSL }), info = await mod.getCompilationInfo(), errs = info.messages.filter(m => m.type === 'error');
   if (errs.length) throw Error('WGSL: ' + errs.map(e => e.lineNum + ': ' + e.message).join('; '));
   const SU = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
-  const mk = (data, usage = SU) => { const b = device.createBuffer({ size: Math.max(16, Math.ceil(data.byteLength / 4) * 4), usage }); if (data.byteLength) device.queue.writeBuffer(b, 0, data); return b; };
+  let bytes = 0; const mk = (data, usage = SU) => { const size = Math.max(16, Math.ceil(data.byteLength / 4) * 4); bytes += size; const b = device.createBuffer({ size, usage }); if (data.byteLength) device.queue.writeBuffer(b, 0, data); return b; };
   const zeros = (n, C = Float32Array) => mk(new C(Math.max(4, n)));
   const uni = ab => mk(ab, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   const pipes = {}; for (const e of ['initEq', 'macroVel', 'collide', 'pull', 'faces', 'inlet', 'outlet', 'wallModel', 'bouzidi', 'restrictCg', 'fieldMoments0', 'fieldMoments1', 'fillGhosts', 'refluxCoarse', 'refluxFine', 'refluxSum', 'refluxApply', 'extremes'])
@@ -354,7 +354,7 @@ export async function createRefineGpu(device, S, o) {
     if (L.l === Bl) { if (wmOn) disp(c, 'wallModel', g.bg.wallModel, g.nb); disp(c, 'bouzidi', g.bg.bouzidi, g.nL); }
     if (I) { disp(c, 'fieldMoments1', I.bg.fm1, I.ns); disp(c, 'refluxCoarse', I.bg.rc, I.nrcl); const gc = G[L.child.l]; adv(c, gc, 0); adv(c, gc, 1); one(c, 'refluxSum', I.bg.sum); disp(c, 'refluxApply', I.bg.apply, I.nr); }
   }
-  const st = { levels: G, step: 0, subSteps: Bl >= 0 ? 2 ** Bl : 0 };
+  const st = { levels: G, step: 0, subSteps: Bl >= 0 ? 2 ** Bl : 0, bytes };
   // initial state: the CPU instance's populations (tests), or uniform free stream (o.topologyOnly)
   st.upload = () => { for (const g of G) { device.queue.writeBuffer(g.f, 0, Float32Array.from(g.L.f)); device.queue.writeBuffer(g.post, 0, Float32Array.from(g.L.post)); } };
   st.init = () => { const e = device.createCommandEncoder(), c = e.beginComputePass(); for (const g of G) disp(c, 'initEq', g.bg.initEq, g.N); c.end(); device.queue.submit([e.finish()]); };
@@ -368,6 +368,14 @@ export async function createRefineGpu(device, S, o) {
   st.readLevelF = l => read(G[l].f, 4 * 19 * G[l].N);
   st.forceLinks = async () => { const g = G[Bl], a = await read(g.lfAcc, 4 * 3 * g.nL); for (let i = 0; i < a.length; i++) a[i] /= st.subSteps; return a; };
   st.force = async () => { if (Bl < 0) return [0, 0, 0]; const a = await st.forceLinks(), s = [0, 0, 0]; for (let l = 0; l < a.length / 3; l++) for (let d = 0; d < 3; d++) s[d] += a[3 * l + d]; return s; };
+  // drag breakdown per body region (o.body.region): per wall cell, the link momentum exchange minus the free-stream pressure reference, split along
+  // the wall normal (pressure) and the rest (friction), summed per region; the same as st.forceRegions() of refine.mjs
+  st.forceRegions = async () => { const B = levels[Bl]; if (!B || !B.fcIdx) return null; const a = await st.forceLinks(), nc = B.fcReg.length, F = new Float64Array(3 * nc);
+    for (let l = 0; l < B.nL; l++) { const i = 3 * B.fcIdx[B.links[4 * l]]; F[i] += a[3 * l]; F[i + 1] += a[3 * l + 1]; F[i + 2] += a[3 * l + 2]; }
+    const out = Array.from({ length: B.nReg }, () => ({ pressure: [0, 0, 0], friction: [0, 0, 0] }));
+    for (let i = 0; i < nc; i++) { const f = [0, 1, 2].map(k => F[3 * i + k] - B.fcRef[3 * i + k]), nv = [B.fcN[3 * i], B.fcN[3 * i + 1], B.fcN[3 * i + 2]], fn = f[0] * nv[0] + f[1] * nv[1] + f[2] * nv[2], r = out[B.fcReg[i]];
+      for (let k = 0; k < 3; k++) { r.pressure[k] += fn * nv[k]; r.friction[k] += f[k] - fn * nv[k]; } }
+    return out; };
   st.wall = async () => { if (!wmOn) return null; const g = G[Bl], u = await read(g.utau, 4 * g.nb); let m = 0; for (const v of u) m += v; return { cells: g.nb, utauMean: m / g.nb }; };
   st.extremes = async () => { const out = []; for (const g of G) { const e = device.createCommandEncoder(), c = e.beginComputePass(); c.setPipeline(pipes.extremes); c.setBindGroup(0, g.bg.extremes); c.dispatchWorkgroups(1); c.end(); device.queue.submit([e.finish()]);
     const r = await read(g.ext, 16); out.push({ level: g.L.l, drhoMax: r[0], rhoCell: r[1], umax: r[2], uCell: r[3] }); } return out; };

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AETHER Ahmed 검증 (GPU)</title>
+<!--__IMPORTMAP__-->
+<style>:root{--bg:#0b1016;--fg:#e8f1f6;--mut:#8ba0ae;--ac:#6fd4ff;--bd:#223}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,"Apple SD Gothic Neo",sans-serif;word-break:keep-all}
+h1{font-size:20px;margin:0 0 8px}small,.mut{color:var(--mut)}button{min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--bd);background:#131c25;color:var(--fg);font:600 15px inherit;margin:4px 8px 4px 0}
+button.pri{background:var(--ac);color:#04121c;border:0}button.sel{outline:2px solid var(--ac)}button:disabled{opacity:.4}
+pre{white-space:pre-wrap;word-break:break-all;background:#070c11;border:1px solid var(--bd);border-radius:10px;padding:10px;font:12px/1.45 ui-monospace,monospace;max-height:50vh;overflow:auto}
+.bar{height:8px;background:#1a2530;border-radius:4px;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;width:0;background:var(--ac)}</style></head>
+<body><h1>Ahmed 몸체 검증 (GPU)</h1>
+<p><small>AETHER 다음 솔버(격자 볼츠만, 4단계 세분화, 벽 모델)로 Ahmed 몸체(25°)의 항력 계수를 이 기기의 GPU에서 계산합니다. 실험값은 0.285이고, 합격 범위는 ±15 %입니다. 계산하는 동안 화면을 켜 두고 다른 앱으로 넘어가지 마세요. 끝나면 결과를 복사해서 전달해 주세요.</small></p>
+<div id="res"></div><div id="dev" class="mut"></div>
+<p><button id="go" class="pri" disabled>계산 시작</button><button id="stop" hidden>중단</button><button id="cp" hidden>결과 복사</button><button id="dl" hidden>파일 저장</button></p>
+<div class="bar"><i id="pb"></i></div><div id="st" class="mut">해상도를 고르세요</div><pre id="out" hidden></pre>
+<script type="module">
+import { runAhmedGpu, ahmedEstimate } from 'aether/ahmed-gpu.mjs';
+const $ = id => document.getElementById(id), st = t => { $('st').textContent = t; };
+let nH = 0, adapter = null, device = null, stop = false, result = null, lock = null;
+const HQ = new URLSearchParams(location.hash.slice(1)), T = +HQ.get('T') || 12; // #nH=..&T=.. for checks (default T = 12 L/U)
+const OPTS = [16, 24, 32, 48];
+async function setup() {
+  if (!navigator.gpu) { st('이 브라우저·기기에서는 WebGPU를 쓸 수 없습니다. PC의 최신 Chrome 또는 Edge에서 열어 주세요.'); return; }
+  adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }); if (!adapter) { st('GPU 어댑터를 찾지 못했습니다.'); return; }
+  const lim = adapter.limits, maxBuf = Math.min(lim.maxStorageBufferBindingSize, lim.maxBufferSize), info = adapter.info || {};
+  $('dev').textContent = `GPU: ${[info.vendor, info.architecture, info.description].filter(Boolean).join(' ') || '정보 없음'}${info.isFallbackAdapter ? ' (소프트웨어 대체: 매우 느림)' : ''} · 버퍼 한도 ${(maxBuf / 2 ** 20).toFixed(0)} MiB`;
+  for (const n of OPTS) { const e = ahmedEstimate(n), b = document.createElement('button'), fits = e.finestBuffer <= maxBuf;
+    b.textContent = `H/${n} · 약 ${(e.bytes / 2 ** 30).toFixed(2)} GB${fits ? '' : ' · 한도 초과'}`; b.disabled = !fits;
+    b.onclick = () => { nH = n; for (const x of $('res').children) x.classList.toggle('sel', x === b); $('go').disabled = false; st(`H/${n} 선택. 셀 약 ${(e.cells / 1e6).toFixed(1)}백만 개, GPU 메모리 약 ${(e.bytes / 2 ** 30).toFixed(2)} GB 필요. 기기 메모리가 부족하면 시작 단계에서 오류가 납니다.`); };
+    $('res').appendChild(b); }
+  st('해상도를 고르세요. 0.285와의 비교에는 H/48이 필요하고(PC급 GPU), H/32는 중간 점검용입니다.');
+  if (HQ.get('nH')) { nH = +HQ.get('nH'); $('go').disabled = false; st(`H/${nH}, ${T} L/U (주소에서 지정)`); }
+}
+$('go').onclick = async () => {
+  $('go').disabled = true; $('stop').hidden = false; $('out').hidden = false; stop = false; result = null; for (const x of $('res').children) x.disabled = true;
+  try { lock = await navigator.wakeLock?.request('screen'); } catch (e) { lock = null; }
+  try {
+    device = await adapter.requestDevice({ requiredLimits: { maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, maxBufferSize: adapter.limits.maxBufferSize } });
+    device.lost.then(i => { st('GPU 장치가 끊겼습니다: ' + i.message); });
+    result = await runAhmedGpu(device, { nH, T, onProgress: p => {
+      if (p.stage === 'topology') st('격자 구성 중 (큰 해상도는 1분 이상 걸릴 수 있음)…');
+      else if (p.stage === 'upload') st(`GPU 메모리 확보 중… 셀 ${(p.cells.reduce((a, b) => a + b, 0) / 1e6).toFixed(2)}백만 개`);
+      else { $('pb').style.width = (100 * p.tLU / p.T).toFixed(1) + '%'; st(`진행 ${p.tLU.toFixed(2)} / ${p.T} L/U · Cd ${p.Cd.toFixed(3)} · 남은 시간 약 ${Math.ceil(p.eta / 60)}분 · ${p.mlups.toFixed(0)} MLUPS`); } },
+      shouldStop: () => stop });
+    result.device = { gpu: $('dev').textContent, userAgent: navigator.userAgent };
+    const pass = result.CdMean !== null && result.CdMean >= result.ref.band[0] && result.CdMean <= result.ref.band[1];
+    st(`${result.complete ? '완료' : '중단됨(부분 결과)'} · Cd ${result.CdMean} ± ${result.CdStd} (실험 0.285, 범위 ${result.ref.band.join('~')}) · ${pass ? '범위 안' : '범위 밖'} · 계산 ${Math.round(result.runS / 60)}분`);
+    $('out').textContent = JSON.stringify(result);
+  } catch (e) { st('오류: ' + e.message); $('out').textContent = String(e.stack || e); }
+  finally { $('stop').hidden = true; $('cp').hidden = !result; $('dl').hidden = !result; try { await lock?.release(); } catch (e) { /* already released */ } }
+};
+$('stop').onclick = () => { stop = true; st('현재 구간이 끝나면 멈춥니다…'); };
+$('cp').onclick = async () => { try { await navigator.clipboard.writeText($('out').textContent); $('cp').textContent = '복사됨'; } catch (e) { $('cp').textContent = '복사 실패: 아래 글자를 길게 눌러 복사'; } };
+$('dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([$('out').textContent], { type: 'application/json' })); a.download = `aether-ahmed-H${nH}.json`; a.click(); };
+window.__ahmed = { get result() { return result; } };
+setup();
+</script></body></html>
