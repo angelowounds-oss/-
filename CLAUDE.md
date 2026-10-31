@@ -13,6 +13,8 @@
 ```bash
 cd build && npm i && cd ..       # 의존성 (build/node_modules)
 node build/build.mjs [--zip]     # 빌드 (월드를 구워 game/world/base/ 와 high/ 에 시·도별 파일로; WORLD=small 이면 굽지 않음) → dist/NeonCity/ (--zip 이면 dist/NeonCity-<날짜>-<커밋>.zip, DEV=1 이면 비압축)
+REGIONS=seoul,incheon node build/build.mjs   # 그 시·도와 core만 굽고 싣는다(빠진 지역은 페이지가 계산, ADR-0036)
+node tests/tools/region-check.cjs <id>     # 그 시·도를 부팅해 오류·NaN·식생·화면 확인 (GAME_DIR로 빌드 선택)
 node tests/run.cjs quick         # 커밋 전 최소 확인 (약 5분)
 node tests/run.cjs all           # 렌더링·성능·월드를 건드렸으면 (약 16분, 2026-10-09 컨테이너 기준)
 node tests/run.cjs --only <이름> # 테스트 하나

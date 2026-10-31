@@ -57,6 +57,7 @@
 6. **지역 하나만 굽고 확인할 수 있게 한다.**
    - `REGIONS=seoul,incheon node build/build.mjs`: 그 지역과 core만 굽고 싣는다. 빠진 지역의 지면은 페이지가 직접 계산한다(`WORLD=small`과 같은 경로).
    - `node tests/tools/region-check.cjs <id>`: 그 지역의 대표 도시에서 부팅해 수치와 화면을 남긴다.
+   - 21d 확인: `REGIONS=incheon` 빌드에서 인천과 부산 모두 오류 0, 지면 NaN 0이다. 빠진 부산을 페이지가 계산한 식생 수는 구운 빌드와 같다(198/554/491). 식생은 전에는 빠진 타일을 비워 두었는데 21d에서 생성기로 바꿨다. 수치는 `docs/backlog/WLD.md` WLD-21d에 있다.
 
 ## 순서 (WLD-21 하위 티켓, `docs/backlog/WLD.md`)
 수도권 시범(21a~21d) → 나머지 14개 시·도(21e).

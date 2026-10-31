@@ -12,20 +12,21 @@ import { onCountryRoad } from './countryroads.js';
 // (a silhouette drawn in the fragment shader, no texture); trunks within 24 m of the player are collision boxes. Everything is created at start (count 0)
 // so no program compiles during play.
 const NV = 25 * VT, OX = VEG_ORIGIN.x, OZ = VEG_ORIGIN.z;   // the cell grid in the local frame (ADR-0017)
-let VEG = null;
+let VEG = null, HAVE = null;   // HAVE: which 4096 m tiles came from the bake (a build of some regions only, ADR-0036, leaves the others out)
 export async function loadVeg(wd) {
   const keys = wd.keys('veg/'); if (!keys.length) return 0;
-  VEG = new Uint8Array(NV * NV);
+  VEG = new Uint8Array(NV * NV); HAVE = new Uint8Array(25 * 25);
   for (let a = 0; a < keys.length; a += 24) await Promise.all(keys.slice(a, a + 24).map(async (k) => {
     const [i, j] = k.slice(4).split('_').map(Number), v = (await wd.get(k)).v; wd.drop(k);
     for (let r = 0; r < VT; r++) VEG.set(v.subarray(r * VT, (r + 1) * VT), (j * VT + r) * NV + i * VT);
+    HAVE[j * 25 + i] = 1;
   }));
   return keys.length;
 }
 const SYNTH = new Map();   // without baked data (WORLD=small, tests): the cell byte is computed on first use
 const byteAt = (cx, cz) => {
   if (cx < 0 || cz < 0 || cx >= NV || cz >= NV) return 0;
-  if (VEG) return VEG[cz * NV + cx];
+  if (VEG && HAVE[((cz / VT) | 0) * 25 + ((cx / VT) | 0)]) return VEG[cz * NV + cx];
   const k = cz * NV + cx; let b = SYNTH.get(k); if (b === undefined) { b = vegCell(OX + (cx + 0.5) * CELL, OZ + (cz + 0.5) * CELL); SYNTH.set(k, b); if (SYNTH.size > 20000) SYNTH.clear(); } return b;
 };
 const hash = (a, b, c) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1) ^ Math.imul(c + 1, 0x9e3779b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };

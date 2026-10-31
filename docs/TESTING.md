@@ -86,6 +86,15 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 - 실기기: `NeonCity.exe`로 연 창의 주소 끝에 `?view=3&q=3`을 붙여 열고(또는 http://127.0.0.1:47820/?view=3&q=3) 시작하면 그 장면에 카메라가 고정되고 HUD가 숨는다(사진 모드의 촬영 버튼으로 저장).
 - 시작 전에 `Math.random`을 고정 시드로 바꾸고(`openGame({init})`), 땅 타일과 도시 근거리 타일이 다 들어올 때까지(최대 600프레임) 기다린다.
 
+## 지역 확인 (WLD-21d, ADR-0036)
+- `[GAME_DIR=<빌드>/game] [OUT=그림.jpg] node tests/tools/region-check.cjs <id>`: 그 시·도의 상세 도시(없으면 시청)로 가서 4초를 진행한다. 결과 한 줄에 다음을 남긴다.
+  - 페이지 오류
+  - 실린 월드 파일, 그 지역 파일(`<id>.pak`)이 실렸는지
+  - 주변 16 m 타일 25개의 출처(그 지역 파일 / 다른 구운 파일 / 없음 = 페이지가 계산)
+  - 4 km 격자 400점에서 지면 높이가 NaN인 수
+  - 화면 한 장
+- 합격: 오류 0, NaN 0. 지역 하나만 구운 빌드(`REGIONS=<id> node build/build.mjs`)에서 그 지역과 빠진 지역을 하나씩 확인한다.
+
 ## 새 테스트 작성 규칙
 - `tests/e2e/<이름>.test.cjs`: `run(name, {q, width, height}, async ({page}) => { … result(name, pass, metrics) })`. 게임을 손으로 진행할 때는 먼저 `freeze(page)`(rAF 루프 정지, 진짜 update는 `window.__upd`).
 - 픽셀 비교는 `shot(page)` + `pixelDiff`. GPU 시간은 재지 않는다. 시간 측정은 렌더를 끄고(`g.eng.render = () => {}`) 한다.

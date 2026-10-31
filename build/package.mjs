@@ -11,7 +11,7 @@ const crlf = (s) => s.replace(/\r?\n/g, '\r\n');   // Notepad on older Windows s
 
 // README.txt at the top of the folder: what to double-click, the first-run warning, where saves live, what to do when it does not start.
 export function writeReadme(dist, info) {
-  const t = `NeonCity (네온 시티)  —  빌드 ${info.date} (${info.commit})
+  const t = `NeonCity (네온 시티)  —  빌드 ${info.date} (${info.commit})${info.regions ? `  —  일부 지역만 구움: ${info.regions.join(', ')}` : ''}
 
 [실행]
 1. 이 zip의 압축을 모두 풉니다 (zip 안에서 바로 실행하면 게임 파일을 찾지 못합니다).

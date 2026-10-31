@@ -51,6 +51,11 @@ for (const f of closure) if (/^src\/regions\/(?!index)/.test(f)) bad.push(['regi
 if (closure.has('src/cityrules.js')) bad.push(['a bake job reads cityrules.js: the rules must enter the hash']);
 for (const f of ['src/koreadem.js', 'src/osmroads.js', 'src/korerivers.js']) if (!sourcesOf(jobs.find((j) => j.key === 't16/12_12').src).includes(f)) bad.push(['import not followed', f]);
 
+// ---- a build of some provinces (REGIONS=, WLD-21d): their chunks and the core file's, under the same hashes (the cache serves both builds)
+const only = jobsFor({ pack: true, regions: ['incheon'] }), fullHash = new Map(jobs.map((j) => [j.tier + ':' + j.key, jobHash(j)]));
+if (only.some((j) => j.region && j.region !== 'sea' && j.region !== 'incheon') || only.length !== per.core + per.sea + per.incheon) bad.push(['REGIONS=incheon jobs', only.length]);
+if (only.some((j) => jobHash(j) !== fullHash.get(j.tier + ':' + j.key))) bad.push(['REGIONS=incheon hashes differ from the full build']);
+
 // ---- a change to one region file redoes only what reads it
 const h0 = new Map(jobs.map((j) => [j.tier + ':' + j.key, jobHash(j)]));
 const changed = () => { const o = new Set(); for (const j of jobsFor({ pack: true })) if (jobHash(j) !== h0.get(j.tier + ':' + j.key)) o.add(j.key === 'core' ? 'core' : j.gen === 'citytile' ? 'city/' + j.id : j.key.split('/')[0]); return [...o].sort().join(','); };
@@ -71,5 +76,5 @@ for (const [id, s] of b0.layouts) if (id !== 'airfield' && b1.layouts.get(id) !=
 if (b0.tile !== b1.tile) bad.push(['style of incheon changed the ground tile under it', `t16/${T.i}_${T.j}`]);
 if (b0.veg !== b1.veg) bad.push(['style of incheon changed the vegetation under it']);
 
-console.log('RESULT ' + JSON.stringify({ test: 'regions', pass: bad.length === 0, metrics: { provinces: REGIONS.length, files: files.length, cities: seen.size, jobs: jobs.length, sources: closure.size, perRegion: per, redone: cases }, note: bad.slice(0, 5).map((b) => b.join(' ')).join(' | ') }));
+console.log('RESULT ' + JSON.stringify({ test: 'regions', pass: bad.length === 0, metrics: { onlyIncheon: only.length, provinces: REGIONS.length, files: files.length, cities: seen.size, jobs: jobs.length, sources: closure.size, perRegion: per, redone: cases }, note: bad.slice(0, 5).map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

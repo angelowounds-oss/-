@@ -39,7 +39,9 @@ const regionDeps = () => {
   const place = sha(JSON.stringify(PROVINCES.map((r) => without(r.data, new Set([...CITY_OWN, ...RUNTIME]))))), of = (r) => JSON.stringify(without(r?.data, RUNTIME));
   return { place, all: sha(place + PROVINCES.map(of).join('\n')), of: (id) => sha(place + of(PROVINCES.find((r) => r.id === id))) };
 };
-export function jobsFor({ pack = false } = {}) {
+// `regions` (ids of src/regions/index.js IDS): only the chunks of those provinces and the core file's (the core chunk and the sea); the page
+// computes the ground, vegetation and city detail of the others itself (REGIONS= builds, WLD-21d)
+export function jobsFor({ pack = false, regions = null } = {}) {
   // `region`: the province a chunk belongs to (the file it goes into, WLD-21c), null = the core. A city's is its file's, else where its city
   // hall is (its wished place: the placement may push it off by up to 30 km, the airport city lies 13 km south of Incheon's hall). A tile
   // goes by its centre, and the ground a city flattens (1.15 r) goes with the city, so a province's file holds the ground of its own towns
@@ -60,7 +62,7 @@ export function jobsFor({ pack = false } = {}) {
     const region = cityRegion(id), dep = D.of(region);
     for (const [i, j] of CITY_TILES[id]) out.push({ key: `city/${id}/${i}_${j}`, gen: 'citytile', tier: hi ? 'pack' : 'embed', id, i, j, hi, region, dep, src: CITY_SRC });
   }
-  return out;
+  return regions ? out.filter((x) => !x.region || x.region === 'sea' || regions.includes(x.region)) : out;
 }
 
 // A job's sources are its listed files and every module they import, followed through `import ... from './x.js'` and the bake's
@@ -98,8 +100,8 @@ if (!isMainThread && workerData?.bakeWorker) {
 }
 
 // returns {embedded: Uint8Array (container), pack: Map(file -> Uint8Array) | null, manifest}
-export async function bake({ pack = false, jobs: given = null, cache = true, threads = Math.max(1, Math.min(os.cpus().length, 4)) } = {}) {
-  const jobs = given || jobsFor({ pack }), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
+export async function bake({ pack = false, regions = null, jobs: given = null, cache = true, threads = Math.max(1, Math.min(os.cpus().length, 4)) } = {}) {
+  const jobs = given || jobsFor({ pack, regions }), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
   const todo = jobs.filter((j) => pack || j.tier === 'embed'), results = new Map(), miss = [];
   for (const j of todo) {
     const f = path.join(dir, j.key.replace(/[^\w.-]/g, '_') + '-' + jobHash(j) + '.json');

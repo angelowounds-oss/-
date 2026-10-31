@@ -7,8 +7,10 @@ import { writeReadme, writeLicences, zipDist, buildInfo } from './package.mjs';
 // files, the baked world and the high pack). The launcher serves game/ on 127.0.0.1 and opens it in an app window.
 // usage: node build/build.mjs [--zip]   --zip also makes dist/NeonCity-<date>-<commit>.zip for delivery
 // env: DIST=<folder> (default dist/NeonCity), WORLD=small (no baked world: the page generates it), PACK=0 (no high pack), LAUNCHER=0 (no
-// launcher), DEV=1 (unminified code)
+// launcher), DEV=1 (unminified code), REGIONS=seoul,incheon (bake only those provinces and the core: the page computes the rest; ADR-0036)
 const DIST = process.env.DIST || 'dist/NeonCity', GAME = path.join(DIST, 'game'), small = process.env.WORLD === 'small';
+const regions = process.env.REGIONS ? process.env.REGIONS.split(',').map((r) => r.trim()).filter(Boolean) : null;
+if (regions) { const { IDS } = await import('../src/regions/index.js'), bad = regions.filter((r) => !IDS.some(([id]) => id === r)); if (bad.length) { console.error('REGIONS: no such province:', bad.join(','), '(src/regions/index.js)'); process.exit(1); } }
 // every shipped file is listed with its licence (ADR-0028): an unlisted file, a changed one or a licence outside the allowed list stops the build
 { const { check } = await import('./assets/fetch.mjs'), m = check(); if (m.errors.length) { for (const e of m.errors) console.error('asset:', e); process.exit(1); } }
 // the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
@@ -37,7 +39,7 @@ fs.writeFileSync(path.join(GAME, 'index.html'), fs.readFileSync('src/template.ht
 // it, it carried 8 m ground up to 1.4 km off the base ground and city detail of old layouts (BLD-07)
 const PACK = 'build/baked/pack', withPack = !small && process.env.PACK !== '0';
 // Both are a folder of files by province (ADR-0036): world/base/ and world/high/
-if (!small) { const r = await bake({ pack: withPack }); writeBase(r, path.join(GAME, 'world', 'base')); if (r.pack) writePack(r); }
+if (!small) { const r = await bake({ pack: withPack, regions }); writeBase(r, path.join(GAME, 'world', 'base')); if (r.pack) writePack(r); }
 // the high pack (detail.js): the world part just baked and the asset pack of build/assets/pack.mjs
 if (withPack && fs.existsSync(path.join(PACK, 'index.json'))) {
   const idx = JSON.parse(fs.readFileSync(path.join(PACK, 'index.json'), 'utf8')), HIGH = path.join(GAME, 'world', 'high'); fs.mkdirSync(HIGH, { recursive: true });
@@ -51,7 +53,7 @@ if (process.env.LAUNCHER !== '0') {
   if (go) execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', path.resolve(DIST, 'NeonCity.exe'), '.'], { cwd: 'launcher', stdio: 'inherit', env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
   else console.warn('Go not found: no NeonCity.exe (https://go.dev/dl/)');
 }
-const info = buildInfo();
+const info = { ...buildInfo(), regions };
 writeReadme(DIST, info); writeLicences(GAME);
 
 // sizes by part
