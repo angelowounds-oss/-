@@ -337,4 +337,8 @@
   - 테스트 수정:
     - `worldmap`: `viaRegion` 도시는 평탄원끼리만 겹치지 않으면 된다(1.15 (r+r)). 지도에서 서울과 8 km 떨어져 있다.
     - `neon-connectors`: 서울 연결로 4개만 센다. 공항 연결로는 22b의 `unit/incheon-roads`에서 본다.
+  - e2e (전체 다시 굽기 빌드 169.1 MB, 하나씩): deck-spawn, highways 통과. region-drive, highway-drive, world-perf는 실패하지만 이전 빌드(`d21d-full`)에서도 같은 값으로 실패한다.
+    - region-drive: 자동 주행 차가 24 m에서 부서진다. `osm:motorway:100:2` 교량 상판이 지면보다 24 m 높고(22b의 고가 과다), 페이지의 물리 지면은 그 위 33~39 m를 돌려준다. 22b에서 다시 본다.
+    - world-perf: 항구 도시 삼각형 438만(한도 320만). 이전 빌드는 441만이다. 공항 도시는 부산과 상관이 없다.
+    - region-drive와 highway-drive의 첫 실행은 브라우저가 닫혀 끝났다. 다시 돌리니 위와 같은 실패로 재현됐다.
   - `unit/roadnet`은 이 티켓 전에도 실패했다("grading off the surface" 18/400). 이번에는 27이다. 늘어난 9개는 컴파일 지역이 없을 때만 생기는 `hw:0`이 공항 링과 만나는 분기점 근처다. 나머지는 원래 있던 큰 편차(−148 m 등)로, 테스트가 평평한 50 m 지면을 넣어 생긴다. 따로 고쳐야 한다.
