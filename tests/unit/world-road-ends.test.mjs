@@ -19,7 +19,8 @@ else {
     }
   });
   m.ends = ends; m.danglingInner = inner; m.points = pts; m.sharp = sharp; m.sharpShare = +(sharp / pts).toFixed(4); m.dupPoints = dup;
-  if (inner > 80) bad.push(['dangling ends inside the region', inner]);
+  // at 1:1 every class of OpenStreetMap road is in the region (not only the arterials), and real tertiary / service roads end in dead ends: 1.5% of the ends
+  if (inner > Math.max(80, ends * 0.015)) bad.push(['dangling ends inside the region', inner]);
   if (sharp / pts > 0.005) bad.push(['sharp bends', m.sharpShare]);
   if (dup / pts > 0.001) bad.push(['points closer than 2 m', dup]);
   console.log('RESULT ' + JSON.stringify({ test: 'world-road-ends', pass: bad.length === 0, metrics: m, note: bad.map((x) => x.join(' ')).join(' | ') }));

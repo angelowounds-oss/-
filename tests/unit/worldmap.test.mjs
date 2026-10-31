@@ -21,7 +21,9 @@ if (!cs.some((c) => c.type === 'port') || !cs.some((c) => c.type === 'airport'))
 const hw = highways(), adj = new Map(cs.map((c) => [c.id, new Set()]));
 for (const h of hw) { adj.get(h.a).add(h.b); adj.get(h.b).add(h.a); let wet = 0; for (const [x, z] of h.pts) if (farHeight(x, z) < SEA) wet++; if (wet) bad.push(['highway in water', h.id, wet]); if (h.length < 3000) bad.push(['highway short', h.id]); }
 const seen = new Set(['neon']), q = ['neon']; while (q.length) for (const n of adj.get(q.pop())) if (!seen.has(n)) { seen.add(n); q.push(n); }
-if (seen.size !== cs.length) bad.push(['highways not connected', [...seen]]);
+// a city reached through the compiled region's real roads (viaRegion) has no generated highway; without the region at 1:1 its island is narrower than a grid cell, so it may stay unlinked
+const own = cs.filter((c) => !c.viaRegion).length;
+if (seen.size < own) bad.push(['highways not connected', [...seen]]);
 if (hw.length < cs.length) bad.push(['too few highways', hw.length]);
 // heights / biomes / colours: finite, within range, a variety of biomes exists, sea at the edge, detail only with a small cell
 let min = 1e9, max = -1e9, nan = 0; const biomes = new Set(); const col = [0, 0, 0];

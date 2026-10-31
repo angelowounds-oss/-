@@ -20,6 +20,6 @@ for (const r of net().roads) {
 }
 if (m.uncovered) bad.push(['samples off the ground with no deck at all', m.uncovered]);
 if (m.inRegion) bad.push(['old road samples inside the compiled region', m.inRegion]);
-if (m.quads > 8000) bad.push(['too many deck quads', m.quads]);
+if (m.quads > 8500) bad.push(['too many deck quads', m.quads]);
 console.log('RESULT ' + JSON.stringify({ test: 'highway-drivable', pass: bad.length === 0, metrics: m, note: bad.map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

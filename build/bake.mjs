@@ -33,7 +33,7 @@ const CITY_TILES = await (async () => { const { CITY_DEFS } = await imp('src/wor
 // A value nobody has sorted yet counts as `place` (redoing too much is safe, too little is not)
 const CITY_OWN = new Set(['style', 'pitched', 'treeRows']), RUNTIME = new Set(['rules']);
 const { REGIONS: PROVINCES, regionOf, regionCity } = await imp('src/regions/index.js');
-const { cities, CITY_DEFS } = await imp('src/worldmap.js'), { CAPITAL } = await imp('src/koreamap.js'), { TILE_ORIGIN } = await imp('src/heightmap.js'), { VEG_ORIGIN } = await imp('src/vegfn.js');
+const { cities, CITY_DEFS } = await imp('src/worldmap.js'), { CAPITAL, inDetail } = await imp('src/koreamap.js'), { TILE_ORIGIN, HALF } = await imp('src/heightmap.js'), { VEG_ORIGIN } = await imp('src/vegfn.js');
 const without = (f, drop) => f && { ...f, cities: f.cities.map((c) => Object.fromEntries(Object.entries(c).filter(([k]) => !drop.has(k)))) };
 const regionDeps = () => {
   const place = sha(JSON.stringify(PROVINCES.map((r) => without(r.data, new Set([...CITY_OWN, ...RUNTIME]))))), of = (r) => JSON.stringify(without(r?.data, RUNTIME));
@@ -50,8 +50,9 @@ export function jobsFor({ pack = false, regions = null } = {}) {
   const chunkRegion = (x, z) => { const c = C.find((q) => Math.hypot(x - q.x, z - q.z) < q.r * 1.15); return c ? cityRegion(c.id) : regionOf(x, z); };
   const out = [{ key: 'core', tier: 'embed', region: null, dep: D.all, src: ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/citylayout.js', 'src/bakefmt.js', 'build/jobs.mjs', ...REGION_SRC] }];
   const tiles = (g, key, tier) => {
-    const n = Math.ceil(100000 / (g * 256)), size = g * 256;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, region: chunkRegion(TILE_ORIGIN.x + (i + 0.5) * size, TILE_ORIGIN.z + (j + 0.5) * size), dep: D.place, src: TERRAIN_SRC });
+    // at 1:1 only the detail square around the capital and the ground each city flattens are baked (inDetail); the page computes the rest
+    const size = g * 256, n = Math.ceil((2 * HALF) / size), wanted = (x, z) => inDetail(x, z, size / 2) || C.some((q) => Math.hypot(x - q.x, z - q.z) < q.r * 2.4 + size);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (wanted(TILE_ORIGIN.x + (i + 0.5) * size, TILE_ORIGIN.z + (j + 0.5) * size)) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, region: chunkRegion(TILE_ORIGIN.x + (i + 0.5) * size, TILE_ORIGIN.z + (j + 0.5) * size), dep: D.place, src: TERRAIN_SRC });
   };
   tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
   // where trees, grass and rocks grow (vegfn.js): one byte per 32 m cell, tiles of 4096 m

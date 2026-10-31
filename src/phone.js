@@ -82,7 +82,7 @@ export class Phone {
     } else if (this.tab === 'set') {
       const slot = +(localStorage.getItem('neon_slot') || 1);
       for (let s = 1; s <= 3; s++) {
-        const raw = localStorage.getItem(`neon_city_v9_${s}`); let info = '비어 있음'; try { const d = JSON.parse(raw); if (d) info = `$${d.cash | 0} · 미션 ${d.mission ?? 0}`; } catch (e) { /* ignore */ }
+        const raw = localStorage.getItem(`korea11_v1_${s}`); let info = '비어 있음'; try { const d = JSON.parse(raw); if (d) info = `$${d.cash | 0} · 미션 ${d.mission ?? 0}`; } catch (e) { /* ignore */ }
         this.row(`슬롯 ${s}${s === slot ? ' (현재)' : ''}`, info, [['저장', () => { G.saveSlot(s); G.toast('저장됨', `슬롯 ${s}`); }], ['불러오기', () => { if (raw) { localStorage.setItem('neon_slot', s); location.reload(); } }]]);
       }
       this.row('현실성 모드 (허기·갈증·피로)', G.needs.s.on ? '켜짐' : '꺼짐', [['전환', () => { G.needs.s.on = !G.needs.s.on; }]]);

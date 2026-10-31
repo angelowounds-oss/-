@@ -15,8 +15,9 @@ if (regions) { const { IDS } = await import('../src/regions/index.js'), bad = re
 { const { check } = await import('./assets/fetch.mjs'), m = check(); if (m.errors.length) { for (const e of m.errors) console.error('asset:', e); process.exit(1); } }
 // the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
 if (!small) {
-  const out = 'build/baked/world/capital/region.bin', srcs = fs.readdirSync('build/world').map((f) => 'build/world/' + f);
-  if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', '1/4', '--roads', '--emit'], { stdio: 'inherit' });
+  const { V_SCALE } = await import('../src/koreamap.js');
+  const out = 'build/baked/world/capital/region.bin', srcs = [...fs.readdirSync('build/world').map((f) => 'build/world/' + f), 'src/koreamap.js'];   // the scale lives in koreamap.js
+  if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', String(V_SCALE), '--roads', '--emit'], { stdio: 'inherit' });
 }
 const { bake, writePack, writeBase } = await import('./bake.mjs');
 fs.rmSync(DIST, { recursive: true, force: true });

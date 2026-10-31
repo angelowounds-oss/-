@@ -4,7 +4,7 @@
 // --emit (with --roads) writes region.bin, what the game reads)
 import fs from 'node:fs';
 import path from 'node:path';
-import { project, CAPITAL, KOREA_SCALE } from '../../src/koreamap.js';
+import { project, CAPITAL, KOREA_SCALE, V_SCALE } from '../../src/koreamap.js';
 import { BRIDGES } from '../../src/regions/index.js';
 import { unproject, mapBox } from './geo.mjs';
 import { Dem, osmTiles } from './dem.mjs';
@@ -26,7 +26,7 @@ const G = +(process.argv.join(' ').match(/--cell (\d+)/)?.[1] || 16);   // map m
 
 const args = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean).map((s) => { const [k, ...v] = s.trim().split(/\s+/); return [k, v.join(' ') || true]; }));
 const region = REGIONS[args.region || 'capital']; if (!region) { console.error('unknown region', args.region); process.exit(2); }
-const Vs = String(args.v || '1/3,1/4').split(',').map((s) => { const [a, b] = s.split('/').map(Number); return { name: s, v: b ? a / b : a }; });
+const Vs = String(args.v || V_SCALE).split(',').map((s) => { const [a, b] = s.split('/').map(Number); return { name: s, v: b ? a / b : a }; });
 const out = path.join('build/baked/world', (args.region || 'capital') + (G === 16 ? '' : '-' + G)); fs.mkdirSync(out, { recursive: true });
 
 // ---- raster of real heights on the map grid
@@ -65,7 +65,7 @@ for (const { name, v } of [{ name: '1 (no scale)', v: 1 }, ...Vs]) { const a = b
       const a = project(e.geometry[k].lon, e.geometry[k].lat), b = project(e.geometry[k + 1].lon, e.geometry[k + 1].lat), m = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / G));
       for (let t = 0; t < m; t++) {
         const i = Math.round((a.x + (b.x - a.x) * t / m - x0) / G), j = Math.round((a.z + (b.z - a.z) * t / m - z0) / G); if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
-        (river[name] || (river[name] = [])).push(toWet[j * nx + i] * G * 6.5);
+        (river[name] || (river[name] = [])).push(toWet[j * nx + i] * G * KOREA_SCALE);
       }
     }
   }

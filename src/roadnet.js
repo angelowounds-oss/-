@@ -7,6 +7,7 @@ import { cities, highways, farHeight, SEA, WORLD_HALF, nearFade } from './worldm
 import { baseHeight, heightAt, roadsData, EXTENT } from './terrainfn.js';
 import { settlements } from './settlements.js';
 import { regionWeight, regionHeight, regionRoads } from './region.js';
+import { MAP_K } from './koreamap.js';
 
 export const DS = 30, HALF_W = 17.5, CARVE_FADE = 46, GRADE = 0.055;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -176,7 +177,9 @@ function build() {
   const bez3 = (p0, p1, p2, p3, t) => { const u = 1 - t; return [u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]]; };
   if (compiled) for (const c of cs) if (c.viaRegion) {
     const ends = new Map();   // ref -> the motorway line end nearest the city
-    for (const r of regionRoads()) { if (r.hw !== 'motorway' || !r.ref) continue; for (const i of [0, r.x.length - 1]) { const d = Math.hypot(r.x[i] - c.x, r.z[i] - c.z), b = ends.get(r.ref); if (d < c.r * 2.5 && (!b || d < b.d)) ends.set(r.ref, { r, i, d }); } }
+    // at 1:1 the cached raster stops ~7 km short of the airport (west edge 126.45), so the connector bridges that gap on Yeongjong's land
+    const reach = c.r * 2.5 + (MAP_K > 1 ? 6500 : 0);
+    for (const r of regionRoads()) { if (r.hw !== 'motorway' || !r.ref) continue; for (const i of [0, r.x.length - 1]) { const d = Math.hypot(r.x[i] - c.x, r.z[i] - c.z), b = ends.get(r.ref); if (d < reach && (!b || d < b.d)) ends.set(r.ref, { r, i, d }); } }
     for (const [ref, e] of ends) {
       const tx = e.r.x[e.i], tz = e.r.z[e.i], j = e.i ? e.i - 4 : 4, ox = tx - e.r.x[j], oz = tz - e.r.z[j], ol = Math.hypot(ox, oz) || 1;   // (ox, oz): out of the line's end, towards the city
       let S = null, sd = Infinity, sa = 0;
@@ -188,7 +191,10 @@ function build() {
       // a smooth ramp from the plateau (0) to the motorway's end, never under the ground on the way: the end stands on a sea bridge's approach (the
       // raster's edge cuts 인천대교 and 영종대교, 15-24 m up), and the ground-following profile with its end blend climbed at 8 %
       const yE = e.r.y[e.i], g = GRADE * DS, n = P.length, y = Float32Array.from(P, (p, i) => { const t = i / (n - 1), s = t * t * (3 - 2 * t); return Math.max(yE * s, Math.min(Math.max(0, yE), groundH(p[0], p[1]))); });
-      for (let i = 1; i < n - 1; i++) y[i] = Math.min(y[i], y[i - 1] + g); for (let i = n - 2; i > 0; i--) y[i] = Math.max(y[i], y[i + 1] - g); y[0] = 0; y[n - 1] = yE;
+      for (let i = 1; i < n - 1; i++) y[i] = Math.min(y[i], y[i - 1] + g); for (let i = n - 2; i > 0; i--) y[i] = Math.max(y[i], y[i + 1] - g);
+      // the ground clamp above can drop the ramp by more than one step's grade where the coast falls away; the deck carries it, so limit the drop too
+      for (let i = 1; i < n - 1; i++) y[i] = Math.max(y[i], y[i - 1] - g); for (let i = n - 2; i > 0; i--) y[i] = Math.min(y[i], y[i + 1] + g);
+      y[0] = 0; y[n - 1] = yE;
       // tight classes as the capital's connectors: nothing carves for them, so a deck carries them wherever the ground falls 3 m below (the coast here)
       N.roads.push({ id: `conn:${c.id}:${ref}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls: classifyTight(P, y, groundH), lanes: 2, joinB: { road: e.r.id, i: e.i, d: 0 } });
     }

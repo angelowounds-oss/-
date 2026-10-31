@@ -37,3 +37,4 @@
 | [0036](0036-region-files.md) | 지역별 파일: 시·도 하나 = 소스 파일 하나 = 월드 파일 하나 (WLD-21) | 채택 |
 | [0037](0037-incheon-real-roads.md) | 서울–인천: 공항 도시는 영종도, 실제 고속도로와 연결로, 교량 높이와 주탑 (WLD-22) | 채택 |
 | [0040](0040-name-korea-1to1.md) | 이름: NeonCity → KOREA 1:1 (`Korea.exe`, `dist/Korea/`) (BLD-08) | 채택 |
+| [0038](0038-scale-1to1.md) | 실제 축척 1:1과 높이 V=1, 지도 650 km, 구운 범위 (WLD-23b) | 채택 |

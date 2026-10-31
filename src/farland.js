@@ -83,7 +83,7 @@ export class Farland {
     }
     // the sea: one big plane at sea level (the land rises out of it)
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x07253d, roughness: 0.22, metalness: 0.25 }));
-    sea.rotation.x = -Math.PI / 2; sea.scale.set(500000, 500000, 1); sea.position.y = SEA; sea.renderOrder = -3; sea.frustumCulled = false; this.sea = sea; this.group.add(sea);
+    sea.rotation.x = -Math.PI / 2; sea.scale.set(Math.max(500000, 2.4 * WORLD_HALF), Math.max(500000, 2.4 * WORLD_HALF), 1); sea.position.y = SEA; sea.renderOrder = -3; sea.frustumCulled = false; this.sea = sea; this.group.add(sea);
     this.markers = opts.markers === false ? null : this.buildMarkers();
     scene.add(this.group);
     this.ground = new FarGround(opts.phys);

@@ -1,6 +1,11 @@
 import { regionWeight, regionPlaces } from './region.js';
 import { cities, farHeight, highways, rivers, biomeAt, SEA } from './worldmap.js';
 import { cityPart } from './regions/index.js';
+import { CAPITAL, MAP_K } from './koreamap.js';
+
+// The scatter square of the invented places. At the old scale it was a box of +-46 km around the local origin; at 1:1 it is the map (centred on the middle of
+// Korea, which is not the capital), 6.5 times wider, with a village every ~156 km of highway and about 2.5 times as many over the countryside.
+const CEN = MAP_K > 1 ? { x: -CAPITAL.x, z: -CAPITAL.z } : { x: 0, z: 0 }, SPAN = 46000 * MAP_K, SPAN2 = 44000 * MAP_K;
 
 // The places between the cities (ADR-0013), as data (pure): about thirty villages (eight beside the highways, the rest over the countryside), the farms
 // near them, the industry (wind farms, solar fields, mines, refineries), the comms towers and the pylon lines. Everything is a function of the seed and the
@@ -29,7 +34,7 @@ export function settlements() {
   const farFrom = (x, z, list, m) => list.every((q) => Math.hypot(q.x - x, q.z - z) >= m);
   const riverNear = (x, z, m) => rv.some((r) => r.pts.some((p, i) => i % 2 === 0 && Math.hypot(p[0] - x, p[1] - z) < m + p[2] / 2));
   const okVillage = (x, z) => {
-    if (Math.abs(x) > 46000 || Math.abs(z) > 46000 || Math.hypot(x, z) < 11000) return false;
+    if (Math.abs(x - CEN.x) > SPAN || Math.abs(z - CEN.z) > SPAN || Math.hypot(x, z) < 11000) return false;
     const h = farHeight(x, z, 60); if (h < 8 || h > 520 || sl(x, z) > 0.045) return false;
     const b = biomeAt(x, z, h); if (b === 0 || b === 1 || b === 7 || b === 9 || b === 6) return false;
     if (C.some((c) => Math.hypot(x - c.x, z - c.z) < c.r * 1.7 + 1800)) return false;
@@ -42,7 +47,7 @@ export function settlements() {
   };
   // eight beside the highways: every ~24 km of road, 700-1800 m to the side
   for (const h of hw) {
-    for (let s = 11000; s < h.length - 9000; s += 24000) {
+    for (let s = 11000; s < h.length - 9000; s += 24000 * MAP_K) {
       let acc = 0, p = h.pts[0], q = h.pts[1];
       for (let i = 1; i < h.pts.length; i++) { const seg = Math.hypot(h.pts[i][0] - h.pts[i - 1][0], h.pts[i][1] - h.pts[i - 1][1]); if (acc + seg >= s) { p = h.pts[i - 1]; q = h.pts[i]; break; } acc += seg; }
       const tx = q[0] - p[0], tz = q[1] - p[1], l = Math.hypot(tx, tz) || 1, nx = -tz / l, nz = tx / l; let done = false;
@@ -50,9 +55,9 @@ export function settlements() {
     }
   }
   // the rest over the countryside: a hashed scan of the land, nearest-flat first, 5.8 km apart
-  const cand = []; for (let k = 0; k < 4000; k++) { const x = (rnd() * 2 - 1) * 46000, z = (rnd() * 2 - 1) * 46000; cand.push([x, z, sl(x, z)]); }
+  const cand = []; for (let k = 0; k < 4000; k++) { const x = CEN.x + (rnd() * 2 - 1) * SPAN, z = CEN.z + (rnd() * 2 - 1) * SPAN; cand.push([x, z, sl(x, z)]); }
   cand.sort((a, b) => a[2] - b[2]);
-  for (const [x, z] of cand) { if (V.length >= 30) break; if (okVillage(x, z)) add(x, z, 'country'); }
+  for (const [x, z] of cand) { if (V.length >= Math.round(30 * Math.sqrt(MAP_K))) break; if (okVillage(x, z)) add(x, z, 'country'); }
   // the real settlements of a compiled region (ADR-0021): Korean names, on the pad the compiler cut for them
   const SIZE = { village: 6, suburb: 8, town: 11, city: 13 }, BASE = { village: 200, suburb: 230, town: 260, city: 300 };   // a wider pad (M4b-1) has more houses, up to what its radius holds
   for (const q of regionPlaces()) { const nc = nearest(q.x, q.z).c; V.push({ id: 'v' + V.length, name: q.name, x: q.x, z: q.z, y: q.y, seed: 1000 + V.length * 7919, lang: 'ko', tag: 'real', city: nc.id, nHouses: Math.max(6, Math.min(Math.round((SIZE[q.kind] || 6) * q.r / (BASE[q.kind] || 200)), Math.floor((q.r - 140) / 9))), real: q.id }); }
@@ -61,7 +66,7 @@ export function settlements() {
   V.forEach((v, i) => { if (i % 3 !== 0) return; for (let k = 0; k < 2; k++) for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, d = 600 + rnd() * 800, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, h = farHeight(x, z, 60); if (h > 6 && sl(x, z) < 0.04 && !riverNear(x, z, 150) && farFrom(x, z, F, 900) && ![0, 1, 7, 9].includes(biomeAt(x, z, h))) { F.push({ id: 'f' + F.length, x, z, y: farHeight(x, z, 80), seed: Math.floor(rnd() * 1e6), village: v.id }); break; } } });
   for (const f of F) layoutFarm(f, V.find((q) => q.id === f.village));
   // industry: wind farms on high open land, solar fields on dry flats, mines in the mountains, refineries on the coast and inland
-  const pick = (n, score, ok, apart) => { const out = [], c2 = []; for (let k = 0; k < 6000; k++) { const x = (rnd() * 2 - 1) * 44000, z = (rnd() * 2 - 1) * 44000; if (ok(x, z)) c2.push([x, z, score(x, z)]); } c2.sort((a, b) => b[2] - a[2]); for (const [x, z] of c2) { if (out.length >= n) break; if (farFrom(x, z, out, apart) && farFrom(x, z, V, 2600) && C.every((c) => Math.hypot(x - c.x, z - c.z) > c.r * 1.7 + 2500)) out.push({ x, z }); } return out; };
+  const pick = (n, score, ok, apart) => { const out = [], c2 = []; for (let k = 0; k < 6000; k++) { const x = CEN.x + (rnd() * 2 - 1) * SPAN2, z = CEN.z + (rnd() * 2 - 1) * SPAN2; if (ok(x, z)) c2.push([x, z, score(x, z)]); } c2.sort((a, b) => b[2] - a[2]); for (const [x, z] of c2) { if (out.length >= n) break; if (farFrom(x, z, out, apart) && farFrom(x, z, V, 2600) && C.every((c) => Math.hypot(x - c.x, z - c.z) > c.r * 1.7 + 2500)) out.push({ x, z }); } return out; };
   const flatDry = (x, z, lo, hi, s) => { const h = farHeight(x, z, 60); return Math.hypot(x, z) > 11000 && h > lo && h < hi && sl(x, z, 80) < s && !riverNear(x, z, 300) && ![0, 1, 7, 9].includes(biomeAt(x, z, h)); };
   pick(2, (x, z) => farHeight(x, z, 200), (x, z) => flatDry(x, z, 120, 600, 0.05), 15000).forEach((s, i) => I.push({ id: 'w' + i, type: 'wind', x: s.x, z: s.z, y: farHeight(s.x, s.z, 80), n: 9 + (i * 3), seed: 10 + i }));
   pick(2, (x, z) => -Math.abs(farHeight(x, z, 200) - 40) - sl(x, z, 80) * 400, (x, z) => flatDry(x, z, 10, 120, 0.02) && biomeAt(x, z, farHeight(x, z, 60)) === 8 || flatDry(x, z, 10, 120, 0.02), 15000).forEach((s, i) => I.push({ id: 's' + i, type: 'solar', x: s.x, z: s.z, y: farHeight(s.x, s.z, 80), seed: 20 + i }));

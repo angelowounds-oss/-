@@ -1,4 +1,5 @@
 import { cities } from './worldmap.js';
+import { MAP_HALF } from './koreamap.js';
 import { Human } from './human.js';
 import { rand } from './util.js';
 import { cityPart } from './regions/index.js';
@@ -37,7 +38,7 @@ export class CityRules {
       const w = 1 - sm(c.r * 1.2, c.r * 4.5, Math.hypot(f.x - c.x, f.z - c.z)); if (w <= 0) continue; const r = RULES[c.id]; if (!r) continue;
       for (let k = 0; k < 3; k++) tint[k] += (r.tint[k] - 1) * w; wet += r.wet * w; econ += (r.econ - 1) * w; wsum += w;
     }
-    L.hourOffset = f.x / 50000 * 1.5;   // the east is ahead of the west: about an hour either side of the capital's clock
+    L.hourOffset = f.x / MAP_HALF * 1.5;   // the east is ahead of the west: about an hour either side of the capital's clock
     L.tint = tint; L.wet = wet; L.econ = econ; L.near = wsum;
     return L;
   }

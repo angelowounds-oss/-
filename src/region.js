@@ -5,11 +5,18 @@
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 import { REGIONS } from './regions/index.js';
-import { CAPITAL } from './koreamap.js';
+import { CAPITAL, KOREA_SCALE, LEGACY_SCALE } from './koreamap.js';
 
+// A region compiled at another map scale is in other metres and heights (WLD-23b): it is left out, with a warning, until it is compiled again.
 let CUR = undefined;
+const usable = (R) => {
+  if (!R) return null;
+  if ((R.scale ?? LEGACY_SCALE) === KOREA_SCALE) return R;
+  console.warn(`compiled region "${R.name}" is at scale 1:${R.scale ?? LEGACY_SCALE}, the map is 1:${KOREA_SCALE}: ignored (compile it again: node build/world/compile.mjs)`);
+  return null;
+};
 export function region() {
-  if (CUR === undefined || (CUR === null && (globalThis.__BAKED?.region || globalThis.__REGION))) CUR = globalThis.__BAKED?.region || globalThis.__REGION || null;
+  if (CUR === undefined || (CUR === null && (globalThis.__BAKED?.region || globalThis.__REGION))) CUR = usable(globalThis.__BAKED?.region || globalThis.__REGION || null);
   return CUR;
 }
 

@@ -43,7 +43,7 @@ const real = (ref) => ROADS.roads.filter((r) => r.ref === ref && r.hw === 'motor
 const segD = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
 for (const ref of ['110', '130']) {
   const L = real(ref); let s = 0, c = 0;
-  for (const r of rr) if (r.ref === ref && r.hw === 'motorway') for (let i = 0; i < r.x.length; i += 4) { if (Math.hypot(r.x[i] - air.x, r.z[i] - air.z) > 12000) continue; let d = Infinity; for (const p of L) for (let k = 0; k + 1 < p.length; k++) d = Math.min(d, segD(r.x[i], r.z[i], p[k], p[k + 1])); s += d; c++; }
+  for (const r of rr) if (r.ref === ref && r.hw === 'motorway') for (let i = 0; i < r.x.length; i += 4) { if (r.cls[i] === 1) continue; /* korearoads has no sea-bridge spans */ if (Math.hypot(r.x[i] - air.x, r.z[i] - air.z) > 12000) continue; let d = Infinity; for (const p of L) for (let k = 0; k + 1 < p.length; k++) d = Math.min(d, segD(r.x[i], r.z[i], p[k], p[k + 1])); s += d; c++; }
   m['meanDev' + ref] = c ? +(s / c).toFixed(1) : null;
   if (!c || s / c > 50) bad.push(['compiled line off the real one', ref, m['meanDev' + ref]]);
 }
@@ -51,7 +51,9 @@ for (const ref of ['110', '130']) {
 // heights: no motorway or trunk bridge on the water's surface (sea or river, its level); over the sea at least SEA_DECK (6 m) up; the main spans at their clearance
 let onSea = 0, low = 0, overSea = 0;
 for (const r of rr) { if (r.hw !== 'motorway' && r.hw !== 'trunk') continue; for (let i = 0; i < r.x.length; i++) {
-  const w = regionWater(r.x[i], r.z[i]); if (w && w.cls && r.cls[i] === 1 && r.y[i] < w.level + 0.5) onSea++;
+  // the deck stands on the ground at an abutment, so only samples with water 30 m on every side count (a bank is 1.5 cells = 24 m wide at 16 m cells)
+  const w = regionWater(r.x[i], r.z[i]), deep = w && w.cls && [[30, 0], [-30, 0], [0, 30], [0, -30]].every(([dx, dz]) => regionWater(r.x[i] + dx, r.z[i] + dz)?.cls);
+  if (deep && r.cls[i] === 1 && r.y[i] < w.level + 0.5) onSea++;
   if (w && w.cls === 1 && r.cls[i] === 1) { overSea++; if (r.y[i] < SEA + 5.9) low++; }
 } }
 m.heights = { onSea, overSea, low };

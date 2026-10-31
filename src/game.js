@@ -72,7 +72,7 @@ import { idLabel } from './buildingdev.js';
 import { keys as binds } from './keys.js';
 
 const V3 = THREE.Vector3;
-const SAVE_KEY = 'neon_city_v9';
+const SAVE_KEY = 'korea11_v1';   // bumped once at 1:1 (ADR-0038): old saves hold positions of the 1:6.5 map
 const CAR_TYPES = ['sedan', 'sedan', 'sedan', 'sport', 'suv', 'suv', 'truck'];
 
 export class Game {

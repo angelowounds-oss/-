@@ -1,13 +1,13 @@
 // The Korea land mask (assets/korea/land.bin, from build/korea_mask.mjs): the area is the real one within 3%, the big cities and islands are land,
 // the seas around the peninsula are sea, and the mask covers exactly the map (200 x 200 cells).
 import fs from 'node:fs';
-import { project, landAt, LAND_N, LAND_CELL } from '../../src/koreamap.js';
+import { project, landAt, LAND_N, LAND_CELL, KOREA_SCALE } from '../../src/koreamap.js';
 
 const bad = [];
 const mask = new Uint8Array(fs.readFileSync(new URL('../../assets/korea/land.bin', import.meta.url)));
 if (mask.length !== LAND_N * LAND_N) bad.push(['mask size', mask.length]);
 let land = 0; for (const v of mask) land += v;
-const realKm2 = (land * LAND_CELL * LAND_CELL * 6.5 * 6.5) / 1e6;   // official South Korea area is about 100,400 km2 (including the islands)
+const realKm2 = (land * LAND_CELL * LAND_CELL * KOREA_SCALE * KOREA_SCALE) / 1e6;   // official South Korea area is about 100,400 km2 (including the islands)
 if (Math.abs(realKm2 - 100400) / 100400 > 0.03) bad.push(['land area', Math.round(realKm2)]);
 
 const at = (lon, lat) => { const p = project(lon, lat); return landAt(mask, p.x, p.z); };

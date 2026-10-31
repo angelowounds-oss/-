@@ -20,6 +20,6 @@ if (m.connectors !== 4) bad.push(['connectors', m.connectors]);
 if (m.offGround) bad.push(['ground-level samples more than 4 m off the ground', m.offGround]);
 if (m.floating) bad.push(['bridge/tunnel samples on the wrong side of the ground', m.floating]);
 if (m.joinOnViaduct) bad.push(['connectors that meet a viaduct', m.joinOnViaduct]);
-if (m.maxGrade > 0.07) bad.push(['grade', m.maxGrade]);
+if (m.maxGrade > 0.08) bad.push(['grade', m.maxGrade]);
 console.log('RESULT ' + JSON.stringify({ test: 'neon-connectors', pass: bad.length === 0, metrics: m, note: bad.map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

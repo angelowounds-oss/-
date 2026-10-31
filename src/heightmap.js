@@ -1,11 +1,11 @@
 import { HM } from './landfn.js';
-import { CAPITAL } from './koreamap.js';
+import { CAPITAL, MAP_HALF } from './koreamap.js';
 
 // Baked height tiles of the land (ADR-0013): the ground of landfn.js sampled on a grid and stored as Int16 in 0.1 m steps, a plane predictor in
 // front of deflate (most samples then are small numbers). A level has square tiles of TILE cells (+1 shared edge sample, so a lookup never needs a
 // neighbour): "t16" has 16 m cells (4096 m tiles, all kept in memory, made into the page), "t8" has 8 m cells (2048 m tiles, from the high pack,
 // streamed around the player and dropped when far). `sample` takes the finest tile that is loaded and says NaN where none is (landfn then computes it).
-export const TILE = 256, N1 = TILE + 1, HALF = 50000, UNIT = 0.1;
+export const TILE = 256, N1 = TILE + 1, HALF = MAP_HALF, UNIT = 0.1;
 // the tile grid lies in the local frame (ADR-0017): its first corner is the map's (-HALF, -HALF) moved by the capital offset, so the same tiles hold the same ground
 export const TILE_ORIGIN = { x: -HALF - CAPITAL.x, z: -HALF - CAPITAL.z };
 export const CT = 128, CN = CT + 1;   // the ground colour grid of a tile: 128 cells (twice the height cell), RGB, gamma 2

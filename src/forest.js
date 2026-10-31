@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { landHeight } from './landfn.js';
 import { vegCell, CELL, VT, VEG_ORIGIN } from './vegfn.js';
+import { CAPITAL, MAP_HALF, DETAILED_ALL } from './koreamap.js';
 import { nightU, timeUniform } from './shaders.js';
 import { onCountryRoad } from './countryroads.js';
 
@@ -25,9 +26,11 @@ export async function loadVeg(wd) {
 }
 const SYNTH = new Map();   // without baked data (WORLD=small, tests): the cell byte is computed on first use
 const byteAt = (cx, cz) => {
-  if (cx < 0 || cz < 0 || cx >= NV || cz >= NV) return 0;
-  if (VEG && HAVE[((cz / VT) | 0) * 25 + ((cx / VT) | 0)]) return VEG[cz * NV + cx];
-  const k = cz * NV + cx; let b = SYNTH.get(k); if (b === undefined) { b = vegCell(OX + (cx + 0.5) * CELL, OZ + (cz + 0.5) * CELL); SYNTH.set(k, b); if (SYNTH.size > 20000) SYNTH.clear(); } return b;
+  const inside = cx >= 0 && cz >= 0 && cx < NV && cz < NV;
+  // outside the baked square the cell is computed (at 1:1 that is most of the country); beyond the map edge there is nothing
+  if (!inside && (DETAILED_ALL || Math.abs(OX + (cx + 0.5) * CELL + CAPITAL.x) > MAP_HALF || Math.abs(OZ + (cz + 0.5) * CELL + CAPITAL.z) > MAP_HALF)) return 0;
+  if (inside && VEG && HAVE[((cz / VT) | 0) * 25 + ((cx / VT) | 0)]) return VEG[cz * NV + cx];
+  const k = (cz + 1e5) * 1e6 + cx + 1e5; let b = SYNTH.get(k); if (b === undefined) { b = vegCell(OX + (cx + 0.5) * CELL, OZ + (cz + 0.5) * CELL); SYNTH.set(k, b); if (SYNTH.size > 20000) SYNTH.clear(); } return b;
 };
 const hash = (a, b, c) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1) ^ Math.imul(c + 1, 0x9e3779b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 

@@ -45,7 +45,7 @@
    "title": "Korea provinces 2013 (simplified) and land mask",
    "files": {
     "assets/korea/provinces_2013_simple.geojson": "2875acb67d32d3a5646c8d039b133e5f1be0bfae8f67e447159a5505430f9ad8",
-    "assets/korea/land.bin": "8e86d635a32f15d7fc13537ab59340452d3c72a340d2488ff944d342e6fe8fb2"
+    "assets/korea/land.bin": "c96e4f7820cae98e7a85c059862c4f05cc962444d70c25ee0063b45aaab41b2f"
    },
    "source": "southkorea/southkorea-maps, KOSTAT 2013",
    "licence": "KOSTAT-free",

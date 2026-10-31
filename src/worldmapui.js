@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { settlements } from './settlements.js';
 import { cities, farHeight, surfaceColor, SEA, WORLD_HALF } from './worldmap.js';
-import { CAPITAL } from './koreamap.js';
+import { CAPITAL, MAP_K } from './koreamap.js';
 
 // the middle of the map in the local frame (ADR-0017): the capital is the origin, the map is centred on Korea
 const MAP_C = { x: -CAPITAL.x, z: -CAPITAL.z };
@@ -14,7 +14,7 @@ import { keys as binds } from './keys.js';
 // a 26 km region, a 6.5 km district, a 1.6 km street view), terrain painted from the world data, highways, rings, city names, facilities, the
 // player, the waypoint and the planned route. Click sets the waypoint; the buttons start the autopilot, call fast travel, or clear. The waypoint
 // is also drawn in the world as a light pillar and on the HUD as a distance + direction readout.
-const SPAN = [112000, 28000, 7000, 1700];   // metres across the shorter screen side at each level
+const SPAN = MAP_K > 1 ? [112000 * MAP_K, 90000, 14000, 2400] : [112000, 28000, 7000, 1700];   // metres across the shorter screen side at each level (1:1: the country, a province, a city, a district)
 const CSS = `
 #wmap{position:fixed;inset:0;z-index:18;display:none;background:#04070d;color:#dff;font:13px/1.35 "Space Mono",monospace;user-select:none}
 #wmap.on{display:block}

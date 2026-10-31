@@ -49,7 +49,7 @@ if (air.some((j) => j.region !== 'incheon')) bad.push(['airport city chunks not 
 const closure = new Set(jobs.flatMap((j) => sourcesOf(j.src)));
 for (const f of closure) if (/^src\/regions\/(?!index)/.test(f)) bad.push(['region file hashed as a source', f]);
 if (closure.has('src/cityrules.js')) bad.push(['a bake job reads cityrules.js: the rules must enter the hash']);
-for (const f of ['src/koreadem.js', 'src/osmroads.js', 'src/korerivers.js']) if (!sourcesOf(jobs.find((j) => j.key === 't16/12_12').src).includes(f)) bad.push(['import not followed', f]);
+for (const f of ['src/koreadem.js', 'src/osmroads.js', 'src/korerivers.js']) if (!sourcesOf(jobs.find((j) => j.key === `t16/${Math.floor(-TILE_ORIGIN.x / 4096)}_${Math.floor(-TILE_ORIGIN.z / 4096)}`).src).includes(f)) bad.push(['import not followed', f]);
 
 // ---- a build of some provinces (REGIONS=, WLD-21d): their chunks and the core file's, under the same hashes (the cache serves both builds)
 const only = jobsFor({ pack: true, regions: ['incheon'] }), fullHash = new Map(jobs.map((j) => [j.tier + ':' + j.key, jobHash(j)]));

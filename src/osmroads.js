@@ -1,9 +1,11 @@
 // The real motorway network (OpenStreetMap, ODbL; KOREA-PLAN D2) as a graph in map metres: the highway planner follows these lines
 // between cities instead of inventing its own path. Lines are joined where their vertices fall in the same 40 m cell.
 import { ROADS } from './korearoads.js';
+import { KOREA_SCALE } from './koreamap.js';
 
-const SNAP = 40;   // map m: vertices this close are one junction
-const REACH = 3000;   // map m: a city farther than this from the network gets no road from it (about 20 km real)
+// both lengths are real distances (260 m, 20 km) turned into map metres, so they do not change with the scale (the data is stored at KOREA_SCALE: build/korea_rescale.mjs)
+const SNAP = 260 / KOREA_SCALE;   // map m: vertices this close are one junction
+const REACH = 19500 / KOREA_SCALE;   // map m: a city farther than this from the network gets no road from it
 let G = null;
 
 // binary min-heap of [cost, node]

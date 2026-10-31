@@ -5,7 +5,7 @@
 //   3. profile: the ground under the line (bridges and tunnels left out and bridged straight), smoothed, grade-limited both ways
 //   4. lay in: line by line, highest class and longest first; each line reads the ground the earlier ones left, meets their surface where it touches
 //      them, and its own flat surface becomes final for the lines after it
-import { project } from '../../src/koreamap.js';
+import { project, KOREA_SCALE } from '../../src/koreamap.js';
 
 const STEP = 8, MIN_GAP = 3;   // map metres between line points; the closest two points may be after relaxing
 // per class: minimum radius and maximum grade (1:1 design rules, game metres), half width of one carriageway, priority (lower lays first)
@@ -404,7 +404,7 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
     }
     grades.sort((a, b) => a - b); gaps.sort((a, b) => a - b);
     const q = (a, p) => a[Math.floor(p * (a.length - 1))] || 0;
-    stats[hw] = { lines: ls.length, kmReal: Math.round(km * 6.5 / 1000), bridgePct: +(bridge / km * 100).toFixed(1), tunnelPct: +(tunnel / km * 100).toFixed(1), gradeP99: +q(grades, 0.99).toFixed(3), gradeMax: +gradeMax.toFixed(3),
+    stats[hw] = { lines: ls.length, kmReal: Math.round(km * KOREA_SCALE / 1000), bridgePct: +(bridge / km * 100).toFixed(1), tunnelPct: +(tunnel / km * 100).toFixed(1), gradeP99: +q(grades, 0.99).toFixed(3), gradeMax: +gradeMax.toFixed(3),
       groundGapP99m: +q(gaps, 0.99).toFixed(2), within05m: +(gaps.filter((v) => v <= 0.5).length / (gaps.length || 1) * 100).toFixed(2), groundAbove03Pct: +(poke / (gaps.length || 1) * 100).toFixed(2), floatingOver2mPct: +(floating / (gaps.length || 1) * 100).toFixed(2), linesStillTight: tightLeft, shiftMaxRealM: Math.round(shiftMax * 6.5),
       whyPct: Object.fromEntries(Object.entries(why).map(([k, v]) => [k, +(v / km * 100).toFixed(1)])) };
   }
@@ -414,7 +414,7 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
     if (L.hw !== 'motorway' || !L.ref) continue; const r = refs[L.ref] || (refs[L.ref] = { km: 0, bridge: 0, osm: 0, gaps: [] });
     for (let i = 0; i + 1 < L.n; i++) { const seg = Math.hypot(L.X[i + 1] - L.X[i], L.Z[i + 1] - L.Z[i]); r.km += seg; if (L.cls[i] !== 1) continue; r.bridge += seg; if (L.why[i] === WHY.osm) r.osm += seg; else if (!(R.water[Math.round((L.Z[i] - R.z0) / R.g) * R.nx + Math.round((L.X[i] - R.x0) / R.g)])) r.gaps.push(L.Y[i] - ground(R, gh, L.X[i], L.Z[i])); }
   }
-  stats.motorwayRefs = Object.fromEntries(Object.entries(refs).filter(([, r]) => r.km > 2000).map(([k, r]) => { r.gaps.sort((a, b) => a - b); return [k, { kmReal: Math.round(r.km * 6.5 / 1000), bridgePct: +(r.bridge / r.km * 100).toFixed(1), osmPct: +(r.osm / r.km * 100).toFixed(1), madeGapMedian: +(r.gaps[r.gaps.length >> 1] || 0).toFixed(1) }]; }));
+  stats.motorwayRefs = Object.fromEntries(Object.entries(refs).filter(([, r]) => r.km > 2000).map(([k, r]) => { r.gaps.sort((a, b) => a - b); return [k, { kmReal: Math.round(r.km * KOREA_SCALE / 1000), bridgePct: +(r.bridge / r.km * 100).toFixed(1), osmPct: +(r.osm / r.km * 100).toFixed(1), madeGapMedian: +(r.gaps[r.gaps.length >> 1] || 0).toFixed(1) }]; }));
   stats.clearance = clearance; stats.snap = snap;
   return { lines, stats };
 }

@@ -1,8 +1,21 @@
 // South Korea as data (pure, no three.js): the 17 administrative regions as lon/lat boxes, one detailed city per region (real names, city hall
 // coordinates), the islands that get a town, and the projection from lon/lat to game metres (WLD-20). x runs east, z runs south, metres.
-// The scale and origin are parameters of the projection and are not decided here: real Korea including Jeju and Ulleung is about 564 km wide and
-// 601 km tall, which fits the 100 km map (worldmap WORLD_HALF = 50 km) only from about 1:6.5 down.
-export const KOREA_SCALE = 6.5;
+// The scale is the one switch of the map (WLD-23b, ADR-0038): horizontal 1:KOREA_SCALE (1 = real size; 6.5 = the old 100 km map) and the height factor
+// V_SCALE (1 = real heights; 1/4 = the old compiled region). Real Korea including Jeju and Ulleung is about 564 km wide and 601 km tall; it fits the
+// map of MAP_HALF = 50 km x MAP_K at any scale, because MAP_K is the factor between the old scale and this one.
+export const KOREA_SCALE = 1;
+export const V_SCALE = 1;
+export const LEGACY_SCALE = 6.5;
+// "Legacy length factor": 1 at the old scale, 6.5 at 1:1. World-layout distances (the map edge, the spacing of cities, the reach of a highway link) were
+// chosen in old map metres, so they are written as old value x MAP_K; sizes of things a player walks past (buildings, roads, cities) are not scaled.
+export const MAP_K = LEGACY_SCALE / KOREA_SCALE;
+export const MAP_HALF = 50000 * MAP_K;
+// The part of the map that is baked in detail (ground tiles, vegetation cells): all of it at the old scale; at 1:1 a 102.4 km square (25 tiles of 4096 m) that holds
+// the whole compiled capital region (Incheon's airport in the west to the Gyeonggi hills in the east) plus the ground of the other cities, because baking 650 km at
+// 16 m cells is 40 times more than the budget allows. The rest is computed by the page (WLD-23d makes it cheaper). Local coordinates (the capital is 0, 0).
+export const DETAIL = { x0: -62000, z0: -52000, size: 102400 };
+export const DETAILED_ALL = MAP_K <= 1;
+export const inDetail = (lx, lz, pad = 0) => DETAILED_ALL || (lx >= DETAIL.x0 - pad && lx <= DETAIL.x0 + DETAIL.size + pad && lz >= DETAIL.z0 - pad && lz <= DETAIL.z0 + DETAIL.size + pad);
 export const KOREA_ORIGIN = { lon: 127.77, lat: 35.9 };   // the centre of the country's lon/lat box: x = z = 0 (NEON CITY's place is still an open decision)
 
 // [code, name, west, south, east, north] from the KOSTAT 2013 province outlines (simplified)
@@ -38,7 +51,7 @@ export const ISLANDS = [
 ];
 
 // the capital's place in the world: Seoul City Hall (ADR-0017). The game's local frame (the detailed city) is centred here; far-world data is read at world = local + CAPITAL
-export const CAPITAL = { x: -10741, z: -28553 };   // project(126.978, 37.5665), rounded to metres; unit/koreamap checks it
+export const CAPITAL = (() => { const p = project(126.978, 37.5665); return { x: Math.round(p.x), z: Math.round(p.z) }; })();   // Seoul City Hall in map metres, rounded to metres; unit/koreamap checks it
 
 // lon/lat to game metres: x east, z south, the origin at KOREA_ORIGIN. Azimuthal equidistant, so distances from the origin are exact and
 // distances between towns inside the country stay within about 1% (a plain equirectangular grid drifts by 2% at the north-east corner)
@@ -50,10 +63,10 @@ export function project(lon, lat, scale = KOREA_SCALE, origin = KOREA_ORIGIN) {
   return { x, z: -y };
 }
 
-// the land mask of build/korea_mask.mjs: 200 x 200 cells of 500 m over the 100 km world (1 = land, 0 = sea)
+// the land mask of build/korea_mask.mjs over the whole map (1 = land, 0 = sea): 500 m cells at the old scale, 1 km cells at 1:1 (the coast is finer in WLD-23d)
 import { LAND_B64 } from './korealand.js';
 
-export const LAND_CELL = 500, LAND_N = 200, LAND_HALF = 50000;
+export const LAND_HALF = MAP_HALF, LAND_CELL = MAP_K > 1 ? 1000 : 500, LAND_N = (2 * LAND_HALF) / LAND_CELL;
 let LAND = null;
 // the mask as bytes (decoded once; the same in the page and in node)
 export function koreaMask() { return LAND || (LAND = Uint8Array.from(atob(LAND_B64), (c) => c.charCodeAt(0))); }

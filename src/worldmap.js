@@ -1,4 +1,4 @@
-// The 100 x 100 km world as data: continent, mountains, rivers, biomes, the cities and the highways that join them. Pure functions of a
+// The world as data (100 x 100 km at the old scale, 650 x 650 km at 1:1): continent, mountains, rivers, biomes, the cities and the highways that join them. Pure functions of a
 // seed (no three.js), so the browser, the build step (later: the bake) and the unit tests all get the same world. Coordinates are
 // metres, x east / z south, the capital (Neon City) at the origin; heights are metres above the capital's ground plane (y = 0), the sea
 // is at SEA.
@@ -12,11 +12,13 @@ import { CAPITAL, project } from './koreamap.js';
 import { DEM_N1, DEM_B64 } from './koreadem.js';
 import { osmRoute } from './osmroads.js';
 import { RIVERS } from './korerivers.js';
-import { KOREA_SCALE } from './koreamap.js';
+import { KOREA_SCALE, MAP_K, MAP_HALF } from './koreamap.js';
 import { regionWeight, regionHeight, region } from './region.js';
 import { cityPart } from './regions/index.js';
 
-export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
+// The map is MAP_HALF wide on each side (50 km at the old scale, 325 km at 1:1: the coarse grid keeps its 256 cells, which are 2.5 km of real ground either way).
+// World-layout distances below are old map metres x MAP_K (the same real distance); sizes a player walks past are not scaled (ADR-0038).
+export const WORLD_HALF = MAP_HALF, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
 
 // ------------------------------------------------------------------ noise (integer hash: identical on every platform)
 const SEED = 20261016;
@@ -33,11 +35,12 @@ export function fbm(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let
 function ridged(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let i = 0; i < oct; i++) { const r = 1 - Math.abs(2 * vn(x * f, z * f, s + i * 31) - 1); sum += a * r * r; n += a; a *= 0.5; f *= 2.07; } return sum / n; }
 export const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
+const OCTAVES = 7 + Math.round(Math.log2(MAP_K));
 
 // ------------------------------------------------------------------ the raw landscape (before cities are flattened)
 // Hallasan's real place (126.53 E, 33.36 N) is not used yet: moving the cone breaks the highway routes until the cities move (WLD-20f)
 // Hallasan crater (KOREA-PLAN B2): the real summit position, so the volcanic biome sits on Jeju
-export const VOLCANO = { ...project(126.533, 33.362), r: 3200, h: 1900 };
+export const VOLCANO = { ...project(126.533, 33.362), r: 3200 * MAP_K, h: 1900 };   // the cone is 21 km across in real metres at either scale
 // the Korea land mask (koreamap.js, WLD-20e): the share of land on a ring of radius r around (x, z); the coast is a slope over a kilometre, not a step
 function koreaShare(x, z, r) {
   const M = koreaMask(); let sum = landAt(M, x, z);
@@ -134,6 +137,8 @@ export const CITY_DEFS = [
   { id: 'mid3', name: '대전', type: 'town', ...project(127.3845, 36.3504), r: 1700 },
   { id: 'mid4', name: '목포', type: 'town', ...project(126.3922, 34.8118), r: 1600 },
 ];
+// how far a city looks for its flat site, and how flat that is: at 1:1 a slope over the 2.5 km grid is a real one, six times gentler than the squeezed map showed
+const SEARCH = 30000, SLOPE_MAX = MAP_K > 1 ? 0.02 : 0.05;
 const slopeAt = (W, x, z) => { const e = CC; return Math.hypot(sample(W.H, W.N1, x + e, z) - sample(W.H, W.N1, x - e, z), sample(W.H, W.N1, x, z + e) - sample(W.H, W.N1, x, z - e)) / (2 * e); };
 const nearSea = (W, x, z, within) => { for (let a = 0; a < 16; a++) for (let d = within * 0.4; d <= within; d += within * 0.3) if (sample(W.H, W.N1, x + Math.cos(a / 16 * 6.2832) * d, z + Math.sin(a / 16 * 6.2832) * d) < SEA) return true; return false; };
 function placeCities(W) {
@@ -143,11 +148,11 @@ function placeCities(W) {
     if (def.fixed) best = { x: def.x, z: def.z };
     else {
       let bs = 1e18;
-      for (let r = 0; r <= 30000; r += 500) for (let a = 0; a < (r ? 24 : 1); a++) {
+      for (let r = 0; r <= SEARCH; r += 500) for (let a = 0; a < (r ? 24 : 1); a++) {
         const x = def.x + Math.cos(a / 24 * 6.2832 + r) * r, z = def.z + Math.sin(a / 24 * 6.2832 + r) * r;
         if (Math.abs(x) > WORLD_HALF - 6000 || Math.abs(z) > WORLD_HALF - 6000) continue;
         const h = sample(W.H, W.N1, x, z); if (h < 2 || h > 60) continue;
-        const sl = slopeAt(W, x, z); if (sl > 0.05) continue;
+        const sl = slopeAt(W, x, z); if (sl > SLOPE_MAX) continue;
         if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < 15000)) continue;
         if (def.coast && !nearSea(W, x, z, 3200)) continue;
         if (!def.coast && nearSea(W, x, z, 1200)) continue;
@@ -164,6 +169,30 @@ function placeCities(W) {
     placed.push(c); W.cities.push(c);
   }
 }
+// harbour basin: an ellipse of water on the sea side, 0.74 R from the centre outwards
+function basinWeight(c, x, z) {
+  const ox = x - c.x - c.seaDir.x * c.r * 1.15, oz = z - c.z - c.seaDir.z * c.r * 1.15, al = ox * c.seaDir.x + oz * c.seaDir.z, pe = -ox * c.seaDir.z + oz * c.seaDir.x;
+  return 1 - sstep(0.75, 1.0, Math.hypot(al / (c.r * 0.4), pe / (c.r * 0.7)));
+}
+// The coarse grid is 390 m at the old scale and 2.5 km at 1:1, wider than a small city's flat disc, so the grid alone cannot flatten it. The flat disc and the
+// harbour basin are applied again at the sampled point (exact at any scale); a compiled region keeps its own ground, as in surfaceGrids.
+const OV = { h: 0, f: 0 };   // the result of cityOverlay: the ground and how flat the cities make it there (0..1)
+function cityOverlay(h, x, z) {
+  const cs = COARSE.cities; let f = 0, c0 = null;
+  for (const c of cs) { const q = cityFlat(c, x, z); if (q > f) { f = q; c0 = c; } }
+  let basin = 0;
+  for (const c of cs) if (c.seaDir) { const q = basinWeight(c, x, z); if (q > basin) basin = q; }
+  OV.f = 0;
+  if (f > 0 || basin > 0) {
+    const keep = 1 - regionWeight(x - CAPITAL.x, z - CAPITAL.z);
+    if (keep > 0) {
+      if (f > 0) h = lerp(h, c0.y, f * keep);
+      if (basin > 0) h = lerp(h, SEA - 10, basin * keep);
+      OV.f = Math.max(f, basin) * keep;
+    }
+  }
+  OV.h = h; return OV;
+}
 // the ground under a city is flat out to 1.15 r and blends back to the landscape by 2.4 r (the capital stays at y = 0)
 function cityFlat(c, x, z) { const d = Math.hypot(x - c.x, z - c.z); return 1 - sstep(c.r * 1.15, c.r * 2.4, d); }
 function flattenCities(W) {
@@ -171,10 +200,7 @@ function flattenCities(W) {
   for (let j = 0; j <= CG; j++) for (let i = 0; i <= CG; i++) {
     const x = -WORLD_HALF + i * CC, z = -WORLD_HALF + j * CC;
     for (const c of W.cities) { const f = cityFlat(c, x, z); if (f > 0) H[j * N1 + i] = lerp(H[j * N1 + i], c.y, f); }
-    for (const c of W.cities) if (c.seaDir) {   // harbour basin: an ellipse of water on the sea side, 0.74 R from the centre outwards
-      const ox = x - c.x - c.seaDir.x * c.r * 1.15, oz = z - c.z - c.seaDir.z * c.r * 1.15, al = ox * c.seaDir.x + oz * c.seaDir.z, pe = -ox * c.seaDir.z + oz * c.seaDir.x;
-      const w = 1 - sstep(0.75, 1.0, Math.hypot(al / (c.r * 0.4), pe / (c.r * 0.7))); if (w > 0) H[j * N1 + i] = lerp(H[j * N1 + i], SEA - 10, w);
-    }
+    for (const c of W.cities) if (c.seaDir) { const w = basinWeight(c, x, z); if (w > 0) H[j * N1 + i] = lerp(H[j * N1 + i], SEA - 10, w); }
   }
 }
 
@@ -190,7 +216,7 @@ function applyRegion(W) {
 }
 
 // ------------------------------------------------------------------ highways: A* over a coarse grid (no sea, slopes cost), then smoothed
-const HG = 128, HC = (2 * WORLD_HALF) / HG;
+const HG = 128 * (MAP_K > 1 ? 4 : 1), HC = (2 * WORLD_HALF) / HG;   // one cell is about 5 km of real ground at the old scale, 1.3 km at 1:1
 function routeHighways(W) {
   const cost = new Float32Array((HG + 1) * (HG + 1));
   for (let j = 0; j <= HG; j++) for (let i = 0; i <= HG; i++) {
@@ -213,7 +239,7 @@ function routeHighways(W) {
   for (const a of ix) {
     const cand = []; for (const b of ix) if (b !== a && !linked.has(key(a, b))) cand.push(b);
     cand.sort((p, q) => dist(a, p) - dist(a, q));
-    if (cand.length && dist(a, cand[0]) < 36000) { edges.push([a, cand[0]]); linked.add(key(a, cand[0])); }
+    if (cand.length && dist(a, cand[0]) < 36000 * MAP_K) { edges.push([a, cand[0]]); linked.add(key(a, cand[0])); }
   }
   edges.forEach(([a, b], id) => {
     const real = realRoad(W.cities[a], W.cities[b]);   // the motorway itself, where it joins the two cities (KOREA-PLAN D2)
@@ -238,7 +264,7 @@ function realRoad(ca, cb) {
   const P = osmRoute(ca.x, ca.z, cb.x, cb.z);
   if (!P) return null;
   let len = 0; for (let k = 1; k < P.length; k++) len += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]);
-  return len <= 1.6 * Math.hypot(ca.x - cb.x, ca.z - cb.z) + 3000 ? P : null;
+  return len <= 1.6 * Math.hypot(ca.x - cb.x, ca.z - cb.z) + 3000 * MAP_K ? P : null;
 }
 // one point every 300 m of the polyline, the ends kept
 function resample300(pts) {
@@ -294,13 +320,13 @@ export function nearFade(x, z) {
   return w;
 }
 function farHeightMap(x, z, cell) {
-  const W = build(); let h = sample(W.H, W.N1, x, z);
+  const W = build(), ov = cityOverlay(sample(W.H, W.N1, x, z), x, z); let h = ov.h; const flat = Math.max(sample(W.F, W.N1, x, z), ov.f);
   const rug = sample(W.M, W.N1, x, z), land = h > SEA ? 1 : 0;
   if (land) {
-    let amp = 6 + 90 * rug + 18 * sstep(120, 600, h), wl = 1400, s = 0;
-    for (let o = 0; o < 7 && wl >= Math.max(2 * cell, 6); o++, wl *= 0.5, amp *= 0.5) s += amp * (vn(x / wl, z / wl, 200 + o * 13) - 0.5) * 2;
+    let amp = 6 + 90 * rug + 18 * sstep(120, 600, h), wl = 1400 * MAP_K, s = 0;   // 1:1 starts at a 9 km wave and goes three octaves lower to reach the same 6 m floor
+    for (let o = 0; o < OCTAVES && wl >= Math.max(2 * cell, 6); o++, wl *= 0.5, amp *= 0.5) s += amp * (vn(x / wl, z / wl, 200 + o * 13) - 0.5) * 2;
     // detail noise is damped along the rivers: the channel follows the valley floor, so the ground beside it must not rise and fall by tens of metres
-    h += s * (1 - sample(W.F, W.N1, x, z)) * (1 - 0.92 * Math.min(1, 2.2 * sample(W.riverMask, W.N1, x, z))) * sstep(SEA, SEA + 6, h);
+    h += s * (1 - flat) * (1 - 0.92 * Math.min(1, 2.2 * sample(W.riverMask, W.N1, x, z))) * sstep(SEA, SEA + 6, h);
     h = Math.max(h, SEA + 1.5);   // detail noise must not drown a land cell (a highway on the coast would end up in the sea)
   }
   return h;
@@ -325,8 +351,8 @@ export function biomeAt(x, z, h) { return biomeMap(x + CAPITAL.x, z + CAPITAL.z,
 function biomeMap(x, z, h) {
   if (h < SEA) return 0;
   const dv = Math.hypot(x - VOLCANO.x, z - VOLCANO.z); if (dv < VOLCANO.r * 1.5 && h > 80) return 9;
-  const T = 0.55 + (z / WORLD_HALF) * 0.32 + (fbm(x / 26000 + 3, z / 26000 + 8, 3, 6) - 0.5) * 0.5 - Math.max(0, h) / 2600;   // north (-z) is cold
-  const M = fbm(x / 18000 + 5, z / 18000 - 2, 3, 7);
+  const T = 0.55 + (z / WORLD_HALF) * 0.32 + (fbm(x / (26000 * MAP_K) + 3, z / (26000 * MAP_K) + 8, 3, 6) - 0.5) * 0.5 - Math.max(0, h) / 2600;   // north (-z) is cold
+  const M = fbm(x / (18000 * MAP_K) + 5, z / (18000 * MAP_K) - 2, 3, 7);
   if (h < SEA + 3.5) return 1;
   if (T < 0.20 || h > 1250) return 7;
   if (h > 640) return 6;

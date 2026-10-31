@@ -3,7 +3,7 @@
 // it into the core chunk as `region`, and src/region.js samples it.
 import fs from 'node:fs';
 import zlib from 'node:zlib';
-import { CAPITAL } from '../../src/koreamap.js';
+import { CAPITAL, KOREA_SCALE } from '../../src/koreamap.js';
 import { SEA } from '../../src/worldmap.js';
 import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
 import { lanesOf, halfOf } from './roads.mjs';
@@ -53,7 +53,7 @@ export function emitRegion(file, name, R, gh, lines, V, places = []) {
     const m = r.x.length - 1, e = nearest(ri, r.x[m], r.z[m]), s = nearest(ri, r.x[0], r.z[0]);
     if (e) r.next.push(e); if (s) r.prev.push(s);
   });
-  const region = { name, V, g: R.g, nx: R.nx, nz: R.nz, x0: lx0, z0: lz0, keep: KEEP, band: BAND, edge: EDGE, h, water, level, roads, places };
+  const region = { name, V, scale: KOREA_SCALE, g: R.g, nx: R.nx, nz: R.nz, x0: lx0, z0: lz0, keep: KEEP, band: BAND, edge: EDGE, h, water, level, roads, places };
   fs.writeFileSync(file, zlib.deflateRawSync(encodeChunk(region), { level: 9 }));
   return { roads: roads.length, points: roads.reduce((s, r) => s + r.x.length, 0), bytes: fs.statSync(file).size };
 }
