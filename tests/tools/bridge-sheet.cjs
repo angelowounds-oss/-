@@ -25,7 +25,7 @@ const path = require('path');
         const park = (x, z) => { const y = deck + 1.5; pl.body3.teleport(x, y, z); pl.x = x; pl.y = y; pl.z = z; pl.vx = pl.vz = pl.vy = 0; pl.dead = false; };
         const realRender = g.eng.render, frames = (n) => { g.eng.render = () => {}; for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 60 === 0) sky(); } g.eng.render = realRender; };
         const shot = () => { g.renderFrame(0, true); const cv = g.eng.renderer.domElement, k = document.createElement('canvas'); k.width = cv.width; k.height = cv.height; k.getContext('2d').drawImage(cv, 0, 0); return k.toDataURL('image/jpeg', 0.85); };
-        park(s.x, s.z); sky(); frames(240);
+        park(s.x, s.z); g.highways?.arterials({ position: { x: s.x, z: s.z } }, true); sky(); frames(240);   // every compiled road piece in reach now (they stream in a few a frame, as views.js does after a jump)
         const L0 = Math.max(s.span * 1.4, 260), v = {};
         // side: across the deck from the sea, a little above the deck, looking at the main span
         g.viewCam = { x: s.x + s.rx * L0, y: deck + 25, z: s.z + s.rz * L0, tx: s.x, ty: deck + 12, tz: s.z, fov: 55 }; frames(30); v.side = shot();
