@@ -243,9 +243,12 @@ function crossings(lines) {
 }
 function bump(L, i, h) {
   // h > 0 raises, h < 0 lowers. The offsets of all moves on a line are kept apart from its profile and combined by taking the largest (a sum of two humps
-  // doubles the grade; the largest keeps each hump's own). The foot, measured along the line (relaxing a bend packs points), allows a quarter of the class grade.
+  // doubles the grade; the largest keeps each hump's own). The foot, measured along the line (relaxing a bend packs points), takes most of the grade the
+  // profile leaves free there (at least a quarter of the class grade): a quarter everywhere made each move on a motorway 1.4 km long (ADR-0037)
   if (!L.Y0) { L.Y0 = Float64Array.from(L.Y); L.H = new Float64Array(L.n); L.at = [0]; for (let q = 1; q < L.n; q++) L.at.push(L.at[q - 1] + Math.hypot(L.X[q] - L.X[q - 1], L.Z[q] - L.Z[q - 1])); }
-  const T = L.H[i] + h, foot = Math.abs(T) * Math.PI / (2 * CLASS[L.hw].grade * 0.25), top = 14;
+  const T = L.H[i] + h, gr = CLASS[L.hw].grade, top = 14, reach = Math.abs(T) * Math.PI / (2 * gr * 0.25) + top;
+  let used = 0; for (let q = 0; q + 1 < L.n; q++) if (Math.abs(L.at[q] - L.at[i]) < reach) { const s = L.at[q + 1] - L.at[q]; if (s > 0.5) used = Math.max(used, Math.abs(L.Y0[q + 1] - L.Y0[q]) / s); }
+  const foot = Math.abs(T) * Math.PI / (2 * Math.max(gr * 0.25, gr * 0.9 - used));
   for (let q = 0; q < L.n; q++) {
     const e = Math.max(0, Math.abs(L.at[q] - L.at[i]) - top); if (e >= foot) continue;
     const o = T * 0.5 * (1 + Math.cos(Math.PI * e / foot));
@@ -256,6 +259,13 @@ function bump(L, i, h) {
 }
 function clearancePass(lines) {
   const st = { rounds: 0, moved: 0, maxRaise: 0, junctionsLeft: 0, before: null, after: null };
+  // who goes over is decided once for each pair of roads in a 1.5 km tile (a road: the lines of one number and class, both carriageways together) and
+  // kept, and a decision that would close a loop (A over B over C over A) is turned round. Decided anew at each crossing and round, a motorway that
+  // is a bridge over a street went up over it while the street went over the motorway's ramp and the ramp over the motorway, and each round one of
+  // them went up a level: decks stood 25-35 m over the ground (ADR-0037)
+  const TILE = 1500, road = (k) => (lines[k].ref ? lines[k].hw + ':' + lines[k].ref : '#' + k), decided = new Map(), above = new Map();
+  const node = (k, c) => road(k) + '@' + Math.floor(lines[c.A].X[c.a] / TILE) + ',' + Math.floor(lines[c.A].Z[c.a] / TILE);
+  const reaches = (a, b) => { const seen = new Set([a]), todo = [a]; while (todo.length) { const u = todo.pop(); if (u === b) return true; for (const v of above.get(u) || []) if (!seen.has(v)) { seen.add(v); todo.push(v); } } return false; };
   for (let round = 0; round < 12; round++) {
     const X = crossings(lines); let bad = 0, junc = 0;
     const need = [];
@@ -277,6 +287,19 @@ function clearancePass(lines) {
       if (sa === 2 || sb === 2) { const aTun = sa === 2; mover = aTun ? c.A : c.B; other = aTun ? c.B : c.A; dir = -1; }
       else if (sa === 1 || sb === 1) { const aBr = sa === 1 && (sb !== 1 || c.ya >= c.yb); mover = aBr ? c.A : c.B; other = aBr ? c.B : c.A; dir = 1; }
       else { const aLow = CLASS[P.hw].order > CLASS[Q.hw].order || (P.hw === Q.hw && P.n <= Q.n); mover = aLow ? c.A : c.B; other = aLow ? c.B : c.A; dir = 1; }
+      // what is kept is which road is on top; at each crossing the top one goes up, or the one below goes down where it is a tunnel there (a bridge
+      // is never lowered: kept as a move, a decision lowered bridges into the ground)
+      const na = node(c.A, c), nb = node(c.B, c), key = na < nb ? na + '|' + nb : nb + '|' + na;
+      if (na !== nb) {
+        let upper = decided.get(key);
+        if (!upper) {
+          upper = node(dir > 0 ? mover : other, c); const lower = upper === na ? nb : na;
+          if (reaches(lower, upper)) upper = lower;   // the other way round closes no loop
+          if (!above.has(upper)) above.set(upper, new Set()); above.get(upper).add(upper === na ? nb : na); decided.set(key, upper);
+        }
+        const U = upper === na ? c.A : c.B, D = U === c.A ? c.B : c.A, dTun = (D === c.A ? sa : sb) === 2;
+        if (dTun) { mover = D; other = U; dir = -1; } else { mover = U; other = D; dir = 1; }
+      }
       const mi = mover === c.A ? c.a : c.b, mt = mover === c.A ? c.ta : c.tb; ym = mover === c.A ? c.ya : c.yb; yo = mover === c.A ? c.yb : c.ya;
       const L0 = lines[mover], dist = (q) => Math.hypot(L0.X[q] - L0.X[mi], L0.Z[q] - L0.Z[mi]); if ((moved.get(mover) || []).some((q) => dist(q) < 160)) continue; if (!moved.has(mover)) moved.set(mover, []); moved.get(mover).push(mi);   // one move per stretch and round: two on top of each other would double the grade
       const want = dir > 0 ? yo + CLEAR + 0.5 : yo - CLEAR - 0.5, h = want - ym;
@@ -336,6 +359,13 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
       groundGapP99m: +q(gaps, 0.99).toFixed(2), within05m: +(gaps.filter((v) => v <= 0.5).length / (gaps.length || 1) * 100).toFixed(2), groundAbove03Pct: +(poke / (gaps.length || 1) * 100).toFixed(2), floatingOver2mPct: +(floating / (gaps.length || 1) * 100).toFixed(2), linesStillTight: tightLeft, shiftMaxRealM: Math.round(shiftMax * 6.5),
       whyPct: Object.fromEntries(Object.entries(why).map(([k, v]) => [k, +(v / km * 100).toFixed(1)])) };
   }
+  // per motorway number: the bridge share against OpenStreetMap's own, and the deck's height over the ground on the bridges the profile made
+  const refs = {};
+  for (const L of lines) {
+    if (L.hw !== 'motorway' || !L.ref) continue; const r = refs[L.ref] || (refs[L.ref] = { km: 0, bridge: 0, osm: 0, gaps: [] });
+    for (let i = 0; i + 1 < L.n; i++) { const seg = Math.hypot(L.X[i + 1] - L.X[i], L.Z[i + 1] - L.Z[i]); r.km += seg; if (L.cls[i] !== 1) continue; r.bridge += seg; if (L.why[i] === WHY.osm) r.osm += seg; else if (!(R.water[Math.round((L.Z[i] - R.z0) / R.g) * R.nx + Math.round((L.X[i] - R.x0) / R.g)])) r.gaps.push(L.Y[i] - ground(R, gh, L.X[i], L.Z[i])); }
+  }
+  stats.motorwayRefs = Object.fromEntries(Object.entries(refs).filter(([, r]) => r.km > 2000).map(([k, r]) => { r.gaps.sort((a, b) => a - b); return [k, { kmReal: Math.round(r.km * 6.5 / 1000), bridgePct: +(r.bridge / r.km * 100).toFixed(1), osmPct: +(r.osm / r.km * 100).toFixed(1), madeGapMedian: +(r.gaps[r.gaps.length >> 1] || 0).toFixed(1) }]; }));
   stats.clearance = clearance; stats.snap = snap;
   return { lines, stats };
 }

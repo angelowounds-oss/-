@@ -48,11 +48,11 @@ for (const ref of ['110', '130']) {
   if (!c || s / c > 50) bad.push(['compiled line off the real one', ref, m['meanDev' + ref]]);
 }
 
-// heights: no motorway or trunk bridge on the water surface; over the sea at least SEA_DECK (6 m) up; the main spans at their clearance
+// heights: no motorway or trunk bridge on the water's surface (sea or river, its level); over the sea at least SEA_DECK (6 m) up; the main spans at their clearance
 let onSea = 0, low = 0, overSea = 0;
 for (const r of rr) { if (r.hw !== 'motorway' && r.hw !== 'trunk') continue; for (let i = 0; i < r.x.length; i++) {
-  if (r.cls[i] === 1 && r.y[i] < SEA + 0.5) onSea++;
-  const w = regionWater(r.x[i], r.z[i]); if (w && w.cls === 1 && r.cls[i] === 1) { overSea++; if (r.y[i] < SEA + 5.9) low++; }
+  const w = regionWater(r.x[i], r.z[i]); if (w && w.cls && r.cls[i] === 1 && r.y[i] < w.level + 0.5) onSea++;
+  if (w && w.cls === 1 && r.cls[i] === 1) { overSea++; if (r.y[i] < SEA + 5.9) low++; }
 } }
 m.heights = { onSea, overSea, low };
 if (onSea) bad.push(['bridges on the water surface', onSea]); if (low) bad.push(['sea bridge samples under SEA_DECK', low]);

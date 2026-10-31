@@ -185,7 +185,10 @@ function build() {
       // even DS steps along the curve (the grade limit of profile is per DS), the end exactly on the motorway's
       const B = []; for (let q = 0; q <= 200; q++) B.push(bez3(S, c1, c2, E, q / 200));
       const P = resample(B, DS); if (Math.hypot(P[P.length - 1][0] - tx, P[P.length - 1][1] - tz) < DS * 0.5) P.pop(); P.push([tx, tz]);
-      const y = profile(P, false, 0, e.r.y[e.i], groundH, 2);
+      // a smooth ramp from the plateau (0) to the motorway's end, never under the ground on the way: the end stands on a sea bridge's approach (the
+      // raster's edge cuts 인천대교 and 영종대교, 15-24 m up), and the ground-following profile with its end blend climbed at 8 %
+      const yE = e.r.y[e.i], g = GRADE * DS, n = P.length, y = Float32Array.from(P, (p, i) => { const t = i / (n - 1), s = t * t * (3 - 2 * t); return Math.max(yE * s, Math.min(Math.max(0, yE), groundH(p[0], p[1]))); });
+      for (let i = 1; i < n - 1; i++) y[i] = Math.min(y[i], y[i - 1] + g); for (let i = n - 2; i > 0; i--) y[i] = Math.max(y[i], y[i + 1] - g); y[0] = 0; y[n - 1] = yE;
       // tight classes as the capital's connectors: nothing carves for them, so a deck carries them wherever the ground falls 3 m below (the coast here)
       N.roads.push({ id: `conn:${c.id}:${ref}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls: classifyTight(P, y, groundH), lanes: 2, joinB: { road: e.r.id, i: e.i, d: 0 } });
     }
