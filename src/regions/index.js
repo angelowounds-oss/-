@@ -33,6 +33,9 @@ export function regionOf(x, z) {
   return best;
 }
 
+// the bridges with a main span of the region files (ADR-0037), each with the id of its region
+export const BRIDGES = REGIONS.flatMap((r) => (r.data?.bridges || []).map((b) => ({ ...b, region: r.id })));
+
 // the detailed cities of the region files by city id, each with the id of its region
 const CITY = new Map(REGIONS.flatMap((r) => r.cities.map((c) => [c.def.id, { ...c, region: r.id }])));
 export const regionCity = (id) => CITY.get(id) || null;

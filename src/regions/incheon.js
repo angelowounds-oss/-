@@ -15,4 +15,12 @@ export default {
     treeRows: 0.35,   // street trees, 1 = every row (citydetail.js)
     villageLang: 'en',
   }],
+  // The sea bridges with a main span (ADR-0037): real metres, at the centre of the main span. The compiler lifts the deck there to the navigation
+  // clearance at the height scale of the terrain (build/world/roads.mjs) and the game draws the pylons and cables (bridges.js). 인천대교: the
+  // cable-stayed section is OpenStreetMap's layer-3 way of 1478 m (80 + 260 + 800 + 260 + 80); 영종대교: the self-anchored suspension span; its
+  // clearance is not in our sources, so the deck keeps the compiler's minimum height over the sea.
+  bridges: [
+    { id: 'incheon-bridge', name: '인천대교', ref: '110', type: 'cable-stayed', lon: 126.5668, lat: 37.4137, span: 800, side: 260, clearance: 74, pylon: 238.5 },
+    { id: 'yeongjong-bridge', name: '영종대교', ref: '130', type: 'suspension', lon: 126.588, lat: 37.5464, span: 300, side: 125, clearance: 0, pylon: 107 },
+  ],
 };

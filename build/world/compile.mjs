@@ -4,7 +4,8 @@
 // --emit (with --roads) writes region.bin, what the game reads)
 import fs from 'node:fs';
 import path from 'node:path';
-import { project, CAPITAL } from '../../src/koreamap.js';
+import { project, CAPITAL, KOREA_SCALE } from '../../src/koreamap.js';
+import { BRIDGES } from '../../src/regions/index.js';
 import { unproject, mapBox } from './geo.mjs';
 import { Dem, osmTiles } from './dem.mjs';
 import { relief, sheet, profile, roadSvg, crop } from './preview.mjs';
@@ -79,7 +80,9 @@ if (args.roads) {
   // the real settlements (M4a): sites chosen and their pads cut into the ground before the roads are laid in
   const pl = placesPass(R, gh, overpass(`places-${args.region || 'capital'}`, `[out:json][timeout:120];(node["place"~"^(city|town|village|suburb)$"]["name"](${B4}););out;`), SEA); stats.places = pl.stats;
   const sites = pl.places.map((o) => ({ x: o.x + CAPITAL.x, z: o.z + CAPITAL.z, r: o.r + 120 }));   // map metres
-  roads = { gh, ...roadPass(R, gh, rels.concat(minor), sites) };
+  // the main spans of the sea bridges (src/regions/*.js bridges, ADR-0037): map metres, the deck at the clearance over the sea at this height scale
+  const spans = BRIDGES.map((b) => { const p = project(b.lon, b.lat); return { ref: b.ref, x: p.x, z: p.z, half: b.span / 2 / KOREA_SCALE, deck: b.clearance ? b.clearance * Vs[0].v + 1 : 0 }; });
+  roads = { gh, ...roadPass(R, gh, rels.concat(minor), sites, { V: Vs[0].v, spans }) };
   stats.roads = { V: Vs[0].name, seconds: +((Date.now() - t1) / 1000).toFixed(1), ...roads.stats };
   if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v, pl.places);
 }

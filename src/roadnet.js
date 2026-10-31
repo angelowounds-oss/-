@@ -182,9 +182,12 @@ function build() {
       let S = null, sd = Infinity, sa = 0;
       for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + 0.2, p = [c.x + Math.cos(a) * c.r * 0.97, c.z + Math.sin(a) * c.r * 0.97], d = Math.hypot(p[0] - tx, p[1] - tz); if (d < sd) { sd = d; S = p; sa = a; } }   // the radial streets (citylayout.js)
       const k = sd * 0.4, E = [tx, tz], c1 = [S[0] + Math.cos(sa) * k, S[1] + Math.sin(sa) * k], c2 = [tx + ox / ol * k, tz + oz / ol * k];
-      const n = Math.max(6, Math.round(sd / DS)), P = []; for (let q = 0; q <= n; q++) P.push(bez3(S, c1, c2, E, q / n));
+      // even DS steps along the curve (the grade limit of profile is per DS), the end exactly on the motorway's
+      const B = []; for (let q = 0; q <= 200; q++) B.push(bez3(S, c1, c2, E, q / 200));
+      const P = resample(B, DS); if (Math.hypot(P[P.length - 1][0] - tx, P[P.length - 1][1] - tz) < DS * 0.5) P.pop(); P.push([tx, tz]);
       const y = profile(P, false, 0, e.r.y[e.i], groundH, 2);
-      N.roads.push({ id: `conn:${c.id}:${ref}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls: classify(P, y, groundH), lanes: 2, joinB: { road: e.r.id, i: e.i, d: 0 } });
+      // tight classes as the capital's connectors: nothing carves for them, so a deck carries them wherever the ground falls 3 m below (the coast here)
+      N.roads.push({ id: `conn:${c.id}:${ref}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls: classifyTight(P, y, groundH), lanes: 2, joinB: { road: e.r.id, i: e.i, d: 0 } });
     }
   }
   // ---- interchange ramps: slip roads (Bezier) from a point of the highway back from the ring onto the ring, by interchange type

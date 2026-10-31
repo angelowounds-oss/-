@@ -137,14 +137,26 @@ function ground(R, gh, x, z) {
   return (gh[k] * (1 - u) + gh[k + 1] * u) * (1 - v) + (gh[k + R.nx] * (1 - u) + gh[k + R.nx + 1] * u) * v;
 }
 
-// 3. the surface along a line: ground where the road is on the ground, bridged straight over bridges, tunnels and water, then smoothed and grade-limited
-function profile(L, R, gh, claimed) {
-  const n = L.n, g = new Float64Array(n), fixed = new Uint8Array(n);
+// 3. the surface along a line: ground where the road is on the ground, bridged straight over bridges, tunnels and water, then smoothed and grade-limited,
+// and lifted where it must stand higher (opt: V the height scale, spans the main spans of the sea bridges, nearY the surface of the lines done before)
+const WHY = { osm: 1, crossing: 2, fill: 3, cut: 4, bump: 5 }, WHY_NAME = ['', 'osm', 'crossing', 'fill', 'cut', 'bump'];
+const SEA_DECK = 6;   // game metres of a deck over the sea or wide water at the least (ADR-0037): bridging the shores straight left it about 3 m over the sea
+function profile(L, R, gh, claimed, opt = {}) {
+  const n = L.n, g = new Float64Array(n), fixed = new Uint8Array(n), floor = new Float64Array(n).fill(-Infinity), V = opt.V || 0.25;
+  L.why = Uint8Array.from(L.cls, (c) => (c ? WHY.osm : 0));   // why a sample is a bridge or a tunnel, for the numbers
+  let dry = 0, lift = false;
   for (let i = 0; i < n; i++) {
-    const ci = Math.round((L.X[i] - R.x0) / R.g), cj = Math.round((L.Z[i] - R.z0) / R.g), wet = ci >= 0 && cj >= 0 && ci < R.nx && cj < R.nz && R.water[cj * R.nx + ci];
-    g[i] = L.cls[i] || wet ? NaN : ground(R, gh, L.X[i], L.Z[i]);
-    if (!L.cls[i] && ci >= 0 && cj >= 0 && ci < R.nx && cj < R.nz && claimed[cj * R.nx + ci]) fixed[i] = 1;   // a junction with a road already laid: meet its surface
+    const ci = Math.round((L.X[i] - R.x0) / R.g), cj = Math.round((L.Z[i] - R.z0) / R.g), inR = ci >= 0 && cj >= 0 && ci < R.nx && cj < R.nz, k = cj * R.nx + ci, wet = inR && R.water[k];
+    g[i] = L.cls[i] || wet ? NaN : ground(R, gh, L.X[i], L.Z[i]); if (g[i] === g[i]) dry++;
+    if (!L.cls[i] && inR && claimed[k]) fixed[i] = 1;   // a junction with a road already laid: meet its surface
+    // the sea, and the inside of wide water (a stream channel is crossed on an embankment or a culvert, as layLine does)
+    if (wet === 1) floor[i] = SEA_DECK; else if (wet === 2 && R.fromBank[k] > 1.5) floor[i] = R.level[k] * V + SEA_DECK;
+    for (const s of opt.spans || []) if (s.ref === L.ref && s.deck > 0 && Math.hypot(L.X[i] - s.x, L.Z[i] - s.z) < s.half) floor[i] = Math.max(floor[i], s.deck);
+    if (floor[i] > -Infinity) lift = true;
   }
+  // a line with no ground at all (a bridge that OpenStreetMap chains apart from its road) takes its ends from the lines laid before it; it used to
+  // lie on the water (0 here, y = -4 in the game)
+  if (!dry && opt.nearY) { const a = opt.nearY(L.X[0], L.Z[0]), b = opt.nearY(L.X[n - 1], L.Z[n - 1]); g[0] = a ?? b ?? 0; g[n - 1] = b ?? a ?? 0; }
   // fill the gaps by straight lines between the ground on either side
   let last = -1;
   for (let i = 0; i <= n; i++) {
@@ -155,7 +167,7 @@ function profile(L, R, gh, claimed) {
   let y = g;
   for (let pass = 0; pass < 2; pass++) { const o = new Float64Array(n); for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let q = Math.max(0, i - SMOOTH); q <= Math.min(n - 1, i + SMOOTH); q++) { s += y[q]; c++; } o[i] = s / c; } y = o; }
   // a crossing more than 4 m off the smooth line is a grade separation OpenStreetMap left untagged: pass over it (bridge) or under it (underpass)
-  for (let i = 1; i < n - 1; i++) if (fixed[i] && Math.abs(g[i] - y[i]) > 4) { fixed[i] = 0; L.cls[i] = y[i] > g[i] ? 1 : 2; }
+  for (let i = 1; i < n - 1; i++) if (fixed[i] && Math.abs(g[i] - y[i]) > 4) { fixed[i] = 0; L.cls[i] = y[i] > g[i] ? 1 : 2; L.why[i] = WHY.crossing; }
   fixed[0] = fixed[n - 1] = 1;   // the ends meet what is there (a road already laid, or the ground)
   // the grade limit over each segment's own length (relaxing a bend draws its points closer than STEP); the fixed points are put back after each
   // round, so the limit bends the road towards them instead of moving them
@@ -165,9 +177,16 @@ function profile(L, R, gh, claimed) {
     for (let i = 1; i < n; i++) { const dh = gr * seg(i - 1); y[i] = Math.max(y[i - 1] - dh, Math.min(y[i - 1] + dh, y[i])); }
     for (let i = n - 2; i >= 0; i--) { const dh = gr * seg(i); y[i] = Math.max(y[i + 1] - dh, Math.min(y[i + 1] + dh, y[i])); }
   }
+  // up to the floor: the floors' envelope falling away at the class grade both ways, so the ramps onto a sea bridge keep the grade
+  if (lift) {
+    const e = Float64Array.from(floor);
+    for (let i = 1; i < n; i++) e[i] = Math.max(e[i], e[i - 1] - gr * seg(i - 1));
+    for (let i = n - 2; i >= 0; i--) e[i] = Math.max(e[i], e[i + 1] - gr * seg(i));
+    for (let i = 0; i < n; i++) if (e[i] > y[i]) y[i] = e[i];
+  }
   // where the surface leaves the ground by much, the road is a viaduct (fill over 8 m) or a tunnel (cut over 15 m) and leaves the ground alone
   const raw = new Float64Array(n); for (let i = 0; i < n; i++) raw[i] = ground(R, gh, L.X[i], L.Z[i]);
-  for (let i = 0; i < n; i++) if (!L.cls[i]) { if (y[i] - raw[i] > 8) L.cls[i] = 1; else if (raw[i] - y[i] > 15) L.cls[i] = 2; }
+  for (let i = 0; i < n; i++) if (!L.cls[i]) { if (y[i] - raw[i] > 8) { L.cls[i] = 1; L.why[i] = WHY.fill; } else if (raw[i] - y[i] > 15) { L.cls[i] = 2; L.why[i] = WHY.cut; } }
   L.Y = y; L.G = raw;
 }
 
@@ -232,7 +251,7 @@ function bump(L, i, h) {
     const o = T * 0.5 * (1 + Math.cos(Math.PI * e / foot));
     if (T > 0 ? o > L.H[q] : o < L.H[q]) L.H[q] = o;
     L.Y[q] = L.Y0[q] + L.H[q];
-    if (L.H[q] > 1.5 && !L.cls[q]) L.cls[q] = 1; else if (L.H[q] < -1.5 && !L.cls[q]) L.cls[q] = 2;
+    if (L.H[q] > 1.5 && !L.cls[q]) { L.cls[q] = 1; L.why[q] = WHY.bump; } else if (L.H[q] < -1.5 && !L.cls[q]) { L.cls[q] = 2; L.why[q] = WHY.bump; }
   }
 }
 function clearancePass(lines) {
@@ -270,13 +289,15 @@ function clearancePass(lines) {
 }
 
 // the whole pass: returns the generalized lines (with profiles) and their numbers; gh is changed in place
-export function roadPass(R, gh, els, sites = []) {
+export function roadPass(R, gh, els, sites = [], opt = {}) {
   const lines = chains(els, sites).map(generalize).filter((L) => L.n >= 3).sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order);
   // highest class first, longest line first within a class: each line reads the ground the earlier ones left, then is laid
   const snap = snapEnds(lines);
   const claimed = new Uint8Array(R.nx * R.nz);
   lines.sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order || b.n - a.n);
-  for (const L of lines) { profile(L, R, gh, claimed); if (CLASS[L.hw].lay !== false) layLine(R, gh, L, claimed); }
+  // the surface of the lines done so far nearest a point (within SNAP), for a line with no ground of its own
+  const done = [], nearY = (x, z) => { let best = null, bd = SNAP; for (const D of done) for (let q = 0; q < D.n; q++) { const d = Math.hypot(D.X[q] - x, D.Z[q] - z); if (d < bd) { bd = d; best = D.Y[q]; } } return best; };
+  for (const L of lines) { profile(L, R, gh, claimed, { ...opt, nearY }); done.push(L); if (CLASS[L.hw].lay !== false) layLine(R, gh, L, claimed); }
   const clearance = clearancePass(lines);
   // last, one rule for every road: the ground under a carriageway is never above its surface (it is only lowered), measured against the surface at
   // the nearest point of the line. Only the carriageway's own width: a cell-wide reach also pushed the ground down under the roads beside it
@@ -299,11 +320,12 @@ export function roadPass(R, gh, els, sites = []) {
   const stats = {};
   for (const hw of Object.keys(CLASS)) {
     const ls = lines.filter((L) => L.hw === hw); if (!ls.length) continue;
-    let km = 0, onGround = 0, bridge = 0, tunnel = 0, gradeMax = 0, tightLeft = 0, shiftMax = 0, poke = 0, floating = 0; const grades = [], gaps = [];
+    let km = 0, onGround = 0, bridge = 0, tunnel = 0, gradeMax = 0, tightLeft = 0, shiftMax = 0, poke = 0, floating = 0; const grades = [], gaps = [], why = {};
     for (const L of ls) {
       shiftMax = Math.max(shiftMax, L.shift); if (L.rminSeen < CLASS[hw].rmin * 0.95) tightLeft++;
       for (let i = 0; i + 1 < L.n; i++) {
         const seg = Math.hypot(L.X[i + 1] - L.X[i], L.Z[i + 1] - L.Z[i]); km += seg; if (seg < 0.5) continue;   // the last point can sit on top of the one before
+        if (L.cls[i]) { const w = (L.cls[i] === 1 ? 'bridge:' : 'tunnel:') + WHY_NAME[L.why[i]]; why[w] = (why[w] || 0) + seg; }
         if (L.cls[i] === 1) bridge += seg; else if (L.cls[i] === 2) tunnel += seg;
         else { onGround += seg; const gr = Math.abs(L.Y[i + 1] - L.Y[i]) / (seg || 1); grades.push(gr); gradeMax = Math.max(gradeMax, gr); const sg = ground(R, gh, L.X[i], L.Z[i]) - L.Y[i]; gaps.push(Math.abs(sg)); if (sg > 0.3) poke++; if (sg < -2) floating++; }
       }
@@ -311,7 +333,8 @@ export function roadPass(R, gh, els, sites = []) {
     grades.sort((a, b) => a - b); gaps.sort((a, b) => a - b);
     const q = (a, p) => a[Math.floor(p * (a.length - 1))] || 0;
     stats[hw] = { lines: ls.length, kmReal: Math.round(km * 6.5 / 1000), bridgePct: +(bridge / km * 100).toFixed(1), tunnelPct: +(tunnel / km * 100).toFixed(1), gradeP99: +q(grades, 0.99).toFixed(3), gradeMax: +gradeMax.toFixed(3),
-      groundGapP99m: +q(gaps, 0.99).toFixed(2), within05m: +(gaps.filter((v) => v <= 0.5).length / (gaps.length || 1) * 100).toFixed(2), groundAbove03Pct: +(poke / (gaps.length || 1) * 100).toFixed(2), floatingOver2mPct: +(floating / (gaps.length || 1) * 100).toFixed(2), linesStillTight: tightLeft, shiftMaxRealM: Math.round(shiftMax * 6.5) };
+      groundGapP99m: +q(gaps, 0.99).toFixed(2), within05m: +(gaps.filter((v) => v <= 0.5).length / (gaps.length || 1) * 100).toFixed(2), groundAbove03Pct: +(poke / (gaps.length || 1) * 100).toFixed(2), floatingOver2mPct: +(floating / (gaps.length || 1) * 100).toFixed(2), linesStillTight: tightLeft, shiftMaxRealM: Math.round(shiftMax * 6.5),
+      whyPct: Object.fromEntries(Object.entries(why).map(([k, v]) => [k, +(v / km * 100).toFixed(1)])) };
   }
   stats.clearance = clearance; stats.snap = snap;
   return { lines, stats };
