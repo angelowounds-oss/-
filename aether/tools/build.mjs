@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
+import { importMap, SOLVER_MODULES } from './lib-importmap.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const rd = p => fs.readFileSync(path.join(root, p), 'utf8');
@@ -34,6 +35,8 @@ const out = path.resolve(root, arg('out', 'dist/aether.html'));
 const assetFiles = ['assets/console-asset.js', vehicleFile, ...(fs.existsSync(path.join(root, 'assets/vehicle-agera.js')) ? ['assets/vehicle-agera.js'] : []), ...(fs.existsSync(path.join(root, 'assets/reference-results.js')) ? ['assets/reference-results.js'] : []), 'assets/fan-asset.js', 'assets/tunnel-asset.js', 'assets/bluenoise.js'];
 const build = { version: rd('VERSION').trim(), vehicle, time: new Date().toISOString(), engineFiles, assets: {} };
 let html = rd('index.html');
+// the optional #solver=lbm modules (loaded with import('aether/lbm-app.mjs') only when asked for) replace the dev import map of index.html
+html = html.replace(/<script type="importmap">[\s\S]*?<\/script>/, () => importMap(root, [...SOLVER_MODULES, 'tools/solver2/gpu/lbm-app.mjs']));
 html = html.replace('<link rel="stylesheet" href="css/style.css">', () => '<style>' + rd('css/style.css') + '</style>');
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => {
   const body = rd(src);

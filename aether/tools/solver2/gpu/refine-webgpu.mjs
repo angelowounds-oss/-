@@ -260,7 +260,7 @@ var<workgroup> red: array<vec4f, 256>;
 }
 // velocity on a uniform grid of sample points (the app's visualisation grid, CFD V3 P4): one dispatch per level, finest first; a point takes the first
 // level whose nearest cell is interior (fluid or solid), trilinear over that level's fluid cells (mac), 0 in solids. out: (u, flag) flag 1 fluid, 2 solid
-struct SP { mn: vec3f, h: f32, dims: vec3u, scale: f32 }
+struct SP { mn: vec3f, scale: f32, h: vec3f, pad0: f32, dims: vec3u, pad1: u32 }
 @group(0) @binding(36) var<uniform> sp: SP;
 @group(0) @binding(37) var<storage, read_write> smp: array<vec4f>;
 @compute @workgroup_size(64) fn sample(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) nw: vec3u) {
@@ -414,14 +414,19 @@ export async function createRefineGpu(device, S, o) {
       for (let k = 0; k < 3; k++) { r.pressure[k] += fn * nv[k]; r.friction[k] += f[k] - fn * nv[k]; } }
     return out; };
   st.wall = async () => { if (!wmOn) return null; const g = G[Bl], u = await read(g.utau, 4 * g.nb); let m = 0; for (const v of u) m += v; return { cells: g.nb, utauMean: m / g.nb }; };
-  // velocity on a uniform grid (level-0 units: mn corner, h spacing, dims counts); returns Float32Array (ux, uy, uz, flag) per point, x fastest.
+  // velocity on a uniform grid (level-0 units: mn corner, h spacing (number or per axis), dims counts); returns Float32Array (ux, uy, uz, flag) per point, x fastest.
   // Needs the velocity field of every level (o.hrr < 1 keeps one); it is refreshed from the current populations first
   let smpB = null, smpN = 0, smpU = null, smpBG = null, smpRead = null;
-  st.sample = async (mn, h, dims) => {
+  // calls are queued: one staging buffer, and a new size must not replace it while an earlier read is still mapping
+  let smpQ = Promise.resolve();
+  st.sample = (mn, h, dims) => { const r = smpQ.then(() => sampleNow(mn, h, dims)); smpQ = r.catch(() => {}); return r; };
+  const sampleNow = async (mn, h, dims) => {
     if (!G[0].L.mac) throw Error('refine-webgpu: sample() needs o.hrr < 1 (velocity field per level)');
     const n = dims[0] * dims[1] * dims[2];
-    if (n !== smpN) { smpN = n; smpB = zeros(4 * n); smpRead = device.createBuffer({ size: 16 * n, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }); smpU = G.map(() => uni(new ArrayBuffer(32))); smpBG = G.map((g, l) => bind('sample', { 0: g.lp, 3: g.flags, 4: g.mac, 36: smpU[l], 37: smpB })); }
-    G.forEach((g, l) => { const ab = new ArrayBuffer(32), v = new DataView(ab); mn.forEach((x, k) => v.setFloat32(4 * k, x, true)); v.setFloat32(12, h, true); dims.forEach((x, k) => v.setUint32(16 + 4 * k, x, true)); v.setFloat32(28, 2 ** g.L.l, true); device.queue.writeBuffer(smpU[l], 0, ab); });
+    if (n !== smpN) { smpN = n; smpB = zeros(4 * n); smpRead = device.createBuffer({ size: 16 * n, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }); smpU = G.map(() => uni(new ArrayBuffer(48))); smpBG = G.map((g, l) => bind('sample', { 0: g.lp, 3: g.flags, 4: g.mac, 36: smpU[l], 37: smpB })); }
+    const hv = Array.isArray(h) ? h : [h, h, h];
+    G.forEach((g, l) => { const ab = new ArrayBuffer(48), v = new DataView(ab); mn.forEach((x, k) => v.setFloat32(4 * k, x, true)); v.setFloat32(12, 2 ** g.L.l, true); hv.forEach((x, k) => v.setFloat32(16 + 4 * k, x, true));
+      dims.forEach((x, k) => v.setUint32(32 + 4 * k, x, true)); device.queue.writeBuffer(smpU[l], 0, ab); });
     const e = device.createCommandEncoder(); e.clearBuffer(smpB); const c = e.beginComputePass();
     for (const g of G) disp(c, 'macroVel', g.bg.macro, g.N); flush();
     for (let l = G.length - 1; l >= 0; l--) { c.setPipeline(pipes.sample); c.setBindGroup(0, smpBG[l]); const w = Math.ceil(n / 64), x = Math.min(w, 65535); c.dispatchWorkgroups(x, Math.ceil(w / x)); }

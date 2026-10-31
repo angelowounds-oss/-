@@ -113,6 +113,10 @@ void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec
  o=vec4(un,0.);}`,
 /* ---- optional volume-fraction forcing (Kajishima et al. 2001): on partially solid faces u <- (1-chi) u + chi us,
    chi = 1-theta = face solid fraction. Makes tangential velocity feel the true surface instead of the fully solid staircase. ---- */
+/* CFD V3 P4 (#solver=lbm): blend the face velocities towards the LBM solution (cell-centred, alpha = weight) sampled onto this grid */
+lbmBlend:`uniform sampler2D uVel,uLbm;
+void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec4 u=F(uVel,c),a=F(uLbm,c),ax=F(uLbm,c-ivec3(1,0,0)),ay=F(uLbm,c-ivec3(0,1,0)),az=F(uLbm,c-ivec3(0,0,1));
+ o=vec4(mix(u.x,.5*(a.x+ax.x),min(a.w,ax.w)),mix(u.y,.5*(a.y+ay.y),min(a.w,ay.w)),mix(u.z,.5*(a.z+az.z),min(a.w,az.w)),u.w);}`,
 ibm:`uniform sampler2D uVel,uSol,uG;
 vec3 us(ivec3 c,int ax){ivec3 e=ivec3(0);e[ax]=1;vec4 a=F(uSol,c),b=c[ax]==0?vec4(0.):F(uSol,c-e);float pa=PHI(a),pb=c[ax]==0?0.:PHI(b);return (pa*a.xyz+pb*b.xyz)/max(pa+pb,1e-6);}
 void main(){ivec3 c=C();if(c.z>=uN.z){o=vec4(0);return;}vec3 u=F(uVel,c).xyz;vec4 g=F(uG,c);
@@ -386,6 +390,7 @@ function macStepBody(dt,emit){const T=MAC.t,cfg=MAC.cfg;gl.bindVertexArray(LIVE.
  macPass('div',T.b,{uVel:T.velA.t,uSol:T.sol.t,uG:T.geom.t},{uScale:1/dt,uPost:0});
  macSolve();
  macPass('proj',T.velB,{uVel:T.velA.t,uP:MAC.lv[0].T.pA.t,uSol:T.sol.t,uG:T.geom.t},{uDt:dt});macSwap(T,'velA','velB');
+ lbmBlendPass(T); /* no-op unless #solver=lbm is running (87l-lbm-bridge.js) */
  /* smoke on the 2x grid */
  if(emit!==false){const em=liveEmitters(),D=MAC.D,Dg={...D,h:MAC.hd};
   macPass('dadv',T.dhat,{uVel:T.velA.t,uSrc:T.dyeA.t},{uDt:dt},Dg,MAC.G);macPass('dadv',T.dbar,{uVel:T.velA.t,uSrc:T.dhat.t},{uDt:-dt},Dg,MAC.G);
