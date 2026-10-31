@@ -257,6 +257,52 @@ function bump(L, i, h) {
     if (L.H[q] > 1.5 && !L.cls[q]) { L.cls[q] = 1; L.why[q] = WHY.bump; } else if (L.H[q] < -1.5 && !L.cls[q]) { L.cls[q] = 2; L.why[q] = WHY.bump; }
   }
 }
+// the two carriageways of a motorway (one-way lines of one number side by side, decks touching) stand at one height: laid and moved each on its
+// own, the lower one's deck edge was a step of 2 m a car at speed drove into (region-drive), 9 m apart on 인천대교 (ADR-0037). Once, after the
+// crossings, the lower one goes up to the other, but only where that keeps the clearance under every road over it (and a tunnel is left as it is):
+// levelled in the crossing rounds, a carriageway lifted to its partner was lifted again at the next crossing and the decks climbed past 100 m
+const PCS = 48, PK = (a, b) => a * 100003 + b, two = (L) => L.ref && L.oneway && L.hw === 'motorway';   // motorways only: the carriageways of a trunk or primary road meet streets at grade, and a lifted one left its junctions
+function levelPairs(lines) {
+  const grid = new Map(), over = lines.map(() => []), pk = (a, b) => (a < b ? a + '|' + b : b + '|' + a), crossed = new Set(), idx = new Map(lines.map((L, k) => [L, k]));
+  lines.forEach((L, li) => { if (two(L)) for (let i = 0; i < L.n; i++) { const k = PK(Math.floor(L.X[i] / PCS), Math.floor(L.Z[i] / PCS)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(li, i); } });
+  // the crossings of each line (the other road's height there), and the carriageways of one road that cross each other (where they swap sides: not partners)
+  for (const c of crossings(lines)) {
+    over[c.A].push({ i: c.a, y: c.yb }); over[c.B].push({ i: c.b, y: c.ya });
+    if (lines[c.A].ref && lines[c.A].hw === lines[c.B].hw && lines[c.A].ref === lines[c.B].ref) crossed.add(pk(c.A, c.B));
+  }
+  let moves = 0, held = 0;
+  for (let sweep = 0; sweep < 2; sweep++) lines.forEach((L, li) => {
+    if (!two(L)) return; const hl = halfOf(L);
+    for (let i = 1; i + 1 < L.n; i++) {
+      if (L.cls[i] === 2) continue;
+      const tx = L.X[i + 1] - L.X[i - 1], tz = L.Z[i + 1] - L.Z[i - 1], tl = Math.hypot(tx, tz) || 1, a = Math.floor(L.X[i] / PCS), b = Math.floor(L.Z[i] / PCS);
+      let up = 0;
+      for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) {
+        const cell = grid.get(PK(a + da, b + db)); if (!cell) continue;
+        for (let k = 0; k < cell.length; k += 2) {
+          const M = lines[cell[k]], j = cell[k + 1]; if (M === L || M.hw !== L.hw || M.ref !== L.ref || M.cls[j] === 2 || M.Y[j] - L.Y[i] <= up || crossed.has(pk(li, cell[k]))) continue;
+          if (Math.hypot(M.X[j] - L.X[i], M.Z[j] - L.Z[i]) > hl + halfOf(M) + 1) continue;
+          const mx = M.X[Math.min(M.n - 1, j + 1)] - M.X[Math.max(0, j - 1)], mz = M.Z[Math.min(M.n - 1, j + 1)] - M.Z[Math.max(0, j - 1)];
+          if (Math.abs(mx * tx + mz * tz) < 0.8 * tl * (Math.hypot(mx, mz) || 1)) continue;   // side by side, not a crossing
+          up = M.Y[j] - L.Y[i];
+        }
+      }
+      if (up <= 0.3) continue;
+      // tried, and undone where it cuts the clearance under a road over the line or lifts the line off a road it meets at grade (bump keeps the
+      // largest offset, so it can lift a sample by more than up)
+      const keep = { Y: Array.from(L.Y), H: L.H ? Array.from(L.H) : null, cls: Array.from(L.cls), why: Array.from(L.why) }, worse = (q) => q < L.n && L.Y[q] > keep.Y[q] + 0.01;
+      bump(L, i, up);
+      // a crossing short of the clearance that the raise made shorter, or a junction (a ramp joining) it broke
+      const hurt = (o, q) => q < L.n && worse(q) && Math.abs(o.y - L.Y[q]) < CLEAR;
+      if (over[li].some((o) => hurt(o, o.i) || hurt(o, o.i + 1))) {
+        for (let q = 0; q < L.n; q++) { L.Y[q] = keep.Y[q]; L.H[q] = keep.H ? keep.H[q] : 0; L.cls[q] = keep.cls[q]; L.why[q] = keep.why[q]; }
+        held++; continue;
+      }
+      moves++;
+    }
+  });
+  return { moves, held };
+}
 function clearancePass(lines) {
   const st = { rounds: 0, moved: 0, maxRaise: 0, junctionsLeft: 0, before: null, after: null };
   // who goes over is decided once for each pair of roads in a 1.5 km tile (a road: the lines of one number and class, both carriageways together) and
@@ -308,6 +354,9 @@ function clearancePass(lines) {
       void other; void mw;
     }
   }
+  // the deficient crossings left after the last round's moves (st.after counts them before), and after the levelling
+  const deficient = () => { let bad = 0; for (const c of crossings(lines)) { const P = lines[c.A], Q = lines[c.B], sa = P.cls[c.a] || P.cls[c.a + 1], sb = Q.cls[c.b] || Q.cls[c.b + 1]; if (Math.abs(c.ya - c.yb) < CLEAR && (sa || sb || P.hw === 'motorway' || Q.hw === 'motorway')) bad++; } return bad; };
+  st.afterRounds = deficient(); st.paired = levelPairs(lines); st.afterPairs = deficient();
   return st;
 }
 

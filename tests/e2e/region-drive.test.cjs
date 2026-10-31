@@ -16,7 +16,7 @@ run('region-drive', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     const x0 = line.x[i0], z0 = line.z[i0], tx = line.x[i0 + 1] - x0, tz = line.z[i0 + 1] - z0, h = Math.atan2(tx, tz), y0 = line.y[i0];
     o.oneway = line.oneway; o.line = line.id;
     pl.body3.teleport(x0, y0 + 1, z0); pl.x = x0; pl.y = y0 + 1; pl.z = z0; pl.vy = 0; step(120);
-    const V = g.vehicles[0].constructor, v = new V(g, 'sport', 0x333333, 'parked', {}); v.x = x0; v.z = z0; v.h = h; v.awake = true; g.addVehicle(v); step(60);
+    const V = g.vehicles[0].constructor, v = new V(g, 'sport', 0x333333, 'parked', {}); v.x = x0; v.z = z0; v.h = h; v.spawnY = y0; v.awake = true;   /* on the road: the line can be a viaduct, and a car placed by x and z alone stands on the ground under it (GPL-15) */ g.addVehicle(v); step(60);
     o.startAbove = +(v.pv.body.translation().y - y0).toFixed(2); g.enterVehicle(v);
     const ex = line.x[i0 + want], ez = line.z[i0 + want]; const rt = g.autonav.router.route(x0, z0, ex, ez); o.route = { straight: rt.straight, km: Math.round(rt.length), pts: rt.pts.length, first: rt.pts.filter((_, k) => k % 60 === 0).map((q) => q.map((n) => Math.round(n))), start: [Math.round(x0), Math.round(z0)], end: [Math.round(ex), Math.round(ez)] };
     o.auto = { started: g.autonav.start(ex, ez) };
@@ -37,7 +37,7 @@ run('region-drive', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     let deck = 0, deckHit = 0;
     for (const r of g.highways.N.roads) if (r.kind === 'connector' && r.joinB) for (let i = 0; i < r.pts.length; i++) {
       const [x, z] = r.pts[i]; if (!r.cls[i] || Math.max(Math.abs(x), Math.abs(z)) > 1490) continue;
-      deck++; const h = g.phys.world.castRay(new g.phys.R.Ray({ x, y: r.y[i] + 3, z }, { x: 0, y: -1, z: 0 }), 8, true, undefined, 1 << 0); if (h && Math.abs(h.timeOfImpact - 3.25) < 0.6) deckHit++;
+      deck++; const h = g.phys.ray(x, r.y[i] + 3, z, 0, -1, 0, 8, 1); if (h && Math.abs(h.t - 3.25) < 0.6) deckHit++;
     }
     o.deck = deck; o.deckHit = deckHit;
     return o;
