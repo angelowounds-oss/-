@@ -4,6 +4,9 @@
 // capital's keep zone (the hand-made city keeps its own ground). All coordinates are the local frame.
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+import { REGIONS } from './regions/index.js';
+import { CAPITAL } from './koreamap.js';
+
 let CUR = undefined;
 export function region() {
   if (CUR === undefined || (CUR === null && (globalThis.__BAKED?.region || globalThis.__REGION))) CUR = globalThis.__BAKED?.region || globalThis.__REGION || null;
@@ -15,8 +18,15 @@ export function regionWeight(x, z) {
   const R = region(); if (!R) return 0;
   const x1 = R.x0 + (R.nx - 1) * R.g, z1 = R.z0 + (R.nz - 1) * R.g, edge = Math.min(x - R.x0, x1 - x, z - R.z0, z1 - z);
   if (edge <= 0) return 0;
-  return Math.min(sstep(0, R.edge, edge), sstep(R.keep, R.keep + R.band, Math.max(Math.abs(x), Math.abs(z))));
+  let w = Math.min(sstep(0, R.edge, edge), sstep(R.keep, R.keep + R.band, Math.max(Math.abs(x), Math.abs(z))));
+  for (const h of holes()) if (w > 0) w = Math.min(w, sstep(h.r, h.r + HOLE_BAND, Math.hypot(x - h.x, z - h.z)));
+  return w;
 }
+// Cities that keep their own flat ground where the raster reaches them (viaRegion: the airport city on Yeongjong, ADR-0037): the region gives way
+// inside 1.15 r and returns over HOLE_BAND, which ends before the compiled roads begin (their ground is laid into the raster, not re-graded).
+const HOLE_BAND = 220;
+let HOLES = null;
+const holes = () => HOLES || (HOLES = REGIONS.flatMap((r) => r.cities).filter((c) => c.def.viaRegion).map((c) => ({ x: c.def.x - CAPITAL.x, z: c.def.z - CAPITAL.z, r: c.def.r * 1.15 })));
 
 // the compiled ground (game metres, bilinear), NaN outside the region's raster
 export function regionHeight(x, z) {

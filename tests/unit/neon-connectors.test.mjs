@@ -6,7 +6,7 @@ const { regionRoads } = await import('../../src/region.js');
 const bad = [], m = { connectors: 0, samples: 0, offGround: 0, maxDev: 0, maxGrade: 0, joinOnViaduct: 0, floating: 0 };
 const roads = new Map(regionRoads().map((r) => [r.id, r]));
 for (const r of net().roads) {
-  if (r.kind !== 'connector') continue; m.connectors++;
+  if (r.kind !== 'connector' || r.city !== 'neon') continue; m.connectors++;   // the airport city's connectors (ADR-0037) are checked by unit/incheon-roads
   for (let i = 0; i < r.pts.length; i++) {
     const g = capitalH(r.pts[i][0], r.pts[i][1]), d = r.y[i] - g; m.samples++;
     if (r.cls[i] === 0) { if (Math.abs(d) > 4) m.offGround++; m.maxDev = Math.max(m.maxDev, Math.abs(d)); }

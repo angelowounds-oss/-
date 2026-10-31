@@ -3,7 +3,7 @@
 // and sign gantries. Every road gets an elevation profile (smoothed terrain, grade-limited) and a class per sample: 0 on the ground, 1 bridge
 // (the terrain falls away), 2 tunnel (the terrain rises over the road). A spatial index answers "how far is the nearest road, and what is its
 // surface height" for carving the terrain (farland.js) and for the physics ground.
-import { cities, highways, farHeight, SEA, WORLD_HALF } from './worldmap.js';
+import { cities, highways, farHeight, SEA, WORLD_HALF, nearFade } from './worldmap.js';
 import { baseHeight, heightAt, roadsData, EXTENT } from './terrainfn.js';
 import { settlements } from './settlements.js';
 import { regionWeight, regionHeight, regionRoads } from './region.js';
@@ -12,7 +12,7 @@ export const DS = 30, HALF_W = 17.5, CARVE_FADE = 46, GRADE = 0.055;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // ground height as the far land draws it (the city's own hills near the origin, the world from ~9 km on); roads follow this
 export function groundH(x, z, cell = 200) {
-  const r = Math.hypot(x, z), w = sstep(1400, 9000, r), f = farHeight(x, z, cell), g = w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w;
+  const w = nearFade(x, z), f = farHeight(x, z, cell), g = w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w;
   // across a compiled region's border band the drawn ground blends to the region's (landfn.js), so a highway that ends there is laid against that blend
   const rw = regionWeight(x, z); if (rw <= 0) return g;
   const rh = regionHeight(x, z); return rh === rh ? g * (1 - rw) + rh * rw : g;
@@ -87,8 +87,8 @@ function build() {
   // ---- ring roads: the largest radius (down from the wished one) with at least 75 % dry ground; broken into arcs where it would cross water
   const compiled = regionRoads().length > 0;   // a compiled region (ADR-0019) brings the capital's real roads: no ring or connectors there
   for (const c of cs) {
-    if (compiled && c.id === 'neon') continue;
-    let R = RING_R[c.type] || 2700, dry = 0;
+    if (compiled && (c.id === 'neon' || c.viaRegion)) continue;   // a city reached through the region (ADR-0037) meets its roads by connectors below
+    let R = c.viaRegion ? Math.round(c.r * 1.3) : RING_R[c.type] || 2700, dry = 0;   // the airport city on Yeongjong is small (r 1100) and 8 km from the capital's ring
     for (; R > 1500; R -= 200) { dry = 0; for (let a = 0; a < 48; a++) if (isDry(c.x + Math.cos(a / 48 * 6.2832) * R, c.z + Math.sin(a / 48 * 6.2832) * R)) dry++; if (dry >= 36) break; }
     const n = Math.max(24, Math.round(6.2832 * R / DS)), P = []; for (let i = 0; i < n; i++) { const a = i / n * 6.2832; P.push([c.x + Math.cos(a) * R, c.z + Math.sin(a) * R]); }
     const wet = P.map((p) => !isDry(p[0], p[1]));
@@ -169,6 +169,23 @@ function build() {
     const want = (x, z) => { const c = cheb(x, z); if (c < c1) return ln.y + (yEnd - ln.y) * sstep(c0, c1, c); const h = regionHeight(x, z); return h === h ? h + 0.3 : groundH(x, z, 200); };
     const y = profile(P0, false, ln.y, tgt.r.y[tgt.i], want, 2);
     N.roads.push({ id: `conn:${k}`, kind: 'connector', city: 'neon', pts: P0, y, closed: false, cls: classifyTight(P0, y, capitalH), lanes: 2, joinB: { road: tgt.r.id, i: tgt.i, d: 0 } });
+  }
+  // ---- a city reached through the region (viaRegion: the airport city on Yeongjong, ADR-0037): each real motorway that stops near it
+  // (공항고속도로 130, 인천대교 110, cut where the raster ends) runs on to the end of the city's nearest radial street, two lanes, a Bezier tangent
+  // to the motorway at its end so the join has no kink, from the city's plateau (y = 0) to the motorway's height
+  const bez3 = (p0, p1, p2, p3, t) => { const u = 1 - t; return [u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]]; };
+  if (compiled) for (const c of cs) if (c.viaRegion) {
+    const ends = new Map();   // ref -> the motorway line end nearest the city
+    for (const r of regionRoads()) { if (r.hw !== 'motorway' || !r.ref) continue; for (const i of [0, r.x.length - 1]) { const d = Math.hypot(r.x[i] - c.x, r.z[i] - c.z), b = ends.get(r.ref); if (d < c.r * 2.5 && (!b || d < b.d)) ends.set(r.ref, { r, i, d }); } }
+    for (const [ref, e] of ends) {
+      const tx = e.r.x[e.i], tz = e.r.z[e.i], j = e.i ? e.i - 4 : 4, ox = tx - e.r.x[j], oz = tz - e.r.z[j], ol = Math.hypot(ox, oz) || 1;   // (ox, oz): out of the line's end, towards the city
+      let S = null, sd = Infinity, sa = 0;
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + 0.2, p = [c.x + Math.cos(a) * c.r * 0.97, c.z + Math.sin(a) * c.r * 0.97], d = Math.hypot(p[0] - tx, p[1] - tz); if (d < sd) { sd = d; S = p; sa = a; } }   // the radial streets (citylayout.js)
+      const k = sd * 0.4, E = [tx, tz], c1 = [S[0] + Math.cos(sa) * k, S[1] + Math.sin(sa) * k], c2 = [tx + ox / ol * k, tz + oz / ol * k];
+      const n = Math.max(6, Math.round(sd / DS)), P = []; for (let q = 0; q <= n; q++) P.push(bez3(S, c1, c2, E, q / n));
+      const y = profile(P, false, 0, e.r.y[e.i], groundH, 2);
+      N.roads.push({ id: `conn:${c.id}:${ref}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls: classify(P, y, groundH), lanes: 2, joinB: { road: e.r.id, i: e.i, d: 0 } });
+    }
   }
   // ---- interchange ramps: slip roads (Bezier) from a point of the highway back from the ring onto the ring, by interchange type
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

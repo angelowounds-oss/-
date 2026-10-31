@@ -310,3 +310,31 @@
   - 상세 도시가 없는 9개 지역 파일을 만든다. 울산, 세종, 강원, 충북, 충남, 전북, 경북, 경남, 제주다.
   - 옛 표를 지운다.
 - AC: 생성기 출력과 청크 바이트가 21d와 같다.
+
+### WLD-22 서울–인천 실제 도로 — P1 · L · In progress (ADR-0037)
+- 요청: "인천과 서울을 잇는 도로를 실제 도로 참고해서 똑같이 만들어." 선택: 공항 도시는 영종도 실제 공항 자리, 교량은 높이와 주탑까지.
+- 하위: 22a 공항 도시 위치와 연결로 → 22b 실제 높이(바다 교량, 해수면 조각, 고가 과다) → 22c 주탑과 케이블.
+
+### WLD-22a 공항 도시를 영종도로 — P1 · M · Review (2026-10-31, `feat/WLD-22a-airport-yeongjong`)
+- AC: 공항 도시가 인천공항 자리에 있고 평탄하다. 서울–공항 사이에 생성 고속도로가 없고, 실제 고속도로(110, 130)가 연결로로 공항 도시에 닿는다.
+- 한 것:
+  - `src/regions/incheon.js`: `airfield`를 `project(126.41, 37.462)`에 고정(`fixed`), `r` 3400 → 1100, `viaRegion`. local (−7728, 1702)이다. 전에는 15 km 배치 규칙 때문에 충남 서산·태안 근처(−8195, 14055)에 있었다.
+  - `src/worldmap.js`:
+    - `routeHighways`: 컴파일 지역이 있으면 `viaRegion` 도시에 생성 고속도로를 만들지 않는다. 없으면(`WORLD=small`, node 테스트) 다른 도시처럼 잇는다.
+    - `nearFade`: 서울 언덕이 풍경으로 바뀌는 가중치. 9 km 안의 다른 도시 평탄원에서는 언덕을 넣지 않는다. `landfn.groundNoRiver`와 `roadnet.groundH`가 같이 쓴다.
+  - `src/region.js` `regionWeight`: `viaRegion` 도시의 1.15 r 안에서 0, 220 m 띠로 복귀.
+  - `src/roadnet.js`: 컴파일 지역이 있으면 링 대신 연결로. 도시 가까이 끝나는 실제 고속도로 ref마다 방사 도로 끝에서 고속도로 끝까지 베지어로 잇는다. 컴파일 지역이 없을 때의 링은 1.3 r(1430 m)이다.
+- 결과 (node, 수도권 `region.bin`):
+
+  | 항목 | 전 | 후 |
+  |---|---|---|
+  | 공항 도시 위치 (local) | (−8195, 14055) | (−7728, 1702) |
+  | 공항 자리 지면 (반경 0 / 600 / 1265 m) | 4.8 / — / 30.3 m | 0 / 0 / −2.5~1.1 m |
+  | 서울–공항 생성 고속도로 | `hw:0` (컴파일 도로와 1 km 틈) | 없음 |
+  | 공항 연결로 | 없음 | `conn:airfield:110` 0 → 4 m, `conn:airfield:130` 0 → 16 m |
+
+  - 단위 테스트 통과: regions, worldmap, neon-connectors, world-region, world-road-ends, world-places, highway-drivable, world-crossings, worldnav, korea-match, bake, chunkpack.
+  - 테스트 수정:
+    - `worldmap`: `viaRegion` 도시는 평탄원끼리만 겹치지 않으면 된다(1.15 (r+r)). 지도에서 서울과 8 km 떨어져 있다.
+    - `neon-connectors`: 서울 연결로 4개만 센다. 공항 연결로는 22b의 `unit/incheon-roads`에서 본다.
+  - `unit/roadnet`은 이 티켓 전에도 실패했다("grading off the surface" 18/400). 이번에는 27이다. 늘어난 9개는 컴파일 지역이 없을 때만 생기는 `hw:0`이 공항 링과 만나는 분기점 근처다. 나머지는 원래 있던 큰 편차(−148 m 등)로, 테스트가 평평한 50 m 지면을 넣어 생긴다. 따로 고쳐야 한다.

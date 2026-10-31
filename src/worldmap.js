@@ -13,7 +13,7 @@ import { DEM_N1, DEM_B64 } from './koreadem.js';
 import { osmRoute } from './osmroads.js';
 import { RIVERS } from './korerivers.js';
 import { KOREA_SCALE } from './koreamap.js';
-import { regionWeight, regionHeight } from './region.js';
+import { regionWeight, regionHeight, region } from './region.js';
 import { cityPart } from './regions/index.js';
 
 export const WORLD_HALF = 50000, SEA = -4, CG = 256, CC = (2 * WORLD_HALF) / CG;
@@ -199,17 +199,19 @@ function routeHighways(W) {
     const shore = Math.min(sample(W.H, W.N1, x + HC, z), sample(W.H, W.N1, x - HC, z), sample(W.H, W.N1, x, z + HC), sample(W.H, W.N1, x, z - HC)) < SEA + 4;   // keep a cell off the water
     cost[j * (HG + 1) + i] = h < SEA + 3 ? 1e9 : 1 + 14 * Math.min(1, sl / 0.18) + (h > 500 ? (h - 500) / 120 : 0) + rv * 2.5 + (shore ? 9 : 0);
   }
-  const edges = [], n = W.cities.length, linked = new Set();
+  // a city reached through the compiled region's real roads (viaRegion: the airport city on Yeongjong, ADR-0037) gets no generated highway;
+  // without the region (WORLD=small, a node test) it is linked like any other city
+  const edges = [], ix = W.cities.map((c, i) => i).filter((i) => !(W.cities[i].viaRegion && region())), linked = new Set();
   const dist = (a, b) => Math.hypot(W.cities[a].x - W.cities[b].x, W.cities[a].z - W.cities[b].z);
   const key = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
-  const inTree = new Set([0]);
-  while (inTree.size < n) {   // minimum spanning tree (Prim), then one extra link per city to its nearest unlinked neighbour
+  const inTree = new Set([ix[0]]);
+  while (inTree.size < ix.length) {   // minimum spanning tree (Prim), then one extra link per city to its nearest unlinked neighbour
     let ba = -1, bb = -1, bd = 1e18;
-    for (const a of inTree) for (let b = 0; b < n; b++) if (!inTree.has(b) && dist(a, b) < bd) { bd = dist(a, b); ba = a; bb = b; }
+    for (const a of inTree) for (const b of ix) if (!inTree.has(b) && dist(a, b) < bd) { bd = dist(a, b); ba = a; bb = b; }
     edges.push([ba, bb]); linked.add(key(ba, bb)); inTree.add(bb);
   }
-  for (let a = 0; a < n; a++) {
-    const cand = []; for (let b = 0; b < n; b++) if (b !== a && !linked.has(key(a, b))) cand.push(b);
+  for (const a of ix) {
+    const cand = []; for (const b of ix) if (b !== a && !linked.has(key(a, b))) cand.push(b);
     cand.sort((p, q) => dist(a, p) - dist(a, q));
     if (cand.length && dist(a, cand[0]) < 36000) { edges.push([a, cand[0]]); linked.add(key(a, cand[0])); }
   }
@@ -283,6 +285,14 @@ export const rivers = () => localView(build()).rivers;
 
 // terrain height at (x, z); `cell` = size of the smallest feature the caller can show (m): finer noise octaves are left out
 export function farHeight(x, z, cell = 0) { return farHeightMap(x + CAPITAL.x, z + CAPITAL.z, cell); }
+// How far the capital's own hills (terrainfn.baseHeight) have faded into the landscape at (x, z), local: between 1.4 and 9 km from the origin, and at
+// once on the flat ground of another city that close (the airport city on Yeongjong, ADR-0037), which stands on y = 0 like every city.
+let NEAR = null;
+export function nearFade(x, z) {
+  let w = sstep(1400, 9000, Math.hypot(x, z)); if (w >= 1) return 1;
+  for (const c of NEAR || (NEAR = cities().filter((q) => q.id !== 'neon' && Math.hypot(q.x, q.z) - q.r * 2.4 < 9000))) w = Math.max(w, cityFlat(c, x, z));
+  return w;
+}
 function farHeightMap(x, z, cell) {
   const W = build(); let h = sample(W.H, W.N1, x, z);
   const rug = sample(W.M, W.N1, x, z), land = h > SEA ? 1 : 0;

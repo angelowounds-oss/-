@@ -1,4 +1,4 @@
-import { farHeight, rivers, SEA } from './worldmap.js';
+import { farHeight, rivers, SEA, nearFade } from './worldmap.js';
 import { baseHeight } from './terrainfn.js';
 import { brokenAt } from './roadnet.js';
 import { gradeGround } from './roadgrade.js';
@@ -8,7 +8,6 @@ import { regionWeight, regionHeight, regionPhysHeight } from './region.js';
 // and the page can read those tiles back (heightmap.js): `landHeight` is the ground as drawn, `physHeight` the ground the physics uses (bridges and
 // tunnels filled so a vehicle has ground on the deck). Order of the layers: the world's landscape (worldmap.farHeight), the city's own hills near the
 // origin, the river channels, then the road corridors and settlement pads (roadgrade.js). A compiled region (region.js) replaces all of them inside it.
-const NEAR_BLEND0 = 1400, NEAR_BLEND1 = 9000;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // ---- river channels: the rivers of worldmap.js are polylines [x, z, width]; the channel is cut into the ground along them
@@ -56,8 +55,8 @@ function riverCut(x, z, h) {
   return Math.min(h, bed + (h - bed) * t);
 }
 
-// the world's ground before roads: the city's hills near the origin blend into the landscape between 1.4 and 9 km
-function groundNoRiver(x, z, cell) { const r = Math.hypot(x, z), w = smooth(NEAR_BLEND0, NEAR_BLEND1, r), f = farHeight(x, z, cell); return w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w; }
+// the world's ground before roads: the city's hills near the origin blend into the landscape between 1.4 and 9 km (and give way to a nearby city, nearFade)
+function groundNoRiver(x, z, cell) { const w = nearFade(x, z), f = farHeight(x, z, cell); return w >= 1 ? f : baseHeight(x, z) * (1 - w) + f * w; }
 const groundBase = (x, z, cell) => riverCut(x, z, groundNoRiver(x, z, cell));
 // every road and pad is laid into the ground by one rule (roadgrade.js); the country roads only where the cell is fine (the far ring does not show them)
 const graded = (x, z, cell, physics) => gradeGround(x, z, groundBase(x, z, cell), physics, groundBase, cell <= 32);
