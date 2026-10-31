@@ -1,3 +1,3 @@
-module neoncity/launcher
+module korea/launcher
 
 go 1.24

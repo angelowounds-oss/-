@@ -1,13 +1,13 @@
 # 테스트
 
-`tests/run.cjs`가 실행하는 회귀 스위트. 모든 브라우저 테스트는 헤드리스 Chromium(SwiftShader WebGL2)으로 빌드된 게임 폴더(`dist/NeonCity/game`)를
+`tests/run.cjs`가 실행하는 회귀 스위트. 모든 브라우저 테스트는 헤드리스 Chromium(SwiftShader WebGL2)으로 빌드된 게임 폴더(`dist/Korea/game`)를
 `tests/lib.cjs`의 `serve()`(127.0.0.1 임의 포트, Range 206, 런처와 같은 MIME)로 열고 `window.__game`을 직접 조작한다(ADR-0034). 전략과 한계는 [ADR-0007](adr/0007-test-strategy-swiftshader.md).
 
 ## 실행
 
 ```bash
 cd build && npm i && cd ..          # 처음 한 번 (three, rapier, esbuild …)
-node build/build.mjs                # 테스트는 빌드한 폴더 dist/NeonCity/game 을 연다 (--zip 은 전달용 zip도)
+node build/build.mjs                # 테스트는 빌드한 폴더 dist/Korea/game 을 연다 (--zip 은 전달용 zip도)
 node tests/run.cjs quick            # 단위 + 부팅 + 컬링·조명 동일성 (약 5분)
 node tests/run.cjs render gameplay  # 스위트 지정
 node tests/run.cjs --only breach    # 테스트 하나
@@ -15,7 +15,7 @@ node tests/run.cjs --only breach    # 테스트 하나
 node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 기준 · 2026-10-09 18/18 통과)
 ```
 
-- Playwright: `require('playwright')`가 안 되면 `PLAYWRIGHT` 환경변수 경로(기본 `/opt/node22/lib/node_modules/playwright`)를 쓴다. 다른 빌드 폴더는 `GAME_DIR=/path/to/NeonCity/game`(그 안의 `index.html`). `file://`로는 열리지 않는다.
+- Playwright: `require('playwright')`가 안 되면 `PLAYWRIGHT` 환경변수 경로(기본 `/opt/node22/lib/node_modules/playwright`)를 쓴다. 다른 빌드 폴더는 `GAME_DIR=/path/to/Korea/game`(그 안의 `index.html`). `file://`로는 열리지 않는다.
 - 결과: 터미널 요약 + `tests/results/last-run.json`(git 제외).
 - 테스트는 **하나씩 순서대로** 돈다. 병렬로 돌리면 시간 측정 테스트가 흔들린다.
 
@@ -58,7 +58,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | gameplay | `village` | 마을이 가까이 가면 지어짐(문 있는 집·벽 충돌), 낮엔 주민이 걷고 밤엔 침대에서 자며 가게 문이 잠김, 폭발로 집 붕괴·복구 |
 | gameplay | `industry` | 터빈 로터 회전, 폭발에 터빈·통신탑(신호등 소등)·송전탑(전선 낙하)·정유탱크(화재)·교량 경간 붕괴와 저장 |
 | gameplay | `flightassist` | 화산(1,900 m)으로 1,000 m/s: 저고도 보조가 넘겨 줌(PULL UP), 고도 유지가 목표를 지키고 산에서 들림, 120 m/s 미만에서 해제 |
-| gameplay | `world-small` | `WORLD=small` 빌드(굽지 않음, 시스템 임시 폴더의 `neon_city_small/NeonCity`에 따로 빌드)와 기본 빌드가 같은 월드(지형 합·도시 건물 수·도로 점·역 수) |
+| gameplay | `world-small` | `WORLD=small` 빌드(굽지 않음, 시스템 임시 폴더의 `neon_city_small/Korea`에 따로 빌드)와 기본 빌드가 같은 월드(지형 합·도시 건물 수·도로 점·역 수) |
 | gameplay | `pack` | 고사양을 고르면 폴더의 `world/` 팩이 자동으로 붙고(`pack:*` 청크가 앞), 노트북이면 붙지 않음. 빌드에 팩이 없으면 건너뜀 |
 | gameplay | `hiassets` | 고사양 팩의 KTX2 텍스처가 로딩 중 올라가고 쓰는 쪽이 이름으로 찾음. 팩이 없으면 건너뜀 |
 | perf | `world-perf` | 5곳(수도 거리·도시 거리·항만·고속도로·도시 횡단)의 JS 프레임 시간과 한 프레임의 드로우콜·삼각형 |
@@ -66,7 +66,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 | unit | `keys` | 조작키(`src/keys.js`): GTA V 기본값, 기본 배치에 겹치는 키 0, 재지정은 서로 바꾸기, 금지 키 거절, 저장·복원·깨진 저장 처리, `src/`에 하드코딩 키 0 | 위반 0 |
 | unit | `chunkpack` | 팩 굽기(병렬·캐시 동일 바이트), 마운트, 팩 청크가 앞에 오는 순서, 크기 불일치·손상 청크 거부, 다른 기본 월드용 팩 거부(월드 id, BLD-07). 시·도별 파일(WLD-21c): 기본·팩이 `core.pak`과 지역 파일로 나뉘고, `bakedload`가 읽은 청크가 한 컨테이너와 같으며, 목록의 파일이 없거나 잘리면 거부 |
 | unit | `launcher` | 런처(`launcher/`, Go): 고정 MIME·Range 206, 외부 Host 403·POST 405·목록·숨김·`..` 404, 핑 끊김·bye 뒤 종료, 기본 포트와 기억, 같은 폴더 두 번째 실행은 창만, 다른 폴더는 거절, Windows GUI(PE) 빌드. Go가 없으면 건너뜀 | 위반 0 |
-| unit | `package` | 배포 폴더의 README.txt(BOM·CRLF), LICENSES.txt(매니페스트 전부 + 원문), zip(상위 `NeonCity/`, 압축된 파일은 저장만, `unzip -t`), exe 없는 폴더는 zip 거부 | 위반 0 |
+| unit | `package` | 배포 폴더의 README.txt(BOM·CRLF), LICENSES.txt(매니페스트 전부 + 원문), zip(상위 `Korea/`, 압축된 파일은 저장만, `unzip -t`), exe 없는 폴더는 zip 거부 | 위반 0 |
 | unit | `heightmap` | 구운 타일이 지면 함수와 노드에서 0.1 m 이내·중간 1 m 이내, 강 바닥, 물리 층, 색, 없는 타일은 NaN → 계산 |
 | unit | `citydetail` | 도시 세부의 결정성·타일 안·범위·삼각형 예산, 고사양이 더 촘촘함 |
 | unit | `regions` | 지역 파일(`src/regions/`, ADR-0036): 시·도 17개(이름·상자·시청), 폴더의 파일은 모두 목록에 있고, 도시는 한 지역에만 있으며 그 상자 안, 생성기(`CITY_DEFS`·`STYLES`)가 파일의 값을 쓰며, `regionOf`가 시청·도시를 제 지역에 둔다. 굽기(WLD-21b): 작업마다 지역이 있고, 인천 파일의 스타일·지붕을 고치면 core와 인천 도시 타일만, 규칙은 아무것도, 배치는 전부 다시 구우며, 생성기 출력도 그와 같다(다른 도시 레이아웃·도시 아래 지형 불변). 작업 소스는 import를 따라간다 |
@@ -86,7 +86,7 @@ node tests/run.cjs                  # 전체 (약 16분, 4코어 컨테이너 �
 ## 기준 장면 (AAA-PLAN Q0-3, `src/views.js`)
 - 열두 장면(장소, 시각, 날씨, 카메라 고정)으로 화면 변경을 전후로 비교한다. 화면이 바뀌는 PR은 전후 시트를 함께 낸다.
 - 시트: `node tests/tools/golden-views.cjs`(결과 `tests/results/golden-views.png`, 커밋 안 함). `PICK=1,5`로 일부만, `TWICE=1`로 같은 장면을 두 번 찍어 바이트 차이를 출력, `Q=0..3` 화질.
-- 실기기: `NeonCity.exe`로 연 창의 주소 끝에 `?view=3&q=3`을 붙여 열고(또는 http://127.0.0.1:47820/?view=3&q=3) 시작하면 그 장면에 카메라가 고정되고 HUD가 숨는다(사진 모드의 촬영 버튼으로 저장).
+- 실기기: `Korea.exe`로 연 창의 주소 끝에 `?view=3&q=3`을 붙여 열고(또는 http://127.0.0.1:47820/?view=3&q=3) 시작하면 그 장면에 카메라가 고정되고 HUD가 숨는다(사진 모드의 촬영 버튼으로 저장).
 - 시작 전에 `Math.random`을 고정 시드로 바꾸고(`openGame({init})`), 땅 타일과 도시 근거리 타일이 다 들어올 때까지(최대 600프레임) 기다린다.
 
 ## 지역 확인 (WLD-21d, ADR-0036)

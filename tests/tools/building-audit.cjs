@@ -4,7 +4,7 @@
 //   LIMIT=40 PICK=NC-B04_06-2,NC-SKY OUT=tests/results/building-audit-inside.json FLOORS=all|4
 // Per floor: the plan is contiguous, no collider or mesh is odd (NaN, outside the plate), the stairs and the lift have their holes in the slab,
 // and a walk (0.3 m grid, a body 0.28 m wide, doors open) from the street door or the stair landing reaches every room. Per building: nothing is
-// left behind after it is closed again (colliders, floors, the solid box). Needs the built game folder (dist/NeonCity/game, or GAME_DIR).
+// left behind after it is closed again (colliders, floors, the solid box). Needs the built game folder (dist/Korea/game, or GAME_DIR).
 const { openGame, freeze } = require('../lib.cjs');
 const fs = require('fs');
 

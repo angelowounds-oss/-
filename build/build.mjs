@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { writeReadme, writeLicences, zipDist, buildInfo } from './package.mjs';
-// The game is built as a folder (BLD-06, ADR-0034): dist/NeonCity/ holds the launcher NeonCity.exe and game/ (the page, the code, the asset
+// The game is built as a folder (BLD-06, ADR-0034): dist/Korea/ holds the launcher Korea.exe and game/ (the page, the code, the asset
 // files, the baked world and the high pack). The launcher serves game/ on 127.0.0.1 and opens it in an app window.
-// usage: node build/build.mjs [--zip]   --zip also makes dist/NeonCity-<date>-<commit>.zip for delivery
-// env: DIST=<folder> (default dist/NeonCity), WORLD=small (no baked world: the page generates it), PACK=0 (no high pack), LAUNCHER=0 (no
+// usage: node build/build.mjs [--zip]   --zip also makes dist/Korea-<date>-<commit>.zip for delivery
+// env: DIST=<folder> (default dist/Korea), WORLD=small (no baked world: the page generates it), PACK=0 (no high pack), LAUNCHER=0 (no
 // launcher), DEV=1 (unminified code), REGIONS=seoul,incheon (bake only those provinces and the core: the page computes the rest; ADR-0036)
-const DIST = process.env.DIST || 'dist/NeonCity', GAME = path.join(DIST, 'game'), small = process.env.WORLD === 'small';
+const DIST = process.env.DIST || 'dist/Korea', GAME = path.join(DIST, 'game'), small = process.env.WORLD === 'small';
 const regions = process.env.REGIONS ? process.env.REGIONS.split(',').map((r) => r.trim()).filter(Boolean) : null;
 if (regions) { const { IDS } = await import('../src/regions/index.js'), bad = regions.filter((r) => !IDS.some(([id]) => id === r)); if (bad.length) { console.error('REGIONS: no such province:', bad.join(','), '(src/regions/index.js)'); process.exit(1); } }
 // every shipped file is listed with its licence (ADR-0028): an unlisted file, a changed one or a licence outside the allowed list stops the build
@@ -50,8 +50,8 @@ if (withPack && fs.existsSync(path.join(PACK, 'index.json'))) {
 // the Windows launcher (launcher/main.go); without Go the folder still works for tests, but cannot be delivered
 if (process.env.LAUNCHER !== '0') {
   const go = ['go', '/usr/local/go/bin/go'].find((g) => { try { execFileSync(g, ['version'], { stdio: 'ignore' }); return true; } catch { return false; } });
-  if (go) execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', path.resolve(DIST, 'NeonCity.exe'), '.'], { cwd: 'launcher', stdio: 'inherit', env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
-  else console.warn('Go not found: no NeonCity.exe (https://go.dev/dl/)');
+  if (go) execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', path.resolve(DIST, 'Korea.exe'), '.'], { cwd: 'launcher', stdio: 'inherit', env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
+  else console.warn('Go not found: no Korea.exe (https://go.dev/dl/)');
 }
 const info = { ...buildInfo(), regions };
 writeReadme(DIST, info); writeLicences(GAME);

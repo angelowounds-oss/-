@@ -1,4 +1,4 @@
-// NeonCity launcher (BLD-06, ADR-0034). Serves the game folder next to it on 127.0.0.1 and opens it in an app window, so the game starts
+// Korea launcher (BLD-06, ADR-0034). Serves the game folder next to it on 127.0.0.1 and opens it in an app window, so the game starts
 // from one double-click without the limits of file:// pages (they cannot read sibling files such as the world packs). It answers only this
 // machine, and it exits when the window closes. Standard library only, so it builds anywhere with `go build` and has nothing to fetch.
 package main
@@ -26,7 +26,7 @@ import (
 const (
 	basePort  = 47820 // saves live in the page's localStorage, which belongs to one origin (port included): keep the port stable
 	portTries = 10
-	appID     = "neoncity"
+	appID     = "korea"
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 	}
 	url := fmt.Sprintf("http://127.0.0.1:%d/", port)
 	log.Printf("serving %s at %s", root, url)
-	fmt.Println("NEONCITY_URL " + url)
+	fmt.Println("KOREA_URL " + url)
 
 	s := newServer(root, port, time.Duration(*idle)*time.Second)
 	go s.watch()
@@ -93,7 +93,7 @@ func gameDir(flagDir string) (string, error) {
 		return "", err
 	}
 	if _, err := os.Stat(filepath.Join(abs, "index.html")); err != nil {
-		return "", fmt.Errorf("게임 폴더(game\\index.html)를 찾지 못했습니다.\n\nzip 파일의 압축을 모두 푼 뒤, 풀린 NeonCity 폴더 안의 NeonCity.exe를 실행해 주세요.\n\n찾은 위치: %s", abs)
+		return "", fmt.Errorf("게임 폴더(game\\index.html)를 찾지 못했습니다.\n\nzip 파일의 압축을 모두 푼 뒤, 풀린 Korea 폴더 안의 Korea.exe를 실행해 주세요.\n\n찾은 위치: %s", abs)
 	}
 	return abs, nil
 }
@@ -131,16 +131,16 @@ func listen(flagPort int, root, data string) (net.Listener, int, error) {
 		case "":
 			continue // somebody else's program: try the next port
 		default:
-			return nil, 0, errors.New("다른 폴더의 NeonCity가 이미 실행 중입니다.\n그 게임 창을 닫은 뒤 다시 실행해 주세요.")
+			return nil, 0, errors.New("다른 폴더의 Korea가 이미 실행 중입니다.\n그 게임 창을 닫은 뒤 다시 실행해 주세요.")
 		}
 	}
 	return nil, 0, fmt.Errorf("쓸 수 있는 포트가 없습니다 (%d~%d).", basePort, basePort+portTries-1)
 }
 
-// who asks the program on a port whether it is a NeonCity launcher, and for which folder ("" when it is not one).
+// who asks the program on a port whether it is a Korea launcher, and for which folder ("" when it is not one).
 func who(port int) string {
 	c := http.Client{Timeout: time.Second}
-	r, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d/__neoncity/id", port))
+	r, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d/__korea/id", port))
 	if err != nil {
 		return ""
 	}
@@ -205,15 +205,15 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
-	case "/__neoncity/id":
+	case "/__korea/id":
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"app": appID, "dir": s.root})
 		return
-	case "/__neoncity/ping":
+	case "/__korea/ping":
 		s.lastPing.Store(time.Now().UnixMilli())
 		w.WriteHeader(http.StatusNoContent)
 		return
-	case "/__neoncity/bye":
+	case "/__korea/bye":
 		s.byeAt.Store(time.Now().UnixMilli())
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -350,13 +350,13 @@ func openDefault(url string) error {
 func dataDir() string {
 	if runtime.GOOS == "windows" {
 		if d := os.Getenv("LOCALAPPDATA"); d != "" {
-			return filepath.Join(d, "NeonCity")
+			return filepath.Join(d, "Korea")
 		}
 	}
 	if d, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(d, "NeonCity")
+		return filepath.Join(d, "Korea")
 	}
-	return filepath.Join(os.TempDir(), "NeonCity")
+	return filepath.Join(os.TempDir(), "Korea")
 }
 
 // setupLog appends to the log file, starting it over once it passes 1 MB.
@@ -374,6 +374,6 @@ func setupLog(file string) {
 // fail logs the message, shows it to the player and stops.
 func fail(msg string) {
 	log.Printf("error: %s", msg)
-	showError("NeonCity", msg)
+	showError("Korea", msg)
 	os.Exit(1)
 }

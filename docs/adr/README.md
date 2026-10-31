@@ -32,7 +32,8 @@
 | [0031](0031-room-walkways.md) | 실내 통로 보장: 안쪽 문은 모서리, 꾸민 방은 걸어 보고 다시 꾸민다 | 채택 |
 | [0032](0032-window-interiors.md) | 밖에서 창 안이 보이게: 가짜 방 + 만들어진 층은 창을 연다 | 채택 |
 | [0033](0033-key-layout.md) | 조작키: GTA V 배치 + 재지정 화면(keys.js, 하드코딩 금지) | 채택 |
-| [0034](0034-folder-launcher-zip.md) | 배포: 게임 폴더 + NeonCity.exe(Go 런처, 127.0.0.1) + zip 하나 | 채택 |
+| [0034](0034-folder-launcher-zip.md) | 배포: 게임 폴더 + Korea.exe(Go 런처, 127.0.0.1) + zip 하나 | 채택 |
 | [0035](0035-motion-realism.md) | 행동 모션: 측정한 걸음 표, 한 걸음 위상, 방향 클립 + 엉덩이 회전, 제자리 회전, 기울기 (CHR-06) | 제안 |
 | [0036](0036-region-files.md) | 지역별 파일: 시·도 하나 = 소스 파일 하나 = 월드 파일 하나 (WLD-21) | 채택 |
 | [0037](0037-incheon-real-roads.md) | 서울–인천: 공항 도시는 영종도, 실제 고속도로와 연결로, 교량 높이와 주탑 (WLD-22) | 채택 |
+| [0040](0040-name-korea-1to1.md) | 이름: NeonCity → KOREA 1:1 (`Korea.exe`, `dist/Korea/`) (BLD-08) | 채택 |

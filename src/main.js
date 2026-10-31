@@ -26,11 +26,11 @@ try { const s = +sessionStorage.getItem('neon_q'); if (s >= 0 && s <= 3 && sessi
 
 // the launcher (launcher/main.go) ends itself once the page is gone: tell it we are here, and when we leave (a reload pings again)
 function keepLauncher() {
-  fetch('/__neoncity/id', { cache: 'no-store' }).then((r) => {
+  fetch('/__korea/id', { cache: 'no-store' }).then((r) => {
     if (!r.ok) return;
-    const ping = () => fetch('/__neoncity/ping', { cache: 'no-store' }).catch(() => { /* launcher gone */ });
+    const ping = () => fetch('/__korea/ping', { cache: 'no-store' }).catch(() => { /* launcher gone */ });
     ping(); setInterval(ping, 15000);
-    addEventListener('pagehide', () => navigator.sendBeacon('/__neoncity/bye'));
+    addEventListener('pagehide', () => navigator.sendBeacon('/__korea/bye'));
   }).catch(() => { /* not served by the launcher (tests, dev server) */ });
 }
 
@@ -43,7 +43,7 @@ function fatal(e) {
   let eng, game;
   const loading = initLoading();
   // opened as a file, the page cannot read the game files next to it
-  if (location.protocol === 'file:') { loading.set(0, 'NeonCity.exe로 실행해 주세요 (index.html을 직접 열면 게임 파일을 읽을 수 없습니다)'); return; }
+  if (location.protocol === 'file:') { loading.set(0, 'Korea.exe로 실행해 주세요 (index.html을 직접 열면 게임 파일을 읽을 수 없습니다)'); return; }
   keepLauncher();
   try {
     await preloadFiles();   // files that synchronous set-up code decodes (engine HDRIs, block and landmark shapes, country roads)

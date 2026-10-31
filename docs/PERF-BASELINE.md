@@ -79,12 +79,12 @@ GPU 시간은 이 환경에서 의미가 없다(ADR-0007).
 ### 게임 폴더 배포 후 (ADR-0034, 2026-10-28)
 | 항목 | 크기 |
 |---|---|
-| 폴더 `dist/NeonCity/` 전체 | 180 MB |
+| 폴더 `dist/Korea/` 전체 | 180 MB |
 | `game/world/base.pak` (노트북 월드, 예전 HTML 안 base64 58 MB) | 43.8 MB |
 | `game/world/high.pak` + `assets.pak` (고사양 팩, 늘 포함) | 81.8 + 11.6 MB (BLD-07) |
 | `game/assets/` (glb·jpg·bin·rgbe 41개) | 28 MB |
 | `game/main.js` | 10.5 MB |
-| `NeonCity.exe` | 6.6 MB |
+| `Korea.exe` | 6.6 MB |
 | 전달 zip | 180.6 MB |
 
 - 부팅(이 컨테이너, 노트북 화질, 렌더 포함 SwiftShader라 절대값은 의미 없음): `#go.rdy`까지 예전 HTML 87.6 s, 새 폴더 89.8 s(고사양 84.5 s)로 같다. JS 힙 1020 → 905 MB. `__BAKED_MS`는 파일 받기를 포함해 2258 ms(첫 실행)/895 ms(두 번째), 예전 base64 풀기 1280 ms.

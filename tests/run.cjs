@@ -27,7 +27,7 @@ if (oi >= 0) { const name = args[oi + 1]; files = SUITES.all.filter((f) => path.
 else for (const s of (args.length ? args : ['all'])) { if (!SUITES[s]) { console.error('unknown suite ' + s + ' (' + Object.keys(SUITES).join(', ') + ')'); process.exit(2); } files.push(...SUITES[s]); }
 files = [...new Set(files)];
 
-const game = path.join(path.resolve(process.env.GAME_DIR || path.join(__dirname, '..', 'dist', 'NeonCity', 'game')), 'index.html');
+const game = path.join(path.resolve(process.env.GAME_DIR || path.join(__dirname, '..', 'dist', 'Korea', 'game')), 'index.html');
 if (!fs.existsSync(game) && files.some((f) => f.startsWith('e2e/'))) { console.error('build the game first: node build/build.mjs (no ' + game + ')'); process.exit(2); }
 
 const results = [];

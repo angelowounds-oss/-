@@ -17,7 +17,7 @@ if (!go) { metrics.skipped = 'no Go'; done(); process.exit(); }
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'neon-launcher-')), bin = path.join(tmp, 'launcher'), env = { ...process.env, XDG_CONFIG_HOME: tmp, HOME: tmp };
 execFileSync(go, ['build', '-o', bin, '.'], { cwd: path.join(ROOT, 'launcher'), env: { ...process.env, CGO_ENABLED: '0' } });
-const exe = path.join(tmp, 'NeonCity.exe');
+const exe = path.join(tmp, 'Korea.exe');
 execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', exe, '.'], { cwd: path.join(ROOT, 'launcher'), env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
 { const b = fs.readFileSync(exe), pe = b.readUInt32LE(0x3c); metrics.exeMB = +(b.length / 1e6).toFixed(1);
   if (b.toString('latin1', 0, 2) !== 'MZ' || b.toString('latin1', pe, pe + 4) !== 'PE\0\0') bad.push(['windows build is not a PE file']);
@@ -34,7 +34,7 @@ const other = path.join(tmp, 'other'); fs.mkdirSync(other); fs.writeFileSync(pat
 // starts the launcher; resolves with {p, url, port} once it printed its address
 const start = (args) => new Promise((res, rej) => {
   const p = spawn(bin, args, { env }); let out = '', err = '';
-  p.stdout.on('data', (d) => { out += d; const m = out.match(/NEONCITY_URL (http:\/\/127\.0\.0\.1:(\d+)\/)/); if (m) res({ p, url: m[1], port: +m[2] }); });
+  p.stdout.on('data', (d) => { out += d; const m = out.match(/KOREA_URL (http:\/\/127\.0\.0\.1:(\d+)\/)/); if (m) res({ p, url: m[1], port: +m[2] }); });
   p.stderr.on('data', (d) => { err += d; }); p.on('exit', (c) => rej(new Error('exited ' + c + ' ' + err.slice(-300))));
   setTimeout(() => rej(new Error('no address')), 10000);
 });
@@ -58,32 +58,32 @@ try {
   const refused = { host: (await req(a.port, '/', { host: 'evil.example:' + a.port })).status, post: (await req(a.port, '/', { method: 'POST' })).status,
     folder: (await req(a.port, '/world/')).status, hidden: (await req(a.port, '/.hidden')).status, up: (await req(a.port, '/../secret.txt')).status,
     upEnc: (await req(a.port, '/%2e%2e/secret.txt')).status, back: (await req(a.port, '/..%5csecret.txt')).status, missing: (await req(a.port, '/nope.js')).status,
-    crossSite: (await req(a.port, '/__neoncity/bye', { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, sameSite: (await req(a.port, '/index.html', { headers: { 'Sec-Fetch-Site': 'same-site' } })).status,
+    crossSite: (await req(a.port, '/__korea/bye', { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, sameSite: (await req(a.port, '/index.html', { headers: { 'Sec-Fetch-Site': 'same-site' } })).status,
     sameOrigin: (await req(a.port, '/index.html', { headers: { 'Sec-Fetch-Site': 'same-origin' } })).status, typed: (await req(a.port, '/', { headers: { 'Sec-Fetch-Site': 'none' } })).status };
   metrics.refused = refused;
   if (refused.host !== 403 || refused.post !== 405 || refused.crossSite !== 403 || refused.sameSite !== 403) bad.push(['host/method/other site', JSON.stringify(refused)]);
   if (refused.sameOrigin !== 200 || refused.typed !== 200) bad.push(['own page refused', refused.sameOrigin, refused.typed]);
   for (const k of ['folder', 'hidden', 'up', 'upEnc', 'back', 'missing']) if (refused[k] !== 404) bad.push(['not refused', k, refused[k]]);
-  const id = JSON.parse((await req(a.port, '/__neoncity/id')).body); if (id.app !== 'neoncity' || id.dir !== game) bad.push(['id', JSON.stringify(id)]);
+  const id = JSON.parse((await req(a.port, '/__korea/id')).body); if (id.app !== 'korea' || id.dir !== game) bad.push(['id', JSON.stringify(id)]);
   // pings keep it alive past the idle time; then silence ends it
-  for (let i = 0; i < 4; i++) { await req(a.port, '/__neoncity/ping'); await new Promise((r) => setTimeout(r, 1000)); }
+  for (let i = 0; i < 4; i++) { await req(a.port, '/__korea/ping'); await new Promise((r) => setTimeout(r, 1000)); }
   if (a.p.exitCode !== null) bad.push(['exited while pinged']);
   const t0 = Date.now(), code = await exited(a.p, 8000); metrics.idleExitS = +((Date.now() - t0) / 1000).toFixed(1);
   if (code !== 0) bad.push(['no exit after idle', code]);
 
   // a goodbye beacon (POST, as sendBeacon sends) ends it 10 s later unless the page pings again
   const b = await start(['--dir', game, '--port', '0', '--no-browser', '--idle', '600']);
-  await req(b.port, '/__neoncity/ping'); await req(b.port, '/__neoncity/bye', { method: 'POST' });
+  await req(b.port, '/__korea/ping'); await req(b.port, '/__korea/bye', { method: 'POST' });
   const t1 = Date.now(), code2 = await exited(b.p, 15000); metrics.byeExitS = +((Date.now() - t1) / 1000).toFixed(1);
   if (code2 !== 0) bad.push(['no exit after bye', code2]);
 
   // default ports: a second start for the same folder only opens a window; one for another folder is refused
   const c = await start(['--dir', game, '--no-browser', '--idle', '600']); metrics.defaultPort = c.port;
   if (c.port < 47820 || c.port > 47829) bad.push(['default port', c.port]);
-  if (fs.readFileSync(path.join(tmp, 'NeonCity', 'port.txt'), 'utf8').trim() !== String(c.port)) bad.push(['port not remembered']);
+  if (fs.readFileSync(path.join(tmp, 'Korea', 'port.txt'), 'utf8').trim() !== String(c.port)) bad.push(['port not remembered']);
   const same = await run(['--dir', game, '--no-browser'], 8000), diff = await run(['--dir', other, '--no-browser'], 8000);
   if (same.code !== 0 || !/already running/.test(same.all)) bad.push(['second start', same.code, same.all.slice(-200)]);
-  if (diff.code !== 1 || !/다른 폴더의 NeonCity/.test(diff.all)) bad.push(['other folder', diff.code, diff.all.slice(-200)]);
+  if (diff.code !== 1 || !/다른 폴더의 Korea/.test(diff.all)) bad.push(['other folder', diff.code, diff.all.slice(-200)]);
   c.p.kill();
   // a missing game folder is explained, not served
   const none = await run(['--dir', path.join(tmp, 'nothing'), '--port', '0', '--no-browser'], 8000);

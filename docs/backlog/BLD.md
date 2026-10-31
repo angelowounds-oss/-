@@ -76,3 +76,13 @@ GPL 코드 혼입, 게임 내 크레딧 없음.
   - `unit/chunkpack`, e2e `pack`, `hiassets` 통과.
   - 빌드는 약 18분 걸렸다(팩 포함, 4스레드).
 - 비용: 팩을 처음 다시 구울 때 약 15~25분이 걸린다(t8 2,401개, 고밀도 도시 496개, 4스레드). 그 뒤로는 바뀐 작업만 굽는다. 지형 원천이 바뀌면 t8 전부를 다시 굽는데, 이 비용은 WLD-21(지역별 무효화)이 줄인다.
+
+### BLD-08 이름을 KOREA 1:1로 — P0 · S · M0 · Done (2026-10-31 사용자 결정)
+- 배경: 월드가 가상의 네온시티에서 실제 축척의 서울·인천으로 바뀐다(WLD-23b 이후). 게임 이름도 새로 한다(ADR-0040).
+- 바꾸는 것: 빌드 폴더 `dist/Korea/`, 실행 파일 `Korea.exe`, zip `Korea-<날짜>-<커밋>.zip`(맨 위 폴더 `Korea/`), 런처의 데이터 폴더(`%LOCALAPPDATA%\Korea`)와 오류 창 제목, 페이지 제목과 로딩 화면 "KOREA 1:1", 테스트의 `GAME_DIR` 기본값, README·CLAUDE.md의 명령.
+- 바꾸지 않는 것: 도시 id `neon`과 표시 이름(WLD-24c), 저장 키 `neon_city_v9`(WLD-23b-3에서 한 번만 올린다).
+- AC:
+  - `node build/build.mjs`가 `dist/Korea/Korea.exe`와 `game/`을 만들고 `--zip`이 `dist/Korea-*.zip`을 만든다.
+  - 단위 `launcher`, `package`가 통과한다.
+  - `GAME_DIR=dist/Korea/game node tests/run.cjs --only golden-views`가 통과한다.
+- 결과(2026-10-31): `WORLD=small PACK=0 node build/build.mjs --zip`가 `dist/Korea/{Korea.exe,README.txt,game/}`와 `dist/Korea-20261031-<커밋>.zip`을 만들었다. 단위 `launcher`, `package` 통과. 런처 표식 `NEONCITY_URL`도 `KOREA_URL`로 바꿨다. e2e `golden-views`는 전체 굽기가 필요해 23b 재굽기 뒤에 한다. `world-small`은 기본 월드(굽은 것)와 작은 월드를 비교하므로 작은 빌드를 `GAME_DIR`로 주면 실패하는 것이 정상이다.

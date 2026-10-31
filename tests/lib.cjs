@@ -1,5 +1,5 @@
 // Shared harness for the browser regression tests.
-// Headless Chromium renders WebGL2 with SwiftShader (no GPU needed). Every test opens the built game folder (dist/NeonCity/game, or GAME_DIR)
+// Headless Chromium renders WebGL2 with SwiftShader (no GPU needed). Every test opens the built game folder (dist/Korea/game, or GAME_DIR)
 // over a local http server like the launcher's, starts it, drives it through window.__game, and ends with one `RESULT {...}` line that
 // tests/run.cjs collects.
 //
@@ -14,7 +14,7 @@ let pw;
 try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright'); }
 
 const ROOT = path.resolve(__dirname, '..');
-const GAME = path.resolve(process.env.GAME_DIR || path.join(ROOT, 'dist', 'NeonCity', 'game'));
+const GAME = path.resolve(process.env.GAME_DIR || path.join(ROOT, 'dist', 'Korea', 'game'));
 
 // Serves a game folder on 127.0.0.1 the way launcher/main.go does (fixed MIME types, Range requests answered with 206, nothing compressed), so the
 // page reads its files and world packs exactly as in the delivered game. One server per folder per test process; resolves to its base URL.

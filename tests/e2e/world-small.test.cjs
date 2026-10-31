@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { openGame, result, ROOT, GAME } = require('../lib.cjs');
 (async () => {
-  const dist = path.join(os.tmpdir(), 'neon_city_small', 'NeonCity'), out = path.join(dist, 'game');
+  const dist = path.join(os.tmpdir(), 'neon_city_small', 'Korea'), out = path.join(dist, 'game');
   const b = spawnSync('node', ['build/build.mjs'], { cwd: ROOT, env: { ...process.env, WORLD: 'small', DIST: dist, LAUNCHER: '0' }, encoding: 'utf8' });
   if (b.status !== 0) return result('world-small', false, { build: (b.stderr || b.stdout).slice(0, 300) });
   const probe = () => {
