@@ -37,6 +37,7 @@ run('highways', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     o.events = T.events.size;
     return o;
   });
-  const pass = o.has && o.chunks > 50 && o.tris < 480000 && o.ramps >= 18 && o.tolls >= 10 && o.services >= 4 && o.groundTile && o.cars >= 3 && o.carsMoving >= 2 && o.driven > 250 && o.maxDy < 3.5 && o.alive && o.tollNpcs >= 1 && o.serviceNpcs >= 1 && o.travellers >= 3 && o.travellersMoved >= 1;
+  // 1:1: the chunks around the start now hold the capital region's whole road network (25k lines, ~2 M triangles measured), not only the generated highways
+  const pass = o.has && o.chunks > 50 && o.tris < 2.4e6 && o.ramps >= 18 && o.tolls >= 10 && o.services >= 4 && o.groundTile && o.cars >= 3 && o.carsMoving >= 2 && o.driven > 250 && o.maxDy < 3.5 && o.alive && o.tollNpcs >= 1 && o.serviceNpcs >= 1 && o.travellers >= 3 && o.travellersMoved >= 1;
   result('highways', pass, o);
 });

@@ -19,7 +19,10 @@ run('deck-spawn', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     cand.sort((a, b) => (b.motor - a.motor) || (b.gap - a.gap));
     let at = null;
     for (const c of cand.filter((c, k) => cand.findIndex((d) => Math.hypot(d.x - c.x, d.z - c.z) < 400) === k).slice(0, 8)) {
-      o.tries++; park(c.x, c.y + 1.5, c.z); step(120); if (deckHit(c.x, c.y, c.z) && Math.abs(pl.y - c.y) < 1.5) { at = c; break; }
+      o.tries++; park(c.x, c.y + 1.5, c.z); step(120);
+      // the deck colliders stream in around the player; after a jump of tens of kilometres (1:1) they take more frames, so wait for them, re-parking the falling player
+      for (let w = 0; w < 5 && !deckHit(c.x, c.y, c.z); w++) { park(c.x, c.y + 1.5, c.z); step(120); }
+      if (deckHit(c.x, c.y, c.z) && Math.abs(pl.y - c.y) < 1.5) { at = c; break; }
     }
     if (!at) return { ...o, candidates: cand.length, noDeck: true };
     const r = at.r, j = Math.min(r.pts.length - 1, at.i + 2), h = Math.atan2(r.pts[j][0] - at.x, r.pts[j][1] - at.z);

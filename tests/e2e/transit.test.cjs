@@ -30,7 +30,7 @@ run('transit', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     // metro within the capital
     { const a = T.stations.find((s) => s.city === 'neon' && s.kind === 0), b = T.stations.filter((s) => s.city === 'neon' && s.kind === 0)[2]; park(a.x, a.z + 3); step(10); runRide('metro', T.planMetro(a, b), 100); }
     // rail from the capital to the harbour (a highway line joins them or goes via the airport city)
-    { const a = city('neon'), b = city('harbor'), plan = T.planRail(a, b); o.railPlan = !!plan; if (plan) { park(a.x, a.z + 3); step(10); g.cash = 500; T.open(a); const row = [...T.box.querySelectorAll('.tr-row')].find((r) => r.textContent.includes('HARBOR')); const btn = row && row.querySelector('button'); o.railUi = !!btn; if (btn) btn.click(); g.setPaused(false); o.cashAfterBuy = Math.round(g.cash); o.rideStarted = T.riding; runRide('rail', plan, 0, true); o.rides.rail.cashLeft = Math.round(g.cash); } }
+    { const a = city('neon'), b = city('harbor'), plan = T.planRail(a, b); o.railPlan = !!plan; if (plan) { park(a.x, a.z + 3); step(10); g.cash = 500; T.open(a); const row = [...T.box.querySelectorAll('.tr-row')].find((r) => r.textContent.includes('부산')); const btn = row && row.querySelector('button'); o.railUi = !!btn; if (btn) btn.click(); g.setPaused(false); o.cashAfterBuy = Math.round(g.cash); o.rideStarted = T.riding; runRide('rail', plan, 0, true); o.rides.rail.cashLeft = Math.round(g.cash); } }
     // an airliner flight from Skyport to the capital
     { const plan = T.planAir(air, city('neon')); park(air.x, air.z + 3); step(60); runRide('air', plan, 500); }
     // a taxi to a waypoint 5 km away along the road

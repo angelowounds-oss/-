@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { net } from './roadnet.js';
 import { keys as binds } from './keys.js';
 import { cities } from './worldmap.js';
+import { MAP_K } from './koreamap.js';
 import { Acc } from './citysites.js';
 import { FarGround } from './farland.js';
 import { buildCar } from './models.js';
@@ -16,7 +17,8 @@ import { el } from './util.js';
 // A ride is a camera that follows a vehicle along a path while the world streams past; sections under a city (the tunnels) are a black screen with a caption.
 // The ride takes at most CAP seconds however long the path is (press F to skip): the vehicle goes faster than it would, but the whole world is drawn on the way.
 const CAP = { metro: 14, rail: 42, air: 40, taxi: 34 }, NATURAL = { metro: 22, rail: 78, air: 210, taxi: 38 };
-const FARE = { metro: () => 2, rail: (d) => Math.round(10 + d * 0.002), air: (d) => Math.round(30 + d * 0.003), taxi: (d) => Math.round(10 + d * 0.01) };
+// fares are per distance on the 1:6.5 map; the same trip is 6.5 times longer at 1:1, so the per-metre part is divided by MAP_K (a ride still has a capped duration, CAP)
+const FARE = { metro: () => 2, rail: (d) => Math.round(10 + d * 0.002 / MAP_K), air: (d) => Math.round(30 + d * 0.003 / MAP_K), taxi: (d) => Math.round(10 + d * 0.01 / MAP_K) };
 const KIND_NAME = ['지하철', '고속철도 중앙역', '공항 탑승구'], KIND_COL = [[0.2, 0.9, 1], [1, 0.55, 0.15], [1, 0.85, 0.2]];
 const CSS = `
 #transit{position:fixed;inset:0;z-index:18;display:none;align-items:center;justify-content:center;background:rgba(2,5,10,.78);color:#dff;font:13px/1.4 "Space Mono",monospace}
@@ -158,7 +160,7 @@ export class Transit {
     im.frustumCulled = false; G.scene.add(im); this.signMesh = im;
   }
 
-  // ---- ambient trains: six cars per train, two trains per line, shuttling between the portals
+  // ---- ambient trains: six cars per train, trains along each line, shuttling between the portals
   buildTrains() {
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const g = cv.getContext('2d');
     g.fillStyle = '#d7dce4'; g.fillRect(0, 0, 256, 128); g.fillStyle = '#2b3a4f'; g.fillRect(0, 34, 256, 40); g.fillStyle = '#ffcf80'; for (let i = 0; i < 9; i++) g.fillRect(8 + i * 28, 38, 20, 32); g.fillStyle = '#ff8c26'; g.fillRect(0, 84, 256, 8);
@@ -168,7 +170,8 @@ export class Transit {
     const mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: em, emissive: new THREE.Color(1, 1, 1), emissiveIntensity: 1.3, roughness: 0.35, metalness: 0.4 });
     const geo = new THREE.BoxGeometry(3.1, 3.6, 24); geo.translate(0, 1.9, 0);
     this.CARS = 6; this.trains = [];
-    for (const L of this.lines) for (let k = 0; k < 2; k++) this.trains.push({ L, off: k * 0.5 + (L.id.charCodeAt(3) % 7) * 0.07, base: this.trains.length * this.CARS });
+    // two trains per line on the 1:6.5 map; a line is up to 6.5 times longer at 1:1, so one train per 30 km keeps one always inside the 22 km view radius
+    for (const L of this.lines) { const n = MAP_K > 1 ? Math.max(2, Math.round(L.len / 30000)) : 2; for (let k = 0; k < n; k++) this.trains.push({ L, off: k / n + (L.id.charCodeAt(3) % 7) * 0.07, base: this.trains.length * this.CARS }); }
     this.rideBase = this.trains.length * this.CARS;
     this.carMesh = new THREE.InstancedMesh(geo, mat, this.rideBase + this.CARS); this.carMesh.frustumCulled = false; this.carMesh.castShadow = false;
     const z = new THREE.Matrix4().makeScale(0, 0, 0); for (let i = 0; i < this.carMesh.count; i++) this.carMesh.setMatrixAt(i, z);

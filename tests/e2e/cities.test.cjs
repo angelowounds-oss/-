@@ -12,6 +12,7 @@ run('cities', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     const step = (n) => { for (let i = 0; i < n; i++) window.__upd(1 / 60); };
     o.has = !!S; if (!S) return o;
     o.cities = S.cities.length; o.tiles = S.stats.tiles; o.tris = Math.round(S.stats.tris); o.signs = S.stats.signs;
+    // city 1 is the airport city on Yeongjong (ADR-0037): a fixed city of r ~1.1 km, a terminal and hangars rather than blocks, so far fewer buildings
     o.buildings = S.cities.map((C) => C.L.bld.length / 12);
     o.styles = new Set(S.cities.map((C) => C.S.palette[0] + ':' + C.S.pattern)).size;
     // a free camera for the pictures: the game's chase camera lags behind teleports
@@ -56,6 +57,6 @@ run('cities', { q: 1, width: 640, height: 360 }, async ({ page }) => {
   if (shots) for (const [k, v] of Object.entries(o.shots || {})) fs.writeFileSync(`tests/results/city-${k}.png`, Buffer.from(v.split(',')[1], 'base64'));
   delete o.shots;
   const stood = o.per && Object.values(o.per).every((p) => p.y > p.ground - 0.5 && p.y < p.ground + 8);
-  const pass = o.has && o.cities === 6 && o.styles === 6 && o.buildings.every((n) => n > 1000) && o.tris < 2.2e6 && Object.values(o.per).every((p) => p.near > 0 && p.coll > 20) && stood && o.air.near === 0 && o.air.mid > 0 && o.worstFrameMs < 400 && o.int.has && o.int.open && o.int.floors >= 1 && o.int.inside && o.int.y < 1.5 && o.ships.n === 3 && o.ships.vis >= 1 && o.ships.moved > 50 && o.int.alive && o.fire.burning && o.fire.ruined && o.fire.towerGone && o.fire.droppedClean && o.fire.restored;
+  const pass = o.has && o.cities === 6 && o.styles === 6 && o.buildings.every((n, i) => n > (i === 1 ? 150 : 1000)) && o.tris < 2.2e6 && Object.values(o.per).every((p) => p.near > 0 && p.coll > 20) && stood && o.air.near === 0 && o.air.mid > 0 && o.worstFrameMs < 400 && o.int.has && o.int.open && o.int.floors >= 1 && o.int.inside && o.int.y < 1.5 && o.ships.n === 3 && o.ships.vis >= 1 && o.ships.moved > 50 && o.int.alive && o.fire.burning && o.fire.ruined && o.fire.towerGone && o.fire.droppedClean && o.fire.restored;
   result('cities', pass, { ...o, stood });
 });
