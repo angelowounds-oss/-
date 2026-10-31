@@ -43,7 +43,8 @@ function chains(els, sites) {
   const key = (p) => `${Math.round(p.lon * 1e6)},${Math.round(p.lat * 1e6)}`, groups = new Map();
   for (const e of els) {
     const t = e.tags || {}, hw = NORM[t.highway] || t.highway; if (!CLASS[hw] || !e.geometry || e.geometry.length < 2) continue;
-    if (CLASS[hw].lay === false && !inSites(e.geometry, sites)) continue;   // streets only where there is a town
+    // streets only where there is a town; at real scale every street is in (the buildings stand on the street network, WLD-24a)
+    if (CLASS[hw].lay === false && KOREA_SCALE > 1 && !inSites(e.geometry, sites)) continue;
     const g = hw + '|' + (t.ref || t.name || e.id); if (!groups.has(g)) groups.set(g, []);
     const lanes = parseInt(t.lanes, 10);
     groups.get(g).push({ pts: e.geometry, bridge: !!t.bridge && t.bridge !== 'no', tunnel: !!t.tunnel && t.tunnel !== 'no', oneway: t.oneway === 'yes' || ((hw === 'motorway' || hw.endsWith('_link')) && t.oneway !== 'no'),
@@ -225,12 +226,13 @@ function crossings(lines) {
   const CS = 64, grid = new Map(), K = (a, b) => a * 100003 + b;
   lines.forEach((L, li) => { for (let i = 0; i + 1 < L.n; i++) {
     for (let a = Math.floor(Math.min(L.X[i], L.X[i + 1]) / CS); a <= Math.floor(Math.max(L.X[i], L.X[i + 1]) / CS); a++)
-      for (let b = Math.floor(Math.min(L.Z[i], L.Z[i + 1]) / CS); b <= Math.floor(Math.max(L.Z[i], L.Z[i + 1]) / CS); b++) { const k = K(a, b); let l = grid.get(k); if (!l) grid.set(k, (l = [])); l.push(li, i); }
+      for (let b = Math.floor(Math.min(L.Z[i], L.Z[i + 1]) / CS); b <= Math.floor(Math.max(L.Z[i], L.Z[i + 1]) / CS); b++) { const k = K(a, b); let c = grid.get(k); if (!c) grid.set(k, (c = { a, b, l: [] })); c.l.push(li, i); }
   } });
-  const seen = new Set(), out = [];
-  for (const l of grid.values()) for (let u = 0; u < l.length; u += 2) for (let v = u + 2; v < l.length; v += 2) {
+  // a pair of segments sharing several cells is tested once, in the cell of the larger of their lower corners (a Set of pair keys ran out of room with every street in)
+  const out = [], lo = (P, a) => Math.floor(Math.min(P[a], P[a + 1]) / CS);
+  for (const { a: ca, b: cb, l } of grid.values()) for (let u = 0; u < l.length; u += 2) for (let v = u + 2; v < l.length; v += 2) {
     const A = l[u], a = l[u + 1], B = l[v], b = l[v + 1]; if (A === B) continue;
-    const key = A < B ? `${A}:${a}:${B}:${b}` : `${B}:${b}:${A}:${a}`; if (seen.has(key)) continue; seen.add(key);
+    if (ca !== Math.max(lo(lines[A].X, a), lo(lines[B].X, b)) || cb !== Math.max(lo(lines[A].Z, a), lo(lines[B].Z, b))) continue;
     const P = lines[A], Q = lines[B];
     const ax = P.X[a], az = P.Z[a], bx = P.X[a + 1], bz = P.Z[a + 1], cx = Q.X[b], cz = Q.Z[b], dx = Q.X[b + 1], dz = Q.Z[b + 1];
     const o = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px), d1 = o(ax, az, bx, bz, cx, cz), d2 = o(ax, az, bx, bz, dx, dz), d3 = o(cx, cz, dx, dz, ax, az), d4 = o(cx, cz, dx, dz, bx, bz);

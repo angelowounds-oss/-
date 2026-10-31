@@ -33,3 +33,4 @@ node tests/run.cjs --only <이름> # 테스트 하나
 - 지역(시·도)마다 다른 값은 `src/regions/<id>.js`에 둔다(ADR-0036, WLD-21). 그 지역의 도시 정의, 스타일, 규칙, 소품이 여기에 있다. 생성기는 모든 지역이 함께 쓴다. 지역 파일을 더하면 `src/regions/index.js`에 등록하고 `unit/regions`로 확인한다. 굽기 해시는 작업 소스의 import를 따라가고, 지역 파일은 데이터로 넣는다(WLD-21b). 그래서 굽기 작업에 소스를 손으로 더할 필요가 없다.
 - 조작키는 `src/keys.js` 한 곳에서 정한다(GTA V 배치, ADR-0033). 코드에 키 코드를 쓰지 말고 `binds.is/held/label`을 쓴다. 기본: M·J 세계 지도(목적지·자동 주행·빠른 이동), U 고도 유지(전투기·다크스타), F 상호작용·키오스크·이동 건너뛰기, F1 조작법. 월드 구조는 `docs/adr/0012-world-archipelago.md`.
 - 구운 데이터(`build/baked/`)와 빌드 산출물(`dist/`, zip)은 커밋하지 않는다(2026-10-16 결정, ADR-0013). 빌드 결과는 **zip 하나**(`node build/build.mjs --zip`)로 대화에 전달한다(ADR-0034). 월드 화질 2단계(노트북 내장 / 고사양 팩)와 청크 컨테이너는 `docs/adr/0013-world-detail-tiers.md`.
+- 월드·zip 용량 상한은 없다(2026-10-31 사용자 결정). 크기는 줄이려 하지 말고 `docs/PERF-BASELINE.md`에 기록만 한다. 부팅·프레임 시간 같은 성능 불변 조건은 그대로다.

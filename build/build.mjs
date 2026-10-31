@@ -16,8 +16,11 @@ if (regions) { const { IDS } = await import('../src/regions/index.js'), bad = re
 // the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
 if (!small) {
   const { V_SCALE } = await import('../src/koreamap.js');
-  const out = 'build/baked/world/capital/region.bin', srcs = [...fs.readdirSync('build/world').map((f) => 'build/world/' + f), 'src/koreamap.js'];   // the scale lives in koreamap.js
+  const out = 'build/baked/world/capital/region.bin', srcs = [...fs.readdirSync('build/world').filter((f) => f !== 'blocks.mjs').map((f) => 'build/world/' + f), 'src/koreamap.js'];   // the scale lives in koreamap.js; blocks.mjs reads the region, it does not make it
   if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', String(V_SCALE), '--roads', '--emit'], { stdio: 'inherit' });
+  // the procedural buildings (WLD-24a) stand on the compiled region: again when it, their generator or the district table is newer
+  const bout = 'build/baked/world/capital/buildings.bin', bsrcs = [out, 'build/world/blocks.mjs', 'build/world/emit.mjs', 'src/districts.js', 'src/koreamap.js'];
+  if (!fs.existsSync(bout) || bsrcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(bout).mtimeMs)) execFileSync('node', ['--max-old-space-size=8000', 'build/world/blocks.mjs'], { stdio: 'inherit' });
 }
 const { bake, writePack, writeBase } = await import('./bake.mjs');
 fs.rmSync(DIST, { recursive: true, force: true });

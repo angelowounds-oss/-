@@ -5,11 +5,13 @@ const { regionRoads } = await import('../../src/region.js');
 const R = regionRoads(), bad = [], m = {};
 if (!R.length) { console.log('RESULT ' + JSON.stringify({ test: 'world-crossings', pass: true, metrics: {}, note: 'no compiled region' })); }
 else {
-  const CS = 64, K = (a, b) => a * 100003 + b, grid = new Map();
-  R.forEach((r, ri) => { for (let i = 0; i + 1 < r.x.length; i++) for (let a = Math.floor(Math.min(r.x[i], r.x[i + 1]) / CS); a <= Math.floor(Math.max(r.x[i], r.x[i + 1]) / CS); a++) for (let b = Math.floor(Math.min(r.z[i], r.z[i + 1]) / CS); b <= Math.floor(Math.max(r.z[i], r.z[i + 1]) / CS); b++) { const k = K(a, b); (grid.get(k) || grid.set(k, []).get(k)).push(ri, i); } });
-  const seen = new Set(); let cross = 0, junc = 0, deficient = 0, motorwayLevel = 0; const CLEAR = 6.0;
-  for (const l of grid.values()) for (let u = 0; u < l.length; u += 2) for (let v = u + 2; v < l.length; v += 2) {
-    const A = l[u], a = l[u + 1], B = l[v], b = l[v + 1]; if (A === B) continue; const key = A < B ? `${A}:${a}:${B}:${b}` : `${B}:${b}:${A}:${a}`; if (seen.has(key)) continue; seen.add(key);
+  const CS = 64, K = (a, b) => a * 100003 + b, grid = new Map(), lo = (P, i, ax) => Math.floor(Math.min(P[ax][i], P[ax][i + 1]) / CS);
+  R.forEach((r, ri) => { for (let i = 0; i + 1 < r.x.length; i++) for (let a = Math.floor(Math.min(r.x[i], r.x[i + 1]) / CS); a <= Math.floor(Math.max(r.x[i], r.x[i + 1]) / CS); a++) for (let b = Math.floor(Math.min(r.z[i], r.z[i + 1]) / CS); b <= Math.floor(Math.max(r.z[i], r.z[i + 1]) / CS); b++) { const k = K(a, b); (grid.get(k) || grid.set(k, { a, b, l: [] }).get(k)).l.push(ri, i); } });
+  let cross = 0, junc = 0, deficient = 0, motorwayLevel = 0; const CLEAR = 6.0;
+  for (const { a: ca, b: cb, l } of grid.values()) for (let u = 0; u < l.length; u += 2) for (let v = u + 2; v < l.length; v += 2) {
+    const A = l[u], a = l[u + 1], B = l[v], b = l[v + 1]; if (A === B) continue;
+    // a pair meets in every cell both segments share; count it once, in the cell with the largest lower-left corner (no pair set: it grows past Set limits)
+    if (ca !== Math.max(lo(R[A], a, 'x'), lo(R[l[v]], b, 'x')) || cb !== Math.max(lo(R[A], a, 'z'), lo(R[l[v]], b, 'z'))) continue;
     const P = R[A], Q = R[B], o = (px, pz, qx, qz, rx, rz) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
     const d1 = o(P.x[a], P.z[a], P.x[a + 1], P.z[a + 1], Q.x[b], Q.z[b]), d2 = o(P.x[a], P.z[a], P.x[a + 1], P.z[a + 1], Q.x[b + 1], Q.z[b + 1]), d3 = o(Q.x[b], Q.z[b], Q.x[b + 1], Q.z[b + 1], P.x[a], P.z[a]), d4 = o(Q.x[b], Q.z[b], Q.x[b + 1], Q.z[b + 1], P.x[a + 1], P.z[a + 1]);
     if (!(d1 * d2 < 0 && d3 * d4 < 0)) continue;
