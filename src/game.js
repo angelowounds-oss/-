@@ -19,6 +19,7 @@ import { buildCustom, CRAFT_SPECS } from './craft.js';
 import { War, WAR_NAMES } from './warcraft.js';
 import { Farland } from './farland.js';
 import { Highways } from './highways.js';
+import { Bridges } from './bridges.js';
 import { CountryRoads } from './countryroads.js';
 import { CitySites } from './citysites.js';
 import { CityLife } from './citylife.js';
@@ -119,7 +120,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.countryroads = this.eng.q.simple ? null : this.timed_('countryroads', () => new CountryRoads(this.scene)); this.highways?.attach(this); this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.countryroads = this.eng.q.simple ? null : this.timed_('countryroads', () => new CountryRoads(this.scene)); this.highways?.attach(this); this.bridges = this.highways ? this.timed_('bridges', () => new Bridges(this.scene, this.highways.mats.struct, this.phys)) : null; this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -1715,7 +1716,7 @@ export class Game {
     this.cam.pos.copy(c.position);
     if (this.riding) this.transit.camera(c, dt);   // a ride (transit.js) places the camera itself
     if (this.viewCam) { const v = this.viewCam; c.position.set(v.x, v.y, v.z); c.lookAt(v.tx, v.ty, v.tz); if (v.fov && c.fov !== v.fov) { c.fov = v.fov; c.updateProjectionMatrix(); } this.cam.pos.copy(c.position); }   // a reference view (views.js) pins the camera; the world still streams around the player
-    this.farland?.update(c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); this.countryroads?.update(dt, this.focusPos()); } this.highways?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
+    this.farland?.update(c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); this.countryroads?.update(dt, this.focusPos()); } this.highways?.update(c); this.bridges?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;
