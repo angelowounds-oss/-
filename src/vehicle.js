@@ -5,6 +5,10 @@ import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { physHeight } from './landfn.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
+
+// The static floor under (x, z) looking down from 3 m above y (a bridge deck, a road over the terrain, a floor), or NaN over nothing within 60 m.
+// Starting near y, not high up, keeps a car under a bridge on the ground; cars and people are not floors (GPL-15).
+export function floorBelow(phys, x, y, z) { const h = phys.ray(x, y + 3, z, 0, -1, 0, 60, 1 | 16); return h ? y + 3 - h.t : NaN; }
 const QB = new THREE.Quaternion();
 
 export const CAR_COLORS = [0x1a2433, 0x7a1020, 0xc9ced8, 0x0d3b66, 0x2b2f38, 0xe0b020, 0x14654b, 0x5a1f7a, 0xd8d8d0, 0x111418, 0x8a2a10, 0x1c6fa8];
@@ -133,11 +137,13 @@ export class Vehicle {
     this.pv = this.spec.craft ? createCraftBody(phys, this.spec, this.x, this.startY ?? this.spec.cy + 0.25, this.z, this.h) : phys.createVehicle(this.spec, this.x, this.z, this.h);
     this.pv.owner = this;
     this.syncToBody(true);
+    this.spawnY = null;   // used once: a later teleport finds its own ground
     this.readBody(0);
   }
   detachPhysics() { if (this.pv) { this.phys.removeVehicle(this.pv); this.pv = null; } }
   // a car put down on raised ground starts on it, not at the flat city's height (it would be inside the hill and never get out)
-  groundRise() { const h = physHeight(this.x, this.z, 8); return h > 0 ? h : 0; }
+  // A spawner that knows the floor (a bridge deck: physHeight is the ground under it, GPL-15) sets spawnY.
+  groundRise() { if (this.spawnY != null) return this.spawnY; const h = physHeight(this.x, this.z, 8); return h > 0 ? h : 0; }
   // Teleport body to current x,z,h and velocity fields
   syncToBody(sleep = false) {
     const b = this.pv.body;
@@ -223,7 +229,7 @@ export class Vehicle {
     // flipped & stuck -> right the car
     if (this.q) {
       const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);
-      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); this.pv.body.setTranslation({ x: this.x, y: 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; } } else this.flipT = 0;
+      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); const f = floorBelow(this.phys, this.x, this.by ?? 0, this.z); this.pv.body.setTranslation({ x: this.x, y: (f === f ? f : this.groundRise()) + 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; } } else this.flipT = 0;
     }
     this.wheelSpin += (vf * dt) / this.model.wheelR;
     const hasDriver = this.driver && !this.dead;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { WEAPONS } from './human.js';
-import { Vehicle, CAR_COLORS } from './vehicle.js';
+import { Vehicle, CAR_COLORS, floorBelow } from './vehicle.js';
 import { ATT } from './attachments.js';
 import { el } from './util.js';
 import { cities } from './worldmap.js';
@@ -77,6 +77,8 @@ export class Sandbox {
     const t = h ? Math.max(1, h.t - 0.5) : d, pl = G.player, yaw = Math.atan2(dir.x, dir.z);
     return { x: cam.position.x + dir.x * t, y: cam.position.y + dir.y * t, z: cam.position.z + dir.z * t, yaw, dx: Math.sin(yaw), dz: Math.cos(yaw), pl };
   }
+  // the floor at a spawn point, seen from the player's own height (on a bridge: its deck, under it: the ground), or NaN
+  floorAt(a) { const G = this.G, base = G.vehicle ? G.vehicle.by ?? 0 : G.player.y || 0; return floorBelow(G.phys, a.x, base, a.z); }
   giveAll() {
     const G = this.G, pl = G.player;
     pl.owned = pl.owned.map(() => true); pl.ammo.forEach((a) => { a.reserve = 999; });
@@ -131,15 +133,15 @@ export class Sandbox {
   }
   spawnWar(kind) {
     const G = this.G, a = this.ahead(kind === 'jet' ? 16 : 12), v = new Vehicle(G, kind, kind === 'jet' ? 0x59606c : 0x4a5236, 'parked', { glow: [1, 0.3, 0.2] });
-    v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; v.startY = v.spec.cy + 0.25; v.awake = true; G.addVehicle(v); G.war.kit(v); G.toast(({ tank: '전차', jet: '전투기', gunship: '공격헬기' })[kind] + ' 소환');
+    const f = this.floorAt(a); v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; v.startY = (f === f ? f : 0) + v.spec.cy + 0.25; v.awake = true; G.addVehicle(v); G.war.kit(v); G.toast(({ tank: '전차', jet: '전투기', gunship: '공격헬기' })[kind] + ' 소환');
   }
   spawnRoadster() {
     const G = this.G, a = this.ahead(10), v = new Vehicle(G, 'roadster', 0x14d8ff, 'parked', { glow: [0.2, 0.9, 1] });
-    v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; v.awake = true; G.addVehicle(v); G.toast('로드스터 소환', '부스트: Shift');
+    const f = this.floorAt(a); v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; if (f === f) v.spawnY = f; v.awake = true; G.addVehicle(v); G.toast('로드스터 소환', '부스트: Shift');
   }
   spawnCar() {
     const G = this.G, a = this.ahead(10);
     const v = new Vehicle(G, ['sedan', 'sport', 'suv', 'truck'][Math.floor(Math.random() * 4)], CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'parked');
-    v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; v.awake = true; G.addVehicle(v); G.toast('차량 소환');
+    const f = this.floorAt(a); v.x = a.x; v.z = a.z; v.h = a.yaw + Math.PI / 2; if (f === f) v.spawnY = f; v.awake = true; G.addVehicle(v); G.toast('차량 소환');
   }
 }
