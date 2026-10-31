@@ -75,7 +75,7 @@ export class HighwayTraffic {
       if (v === G.vehicle) { v.hw = null; this.cars.splice(k, 1); continue; }
       if (d > FAR || v.hwDone || (v.dead && v.age > 30)) { G.removeVehicle(v); this.cars.splice(k, 1); }
     }
-    if (near && this.cars.length < CAP && (pl.y || 0) < 120) {
+    if (near && near.r.pts.length >= 8 && this.cars.length < CAP && (pl.y || 0) < 120) {   // a road under 8 points has no sample 3 from both ends (the clamp below ran off it)
       // a few cars ahead of and behind the player on the nearest road, in both directions
       for (let tries = 0; tries < 3 && this.cars.length < CAP; tries++) {
         const r = near.r, art = r.kind === 'arterial', dir = art && r.oneway ? 1 : Math.random() < 0.5 ? 1 : -1, lane = Math.floor(Math.random() * (art ? lanesOf(r) : 3)), back = rand(-1, 1) * 24, i = clamp(near.i + Math.round(back * (Math.random() < 0.5 ? 1 : -1) * 3 + (Math.random() < 0.5 ? 1 : -1) * 12), 3, r.pts.length - 4);
