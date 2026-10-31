@@ -29,7 +29,9 @@ try {
       const o = CASES[name](), T = createRefined({ ...o, topologyOnly: true }), G = await createRefineGpu(dev, T, o);
       if (budget) G.budget = budget; G.init(); const t = performance.now(); G.advance(steps); await G.finish(); const ms = performance.now() - t;
       const lv = []; for (let l = 0; l < T.levels.length; l++) lv.push(Array.from(await G.readLevelF(l)));
-      return { lv, force: await G.force(), wall: await G.wall(), ms, errs };
+      // uniform sampling (P4 visualisation path) on a grid offset by a quarter cell from the level-0 centres, so every point interpolates
+      const smp = T.levels[0].mac !== undefined && o.hrr < 1 ? Array.from(await G.sample([.25, .25, .25], .5, T.levels[0].n.map(v => 2 * v - 1))) : null;
+      return { lv, smp, force: await G.force(), wall: await G.wall(), ms, errs };
     }, { name, steps, budget: +(process.env.BUDGET || 0) });
     // compare populations over active fluid cells, per level; mass of the GPU state before / after (the initial GPU state is the CPU initial state)
     let e2 = 0, a2 = 0, maxD = 0, mG = 0; const perLevel = [];
@@ -37,9 +39,19 @@ try {
       for (let n = 0; n < L.N; n++) { if (L.mask[n] !== 0 || L.solid[n]) continue; let r = 0;
         for (let q = 0; q < 19; q++) { const c = L.f[q * L.N + n], d = g[q * L.N + n] - c; le += d * d; la += c * c; maxD = Math.max(maxD, Math.abs(d)); r += g[q * L.N + n]; } mG += r * L.vol; }
       e2 += le; a2 += la; perLevel.push(+Math.sqrt(le / la).toExponential(2)); });
+    // CPU counterpart of the sampler: finest level whose nearest cell is interior; trilinear over its fluid cells; 0 in solids
+    let smpErr = null; if (res.smp) { const dims = S.levels[0].n.map(v => 2 * v - 1), mac = S.levels.map(L => { const m = new Float64Array(4 * L.N); for (let n = 0; n < L.N; n++) { if (L.mask[n] !== 0 || L.solid[n]) continue; let r = 0, jx = 0, jy = 0, jz = 0; for (let q = 0; q < 19; q++) { const v = L.f[q * L.N + n]; r += v; jx += v * S.lat.C[q][0]; jy += v * S.lat.C[q][1]; jz += v * S.lat.C[q][2]; } m.set([r, jx / r, jy / r, jz / r], 4 * n); } return m; });
+      const cellOf = (L, c) => { let k = 0, m = 1; for (let a = 0; a < 3; a++) { let v = c[a]; if (L.per[a]) v = ((v % L.n[a]) + L.n[a]) % L.n[a]; else if (v < 0 || v >= L.n[a]) return -1; k += v * m; m *= L.n[a]; } return k; };
+      let e = 0, a = 0; for (let i = 0; i < dims[0] * dims[1] * dims[2]; i++) { const P = [i % dims[0], Math.floor(i / dims[0]) % dims[1], Math.floor(i / (dims[0] * dims[1]))].map(x => .25 + (x + .5) * .5); let got = null;
+        for (let l = S.levels.length - 1; l >= 0 && !got; l--) { const L = S.levels[l], p = P.map((x, k) => x * 2 ** l - (L.lo[k] - L.gLo[k]) - .5), cn = cellOf(L, p.map(x => Math.floor(x + .5))); if (cn < 0 || L.mask[cn] !== 0) continue;
+          if (L.solid[cn]) { got = [0, 0, 0]; break; } const b = p.map(Math.floor), t = p.map((x, k) => x - b[k]); let acc = [0, 0, 0], ws = 0;
+          for (let k = 0; k < 8; k++) { const o = [k & 1, (k >> 1) & 1, (k >> 2) & 1], m = cellOf(L, b.map((x, j) => x + o[j])); if (m < 0 || !(mac[l][4 * m] > 0)) continue; const w = o.reduce((s2, v, j) => s2 * (v ? t[j] : 1 - t[j]), 1); for (let j = 0; j < 3; j++) acc[j] += w * mac[l][4 * m + 1 + j]; ws += w; }
+          if (ws > 1e-6) got = acc.map(v => v / ws); }
+        if (!got) continue; for (let j = 0; j < 3; j++) { e += (res.smp[4 * i + j] - got[j]) ** 2; a += got[j] ** 2; } }
+      smpErr = Math.sqrt(e / a); }
     const relL2 = Math.sqrt(e2 / a2), F = S.force, fRel = Math.abs(res.force[0] - F[0]) / Math.abs(F[0]), mC = S.mass(), mRel = Math.abs(mG / mC - 1);
-    const ok = relL2 < 1e-3 && fRel < 1e-3 && mRel < 1e-6 && res.errs.length === 0; allOk = allOk && ok;
-    results[name] = { ok, levels: S.levels.length, cells: S.cells(), relL2: +relL2.toExponential(3), perLevel, maxAbsDiff: +maxD.toExponential(2), dragCpu: +F[0].toExponential(5), dragGpu: +res.force[0].toExponential(5),
+    const ok = relL2 < 1e-3 && fRel < 1e-3 && mRel < 1e-6 && res.errs.length === 0 && (smpErr === null || smpErr < 1e-4); allOk = allOk && ok;
+    results[name] = { ok, sampleRelL2: smpErr && +smpErr.toExponential(2), levels: S.levels.length, cells: S.cells(), relL2: +relL2.toExponential(3), perLevel, maxAbsDiff: +maxD.toExponential(2), dragCpu: +F[0].toExponential(5), dragGpu: +res.force[0].toExponential(5),
       dragRelDiff: +fRel.toExponential(2), massGpuVsCpu: +mRel.toExponential(2), cpuMassChange: +Math.abs(mC / m0 - 1).toExponential(2), wallCpu: S.wall(), wallGpu: res.wall, cpuMs, gpuMs: Math.round(res.ms), deviceErrors: res.errs };
     console.log(name, JSON.stringify(results[name]));
     await S.close();
