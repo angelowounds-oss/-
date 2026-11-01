@@ -78,7 +78,13 @@ export class Sandbox {
     return { x: cam.position.x + dir.x * t, y: cam.position.y + dir.y * t, z: cam.position.z + dir.z * t, yaw, dx: Math.sin(yaw), dz: Math.cos(yaw), pl };
   }
   // the floor at a spawn point, seen from the player's own height (on a bridge: its deck, under it: the ground), or NaN
-  floorAt(a) { const G = this.G, base = G.vehicle ? G.vehicle.by ?? 0 : G.player.y || 0; return floorBelow(G.phys, a.x, base, a.z); }
+  // A compiled road's deck is made on demand and a ray sees a new collider only after the next step, so the drawn surface counts too when it is within
+  // reach of the player's own level (a road above or below on a stacked interchange is not the floor of this spot).
+  floorAt(a) {
+    const G = this.G, base = G.vehicle ? G.vehicle.by ?? 0 : G.player.y || 0, HW = G.highways; HW?.ensureNear(a.x, a.z);
+    const f = floorBelow(G.phys, a.x, base, a.z), d = HW ? HW.deckY(a.x, a.z) : NaN;
+    return d === d && Math.abs(d - base) < 4 && !(f >= d - 0.3) ? d : f;
+  }
   giveAll() {
     const G = this.G, pl = G.player;
     pl.owned = pl.owned.map(() => true); pl.ammo.forEach((a) => { a.reserve = 999; });

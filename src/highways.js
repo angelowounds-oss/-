@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { net, groundH, HALF_W, BROKEN, breakSegment } from './roadnet.js';
+import { net, groundH, HALF_W, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand } from './util.js';
 import { landHeight, physHeight } from './landfn.js';
@@ -15,7 +15,7 @@ const CHUNK = 100, LANE = 3.75, MED = 3.2, SHOULDER = 2.4;
 // compiled arterial lines (roadnet kind 'arterial', ADR-0019): pieces of ART samples built near the camera and dropped beyond; the big roads are seen
 // from further away
 const LOCAL_LAMPS = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // no lamp poles along the smaller roads
-const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200, motorway_link: 3000, trunk_link: 3000, primary_link: 2200, secondary_link: 1600, tertiary: 1600, tertiary_link: 1200, residential: 700 }, ART_OFF = 1.4, ART_BUDGET = 4;
+const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200, motorway_link: 3000, trunk_link: 3000, primary_link: 2200, secondary_link: 1600, tertiary: 1600, tertiary_link: 1200, residential: 700 }, ART_OFF = 1.4, ART_BUDGET = 4, NEAR_NOW = 160;   // pieces within NEAR_NOW of the camera are built at once, over the time budget
 const lerp = (a, b, t) => a + (b - a) * t;
 
 class Acc {
@@ -278,8 +278,8 @@ export class Highways {
     const x = camera.position.x, z = camera.position.z, cy = camera.position.y, lim = cy > 450 ? 70000 : cy > 120 ? 20000 : 11000;
     for (const m of this.group.children) { if (m.isInstancedMesh) continue; const bs = m.geometry.boundingSphere; if (bs) m.visible = Math.hypot(bs.center.x - x, bs.center.z - z) - bs.radius < lim; }
   }
-  update(camera) {
-    this.cull(camera); this.arterials(camera);
+  update(camera, focus) {
+    this.cull(camera); this.arterials(camera, false, focus);
     const L = this.lamps, x = camera.position.x, z = camera.position.z;
     if (Math.hypot(x - L.cx, z - L.cz) < 300) return;
     L.cx = x; L.cz = z; const N = this.N, CS = N.CS, seen = new Set(); let k = 0;
@@ -300,15 +300,32 @@ export class Highways {
     const n = Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
     return r.oneway ? { n, half: (n * LANE + SHOULDER) / 2, two: false } : { n, half: n * LANE + SHOULDER, two: true };
   }
-  // `all`: build every piece in reach now, with no time budget (after a jump: a reference view, views.js)
-  arterials(camera, all = false) {
-    const now = performance.now(); if (!all && now - (this.artAt || 0) < 300) return; this.artAt = now;
-    const x = camera.position.x, z = camera.position.z, t0 = performance.now();
+  // `all`: build every piece in reach now, with no time budget (after a jump: a reference view, views.js). Pieces are built nearest first, and those within
+  // NEAR_NOW at once: a piece owns the physics deck of its viaduct or tunnel, and a car or walker put down on it must not wait for seconds on a deck that
+  // is not there (below a raised road the only ground is the terrain far under it). A jump skips the 300 ms pause. `focus` (the player or the vehicle
+  // driven) counts like the camera: right after a teleport the camera still hangs where it was, and must not drop the decks built under the player.
+  arterials(camera, all = false, focus = null) {
+    const now = performance.now(), cx = camera.position.x, cz = camera.position.z, fx = focus ? focus.x : cx, fz = focus ? focus.z : cz;
+    const jumped = Math.hypot(cx - (this.artX ?? cx), cz - (this.artZ ?? cz)) > 80 || Math.hypot(fx - (this.artFX ?? fx), fz - (this.artFZ ?? fz)) > 80;
+    if (!all && !jumped && now - (this.artAt || 0) < 300) return; this.artAt = now; this.artX = cx; this.artZ = cz; this.artFX = fx; this.artFZ = fz;
+    const t0 = performance.now(), want = [];
     for (const p of this.art) {
-      const d = Math.hypot(p.cx - x, p.cz - z) - p.rad;
-      if (!p.meshes && d < p.on && (all || performance.now() - t0 < ART_BUDGET)) { p.meshes = this.artPiece(p); this.stats.artLive++; }
-      else if (p.meshes && d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; this.stats.artLive--; this.dropDeck(p.col); p.col = null; }
+      const d = Math.min(Math.hypot(p.cx - cx, p.cz - cz), Math.hypot(p.cx - fx, p.cz - fz)) - p.rad;
+      if (!p.meshes) { if (d < p.on) want.push({ p, d }); }
+      else if (d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; this.stats.artLive--; this.dropDeck(p.col); p.col = null; }
     }
+    want.sort((a, b) => a.d - b.d);
+    for (const { p, d } of want) { if (!all && d > NEAR_NOW && performance.now() - t0 >= ART_BUDGET) break; p.meshes = this.artPiece(p); this.stats.artLive++; }
+  }
+  // every piece within `r` of (x, z) now (a spawn, a boarding, a teleport): their decks are in the physics world when the next step runs
+  ensureNear(x, z, r = NEAR_NOW + 60) {
+    let n = 0; for (const p of this.art) if (!p.meshes && Math.hypot(p.cx - x, p.cz - z) - p.rad < r) { p.meshes = this.artPiece(p); this.stats.artLive++; n++; }
+    return n;
+  }
+  // the height of the drawn surface of a compiled road at (x, z), or NaN off the road; a ray only sees a deck after the next physics step, this does not wait
+  deckY(x, z) {
+    const r = roadAt(x, z, 14); if (!r || r.road.kind !== 'arterial' || r.d > this.artWidth(r.road).half) return NaN;
+    return r.cls ? r.y : Math.max(r.y, landHeight(x, z, 16) + 0.05);
   }
   // a piece of a compiled line: asphalt across its width, laid on its own heights but never under the drawn ground (a vertex is lifted to it, with an
   // earth bank down to the ground where the road stands above it); rails on the big roads, bridge fascia and piers, tunnel lining

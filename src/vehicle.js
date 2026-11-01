@@ -231,6 +231,15 @@ export class Vehicle {
       const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);
       if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); const f = floorBelow(this.phys, this.x, this.by ?? 0, this.z); this.pv.body.setTranslation({ x: this.x, y: (f === f ? f : this.groundRise()) + 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; } } else this.flipT = 0;
     }
+    // fell through the ground (a deck that was not built yet, a hole): back to the last height it stood at once it has been under the ground for half a second
+    if (!this.spec.craft && this.by != null) {
+      const gh = physHeight(this.x, this.z, 8);
+      if (this.by >= gh - 1) this.goodY = this.by;
+      else if (this.by < gh - 5 && this.goodY != null) {
+        this.lostT = (this.lostT || 0) + dt;
+        if (this.lostT > 0.5) { this.G?.highways?.ensureNear?.(this.x, this.z); this.pv.body.setTranslation({ x: this.x, y: this.goodY + 1.4, z: this.z }, true); this.pv.body.setLinvel({ x: 0, y: 0, z: 0 }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.lostT = 0; this.pv.prevNo = -1; }
+      } else this.lostT = 0;
+    }
     this.wheelSpin += (vf * dt) / this.model.wheelR;
     const hasDriver = this.driver && !this.dead;
     const braking = hasDriver && (this.brake > 0.1 && vf > 0.5 || this.throttle > 0 && vf < -0.5);
