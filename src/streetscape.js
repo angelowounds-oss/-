@@ -15,6 +15,8 @@ import { decodeTile, trims, radiusOf, signalGroups, signalState, crossingSpan, s
 const KERB = 0.13;            // height of the kerb stone above the asphalt edge (Seoul: 12 - 15 cm)
 const LIFT = 0.05;            // the drawn road is never lower than the ground + this (highways.js)
 const PAVE = [[0.30, 0.29, 0.27], [0.26, 0.255, 0.24]], KERBC = [0.42, 0.41, 0.39], ASPH = [0.050, 0.052, 0.058], WHITE = [0.78, 0.78, 0.74];
+const BUS = [0.10, 0.30, 0.85];   // the blue of a bus-only lane line
+const LANE_W = 3.75, TURN = { L: 1, S: 2, R: 4 };   // as build/world/streets.mjs
 const POLE = [0.20, 0.21, 0.22], POLE_G = [0.30, 0.34, 0.31], HOUSING = [0.04, 0.045, 0.05], TRUNK = [0.16, 0.12, 0.09];
 // the species of build/world/streetfurn.mjs SPECIES (same order): crown radius, crown height / radius, trunk height, colour. A ginkgo is slim and upright,
 // a plane tree broad, a zelkova a wide vase, a cherry low and round.
@@ -68,7 +70,7 @@ class TileBuild {
     this.top = { p: [], i: [] };    // the walkable pavement tops (the physics mesh)
     this.heads = [];                // signal heads: x, y, z, facing x, z, group, junction phase, junction id
     this.obst = [];                 // poles and trunks (solid near the player): x, z, y0, h, radius
-    this.stats = { pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0 };
+    this.stats = { pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0 };
     this.seg = 0; this.g = this.run();
   }
   step(ms) {
@@ -132,6 +134,8 @@ class TileBuild {
         const ss = s0 + len + 0.5, lo = a.flow === 2 ? -half + 0.1 : -half + 0.1, hi = a.flow === 2 ? half - 0.1 : -0.2;
         this.M.quad(at(ss, lo), at(ss, hi), at(ss + 0.4, hi), at(ss + 0.4, lo), WHITE, 0, 1, 0);
       }
+      // lane arrows and the crossing-ahead diamond, as the bake decided them (build/world/streets.mjs markings)
+      if (a.mark) this.approach(j, a, s0 + len + 0.5);
       // a signal pole on the pavement at the arrival side, with an arm over the lanes and a head facing the traffic
       if (hasSignal(j, a)) {
         const sp = s0 + len * 0.5, foot = signalFoot(a), px = j.x + foot[0], pz = j.z + foot[1], y0 = this.roadY(px, pz, j.y) + KERB;
@@ -143,6 +147,48 @@ class TileBuild {
         this.heads.push(tx + dx * 0.17, y0 + 5.2, tz + dz * 0.17, dx, dz, gr[k], phase);
         this.obst.push(px, pz, y0, 6.3, 0.1); this.stats.signals++;
       }
+    }
+  }
+
+  // the centre of arriving lane k of an arm, as a lateral offset in the arm's frame (n = the driver's right when leaving): the lanes are counted from the
+  // driver's left, 3.75 m each, as the asphalt texture paints them (highways.js asphaltTexture: from the yellow edge outward)
+  laneLat(a, k, oneway) {
+    if (oneway) return a.half - (k + 0.5) * LANE_W;
+    return -(0.12 + (k + 0.5) * LANE_W * (a.half - 0.12) / a.half);
+  }
+  // ---- the markings of an arriving approach: one or two sets of lane arrows behind the stop line `ss` (metres from the centre), a diamond before an
+  // unsignalled crossing. A painted shape is given in the driver's frame: u forward (toward the junction), w to the driver's right
+  approach(j, a, ss) {
+    const L = this.lines[a.line], oneway = !!L?.oneway, n = (a.mark >> 4) & 7, dx = Math.cos(a.ang), dz = Math.sin(a.ang), nx = -dz, nz = dx;
+    const paint = (s, lat, poly, col) => {
+      // s along the arm (from the centre), lat across it; the shape's u runs toward the centre (-d), its w to the driver's right (-n)
+      const P = poly.map(([u, w]) => { const x = j.x + dx * (s - u) + nx * (lat - w), z = j.z + dz * (s - u) + nz * (lat - w); return [x, this.roadY(x, z, j.y) + 0.035, z]; });
+      for (let q = 1; q + 1 < P.length; q++) this.M.tri(P[0], P[q], P[q + 1], col, 0, 1, 0);
+    };
+    const sets = []; if (a.mark & 1) sets.push(ss + 4); if (a.mark & 2) sets.push(ss + 34);
+    for (const s of sets) for (let k = 0; k < n; k++) {
+      const t = (a.arr >> (3 * k)) & 7; if (!t) continue;
+      const lat = this.laneLat(a, k, oneway), col = WHITE, both = !!(t & TURN.S);
+      // straight: a shaft and a head; a turn: a shaft up to the bend, a short arm to the side and a head pointing that way (lower when it shares the
+      // lane with straight on, so the two read apart)
+      if (t & TURN.S) { paint(s + 5, lat, [[0, -0.15], [3.4, -0.15], [3.4, 0.15], [0, 0.15]], col); paint(s + 5, lat, [[3.4, -0.6], [5, 0], [3.4, 0.6]], col); }
+      for (const [bit, sg] of [[TURN.L, -1], [TURN.R, 1]]) {
+        if (!(t & bit)) continue;
+        const ub = both ? 1.7 : 2.6;
+        if (!both) paint(s + 5, lat, [[0, -0.15], [ub, -0.15], [ub, 0.15], [0, 0.15]], col);
+        paint(s + 5, lat, [[ub - 0.3, 0], [ub, 0], [ub, sg * 0.9], [ub - 0.3, sg * 0.9]].map(([u, w]) => [u, w]), col);
+        paint(s + 5, lat, [[ub - 0.75, sg * 0.9], [ub - 0.15, sg * 1.55], [ub + 0.45, sg * 0.9]], col);
+      }
+      this.stats.arrows++;
+    }
+    // the diamond (crossing ahead) in each arriving lane, 30 m before the crossing: an outline 1.5 m wide and 6 m long
+    if (a.mark & 4) for (let k = 0; k < n; k++) {
+      const lat = this.laneLat(a, k, oneway), s = ss + 30, c = [[0, 0], [3, 0.75], [6, 0], [3, -0.75]];
+      for (let q = 0; q < 4; q++) {
+        const A = c[q], B = c[(q + 1) % 4], du = B[0] - A[0], dw = B[1] - A[1], l = Math.hypot(du, dw), ou = -dw / l * 0.1, ow = du / l * 0.1;
+        paint(s + 6, lat, [[A[0] - ou, A[1] - ow], [B[0] - ou, B[1] - ow], [B[0] + ou, B[1] + ow], [A[0] + ou, A[1] + ow]], WHITE);
+      }
+      this.stats.diamonds++;
     }
   }
 
@@ -166,6 +212,8 @@ class TileBuild {
       let ex = rx[k] * l + rx[k + 1] * t, ez = rz[k] * l + rz[k + 1] * t; const m = Math.hypot(ex, ez) || 1; ex /= m; ez /= m;
       return { x: sx[k] * l + sx[k + 1] * t, z: sz[k] * l + sz[k + 1] * t, y: sy[k] * l + sy[k + 1] * t, rx: ex, rz: ez, cls: t < 0.5 ? sc[k] : sc[k + 1] };
     };
+    // a central bus lane: a solid blue line between the inner lane and the next on each carriageway, along the whole run
+    if (r.bus && !L.oneway) this.busLines(r, at, total, half);
     for (const sd of [-1, 1]) {
       // the bake leaves a side bare where another carriageway lies under the strip (bit 0: the -right side, bit 1: the +right side)
       if (!(r.m & (sd < 0 ? 1 : 2))) continue;
@@ -192,6 +240,18 @@ class TileBuild {
 
   // the foot of a baked object: on a bridge deck the deck, elsewhere the drawn road edge (never under the ground), plus the kerb
   footY(f) { return (f.bridge ? f.y : Math.max(f.y, landHeight(f.x, f.z, 16) + LIFT)) + KERB; }
+  busLines(r, at, total, half) {
+    for (const sd of [-1, 1]) {
+      const lat = sd * (0.12 + LANE_W * (half - 0.12) / half);
+      for (let s = 0; s + 0.5 < total; s += 6) {
+        const A = at(s), B = at(Math.min(total, s + 6)), y = (P) => (P.cls ? P.y : Math.max(P.y, landHeight(P.x, P.z, 16) + LIFT)) + 0.035, w = 0.09;
+        const a0 = [A.x + A.rx * (lat - w), y(A), A.z + A.rz * (lat - w)], a1 = [A.x + A.rx * (lat + w), y(A), A.z + A.rz * (lat + w)];
+        const b0 = [B.x + B.rx * (lat - w), y(B), B.z + B.rz * (lat - w)], b1 = [B.x + B.rx * (lat + w), y(B), B.z + B.rz * (lat + w)];
+        this.M.quad(a0, b0, b1, a1, BUS, 0, 1, 0);
+      }
+    }
+    this.stats.bus++;
+  }
   // ---- a cobra-head street lamp: pole, arm over the kerb lane, housing, and the glowing lens under it
   lamp(f) {
     const { x, z, ix, iz } = f, rank = f.v & 3, y0 = this.footY(f), H = LAMP_H[rank];
@@ -238,7 +298,7 @@ export class Streetscape {
     const high = globalThis.__DETAIL === 'high', simple = !!G?.eng?.q?.simple;
     this.R = simple ? 400 : high ? 1000 : 700;   // how far tiles are drawn (a lamp or a kerb beyond this is only a speck in the fog)
     this.RC = 70;                                  // how close poles, trunks and the pavement are solid
-    this.stats = { tiles: 0, solid: 0, pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, walk: 0, tris: 0 };
+    this.stats = { tiles: 0, solid: 0, pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0, walk: 0, tris: 0 };
     for (const k of wd?.keys('str/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 1024 + tj, { key: k, ti, tj }); }
     const hw = G?.highways?.mats;
     // the same programs as the road structures (vertex-coloured standard) and the lights (basic): nothing new to compile
@@ -298,10 +358,10 @@ export class Streetscape {
       this.stats.tris += geo.i.length / 3;
     }
     rec.meshes = meshes; rec.state = 'ready'; rec.heads = new Float32Array(b.heads); rec.obst = new Float32Array(b.obst); rec.topP = new Float32Array(b.top.p); rec.topI = new Uint32Array(b.top.i); rec.tris = b.S.i.length / 3 + b.M.i.length / 3 + b.G.i.length / 3;
-    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
+    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
   }
   drop(id, rec) {
-    if (rec.meshes) { for (const m of rec.meshes) { this.group.remove(m); m.geometry.dispose(); } this.stats.tris -= rec.tris || 0; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners']) this.stats[k] -= rec.counts[k]; }
+    if (rec.meshes) { for (const m of rec.meshes) { this.group.remove(m); m.geometry.dispose(); } this.stats.tris -= rec.tris || 0; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus']) this.stats[k] -= rec.counts[k]; }
     if (rec.build) { const i = this.jobs.indexOf(rec.build); if (i >= 0) this.jobs.splice(i, 1); }
     this.release(rec);
     this.tiles.delete(id); this.wd.drop(rec.e.key);

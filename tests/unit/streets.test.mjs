@@ -6,7 +6,7 @@ import path from 'node:path';
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { readRegion } from '../../build/world/emit.mjs';
 import { makeBuildings, toTiles as bldTiles } from '../../build/world/blocks.mjs';
-import { makeStreets, toTiles, readTile, RANK } from '../../build/world/streets.mjs';
+import { makeStreets, toTiles, readTile, RANK, TURN } from '../../build/world/streets.mjs';
 import { readTile as readBld } from '../../build/world/blocks.mjs';
 import { SPECIES, TREE_MIN_WALK } from '../../build/world/streetfurn.mjs';
 import { corner, trims, radiusOf, signalGroups, signalState } from '../../src/streetgeo.js';
@@ -112,6 +112,27 @@ if (!R0) {
     for (const [k, n] of Object.entries(v)) if (n) bad.push(['a ' + k + ' violation', n]);
     // each refusal reason is real: the judge refused something for most of them in 9 x 9 km of Gangnam
     for (const k of ['building', 'road', 'crossing', 'signal', 'lit']) if (!a.why.lamp[k] && !a.why.tree[k]) bad.push(['the judge never refused for ' + k]);
+  }
+  // 6. road markings: arrows only where traffic arrives on a collector or bigger, every painted arrow names a way out that exists, a bus lane only on a
+  //    two-way trunk or primary road with three lanes a way or more, and a diamond only ahead of an unsignalled crossing
+  {
+    const mk = { arrows: 0, diamonds: 0, busArms: 0, busRuns: 0 };
+    for (const j of a.junctions) for (const arm of j.arms) {
+      if (!arm.mark) continue;
+      const L = C.roads[arm.ri], n = arm.mark >> 4;
+      if (arm.rank > 2 || arm.flow === 1) bad.push(['arrows on an arm no traffic of rank <= 2 arrives on', arm.rank, arm.flow]);
+      if (n < 1 || n > 4) bad.push(['lane count out of 1..4', n]);
+      if (arm.mark & 3) mk.arrows++;
+      if (arm.mark & 4) { mk.diamonds++; if (j.signal || !arm.cross) bad.push(['a diamond without an unsignalled crossing']); }
+      if (arm.mark & 8) { mk.busArms++; if (!L.bus || L.oneway) bad.push(['a bus arrow on a line without a bus lane']); }
+      const tx = -Math.cos(arm.ang), tz = -Math.sin(arm.ang); let ways = 0;
+      for (const b of j.arms) { if (b === arm || b.flow === 2 || b.rank > 3) continue; const c = tx * Math.cos(b.ang) + tz * Math.sin(b.ang), sn = tx * Math.sin(b.ang) - tz * Math.cos(b.ang); if (c > Math.cos(0.6)) ways |= TURN.S; else if (c > Math.cos(2.7)) ways |= sn > 0 ? TURN.R : TURN.L; }
+      for (let k = 0; k < n; k++) { const t = (arm.arr >> (3 * k)) & 7; if (!t || (t & ~ways)) { bad.push(['a lane arrow to nowhere', t, ways]); break; } }
+    }
+    for (const r of a.runs) if (r.m & 4) { mk.busRuns++; const L = C.roads[r.ri]; if (L.oneway || !(L.hw === 'trunk' || L.hw === 'primary') || Math.ceil((L.lanes || 0) / 2) < 3) bad.push(['a bus lane on a ' + L.hw, L.lanes, L.oneway]); }
+    m.markings = mk;
+    if (mk.arrows < 100) bad.push(['too few arrow sets in Gangnam', mk.arrows]);
+    if (!mk.busRuns) bad.push(['no bus lane in Gangnam (Gangnam-daero has one)']);
   }
   console.log('RESULT ' + JSON.stringify({ test: 'streets', pass: bad.length === 0, metrics: m, note: bad.length ? JSON.stringify(bad.slice(0, 8)) : '' }));
   process.exitCode = bad.length ? 1 : 0;

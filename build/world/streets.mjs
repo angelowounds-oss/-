@@ -130,6 +130,9 @@ export function makeStreets(R, bld) {
     const T = trims(J.arms, radiusOf(J.arms)).trims; J.arms.forEach((arm, k) => { arm.tl = T[k].tl; arm.tr = T[k].tr; });
     junctions.push(J);
   }
+  // ---- road markings decided per arm (WLD-24g-2): which way each arriving lane may go, whether the approach is long enough for one or two sets of lane
+  // arrows, the diamond that warns of an unsignalled crossing, and the central bus lanes of the busiest arterials
+  markings(roads, junctions, urbanAt);
   // ---- pavement runs: consecutive paved segments of a line in one tile, cut where another road meets the middle of the line, with the trims at the ends
   const cut = new Set(); for (const k of armOf.keys()) { const [ri, i] = k.split(':').map(Number); if (i > 0 && i < roads[ri].x.length - 1) cut.add(ri + ':' + i); }
   const runs = [];
@@ -152,7 +155,7 @@ export function makeStreets(R, bld) {
     for (let i = 0; i + 1 < n; i++) {
       const [ti, tj] = tileOf(r.x[i], r.z[i]);
       if (!pave[ri][i]) { flush(); continue; }
-      if (cur && cur.ti === ti && cur.tj === tj && cur.i1 === i && cur.m === pave[ri][i] && !cut.has(ri + ':' + i)) cur.i1 = i + 1; else { flush(); cur = { ri, i0: i, i1: i + 1, w: q10(WALK[rk]), ti, tj, m: pave[ri][i] }; }
+      if (cur && cur.ti === ti && cur.tj === tj && cur.i1 === i && cur.m === (pave[ri][i] | (r.bus ? 4 : 0)) && !cut.has(ri + ':' + i)) cur.i1 = i + 1; else { flush(); cur = { ri, i0: i, i1: i + 1, w: q10(WALK[rk]), ti, tj, m: pave[ri][i] | (r.bus ? 4 : 0) }; }
     }
     flush();
   });
@@ -160,6 +163,54 @@ export function makeStreets(R, bld) {
   // ---- lamps and trees, each judged against what is around it (streetfurn.mjs)
   const { items, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf);
   return { junctions, runs, items, why, judge };
+}
+
+// lane arrows: a lane may turn left (1), go straight (2) or turn right (4); `mark` bits: 1 a set of arrows 4 m behind the stop line, 2 a second set 30 m
+// further back, 4 a crossing-ahead diamond, 8 the arm carries a central bus lane; bits 4-6 the number of arriving lanes
+export const TURN = { L: 1, S: 2, R: 4 }, LANE_W = 3.75;
+const NEAR_ROOM = 30, FAR_ROOM = 62, DIAMOND_ROOM = 55;
+// the central bus lanes of Seoul run on the wide arterials of the dense districts: two-way trunk / primary roads with three lanes or more each way
+function busLine(r, urbanAt) {
+  if (!(r.hw === 'trunk' || r.hw === 'primary') || r.oneway || Math.ceil((r.lanes || 0) / 2) < 3) return false;
+  const m = Math.floor(r.x.length / 2); return urbanAt(r.x[m], r.z[m]) >= URBAN[0] * 3;
+}
+function markings(roads, junctions, urbanAt) {
+  for (const r of roads) r.bus = busLine(r, urbanAt);
+  const ends = new Set(); for (const J of junctions) for (const a of J.arms) ends.add(a.ri + ':' + a.i);
+  // the length of an arm's road up to the next junction or the line's end (where arrows have room)
+  const room = (a) => { const r = roads[a.ri]; let d = 0, k = a.i; while (k + a.dirn >= 0 && k + a.dirn < r.x.length) { const n = k + a.dirn; d += Math.hypot(r.x[n] - r.x[k], r.z[n] - r.z[k]); k = n; if (ends.has(a.ri + ':' + k)) break; if (d > 200) break; } return d; };
+  for (const J of junctions) for (const a of J.arms) {
+    const r = roads[a.ri]; a.arr = 0; a.mark = 0;
+    if (a.rank > 2 || a.flow === 1) continue;   // only collectors and up get arrows; no traffic arrives on an arm a one-way road leaves along
+    const n = Math.max(1, Math.min(4, r.oneway ? r.lanes || 1 : Math.ceil((r.lanes || 2) / 2))), tx = -Math.cos(a.ang), tz = -Math.sin(a.ang);
+    // where the arriving driver can go: the other arms that traffic may enter, by their angle to the direction of travel (right = (-tz, tx), as streetscape.js)
+    let has = 0;
+    for (const b of J.arms) {
+      if (b === a || b.flow === 2 || b.rank > 3) continue;
+      const ex = Math.cos(b.ang), ez = Math.sin(b.ang), c = tx * ex + tz * ez, sn = tx * ez - tz * ex;
+      if (c > Math.cos(0.6)) has |= TURN.S; else if (c > Math.cos(2.7)) has |= sn > 0 ? TURN.R : TURN.L;
+    }
+    if (!has) continue;
+    // lanes from the driver's left: the inner lane turns left, the outer one right (with straight on when there is a straight), the rest go straight; a
+    // central bus lane is the inner lane and goes straight (at a T it turns with the road), and the arrows of the others start one lane out
+    const bus = r.bus && !r.oneway && n >= 3, m = bus ? n - 1 : n, lane = [];
+    if (bus) lane.push(has & TURN.S ? TURN.S : has & TURN.L ? TURN.L : TURN.R);   // at a T the bus lane turns with the road
+    for (let k = 0; k < m; k++) {
+      let t;
+      if (m === 1) t = has;
+      else if (k === 0) t = has & TURN.L ? TURN.L : has & TURN.S ? TURN.S : TURN.R;
+      else if (k === m - 1) t = has & TURN.R ? (has & TURN.S ? TURN.S | TURN.R : TURN.R) : has & TURN.S ? TURN.S : TURN.L;
+      else t = has & TURN.S ? TURN.S : k < m / 2 ? (has & TURN.L ? TURN.L : TURN.R) : (has & TURN.R ? TURN.R : TURN.L);
+      lane.push(t);
+    }
+    lane.forEach((t, k) => { a.arr |= t << (3 * k); });
+    const len = room(a);
+    if (len >= NEAR_ROOM) a.mark |= 1;
+    if (len >= FAR_ROOM) a.mark |= 2;
+    if (a.cross && !J.signal && len >= DIAMOND_ROOM) a.mark |= 4;
+    if (bus) a.mark |= 8;
+    a.mark |= n << 4;
+  }
 }
 
 // ---- tiles: the records of 512 m tiles as typed arrays (junction centres and run starts decide the tile), relative to the tile centre
@@ -173,7 +224,7 @@ export function toTiles(res) {
     const [ti, tj] = key.split('_').map(Number), ox = (ti - TILE_OFF) * TILE + TILE / 2, oz = (tj - TILE_OFF) * TILE + TILE / 2, { J, R, F } = by.get(key), nf = F.length;
     const nj = J.length, na = J.reduce((s, j) => s + j.arms.length, 0), nr = R.length;
     const t = { nj, jx: new Int16Array(nj), jz: new Int16Array(nj), jy: new Int16Array(nj), jf: new Uint8Array(nj), jn: new Uint8Array(nj), jo: new Int32Array(nj + 1),
-      na, aang: new Uint16Array(na), ahalf: new Uint8Array(na), ameta: new Uint8Array(na), aw: new Uint8Array(na), atl: new Uint8Array(na), atr: new Uint8Array(na), aline: new Int32Array(na),
+      na, aang: new Uint16Array(na), ahalf: new Uint8Array(na), ameta: new Uint8Array(na), aw: new Uint8Array(na), atl: new Uint8Array(na), atr: new Uint8Array(na), aline: new Int32Array(na), aarr: new Uint16Array(na), amark: new Uint8Array(na),
       nr, rline: new Int32Array(nr), ri0: new Uint16Array(nr), ri1: new Uint16Array(nr), rw: new Uint8Array(nr), rm: new Uint8Array(nr), rta: new Uint8Array(nr * 2), rtb: new Uint8Array(nr * 2),
       nf, ft: new Uint8Array(nf), fx: new Int16Array(nf), fz: new Int16Array(nf), fy: new Int16Array(nf), fdir: new Uint8Array(nf), fv: new Uint8Array(nf) };
     let q = 0;
@@ -181,7 +232,7 @@ export function toTiles(res) {
       t.jx[k] = Math.round((j.x - ox) * 10); t.jz[k] = Math.round((j.z - oz) * 10); t.jy[k] = Math.round(j.y * 10); t.jf[k] = (j.signal ? 1 : 0); t.jn[k] = j.arms.length; t.jo[k] = q;
       for (const a of j.arms) {
         t.aang[q] = Math.round(((a.ang + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 65535); t.ahalf[q] = u10(a.half);
-        t.ameta[q] = a.rank | (a.cross ? 4 : 0) | (a.flow << 3); t.aw[q] = u10(a.w); t.atl[q] = u10(a.tl); t.atr[q] = u10(a.tr); t.aline[q] = a.ri; q++;
+        t.ameta[q] = a.rank | (a.cross ? 4 : 0) | (a.flow << 3); t.aw[q] = u10(a.w); t.atl[q] = u10(a.tl); t.atr[q] = u10(a.tr); t.aline[q] = a.ri; t.aarr[q] = a.arr || 0; t.amark[q] = a.mark || 0; q++;
       }
     });
     t.jo[nj] = q;

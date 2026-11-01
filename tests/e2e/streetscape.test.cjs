@@ -58,7 +58,9 @@ const path = require('path');
           park({ x: best.x, z: best.z }); await frames(120);
           g.viewCam = cam(2.0, 45); await frames(20); res.shots[name + '-approach'] = shot();
           g.viewCam = cam(1.7, 14); await frames(20); res.shots[name + '-close'] = shot();
-          g.viewCam = { x: best.x - 90, y: gy + 110, z: best.z - 90, tx: best.x, ty: gy, tz: best.z, fov: 55 }; await frames(20); res.shots[name + '-above'] = shot();
+          // from above the approach itself (a diagonal view from 90 m out was mostly roofs): the markings of the arm and the junction
+          g.viewCam = { x: best.x + best.fx * 40, y: gy + 45, z: best.z + best.fz * 40, tx: best.x + best.fx * 8, ty: gy, tz: best.z + best.fz * 8, fov: 60 }; await frames(20); res.shots[name + '-above'] = shot();
+          g.viewCam = { x: best.x + best.fx * 22.01, y: gy + 28, z: best.z + best.fz * 22, tx: best.x + best.fx * 22, ty: gy, tz: best.z + best.fz * 22, fov: 60 }; await frames(20); res.shots[name + '-arrows'] = shot();
           g.clock.t = Math.floor(g.clock.t / 1440) * 1440 + 21 * 60; await frames(20);
           g.viewCam = cam(2.0, 45); await frames(20); res.shots[name + '-night'] = shot();
           g.clock.t = Math.floor(g.clock.t / 1440) * 1440 + 13 * 60;
