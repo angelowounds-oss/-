@@ -58,6 +58,11 @@ export class Physics {
     b.col = w.createCollider(R.ColliderDesc.cuboid((b.x1 - b.x0) / 2, hh, (b.z1 - b.z0) / 2).setTranslation((b.x0 + b.x1) / 2, y0 + hh, (b.z0 + b.z1) / 2).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(b.tag === 'glass' ? GR.GLASS : b.tag === 'elev' ? GR.OBJ : GR.STATIC, ALL)).setActiveEvents(b.tag === 'glass' ? R.ActiveEvents.COLLISION_EVENTS : 0));
     this.colRef.set(b.col.handle, b);
   }
+  // a static box turned about the vertical axis (the procedural buildings, WLD-24b); `ref` is what a ray that hits it reads back
+  addYawBox(cx, cy, cz, hx, hy, hz, yaw, ref) {
+    const R = this.R, col = this.world.createCollider(R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy, cz).setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(GR.STATIC, ALL)));
+    ref.col = col; this.colRef.set(col.handle, ref); return ref;
+  }
   // static inclined slab (stairs). dz,dy: run/rise vector of the surface
   addRamp(cx, cy, cz, hx, hy, hz, dy, dz, alongX) {
     const al = Math.atan2(-dy, dz);
