@@ -63,8 +63,8 @@ export const TILE = 512, TILE_OFF = 256;
 export function decodeTile(key, t) {
   const [ti, tj] = key.split('_').map(Number), ox = (ti - TILE_OFF) * TILE + TILE / 2, oz = (tj - TILE_OFF) * TILE + TILE / 2, J = [], R = [];
   for (let k = 0; k < t.nj; k++) {
-    const arms = []; for (let q = t.jo[k]; q < t.jo[k + 1]; q++) arms.push({ ang: t.aang[q] / 65535 * Math.PI * 2, half: t.ahalf[q] / 10, rank: t.ameta[q] & 3, cross: !!(t.ameta[q] & 4), flow: t.ameta[q] >> 3, w: t.aw[q] / 10, tl: t.atl[q] / 10, tr: t.atr[q] / 10, line: t.aline[q], arr: t.aarr ? t.aarr[q] : 0, mark: t.amark ? t.amark[q] : 0 });
-    J.push({ x: ox + t.jx[k] / 10, z: oz + t.jz[k] / 10, y: t.jy[k] / 10, signal: !!(t.jf[k] & 1), arms });
+    const arms = []; for (let q = t.jo[k]; q < t.jo[k + 1]; q++) arms.push({ ang: t.aang[q] / 65535 * Math.PI * 2, half: t.ahalf[q] / 10, rank: t.ameta[q] & 3, cross: !!(t.ameta[q] & 4), crossReal: !!(t.ameta[q] & 64), flow: (t.ameta[q] >> 3) & 3, w: t.aw[q] / 10, tl: t.atl[q] / 10, tr: t.atr[q] / 10, line: t.aline[q], arr: t.aarr ? t.aarr[q] : 0, mark: t.amark ? t.amark[q] : 0 });
+    J.push({ x: ox + t.jx[k] / 10, z: oz + t.jz[k] / 10, y: t.jy[k] / 10, signal: !!(t.jf[k] & 1), sigReal: !!(t.jf[k] & 2), arms });
   }
   for (let k = 0; k < t.nr; k++) R.push({ line: t.rline[k], i0: t.ri0[k], i1: t.ri1[k], w: t.rw[k] / 10, m: t.rm[k], bus: !!(t.rm[k] & 4), ta: [t.rta[k * 2] / 10, t.rta[k * 2 + 1] / 10], tb: [t.rtb[k * 2] / 10, t.rtb[k * 2 + 1] / 10] });
   // lamps and trees as the bake judged them (build/world/streetfurn.mjs); tiles from before the furniture was baked have none

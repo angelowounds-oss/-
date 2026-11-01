@@ -265,7 +265,7 @@ class TileBuild {
   tree(f) {
     // street trees of 6-11 m: a slim trunk and a crown of two or three rounded blobs (a pole, two rings and a pole each), lit from above by the face normal.
     // The species is the road's (one species per street, as Seoul plants them); the size varies a little from tree to tree.
-    const { x, z } = f, y0 = this.footY(f), sp = f.v & 3, id = (f.v >> 2) / 8, SP = TREE[sp], th = SP.trunk + id * 0.6, rr = SP.r * (0.85 + id * 0.3), rh = rr * SP.tall, col = SP.col;
+    const { x, z } = f, y0 = this.footY(f), sp = f.v & 3, id = ((f.v >> 2) & 7) / 8, SP = TREE[sp], th = SP.trunk + id * 0.6, rr = SP.r * (0.85 + id * 0.3), rh = rr * SP.tall, col = SP.col;
     const j = 0.85 + 0.3 * hash(Math.round(x), Math.round(z) + 5);
     this.S.box(x, y0 + th / 2, z, 1, 0, 0.1, 0.1, th / 2, TRUNK);
     const N = 7, blob = (cx, cy, cz, r, ry, rot) => {

@@ -46,11 +46,13 @@ function makeMaterial() {
 // one tile built a slice at a time: step(ms) returns true when it is done
 class TileBuild {
   constructor(key, ti, tj, t) {
-    this.key = key; this.ti = ti; this.tj = tj; this.t = t; this.q = 0; this.n = t.n;
+    this.key = key; this.ti = ti; this.tj = tj; this.t = t; this.q = 0; this.p = 0; this.n = t.n;
     this.ox = (ti - OFF) * TILE + TILE / 2; this.oz = (tj - OFF) * TILE + TILE / 2;
-    const cap = t.n * 2 * 20;   // an L is two boxes of five faces
-    this.pos = new Float32Array(cap * 3); this.nor = new Float32Array(cap * 3); this.col = new Float32Array(cap * 3); this.win = new Float32Array(cap * 4); this.idx = new Uint32Array(t.n * 2 * 30);
-    this.nv = 0; this.ni = 0; this.base = new Float32Array(t.n);   // the lowest ground under each building (colliders start there)
+    // the real outlines (WLD-24h): a wall quad per edge and the roof's own vertices, after the procedural boxes
+    this.pn = t.pn || 0; const pv = this.pn ? t.ro[t.pr[this.pn]] : 0;
+    const cap = t.n * 2 * 20 + pv * 5;   // an L is two boxes of five faces
+    this.pos = new Float32Array(cap * 3); this.nor = new Float32Array(cap * 3); this.col = new Float32Array(cap * 3); this.win = new Float32Array(cap * 4); this.idx = new Uint32Array(t.n * 2 * 30 + pv * 9);
+    this.nv = 0; this.ni = 0; this.base = new Float32Array(t.n); this.pbase = new Float32Array(this.pn); this.roofs = new Array(this.pn);   // the lowest ground under each building (colliders start there)
   }
   quad(a, b, c, d, nx, ny, nz, col, wa, wb, wc, wd, kind, seed) {
     const P = this.pos, N = this.nor, C = this.col, W = this.win, v0 = this.nv;
@@ -91,7 +93,43 @@ class TileBuild {
       }
       if ((this.q & 15) === 0 && performance.now() - t0 > ms) break;
     }
-    return this.q >= this.n;
+    if (this.q < this.n) return false;
+    while (this.p < this.pn) { this.poly(this.p++); if ((this.p & 7) === 0 && performance.now() - t0 > ms) break; }
+    return this.p >= this.pn;
+  }
+  // one real building: walls along every ring (outer and courtyards), a flat roof over the outline with its holes, windows by its real storey count
+  poly(q) {
+    const T = this.t, rings = [];
+    for (let r = T.pr[q]; r < T.pr[q + 1]; r++) { const ring = []; for (let v = T.ro[r]; v < T.ro[r + 1]; v++) ring.push([T.px[v] / 10, T.pz[v] / 10]); rings.push(ring); }
+    let low = Infinity; const o = rings[0], st = Math.max(1, Math.floor(o.length / 12));
+    for (let v = 0; v < o.length; v += st) low = Math.min(low, landHeight(this.ox + o[v][0], this.oz + o[v][1], 8));
+    const kind = T.pk[q], h = T.ph[q] / 10, b0 = T.pb[q] / 10, fl = Math.max(1, T.pfl[q]), base = low, y0 = b0 > 0.5 ? base + b0 : base - FOUND, y1 = base + Math.max(h, b0 + 2.5);
+    const fh = Math.max(2.4, (h - b0) / fl), cw = CWIN[kind], wk = GLASS[kind] || 1, seed = hash(this.ti * 1024 + this.tj, 100000 + q);
+    const tint = 0.9 + 0.2 * hash(q + 7, this.ti * 7 + this.tj), c = KCOL[kind], col = [c[0] * tint, c[1] * tint, c[2] * tint], roof = [col[0] * 0.62, col[1] * 0.62, col[2] * 0.62];
+    this.pbase[q] = base;
+    rings.forEach((ring, ri) => {
+      // the outward side of each edge: shoelace sign of the ring, turned round for a courtyard (its walls face into the hole)
+      let a2 = 0; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a2 += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+      const s = (a2 > 0 ? 1 : -1) * (ri ? -1 : 1); let u = 0;
+      for (let i = 0; i < ring.length; i++) {
+        const A = ring[i], B = ring[(i + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 0.05) continue;
+        const nx = s * dz / l, nz = -s * dx / l, va = (y0 - base - b0) / fh, vb = (y1 - base - b0) / fh;
+        this.quad([A[0], y0, A[1]], [B[0], y0, B[1]], [B[0], y1, B[1]], [A[0], y1, A[1]], nx, 0, nz, col, [u / cw, va], [(u + l) / cw, va], [(u + l) / cw, vb], [u / cw, vb], wk, seed);
+        u += l;
+      }
+    });
+    // the roof: triangulated once and kept for the colliders
+    const V2 = (p) => new THREE.Vector2(p[0], p[1]), faces = THREE.ShapeUtils.triangulateShape(o.map(V2), rings.slice(1).map((r) => r.map(V2))), all = rings.flat();
+    this.roofs[q] = { all, faces, y0: b0 > 0.5 ? base + b0 : base - FOUND, y1 };
+    const P = this.pos, N = this.nor, C = this.col, W = this.win, I = this.idx, v0 = this.nv;
+    all.forEach((p, i) => { const k = (v0 + i) * 3; P[k] = p[0]; P[k + 1] = y1; P[k + 2] = p[1]; N[k] = 0; N[k + 1] = 1; N[k + 2] = 0; C[k] = roof[0]; C[k + 1] = roof[1]; C[k + 2] = roof[2]; const w = (v0 + i) * 4; W[w] = 0; W[w + 1] = 0; W[w + 2] = 0; W[w + 3] = seed; });
+    for (const f of faces) {
+      // up-facing winding (x right, z down in the plane: counter-clockwise seen from above is negative shoelace)
+      const a = all[f[0]], b = all[f[1]], c2 = all[f[2]], cr = (b[0] - a[0]) * (c2[1] - a[1]) - (b[1] - a[1]) * (c2[0] - a[0]), k = this.ni;
+      if (cr < 0) { I[k] = v0 + f[0]; I[k + 1] = v0 + f[1]; I[k + 2] = v0 + f[2]; } else { I[k] = v0 + f[0]; I[k + 1] = v0 + f[2]; I[k + 2] = v0 + f[1]; }
+      this.ni += 3;
+    }
+    this.nv += all.length;
   }
   geometry() {
     const g = new THREE.BufferGeometry(), nv = this.nv;
@@ -102,6 +140,9 @@ class TileBuild {
     return g;
   }
 }
+
+// the uid of a real building from its stored OSM id (ways positive, relations negative, a relation's piece k above 2^34: OSM-r123-k; ADR-0042)
+export function osmUid(pid) { const a = Math.abs(pid), k = Math.floor(a / 2 ** 34); return `OSM-${pid < 0 ? 'r' : 'w'}${a - k * 2 ** 34}${k ? '-' + k : ''}`; }
 
 export class RealBuildings {
   constructor(scene, phys, G, wd = globalThis.__WORLD) {
@@ -153,11 +194,11 @@ export class RealBuildings {
   finish(b) {
     const id = b.ti * 1024 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) return;
     const mesh = new THREE.Mesh(b.geometry(), this.mat); mesh.position.set(b.ox, 0, b.oz); mesh.matrixAutoUpdate = false; mesh.updateMatrix(); mesh.receiveShadow = true; mesh.castShadow = false; mesh.name = 'bld ' + b.key;
-    rec.mesh = mesh; rec.state = 'ready'; rec.base = b.base; rec.build = null; this.group.add(mesh);
-    this.stats.buildings += b.n;
+    rec.mesh = mesh; rec.state = 'ready'; rec.base = b.base; rec.roofs = b.roofs; rec.build = null; this.group.add(mesh);
+    this.stats.buildings += b.n + b.pn;
   }
   drop(id, rec) {
-    if (rec.mesh) { this.group.remove(rec.mesh); rec.mesh.geometry.dispose(); this.stats.buildings -= rec.chunk?.n || 0; }
+    if (rec.mesh) { this.group.remove(rec.mesh); rec.mesh.geometry.dispose(); this.stats.buildings -= (rec.chunk?.n || 0) + (rec.chunk?.pn || 0); }
     if (rec.build) { const i = this.jobs.indexOf(rec.build); if (i >= 0) this.jobs.splice(i, 1); }
     for (const [k, parts] of this.cols) if ((k / 16384 | 0) === id) { this.release(parts); this.cols.delete(k); }
     this.tiles.delete(id); this.wd.drop(rec.e.key);
@@ -176,6 +217,15 @@ export class RealBuildings {
         if (dd > RC || this.cols.has(key) || made >= 300) continue;
         made++; this.makeSolid(key, rec, q, bx, bz);
       }
+      // the real outlines: keyed after the boxes (8192 up), near when any corner of the outline is
+      for (let q = 0; q < (T.pn || 0); q++) {
+        const R0 = rec.roofs[q]; if (!R0) continue;
+        let dd = Infinity; for (const p of R0.all) dd = Math.min(dd, Math.hypot(cx + p[0] - fx, cz + p[1] - fz));
+        if (dd > keepR) continue;
+        const key = id * 16384 + 8192 + q; seen.add(key);
+        if (dd > RC || this.cols.has(key) || made >= 300) continue;
+        made++; this.makeHulls(key, rec, q, cx, cz);
+      }
     }
     for (const [k, parts] of this.cols) if (!seen.has(k)) { this.release(parts); this.cols.delete(k); }
     this.stats.solid = this.cols.size;
@@ -187,6 +237,17 @@ export class RealBuildings {
       const mu = (u0 + u1) / 2, mv = (v0 + v1) / 2, x = bx + ux * mu + vx * mv, z = bz + uz * mu + vz * mv, hx = (u1 - u0) / 2, hz = (v1 - v0) / 2;
       // the half-extents are about the building's own axes; Rapier turns about +y the other way round, hence -rot
       parts.push(this.phys.addYawBox(x, y0 + hy, z, hx, hy, hz, -rot, { tag: 'building', kind: 0, x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz, y0, h: y1, uid: `KR-${rec.e.key}-${q}` }));
+    }
+    this.cols.set(key, parts);
+  }
+  // a real outline as convex prisms, one per roof triangle (the outline may be any shape; a prism is always convex)
+  makeHulls(key, rec, q, cx, cz) {
+    const R0 = rec.roofs[q], parts = [], uid = osmUid(rec.chunk.pid[q]);
+    for (const f of R0.faces) {
+      const pts = new Float32Array(18); let k = 0;
+      for (const y of [R0.y0, R0.y1]) for (const i of f) { const p = R0.all[i]; pts[k++] = cx + p[0]; pts[k++] = y; pts[k++] = cz + p[1]; }
+      const ref = this.phys.addHull(pts, { tag: 'building', kind: 0, x0: cx + R0.all[f[0]][0], x1: cx + R0.all[f[0]][0], z0: cz + R0.all[f[0]][1], z1: cz + R0.all[f[0]][1], y0: R0.y0, h: R0.y1, uid });
+      if (ref) parts.push(ref);
     }
     this.cols.set(key, parts);
   }

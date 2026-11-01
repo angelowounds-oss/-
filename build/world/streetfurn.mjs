@@ -22,6 +22,7 @@
 //   tree      too close to another tree
 import { crossingSpan, signalFoot, hasSignal } from '../../src/streetgeo.js';
 import { readTile as readBldTile, KIND } from './blocks.mjs';
+import { readRealTile } from './osmbuildings.mjs';
 
 const RANK = { trunk: 0, primary: 0, secondary: 1, tertiary: 2, residential: 3, living_street: 3, unclassified: 3 };
 const rankOf = (hw) => (hw in RANK ? RANK[hw] : 9);
@@ -48,6 +49,18 @@ class Grid {
   }
 }
 
+// signed distance from (x, z) to a polygon with holes (negative inside), and on the nearest wall: its length and where the foot falls from its middle
+function polyDist(x, z, rings) {
+  let d2 = Infinity, s = 0, len = 0, inside = false;
+  for (const r of rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+    const ax = r[j][0], az = r[j][1], bx = r[i][0], bz = r[i][1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1e-9;
+    if ((az > z) !== (bz > z) && x < dx * (z - az) / (bz - az || 1e-12) + ax) inside = !inside;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), ex = ax + dx * t - x, ez = az + dz * t - z, e2 = ex * ex + ez * ez;
+    if (e2 < d2) { d2 = e2; const l = Math.sqrt(l2); len = l; s = (t - 0.5) * l; }
+  }
+  const d = Math.sqrt(d2); return { d: inside ? -d : d, s, len };
+}
+
 // the judge: the world around the street as indexes, and the tests a spot has to pass
 export function makeJudge(R, bld, junctions) {
   const roads = R.roads;
@@ -58,6 +71,13 @@ export function makeJudge(R, bld, junctions) {
     // in every 32 m cell its bounding square touches
     B.push(rec); const r = Math.hypot(rec.hw, rec.hd);
     for (let j = Math.floor((b.z - r) / 32); j <= Math.floor((b.z + r) / 32); j++) for (let i = Math.floor((b.x - r) / 32); i <= Math.floor((b.x + r) / 32); i++) bg.add(i * 32 + 1, j * 32 + 1, rec);
+  }
+  // the real buildings (OSM outlines, build/world/osmbuildings.mjs) as polygons, in every 32 m cell their bounding box touches
+  for (const [key, t] of Object.entries(bld?.tiles || {})) for (const b of readRealTile(key, t)) {
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const [x, z] of b.rings[0]) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+    const rec = { poly: b.rings, x: (x0 + x1) / 2, z: (z0 + z1) / 2, kind: b.kind, uid: b.uid };
+    B.push(rec);
+    for (let j = Math.floor(z0 / 32); j <= Math.floor(z1 / 32); j++) for (let i = Math.floor(x0 / 32); i <= Math.floor(x1 / 32); i++) bg.add(i * 32 + 1, j * 32 + 1, rec);
   }
   // road segments (each segment once per 16 m cell it passes)
   const sg = new Grid(16);
@@ -81,6 +101,7 @@ export function makeJudge(R, bld, junctions) {
     let best = 1e9, who = null; const seen = new Set();
     for (const b of bg.near(x, z, reach)) {
       if (seen.has(b)) continue; seen.add(b);
+      if (b.poly) { const r = polyDist(x, z, b.poly); if (r.d < best) { best = r.d; who = { b, ...r }; } continue; }
       const px = x - b.x, pz = z - b.z, u = px * b.ux + pz * b.uz, v = -px * b.uz + pz * b.ux, du = Math.abs(u) - b.hw, dv = Math.abs(v) - b.hd;
       const d = du > 0 || dv > 0 ? Math.hypot(Math.max(du, 0), Math.max(dv, 0)) : Math.max(du, dv);
       if (d < best) { best = d; who = { b, u, v }; }
@@ -120,9 +141,21 @@ export function makeJudge(R, bld, junctions) {
   const entrance = (x, z, half) => {
     const { d, who } = bdist(x, z, 14); if (!who || d > 8) return false;
     const { b, u, v } = who, big = b.kind === KIND.apartment || b.kind === KIND.office || b.kind === KIND.tower || b.kind === KIND.industrial;
+    // a real outline: in front of the middle of the wall nearest (only walls long enough to have a door, 3 m+)
+    if (b.poly) return d > 0 && who.len >= 3 && Math.abs(who.s) < (big ? 4 : 1.5) + half;
     return Math.abs(v) > b.hd && Math.abs(u) < (big ? 4 : 1.5) + half;
   };
-  return { B, groundY, water, bdist, roadsNear, onCrossing, nearPole, hidesSignal, nearPlaced, entrance, add: (rec) => placed.add(rec.x, rec.z, rec) };
+  // the nearest carriageway within r: its line, the distance from its edge (negative: on it) and the unit direction from the point toward its centre
+  const nearestRoad = (x, z, r) => {
+    let best = null;
+    for (const [rj, i] of sg.near(x, z, r)) {
+      const o = roads[rj], dx = o.x[i + 1] - o.x[i], dz = o.z[i + 1] - o.z[i], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o.x[i]) * dx + (z - o.z[i]) * dz) / l2));
+      const ex = o.x[i] + dx * t - x, ez = o.z[i] + dz * t - z, d = Math.hypot(ex, ez);
+      if (d - o.half < r && (!best || d - o.half < best.gap)) best = { ri: rj, gap: d - o.half, nx: ex / (d || 1), nz: ez / (d || 1) };
+    }
+    return best;
+  };
+  return { B, groundY, water, bdist, roadsNear, nearestRoad, onCrossing, nearPole, hidesSignal, nearPlaced, entrance, add: (rec) => placed.add(rec.x, rec.z, rec) };
 }
 
 // walk one side of a pavement run: the polyline of the kerb, offset `lat` from the road's centre line, with arc length (for stations)
@@ -143,7 +176,7 @@ function sideOf(L, r, sd, lat) {
 }
 
 // place the lamps and trees of all runs; returns the items ({ t, x, z, y, yaw, v, bridge, ri, ti, tj }) and the count of refusals by reason and type
-export function placeFurniture(R, bld, junctions, runs, tileOf) {
+export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = []) {
   const roads = R.roads, J = makeJudge(R, bld, junctions), items = [], why = { lamp: {}, tree: {} }, no = (t, k) => { why[t][k] = (why[t][k] || 0) + 1; return false; };
   // the ends of runs that are junctions (a tree keeps the sight triangle there clear)
   const jEnds = new Set(); for (const j of junctions) for (const a of j.arms) jEnds.add(a.ri + ':' + a.i);
@@ -176,6 +209,16 @@ export function placeFurniture(R, bld, junctions, runs, tileOf) {
         J.add(it); items.push(it); why.lamp.placed = (why.lamp.placed || 0) + 1;
       }
     }
+  }
+  // ---- the map's street trees first, where the judge lets them stand (the size of each kept from its position, the species of the road beside it)
+  why.realTree = {};
+  for (const p of [...realTrees].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    const y = J.groundY(p.x, p.z), seg = J.nearestRoad(p.x, p.z, 25), sp = seg ? speciesOf(seg.ri) : 0, SP = SPECIES[sp];
+    const res = J.water(p.x, p.z) ? 'water' : J.bdist(p.x, p.z).d < 0.4 ? 'building' : seg && seg.gap < 0.3 ? 'road' : J.nearPlaced(p.x, p.z, 1.5, 1) ? 'tree' : true;
+    if (res !== true) { why.realTree[res] = (why.realTree[res] || 0) + 1; continue; }
+    const ix = seg ? seg.nx : 1, iz = seg ? seg.nz : 0;
+    const it = { t: 1, x: p.x, z: p.z, y, ix, iz, v: sp | (Math.floor(hash(Math.round(p.x * 3), Math.round(p.z * 3)) * 8) << 2) | 32, bridge: 0, ri: seg ? seg.ri : -1, r: SP.r, real: true };
+    J.add(it); items.push(it); why.realTree.placed = (why.realTree.placed || 0) + 1;
   }
   // ---- trees
   for (const q of order) {

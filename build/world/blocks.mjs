@@ -267,11 +267,20 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
   const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
   const { REGIONS } = await import('../../src/regions/index.js'), { CAPITAL } = await import('../../src/koreamap.js');
   const exclude = REGIONS.flatMap((r) => r.cities).filter((c) => c.def.viaRegion).map((c) => ({ x: c.def.x - CAPITAL.x, z: c.def.z - CAPITAL.z, r: c.def.r * 1.15 + 60 }));
-  const t0 = Date.now(), res = makeBuildings(R, { exclude }), tiles = toTiles(res);
+  const t0 = Date.now(), res = makeBuildings(R, { exclude });
+  // the real buildings of the map (WLD-24h) where the detail tiles were fetched (build/world/fetch-detail.mjs); the procedural ones stay in the gaps
+  const { readDetail } = await import('./realdetail.mjs'), { mergeReal, addRealTiles } = await import('./osmbuildings.mjs'), detail = readDetail();
+  let real = null;
+  if (detail.buildings.length) {
+    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r)); real = m.stats; real.missingTiles = detail.missing.length;
+    for (const k of Object.keys(res.B)) res.B[k] = res.B[k].filter((v, i) => m.keep[i]);
+    res.count = res.B.cx.length; res.real = m.real;
+  }
+  const tiles = toTiles(res); if (res.real) addRealTiles(tiles, res.real);
   const kinds = {}; for (const k of res.B.kind) kinds[k] = (kinds[k] || 0) + 1;
-  const stats = { count: res.count, apartments: res.apartments, infill: res.infill, tiles: Object.keys(tiles).length, kinds, perTile: Object.fromEntries(Object.entries(tiles).map(([k, t]) => [k, t.n])), seconds: (Date.now() - t0) / 1000 };
+  const stats = { count: res.count, apartments: res.apartments, infill: res.infill, real, tiles: Object.keys(tiles).length, kinds, perTile: Object.fromEntries(Object.entries(tiles).map(([k, t]) => [k, t.n + (t.pn || 0)])), seconds: (Date.now() - t0) / 1000 };
   fs.mkdirSync(out, { recursive: true });
   const bytes = writeBuildings(path.join(out, 'buildings.bin'), tiles, { count: res.count, kinds });
   fs.writeFileSync(path.join(out, 'buildings-stats.json'), JSON.stringify(stats));
-  console.log(JSON.stringify({ count: res.count, apartments: res.apartments, infill: res.infill, tiles: stats.tiles, kinds, bytes, seconds: stats.seconds }));
+  console.log(JSON.stringify({ count: res.count, apartments: res.apartments, infill: res.infill, real, tiles: stats.tiles, kinds, bytes, seconds: stats.seconds }));
 }

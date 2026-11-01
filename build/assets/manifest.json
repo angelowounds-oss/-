@@ -10,7 +10,8 @@
   "KOSTAT-free",
   "own",
   "Apache-2.0",
-  "USER-PERMITTED"
+  "USER-PERMITTED",
+  "KOGL-1"
  ],
  "assets": [
   {
@@ -69,13 +70,24 @@
   },
   {
    "id": "osm-data",
-   "title": "OpenStreetMap derived roads, places, water (compiled into the build)",
+   "title": "OpenStreetMap derived roads, places, water, building outlines and street points (compiled into the build)",
    "files": {},
    "source": "OpenStreetMap",
    "licence": "ODbL-1.0",
    "author": "OpenStreetMap contributors",
    "url": "https://www.openstreetmap.org/copyright",
    "credit": "Map data © OpenStreetMap contributors (ODbL)",
+   "status": "ok"
+  },
+  {
+   "id": "seoul-traffic-facilities",
+   "title": "Seoul crossings and signal mounts (OA-15554, OA-15546; compiled into the street data)",
+   "files": {},
+   "source": "Seoul Open Data Plaza",
+   "licence": "KOGL-1",
+   "author": "Seoul Metropolitan Government",
+   "url": "https://data.seoul.go.kr/dataList/OA-15554/S/1/datasetView.do",
+   "credit": "Traffic facilities: Seoul Open Data (KOGL Type 1)",
    "status": "ok"
   },
   {

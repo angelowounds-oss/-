@@ -5,6 +5,9 @@
 // Junctions: the compiled lines are cut at every junction, so a junction is where line ends meet (within 5 m); a line that ends on the middle of another
 // (a T) adds that line's two directions as arms. Pavement: urban places only (the number of buildings in the 3 x 3 tiles around), never in tunnels, never
 // on motorways and ramps, and not in the keep zone (the hand-made city has its own until WLD-24c).
+// Real records first (DATA-01, ADR-0042): a junction is signalled where the map has a signal or a signalled crossing at it, an arm has a crossing where the
+// map has one on it, and the map's street trees stand where the judge lets them; the rules only fill in what the map does not say, and every decision keeps
+// where it came from (junction flag bit 1, arm meta bit 6, tree variant bit 5) so the share of real records can be counted.
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import path from 'node:path';
@@ -13,6 +16,8 @@ import { readRegion, KEEP, BAND } from './emit.mjs';
 import { TILE, TILE_OFF, readBuildings } from './blocks.mjs';
 import { trims, radiusOf, decodeTile } from '../../src/streetgeo.js';
 import { placeFurniture } from './streetfurn.mjs';
+import { readDetail } from './realdetail.mjs';
+import { readSeoul } from './seouldata.mjs';
 
 export { TILE, TILE_OFF };
 // rank: 0 trunk / primary, 1 secondary, 2 tertiary, 3 street; 8 ramps and 9 motorways have no pavement and no crossing
@@ -23,16 +28,35 @@ export const WALK = [3.6, 3.2, 2.6, 1.8];
 // buildings in the 3 x 3 tiles around (1.5 km square) from which a rank gets pavement
 export const URBAN = [150, 150, 300, 600];
 const CLUSTER = 5, ARM_LEN = 7;
+const MAPPED = 6;   // records in the 600 m square around a junction that make its neighbourhood "mapped" (a few signalled junctions, each 2-4 nodes)
 
 // buildings per tile -> the count of the 3 x 3 around
 function urbanOf(bld) {
-  const cnt = new Map(); for (const [k, t] of Object.entries(bld?.tiles || {})) cnt.set(k, t.n);
+  const cnt = new Map(); for (const [k, t] of Object.entries(bld?.tiles || {})) cnt.set(k, t.n + (t.pn || 0));
   const memo = new Map();
   return (ti, tj) => { const k = ti + '_' + tj; let v = memo.get(k); if (v === undefined) { v = 0; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) v += cnt.get((ti + a) + '_' + (tj + b)) || 0; memo.set(k, v); } return v; };
 }
 
-export function makeStreets(R, bld) {
-  const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND;
+// the map's street points in 16 m cells, by kind: signal (a signal node or a signalled crossing), cross (any marked crossing), tree
+function pointIndex(points) {
+  const G = { signal: new Map(), cross: new Map(), tree: [] }, put = (m, p) => { const k = Math.floor(p.x / 16) * 100003 + Math.floor(p.z / 16); (m.get(k) || m.set(k, []).get(k)).push(p); };
+  for (const p of points || []) {
+    if (p.t === 'signal' || (p.t === 'crossing' && p.signal)) put(G.signal, p);
+    if (p.t === 'crossing' && p.marked) put(G.cross, p);
+    if (p.t === 'tree') G.tree.push(p);
+  }
+  // mappers who map signals or crossings map a whole neighbourhood: where the 600 m around a point holds enough of them, the map's silence means "none here"
+  // (and the rule must not add one); elsewhere it means "not mapped" and the rule fills in
+  const dens = (m) => { const c = new Map(); for (const l of m.values()) for (const p of l) { const k = Math.floor(p.x / 200) * 100003 + Math.floor(p.z / 200); c.set(k, (c.get(k) || 0) + 1); } return c; };
+  const D = { signal: dens(G.signal), cross: dens(G.cross) };
+  G.mapped = (kind, x, z, need) => { const c = D[kind], i = Math.floor(x / 200), j = Math.floor(z / 200); let n = 0; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) n += c.get((i + a) * 100003 + j + b) || 0; return n >= need; };
+  G.near = (m, x, z, r) => { const out = []; for (let b = Math.floor((z - r) / 16); b <= Math.floor((z + r) / 16); b++) for (let a = Math.floor((x - r) / 16); a <= Math.floor((x + r) / 16); a++) for (const p of m.get(a * 100003 + b) || []) if (Math.hypot(p.x - x, p.z - z) <= r) out.push(p); return out; };
+  return G;
+}
+
+// detail: readDetail()'s result (the map's records), or null for rules only
+export function makeStreets(R, bld, detail = null) {
+  const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND, PI = pointIndex(detail?.points);
   const tileOf = (x, z) => [Math.floor(x / TILE) + TILE_OFF, Math.floor(z / TILE) + TILE_OFF];
   const urbanAt = (x, z) => { const [a, b] = tileOf(x, z); return urb(a, b); };
   // ---- which sides of which segments have pavement (sample i to i + 1), per line: bit 0 the left, bit 1 the right side of the line's direction
@@ -115,16 +139,22 @@ export function makeStreets(R, bld) {
     if (list.some((a) => roads[a.ri].cls[a.i] || roads[a.ri].cls[Math.max(0, a.i - 1)] || roads[a.ri].cls[Math.min(roads[a.ri].cls.length - 1, a.i + 1)])) continue;
     const ranks = list.map((a) => rankOf(roads[a.ri].hw)); if (ranks.every((k) => k >= 8)) continue;
     const u = urbanAt(x, z), a2 = ranks.filter((k) => k <= 2).length, best = Math.min(...ranks);
-    const signal = u >= URBAN[0] && list.length >= 3 && (a2 >= 3 || (a2 >= 2 && best <= 1));
+    // a signal or signalled crossing of the map within the junction (its arms' widths plus the crossing set back from the corner)
+    const reach = Math.max(...list.map((a) => roads[a.ri].half)) + 14, sigReal = PI.near(PI.signal, x, z, reach).length > 0, sigMapped = !sigReal && PI.mapped('signal', x, z, MAPPED);
+    const signal = sigReal || (!sigMapped && u >= URBAN[0] && list.length >= 3 && (a2 >= 3 || (a2 >= 2 && best <= 1)));
     // the arms around the centre, from the centre of the junction (a line end can be a few metres off it)
     for (const a of list) { a.ang = Math.atan2(a.z + a.dz * 3 - z, a.x + a.dx * 3 - x); }
     list.sort((p, q) => p.ang - q.ang);
-    const J = { x, z, y, signal, urban: u, arms: [] };
+    const J = { x, z, y, signal, sigReal, sigMapped, urban: u, arms: [] };
     for (const a of list) {
       const r = roads[a.ri], rk = rankOf(r.hw), seg = a.dirn > 0 ? a.i : a.i - 1, w = rk <= 3 && pave[a.ri][seg] ? WALK[rk] : 0;
       // traffic of a one-way line leaves a junction along its direction and arrives against it
       const flow = r.oneway ? (a.dirn > 0 ? 1 : 2) : 0;
-      const arm = { ri: a.ri, i: a.i, dirn: a.dirn, ang: a.ang, half: r.half, rank: rk, flow, w, cross: rk <= 3 && u >= URBAN[rk] * 0.5, tl: 0, tr: 0, d: Math.hypot(a.x - x, a.z - z) };
+      // a crossing of the map on this arm: within 30 m of the centre along it, over its carriageway
+      // (a crossing node sits on the carriageway's centre line, a few metres to 40 m back from the junction's centre on a wide road)
+      const ax = Math.cos(a.ang), az = Math.sin(a.ang), crossReal = rk <= 3 && PI.near(PI.cross, x, z, 42).some((p) => { const s = (p.x - x) * ax + (p.z - z) * az, l = -(p.x - x) * az + (p.z - z) * ax; return s > -2 && s < 40 && Math.abs(l) < r.half + 3; });
+      const crossMapped = !crossReal && PI.mapped('cross', x, z, MAPPED);
+      const arm = { ri: a.ri, i: a.i, dirn: a.dirn, ang: a.ang, half: r.half, rank: rk, flow, w, cross: crossReal || (!crossMapped && rk <= 3 && u >= URBAN[rk] * 0.5), crossReal, crossMapped, tl: 0, tr: 0, d: Math.hypot(a.x - x, a.z - z) };
       J.arms.push(arm); armOf.set(a.ri + ':' + a.i + ':' + a.dirn, arm);
     }
     const T = trims(J.arms, radiusOf(J.arms)).trims; J.arms.forEach((arm, k) => { arm.tl = T[k].tl; arm.tr = T[k].tr; });
@@ -161,7 +191,7 @@ export function makeStreets(R, bld) {
   });
   void q10;
   // ---- lamps and trees, each judged against what is around it (streetfurn.mjs)
-  const { items, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf);
+  const { items, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf, PI.tree);
   return { junctions, runs, items, why, judge };
 }
 
@@ -229,10 +259,10 @@ export function toTiles(res) {
       nf, ft: new Uint8Array(nf), fx: new Int16Array(nf), fz: new Int16Array(nf), fy: new Int16Array(nf), fdir: new Uint8Array(nf), fv: new Uint8Array(nf) };
     let q = 0;
     J.forEach((j, k) => {
-      t.jx[k] = Math.round((j.x - ox) * 10); t.jz[k] = Math.round((j.z - oz) * 10); t.jy[k] = Math.round(j.y * 10); t.jf[k] = (j.signal ? 1 : 0); t.jn[k] = j.arms.length; t.jo[k] = q;
+      t.jx[k] = Math.round((j.x - ox) * 10); t.jz[k] = Math.round((j.z - oz) * 10); t.jy[k] = Math.round(j.y * 10); t.jf[k] = (j.signal ? 1 : 0) | (j.sigReal ? 2 : 0); t.jn[k] = j.arms.length; t.jo[k] = q;
       for (const a of j.arms) {
         t.aang[q] = Math.round(((a.ang + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 65535); t.ahalf[q] = u10(a.half);
-        t.ameta[q] = a.rank | (a.cross ? 4 : 0) | (a.flow << 3); t.aw[q] = u10(a.w); t.atl[q] = u10(a.tl); t.atr[q] = u10(a.tr); t.aline[q] = a.ri; t.aarr[q] = a.arr || 0; t.amark[q] = a.mark || 0; q++;
+        t.ameta[q] = a.rank | (a.cross ? 4 : 0) | (a.flow << 3) | (a.crossReal ? 64 : 0); t.aw[q] = u10(a.w); t.atl[q] = u10(a.tl); t.atr[q] = u10(a.tr); t.aline[q] = a.ri; t.aarr[q] = a.arr || 0; t.amark[q] = a.mark || 0; q++;
       }
     });
     t.jo[nj] = q;
@@ -256,16 +286,28 @@ export function readStreets(file) {
   return decodeChunk(new Uint8Array(zlib.inflateRawSync(fs.readFileSync(file))));
 }
 
+// how much of the street came from the map: signalled junctions, crossings and street trees with a record behind them, and the tiles still to be fetched
+export function realShare(res) {
+  const sig = res.junctions.filter((j) => j.signal), arms = res.junctions.flatMap((j) => j.arms.filter((a) => a.cross)), trees = res.items.filter((f) => f.t === 1);
+  const share = (n, d) => +(n / Math.max(1, d)).toFixed(3);
+  // a decision is backed by the map when the map says yes (a record) or says no (a mapped neighbourhood without one)
+  const allArms = res.junctions.flatMap((j) => j.arms.filter((a) => a.rank <= 3));
+  return { signals: share(sig.filter((j) => j.sigReal).length, sig.length), signalDecisions: share(res.junctions.filter((j) => j.sigReal || j.sigMapped).length, res.junctions.length),
+    crossings: share(arms.filter((a) => a.crossReal).length, arms.length), crossingDecisions: share(allArms.filter((a) => a.crossReal || a.crossMapped).length, allArms.length), trees: share(trees.filter((f) => f.real).length, trees.length) };
+}
+
 // ---- command line
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), dir = path.join(root, 'build/baked/world/capital');
   const file = process.argv[2] || path.join(dir, 'region.bin'), bfile = process.argv[3] || path.join(dir, 'buildings.bin'), out = process.argv[4] || dir;
   const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
-  const t0 = Date.now(), res = makeStreets(R, readBuildings(bfile)), tiles = toTiles(res);
+  // the map's points and, inside Seoul, the city's own crossing and signal records (seouldata.mjs)
+  const t0 = Date.now(), detail = readDetail(); detail.points = detail.points.concat(readSeoul());
+  const res = makeStreets(R, readBuildings(bfile), detail), tiles = toTiles(res);
   const km = res.runs.reduce((s, r) => { const L = R.roads[r.ri]; let d = 0; for (let i = r.i0; i < r.i1; i++) d += Math.hypot(L.x[i + 1] - L.x[i], L.z[i + 1] - L.z[i]); return s + d; }, 0) / 1000;
   const sig = res.junctions.filter((j) => j.signal).length, cross = res.junctions.reduce((s, j) => s + j.arms.filter((a) => a.cross).length, 0);
   fs.mkdirSync(out, { recursive: true });
   const bytes = writeStreets(path.join(out, 'streets.bin'), tiles, { junctions: res.junctions.length, runs: res.runs.length });
-  const stats = { lamps: res.items.filter((f) => f.t === 0).length, trees: res.items.filter((f) => f.t === 1).length, refused: res.why, junctions: res.junctions.length, signals: sig, crossings: cross, runs: res.runs.length, paveKm: Math.round(km), tiles: Object.keys(tiles).length, bytes, seconds: Math.round((Date.now() - t0) / 100) / 10 };
+  const real = realShare(res), stats = { real, lamps: res.items.filter((f) => f.t === 0).length, trees: res.items.filter((f) => f.t === 1).length, refused: res.why, junctions: res.junctions.length, signals: sig, crossings: cross, runs: res.runs.length, paveKm: Math.round(km), tiles: Object.keys(tiles).length, bytes, seconds: Math.round((Date.now() - t0) / 100) / 10 };
   fs.writeFileSync(path.join(out, 'streets-stats.json'), JSON.stringify(stats)); console.log(JSON.stringify(stats));
 }

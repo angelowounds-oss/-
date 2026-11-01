@@ -1,4 +1,4 @@
-// The procedural buildings of Seoul (WLD-24b, src/realbuildings.js): around Gangnam the tiles load and build, the buildings are drawn (a mesh per tile,
+// The buildings of Seoul (WLD-24b procedural boxes, WLD-24h real OSM outlines; src/realbuildings.js): around Gangnam the tiles load and build, the buildings are drawn (a mesh per tile,
 // lit windows at night come from one shader that exists from the start), they are solid near the player (a ray from above lands on a roof, the walls
 // block a ray from the side), the number of shader programs does not grow while playing, and they go again when the player moves far away.
 // With OUT=<dir> it also writes a picture per place (street level, from above) for the contact sheet.
@@ -38,6 +38,24 @@ const path = require('path');
           const side = P.ray(ox, probe.base + 3, oz, -dx, 0, -dz, 10, 1 | 16); res.wallHit = side ? +side.t.toFixed(2) : -1; break;
         }
       }
+      // the same for a real building (an OSM outline, WLD-24h): a ray from above at the centre of a roof triangle ends at the roof, a ray toward the middle
+      // of its longest wall from 2 m outside ends at the wall (the outward side from the ring's winding, as the renderer takes it)
+      for (const [, rec] of RB.tiles) {
+        if (rec.state !== 'ready' || !rec.chunk.pn || res.polyRoof !== undefined) continue;
+        const T = rec.chunk, cx = (rec.e.ti - 256) * 512 + 256, cz = (rec.e.tj - 256) * 512 + 256;
+        for (let q = 0; q < T.pn; q++) {
+          const R0 = rec.roofs[q]; if (!R0 || !R0.faces.length || R0.y1 - R0.y0 < 8) continue;
+          const ring = []; for (let v = T.ro[T.pr[q]]; v < T.ro[T.pr[q] + 1]; v++) ring.push([cx + T.px[v] / 10, cz + T.pz[v] / 10]);
+          const f = R0.faces[0], a = R0.all[f[0]], b = R0.all[f[1]], c = R0.all[f[2]], tx = cx + (a[0] + b[0] + c[0]) / 3, tz = cz + (a[1] + b[1] + c[1]) / 3;
+          if (Math.hypot(tx - pl.x, tz - pl.z) > 160) continue;
+          const hit = P.ray(tx, R0.y1 + 50, tz, 0, -1, 0, 100, 1 | 16); res.polyRoof = hit ? +(R0.y1 + 50 - hit.t).toFixed(2) : null; res.polyRoofExpect = +R0.y1.toFixed(2);
+          let a2 = 0; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a2 += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+          let best = 0, mid = null; for (let i = 0; i < ring.length; i++) { const A = ring[i], B = ring[(i + 1) % ring.length], l = Math.hypot(B[0] - A[0], B[1] - A[1]); if (l > best) { best = l; mid = { x: (A[0] + B[0]) / 2, z: (A[1] + B[1]) / 2, nx: Math.sign(a2) * (B[1] - A[1]) / l, nz: -Math.sign(a2) * (B[0] - A[0]) / l }; } }
+          const y = R0.y1 - 1.5, ox = mid.x + mid.nx * 2, oz = mid.z + mid.nz * 2, side = P.ray(ox, y, oz, -mid.nx, 0, -mid.nz, 10, 1 | 16);
+          res.polyWall = side ? +side.t.toFixed(2) : -1; res.polyPid = T.pid[q];
+          break;
+        }
+      }
       res.programsGrew = R.info.programs.length - programs0;
       if (pics) {
         for (const [name, p] of Object.entries(places)) {
@@ -58,7 +76,8 @@ const path = require('path');
     }, { places, pics: !!out }).catch((e) => ({ error: String(e) }));
     if (out && o.shots) for (const [k, v] of Object.entries(o.shots)) fs.writeFileSync(path.join(out, `bld-${k}.jpg`), Buffer.from(v.split(',')[1], 'base64'));
     delete o.shots;
-    const ok = !o.error && o.tiles >= 4 && o.meshes >= 4 && o.buildings > 500 && o.solid > 20 && o.roofTag === 'building' && Math.abs(o.roofHit - o.roofExpect) < 1.5 && o.wallHit != null && Math.abs(o.wallHit - o.wallExpect) < 0.6 && o.programsGrew === 0 && o.farTiles === 0 && o.farSolid === 0;
+    const ok = !o.error && o.tiles >= 4 && o.meshes >= 4 && o.buildings > 500 && o.solid > 20 && ((o.roofTag === 'building' && Math.abs(o.roofHit - o.roofExpect) < 1.5 && o.wallHit != null && Math.abs(o.wallHit - o.wallExpect) < 0.6) || o.roofHit === undefined)
+      && o.polyRoof != null && Math.abs(o.polyRoof - o.polyRoofExpect) < 0.3 && o.polyWall != null && Math.abs(o.polyWall - 2) < 0.6 && o.programsGrew === 0 && o.farTiles === 0 && o.farSolid === 0;
     result('realbuildings', ok, o);
   });
 })();

@@ -63,6 +63,12 @@ export class Physics {
     const R = this.R, col = this.world.createCollider(R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy, cz).setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(GR.STATIC, ALL)));
     ref.col = col; this.colRef.set(col.handle, ref); return ref;
   }
+  // a static convex solid from its corner points (x, y, z flat): one piece of a real building's outline (WLD-24h); null when the points are degenerate
+  addHull(pts, ref) {
+    const R = this.R, d = R.ColliderDesc.convexHull(pts); if (!d) return null;
+    const col = this.world.createCollider(d.setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(GR.STATIC, ALL)));
+    ref.col = col; this.colRef.set(col.handle, ref); return ref;
+  }
   // static inclined slab (stairs). dz,dy: run/rise vector of the surface
   addRamp(cx, cy, cz, hx, hy, hz, dy, dz, alongX) {
     const al = Math.atan2(-dy, dz);

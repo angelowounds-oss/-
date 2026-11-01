@@ -54,7 +54,8 @@ export function writeLicences(game) {
   }
   t += 'Licence texts: CC-BY-4.0 https://creativecommons.org/licenses/by/4.0/legalcode · ODbL-1.0 https://opendatacommons.org/licenses/odbl/1-0/ · '
     + 'GPL-2.0 https://www.gnu.org/licenses/old-licenses/gpl-2.0.html · CC0-1.0 https://creativecommons.org/publicdomain/zero/1.0/legalcode\n'
-    + 'Map data © OpenStreetMap contributors, available under the Open Database License (ODbL).\n';
+    + 'Map data © OpenStreetMap contributors, available under the Open Database License (ODbL).\n'
+    + 'Crossings and signal mounts of Seoul: Seoul Metropolitan Government, Seoul Open Data Plaza (data.seoul.go.kr, OA-15554, OA-15546), Korea Open Government License Type 1 (https://www.kogl.or.kr/info/licenseType1.do).\n';
   const texts = [['three.js (MIT)', 'build/node_modules/three/LICENSE'], ['Rapier, Basis Universal transcoder (Apache-2.0)', 'build/node_modules/@dimforge/rapier3d-compat/LICENSE'],
     ['Anton font (SIL OFL 1.1)', 'build/licences/OFL-Anton.txt'], ['Space Mono font (SIL OFL 1.1)', 'build/licences/OFL-SpaceMono.txt']];
   for (const [name, f] of texts) t += `\n\n======== ${name} ========\n\n` + fs.readFileSync(path.join(ROOT, f), 'utf8').trim() + '\n';

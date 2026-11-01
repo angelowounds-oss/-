@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const MAN = path.join(ROOT, 'build/assets/manifest.json'), CACHE = path.join(ROOT, 'build/.asset-cache');
-const ATTRIB = /^(CC-BY|OFL|ODbL|KOSTAT|PD)/;   // licences whose terms ask for (or the project chose to give) a credit line
+const ATTRIB = /^(CC-BY|OFL|ODbL|KOSTAT|KOGL|PD)/;   // licences whose terms ask for (or the project chose to give) a credit line
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
 
