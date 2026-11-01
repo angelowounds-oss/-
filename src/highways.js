@@ -360,10 +360,13 @@ export class Highways {
         if (i % 4 === 0) { const gy = landHeight(f0.x, f0.z, 16), h = f0.y - 1.7 - gy; if (h > 0.6) box(S, [f0.x, f0.z], f0.tx, f0.tz, Math.min(6, half), h, 2.2, gy, PIL); }   // a pier every 32 m
       }
       if (tunnel) {
-        const w = half + 1.4, hgt = 7.0, wall = [0.34, 0.35, 0.38];
-        for (const s of [-1, 1]) { const o = s * w; if (s > 0) S.quad(at(f0, o, hgt), at(f1, o, hgt), at(f1, o, 0), at(f0, o, 0), wall); else S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, hgt), at(f0, o, hgt), wall); }
-        S.quad(at(f0, w, hgt), at(f0, -w, hgt), at(f1, -w, hgt), at(f1, w, hgt), [0.28, 0.29, 0.31]);
-        E.quad(at(f0, -0.5, hgt - 0.05), at(f0, 0.5, hgt - 0.05), at(f1, 0.5, hgt - 0.05), at(f1, -0.5, hgt - 0.05), LIGHT);
+        // the ceiling follows the cover (build/world/grade.mjs fills the ground to 8 m over a tunnel where it can): 7 m under a hill, down to the 4.7 m of an
+        // underpass right under a street, always 0.6 m under the drawn ground so that the lining never shows through it
+        const w = half + 1.4, wall = [0.34, 0.35, 0.38], ceil = (f) => Math.max(4.7, Math.min(7, Math.min(landHeight(f.x + f.rx * w, f.z + f.rz * w, 16), landHeight(f.x - f.rx * w, f.z - f.rz * w, 16), landHeight(f.x, f.z, 16)) - f.y - 0.6));
+        const h0 = ceil(f0), h1 = ceil(f1);
+        for (const s of [-1, 1]) { const o = s * w; if (s > 0) S.quad(at(f0, o, h0), at(f1, o, h1), at(f1, o, 0), at(f0, o, 0), wall); else S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, h1), at(f0, o, h0), wall); }
+        S.quad(at(f0, w, h0), at(f0, -w, h0), at(f1, -w, h1), at(f1, w, h1), [0.28, 0.29, 0.31]);
+        E.quad(at(f0, -0.5, h0 - 0.05), at(f0, 0.5, h0 - 0.05), at(f1, 0.5, h1 - 0.05), at(f1, -0.5, h1 - 0.05), LIGHT);
         if ((r.cls[i - 1] ?? 2) !== 2 && f0.cls === 2) for (const s of [-1, 1]) box(S, [f0.x + f0.rx * s * (w + 0.8), f0.z + f0.rz * s * (w + 0.8)], f0.tx, f0.tz, 1.6, 9, 3, f0.y, CONC);   // portal
       }
     }

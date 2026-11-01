@@ -1,0 +1,220 @@
+// Street data of the capital region (WLD-24g-1): where the roads meet (junctions with their arms, signals and crossings) and where a road has pavement on
+// its sides (runs of samples with a width). The geometry is made at run time from the road samples (src/streetscape.js); this file only decides, from the
+// compiled network (region.bin) and the procedural buildings (buildings.bin), so that the decision is the same for every player and every run.
+//   node build/world/streets.mjs [region.bin] [buildings.bin] [out dir]       writes streets.bin (a deflated bakefmt chunk) and streets-stats.json
+// Junctions: the compiled lines are cut at every junction, so a junction is where line ends meet (within 5 m); a line that ends on the middle of another
+// (a T) adds that line's two directions as arms. Pavement: urban places only (the number of buildings in the 3 x 3 tiles around), never in tunnels, never
+// on motorways and ramps, and not in the keep zone (the hand-made city has its own until WLD-24c).
+import fs from 'node:fs';
+import zlib from 'node:zlib';
+import path from 'node:path';
+import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
+import { readRegion, KEEP, BAND } from './emit.mjs';
+import { TILE, TILE_OFF, readBuildings } from './blocks.mjs';
+import { trims, radiusOf, decodeTile } from '../../src/streetgeo.js';
+import { placeFurniture } from './streetfurn.mjs';
+
+export { TILE, TILE_OFF };
+// rank: 0 trunk / primary, 1 secondary, 2 tertiary, 3 street; 8 ramps and 9 motorways have no pavement and no crossing
+export const RANK = { trunk: 0, primary: 0, secondary: 1, tertiary: 2, residential: 3, living_street: 3, unclassified: 3 };
+const rankOf = (hw) => (hw in RANK ? RANK[hw] : hw.endsWith('_link') ? 8 : 9);
+// pavement width in metres by rank (a Seoul main road has 3 - 5 m, a side street 1.5 - 2 m; the buildings stand 5.3 - 5.8 m from the carriageway edge, blocks.mjs)
+export const WALK = [3.6, 3.2, 2.6, 1.8];
+// buildings in the 3 x 3 tiles around (1.5 km square) from which a rank gets pavement
+export const URBAN = [150, 150, 300, 600];
+const CLUSTER = 5, ARM_LEN = 7;
+
+// buildings per tile -> the count of the 3 x 3 around
+function urbanOf(bld) {
+  const cnt = new Map(); for (const [k, t] of Object.entries(bld?.tiles || {})) cnt.set(k, t.n);
+  const memo = new Map();
+  return (ti, tj) => { const k = ti + '_' + tj; let v = memo.get(k); if (v === undefined) { v = 0; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) v += cnt.get((ti + a) + '_' + (tj + b)) || 0; memo.set(k, v); } return v; };
+}
+
+export function makeStreets(R, bld) {
+  const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND;
+  const tileOf = (x, z) => [Math.floor(x / TILE) + TILE_OFF, Math.floor(z / TILE) + TILE_OFF];
+  const urbanAt = (x, z) => { const [a, b] = tileOf(x, z); return urb(a, b); };
+  // ---- which sides of which segments have pavement (sample i to i + 1), per line: bit 0 the left, bit 1 the right side of the line's direction
+  // A side is left bare where another road's carriageway lies under the strip (the median of a dual carriageway drawn as two lines, a road running alongside).
+  const SEG = new Map(), SC = 16, kc = (a, b) => a * 100003 + b;
+  roads.forEach((r, ri) => { for (let i = 0; i + 1 < r.x.length; i++) {
+    const n = Math.max(1, Math.ceil(Math.hypot(r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]) / 8)), seen = new Set();
+    for (let k = 0; k <= n; k++) { const x = r.x[i] + (r.x[i + 1] - r.x[i]) * k / n, z = r.z[i] + (r.z[i + 1] - r.z[i]) * k / n, c = kc(Math.floor(x / SC), Math.floor(z / SC)); if (seen.has(c)) continue; seen.add(c); (SEG.get(c) || SEG.set(c, []).get(c)).push(ri, i); }
+  } });
+  // the distance from (x, z) to the nearest other carriageway edge: negative when the point is on it
+  const gapTo = (x, z, ri, y, skip) => {
+    let best = 1e9; const cx = Math.floor(x / SC), cz = Math.floor(z / SC);
+    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const list = SEG.get(kc(cx + a, cz + b)); if (!list) continue;
+      for (let q = 0; q < list.length; q += 2) {
+        const rj = list[q], j = list[q + 1]; if (rj === ri) continue; const o = roads[rj];
+        if (skip && skip.has(rj)) continue;
+        if (Math.abs((o.y[j] + o.y[j + 1]) / 2 - y) > 4) continue;   // another level: a bridge over the street
+        const dx = o.x[j + 1] - o.x[j], dz = o.z[j + 1] - o.z[j], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o.x[j]) * dx + (z - o.z[j]) * dz) / l2));
+        const d = Math.hypot(x - (o.x[j] + dx * t), z - (o.z[j] + dz * t)) - o.half; if (d < best) best = d;
+      } }
+    return best;
+  };
+  const pave = roads.map((r, ri) => {
+    const rk = rankOf(r.hw), n = r.x.length, ok = new Uint8Array(Math.max(0, n - 1)); if (rk > 3) return ok;
+    // arc length from each end: close to a junction the other arms are meant to be near (the corners are shaped there)
+    const sl = [0]; for (let i = 1; i < n; i++) sl.push(sl[i - 1] + Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1]));
+    for (let i = 0; i + 1 < n; i++) {
+      const mx = (r.x[i] + r.x[i + 1]) / 2, mz = (r.z[i] + r.z[i + 1]) / 2;
+      if (!(r.cls[i] !== 2 && r.cls[i + 1] !== 2 && Math.max(Math.abs(mx), Math.abs(mz)) >= keepR && urbanAt(mx, mz) >= URBAN[rk])) continue;
+      let m = 3;
+      const sm = (sl[i] + sl[i + 1]) / 2;
+      if (sm > 30 && sl[n - 1] - sm > 30) {
+        const tx = r.x[i + 1] - r.x[i], tz = r.z[i + 1] - r.z[i], l = Math.hypot(tx, tz) || 1, off = r.half + WALK[rk] / 2, y = (r.y[i] + r.y[i + 1]) / 2;
+        // left of the direction is -(tz, -tx) in the frame the renderer uses (right = (tz, -tx))
+        if (gapTo(mx - tz / l * off, mz + tx / l * off, ri, y) < WALK[rk] / 2 + 0.2) m &= ~1;
+        if (gapTo(mx + tz / l * off, mz - tx / l * off, ri, y) < WALK[rk] / 2 + 0.2) m &= ~2;
+      }
+      ok[i] = m;
+    }
+    return ok;
+  });
+  // ---- line ends -> junctions
+  // ---- line ends -> junctions
+  const arms = [];   // { ri, i, x, z, dx, dz, dirn (+1: the arm runs toward higher samples), virt }
+  const armKey = new Set();
+  const addArm = (ri, i, dirn, virt) => {
+    const r = roads[ri], n = r.x.length, key = ri + ':' + i + ':' + dirn; if (armKey.has(key)) return; armKey.add(key);
+    let k = i, d = 0; while (k + dirn >= 0 && k + dirn < n && d < ARM_LEN) { k += dirn; d = Math.hypot(r.x[k] - r.x[i], r.z[k] - r.z[i]); }
+    if (d < 1) return;
+    arms.push({ ri, i, x: r.x[i], z: r.z[i], dx: (r.x[k] - r.x[i]) / d, dz: (r.z[k] - r.z[i]) / d, dirn, virt });
+  };
+  roads.forEach((r, ri) => {
+    const n = r.x.length; if (n < 2) return;
+    addArm(ri, 0, 1, false); addArm(ri, n - 1, -1, false);
+    // a line that ends on the middle of another: the other's two directions are arms there
+    for (const [list, i0] of [[r.prev, 0], [r.next, n - 1]]) for (const [lj, i] of list) {
+      const o = roads[lj]; if (!o || i <= 0 || i >= o.x.length - 1) continue;
+      if (Math.hypot(o.x[i] - r.x[i0], o.z[i] - r.z[i0]) > 9) continue;
+      addArm(lj, i, 1, true); addArm(lj, i, -1, true);
+    }
+  });
+  // cluster the arms by their feet (union-find over a hash of 8 m cells)
+  const par = Int32Array.from(arms, (_, i) => i), find = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+  const cell = new Map(), CS = 8;
+  arms.forEach((a, q) => { const k = Math.floor(a.x / CS) * 100003 + Math.floor(a.z / CS); (cell.get(k) || cell.set(k, []).get(k)).push(q); });
+  arms.forEach((a, q) => {
+    const cx = Math.floor(a.x / CS), cz = Math.floor(a.z / CS);
+    for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) for (const p of cell.get((cx + c) * 100003 + cz + b) || []) {
+      if (p <= q || Math.hypot(arms[p].x - a.x, arms[p].z - a.z) > CLUSTER) continue;
+      const u = find(q), v = find(p); if (u !== v) par[Math.max(u, v)] = Math.min(u, v);
+    }
+  });
+  const groups = new Map(); arms.forEach((a, q) => { const g = find(q); (groups.get(g) || groups.set(g, []).get(g)).push(a); });
+  const junctions = [], armOf = new Map();   // armOf: 'line:sample:dirn' -> the arm record (trims for the pavement runs)
+  for (const g of [...groups.keys()].sort((a, b) => a - b)) {
+    const list = groups.get(g); if (list.length < 3) continue;
+    let x = 0, z = 0, y = 0; for (const a of list) { x += a.x; z += a.z; y += roads[a.ri].y[a.i]; } x /= list.length; z /= list.length; y /= list.length;
+    if (Math.max(Math.abs(x), Math.abs(z)) < keepR) continue;
+    // not on a bridge or in a tunnel; not where only ramps and motorways meet
+    if (list.some((a) => roads[a.ri].cls[a.i] || roads[a.ri].cls[Math.max(0, a.i - 1)] || roads[a.ri].cls[Math.min(roads[a.ri].cls.length - 1, a.i + 1)])) continue;
+    const ranks = list.map((a) => rankOf(roads[a.ri].hw)); if (ranks.every((k) => k >= 8)) continue;
+    const u = urbanAt(x, z), a2 = ranks.filter((k) => k <= 2).length, best = Math.min(...ranks);
+    const signal = u >= URBAN[0] && list.length >= 3 && (a2 >= 3 || (a2 >= 2 && best <= 1));
+    // the arms around the centre, from the centre of the junction (a line end can be a few metres off it)
+    for (const a of list) { a.ang = Math.atan2(a.z + a.dz * 3 - z, a.x + a.dx * 3 - x); }
+    list.sort((p, q) => p.ang - q.ang);
+    const J = { x, z, y, signal, urban: u, arms: [] };
+    for (const a of list) {
+      const r = roads[a.ri], rk = rankOf(r.hw), seg = a.dirn > 0 ? a.i : a.i - 1, w = rk <= 3 && pave[a.ri][seg] ? WALK[rk] : 0;
+      // traffic of a one-way line leaves a junction along its direction and arrives against it
+      const flow = r.oneway ? (a.dirn > 0 ? 1 : 2) : 0;
+      const arm = { ri: a.ri, i: a.i, dirn: a.dirn, ang: a.ang, half: r.half, rank: rk, flow, w, cross: rk <= 3 && u >= URBAN[rk] * 0.5, tl: 0, tr: 0, d: Math.hypot(a.x - x, a.z - z) };
+      J.arms.push(arm); armOf.set(a.ri + ':' + a.i + ':' + a.dirn, arm);
+    }
+    const T = trims(J.arms, radiusOf(J.arms)).trims; J.arms.forEach((arm, k) => { arm.tl = T[k].tl; arm.tr = T[k].tr; });
+    junctions.push(J);
+  }
+  // ---- pavement runs: consecutive paved segments of a line in one tile, cut where another road meets the middle of the line, with the trims at the ends
+  const cut = new Set(); for (const k of armOf.keys()) { const [ri, i] = k.split(':').map(Number); if (i > 0 && i < roads[ri].x.length - 1) cut.add(ri + ':' + i); }
+  const runs = [];
+  const q10 = (m) => Math.min(255, Math.round(m * 10));
+  roads.forEach((r, ri) => {
+    const rk = rankOf(r.hw); if (rk > 3) return;
+    const n = r.x.length; let cur = null;
+    const flush = (end) => {
+      if (cur && cur.i1 > cur.i0) {
+        // the trims at the two ends, from the arms that start there; the left side of an arm that points back along the line is the right side of the line
+        const A = armOf.get(ri + ':' + cur.i0 + ':1'), B = armOf.get(ri + ':' + cur.i1 + ':-1');
+        // a trim is measured from the junction's centre; the run starts at the line's end sample, `d` metres from it
+        cur.ta = A ? [Math.max(0, A.tl - A.d), Math.max(0, A.tr - A.d)] : [0, 0]; cur.tb = B ? [Math.max(0, B.tr - B.d), Math.max(0, B.tl - B.d)] : [0, 0];
+        // a short link between two junctions can be eaten whole by the corners at both ends: nothing to draw
+        let len = 0; for (let i = cur.i0; i < cur.i1; i++) len += Math.hypot(roads[ri].x[i + 1] - roads[ri].x[i], roads[ri].z[i + 1] - roads[ri].z[i]);
+        if (((cur.m & 1) && len - cur.ta[0] - cur.tb[0] >= 1) || ((cur.m & 2) && len - cur.ta[1] - cur.tb[1] >= 1)) runs.push(cur);
+      }
+      cur = null; void end;
+    };
+    for (let i = 0; i + 1 < n; i++) {
+      const [ti, tj] = tileOf(r.x[i], r.z[i]);
+      if (!pave[ri][i]) { flush(); continue; }
+      if (cur && cur.ti === ti && cur.tj === tj && cur.i1 === i && cur.m === pave[ri][i] && !cut.has(ri + ':' + i)) cur.i1 = i + 1; else { flush(); cur = { ri, i0: i, i1: i + 1, w: q10(WALK[rk]), ti, tj, m: pave[ri][i] }; }
+    }
+    flush();
+  });
+  void q10;
+  // ---- lamps and trees, each judged against what is around it (streetfurn.mjs)
+  const { items, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf);
+  return { junctions, runs, items, why, judge };
+}
+
+// ---- tiles: the records of 512 m tiles as typed arrays (junction centres and run starts decide the tile), relative to the tile centre
+export function toTiles(res) {
+  const by = new Map(), get = (ti, tj) => { const k = ti + '_' + tj; return by.get(k) || by.set(k, { J: [], R: [], F: [] }).get(k); };
+  for (const J of res.junctions) get(Math.floor(J.x / TILE) + TILE_OFF, Math.floor(J.z / TILE) + TILE_OFF).J.push(J);
+  for (const r of res.runs) get(r.ti, r.tj).R.push(r);
+  for (const f of res.items || []) get(f.ti, f.tj).F.push(f);
+  const tiles = {}, u10 = (m) => Math.min(255, Math.round(m * 10));
+  for (const key of [...by.keys()].sort()) {
+    const [ti, tj] = key.split('_').map(Number), ox = (ti - TILE_OFF) * TILE + TILE / 2, oz = (tj - TILE_OFF) * TILE + TILE / 2, { J, R, F } = by.get(key), nf = F.length;
+    const nj = J.length, na = J.reduce((s, j) => s + j.arms.length, 0), nr = R.length;
+    const t = { nj, jx: new Int16Array(nj), jz: new Int16Array(nj), jy: new Int16Array(nj), jf: new Uint8Array(nj), jn: new Uint8Array(nj), jo: new Int32Array(nj + 1),
+      na, aang: new Uint16Array(na), ahalf: new Uint8Array(na), ameta: new Uint8Array(na), aw: new Uint8Array(na), atl: new Uint8Array(na), atr: new Uint8Array(na), aline: new Int32Array(na),
+      nr, rline: new Int32Array(nr), ri0: new Uint16Array(nr), ri1: new Uint16Array(nr), rw: new Uint8Array(nr), rm: new Uint8Array(nr), rta: new Uint8Array(nr * 2), rtb: new Uint8Array(nr * 2),
+      nf, ft: new Uint8Array(nf), fx: new Int16Array(nf), fz: new Int16Array(nf), fy: new Int16Array(nf), fdir: new Uint8Array(nf), fv: new Uint8Array(nf) };
+    let q = 0;
+    J.forEach((j, k) => {
+      t.jx[k] = Math.round((j.x - ox) * 10); t.jz[k] = Math.round((j.z - oz) * 10); t.jy[k] = Math.round(j.y * 10); t.jf[k] = (j.signal ? 1 : 0); t.jn[k] = j.arms.length; t.jo[k] = q;
+      for (const a of j.arms) {
+        t.aang[q] = Math.round(((a.ang + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 65535); t.ahalf[q] = u10(a.half);
+        t.ameta[q] = a.rank | (a.cross ? 4 : 0) | (a.flow << 3); t.aw[q] = u10(a.w); t.atl[q] = u10(a.tl); t.atr[q] = u10(a.tr); t.aline[q] = a.ri; q++;
+      }
+    });
+    t.jo[nj] = q;
+    R.forEach((r, k) => { t.rline[k] = r.ri; t.ri0[k] = r.i0; t.ri1[k] = r.i1; t.rw[k] = r.w; t.rm[k] = r.m; t.rta[k * 2] = u10(r.ta[0]); t.rta[k * 2 + 1] = u10(r.ta[1]); t.rtb[k * 2] = u10(r.tb[0]); t.rtb[k * 2 + 1] = u10(r.tb[1]); });
+    // furniture: type (bit 7: on a bridge deck), position, the direction toward the road in 256 steps, the variant (lamp: rank; tree: species | size << 2)
+    F.forEach((f, k) => { t.ft[k] = f.t | (f.bridge ? 128 : 0); t.fx[k] = Math.round((f.x - ox) * 10); t.fz[k] = Math.round((f.z - oz) * 10); t.fy[k] = Math.round(f.y * 10); t.fdir[k] = Math.round(((Math.atan2(f.iz, f.ix) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 256) & 255; t.fv[k] = f.v; });
+    tiles[key] = t;
+  }
+  return tiles;
+}
+
+// a stored tile back to numbers (local metres): what the tests and the renderer read
+export const readTile = decodeTile;
+
+export function writeStreets(file, tiles, stats) {
+  fs.writeFileSync(file, zlib.deflateRawSync(encodeChunk({ tile: TILE, off: TILE_OFF, tiles, stats }), { level: 9 }));
+  return fs.statSync(file).size;
+}
+export function readStreets(file) {
+  if (!fs.existsSync(file)) return null;
+  return decodeChunk(new Uint8Array(zlib.inflateRawSync(fs.readFileSync(file))));
+}
+
+// ---- command line
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), dir = path.join(root, 'build/baked/world/capital');
+  const file = process.argv[2] || path.join(dir, 'region.bin'), bfile = process.argv[3] || path.join(dir, 'buildings.bin'), out = process.argv[4] || dir;
+  const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
+  const t0 = Date.now(), res = makeStreets(R, readBuildings(bfile)), tiles = toTiles(res);
+  const km = res.runs.reduce((s, r) => { const L = R.roads[r.ri]; let d = 0; for (let i = r.i0; i < r.i1; i++) d += Math.hypot(L.x[i + 1] - L.x[i], L.z[i + 1] - L.z[i]); return s + d; }, 0) / 1000;
+  const sig = res.junctions.filter((j) => j.signal).length, cross = res.junctions.reduce((s, j) => s + j.arms.filter((a) => a.cross).length, 0);
+  fs.mkdirSync(out, { recursive: true });
+  const bytes = writeStreets(path.join(out, 'streets.bin'), tiles, { junctions: res.junctions.length, runs: res.runs.length });
+  const stats = { lamps: res.items.filter((f) => f.t === 0).length, trees: res.items.filter((f) => f.t === 1).length, refused: res.why, junctions: res.junctions.length, signals: sig, crossings: cross, runs: res.runs.length, paveKm: Math.round(km), tiles: Object.keys(tiles).length, bytes, seconds: Math.round((Date.now() - t0) / 100) / 10 };
+  fs.writeFileSync(path.join(out, 'streets-stats.json'), JSON.stringify(stats)); console.log(JSON.stringify(stats));
+}

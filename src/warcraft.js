@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { Vehicle } from './vehicle.js';
 import { Human } from './human.js';
-import { heightAt } from './terrain.js';
+import { physHeight } from './landfn.js';
 import { clamp, damp, rand, TAU, angDiff } from './util.js';
 
 // War machines the player can drive or fly: main battle tank, attack helicopter (gunship) and a VTOL fighter. They come from the army base
@@ -268,7 +268,7 @@ export class War {
       if (s.w.shell === 'shell') s.v.y -= 22 * 0.35 * dt;
       s.p.addScaledVector(s.v, dt); s.life -= dt; s.m.position.copy(s.p); s.m.quaternion.setFromUnitVectors(tmpB.set(0, 1, 0), tmpC.copy(s.v).normalize());
       s.trail -= dt; if (s.trail <= 0) { s.trail = 0.03; G.smokeP.emit(s.p.x, s.p.y, s.p.z, rand(-0.2, 0.2), rand(-0.2, 0.2), rand(-0.2, 0.2), rand(1.4, 2.2), rand(0.5, 0.9), 0.75, 0.75, 0.75, 0.5, 0.1, 0.3); }
-      let boom = s.life <= 0 || s.p.y <= heightAt(s.p.x, s.p.z) + 0.12 || !G.hasLOS(prev.x, prev.y, prev.z, s.p.x, s.p.y, s.p.z);
+      let boom = s.life <= 0 || s.p.y <= physHeight(s.p.x, s.p.z, 8) + 0.12 || !G.hasLOS(prev.x, prev.y, prev.z, s.p.x, s.p.y, s.p.z);
       if (!boom) {
         const dir = tmpB.copy(s.v).normalize(), len = s.v.length() * dt + 1.2, mh = G.military?.rayHit(prev.x, prev.y, prev.z, dir.x, dir.y, dir.z, len);
         if (mh) { G.military.damage(mh.e, s.w.dmg * 0.8, s.src, false); boom = true; }
@@ -303,7 +303,7 @@ export class War {
       let k = 1; if (hit >= 0) k = Math.max(0.2, (hit - 0.5) / d);
       tx = ax + dx * k; ty = Math.max(0.6, ay0 + dy * k); tz = az + dz * k;
       cam.smoothPos.lerp(tmpB.set(tx, ty, tz), 1 - Math.exp(-(war === 'jet' ? (v.speed > 120 ? 260 : 18) : 12) * dt));
-      if (cam.smoothPos.lengthSq() < 1) cam.smoothPos.set(tx, ty, tz);
+      if (cam.smoothPos.lengthSq() < 1 || cam.smoothPos.distanceToSquared(tmpB) > 60 * 60) cam.smoothPos.set(tx, ty, tz);
       c.position.copy(cam.smoothPos);
       c.lookAt(ax + L.x * 30, ay0 + L.y * 30 + 1.5, az + L.z * 30);
       cam.fov = damp(cam.fov, 62 + (war === 'jet' ? clamp(v.speed * 0.12, 0, 18) + clamp(v.speed / 343 - 1.5, 0, 8.5) * 4.5 : 0), 4, dt);

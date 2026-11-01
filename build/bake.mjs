@@ -26,6 +26,7 @@ const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js'
 // which tiles each city has (cheap to compute here: the plan only gives the radius)
 const CITY_IDS = ['harbor', 'airfield', 'mid1', 'mid2', 'mid3', 'mid4'];
 const CITY_TILES = await (async () => { const { CITY_DEFS } = await imp('src/worldmap.js'), { tilesOf } = await imp('src/citydetail.js'), o = {}; for (const id of CITY_IDS) { const d = CITY_DEFS.find((c) => c.id === id); o[id] = tilesOf({ R: d.r }); } return o; })();
+const STREETS = (await imp('build/world/streets.mjs')).readStreets(path.join(root, 'build/baked/world/capital/streets.bin'));   // the street data (WLD-24g), null before the first run
 const BUILDINGS = (await imp('build/world/blocks.mjs')).readBuildings(path.join(root, 'build/baked/world/capital/buildings.bin'));   // the procedural buildings (WLD-24a), null before the first run
 // The region files (src/regions/<id>.js, ADR-0036) enter the hash as data, not as files, so that a change to one province redoes only what
 // reads it. Every job depends on what the files say about the cities' places, the villages and anything else (`place`); a city's style,
@@ -63,6 +64,12 @@ export function jobsFor({ pack = false, regions = null } = {}) {
     for (const [tile, t] of Object.entries(T?.tiles || {})) {
       const [ti, tj] = tile.split('_').map(Number), cx = (ti - T.off + 0.5) * T.tile, cz = (tj - T.off + 0.5) * T.tile;
       out.push({ key: `bld/${tile}`, gen: 'bld', tier: 'embed', tile, region: chunkRegion(cx, cz), dep: sha(Buffer.concat(['cx', 'cz', 'w', 'd', 'rot', 'fl', 'kind', 'notch'].map((k) => Buffer.from(t[k].buffer, t[k].byteOffset, t[k].byteLength)))), src: ['build/jobs.mjs', 'src/bakefmt.js'] });
+    } }
+  // the streets (WLD-24g): junctions and pavement runs, one chunk per 512 m tile that has any
+  { const T = STREETS;
+    for (const [tile, t] of Object.entries(T?.tiles || {})) {
+      const [ti, tj] = tile.split('_').map(Number), cx = (ti - T.off + 0.5) * T.tile, cz = (tj - T.off + 0.5) * T.tile;
+      out.push({ key: `str/${tile}`, gen: 'str', tier: 'embed', tile, region: chunkRegion(cx, cz), dep: sha(Buffer.concat(Object.keys(t).filter((k) => ArrayBuffer.isView(t[k])).sort().map((k) => Buffer.from(t[k].buffer, t[k].byteOffset, t[k].byteLength)))), src: ['build/jobs.mjs', 'src/bakefmt.js'] });
     } }
   // the small things of the cities (citydetail.js): one chunk per city tile; the pack makes the denser variant under the same keys
   const CITY_SRC = ['src/worldmap.js', 'src/citylayout.js', 'src/citydetail.js', 'src/bakefmt.js', 'build/jobs.mjs'];

@@ -43,6 +43,8 @@ import { farWater } from './waterfn.js';
 import { buildRivers } from './rivers.js';
 import { Forest } from './forest.js';
 import { RealBuildings } from './realbuildings.js';
+import { Streetscape } from './streetscape.js';
+import { physHeight } from './landfn.js';
 import { Villages } from './village.js';
 import { Landmarks } from './landmarks.js';
 import { Industry } from './industry.js';
@@ -121,7 +123,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
-    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.realbuildings = globalThis.__WORLD ? this.timed_('realbuildings', () => new RealBuildings(this.scene, this.phys, this)) : null; this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.countryroads = this.eng.q.simple ? null : this.timed_('countryroads', () => new CountryRoads(this.scene)); this.highways?.attach(this); this.bridges = this.highways ? this.timed_('bridges', () => new Bridges(this.scene, this.highways.mats.struct, this.phys)) : null; this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
+    this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.realbuildings = globalThis.__WORLD ? this.timed_('realbuildings', () => new RealBuildings(this.scene, this.phys, this)) : null; this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.countryroads = this.eng.q.simple ? null : this.timed_('countryroads', () => new CountryRoads(this.scene)); this.highways?.attach(this); this.streetscape = this.highways && globalThis.__WORLD ? this.timed_('streetscape', () => new Streetscape(this.scene, this.phys, this)) : null; this.bridges = this.highways ? this.timed_('bridges', () => new Bridges(this.scene, this.highways.mats.struct, this.phys)) : null; this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
     this.buildings = new Buildings(this);
@@ -860,8 +862,12 @@ export class Game {
     v.driver = null; v.throttle = 0; v.brake = 0.5; v.steer = 0; v.hand = false;
     if (v.kind === 'player') v.kind = 'parked';
     if (this.rider) { this.scene.add(pl.group); pl.group.scale.setScalar(1); pl.group.rotation.set(0, 0, 0); pl.m.applySit(0); if (pl.m.rideOn) { pl.m.rideOn = false; const dc = pl.m.act.U_Driving; if (dc) dc.weight = 0; pl.m.act.Idle.weight = 1; } this.rider = null; this.riderCar = false; pl.m.pistol.visible = pl.armed && pl.weapon.short === 'pistol'; pl.m.rifle.visible = pl.armed && pl.weapon.short === 'rifle'; }
+    // the floor where the driver steps out: a ray down from the car's height (the road deck, a pavement, the graded ground of the capital region), never the old
+    // procedural terrain, which lies far below the region's ground and let the player fall through it
+    const fl = this.sandbox?.floorAt({ x: pl.x, z: pl.z }), air = v.spec.craft === 'heli' || v.spec.craft === 'jet', vg = (v.by ?? 0) - (v.spec.cy || 0);
+    const gnd = fl != null && fl === fl && Math.abs(fl - vg) < 8 ? fl : air ? physHeight(pl.x, pl.z, 8) : Math.max(vg, physHeight(pl.x, pl.z, 8) - 0.1);
     v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true;
-    { const gy = heightAt(pl.x, pl.z), alt = (v.spec.craft === 'heli' || v.spec.craft === 'jet') ? (v.by || 0) - v.spec.cy - gy : 0;
+    { const gy = gnd, alt = air ? (v.by || 0) - v.spec.cy - gy : 0;
       if (alt > 5) {   // leaving an aircraft in the air: ejection, the parachute opens by itself from 25 m
         pl.y = gy + alt + 1; pl.vx = clamp(v.vx * 0.4, -25, 25); pl.vz = clamp(v.vz * 0.4, -25, 25); pl.vy = 3; pl.body3.teleport(pl.x, pl.y, pl.z);
         if (!this.items.count('parachute')) this.items.add('parachute');
@@ -1638,6 +1644,13 @@ export class Game {
     this.vm.position.set(aim ? 0 : 0.17, aim ? (kind === 'pistol' ? -0.045 : -0.12) : -0.2, -0.45 + kick);
     this.vm.rotation.set(-kick * 2, 0, 0);
   }
+  // keeps a camera that sits behind its subject off the ground: the terrain (or the deck of a road) at the camera's own spot, when that is lower than the subject's feet
+  // plus a step (a hill that is higher than the subject is a wall or a tunnel roof, not a floor: the collision ray handles it)
+  camAboveGround(x, z, y, feetY) {
+    const g = physHeight(x, z, 8), d = this.highways ? this.highways.deckY(x, z) : NaN;
+    let f = g < feetY + 1.2 ? g : -1e9; if (d === d && d < feetY + 1.2 && d > f) f = d;
+    return Math.max(y, f + 0.35);
+  }
   updateCamera(dt, inp) {
     const cam = this.cam, c = this.camera, pl = this.player, G = this;
     let ax, ay, az;
@@ -1667,6 +1680,7 @@ export class Game {
       // inside the lift cab the camera stays inside the box (static tower boxes would pull it onto the head)
       if (cab) { const m = 1.0; tx = clamp(tx, cab.cx - m, cab.cx + m); tz = clamp(tz, cab.cz - m, cab.cz + 0.95); ty = clamp(ty, cab.y + 0.5, cab.y + 2.45); }
       if (ty < 0.25) ty = 0.25;
+      ty = this.camAboveGround(tx, tz, ty, ay - 1.55);
       c.position.set(tx, ty, tz);
       const lx = ax + L.x * 18 + rX * cam.shoulder * 0.5, ly = ay + L.y * 18, lz = az + L.z * 18 + rZ * cam.shoulder * 0.5;
       c.lookAt(lx, ly, lz);
@@ -1680,20 +1694,24 @@ export class Game {
       const big = v.spec.craft ? (v.spec.craft === 'heli' ? 15 : 10) : 0;
       const dist = (cam.mode === 0 ? 6.4 + big : cam.mode === 1 ? 9.5 + big : 0.1) + sp * 0.03;
       cam.fov = damp(cam.fov, 66 + clamp(sp * 0.55, 0, 22), 4, dt);
-      ax = v.rx ?? v.x; ay = 1.5 + (cam.mode === 2 ? 0.1 : 0); az = v.rz ?? v.z;   // the car as drawn this frame (between physics steps)
+      // the car as drawn this frame (between physics steps); heights are relative to the car's own ground (the capital region lies far above the sea, not at y = 0 like the hand-made city)
+      const vgy = (v.rby ?? v.by ?? 0) - (v.spec.cy || 0);
+      ax = v.rx ?? v.x; ay = vgy + 1.5 + (cam.mode === 2 ? 0.1 : 0); az = v.rz ?? v.z;
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
       let tx, ty, tz;
       if (cam.mode === 2) { // hood cam
-        const vh = v.rh ?? v.h, s = Math.sin(vh), cc = Math.cos(vh), lat = this.passenger ? 0.5 : 0; tx = ax + s * 0.7 + cc * lat; ty = 1.35; tz = az + cc * 0.7 - s * lat;
-        c.position.set(tx, ty, tz); c.lookAt(tx + Math.sin(cam.yaw) * 10, 1.1 + Math.sin(cam.pitch) * 10, tz + Math.cos(cam.yaw) * 10);
+        const vh = v.rh ?? v.h, s = Math.sin(vh), cc = Math.cos(vh), lat = this.passenger ? 0.5 : 0; tx = ax + s * 0.7 + cc * lat; ty = vgy + 1.35; tz = az + cc * 0.7 - s * lat;
+        c.position.set(tx, ty, tz); c.lookAt(tx + Math.sin(cam.yaw) * 10, vgy + 1.1 + Math.sin(cam.pitch) * 10, tz + Math.cos(cam.yaw) * 10);
       } else {
         tx = ax - L.x * dist; ty = ay - L.y * dist + 1.0; tz = az - L.z * dist;
         const dx = tx - ax, dy = ty - ay, dz = tz - az, d = Math.hypot(dx, dy, dz);
         const hit = this.world.colliders.raycast(ax, ay, az, dx / d, dy / d, dz / d, d);
         let k = 1; if (hit >= 0) k = Math.max(0.2, (hit - 0.5) / d);
-        tx = ax + dx * k; ty = Math.max(0.5, ay + dy * k); tz = az + dz * k;
-        cam.smoothPos.lerp(this.tmpV2.set(tx, ty, tz), 1 - Math.exp(-14 * dt));
-        if (cam.smoothPos.lengthSq() < 1) cam.smoothPos.set(tx, ty, tz);
+        tx = ax + dx * k; ty = Math.max(vgy + 0.5, ay + dy * k); tz = az + dz * k;
+        ty = this.camAboveGround(tx, tz, ty, vgy);
+        this.tmpV2.set(tx, ty, tz);
+        // right after boarding (or a jump of the car) the smoothed position can be anywhere: it starts at the target instead of flying in from afar through the ground
+        if (cam.smoothPos.lengthSq() < 1 || cam.smoothPos.distanceToSquared(this.tmpV2) > 30 * 30) cam.smoothPos.copy(this.tmpV2); else cam.smoothPos.lerp(this.tmpV2, 1 - Math.exp(-14 * dt));
         c.position.copy(cam.smoothPos);
         c.lookAt(ax + L.x * 6, ay + 0.2 + L.y * 6, az + L.z * 6);
       }
@@ -1717,7 +1735,7 @@ export class Game {
     this.cam.pos.copy(c.position);
     if (this.riding) this.transit.camera(c, dt);   // a ride (transit.js) places the camera itself
     if (this.viewCam) { const v = this.viewCam; c.position.set(v.x, v.y, v.z); c.lookAt(v.tx, v.ty, v.tz); if (v.fov && c.fov !== v.fov) { c.fov = v.fov; c.updateProjectionMatrix(); } this.cam.pos.copy(c.position); }   // a reference view (views.js) pins the camera; the world still streams around the player
-    this.farland?.update(c, this.focusPos()); this.realbuildings?.update(dt, c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); this.countryroads?.update(dt, this.focusPos()); } this.highways?.update(c, this.focusPos()); this.bridges?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
+    this.farland?.update(c, this.focusPos()); this.realbuildings?.update(dt, c, this.focusPos()); this.streetscape?.update(dt, c, this.focusPos()); if (!this.riding) { this.forest?.update(c, this.focusPos(), dt); this.villages?.update(dt, this.focusPos()); this.industry?.update(dt, c, this.focusPos()); this.landmarks?.update(dt, this.focusPos()); this.countryroads?.update(dt, this.focusPos()); } this.highways?.update(c, this.focusPos()); this.bridges?.update(c); this.citysites?.update(c, this.focusPos(), dt); if (!this.riding) this.citylife?.update(dt);
     // glare scale
     this.world.glare.points.material.uniforms.uScale.value = innerHeight * 0.85;
     this.sparksP.points.material.uniforms.uScale.value = innerHeight * 0.9;

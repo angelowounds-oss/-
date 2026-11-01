@@ -10,6 +10,10 @@ globalThis.__REGION = (await imp('build/world/emit.mjs')).readRegion(path.join(r
 export const BUILDINGS_FILE = 'build/baked/world/capital/buildings.bin';
 globalThis.__BUILDINGS = (await imp('build/world/blocks.mjs')).readBuildings(path.join(root, BUILDINGS_FILE));
 
+// the street data of the region (WLD-24g, build/world/streets.mjs): one chunk per 512 m tile
+export const STREETS_FILE = 'build/baked/world/capital/streets.bin';
+globalThis.__STREETS = (await imp('build/world/streets.mjs')).readStreets(path.join(root, STREETS_FILE));
+
 export const RUN = {
   // the coarse world, the road network and the city layouts: what the page used to generate at start-up
   async core() {
@@ -41,6 +45,7 @@ export const RUN = {
     return tileDetail(c, L, STYLES[j.id], j.i, j.j, j.hi) || { empty: 1 };
   },
   // the buildings of one tile: the stored arrays as they are (the page makes the shapes, WLD-24b)
+  async str(j) { const t = globalThis.__STREETS?.tiles[j.tile]; return t ? { ...t } : { nj: 0, nr: 0 }; },
   async bld(j) { const t = globalThis.__BUILDINGS?.tiles[j.tile]; return t ? { ...t } : { n: 0 }; },
   // only for the tests of the container, the cache and the pack: a small deterministic chunk
   async selftest(j) { return { id: j.key, a: new Float32Array([0.5, 1.5, 2.5]), m: new Map([['k', { v: 7 }]]) }; },

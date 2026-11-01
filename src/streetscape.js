@@ -1,0 +1,357 @@
+import * as THREE from 'three';
+import { landHeight } from './landfn.js';
+import { regionRoads } from './region.js';
+import { roadAt } from './roadnet.js';
+import { nightU } from './shaders.js';
+import { GR, grp } from './physics.js';
+import { decodeTile, trims, radiusOf, signalGroups, signalState, crossingSpan, signalFoot, hasSignal, TILE, TILE_OFF as OFF } from './streetgeo.js';
+
+// The street furniture of the capital region (WLD-24g): pavements with kerbs, rounded kerb corners at junctions, zebra crossings and stop lines, signal poles whose
+// lamps follow a timed cycle, street lamps and trees. The baked chunk `str/<ti>_<tj>` (build/world/streets.mjs) says only where: junctions with their arms and
+// pavement runs along road lines with the length trimmed off at each end; the shapes come from the compiled road samples (regionRoads) at run time, in the
+// same way the road itself is drawn (highways.js artPiece: edge at `half`, never below the drawn ground), so that the pavement meets the asphalt. Like the
+// buildings (realbuildings.js) a tile is built a little every frame and uses materials that already exist, so no program is compiled while playing (ARCHITECTURE.md
+// section 3). Placement is by rule (road class, width, the number of buildings around), not from a cadastre.
+const KERB = 0.13;            // height of the kerb stone above the asphalt edge (Seoul: 12 - 15 cm)
+const LIFT = 0.05;            // the drawn road is never lower than the ground + this (highways.js)
+const PAVE = [[0.30, 0.29, 0.27], [0.26, 0.255, 0.24]], KERBC = [0.42, 0.41, 0.39], ASPH = [0.050, 0.052, 0.058], WHITE = [0.78, 0.78, 0.74];
+const POLE = [0.20, 0.21, 0.22], POLE_G = [0.30, 0.34, 0.31], HOUSING = [0.04, 0.045, 0.05], TRUNK = [0.16, 0.12, 0.09];
+// the species of build/world/streetfurn.mjs SPECIES (same order): crown radius, crown height / radius, trunk height, colour. A ginkgo is slim and upright,
+// a plane tree broad, a zelkova a wide vase, a cherry low and round.
+const TREE = [{ r: 1.5, tall: 1.7, trunk: 2.6, col: [0.17, 0.25, 0.06] }, { r: 2.3, tall: 1.0, trunk: 3.0, col: [0.10, 0.20, 0.06] }, { r: 2.2, tall: 0.9, trunk: 3.2, col: [0.07, 0.16, 0.05] }, { r: 1.9, tall: 0.8, trunk: 2.2, col: [0.12, 0.19, 0.07] }];
+const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b + 1, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const LAMP_H = [10, 9, 7.5, 6];   // mounting height by rank, as build/world/streetfurn.mjs LAMP_H
+
+// merged geometry in the frame of its tile (x and z relative to the tile centre, y absolute)
+class Geo {
+  constructor(ox, oz) { this.ox = ox; this.oz = oz; this.p = []; this.n = []; this.c = []; this.i = []; this.k = 0; }
+  get empty() { return this.k === 0; }
+  // a quad whose normal agrees with (nx, ny, nz); points are in world x, z
+  quad(a, b, c, d, col, nx, ny, nz) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const flip = (uy * vz - uz * vy) * nx + (uz * vx - ux * vz) * ny + (ux * vy - uy * vx) * nz < 0, k = this.k;
+    for (const q of [a, b, c, d]) { this.p.push(q[0] - this.ox, q[1], q[2] - this.oz); this.n.push(nx, ny, nz); this.c.push(col[0], col[1], col[2]); }
+    if (flip) this.i.push(k, k + 2, k + 1, k, k + 3, k + 2); else this.i.push(k, k + 1, k + 2, k, k + 2, k + 3);
+    this.k += 4;
+  }
+  tri(a, b, c, col, nx, ny, nz) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const flip = (uy * vz - uz * vy) * nx + (uz * vx - ux * vz) * ny + (ux * vy - uy * vx) * nz < 0, k = this.k;
+    for (const q of [a, b, c]) { this.p.push(q[0] - this.ox, q[1], q[2] - this.oz); this.n.push(nx, ny, nz); this.c.push(col[0], col[1], col[2]); }
+    if (flip) this.i.push(k, k + 2, k + 1); else this.i.push(k, k + 1, k + 2);
+    this.k += 3;
+  }
+  // a box turned about the vertical axis: centre, long axis (ux, uz), half extents along it / across it / up; `bottom` also closes the underside
+  box(cx, cy, cz, ux, uz, hl, hw, hh, col, bottom = false) {
+    const vx = -uz, vz = ux, P = (a, b, c) => [cx + ux * hl * a + vx * hw * b, cy + hh * c, cz + uz * hl * a + vz * hw * b];
+    this.quad(P(-1, -1, 1), P(1, -1, 1), P(1, 1, 1), P(-1, 1, 1), col, 0, 1, 0);
+    this.quad(P(-1, -1, -1), P(1, -1, -1), P(1, -1, 1), P(-1, -1, 1), col, -vx, 0, -vz);
+    this.quad(P(1, -1, -1), P(1, 1, -1), P(1, 1, 1), P(1, -1, 1), col, ux, 0, uz);
+    this.quad(P(1, 1, -1), P(-1, 1, -1), P(-1, 1, 1), P(1, 1, 1), col, vx, 0, vz);
+    this.quad(P(-1, 1, -1), P(-1, -1, -1), P(-1, -1, 1), P(-1, 1, 1), col, -ux, 0, -uz);
+    if (bottom) this.quad(P(-1, -1, -1), P(-1, 1, -1), P(1, 1, -1), P(1, -1, -1), col, 0, -1, 0);
+  }
+  geometry() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.p), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(this.n), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.c), 3)); g.setIndex(new THREE.BufferAttribute(new Uint32Array(this.i), 1));
+    g.computeBoundingSphere(); g.computeBoundingBox(); return g;
+  }
+}
+
+// ---- one tile built a slice at a time
+class TileBuild {
+  constructor(key, ti, tj, chunk, lines) {
+    this.key = key; this.ti = ti; this.tj = tj; this.chunk = chunk; this.lines = lines;
+    this.ox = (ti - OFF) * TILE + TILE / 2; this.oz = (tj - OFF) * TILE + TILE / 2;
+    this.S = new Geo(this.ox, this.oz); this.M = new Geo(this.ox, this.oz); this.G = new Geo(this.ox, this.oz);   // solid things, markings, glow
+    this.top = { p: [], i: [] };    // the walkable pavement tops (the physics mesh)
+    this.heads = [];                // signal heads: x, y, z, facing x, z, group, junction phase, junction id
+    this.obst = [];                 // poles and trunks (solid near the player): x, z, y0, h, radius
+    this.stats = { pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0 };
+    this.seg = 0; this.g = this.run();
+  }
+  step(ms) {
+    const t0 = performance.now();
+    for (;;) { if (this.g.next().done) return true; if (performance.now() - t0 > ms) return false; }
+  }
+  *run() {
+    const { J, R, F } = decodeTile(this.ti + '_' + this.tj, this.chunk);   // the key without its 'str/' prefix
+    for (const j of J) { this.junction(j); yield; }
+    for (let q = 0; q < R.length; q++) { this.strip(R[q], q); yield; }
+    // lamps and trees stand where the bake judged they belong (build/world/streetfurn.mjs); nothing is added here by spacing
+    for (let k = 0; k < F.length; k++) { const f = F[k]; if (f.t === 0) this.lamp(f); else this.tree(f); if ((k & 31) === 31) yield; }
+  }
+  // the height of the drawn road at (x, z) near a junction: the road's own height there, never under the ground (as highways.js draws it)
+  roadY(x, z, fallback) { const r = roadAt(x, z, 14), g = landHeight(x, z, 16) + LIFT; return Math.max(r ? r.y : fallback, g); }
+  // a pavement top (kept for the physics mesh as well)
+  topQuad(a, b, c, d, col) {
+    this.S.quad(a, b, c, d, col, 0, 1, 0);
+    const T = this.top, k = T.p.length / 3; for (const q of [a, b, c, d]) T.p.push(q[0], q[1], q[2]); T.i.push(k, k + 1, k + 2, k, k + 2, k + 3);
+  }
+  topTri(a, b, c, col) {
+    this.S.tri(a, b, c, col, 0, 1, 0);
+    const T = this.top, k = T.p.length / 3; for (const q of [a, b, c]) T.p.push(q[0], q[1], q[2]); T.i.push(k, k + 1, k + 2);
+  }
+
+  // ---- a junction: rounded kerb corners (asphalt filling the corner, pavement outside the arc), crossings, stop lines, signals
+  junction(j) {
+    const arms = j.arms, n = arms.length, R = radiusOf(arms), { corners } = trims(arms, R), gr = j.signal ? signalGroups(arms) : null, phase = hash(Math.round(j.x), Math.round(j.z));
+    const X = (p) => j.x + p[0], Z = (p) => j.z + p[1], V = (p, y) => [X(p), y(X(p), Z(p)), Z(p)], yAt = (x, z) => this.roadY(x, z, j.y);
+    for (const { k, j: jj, c } of corners) {
+      if (!c.arc) continue;
+      this.stats.corners++;
+      const arc = c.arcPts.map((p) => V(p, yAt)), P = V(c.P, yAt), tone = PAVE[(k + jj) & 1];
+      // the asphalt between the sharp corner and the arc
+      for (let m = 0; m + 1 < arc.length; m++) this.S.tri(P, arc[m], arc[m + 1], ASPH, 0, 1, 0);
+      // the kerb stone along the arc, then the pavement: fan from the outer corner Q over O1 - arc - O2
+      const up = (q) => [q[0], q[1] + KERB, q[2]];
+      for (let m = 0; m + 1 < arc.length; m++) {
+        const mx = (arc[m][0] + arc[m + 1][0]) / 2, mz = (arc[m][2] + arc[m + 1][2]) / 2, dx = P[0] - mx, dz = P[2] - mz, l = Math.hypot(dx, dz) || 1;
+        this.S.quad(arc[m], arc[m + 1], up(arc[m + 1]), up(arc[m]), KERBC, dx / l, 0, dz / l);
+      }
+      const Q = V(c.Q, (x, z) => yAt(x, z) + KERB), O1 = V(c.O1, (x, z) => yAt(x, z) + KERB), O2 = V(c.O2, (x, z) => yAt(x, z) + KERB), seq = [O1, ...arc.map(up), O2];
+      for (let m = 0; m + 1 < seq.length; m++) this.topTri(Q, seq[m], seq[m + 1], tone);
+    }
+    for (let k = 0; k < n; k++) {
+      const a = arms[k]; if (!a.cross && !j.signal) continue;
+      const dx = Math.cos(a.ang), dz = Math.sin(a.ang), nx = -dz, nz = dx;   // the arm's direction, and its left-hand number side (the driver's right when leaving)
+      const { s0, len } = crossingSpan(a), half = a.half;
+      const at = (s, lat) => { const x = j.x + dx * s + nx * lat, z = j.z + dz * s + nz * lat; return [x, this.roadY(x, z, j.y) + 0.03, z]; };
+      if (a.cross) {
+        // zebra stripes run along the arm, 0.5 m wide with 0.5 m gaps
+        const cnt = Math.max(2, Math.floor(2 * half)), step = (2 * half - 0.5) / (cnt - 1);
+        for (let q = 0; q < cnt; q++) {
+          const lat = -half + 0.25 + q * step;
+          this.M.quad(at(s0, lat - 0.25), at(s0, lat + 0.25), at(s0 + len, lat + 0.25), at(s0 + len, lat - 0.25), WHITE, 0, 1, 0);
+        }
+        this.stats.crossings++;
+      }
+      // the stop line across the lanes that arrive (the right-hand ones for traffic coming in, i.e. the -n side), on arms of signalled junctions and big roads
+      if (a.flow !== 1 && (j.signal || a.rank <= 1)) {
+        const ss = s0 + len + 0.5, lo = a.flow === 2 ? -half + 0.1 : -half + 0.1, hi = a.flow === 2 ? half - 0.1 : -0.2;
+        this.M.quad(at(ss, lo), at(ss, hi), at(ss + 0.4, hi), at(ss + 0.4, lo), WHITE, 0, 1, 0);
+      }
+      // a signal pole on the pavement at the arrival side, with an arm over the lanes and a head facing the traffic
+      if (hasSignal(j, a)) {
+        const sp = s0 + len * 0.5, foot = signalFoot(a), px = j.x + foot[0], pz = j.z + foot[1], y0 = this.roadY(px, pz, j.y) + KERB;
+        this.S.box(px, y0 + 3.1, pz, dx, dz, 0.07, 0.07, 3.2, POLE);
+        const tipLat = -(half * 0.45), tx = j.x + dx * sp + nx * tipLat, tz = j.z + dz * sp + nz * tipLat, ax = (px + tx) / 2, az = (pz + tz) / 2, al = Math.hypot(tx - px, tz - pz) / 2, ux = (tx - px) / (2 * al || 1), uz = (tz - pz) / (2 * al || 1);
+        this.S.box(ax, y0 + 5.9, az, ux, uz, al, 0.05, 0.05, POLE);
+        // the housing hangs from the arm's tip; its three lamps face along the arm's outward direction (dx, dz)
+        this.S.box(tx, y0 + 5.2, tz, dx, dz, 0.16, 0.17, 0.52, HOUSING, true);
+        this.heads.push(tx + dx * 0.17, y0 + 5.2, tz + dz * 0.17, dx, dz, gr[k], phase);
+        this.obst.push(px, pz, y0, 6.3, 0.1); this.stats.signals++;
+      }
+    }
+  }
+
+  // ---- the pavements along one run of a road line, on the sides that the baked trims allow
+  strip(r, q) {
+    const L = this.lines[r.line]; if (!L) return;
+    const n = r.i1 - r.i0 + 1; if (n < 2) return;
+    const half = L.half, w = r.w;
+    const sx = [], sz = [], sy = [], rx = [], rz = [], sc = [], sl = [0];
+    for (let k = 0; k < n; k++) {
+      const i = r.i0 + k, a = Math.max(0, i - 1), b = Math.min(L.x.length - 1, i + 1);
+      let tx = L.x[b] - L.x[a], tz = L.z[b] - L.z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      sx.push(L.x[i]); sz.push(L.z[i]); sy.push(L.y[i]); rx.push(tz); rz.push(-tx); sc.push(L.cls[i]);
+      if (k) sl.push(sl[k - 1] + Math.hypot(sx[k] - sx[k - 1], sz[k] - sz[k - 1]));
+    }
+    const total = sl[n - 1];
+    // the station at arc length s along the run
+    const at = (s) => {
+      let k = 0; while (k < n - 2 && sl[k + 1] < s) k++;
+      const t = Math.max(0, Math.min(1, (s - sl[k]) / ((sl[k + 1] - sl[k]) || 1))), l = 1 - t;
+      let ex = rx[k] * l + rx[k + 1] * t, ez = rz[k] * l + rz[k + 1] * t; const m = Math.hypot(ex, ez) || 1; ex /= m; ez /= m;
+      return { x: sx[k] * l + sx[k + 1] * t, z: sz[k] * l + sz[k + 1] * t, y: sy[k] * l + sy[k + 1] * t, rx: ex, rz: ez, cls: t < 0.5 ? sc[k] : sc[k + 1] };
+    };
+    for (const sd of [-1, 1]) {
+      // the bake leaves a side bare where another carriageway lies under the strip (bit 0: the -right side, bit 1: the +right side)
+      if (!(r.m & (sd < 0 ? 1 : 2))) continue;
+      const s0 = r.ta[sd < 0 ? 0 : 1], s1 = total - r.tb[sd < 0 ? 0 : 1]; if (s1 - s0 < 1) continue;
+      const cuts = [s0]; for (let k = 1; k < n - 1; k++) if (sl[k] > s0 + 0.3 && sl[k] < s1 - 0.3) cuts.push(sl[k]); cuts.push(s1);
+      const prof = cuts.map((s) => {
+        const st = at(s), ix = st.x + st.rx * sd * half, iz = st.z + st.rz * sd * half, ox = st.x + st.rx * sd * (half + w), oz = st.z + st.rz * sd * (half + w);
+        const gi = landHeight(ix, iz, 16) + LIFT, go = landHeight(ox, oz, 16), yi = st.cls ? st.y : Math.max(st.y, gi), yt = yi + KERB, yo = st.cls ? yt : Math.max(yt, go + 0.03);
+        return { st, i: [ix, yi, iz], it: [ix, yt, iz], o: [ox, yo, oz], go };
+      });
+      // a little tone change from run to run, and a paver pattern by segment
+      const tone = 0.92 + 0.16 * hash(q * 2 + (sd > 0 ? 1 : 0), this.ti * 977 + this.tj);
+      for (let k = 0; k + 1 < prof.length; k++) {
+        const A = prof[k], B = prof[k + 1], base = PAVE[(this.seg++) & 1], col = [base[0] * tone, base[1] * tone, base[2] * tone];
+        const mx = (A.st.rx + B.st.rx) / 2 * sd, mz = (A.st.rz + B.st.rz) / 2 * sd;
+        this.S.quad(A.i, B.i, B.it, A.it, KERBC, -mx, 0, -mz);
+        this.topQuad(A.it, A.o, B.o, B.it, col);
+        // a face down to the ground beside the pavement where the ground is lower (a bridge deck edge, an embankment)
+        if (A.o[1] - A.go > 0.05 || B.o[1] - B.go > 0.05) { const dn = (P, g) => [P[0], Math.min(g - 0.1, P[1] - 0.3), P[2]]; this.S.quad(A.o, dn(A.o, A.go), dn(B.o, B.go), B.o, KERBC, mx, 0, mz); }
+        this.stats.pave += Math.hypot(B.st.x - A.st.x, B.st.z - A.st.z);
+      }
+    }
+  }
+
+  // the foot of a baked object: on a bridge deck the deck, elsewhere the drawn road edge (never under the ground), plus the kerb
+  footY(f) { return (f.bridge ? f.y : Math.max(f.y, landHeight(f.x, f.z, 16) + LIFT)) + KERB; }
+  // ---- a cobra-head street lamp: pole, arm over the kerb lane, housing, and the glowing lens under it
+  lamp(f) {
+    const { x, z, ix, iz } = f, rank = f.v & 3, y0 = this.footY(f), H = LAMP_H[rank];
+    this.S.box(x, y0 + H / 2, z, ix, iz, 0.07, 0.07, H / 2, POLE_G);
+    const arm = rank === 3 ? 1.2 : 1.9 + (rank === 0 ? 0.6 : 0), hx = x + ix * arm, hz = z + iz * arm;
+    this.S.box(x + ix * arm * 0.5, y0 + H - 0.12, z + iz * arm * 0.5, ix, iz, arm * 0.5, 0.045, 0.045, POLE_G);
+    this.S.box(hx, y0 + H - 0.2, hz, ix, iz, 0.55, 0.17, 0.09, POLE_G, true);
+    this.G.quad([hx - ix * 0.45 - iz * 0.13, y0 + H - 0.3, hz - iz * 0.45 + ix * 0.13], [hx + ix * 0.45 - iz * 0.13, y0 + H - 0.3, hz + iz * 0.45 + ix * 0.13], [hx + ix * 0.45 + iz * 0.13, y0 + H - 0.3, hz + iz * 0.45 - ix * 0.13], [hx - ix * 0.45 + iz * 0.13, y0 + H - 0.3, hz - iz * 0.45 - ix * 0.13], [3.2, 2.7, 1.9], 0, -1, 0);
+    this.obst.push(x, z, y0, H, 0.1); this.stats.lamps++;
+  }
+  tree(f) {
+    // street trees of 6-11 m: a slim trunk and a crown of two or three rounded blobs (a pole, two rings and a pole each), lit from above by the face normal.
+    // The species is the road's (one species per street, as Seoul plants them); the size varies a little from tree to tree.
+    const { x, z } = f, y0 = this.footY(f), sp = f.v & 3, id = (f.v >> 2) / 8, SP = TREE[sp], th = SP.trunk + id * 0.6, rr = SP.r * (0.85 + id * 0.3), rh = rr * SP.tall, col = SP.col;
+    const j = 0.85 + 0.3 * hash(Math.round(x), Math.round(z) + 5);
+    this.S.box(x, y0 + th / 2, z, 1, 0, 0.1, 0.1, th / 2, TRUNK);
+    const N = 7, blob = (cx, cy, cz, r, ry, rot) => {
+      const ring = (h, f) => { const o = []; for (let k = 0; k < N; k++) { const a = rot + k * Math.PI * 2 / N; o.push([cx + Math.cos(a) * r * f, cy + h * ry, cz + Math.sin(a) * r * f]); } return o; };
+      const T = [cx, cy + ry, cz], B = [cx, cy - 0.8 * ry, cz], A = ring(0.5, 0.86), M = ring(-0.3, 1), D = ring(-0.7, 0.6);
+      const shade = (f, k) => { const g = f * j * (0.88 + 0.24 * ((k * 5 + Math.round(cx * 7)) & 3) / 3); return [col[0] * g, col[1] * g, col[2] * g]; };
+      const nrm = (P) => { const dx = P[0] - cx, dz = P[2] - cz, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+      for (let k = 0; k < N; k++) {
+        const k2 = (k + 1) % N, [nx, nz] = nrm(M[k]);
+        this.S.tri(T, A[k], A[k2], shade(1.25, k), nx * 0.5, 0.85, nz * 0.5);
+        this.S.tri(A[k], M[k], M[k2], shade(1.0, k), nx, 0.3, nz); this.S.tri(A[k], M[k2], A[k2], shade(1.0, k + 1), nx, 0.3, nz);
+        this.S.tri(M[k], D[k], D[k2], shade(0.7, k), nx, -0.3, nz); this.S.tri(M[k], D[k2], M[k2], shade(0.7, k + 1), nx, -0.3, nz);
+        this.S.tri(B, D[k2], D[k], shade(0.5, k), nx * 0.4, -0.9, nz * 0.4);
+      }
+    };
+    blob(x, y0 + th + rh * 0.55, z, rr, rh, id * 6);
+    blob(x + rr * 0.45, y0 + th + rh * 0.1, z - rr * 0.3, rr * 0.7, rh * 0.7, id * 3 + 1);
+    if (sp !== 0 && id > 0.3) blob(x - rr * 0.4, y0 + th + rh * 0.2, z + rr * 0.35, rr * 0.65, rh * 0.65, id * 5 + 2);
+    this.obst.push(x, z, y0, th, 0.18); this.stats.trees++;
+  }
+}
+
+const RANK = { trunk: 0, primary: 0, secondary: 1, tertiary: 2, residential: 3, living_street: 3, unclassified: 3 };
+const rankOf = (hw) => (hw in RANK ? RANK[hw] : 9);
+
+export class Streetscape {
+  constructor(scene, phys, G, wd = globalThis.__WORLD) {
+    this.scene = scene; this.phys = phys; this.G = G; this.wd = wd; this.tiles = new Map(); this.index = new Map(); this.jobs = []; this.t = 0; this.last = -9; this.lastCol = -9;
+    this.lines = regionRoads();
+    const high = globalThis.__DETAIL === 'high', simple = !!G?.eng?.q?.simple;
+    this.R = simple ? 400 : high ? 1000 : 700;   // how far tiles are drawn (a lamp or a kerb beyond this is only a speck in the fog)
+    this.RC = 70;                                  // how close poles, trunks and the pavement are solid
+    this.stats = { tiles: 0, solid: 0, pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, walk: 0, tris: 0 };
+    for (const k of wd?.keys('str/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 1024 + tj, { key: k, ti, tj }); }
+    const hw = G?.highways?.mats;
+    // the same programs as the road structures (vertex-coloured standard) and the lights (basic): nothing new to compile
+    this.mat = hw?.struct || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 });
+    this.markMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    this.glowMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+    this.group = new THREE.Group(); this.group.name = 'streetscape'; scene.add(this.group);
+    // signal lamps: a box each, in three colours, placed every half second for the heads near the focus
+    const lampG = new THREE.BoxGeometry(0.2, 0.2, 0.06);
+    this.lamps = [[1.0, 0.12, 0.08], [1.0, 0.65, 0.05], [0.12, 1.0, 0.35]].map((c) => {
+      const m = new THREE.InstancedMesh(lampG, new THREE.MeshBasicMaterial({ color: new THREE.Color(c[0], c[1], c[2]).multiplyScalar(3), toneMapped: false }), 600);
+      m.count = 0; m.frustumCulled = false; m.name = 'signal lamps'; this.group.add(m); return m;
+    });
+    // placeholders with the attributes of the tile meshes: the loading warm-up compiles each material once, for every tile after it
+    const ph = () => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3)); return g; };
+    for (const m of [this.mat, this.markMat, this.glowMat]) { const w = new THREE.Mesh(ph(), m); w.frustumCulled = false; w.position.set(0, -400, 0); w.castShadow = m !== this.glowMat; w.receiveShadow = m !== this.glowMat; this.group.add(w); }
+    this.m4 = new THREE.Matrix4(); this.sigAt = -9;
+  }
+  get have() { return this.index.size > 0; }
+  wanted(fx, fz) {
+    const out = [], R = this.R, i0 = Math.floor((fx - R) / TILE) + OFF, i1 = Math.floor((fx + R) / TILE) + OFF, j0 = Math.floor((fz - R) / TILE) + OFF, j1 = Math.floor((fz + R) / TILE) + OFF;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const e = this.index.get(i * 1024 + j); if (!e) continue;
+      const cx = (i - OFF) * TILE + TILE / 2, cz = (j - OFF) * TILE + TILE / 2, dx = Math.max(Math.abs(fx - cx) - TILE / 2, 0), dz = Math.max(Math.abs(fz - cz) - TILE / 2, 0);
+      if (dx * dx + dz * dz <= R * R) out.push({ e, d: dx * dx + dz * dz });
+    }
+    return out.sort((a, b) => a.d - b.d);
+  }
+  update(dt, cam, focus) {
+    if (!this.have) return;
+    this.t += dt;
+    this.glowMat.color.setScalar(0.03 + 0.97 * Math.min(1, nightU.value));
+    if (this.jobs.length) { const j = this.jobs[0]; if (j.step(3)) { this.jobs.shift(); this.finish(j); } }
+    if (this.t - this.last >= 0.4) {
+      this.last = this.t;
+      const want = this.wanted(focus.x, focus.z), keep = new Set();
+      for (const { e } of want) {
+        const id = e.ti * 1024 + e.tj; keep.add(id); if (this.tiles.has(id)) continue;
+        const rec = { e, state: 'loading', meshes: null, col: null, solid: new Map() }; this.tiles.set(id, rec);
+        this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk, this.lines); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('streetscape', e.key, err); });
+      }
+      for (const [id, rec] of this.tiles) {
+        const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2, d = Math.hypot(focus.x - cx, focus.z - cz);
+        if (!keep.has(id) && d > this.R + 450) this.drop(id, rec);
+      }
+      this.stats.tiles = this.tiles.size;
+    }
+    if (this.t - this.lastCol >= 0.25) { this.lastCol = this.t; this.solid(focus); }
+    if (this.t - this.sigAt >= 0.5) { this.sigAt = this.t; this.signals(focus); }
+  }
+  finish(b) {
+    const id = b.ti * 1024 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) return;
+    const meshes = [];
+    for (const [geo, mat] of [[b.S, this.mat], [b.M, this.markMat], [b.G, this.glowMat]]) {
+      if (geo.empty) continue;
+      const m = new THREE.Mesh(geo.geometry(), mat); m.position.set(b.ox, 0, b.oz); m.matrixAutoUpdate = false; m.updateMatrix(); m.receiveShadow = mat !== this.glowMat; m.castShadow = false; m.name = 'str ' + b.key; this.group.add(m); meshes.push(m);
+      this.stats.tris += geo.i.length / 3;
+    }
+    rec.meshes = meshes; rec.state = 'ready'; rec.heads = new Float32Array(b.heads); rec.obst = new Float32Array(b.obst); rec.topP = new Float32Array(b.top.p); rec.topI = new Uint32Array(b.top.i); rec.tris = b.S.i.length / 3 + b.M.i.length / 3 + b.G.i.length / 3;
+    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
+  }
+  drop(id, rec) {
+    if (rec.meshes) { for (const m of rec.meshes) { this.group.remove(m); m.geometry.dispose(); } this.stats.tris -= rec.tris || 0; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners']) this.stats[k] -= rec.counts[k]; }
+    if (rec.build) { const i = this.jobs.indexOf(rec.build); if (i >= 0) this.jobs.splice(i, 1); }
+    this.release(rec);
+    this.tiles.delete(id); this.wd.drop(rec.e.key);
+  }
+  release(rec) {
+    for (const parts of rec.solid.values()) this.phys.removeBox(parts);
+    rec.solid.clear();
+    if (rec.col) { this.phys.world.removeCollider(rec.col, false); rec.col = null; }
+  }
+  // the pavement of the tiles close to the focus can be walked on and driven over (a trimesh), and the poles and trunks within a short walk are solid
+  solid(focus) {
+    const fx = focus.x, fz = focus.z, near = this.RC + 40; let made = 0, solid = 0, walk = 0;
+    for (const rec of this.tiles.values()) {
+      if (rec.state !== 'ready') continue;
+      const cx = rec.tile.ox, cz = rec.tile.oz, d = Math.max(Math.abs(fx - cx), Math.abs(fz - cz)) - TILE / 2;
+      if (d < 90 && !rec.col && rec.topI.length && made < 1) { made++; rec.col = this.mesh(rec); }
+      else if (d > 190 && rec.col) { this.phys.world.removeCollider(rec.col, false); rec.col = null; }
+      if (rec.col) walk++;
+      const O = rec.obst;
+      if (d > near) { if (rec.solid.size) { for (const b of rec.solid.values()) this.phys.removeBox(b); rec.solid.clear(); } continue; }
+      let k = 0;
+      for (let q = 0; q < O.length; q += 5, k++) {
+        const dd = Math.hypot(O[q] - fx, O[q + 1] - fz), has = rec.solid.get(k);
+        if (dd < this.RC && !has) { rec.solid.set(k, this.phys.addYawBox(O[q], O[q + 2] + O[q + 3] / 2, O[q + 1], O[q + 4], O[q + 3] / 2, O[q + 4], 0, { tag: 'prop', kind: 0, x0: O[q] - O[q + 4], x1: O[q] + O[q + 4], z0: O[q + 1] - O[q + 4], z1: O[q + 1] + O[q + 4], y0: O[q + 2], h: O[q + 2] + O[q + 3] })); }
+        else if (dd > this.RC + 30 && has) { this.phys.removeBox(has); rec.solid.delete(k); }
+      }
+      solid += rec.solid.size;
+    }
+    this.stats.solid = solid; this.stats.walk = walk;
+  }
+  mesh(rec) {
+    const R = this.phys.R;   // the pavement tops are kept in world coordinates
+    return this.phys.world.createCollider(R.ColliderDesc.trimesh(rec.topP, rec.topI).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
+  }
+  // the lamps of the signal heads near the focus: the colour that the group shows now
+  signals(focus) {
+    const t = this.t;   // real seconds: the cycle is a walking-pace thing, not scaled with the world clock
+    const cnt = [0, 0, 0], M = this.m4, lim = 600;
+    for (const rec of this.tiles.values()) {
+      if (rec.state !== 'ready' || !rec.heads.length) continue;
+      if (Math.max(Math.abs(focus.x - rec.tile.ox), Math.abs(focus.z - rec.tile.oz)) - TILE / 2 > 260) continue;
+      const H = rec.heads;
+      for (let q = 0; q < H.length; q += 7) {
+        const dx = H[q] - focus.x, dz = H[q + 2] - focus.z; if (dx * dx + dz * dz > 260 * 260) continue;
+        const s = signalState(H[q + 5], t, H[q + 6]), m = this.lamps[s]; if (cnt[s] >= lim) continue;
+        // lamp order top to bottom: red, yellow, green
+        const hx = H[q + 3], hz = H[q + 4], y = H[q + 1] + (s === 0 ? 0.3 : s === 1 ? 0 : -0.3), ang = Math.atan2(hx, hz);
+        M.makeRotationY(ang); M.setPosition(H[q], y, H[q + 2]); m.setMatrixAt(cnt[s]++, M);
+      }
+    }
+    this.lamps.forEach((m, s) => { m.count = cnt[s]; m.instanceMatrix.needsUpdate = true; });
+  }
+}
