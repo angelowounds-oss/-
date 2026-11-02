@@ -16,19 +16,20 @@ export class RoadGraph {
     for (const r of roads) { this.off.push(n); n += r.pts.length; }
     this.n = n; this.x = new Float32Array(n); this.z = new Float32Array(n); this.rd = new Int32Array(n); this.ix = new Int32Array(n);
     roads.forEach((r, k) => r.pts.forEach((p, i) => { const id = this.off[k] + i; this.x[id] = p[0]; this.z[id] = p[1]; this.rd[id] = k; this.ix[id] = i; }));
-    this.adj = Array.from({ length: n }, () => []);
+    // edges are gathered as (from, to) pairs and packed into CSR arrays below (one JS array per sample was 290 MB of heap on the 1:1 region)
+    let E = new Int32Array(1 << 16), ne = 0; const link = (a, b) => { if (ne * 2 === E.length) { const F = new Int32Array(E.length * 2); F.set(E); E = F; } E[ne * 2] = a; E[ne * 2 + 1] = b; ne++; };
     roads.forEach((r, k) => {   // consecutive samples; a one-way line only in its direction
       const m = r.pts.length, one = r.kind === 'arterial' && r.oneway;
-      for (let i = 0; i < m - 1 + (r.closed ? 1 : 0); i++) { const a = this.off[k] + i, b = this.off[k] + (i + 1) % m; this.adj[a].push(b); if (!one) this.adj[b].push(a); }
+      for (let i = 0; i < m - 1 + (r.closed ? 1 : 0); i++) { const a = this.off[k] + i, b = this.off[k] + (i + 1) % m; link(a, b); if (!one) link(b, a); }
     });
     // compiled lines meet where the compiler joined them (a line's end to the point of the next line, a line's start from the point before it), and a
     // highway that stops at the region meets the line it was joined to
     const idx = new Map(roads.map((r, k) => [r.id, k])), node = (id, i) => (idx.has(id) ? this.off[idx.get(id)] + Math.min(i, roads[idx.get(id)].pts.length - 1) : -1);
     roads.forEach((r, k) => {
       const end = this.off[k] + r.pts.length - 1, start = this.off[k];
-      for (const t of r.next || []) { const b = node(t.road, t.i); if (b >= 0) { this.adj[end].push(b); if (!r.oneway) this.adj[b].push(end); } }
-      for (const t of r.prev || []) { const b = node(t.road, t.i); if (b >= 0) { this.adj[b].push(start); if (!r.oneway) this.adj[start].push(b); } }
-      for (const [j, at] of [[r.joinA, start], [r.joinB, end]]) if (j) { const b = node(j.road, j.i); if (b >= 0) { this.adj[at].push(b); this.adj[b].push(at); } }
+      for (const t of r.next || []) { const b = node(t.road, t.i); if (b >= 0) { link(end, b); if (!r.oneway) link(b, end); } }
+      for (const t of r.prev || []) { const b = node(t.road, t.i); if (b >= 0) { link(b, start); if (!r.oneway) link(start, b); } }
+      for (const [j, at] of [[r.joinA, start], [r.joinB, end]]) if (j) { const b = node(j.road, j.i); if (b >= 0) { link(at, b); link(b, at); } }
     });
     this.art = Uint8Array.from(roads, (r) => (r.kind === 'arterial' ? 1 : 0));
     // interchange links: nearest sample of another road within LINK m (grid hash of 120 m)
@@ -40,8 +41,11 @@ export class RoadGraph {
       const cx = Math.floor(this.x[i] / CS), cz = Math.floor(this.z[i] / CS);
       let best = -1, bd = LINK * LINK;
       for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { if (this.rd[j] === this.rd[i] || this.art[this.rd[j]]) continue; const d = (this.x[i] - this.x[j]) ** 2 + (this.z[i] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
-      if (best >= 0) { this.adj[i].push(best); this.adj[best].push(i); }
+      if (best >= 0) { link(i, best); link(best, i); }
     }
+    // CSR: the neighbours of u are nb[at[u]] .. nb[at[u + 1] - 1], in the order they were linked (a counting sort keeps it, so routes are unchanged)
+    this.at = new Int32Array(n + 1); for (let e = 0; e < ne; e++) this.at[E[e * 2] + 1]++; for (let u = 0; u < n; u++) this.at[u + 1] += this.at[u];
+    this.nb = new Int32Array(ne); const fill = this.at.slice(0, n); for (let e = 0; e < ne; e++) this.nb[fill[E[e * 2]]++] = E[e * 2 + 1];
   }
   nearest(x, z, max = 8000) {
     const CS = this.CS, R = Math.ceil(max / CS); let best = -1, bd = max * max; const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
@@ -63,7 +67,8 @@ export class RoadGraph {
     while (heap.length) {
       const [, u] = pop(); if (done[u]) continue; done[u] = 1;
       if (u === t) { const out = []; for (let c = u; c >= 0; c = from[c]) out.push(c); return out.reverse(); }
-      for (const v of this.adj[u]) {
+      for (let q = this.at[u]; q < this.at[u + 1]; q++) {
+        const v = this.nb[q];
         const d = Math.hypot(this.x[u] - this.x[v], this.z[u] - this.z[v]), ng = g[u] + d * (this.rd[u] === this.rd[v] ? 1 : 1.4);
         if (ng < g[v]) { g[v] = ng; from[v] = u; push([ng + Math.hypot(this.x[v] - this.x[t], this.z[v] - this.z[t]), v]); }
       }
