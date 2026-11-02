@@ -7,7 +7,7 @@
 - 이 컨테이너의 셸 프로세스는 합쳐서 14.3 GB(cgroup)를 넘으면 강제 종료된다. 브라우저 렌더러가 죽으면 테스트에는 `Target crashed`로 나온다(`dmesg`에 `Memory cgroup out of memory`).
 - 수도권 1:1 도시에서는 소프트웨어 GPU로 한 프레임에 수 초가 걸린다. 페이지가 쉬지 않으니 Blink의 GC가 따라오지 못한다. 강남에서 수거 가능한 쓰레기만으로 Blink 힙이 몇 프레임 만에 0.2 → 3.4 GB로 커졌다. GC를 강제하면 0.12–0.17 GB에 머문다.
 - 그래서 `GL_ARGS`에 `--js-flags=--expose-gc`를 넣었다. `freeze()`가 만드는 `window.__upd`는 5번 갱신마다 전체 GC를 부른다. 실제 GPU에서는 남는 시간에 브라우저가 스스로 GC한다.
-- 화면 읽기(`shot()`)도 같은 문제였다. 화질 1의 도시 한 프레임은 소프트웨어 GPU에서 30 s 넘게 걸린다. 예전 `drawImage`/`getImageData` 읽기는 그동안 렌더러 메인 스레드를 막았다. 그 사이 렌더러의 익명 메모리가 초당 수백 MB씩 늘었다(6–8 GB까지). `light-skip-identity`는 네 번 중 두 번 종료됐다. 지금은 같은 작업 안에서 pixel-pack 버퍼로 복사하고 fence를 이벤트 루프 사이사이 기다린다. 바이트는 예전 방식과 같다(diff 0 확인). 렌더러 최고치는 3.7 GB다.
+- 화면 읽기(`shot()`)도 같은 문제였다. 화질 1의 도시 한 프레임은 소프트웨어 GPU에서 30 s 넘게 걸린다. 예전 `drawImage`/`getImageData` 읽기는 그동안 렌더러 메인 스레드를 막았다. 그 사이 렌더러의 익명 메모리가 초당 수백 MB씩 늘었다(6–8 GB까지). `light-skip-identity`는 네 번 중 두 번 종료됐다. 지금은 같은 작업 안에서 pixel-pack 버퍼로 복사하고 fence를 이벤트 루프 사이사이 기다린다. 바이트는 예전 방식과 같다(diff 0 확인). 렌더러 최고치는 3.7 GB다. 이 읽기는 페이지 안의 `window.__readFrame()`이다. 사진을 직접 찍는 테스트(`streetscape`)도 이 함수를 쓴다. 새 빌드(실제 건물 비율 0.669)에서 그 테스트도 같은 이유로 죽었다. 같은 방식으로 직접 읽는 다른 테스트(`realbuildings` 등)는 아직 통과하므로 그대로 둔다. 죽으면 같은 함수로 바꾼다.
 - 원인 찾는 법: CDP `Runtime.getHeapUsage`의 `embedderHeapUsedSize`(Blink 힙)를 본다. `performance.memory`는 거칠고 갱신이 드물다. 다음으로 `Tracing.requestMemoryDump`(memory-infra)로 할당기별 크기를 본다. 메인 스레드가 막혀 있으면 CDP가 답하지 않는다. 그럴 때는 `/proc/<renderer pid>/smaps`로 익명 메모리와 공유 메모리를 나눠 보고, `Profiler`로 어디서 막히는지 본다.
 - 자동 주행 그래프(`src/worldnav.js`)는 표본마다 JS 배열을 하나씩 두다가 CSR 배열로 바뀌었다. 부팅 직후 JS 힙이 2.47 → 2.06 GB로 줄었고, 이웃 순서와 경로는 같다.
 

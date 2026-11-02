@@ -19,7 +19,8 @@ const path = require('path');
       if (!SS || !SS.have) return { error: 'no street data in this world' };
       const frames = async (n, draw) => { const r = g.eng.render; if (!draw) g.eng.render = () => {}; for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 10 === 9) await new Promise((f) => setTimeout(f, 15)); } g.eng.render = r; };
       const park = (p) => { const y = L.physHeight(p.x, p.z, 8) + 2; pl.body3.teleport(p.x, y, p.z); pl.x = p.x; pl.y = y; pl.z = p.z; pl.vx = pl.vz = pl.vy = 0; pl.dead = false; };
-      const shot = () => { g.renderFrame(0, true); const cv = R.domElement, k = document.createElement('canvas'); k.width = cv.width; k.height = cv.height; k.getContext('2d').drawImage(cv, 0, 0); return k.toDataURL('image/jpeg', 0.85); };
+      // a picture as JPEG: read back without blocking the page (window.__readFrame, tests/lib.cjs), collecting first
+      const shot = async () => { if (window.gc) window.gc(); g.renderFrame(0, true); const f = await window.__readFrame(), k = document.createElement('canvas'); k.width = f.w; k.height = f.h; k.getContext('2d').putImageData(new ImageData(f.data, f.w, f.h), 0, 0); return k.toDataURL('image/jpeg', 0.85); };
       // the drawn road's height near a point (a camera set by the ground alone ended under a road laid above it), and the player parked out of a view
       const top = (x, z) => { let y = L.physHeight(x, z, 8); for (const Ln of SS.lines) { if (Math.abs(Ln.x[0] - x) > 3000 || Math.abs(Ln.z[0] - z) > 3000) continue; for (let i = 0; i < Ln.x.length; i++) if (Math.abs(Ln.x[i] - x) < 8 && Math.abs(Ln.z[i] - z) < 8 && !Ln.cls[i]) y = Math.max(y, Ln.y[i]); } return y; };
       const behind = (cx, cz, tx, tz, d) => { const l = Math.hypot(cx - tx, cz - tz) || 1; park({ x: cx + (cx - tx) / l * d, z: cz + (cz - tz) / l * d }); };
@@ -69,13 +70,13 @@ const path = require('path');
           const cam = (hgt, back) => ({ x: best.x + best.fx * back, y: top(best.x + best.fx * back, best.z + best.fz * back) + hgt, z: best.z + best.fz * back, tx: best.x, ty: gy + 3.5, tz: best.z, fov: 60 });
           void cx; void cz;
           behind(best.x + best.fx * 45, best.z + best.fz * 45, best.x, best.z, 8); await frames(120);   // the player out of the pictures
-          g.viewCam = cam(2.0, 45); await frames(20); res.shots[name + '-approach'] = shot();
-          g.viewCam = cam(1.7, 14); await frames(20); res.shots[name + '-close'] = shot();
+          g.viewCam = cam(2.0, 45); await frames(20); res.shots[name + '-approach'] = await shot();
+          g.viewCam = cam(1.7, 14); await frames(20); res.shots[name + '-close'] = await shot();
           // from above the approach itself (a diagonal view from 90 m out was mostly roofs): the markings of the arm and the junction
-          g.viewCam = { x: best.x + best.fx * 40, y: gy + 45, z: best.z + best.fz * 40, tx: best.x + best.fx * 8, ty: gy, tz: best.z + best.fz * 8, fov: 60 }; await frames(20); res.shots[name + '-above'] = shot();
-          g.viewCam = { x: best.x + best.fx * 22.01, y: gy + 28, z: best.z + best.fz * 22, tx: best.x + best.fx * 22, ty: gy, tz: best.z + best.fz * 22, fov: 60 }; await frames(20); res.shots[name + '-arrows'] = shot();
+          g.viewCam = { x: best.x + best.fx * 40, y: gy + 45, z: best.z + best.fz * 40, tx: best.x + best.fx * 8, ty: gy, tz: best.z + best.fz * 8, fov: 60 }; await frames(20); res.shots[name + '-above'] = await shot();
+          g.viewCam = { x: best.x + best.fx * 22.01, y: gy + 28, z: best.z + best.fz * 22, tx: best.x + best.fx * 22, ty: gy, tz: best.z + best.fz * 22, fov: 60 }; await frames(20); res.shots[name + '-arrows'] = await shot();
           g.clock.t = Math.floor(g.clock.t / 1440) * 1440 + 21 * 60; await frames(20);
-          g.viewCam = cam(2.0, 45); await frames(20); res.shots[name + '-night'] = shot();
+          g.viewCam = cam(2.0, 45); await frames(20); res.shots[name + '-night'] = await shot();
           g.clock.t = Math.floor(g.clock.t / 1440) * 1440 + 13 * 60;
         }
         // a bus stop with a shelter and a subway entrance near Gangnam station, seen along the pavement from 9 - 10 m (the player stands behind the camera)
@@ -86,7 +87,7 @@ const path = require('path');
           if (!best) { res.shots[name + '-none'] = null; continue; }
           const ux = -best.iz, uz = best.ix, cx = best.x + best.ix * 1.5 + ux * back, cz = best.z + best.iz * 1.5 + uz * back, gy = L.physHeight(best.x, best.z, 8);
           behind(cx, cz, best.x, best.z, 6); await frames(60);
-          g.viewCam = { x: cx, y: top(cx, cz) + 1.7, z: cz, tx: best.x, ty: gy + 1.4, tz: best.z, fov: 60 }; await frames(20); res.shots[name] = shot();
+          g.viewCam = { x: cx, y: top(cx, cz) + 1.7, z: cz, tx: best.x, ty: gy + 1.4, tz: best.z, fov: 60 }; await frames(20); res.shots[name] = await shot();
         }
         // the road name plate nearest Gangnam station, as the arriving driver sees it from 14 m (WLD-24g-4)
         let plate = null;
@@ -94,7 +95,7 @@ const path = require('path');
         if (plate) {
           const cx = plate.x + plate.dx * 14, cz = plate.z + plate.dz * 14;
           behind(cx, cz, plate.x, plate.z, 6); await frames(60);
-          g.viewCam = { x: cx, y: Math.max(top(cx, cz) + 1.7, plate.y - 4.5), z: cz, tx: plate.x, ty: plate.y - 0.3, tz: plate.z, fov: 45 }; await frames(20); res.shots.plate = shot();
+          g.viewCam = { x: cx, y: Math.max(top(cx, cz) + 1.7, plate.y - 4.5), z: cz, tx: plate.x, ty: plate.y - 0.3, tz: plate.z, fov: 45 }; await frames(20); res.shots.plate = await shot();
         } else res.shots['plate-none'] = null;
         g.viewCam = null;
       }

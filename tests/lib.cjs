@@ -73,18 +73,13 @@ async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = 
   return { browser, page, errors };
 }
 
-// inside the page: stop the rAF-driven loop and keep the real update as window.__upd (with a full collection every GC_EVERY steps, see GL_ARGS)
-const GC_EVERY = 5;
-const FREEZE = `(() => { const g = window.__game; if (!window.__upd) { const up = g.update.bind(g); let n = 0; window.__upd = (...a) => { up(...a); if (++n % ${GC_EVERY} === 0 && window.gc) window.gc(); }; g.update = () => {}; g.autoQuality = () => {}; } })()`;
-async function freeze(page) { await page.evaluate(FREEZE); }
-
-// read back the frame game.renderFrame drew, as RGBA bytes top row first (the bytes a 2D canvas drawImage/getImageData readback gives, checked
-// equal). The copy goes into a pixel-pack buffer in the same task (the drawing buffer is gone once the page composites) and the page then
-// waits for the GPU on a fence across event-loop turns: a synchronous readback blocked the renderer's main thread for the 30 s a 1:1 city frame
-// takes on the software GPU, and the renderer grew by gigabytes of anonymous memory meanwhile until the container killed it.
-const SHOT = `(async () => {
-  const g = window.__game; if (window.gc) window.gc(); g.renderFrame(0, true);
-  const gl = g.eng.renderer.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+// in the page: window.__readFrame() reads back the frame game.renderFrame just drew, as { w, h, data } RGBA bytes top row first (the bytes a 2D canvas
+// drawImage/getImageData readback gives, checked equal). The copy goes into a pixel-pack buffer in the same task (the drawing buffer is gone once
+// the page composites) and the page then waits for the GPU on a fence across event-loop turns: a synchronous readback blocked the renderer's main
+// thread for the 30 s a 1:1 city frame takes on the software GPU, and the renderer grew by gigabytes of anonymous memory meanwhile until the
+// container killed it. Installed by freeze() and shot(); a test that draws its own pictures awaits it right after renderFrame.
+const READ = `window.__readFrame = window.__readFrame || (async () => {
+  const gl = window.__game.eng.renderer.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
   const rf = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING), pb = gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING), buf = gl.createBuffer();
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf); gl.bufferData(gl.PIXEL_PACK_BUFFER, w * h * 4, gl.STREAM_READ);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, 0);
@@ -92,11 +87,18 @@ const SHOT = `(async () => {
   const s = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); gl.flush();
   while (gl.clientWaitSync(s, 0, 0) === gl.TIMEOUT_EXPIRED) await new Promise((r) => setTimeout(r, 20));
   gl.deleteSync(s);
-  const raw = new Uint8Array(w * h * 4), out = new Array(w * h * 4), row = w * 4;
+  const raw = new Uint8Array(w * h * 4), data = new Uint8ClampedArray(w * h * 4), row = w * 4;
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buf); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, raw); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pb); gl.deleteBuffer(buf);
-  for (let y = 0; y < h; y++) for (let i = 0; i < row; i++) out[y * row + i] = raw[(h - 1 - y) * row + i];
-  return out;
-})()`;
+  for (let y = 0; y < h; y++) data.set(raw.subarray((h - 1 - y) * row, (h - y) * row), y * row);
+  return { w, h, data };
+});`;
+// inside the page: stop the rAF-driven loop and keep the real update as window.__upd (with a full collection every GC_EVERY steps, see GL_ARGS)
+const GC_EVERY = 5;
+const FREEZE = `(() => { ${READ} const g = window.__game; if (!window.__upd) { const up = g.update.bind(g); let n = 0; window.__upd = (...a) => { up(...a); if (++n % ${GC_EVERY} === 0 && window.gc) window.gc(); }; g.update = () => {}; g.autoQuality = () => {}; } })()`;
+async function freeze(page) { await page.evaluate(FREEZE); }
+
+// read back the canvas as RGBA bytes after one frame was drawn by game.renderFrame (collecting first, like the stepped loop)
+const SHOT = `(async () => { ${READ} const g = window.__game; if (window.gc) window.gc(); g.renderFrame(0, true); return Array.from((await window.__readFrame()).data); })()`;
 async function shot(page) { return page.evaluate(SHOT); }
 function pixelDiff(a, b) { let n = 0, max = 0; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d) { n++; if (d > max) max = d; } } return { diffBytes: n, maxDiff: max, total: a.length }; }
 
