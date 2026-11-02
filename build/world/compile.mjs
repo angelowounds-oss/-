@@ -13,7 +13,7 @@ import { roadPass } from './roads.mjs';
 import { emitRegion } from './emit.mjs';
 import { placesPass } from './places.mjs';
 import { SEA } from '../../src/worldmap.js';
-import { overpass, bbox } from './osm.mjs';
+import { overpass, bbox, REGION_QL } from './osm.mjs';
 import { waterPass, waterHeights, distanceTo } from './water.mjs';
 
 const REGIONS = {
@@ -75,10 +75,10 @@ for (const { name, v } of [{ name: '1 (no scale)', v: 1 }, ...Vs]) { const a = b
 // ---- roads (M3a): the arterial network laid in at the first height scale
 let roads = null;
 if (args.roads) {
-  const t1 = Date.now(), rels = overpass(`roads-${args.region || 'capital'}`, `[out:json][timeout:240];way["highway"~"^(motorway|trunk|primary|secondary|motorway_link|trunk_link|primary_link|secondary_link|tertiary|tertiary_link)$"](${B4});out geom tags;`), minor = overpass(`roads-minor-${args.region || 'capital'}`, `[out:json][timeout:300];way["highway"~"^(residential|unclassified|living_street)$"](${B4});out geom tags;`);
+  const t1 = Date.now(), rels = overpass(...REGION_QL.roads(args.region || 'capital', B4)), minor = overpass(...REGION_QL.minor(args.region || 'capital', B4));
   const gh = waterHeights(R, Vs[0].v);
   // the real settlements (M4a): sites chosen and their pads cut into the ground before the roads are laid in
-  const pl = placesPass(R, gh, overpass(`places-${args.region || 'capital'}`, `[out:json][timeout:120];(node["place"~"^(city|town|village|suburb)$"]["name"](${B4}););out;`), SEA); stats.places = pl.stats;
+  const pl = placesPass(R, gh, overpass(...REGION_QL.places(args.region || 'capital', B4)), SEA); stats.places = pl.stats;
   const sites = pl.places.map((o) => ({ x: o.x + CAPITAL.x, z: o.z + CAPITAL.z, r: o.r + 120 }));   // map metres
   // the main spans of the sea bridges (src/regions/*.js bridges, ADR-0037): map metres, the deck at the clearance over the sea at this height scale
   const spans = BRIDGES.map((b) => { const p = project(b.lon, b.lat); return { ref: b.ref, x: p.x, z: p.z, half: b.span / 2 / KOREA_SCALE, deck: b.clearance ? b.clearance * Vs[0].v + 1 : 0 }; });

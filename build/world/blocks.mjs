@@ -272,7 +272,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
   const { readDetail } = await import('./realdetail.mjs'), { mergeReal, addRealTiles } = await import('./osmbuildings.mjs'), detail = readDetail();
   let real = null;
   if (detail.buildings.length) {
-    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r)); real = m.stats; real.missingTiles = detail.missing.length;
+    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r)); real = m.stats; real.missingTiles = detail.missing.length; real.underground = detail.underground;
     for (const k of Object.keys(res.B)) res.B[k] = res.B[k].filter((v, i) => m.keep[i]);
     res.count = res.B.cx.length; res.real = m.real;
   }

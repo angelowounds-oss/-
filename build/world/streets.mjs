@@ -16,6 +16,7 @@ import { readRegion, KEEP, BAND } from './emit.mjs';
 import { TILE, TILE_OFF, readBuildings } from './blocks.mjs';
 import { trims, radiusOf, decodeTile } from '../../src/streetgeo.js';
 import { placeFurniture } from './streetfurn.mjs';
+import { PTYPE } from './streetpoints.mjs';
 import { readDetail } from './realdetail.mjs';
 import { readSeoul } from './seouldata.mjs';
 
@@ -56,7 +57,7 @@ function pointIndex(points) {
 
 // detail: readDetail()'s result (the map's records), or null for rules only
 export function makeStreets(R, bld, detail = null) {
-  const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND, PI = pointIndex(detail?.points);
+  const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND, PI = pointIndex(detail?.points), used = new Set();   // used: crossing records a junction arm took
   const tileOf = (x, z) => [Math.floor(x / TILE) + TILE_OFF, Math.floor(z / TILE) + TILE_OFF];
   const urbanAt = (x, z) => { const [a, b] = tileOf(x, z); return urb(a, b); };
   // ---- which sides of which segments have pavement (sample i to i + 1), per line: bit 0 the left, bit 1 the right side of the line's direction
@@ -152,7 +153,8 @@ export function makeStreets(R, bld, detail = null) {
       const flow = r.oneway ? (a.dirn > 0 ? 1 : 2) : 0;
       // a crossing of the map on this arm: within 30 m of the centre along it, over its carriageway
       // (a crossing node sits on the carriageway's centre line, a few metres to 40 m back from the junction's centre on a wide road)
-      const ax = Math.cos(a.ang), az = Math.sin(a.ang), crossReal = rk <= 3 && PI.near(PI.cross, x, z, 42).some((p) => { const s = (p.x - x) * ax + (p.z - z) * az, l = -(p.x - x) * az + (p.z - z) * ax; return s > -2 && s < 40 && Math.abs(l) < r.half + 3; });
+      const ax = Math.cos(a.ang), az = Math.sin(a.ang), mine = rk <= 3 ? PI.near(PI.cross, x, z, 42).filter((p) => { const s = (p.x - x) * ax + (p.z - z) * az, l = -(p.x - x) * az + (p.z - z) * ax; return s > -2 && s < 40 && Math.abs(l) < r.half + 3; }) : [];
+      const crossReal = mine.length > 0; for (const p of mine) used.add(p);
       const crossMapped = !crossReal && PI.mapped('cross', x, z, MAPPED);
       const arm = { ri: a.ri, i: a.i, dirn: a.dirn, ang: a.ang, half: r.half, rank: rk, flow, w, cross: crossReal || (!crossMapped && rk <= 3 && u >= URBAN[rk] * 0.5), crossReal, crossMapped, tl: 0, tr: 0, d: Math.hypot(a.x - x, a.z - z) };
       J.arms.push(arm); armOf.set(a.ri + ':' + a.i + ':' + a.dirn, arm);
@@ -191,8 +193,10 @@ export function makeStreets(R, bld, detail = null) {
   });
   void q10;
   // ---- lamps and trees, each judged against what is around it (streetfurn.mjs)
-  const { items, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf, PI.tree);
-  return { junctions, runs, items, why, judge };
+  // ---- and before them the records of the street (streetpoints.mjs): stops, entrances, benches, bins, hydrants, and the crossings away from junctions
+  const crossRecs = (detail?.points || []).filter((p) => p.t === 'crossing' && p.marked);
+  const { items, mids, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf, PI.tree, { points: detail?.points || [], cross: crossRecs, used });
+  return { junctions, runs, items, mids, why, judge };
 }
 
 // lane arrows: a lane may turn left (1), go straight (2) or turn right (4); `mark` bits: 1 a set of arrows 4 m behind the stop line, 2 a second set 30 m
@@ -245,18 +249,20 @@ function markings(roads, junctions, urbanAt) {
 
 // ---- tiles: the records of 512 m tiles as typed arrays (junction centres and run starts decide the tile), relative to the tile centre
 export function toTiles(res) {
-  const by = new Map(), get = (ti, tj) => { const k = ti + '_' + tj; return by.get(k) || by.set(k, { J: [], R: [], F: [] }).get(k); };
+  const by = new Map(), get = (ti, tj) => { const k = ti + '_' + tj; return by.get(k) || by.set(k, { J: [], R: [], F: [], C: [] }).get(k); };
   for (const J of res.junctions) get(Math.floor(J.x / TILE) + TILE_OFF, Math.floor(J.z / TILE) + TILE_OFF).J.push(J);
   for (const r of res.runs) get(r.ti, r.tj).R.push(r);
   for (const f of res.items || []) get(f.ti, f.tj).F.push(f);
+  for (const c of res.mids || []) get(c.ti, c.tj).C.push(c);
   const tiles = {}, u10 = (m) => Math.min(255, Math.round(m * 10));
   for (const key of [...by.keys()].sort()) {
-    const [ti, tj] = key.split('_').map(Number), ox = (ti - TILE_OFF) * TILE + TILE / 2, oz = (tj - TILE_OFF) * TILE + TILE / 2, { J, R, F } = by.get(key), nf = F.length;
+    const [ti, tj] = key.split('_').map(Number), ox = (ti - TILE_OFF) * TILE + TILE / 2, oz = (tj - TILE_OFF) * TILE + TILE / 2, { J, R, F, C } = by.get(key), nf = F.length, nc = C.length;
     const nj = J.length, na = J.reduce((s, j) => s + j.arms.length, 0), nr = R.length;
     const t = { nj, jx: new Int16Array(nj), jz: new Int16Array(nj), jy: new Int16Array(nj), jf: new Uint8Array(nj), jn: new Uint8Array(nj), jo: new Int32Array(nj + 1),
       na, aang: new Uint16Array(na), ahalf: new Uint8Array(na), ameta: new Uint8Array(na), aw: new Uint8Array(na), atl: new Uint8Array(na), atr: new Uint8Array(na), aline: new Int32Array(na), aarr: new Uint16Array(na), amark: new Uint8Array(na),
       nr, rline: new Int32Array(nr), ri0: new Uint16Array(nr), ri1: new Uint16Array(nr), rw: new Uint8Array(nr), rm: new Uint8Array(nr), rta: new Uint8Array(nr * 2), rtb: new Uint8Array(nr * 2),
-      nf, ft: new Uint8Array(nf), fx: new Int16Array(nf), fz: new Int16Array(nf), fy: new Int16Array(nf), fdir: new Uint8Array(nf), fv: new Uint8Array(nf) };
+      nf, ft: new Uint8Array(nf), fx: new Int16Array(nf), fz: new Int16Array(nf), fy: new Int16Array(nf), fdir: new Uint8Array(nf), fv: new Uint8Array(nf),
+      nc, cx: new Int16Array(nc), cz: new Int16Array(nc), cy: new Int16Array(nc), cang: new Uint16Array(nc), chalf: new Uint8Array(nc), cwid: new Uint8Array(nc), cf: new Uint8Array(nc) };
     let q = 0;
     J.forEach((j, k) => {
       t.jx[k] = Math.round((j.x - ox) * 10); t.jz[k] = Math.round((j.z - oz) * 10); t.jy[k] = Math.round(j.y * 10); t.jf[k] = (j.signal ? 1 : 0) | (j.sigReal ? 2 : 0); t.jn[k] = j.arms.length; t.jo[k] = q;
@@ -269,6 +275,9 @@ export function toTiles(res) {
     R.forEach((r, k) => { t.rline[k] = r.ri; t.ri0[k] = r.i0; t.ri1[k] = r.i1; t.rw[k] = r.w; t.rm[k] = r.m; t.rta[k * 2] = u10(r.ta[0]); t.rta[k * 2 + 1] = u10(r.ta[1]); t.rtb[k * 2] = u10(r.tb[0]); t.rtb[k * 2 + 1] = u10(r.tb[1]); });
     // furniture: type (bit 7: on a bridge deck), position, the direction toward the road in 256 steps, the variant (lamp: rank; tree: species | size << 2)
     F.forEach((f, k) => { t.ft[k] = f.t | (f.bridge ? 128 : 0); t.fx[k] = Math.round((f.x - ox) * 10); t.fz[k] = Math.round((f.z - oz) * 10); t.fy[k] = Math.round(f.y * 10); t.fdir[k] = Math.round(((Math.atan2(f.iz, f.ix) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 256) & 255; t.fv[k] = f.v; });
+    // crossings away from junctions: the centre on the road's centre line, the road's direction in 65536 steps, half the carriageway and the width along
+    // it (0.1 m), flags 1 Seoul's polygon, 2 the map's node, 4 signalled
+    C.forEach((c, k) => { t.cx[k] = Math.round((c.x - ox) * 10); t.cz[k] = Math.round((c.z - oz) * 10); t.cy[k] = Math.round(c.y * 10); t.cang[k] = Math.round(((Math.atan2(c.tz, c.tx) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 65535); t.chalf[k] = u10(c.half); t.cwid[k] = u10(c.wid); t.cf[k] = c.src | (c.signal ? 4 : 0); });
     tiles[key] = t;
   }
   return tiles;
@@ -293,7 +302,9 @@ export function realShare(res) {
   // a decision is backed by the map when the map says yes (a record) or says no (a mapped neighbourhood without one)
   const allArms = res.junctions.flatMap((j) => j.arms.filter((a) => a.rank <= 3));
   return { signals: share(sig.filter((j) => j.sigReal).length, sig.length), signalDecisions: share(res.junctions.filter((j) => j.sigReal || j.sigMapped).length, res.junctions.length),
-    crossings: share(arms.filter((a) => a.crossReal).length, arms.length), crossingDecisions: share(allArms.filter((a) => a.crossReal || a.crossMapped).length, allArms.length), trees: share(trees.filter((f) => f.real).length, trees.length) };
+    crossings: share(arms.filter((a) => a.crossReal).length, arms.length), crossingDecisions: share(allArms.filter((a) => a.crossReal || a.crossMapped).length, allArms.length), trees: share(trees.filter((f) => f.real).length, trees.length),
+    // the records of the street (all real by construction): how many of each kind stand, and the crossings away from junctions
+    points: Object.fromEntries(Object.entries(PTYPE).map(([k, t]) => [k, res.items.filter((f) => f.t === t).length])), midCrossings: (res.mids || []).length };
 }
 
 // ---- command line

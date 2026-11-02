@@ -9,7 +9,7 @@ import { makeBuildings } from '../../build/world/blocks.mjs';
 import { metres, heightOf, readDetail, inside } from '../../build/world/realdetail.mjs';
 import { mergeReal, addRealTiles, readRealTile } from '../../build/world/osmbuildings.mjs';
 import { tmToLonLat, readSeoul } from '../../build/world/seouldata.mjs';
-import { makeStreets, realShare } from '../../build/world/streets.mjs';
+import { makeStreets, realShare, toTiles, readTile } from '../../build/world/streets.mjs';
 
 const bad = [], m = {}, notes = [];
 const near = (a, b, e) => Math.abs(a - b) <= e;
@@ -88,6 +88,38 @@ else {
     if (sh.signalDecisions < 0.95 || sh.crossingDecisions < 0.9) bad.push(['Gangnam street decisions not from records', sh]);
     // every crossing said to be real has a record on its arm
     for (const j of st.junctions) for (const a of j.arms) if (a.crossReal && !points.some((p) => p.t === 'crossing' && Math.hypot(p.x - j.x, p.z - j.z) < 45)) { bad.push(['a real crossing without a record']); break; }
+    // 4. the street's records (WLD-24g-3): most of them stand (refused only for a reason other than being a second record of the same thing), none in a
+    //    building, on a carriageway or in the water (checked here by brute force, not with the bake's judge), and the crossings away from junctions lie
+    //    on their road and away from every junction
+    // the rate counts the records that did not fit where they are (in a wall, on a carriageway, in the water, no room on the kerb); not a second record of
+    // the same stop, an entrance that opens in a building's own wall, or a stop with no compiled road within 30 m (on a service road the network leaves out)
+    const why = st.why.point, refused = ['building', 'road', 'water', 'room'].reduce((s, k) => s + (why[k] || 0), 0);
+    m.points = sh.points; m.pointRefused = why; m.mid = st.mids.length; m.midWhy = st.why.mid;
+    m.pointRate = +(why.placed / Math.max(1, why.placed + refused)).toFixed(3);
+    if (sh.points.bus < 300 || sh.points.subway < 50) bad.push(['too few stops or entrances around Gangnam', sh.points]);
+    if (m.pointRate < 0.85) bad.push(['too many street records refused', m.pointRate, why]);
+    if (m.mid < 20) bad.push(['too few crossings away from junctions around Gangnam', m.mid]);
+    const pts = st.items.filter((f) => f.t >= 2), segs = C.roads, onCarriage = (x, z, y, r) => {
+      for (const o of segs) for (let i = 0; i + 1 < o.x.length; i++) {
+        if (Math.abs(o.x[i] - x) > 90 || Math.abs(o.z[i] - z) > 90) continue;
+        const dx = o.x[i + 1] - o.x[i], dz = o.z[i + 1] - o.z[i], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o.x[i]) * dx + (z - o.z[i]) * dz) / l2));
+        if (Math.abs(o.y[i] + (o.y[i + 1] - o.y[i]) * t - y) < 4 && Math.hypot(x - o.x[i] - dx * t, z - o.z[i] - dz * t) < o.half + r - 0.05) return true;
+      }
+      return false;
+    };
+    const realNear = new Map(); for (const b of A.mm.real) { const k = Math.floor(b.rings[0][0][0] / 64) * 1e6 + Math.floor(b.rings[0][0][1] / 64); (realNear.get(k) || realNear.set(k, []).get(k)).push(b); }
+    const inReal = (x, z) => { for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) for (const r of realNear.get((Math.floor(x / 64) + a) * 1e6 + Math.floor(z / 64) + b) || []) if (inside([x, z], r.rings[0])) return true; return false; };
+    const wet = (x, z) => { const i = Math.floor((x - C.x0) / C.g), j = Math.floor((z - C.z0) / C.g); return i >= 0 && j >= 0 && i < C.nx && j < C.nz && C.water[j * C.nx + i] > 0; };
+    const pv = { building: 0, road: 0, water: 0 };
+    for (const f of pts) { if (inReal(f.x, f.z)) pv.building++; if (onCarriage(f.x, f.z, f.y, f.t === 2 && (f.v & 1) ? 0.75 : 0.1)) pv.road++; if (wet(f.x, f.z)) pv.water++; }
+    m.pointViolations = pv; for (const [k, n] of Object.entries(pv)) if (n) bad.push(['a street record ' + k + ' violation', n]);
+    for (const c of st.mids) {
+      if (st.junctions.some((j) => Math.hypot(j.x - c.x, j.z - c.z) < 45)) { bad.push(['a mid-block crossing at a junction']); break; }
+      if (!onCarriage(c.x, c.z, c.y, 0.1)) { bad.push(['a mid-block crossing off its road']); break; }
+    }
+    // the tiles keep them: every record and every mid-block crossing reads back
+    const T = toTiles(st); let nf = 0, nc = 0; for (const [k, t] of Object.entries(T)) { const d = readTile(k, t); nf += d.F.filter((f) => f.t >= 2).length; nc += d.C.length; }
+    if (nf !== pts.length || nc !== st.mids.length) bad.push(['tiles lose street records', nf, pts.length, nc, st.mids.length]);
   }
 }
 console.log('RESULT ' + JSON.stringify({ test: 'real-data', pass: bad.length === 0, metrics: m, note: [...notes, ...(bad.length ? [JSON.stringify(bad.slice(0, 8))] : [])].join('; ') }));

@@ -53,9 +53,10 @@ export function heightOf(t) {
 }
 
 // read every cached tile of the box: { buildings: [{ id, rings: [[x, z]...] (outer first, counter-clockwise; holes after, clockwise), h, base, levels, src,
-// tag, part, name }], points: [{ id, t, x, z, ...facts }], missing: [tile names not yet fetched] }
+// tag, part, name }], points: [{ id, t, x, z, ...facts }], missing: [tile names not yet fetched], underground: buildings left out as below the ground }
 export function readDetail(box = BOX) {
   const seenW = new Set(), seenN = new Set(), buildings = [], points = [], missing = [];
+  let underground = 0;
   for (const [name, ql] of tiles(box)) {
     const f = cacheFile(name, ql); if (!fs.existsSync(f)) { missing.push(name); continue; }
     const els = JSON.parse(fs.readFileSync(f, 'utf8')).elements;
@@ -66,7 +67,7 @@ export function readDetail(box = BOX) {
         const [x, z] = xz(e.lon, e.lat), hw = t.highway, base = { id: 'n' + e.id, x, z };
         if (hw === 'traffic_signals') points.push({ ...base, t: 'signal', dir: t['traffic_signals:direction'] || t.direction || '' });
         else if (hw === 'crossing') points.push({ ...base, t: 'crossing', signal: t.crossing === 'traffic_signals' || t['crossing:signals'] === 'yes' || t.crossing_ref === 'pelican', marked: t.crossing !== 'unmarked' });
-        else if (hw === 'bus_stop' || (t.public_transport === 'platform' && t.bus === 'yes')) points.push({ ...base, t: 'bus', name: t['name:ko'] || t.name || '', shelter: t.shelter === 'yes' });
+        else if (hw === 'bus_stop' || (t.public_transport === 'platform' && t.bus === 'yes')) points.push({ ...base, t: 'bus', name: t['name:ko'] || t.name || '', shelter: t.shelter === 'yes' ? true : t.shelter === 'no' ? false : null });
         else if (hw === 'street_lamp') points.push({ ...base, t: 'lamp' });
         else if (hw === 'stop' || hw === 'give_way') points.push({ ...base, t: hw });
         else if (t.natural === 'tree') points.push({ ...base, t: 'tree', species: t['species:ko'] || t.species || t.genus || '', leaf: t.leaf_type || '' });
@@ -75,6 +76,10 @@ export function readDetail(box = BOX) {
         continue;
       }
       if (seenW.has(key)) continue; seenW.add(key);
+      // a shopping arcade under a station square or a substation under a park is mapped with its outline but stands below the ground: drawn as a
+      // building it would cover the street over it (강남역지하쇼핑센터, w305923846). A negative layer alone is not enough (it is also used for a building
+      // that a flyover passes over), so only the explicit tags count.
+      if (t.location === 'underground' || t.tunnel === 'yes' || t.building === 'underground') { underground++; continue; }
       let rings = [];
       if (e.type === 'way' && e.geometry) { const r = clean(e.geometry); if (r) rings.push(r); }
       else if (e.type === 'relation' && e.members) {
@@ -87,7 +92,7 @@ export function readDetail(box = BOX) {
       if (rings.length) emit(e, t, rings, buildings);
     }
   }
-  return { buildings, points, missing };
+  return { buildings, points, missing, underground };
 }
 function emit(e, t, rings, out, piece = '') {
   const [o, ...hs] = rings; if (area(o) < 0) o.reverse(); for (const h of hs) if (area(h) > 0) h.reverse();

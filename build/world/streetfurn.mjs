@@ -23,6 +23,7 @@
 import { crossingSpan, signalFoot, hasSignal } from '../../src/streetgeo.js';
 import { readTile as readBldTile, KIND } from './blocks.mjs';
 import { readRealTile } from './osmbuildings.mjs';
+import { placePoints, midCrossings, PTYPE } from './streetpoints.mjs';
 
 const RANK = { trunk: 0, primary: 0, secondary: 1, tertiary: 2, residential: 3, living_street: 3, unclassified: 3 };
 const rankOf = (hw) => (hw in RANK ? RANK[hw] : 9);
@@ -33,7 +34,7 @@ export const LAMP_GAP = [32, 29, 24, 30];
 // trees: Seoul's street trees by share (ginkgo, plane tree, zelkova, cherry), crown radius and planting interval of each
 export const SPECIES = [{ name: 'ginkgo', share: 0.4, r: 1.5, gap: 8 }, { name: 'plane', share: 0.25, r: 2.3, gap: 10 }, { name: 'zelkova', share: 0.2, r: 2.2, gap: 9 }, { name: 'cherry', share: 0.15, r: 1.9, gap: 8 }];
 export const TREE_MIN_WALK = 2.5;
-export const TYPE = { lamp: 0, tree: 1 };
+export const TYPE = { lamp: 0, tree: 1, ...PTYPE };
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b + 1, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 const speciesOf = (ri) => { const u = hash(ri, 7771); let a = 0; for (let k = 0; k < SPECIES.length; k++) { a += SPECIES[k].share; if (u < a) return k; } return 0; };
 
@@ -145,17 +146,22 @@ export function makeJudge(R, bld, junctions) {
     if (b.poly) return d > 0 && who.len >= 3 && Math.abs(who.s) < (big ? 4 : 1.5) + half;
     return Math.abs(v) > b.hd && Math.abs(u) < (big ? 4 : 1.5) + half;
   };
-  // the nearest carriageway within r: its line, the distance from its edge (negative: on it) and the unit direction from the point toward its centre
-  const nearestRoad = (x, z, r) => {
+  // the nearest carriageway within r: its line, the distance from its edge (negative: on it) and the unit direction from the point toward its centre;
+  // surface: leave out the segments in a tunnel (a stop or a crossing on the street above one belongs to the street)
+  const nearestRoad = (x, z, r, surface = false) => {
     let best = null;
     for (const [rj, i] of sg.near(x, z, r)) {
+      if (surface && (roads[rj].cls[i] === 2 || roads[rj].cls[i + 1] === 2)) continue;
       const o = roads[rj], dx = o.x[i + 1] - o.x[i], dz = o.z[i + 1] - o.z[i], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o.x[i]) * dx + (z - o.z[i]) * dz) / l2));
-      const ex = o.x[i] + dx * t - x, ez = o.z[i] + dz * t - z, d = Math.hypot(ex, ez);
-      if (d - o.half < r && (!best || d - o.half < best.gap)) best = { ri: rj, gap: d - o.half, nx: ex / (d || 1), nz: ez / (d || 1) };
+      const ex = o.x[i] + dx * t - x, ez = o.z[i] + dz * t - z, d = Math.hypot(ex, ez), l = Math.sqrt(l2);
+      // also the foot on the centre line, the line's direction there and its height (where a record is set against the kerb)
+      if (d - o.half < r && (!best || d - o.half < best.gap)) best = { ri: rj, i, gap: d - o.half, nx: ex / (d || 1), nz: ez / (d || 1), fx: x + ex, fz: z + ez, tx: dx / l, tz: dz / l, y: o.y[i] + (o.y[i + 1] - o.y[i]) * t };
     }
     return best;
   };
-  return { B, groundY, water, bdist, roadsNear, nearestRoad, onCrossing, nearPole, hidesSignal, nearPlaced, entrance, add: (rec) => placed.add(rec.x, rec.z, rec) };
+  // a crossing away from junctions (streetpoints.mjs midCrossings): a box across its road, in the frame the junction crossings use
+  const addCross = (c) => cross.add(c.x, c.z, { x: c.x, z: c.z, dx: c.tx, dz: c.tz, s0: -c.wid / 2, s1: c.wid / 2, lat: c.half + 3 });
+  return { B, groundY, water, bdist, roadsNear, nearestRoad, onCrossing, nearPole, hidesSignal, nearPlaced, entrance, addCross, add: (rec) => placed.add(rec.x, rec.z, rec) };
 }
 
 // walk one side of a pavement run: the polyline of the kerb, offset `lat` from the road's centre line, with arc length (for stations)
@@ -176,8 +182,13 @@ function sideOf(L, r, sd, lat) {
 }
 
 // place the lamps and trees of all runs; returns the items ({ t, x, z, y, yaw, v, bridge, ri, ti, tj }) and the count of refusals by reason and type
-export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = []) {
-  const roads = R.roads, J = makeJudge(R, bld, junctions), items = [], why = { lamp: {}, tree: {} }, no = (t, k) => { why[t][k] = (why[t][k] || 0) + 1; return false; };
+// rec: the street records (streets.mjs): `points` (bus stops, entrances, benches...), `cross` (crossing records) and `used` (those a junction arm took)
+export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = [], rec = null) {
+  const roads = R.roads, J = makeJudge(R, bld, junctions), items = [], why = { lamp: {}, tree: {}, point: {}, mid: {} }, no = (t, k) => { why[t][k] = (why[t][k] || 0) + 1; return false; };
+  // ---- the records first (streetpoints.mjs): the crossings away from junctions, then the stops, entrances and small things, so lamps and trees keep off them
+  const mids = rec ? midCrossings(J, roads, junctions, rec.cross || [], rec.used || new Set(), why.mid) : [];
+  for (const c of mids) J.addCross(c);
+  if (rec) for (const it of placePoints(J, roads, rec.points || [], why.point)) items.push(it);
   // the ends of runs that are junctions (a tree keeps the sight triangle there clear)
   const jEnds = new Set(); for (const j of junctions) for (const a of j.arms) jEnds.add(a.ri + ':' + a.i);
   const order = runs.map((r, q) => q).sort((a, b) => rankOf(roads[runs[a].ri].hw) - rankOf(roads[runs[b].ri].hw) || a - b);
@@ -214,7 +225,7 @@ export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = []) 
   why.realTree = {};
   for (const p of [...realTrees].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
     const y = J.groundY(p.x, p.z), seg = J.nearestRoad(p.x, p.z, 25), sp = seg ? speciesOf(seg.ri) : 0, SP = SPECIES[sp];
-    const res = J.water(p.x, p.z) ? 'water' : J.bdist(p.x, p.z).d < 0.4 ? 'building' : seg && seg.gap < 0.3 ? 'road' : J.nearPlaced(p.x, p.z, 1.5, 1) ? 'tree' : true;
+    const res = J.water(p.x, p.z) ? 'water' : J.bdist(p.x, p.z).d < 0.4 ? 'building' : seg && seg.gap < 0.3 ? 'road' : J.nearPlaced(p.x, p.z, 1.5, 1) ? 'tree' : J.nearPlaced(p.x, p.z, 2.5, PTYPE.bus) || J.nearPlaced(p.x, p.z, 3, PTYPE.subway) ? 'stop' : true;
     if (res !== true) { why.realTree[res] = (why.realTree[res] || 0) + 1; continue; }
     const ix = seg ? seg.nx : 1, iz = seg ? seg.nz : 0;
     const it = { t: 1, x: p.x, z: p.z, y, ix, iz, v: sp | (Math.floor(hash(Math.round(p.x * 3), Math.round(p.z * 3)) * 8) << 2) | 32, bridge: 0, ri: seg ? seg.ri : -1, r: SP.r, real: true };
@@ -241,7 +252,8 @@ export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = []) 
     }
   }
   for (const it of items) { const [ti, tj] = tileOf(it.x, it.z); it.ti = ti; it.tj = tj; }
-  return { items, why, judge: J };
+  for (const c of mids) { const [ti, tj] = tileOf(c.x, c.z); c.ti = ti; c.tj = tj; }
+  return { items, mids, why, judge: J };
 
   // a lamp pole at station st: true, or the reason it does not belong there
   function lampAt(J, st, ri, H, S, sd, L) {
@@ -257,6 +269,7 @@ export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = []) 
     if (J.nearPole(st.x, st.z, 10)) return 'signal';
     // already lit: a lamp of this or another road within 60 % of this road's interval
     if (J.nearPlaced(st.x, st.z, S * 0.6, 0)) return 'lit';
+    if (J.nearPlaced(st.x, st.z, 3.5, PTYPE.bus) || J.nearPlaced(st.x, st.z, 3.5, PTYPE.subway)) return 'stop';
     if (J.entrance(st.x, st.z, 0)) return 'entrance';
     void sd; void L;
     return true;
@@ -275,6 +288,7 @@ export function placeFurniture(R, bld, junctions, runs, tileOf, realTrees = []) 
     if (J.onCrossing(st.x, st.z, 4)) return 'crossing';
     if (J.nearPole(st.x, st.z, 6) || J.hidesSignal(st.x, st.z)) return 'signal';
     if (J.nearPlaced(st.x, st.z, 4, 0)) return 'lamp';
+    if (J.nearPlaced(st.x, st.z, 3.5, PTYPE.bus) || J.nearPlaced(st.x, st.z, 3.5, PTYPE.subway) || J.nearPlaced(st.x, st.z, 1.5, PTYPE.vending)) return 'stop';
     if (J.nearPlaced(st.x, st.z, SP.gap * 0.8, 1)) return 'tree';
     if (J.entrance(st.x, st.z, SP.r * 0.5)) return 'entrance';
     return true;

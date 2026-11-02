@@ -46,7 +46,9 @@ async function gameUrl(where = GAME) {
   const st = fs.existsSync(where) && fs.statSync(where);
   return st && st.isFile() ? (await serve(path.dirname(where))) + path.basename(where) : await serve(where);
 }
-const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+// the software GPU takes over half a minute for the first frame of a full street view (every program compiled at once): the GPU watchdog killed it,
+// and the page with it ("Target crashed"), so the watchdog is off
+const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-watchdog'];
 
 // open the game at quality tier q, wait until it is ready, start it; returns { browser, page, errors }
 // `init`: a script run in the page before any of its own (e.g. a seeded Math.random)

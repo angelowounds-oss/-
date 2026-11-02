@@ -21,7 +21,7 @@ export const keepRel = (t) => 'building' in t && t.type === 'multipolygon';
 const attr = (line, k) => { const i = line.indexOf(` ${k}="`); if (i < 0) return null; const j = line.indexOf('"', i + k.length + 3); return line.slice(i + k.length + 3, j); };
 const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 // every element of the file in order: { type, id, lat, lon, tags, refs, members }, calling fn for each
-async function scan(file, fn) {
+export async function scan(file, fn) {
   const rl = readline.createInterface({ input: fs.createReadStream(file).pipe(zlib.createGunzip()), crlfDelay: Infinity });
   let cur = null;
   for await (const raw of rl) {

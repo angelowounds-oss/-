@@ -24,6 +24,13 @@ export function overpass(name, ql) {
   throw new Error('overpass failed: ' + name);
 }
 export const bbox = (b) => `${b.s},${b.w},${b.n},${b.e}`;
+// the road and place queries of a compiled region as [cache name, query]: compile.mjs asks them, bbbike-roads.mjs fills the same cache files without them
+export const ROAD_MAJOR = 'motorway|trunk|primary|secondary|motorway_link|trunk_link|primary_link|secondary_link|tertiary|tertiary_link', ROAD_MINOR = 'residential|unclassified|living_street', PLACE = 'city|town|village|suburb';
+export const REGION_QL = {
+  roads: (r, B4) => [`roads-${r}`, `[out:json][timeout:240];way["highway"~"^(${ROAD_MAJOR})$"](${B4});out geom tags;`],
+  minor: (r, B4) => [`roads-minor-${r}`, `[out:json][timeout:300];way["highway"~"^(${ROAD_MINOR})$"](${B4});out geom tags;`],
+  places: (r, B4) => [`places-${r}`, `[out:json][timeout:120];(node["place"~"^(${PLACE})$"]["name"](${B4}););out;`],
+};
 
 // the cache file of a query (the same name the synchronous call reads, so a prefetch fills it)
 export const cacheFile = (name, ql) => path.join(CACHE, `${name}-${crypto.createHash('sha1').update(ql).digest('hex').slice(0, 10)}.json`);

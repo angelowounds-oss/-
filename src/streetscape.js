@@ -4,6 +4,7 @@ import { regionRoads } from './region.js';
 import { roadAt } from './roadnet.js';
 import { nightU } from './shaders.js';
 import { GR, grp } from './physics.js';
+import { SignAtlas, PLATE } from './signatlas.js';
 import { decodeTile, trims, radiusOf, signalGroups, signalState, crossingSpan, signalFoot, hasSignal, TILE, TILE_OFF as OFF } from './streetgeo.js';
 
 // The street furniture of the capital region (WLD-24g): pavements with kerbs, rounded kerb corners at junctions, zebra crossings and stop lines, signal poles whose
@@ -11,9 +12,11 @@ import { decodeTile, trims, radiusOf, signalGroups, signalState, crossingSpan, s
 // pavement runs along road lines with the length trimmed off at each end; the shapes come from the compiled road samples (regionRoads) at run time, in the
 // same way the road itself is drawn (highways.js artPiece: edge at `half`, never below the drawn ground), so that the pavement meets the asphalt. Like the
 // buildings (realbuildings.js) a tile is built a little every frame and uses materials that already exist, so no program is compiled while playing (ARCHITECTURE.md
-// section 3). Placement is by rule (road class, width, the number of buildings around), not from a cadastre.
+// section 3). Lamps and trees are placed by rule where the map is silent; bus stops, subway entrances, benches, bins, hydrants, vending machines and the
+// crossings away from junctions are records (OpenStreetMap, Seoul open data), each judged by the bake before it stands (ADR-0042).
 const KERB = 0.13;            // height of the kerb stone above the asphalt edge (Seoul: 12 - 15 cm)
 const LIFT = 0.05;            // the drawn road is never lower than the ground + this (highways.js)
+const DECK = 1.7;             // the depth of a bridge deck's fascia below its surface (highways.js)
 const PAVE = [[0.30, 0.29, 0.27], [0.26, 0.255, 0.24]], KERBC = [0.42, 0.41, 0.39], ASPH = [0.050, 0.052, 0.058], WHITE = [0.78, 0.78, 0.74];
 const BUS = [0.10, 0.30, 0.85];   // the blue of a bus-only lane line
 const LANE_W = 3.75, TURN = { L: 1, S: 2, R: 4 };   // as build/world/streets.mjs
@@ -23,6 +26,10 @@ const POLE = [0.20, 0.21, 0.22], POLE_G = [0.30, 0.34, 0.31], HOUSING = [0.04, 0
 const TREE = [{ r: 1.5, tall: 1.7, trunk: 2.6, col: [0.17, 0.25, 0.06] }, { r: 2.3, tall: 1.0, trunk: 3.0, col: [0.10, 0.20, 0.06] }, { r: 2.2, tall: 0.9, trunk: 3.2, col: [0.07, 0.16, 0.05] }, { r: 1.9, tall: 0.8, trunk: 2.2, col: [0.12, 0.19, 0.07] }];
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b + 1, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 const LAMP_H = [10, 9, 7.5, 6];   // mounting height by rank, as build/world/streetfurn.mjs LAMP_H
+// the street's records (build/world/streetpoints.mjs PTYPE and its footprints): bus stop, subway entrance, bench, bin, hydrant, vending machine
+const P = { bus: 2, subway: 3, bench: 4, bin: 5, hydrant: 6, vending: 7 }, SHELTER = { hl: 2.6, hw: 0.75, h: 2.6 }, ENTRANCE = { hl: 2.6, hw: 1.4, h: 2.7 };
+const GLASS = [0.30, 0.36, 0.40], STEEL = [0.26, 0.27, 0.28], ROOF = [0.20, 0.22, 0.24], SEAT = [0.36, 0.25, 0.15], STOP_BLUE = [0.08, 0.26, 0.70], METRO = [0.05, 0.32, 0.55], DARK = [0.015, 0.015, 0.018];
+const BIN = [0.20, 0.26, 0.24], HYDRANT = [0.62, 0.06, 0.05], VEND = [0.62, 0.10, 0.08];
 
 // merged geometry in the frame of its tile (x and z relative to the tile centre, y absolute)
 class Geo {
@@ -63,14 +70,18 @@ class Geo {
 
 // ---- one tile built a slice at a time
 class TileBuild {
-  constructor(key, ti, tj, chunk, lines) {
-    this.key = key; this.ti = ti; this.tj = tj; this.chunk = chunk; this.lines = lines;
+  constructor(key, ti, tj, chunk, lines, atlas = null) {
+    this.key = key; this.ti = ti; this.tj = tj; this.chunk = chunk; this.lines = lines; this.atlas = atlas;
+    this.T = { p: [], n: [], uv: [], i: [] }; this.names = [];   // the road name plates (textured from the shared atlas) and the names they hold
     this.ox = (ti - OFF) * TILE + TILE / 2; this.oz = (tj - OFF) * TILE + TILE / 2;
     this.S = new Geo(this.ox, this.oz); this.M = new Geo(this.ox, this.oz); this.G = new Geo(this.ox, this.oz);   // solid things, markings, glow
     this.top = { p: [], i: [] };    // the walkable pavement tops (the physics mesh)
     this.heads = [];                // signal heads: x, y, z, facing x, z, group, junction phase, junction id
     this.obst = [];                 // poles and trunks (solid near the player): x, z, y0, h, radius
-    this.stats = { pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0 };
+    this.recs = [];                 // the stops and entrances as placed (where the tests look for them)
+    this.boxes = [];                // shelters, entrances, benches, vending machines (solid near the player): x, z, y0, h, half along, half across, yaw
+    this.plateAt = [];              // the name plates: centre x, y, z and the direction they face (dx, dz) (the tests look at them)
+    this.stats = { pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0, stops: 0, shelters: 0, entrances: 0, small: 0, mid: 0, plates: 0, deepSkirt: 0 };
     this.seg = 0; this.g = this.run();
   }
   step(ms) {
@@ -78,11 +89,17 @@ class TileBuild {
     for (;;) { if (this.g.next().done) return true; if (performance.now() - t0 > ms) return false; }
   }
   *run() {
-    const { J, R, F } = decodeTile(this.ti + '_' + this.tj, this.chunk);   // the key without its 'str/' prefix
+    const { J, R, F, C } = decodeTile(this.ti + '_' + this.tj, this.chunk);   // the key without its 'str/' prefix
     for (const j of J) { this.junction(j); yield; }
     for (let q = 0; q < R.length; q++) { this.strip(R[q], q); yield; }
-    // lamps and trees stand where the bake judged they belong (build/world/streetfurn.mjs); nothing is added here by spacing
-    for (let k = 0; k < F.length; k++) { const f = F[k]; if (f.t === 0) this.lamp(f); else this.tree(f); if ((k & 31) === 31) yield; }
+    for (const c of C) this.midCross(c);
+    // lamps, trees and the records stand where the bake judged they belong (build/world/streetfurn.mjs, streetpoints.mjs); nothing is added here by spacing
+    for (let k = 0; k < F.length; k++) {
+      const f = F[k];
+      if (f.t === 0) this.lamp(f); else if (f.t === 1) this.tree(f); else if (f.t === P.bus) this.stop(f); else if (f.t === P.subway) this.entrance(f); else this.small(f);
+      if (f.t === P.bus || f.t === P.subway) this.recs.push({ t: f.t, x: f.x, z: f.z, ix: f.ix, iz: f.iz, v: f.v });
+      if ((k & 31) === 31) yield;
+    }
   }
   // the height of the drawn road at (x, z) near a junction: the road's own height there, never under the ground (as highways.js draws it)
   roadY(x, z, fallback) { const r = roadAt(x, z, 14), g = landHeight(x, z, 16) + LIFT; return Math.max(r ? r.y : fallback, g); }
@@ -145,11 +162,35 @@ class TileBuild {
         // the housing hangs from the arm's tip; its three lamps face along the arm's outward direction (dx, dz)
         this.S.box(tx, y0 + 5.2, tz, dx, dz, 0.16, 0.17, 0.52, HOUSING, true);
         this.heads.push(tx + dx * 0.17, y0 + 5.2, tz + dz * 0.17, dx, dz, gr[k], phase);
+        this.namePlate(j, k, gr, px, pz, tx, tz, y0, dx, dz);
         this.obst.push(px, pz, y0, 6.3, 0.1); this.stats.signals++;
       }
     }
   }
 
+  // ---- the road name plate under a signal arm (WLD-24g-4): the name of the road the arriving driver crosses (an arm of the other signal group), facing them,
+  // as Korea hangs them on the signal poles; only real names from the map (the line's OSM `name`), none where the map has none
+  namePlate(j, k, gr, px, pz, tx, tz, y0, dx, dz) {
+    if (!this.atlas) return;
+    const own = this.lines[j.arms[k].line]?.name; let best = null;
+    j.arms.forEach((b, m) => { const nm = this.lines[b.line]?.name; if (m === k || gr[m] === gr[k] || !nm || nm === own) return; if (!best || b.rank < best.rank) best = { rank: b.rank, nm }; });
+    if (!best) return;
+    const al = Math.hypot(tx - px, tz - pz), w = Math.min(PLATE.w, al - 0.6); if (w < 1) return;
+    const uv = this.atlas.take(best.nm); if (!uv) return;
+    this.names.push(best.nm);
+    const ux = (tx - px) / al, uz = (tz - pz) / al, s0 = 0.25, y1 = y0 + 5.82, y2 = y1 - PLATE.h, f = 0.035;
+    // the text runs to the right of a driver who looks against (dx, dz): their right is (dz, -dx)
+    const flip = ux * dz - uz * dx < 0, A = [px + ux * s0 + dx * f, pz + uz * s0 + dz * f], B = [px + ux * (s0 + w) + dx * f, pz + uz * (s0 + w) + dz * f];
+    const [L, R] = flip ? [B, A] : [A, B], T = this.T, q = T.p.length / 3;
+    for (const [P, y] of [[L, y2], [R, y2], [R, y1], [L, y1]]) { T.p.push(P[0] - this.ox, y, P[1] - this.oz); T.n.push(dx, 0, dz); }
+    T.uv.push(uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[3]);
+    // L -> R runs to the viewer's right and y up, so (L, R, top) is counter-clockwise seen from the front: the face normal is (dx, dz)
+    T.i.push(q, q + 1, q + 2, q, q + 2, q + 3);
+    // the back of the plate and the clamp to the arm
+    const cx = (A[0] + B[0]) / 2 - dx * 0.05, cz = (A[1] + B[1]) / 2 - dz * 0.05;
+    this.S.box(cx, (y1 + y2) / 2, cz, ux, uz, w / 2, 0.025, PLATE.h / 2, STEEL); this.plateAt.push(cx + dx * 0.05, (y1 + y2) / 2, cz + dz * 0.05, dx, dz);
+    this.stats.plates++;
+  }
   // the centre of arriving lane k of an arm, as a lateral offset in the arm's frame (n = the driver's right when leaving): the lanes are counted from the
   // driver's left, 3.75 m each, as the asphalt texture paints them (highways.js asphaltTexture: from the yellow edge outward)
   laneLat(a, k, oneway) {
@@ -222,7 +263,7 @@ class TileBuild {
       const prof = cuts.map((s) => {
         const st = at(s), ix = st.x + st.rx * sd * half, iz = st.z + st.rz * sd * half, ox = st.x + st.rx * sd * (half + w), oz = st.z + st.rz * sd * (half + w);
         const gi = landHeight(ix, iz, 16) + LIFT, go = landHeight(ox, oz, 16), yi = st.cls ? st.y : Math.max(st.y, gi), yt = yi + KERB, yo = st.cls ? yt : Math.max(yt, go + 0.03);
-        return { st, i: [ix, yi, iz], it: [ix, yt, iz], o: [ox, yo, oz], go };
+        return { st, i: [ix, yi, iz], it: [ix, yt, iz], o: [ox, yo, oz], go, deck: st.cls === 1 };
       });
       // a little tone change from run to run, and a paver pattern by segment
       const tone = 0.92 + 0.16 * hash(q * 2 + (sd > 0 ? 1 : 0), this.ti * 977 + this.tj);
@@ -231,8 +272,13 @@ class TileBuild {
         const mx = (A.st.rx + B.st.rx) / 2 * sd, mz = (A.st.rz + B.st.rz) / 2 * sd;
         this.S.quad(A.i, B.i, B.it, A.it, KERBC, -mx, 0, -mz);
         this.topQuad(A.it, A.o, B.o, B.it, col);
-        // a face down to the ground beside the pavement where the ground is lower (a bridge deck edge, an embankment)
-        if (A.o[1] - A.go > 0.05 || B.o[1] - B.go > 0.05) { const dn = (P, g) => [P[0], Math.min(g - 0.1, P[1] - 0.3), P[2]]; this.S.quad(A.o, dn(A.o, A.go), dn(B.o, B.go), B.o, KERBC, mx, 0, mz); }
+        // a face down beside the pavement where the ground is lower: on an embankment down to the ground, on a bridge only the deck's own fascia (as deep
+        // as the road's, highways.js); a face to the ground there was a wall under the whole flyover (의사당대로 in Yeouido, seen as a pale wedge)
+        if (A.o[1] - A.go > 0.05 || B.o[1] - B.go > 0.05) {
+          const dn = (P, g, deck) => { const y = Math.min(g - 0.1, P[1] - 0.3); return [P[0], deck ? Math.max(y, P[1] - DECK) : y, P[2]]; };
+          const a = dn(A.o, A.go, A.deck), b = dn(B.o, B.go, B.deck); if ((A.deck && A.o[1] - a[1] > DECK + 0.05) || (B.deck && B.o[1] - b[1] > DECK + 0.05)) this.stats.deepSkirt++;
+          this.S.quad(A.o, a, b, B.o, KERBC, mx, 0, mz);
+        }
         this.stats.pave += Math.hypot(B.st.x - A.st.x, B.st.z - A.st.z);
       }
     }
@@ -251,6 +297,65 @@ class TileBuild {
       }
     }
     this.stats.bus++;
+  }
+  // ---- a zebra crossing away from junctions (a Seoul polygon or a map node, build/world/streetpoints.mjs): stripes along the road over its carriageway
+  midCross(c) {
+    const nx = -c.tz, nz = c.tx, half = c.half, w2 = c.wid / 2;
+    const at = (s, lat) => { const x = c.x + c.tx * s + nx * lat, z = c.z + c.tz * s + nz * lat; return [x, this.roadY(x, z, c.y) + 0.03, z]; };
+    const cnt = Math.max(2, Math.floor(2 * half)), step = (2 * half - 0.5) / (cnt - 1);
+    for (let q = 0; q < cnt; q++) { const lat = -half + 0.25 + q * step; this.M.quad(at(-w2, lat - 0.25), at(-w2, lat + 0.25), at(w2, lat + 0.25), at(w2, lat - 0.25), WHITE, 0, 1, 0); }
+    this.stats.mid++;
+  }
+  // a solid footprint for the physics near the player: centre, foot, height, half extents along (ux, uz) and across
+  solidBox(x, z, y0, h, ux, uz, hl, hw) { this.boxes.push(x, z, y0, h, hl, hw, Math.atan2(-uz, ux)); }
+  // ---- a bus stop: a shelter (roof, glass back and sides, a bench) with its sign at the end, or only the sign on a pole; (ix, iz) points to the road
+  stop(f) {
+    const { x, z, ix, iz } = f, y0 = this.footY(f), ux = -iz, uz = ix, S = this.S;
+    const sign = (px, pz) => { S.box(px, y0 + 1.4, pz, ux, uz, 0.05, 0.05, 1.4, POLE); S.box(px, y0 + 2.45, pz, ux, uz, 0.02, 0.32, 0.32, STOP_BLUE); };
+    if (f.v & 1) {
+      const { hl, hw, h } = SHELTER, bx = -ix * (hw - 0.05), bz = -iz * (hw - 0.05);
+      S.box(x, y0 + h - 0.05, z, ux, uz, hl + 0.1, hw + 0.1, 0.05, ROOF, true);
+      S.box(x + bx, y0 + 1.3, z + bz, ux, uz, hl, 0.03, 1.1, GLASS);
+      for (const e of [-1, 1]) {
+        S.box(x + ux * e * (hl - 0.03) - ix * 0.1, y0 + 1.3, z + uz * e * (hl - 0.03) - iz * 0.1, ux, uz, 0.03, hw - 0.2, 1.1, GLASS);
+        for (const g of [-1, 1]) S.box(x + ux * e * hl + ix * g * hw, y0 + (h - 0.1) / 2, z + uz * e * hl + iz * g * hw, ux, uz, 0.05, 0.05, (h - 0.1) / 2, STEEL);
+      }
+      S.box(x - ix * 0.35, y0 + 0.45, z - iz * 0.35, ux, uz, hl * 0.6, 0.2, 0.04, SEAT);
+      sign(x + ux * (hl + 0.6) + ix * 0.5, z + uz * (hl + 0.6) + iz * 0.5);
+      this.solidBox(x, z, y0, h, ux, uz, hl, hw); this.stats.shelters++;
+    } else { sign(x, z); this.obst.push(x, z, y0, 2.8, 0.08); }
+    this.stats.stops++;
+  }
+  // ---- a subway entrance: the canopy over the stairs (low walls with glass above, a roof, the far end closed), open at one end, with the sign there
+  entrance(f) {
+    const { x, z, ix, iz } = f, y0 = this.footY(f), ux = -iz, uz = ix, vx = -uz, vz = ux, S = this.S, { hl, hw, h } = ENTRANCE;
+    for (const e of [-1, 1]) { const cx = x + vx * e * (hw - 0.08), cz = z + vz * e * (hw - 0.08); S.box(cx, y0 + 0.5, cz, ux, uz, hl, 0.08, 0.5, STEEL); S.box(cx, y0 + 1.75, cz, ux, uz, hl, 0.03, 0.75, GLASS); }
+    S.box(x - ux * (hl - 0.03), y0 + h / 2, z - uz * (hl - 0.03), ux, uz, 0.03, hw, h / 2, GLASS);
+    S.box(x, y0 + h, z, ux, uz, hl + 0.15, hw + 0.15, 0.06, ROOF, true);
+    // the stairwell reads as a dark opening in the pavement
+    const q = (a, b) => [x + ux * a + vx * b, y0 + 0.02, z + uz * a + vz * b], a = hl - 0.2, b = hw - 0.2;
+    this.M.quad(q(-a, -b), q(a, -b), q(a, b), q(-a, b), DARK, 0, 1, 0);
+    const px = x + ux * (hl + 0.7) + vx * (hw + 0.3), pz = z + uz * (hl + 0.7) + vz * (hw + 0.3);
+    S.box(px, y0 + 1.5, pz, ux, uz, 0.06, 0.06, 1.5, POLE); S.box(px, y0 + 2.75, pz, ux, uz, 0.3, 0.3, 0.3, METRO);
+    this.solidBox(x, z, y0, h, ux, uz, hl, hw); this.obst.push(px, pz, y0, 3, 0.08); this.stats.entrances++;
+  }
+  // ---- a bench (facing the pavement), a litter bin, a fire hydrant, a vending machine
+  small(f) {
+    const { x, z, ix, iz } = f, y0 = this.footY(f), ux = -iz, uz = ix, S = this.S;
+    if (f.t === P.bench) {
+      S.box(x, y0 + 0.43, z, ux, uz, 0.9, 0.22, 0.03, SEAT); S.box(x + ix * 0.22, y0 + 0.72, z + iz * 0.22, ux, uz, 0.9, 0.02, 0.2, SEAT);
+      for (const e of [-1, 1]) S.box(x + ux * e * 0.75, y0 + 0.2, z + uz * e * 0.75, ux, uz, 0.03, 0.2, 0.2, STEEL);
+      this.solidBox(x, z, y0, 0.5, ux, uz, 0.9, 0.25);
+    } else if (f.t === P.bin) { S.box(x, y0 + 0.45, z, ux, uz, 0.22, 0.22, 0.45, BIN); this.obst.push(x, z, y0, 0.9, 0.22); }
+    else if (f.t === P.hydrant) { S.box(x, y0 + 0.35, z, ux, uz, 0.11, 0.11, 0.35, HYDRANT); S.box(x, y0 + 0.75, z, ux, uz, 0.08, 0.08, 0.05, HYDRANT); this.obst.push(x, z, y0, 0.8, 0.12); }
+    else {
+      // its back to the road: the front with the lit panel faces the pavement, away from (ix, iz)
+      S.box(x, y0 + 0.92, z, ux, uz, 0.5, 0.38, 0.92, VEND);
+      const fx = x - ix * 0.39, fz = z - iz * 0.39, c = (a, b) => [fx + ux * a, y0 + b, fz + uz * a];
+      this.G.quad(c(-0.4, 0.9), c(0.4, 0.9), c(0.4, 1.7), c(-0.4, 1.7), [1.6, 1.6, 1.5], -ix, 0, -iz);
+      this.solidBox(x, z, y0, 1.85, ux, uz, 0.5, 0.38);
+    }
+    this.stats.small++;
   }
   // ---- a cobra-head street lamp: pole, arm over the kerb lane, housing, and the glowing lens under it
   lamp(f) {
@@ -298,13 +403,15 @@ export class Streetscape {
     const high = globalThis.__DETAIL === 'high', simple = !!G?.eng?.q?.simple;
     this.R = simple ? 400 : high ? 1000 : 700;   // how far tiles are drawn (a lamp or a kerb beyond this is only a speck in the fog)
     this.RC = 70;                                  // how close poles, trunks and the pavement are solid
-    this.stats = { tiles: 0, solid: 0, pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0, walk: 0, tris: 0 };
+    this.stats = { tiles: 0, solid: 0, pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0, stops: 0, shelters: 0, entrances: 0, small: 0, mid: 0, plates: 0, deepSkirt: 0, walk: 0, tris: 0 };
     for (const k of wd?.keys('str/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 1024 + tj, { key: k, ti, tj }); }
     const hw = G?.highways?.mats;
     // the same programs as the road structures (vertex-coloured standard) and the lights (basic): nothing new to compile
     this.mat = hw?.struct || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 });
     this.markMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     this.glowMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+    // the road name plates: one atlas texture and one material for all of them (signatlas.js)
+    this.atlas = new SignAtlas(); this.signMat = new THREE.MeshStandardMaterial({ map: this.atlas.tex, roughness: 0.55, metalness: 0 });
     this.group = new THREE.Group(); this.group.name = 'streetscape'; scene.add(this.group);
     // signal lamps: a box each, in three colours, placed every half second for the heads near the focus
     const lampG = new THREE.BoxGeometry(0.2, 0.2, 0.06);
@@ -314,6 +421,8 @@ export class Streetscape {
     });
     // placeholders with the attributes of the tile meshes: the loading warm-up compiles each material once, for every tile after it
     const ph = () => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3)); return g; };
+    const phUV = () => { const g = ph(); g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2)); return g; };
+    { const w = new THREE.Mesh(phUV(), this.signMat); w.frustumCulled = false; w.position.set(0, -400, 0); w.receiveShadow = true; this.group.add(w); }
     for (const m of [this.mat, this.markMat, this.glowMat]) { const w = new THREE.Mesh(ph(), m); w.frustumCulled = false; w.position.set(0, -400, 0); w.castShadow = m !== this.glowMat; w.receiveShadow = m !== this.glowMat; this.group.add(w); }
     this.m4 = new THREE.Matrix4(); this.sigAt = -9;
   }
@@ -338,31 +447,39 @@ export class Streetscape {
       for (const { e } of want) {
         const id = e.ti * 1024 + e.tj; keep.add(id); if (this.tiles.has(id)) continue;
         const rec = { e, state: 'loading', meshes: null, col: null, solid: new Map() }; this.tiles.set(id, rec);
-        this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk, this.lines); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('streetscape', e.key, err); });
+        this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk, this.lines, this.atlas); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('streetscape', e.key, err); });
       }
       for (const [id, rec] of this.tiles) {
         const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2, d = Math.hypot(focus.x - cx, focus.z - cz);
         if (!keep.has(id) && d > this.R + 450) this.drop(id, rec);
       }
-      this.stats.tiles = this.tiles.size;
+      this.stats.tiles = this.tiles.size; this.atlas.flush();
     }
     if (this.t - this.lastCol >= 0.25) { this.lastCol = this.t; this.solid(focus); }
     if (this.t - this.sigAt >= 0.5) { this.sigAt = this.t; this.signals(focus); }
   }
   finish(b) {
-    const id = b.ti * 1024 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) return;
+    const id = b.ti * 1024 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) { for (const n of b.names) this.atlas.give(n); return; }
     const meshes = [];
     for (const [geo, mat] of [[b.S, this.mat], [b.M, this.markMat], [b.G, this.glowMat]]) {
       if (geo.empty) continue;
       const m = new THREE.Mesh(geo.geometry(), mat); m.position.set(b.ox, 0, b.oz); m.matrixAutoUpdate = false; m.updateMatrix(); m.receiveShadow = mat !== this.glowMat; m.castShadow = false; m.name = 'str ' + b.key; this.group.add(m); meshes.push(m);
       this.stats.tris += geo.i.length / 3;
     }
-    rec.meshes = meshes; rec.state = 'ready'; rec.heads = new Float32Array(b.heads); rec.obst = new Float32Array(b.obst); rec.topP = new Float32Array(b.top.p); rec.topI = new Uint32Array(b.top.i); rec.tris = b.S.i.length / 3 + b.M.i.length / 3 + b.G.i.length / 3;
-    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
+    if (b.T.i.length) {
+      const g = new THREE.BufferGeometry(), T = b.T;
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(T.p), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(T.n), 3)); g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(T.uv), 2)); g.setIndex(T.i); g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, this.signMat); m.position.set(b.ox, 0, b.oz); m.matrixAutoUpdate = false; m.updateMatrix(); m.receiveShadow = true; m.name = 'str plates ' + b.key; this.group.add(m); meshes.push(m);
+      this.stats.tris += T.i.length / 3;
+    }
+    rec.names = b.names;
+    rec.meshes = meshes; rec.state = 'ready'; rec.heads = new Float32Array(b.heads); rec.obst = new Float32Array(b.obst); rec.boxes = new Float32Array(b.boxes); rec.recs = b.recs; rec.plateAt = b.plateAt; rec.topP = new Float32Array(b.top.p); rec.topI = new Uint32Array(b.top.i); rec.tris = b.S.i.length / 3 + b.M.i.length / 3 + b.G.i.length / 3 + b.T.i.length / 3;
+    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus', 'stops', 'shelters', 'entrances', 'small', 'mid', 'plates', 'deepSkirt']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
   }
   drop(id, rec) {
-    if (rec.meshes) { for (const m of rec.meshes) { this.group.remove(m); m.geometry.dispose(); } this.stats.tris -= rec.tris || 0; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus']) this.stats[k] -= rec.counts[k]; }
-    if (rec.build) { const i = this.jobs.indexOf(rec.build); if (i >= 0) this.jobs.splice(i, 1); }
+    if (rec.meshes) { for (const m of rec.meshes) { this.group.remove(m); m.geometry.dispose(); } this.stats.tris -= rec.tris || 0; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus', 'stops', 'shelters', 'entrances', 'small', 'mid', 'plates', 'deepSkirt']) this.stats[k] -= rec.counts[k]; }
+    if (rec.build) { const i = this.jobs.indexOf(rec.build); if (i >= 0) this.jobs.splice(i, 1); for (const n of rec.build.names) this.atlas.give(n); }
+    for (const n of rec.names || []) this.atlas.give(n);
     this.release(rec);
     this.tiles.delete(id); this.wd.drop(rec.e.key);
   }
@@ -383,6 +500,13 @@ export class Streetscape {
       const O = rec.obst;
       if (d > near) { if (rec.solid.size) { for (const b of rec.solid.values()) this.phys.removeBox(b); rec.solid.clear(); } continue; }
       let k = 0;
+      // the footprints (shelters, entrances, benches, vending machines) after the poles, keyed on from the poles' count
+      const X = rec.boxes;
+      for (let q = 0, kb = O.length / 5; q < X.length; q += 7, kb++) {
+        const dd = Math.hypot(X[q] - fx, X[q + 1] - fz), has = rec.solid.get(kb), r = Math.max(X[q + 4], X[q + 5]);
+        if (dd < this.RC && !has) rec.solid.set(kb, this.phys.addYawBox(X[q], X[q + 2] + X[q + 3] / 2, X[q + 1], X[q + 4], X[q + 3] / 2, X[q + 5], X[q + 6], { tag: 'prop', kind: 0, x0: X[q] - r, x1: X[q] + r, z0: X[q + 1] - r, z1: X[q + 1] + r, y0: X[q + 2], h: X[q + 2] + X[q + 3] }));
+        else if (dd > this.RC + 30 && has) { this.phys.removeBox(has); rec.solid.delete(kb); }
+      }
       for (let q = 0; q < O.length; q += 5, k++) {
         const dd = Math.hypot(O[q] - fx, O[q + 1] - fz), has = rec.solid.get(k);
         if (dd < this.RC && !has) { rec.solid.set(k, this.phys.addYawBox(O[q], O[q + 2] + O[q + 3] / 2, O[q + 1], O[q + 4], O[q + 3] / 2, O[q + 4], 0, { tag: 'prop', kind: 0, x0: O[q] - O[q + 4], x1: O[q] + O[q + 4], z0: O[q + 1] - O[q + 4], z1: O[q + 1] + O[q + 4], y0: O[q + 2], h: O[q + 2] + O[q + 3] })); }

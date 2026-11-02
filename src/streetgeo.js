@@ -67,9 +67,12 @@ export function decodeTile(key, t) {
     J.push({ x: ox + t.jx[k] / 10, z: oz + t.jz[k] / 10, y: t.jy[k] / 10, signal: !!(t.jf[k] & 1), sigReal: !!(t.jf[k] & 2), arms });
   }
   for (let k = 0; k < t.nr; k++) R.push({ line: t.rline[k], i0: t.ri0[k], i1: t.ri1[k], w: t.rw[k] / 10, m: t.rm[k], bus: !!(t.rm[k] & 4), ta: [t.rta[k * 2] / 10, t.rta[k * 2 + 1] / 10], tb: [t.rtb[k * 2] / 10, t.rtb[k * 2 + 1] / 10] });
-  // lamps and trees as the bake judged them (build/world/streetfurn.mjs); tiles from before the furniture was baked have none
+  // lamps, trees and the street's records (stops, entrances, benches...) as the bake judged them (build/world/streetfurn.mjs, streetpoints.mjs); tiles from
+  // before the furniture was baked have none
   const F = []; for (let k = 0; k < (t.nf || 0); k++) { const a = t.fdir[k] / 256 * Math.PI * 2; F.push({ t: t.ft[k] & 127, bridge: t.ft[k] >> 7, x: ox + t.fx[k] / 10, z: oz + t.fz[k] / 10, y: t.fy[k] / 10, ix: Math.cos(a), iz: Math.sin(a), v: t.fv[k] }); }
-  return { J, R, F, ox, oz };
+  // crossings away from junctions (build/world/streetpoints.mjs): centre on the road's centre line, the road's direction, half its carriageway, width along it
+  const C = []; for (let k = 0; k < (t.nc || 0); k++) { const a = t.cang[k] / 65535 * Math.PI * 2; C.push({ x: ox + t.cx[k] / 10, z: oz + t.cz[k] / 10, y: t.cy[k] / 10, tx: Math.cos(a), tz: Math.sin(a), half: t.chalf[k] / 10, wid: t.cwid[k] / 10, src: t.cf[k] & 3, signal: !!(t.cf[k] & 4) }); }
+  return { J, R, F, C, ox, oz };
 }
 
 // signal groups of a junction: the arms along the main road (the arm of best rank, and those within 45 degrees of its line) are group 0, the others group 1
