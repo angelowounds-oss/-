@@ -31,7 +31,8 @@ export function emitRegion(file, name, R, gh, lines, V, places = []) {
       if (run.length >= 3) {
         const key = `${L.hw}:${L.ref || L.name || '-'}`, k = groupCount.get(key) || 0; groupCount.set(key, k + 1);
         roads.push({ id: `osm:${key}:${k}`, hw: L.hw, oneway: !!L.oneway, lanes: lanesOf(L), half: halfOf(L), ref: L.ref, name: L.name, ds: 8,
-          x: Float32Array.from(run, (q) => L.X[q] - CAPITAL.x), z: Float32Array.from(run, (q) => L.Z[q] - CAPITAL.z), y: Float32Array.from(run, (q) => L.Y[q] + SEA), cls: Uint8Array.from(run, (q) => L.cls[q]), next: [], prev: [] });
+          x: Float32Array.from(run, (q) => L.X[q] - CAPITAL.x), z: Float32Array.from(run, (q) => L.Z[q] - CAPITAL.z), y: Float32Array.from(run, (q) => L.Y[q] + SEA), cls: Uint8Array.from(run, (q) => L.cls[q]),
+          why: Uint8Array.from(run, (q) => (L.why ? L.why[q] : 0)), next: [], prev: [] });   // why: the bridge or tunnel reason (roads.mjs WHY; 1 = the map's own tag), for the flyovers of streets.mjs
       }
       run = [];
     };

@@ -10,6 +10,7 @@
 //   3. bridges: away from the abutments (ABUT metres from each end of a bridge) the ground under the deck lies at least CLEAR below it; at the abutments it
 //      meets the deck. The water is left alone, and a cell that carries a road on the ground (a street passing under) keeps that road's height.
 //   4. the roads on the ground take the graded ground's height where they are within SNAP of it (below).
+//   4b. an arterial the snap left steeper than its class allows (STEEP) is eased back along its line.
 //   5. an underpass too close under a street dips deeper, within the grade (below).
 //   node build/world/grade.mjs [region.bin]   grades the region in place (a copy of the ungraded one is kept as region-raw.bin, graded again from it)
 import fs from 'node:fs';
@@ -19,10 +20,13 @@ import { encodeChunk } from '../../src/bakefmt.js';
 import { readRegion } from './emit.mjs';
 
 const FOLLOW = new Set(['residential', 'living_street', 'unclassified', 'service']);
+// step 4b: the steepest grade an arterial on the ground keeps after the snap (a little over the design grades of roads.mjs: 6 % motorways, 8 % trunk and
+// primary, 10 % secondary), and how many passes spread the easing along a line
+const STEEP = { motorway: 0.075, trunk: 0.1, primary: 0.1, secondary: 0.125 }, EASE_PASSES = 200;
 // COVER: the tunnel lining of highways.js stands 7 m over the road (its portal 9 m); a metre of ground over the ceiling keeps the terrain off it
 // OPEN: with less ground than this over the road at a portal the hill is not there (the 16 m raster smooths hills down, so between OPEN and COVER the
 // ground is filled up instead of opening the tunnel into a cut)
-export const OPEN = 3, COVER = 8, CLEAR = 3, ABUT = 8, INNER = 12, SNAP = 2, GRADE_VERSION = 1;
+export const OPEN = 3, COVER = 8, CLEAR = 3, ABUT = 8, INNER = 12, SNAP = 2, GRADE_VERSION = 2;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // arc length along a line, sample by sample
@@ -97,6 +101,23 @@ export function gradeRegion(R) {
     const gy = G(r.x[i], r.z[i]), d = r.y[i] - gy; if (Math.abs(d) <= 0.02) continue;
     // a street follows the ground by design (roads.mjs lay: false): it takes the graded ground whatever the difference
     if (Math.abs(d) <= SNAP || FOLLOW.has(r.hw)) { r.y[i] = gy; st.snapped++; } else st.kept++;
+  }
+  // ---- 4b. the snap must not step an arterial: where two lines share cells (the two carriageways of a motorway, a road and its frontage road, a
+  // junction) the raster mixes their heights and the snapped profile can climb 0.5-2 m in one 8 m segment. Such a segment is eased back to its class
+  // grade (STEEP) by moving both of its ground samples toward each other, a few passes so the change spreads along the line (bridges and tunnels stay)
+  st.eased = 0;
+  for (const r of R.roads) {
+    const lim = STEEP[r.hw]; if (!lim) continue;
+    for (let pass = 0; pass < EASE_PASSES; pass++) {
+      let moved = false;
+      for (let i = 0; i + 1 < r.x.length; i++) {
+        const a = !r.cls[i], b = !r.cls[i + 1]; if (!a && !b) continue;
+        const sg = Math.hypot(r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]), dy = r.y[i + 1] - r.y[i], ex = Math.abs(dy) - lim * sg; if (sg < 1 || ex <= 0.005) continue;
+        const s = Math.sign(dy) * ex; if (a && b) { r.y[i] += s / 2; r.y[i + 1] -= s / 2; } else if (a) r.y[i] += s; else r.y[i + 1] -= s;
+        moved = true; if (!pass) st.eased++;
+      }
+      if (!moved) break;
+    }
   }
   // ---- 5. an underpass right under a street: its road dips until the lowest lining (4.7 m) and 0.7 m of ground fit under the graded street, as deep as
   // the grade allows (6 % on motorways, 8 % elsewhere) from the portals, which keep their height

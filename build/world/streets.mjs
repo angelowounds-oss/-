@@ -55,6 +55,29 @@ function pointIndex(points) {
   return G;
 }
 
+// A flyover (고가차도) per road sample, 1 where the road is one: a run of samples the map itself tags as a bridge (why 1; the bridges the compiler made over
+// a DEM bump or a fill are streets on the ground in life), of an arterial (rank 1 or better), that crosses no water anywhere along it, with a road on the
+// ground within PAR_D beside at least PAR_SHARE of it (the street the people walk along under the deck). Korea's flyovers carry no pavement; a river
+// bridge keeps its pavements over its land spans too (마포대교, 한강대교), and a bridge over a railway with no street beside it keeps them as well. A region
+// compiled before the bridge reasons were kept (no `why`) has no flyovers.
+const PAR_D = 30, PAR_SHARE = 0.5;
+export function flyovers(R) {
+  const roads = R.roads, out = roads.map((r) => new Uint8Array(r.x.length));
+  const wetAt = (x, z) => { const i = Math.floor((x - R.x0) / R.g), k = Math.floor((z - R.z0) / R.g); return i >= 0 && k >= 0 && i < R.nx && k < R.nz && R.water[k * R.nx + i] > 0; };
+  const CS = 50, G = new Map(), key = (x, z) => Math.floor(x / CS) * 100003 + Math.floor(z / CS);
+  roads.forEach((r, ri) => { if (rankOf(r.hw) > 3) return; for (let i = 0; i < r.x.length; i++) if (r.cls[i] === 0) { const q = key(r.x[i], r.z[i]); let a = G.get(q); if (!a) G.set(q, (a = [])); a.push(ri, i); } });
+  const beside = (ri, x, z) => { for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = G.get(key(x + a * CS, z + b * CS)); if (c) for (let q = 0; q < c.length; q += 2) if (c[q] !== ri && Math.hypot(roads[c[q]].x[c[q + 1]] - x, roads[c[q]].z[c[q + 1]] - z) < PAR_D) return true; } return false; };
+  roads.forEach((r, ri) => {
+    const n = r.x.length; if (!r.why || rankOf(r.hw) > 1) return;
+    for (let a = 0; a < n; a++) {
+      if (r.cls[a] !== 1 || r.why[a] !== 1) continue; let b = a; while (b + 1 < n && r.cls[b + 1] === 1 && r.why[b + 1] === 1) b++;
+      let wet = false, par = 0; for (let i = a; i <= b && !wet; i++) { wet = wetAt(r.x[i], r.z[i]) || (i < b && wetAt((r.x[i] + r.x[i + 1]) / 2, (r.z[i] + r.z[i + 1]) / 2)); if (beside(ri, r.x[i], r.z[i])) par++; }
+      if (!wet && par >= PAR_SHARE * (b - a + 1)) out[ri].fill(1, a, b + 1); a = b;
+    }
+  });
+  return out;
+}
+
 // detail: readDetail()'s result (the map's records), or null for rules only
 export function makeStreets(R, bld, detail = null) {
   const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND, PI = pointIndex(detail?.points), used = new Set();   // used: crossing records a junction arm took
@@ -80,13 +103,16 @@ export function makeStreets(R, bld, detail = null) {
       } }
     return best;
   };
+  const FLY = flyovers(R); let flyoverSegs = 0;   // no pavement on a flyover (above)
   const pave = roads.map((r, ri) => {
     const rk = rankOf(r.hw), n = r.x.length, ok = new Uint8Array(Math.max(0, n - 1)); if (rk > 3) return ok;
+    const fly = FLY[ri];
     // arc length from each end: close to a junction the other arms are meant to be near (the corners are shaped there)
     const sl = [0]; for (let i = 1; i < n; i++) sl.push(sl[i - 1] + Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1]));
     for (let i = 0; i + 1 < n; i++) {
       const mx = (r.x[i] + r.x[i + 1]) / 2, mz = (r.z[i] + r.z[i + 1]) / 2;
       if (!(r.cls[i] !== 2 && r.cls[i + 1] !== 2 && Math.max(Math.abs(mx), Math.abs(mz)) >= keepR && urbanAt(mx, mz) >= URBAN[rk])) continue;
+      if (fly[i] && fly[i + 1]) { flyoverSegs++; continue; }
       let m = 3;
       const sm = (sl[i] + sl[i + 1]) / 2;
       if (sm > 30 && sl[n - 1] - sm > 30) {
@@ -196,7 +222,7 @@ export function makeStreets(R, bld, detail = null) {
   // ---- and before them the records of the street (streetpoints.mjs): stops, entrances, benches, bins, hydrants, and the crossings away from junctions
   const crossRecs = (detail?.points || []).filter((p) => p.t === 'crossing' && p.marked);
   const { items, mids, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf, PI.tree, { points: detail?.points || [], cross: crossRecs, used });
-  return { junctions, runs, items, mids, why, judge };
+  return { junctions, runs, items, mids, why, judge, flyoverSegs };
 }
 
 // lane arrows: a lane may turn left (1), go straight (2) or turn right (4); `mark` bits: 1 a set of arrows 4 m behind the stop line, 2 a second set 30 m
@@ -319,6 +345,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
   const sig = res.junctions.filter((j) => j.signal).length, cross = res.junctions.reduce((s, j) => s + j.arms.filter((a) => a.cross).length, 0);
   fs.mkdirSync(out, { recursive: true });
   const bytes = writeStreets(path.join(out, 'streets.bin'), tiles, { junctions: res.junctions.length, runs: res.runs.length });
-  const real = realShare(res), stats = { real, lamps: res.items.filter((f) => f.t === 0).length, trees: res.items.filter((f) => f.t === 1).length, refused: res.why, junctions: res.junctions.length, signals: sig, crossings: cross, runs: res.runs.length, paveKm: Math.round(km), tiles: Object.keys(tiles).length, bytes, seconds: Math.round((Date.now() - t0) / 100) / 10 };
+  const real = realShare(res), stats = { real, lamps: res.items.filter((f) => f.t === 0).length, trees: res.items.filter((f) => f.t === 1).length, refused: res.why, junctions: res.junctions.length, signals: sig, crossings: cross, runs: res.runs.length, flyoverSegs: res.flyoverSegs, paveKm: Math.round(km), tiles: Object.keys(tiles).length, bytes, seconds: Math.round((Date.now() - t0) / 100) / 10 };
   fs.writeFileSync(path.join(out, 'streets-stats.json'), JSON.stringify(stats)); console.log(JSON.stringify(stats));
 }

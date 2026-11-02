@@ -6,7 +6,7 @@ import path from 'node:path';
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { readRegion } from '../../build/world/emit.mjs';
 import { makeBuildings, toTiles as bldTiles } from '../../build/world/blocks.mjs';
-import { makeStreets, toTiles, readTile, RANK, TURN } from '../../build/world/streets.mjs';
+import { makeStreets, toTiles, readTile, flyovers, RANK, TURN } from '../../build/world/streets.mjs';
 import { readTile as readBld } from '../../build/world/blocks.mjs';
 import { SPECIES, TREE_MIN_WALK } from '../../build/world/streetfurn.mjs';
 import { corner, trims, radiusOf, signalGroups, signalState } from '../../src/streetgeo.js';
@@ -66,17 +66,23 @@ if (!R0) {
     for (const arm of j.arms) { armN++; if (arm.cross) crossN++; if (arm.tl < 0 || arm.tr < 0 || arm.tl > 25.01 || arm.tr > 25.01) bad.push(['trim out of range', arm.tl, arm.tr]); if (arm.cross && arm.rank > 3) bad.push(['a crossing on a ramp or a motorway']); }
   }
   m.arms = armN; m.crossings = crossN;
-  // 3. runs: never in a tunnel, never on a motorway or ramp, rarely in the water (a quay or a stream bank can touch the 16 m water raster), trims shorter than the run
+  // 3. runs: never in a tunnel, never on a motorway, ramp or flyover, rarely in the water (a quay or a stream bank can touch the 16 m water raster), trims shorter than the run
   const water = (x, z) => { const i = Math.floor((x - C.x0) / C.g), j = Math.floor((z - C.z0) / C.g); return i >= 0 && j >= 0 && i < C.nx && j < C.nz && C.water[j * C.nx + i] > 0; };
-  let wet = 0, samples = 0;
+  // a flyover carries no pavement; what flyovers() marks is only ever the map's own dry bridge on an arterial (a river bridge keeps its pavements)
+  const FLY = flyovers(C); let flyKm = 0;
+  FLY.forEach((f, ri) => { const L = C.roads[ri]; for (let i = 0; i < f.length; i++) if (f[i]) { if (L.cls[i] !== 1 || !L.why || L.why[i] !== 1 || !(L.hw in RANK) || RANK[L.hw] > 1 || water(L.x[i], L.z[i])) { bad.push(['a flyover sample that is not a dry mapped bridge of an arterial', L.id, i]); return; } if (i && f[i - 1]) flyKm += Math.hypot(L.x[i] - L.x[i - 1], L.z[i] - L.z[i - 1]) / 1000; } });
+  m.flyoverKm = +flyKm.toFixed(1);
+  let wet = 0, samples = 0, onFly = 0;
   for (const r of a.runs) {
     const L = C.roads[r.ri]; if (!L) { bad.push(['run without a line']); continue; }
     if (!(L.hw in RANK) || RANK[L.hw] > 3) bad.push(['pavement along a ' + L.hw]);
+    const fly = FLY[r.ri]; for (let i = r.i0; i < r.i1; i++) if (fly[i] && fly[i + 1]) onFly++;
     let len = 0; for (let i = r.i0; i < r.i1; i++) { if (L.cls[i] === 2 || L.cls[i + 1] === 2) bad.push(['pavement in a tunnel']); len += Math.hypot(L.x[i + 1] - L.x[i], L.z[i + 1] - L.z[i]); }
     for (let i = r.i0; i < r.i1; i++) { const tx = L.x[i + 1] - L.x[i], tz = L.z[i + 1] - L.z[i], l = Math.hypot(tx, tz) || 1, off = L.half + r.w / 20; samples++; if (water(L.x[i] + tz / l * off, L.z[i] - tx / l * off) || water(L.x[i] - tz / l * off, L.z[i] + tx / l * off)) wet++; }
     if (r.ta[0] + r.tb[0] > len - 1 && r.ta[1] + r.tb[1] > len - 1) bad.push(['both trims eat the run', len, r.ta, r.tb]);
   }
-  m.wet = wet; m.samples = samples;
+  m.wet = wet; m.samples = samples; m.flyoverSegs = a.flyoverSegs;
+  if (onFly) bad.push(['pavement on a flyover', onFly]);
   if (wet > samples * 0.02) bad.push(['pavement in the water', wet, samples]);
   // 4. a stored tile reads back as it was written (0.1 m)
   let jn = 0, rn = 0; for (const [key, t] of Object.entries(ta)) { const d = readTile(key, t); jn += d.J.length; rn += d.R.length; }
