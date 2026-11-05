@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { landHeight } from './landfn.js';
+import * as surf from './roadsurf.js';
+import { pullFar } from './shaders.js';
 import roadsBinUrl from '../assets/roads/country.bin';
 import { need, bytes } from './files.js';
 const roadsBin = need(roadsBinUrl);   // decoded by synchronous code (files.js)
@@ -59,6 +61,7 @@ export class CountryRoads {
     this.scene = scene; this.group = new THREE.Group(); this.group.name = 'countryroads'; this.P = plan(); this.t = 0; this.pieces = []; this.live = new Set();
     const off = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
     this.mats = [new THREE.MeshStandardMaterial({ map: asphaltTexture(false), roughness: 0.86, metalness: 0, envMapIntensity: 0.25, ...off }), new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.97, metalness: 0, ...off })];
+    for (const m of this.mats) pullFar(m);
     this.verge = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, ...off });
     // one tiny mesh per material so the warm-up compiles them (same attributes as the real pieces)
     for (const m of [...this.mats, this.verge]) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, -500, 0, 0.1, -500, 0, 0, -500, 0.1]), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3)); if (m === this.verge) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(0.3), 3)); else g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2)); const d = new THREE.Mesh(g, m); d.frustumCulled = false; this.group.add(d); }
@@ -88,9 +91,9 @@ export class CountryRoads {
     const g1 = new THREE.BufferGeometry(); g1.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g1.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g1.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g1.setIndex(idx); g1.computeBoundingSphere();
     const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.BufferAttribute(vp, 3)); g2.setAttribute('normal', new THREE.BufferAttribute(vn, 3)); g2.setAttribute('color', new THREE.BufferAttribute(vc, 3)); g2.setIndex(vidx); g2.computeBoundingSphere();
     const m1 = new THREE.Mesh(g1, this.mats[cls]), m2 = new THREE.Mesh(g2, this.verge); for (const m of [m1, m2]) { m.receiveShadow = true; m.matrixAutoUpdate = false; this.group.add(m); }
-    pc.meshes = [m1, m2]; this.live.add(pc); this.stats.built++;
+    pc.meshes = [m1, m2]; this.live.add(pc); this.stats.built++; surf.add(pc, pos, idx);   // the land keeps under the road (roadsurf.js)
   }
-  drop(pc) { for (const m of pc.meshes) { this.group.remove(m); m.geometry.dispose(); } pc.meshes = null; this.live.delete(pc); }
+  drop(pc) { for (const m of pc.meshes) { this.group.remove(m); m.geometry.dispose(); } pc.meshes = null; this.live.delete(pc); surf.remove(pc); }
   update(dt, focus) {
     if ((this.t -= dt) > 0) return; this.t = 0.4; let built = 0;
     for (const pc of this.pieces) {

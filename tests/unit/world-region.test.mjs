@@ -38,15 +38,16 @@ if (!globalThis.__REGION) {
   const x1 = R.x0 + (R.nx - 1) * R.g, z1 = R.z0 + (R.nz - 1) * R.g;
   for (let t = 0.1; t < 1; t += 0.2) { walk(R.x0 - 200, R.z0 + (z1 - R.z0) * t, 1, 0, R.edge + 400); walk(x1 + 200, R.z0 + (z1 - R.z0) * t, -1, 0, R.edge + 400); }
   m.bandExtraSlope = +worst.toFixed(3); if (worst > 0.35) bad.push(['the band adds more than 0.35 of slope', worst.toFixed(3)]);
-  // 4. water: the Han at Haengju (a point of its OpenStreetMap centre line) is inland water, the sea off Incheon is sea, and the physics ground fills a bridge deck
+  // 4. water: the Han at Haengju (a point of its OpenStreetMap centre line) is inland water, the sea off Incheon is sea, and the physics ground under a bridge is the drawn ground
+  // (the deck is a collider of its own: filled up to it, every bridge was a solid bank no car could pass under)
   const loc = (lon, lat) => { const p = project(lon, lat); return [p.x - CAPITAL.x, p.z - CAPITAL.z]; };
   const han = regionWater(...loc(126.8163, 37.5940)), sea = regionWater(...loc(126.50, 37.45));
   m.han = han; m.sea = sea;
   if (!han || han.cls !== 2) bad.push(['the Han at Haengju is not inland water', JSON.stringify(han)]);
   if (!sea || sea.cls !== 1) bad.push(['the sea off Incheon is not sea', JSON.stringify(sea)]);
-  let deck = 0, filled = 0;
-  for (const r of regionRoads()) for (let i = 1; i + 1 < r.x.length; i++) if (r.cls[i] === 1 && r.cls[i - 1] === 1 && r.cls[i + 1] === 1) { deck++; if (Math.abs(physProc(r.x[i], r.z[i], 16) - (r.y[i] - 0.25)) < 0.3 || regionWeight(r.x[i], r.z[i]) < 1) filled++; }
-  m.bridgeSamples = deck; if (!deck || filled / deck < 0.99) bad.push(['physics ground does not fill bridge decks', filled, deck]);
+  let deck = 0, open = 0;
+  for (const r of regionRoads()) for (let i = 1; i + 1 < r.x.length; i++) if (r.cls[i] === 1 && r.cls[i - 1] === 1 && r.cls[i + 1] === 1) { deck++; if (Math.abs(physProc(r.x[i], r.z[i], 16) - landProc(r.x[i], r.z[i], 16)) < 0.05 || regionWeight(r.x[i], r.z[i]) < 1) open++; }
+  m.bridgeSamples = deck; m.bridgeOpen = open; if (!deck || open / deck < 0.99) bad.push(['the physics ground under bridges is not the drawn ground', open, deck]);
   m.roads = regionRoads().length;
   console.log('RESULT ' + JSON.stringify({ test: 'world-region', pass: bad.length === 0, metrics: m, note: bad.map((b) => b.join(' ')).join(' | ') }));
   process.exitCode = bad.length ? 1 : 0;

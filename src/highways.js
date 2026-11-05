@@ -6,6 +6,8 @@ import { landHeight, physHeight } from './landfn.js';
 import { regionWeight } from './region.js';
 import { Deck, oldDeck } from './roaddeck.js';
 import { GR, grp } from './physics.js';
+import * as surf from './roadsurf.js';
+import { pullFar } from './shaders.js';
 
 // The highway network drawn (roadnet.js has the data): asphalt ribbons with lane markings, median barrier and guard rails, bridges with pillars,
 // tunnels with lights, ramps, sign gantries, toll plazas and service areas; street lamps are an instanced pool that follows the camera.
@@ -80,7 +82,8 @@ export class Highways {
     };
     // one carriageway of 1..4 lanes: the same shader as the highway asphalt, only its texture differs (no new program at run time)
     this.mats.lanes = [1, 2, 3, 4].map((n) => { const t = asphaltTexture(n === 1 ? 1.0001 : n); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.82, metalness: 0, envMapIntensity: 0.3 }); });
-    this.stats = { chunks: 0, tris: 0, artPieces: 0, artLive: 0, artVerts: 0, artLifted: 0 }; this.cm = new Map(); this.decks = new Map();
+    for (const m of [this.mats.asphalt, this.mats.ramp, ...this.mats.lanes]) pullFar(m);
+    this.stats = { chunks: 0, tris: 0, artPieces: 0, artLive: 0, artVerts: 0, artLifted: 0 }; this.cm = new Map(); this.decks = new Map(); this.piers = new Map(); this.pcols = new Map();
     for (const r of this.N.roads) if (r.kind !== 'arterial') this.buildRoad(r);
     this.art = []; for (const r of this.N.roads) if (r.kind === 'arterial') for (let a = 0; a < r.pts.length - 1; a += ART) {
       const b = Math.min(r.pts.length - 1, a + ART); let cx = 0, cz = 0, rad = 0; for (let i = a; i <= b; i++) { cx += r.pts[i][0]; cz += r.pts[i][1]; } cx /= b - a + 1; cz /= b - a + 1;
@@ -109,12 +112,13 @@ export class Highways {
     const half = ramp ? 4.6 : MED / 2 + 3 * LANE + SHOULDER, medH = MED / 2;
     const BARR = [0.3, 0.36, 0.38], CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], DARK = [0.19, 0.2, 0.22], PIL = [0.4, 0.41, 0.44], LIGHT = [3.2, 2.9, 2.2];
     {
-      const A = new Acc(), S = new Acc(), E = new Acc(), c1 = Math.min(m, c0 + CHUNK);
+      const A = new Acc(), S = new Acc(), E = new Acc(), c1 = Math.min(m, c0 + CHUNK), top = [], piers = [];
       for (let i = c0; i < c1; i++) {
         const f0 = this.frame(r, i), f1 = this.frame(r, (i + 1) % n), seg = Math.hypot(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
         const at = (f, off, dy = 0) => [f.x + f.rx * off, f.y + dy, f.z + f.rz * off];
         const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
         if (BROKEN.has(r.id + ':' + i)) continue;   // a blown-up span: no deck, rails or pillars
+        const k0 = A.i.length / 3;
         if (ramp) {
           A.quad(at(f0, -half), at(f0, half), at(f1, half), at(f1, -half), [1, 1, 1], [0, v0], [1, v0], [1, v1], [0, v1]);
           for (const s of [-1, 1]) { const o = s * (half + 0.15); S.quad(at(f0, o, 0.8), at(f1, o, 0.8), at(f1, o, 0), at(f0, o, 0), RAIL); S.quad(at(f0, o - s * 0.12, 0.8), at(f1, o - s * 0.12, 0.8), at(f1, o + s * 0.12, 0.8), at(f0, o + s * 0.12, 0.8), RAIL); }
@@ -132,6 +136,7 @@ export class Highways {
           // guard rails at both outer edges
           for (const s of [-1, 1]) { const o = s * (half + 0.3); S.quad(at(f0, o - s * 0.15, 0.78), at(f1, o - s * 0.15, 0.78), at(f1, o + s * 0.15, 0.78), at(f0, o + s * 0.15, 0.78), RAIL); S.quad(at(f0, o - s * 0.15, 0.78), at(f0, o - s * 0.15, 0.35), at(f1, o - s * 0.15, 0.35), at(f1, o - s * 0.15, 0.78), RAIL); }
         }
+        for (let t = k0; t < A.i.length / 3; t++) top[t] = !tunnel;   // the drawn top (roadsurf.js), not a tunnel's floor
         if (!ramp && !tunnel) {   // furniture of the open road: sound barriers beside the towns, delineator posts, a kilometre post every kilometre
           const urban = this.urban.some((u) => Math.hypot(f0.x - u.x, f0.z - u.z) < u.r * 2.1);
           if (urban && !bridge) for (const s of [-1, 1]) { const o = s * (half + 1.5), p0 = at(f0, o, 0), p1 = at(f1, o, 0), up = (q, h) => [q[0], q[1] + h, q[2]]; S.quad(p0, p1, up(p1, 3.6), up(p0, 3.6), BARR); S.quad(up(p0, 3.6), up(p1, 3.6), p1, p0, BARR); S.quad(up(p0, 3.6), up(p1, 3.6), [p1[0] + f1.rx * s * 0.05, p1[1] + 3.75, p1[2] + f1.rz * s * 0.05], [p0[0] + f0.rx * s * 0.05, p0[1] + 3.75, p0[2] + f0.rz * s * 0.05], [0.2, 0.2, 0.22]); }
@@ -141,7 +146,7 @@ export class Highways {
         if (bridge) {   // fascia and underside; pillars every fourth sample
           for (const s of [-1, 1]) { const o = s * (half + 0.5); S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); }
           S.quad(at(f0, -half - 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f0, half + 0.5, -1.7), PIL);
-          if (i % 4 === 0) { const gy = groundH(f0.x, f0.z, 30), h = f0.y - 1.7 - gy; if (h > 0.6) box(S, [f0.x, f0.z], f0.tx, f0.tz, ramp ? 3 : 6, h, 2.6, gy, PIL); }
+          if (i % 4 === 0) { const gy = groundH(f0.x, f0.z, 30), h = f0.y - 1.7 - gy, w = ramp ? 3 : 6; if (h > 0.6 && ![-0.5, 0, 0.5].some((u) => this.roadNear(f0.x + f0.rx * w * u, f0.z + f0.rz * w * u, r, 1.5, 1))) { box(S, [f0.x, f0.z], f0.tx, f0.tz, w, h, 2.6, gy, PIL); piers.push([f0.x, f0.z, f0.tx, f0.tz, w, h, 2.6, gy]); } }   // not on a road beneath
         }
         if (tunnel) {   // lining: walls and ceiling seen from inside, a light strip along the ceiling
           const w = half + 1.4, hgt = 7.0, wall = [0.34, 0.35, 0.38];
@@ -157,7 +162,7 @@ export class Highways {
         }
       }
       const made = []; for (const [acc, mat] of [[A, ramp ? this.mats.ramp : this.mats.asphalt], [S, this.mats.struct], [E, this.mats.glow]]) if (!acc.empty) { const mesh = acc.mesh(mat); this.group.add(mesh); made.push(mesh); this.stats.tris += acc.i.length / 3; }
-      this.cm.set(r.id + ':' + c0, made); this.stats.chunks++;
+      this.cm.set(r.id + ':' + c0, made); this.piers.set(r.id + ':' + c0, piers); this.stats.chunks++; surf.add('hw:' + r.id + ':' + c0, A.p, A.i, (t) => top[t]);
     }
     return dist;
   }
@@ -178,7 +183,16 @@ export class Highways {
     const key = r.id + ':' + c0; this.dropDeck(this.decks.get(key)); this.decks.delete(key);
     const D = oldDeck(r, c0, CHUNK, BROKEN);
     const c = this.makeDeck(D); if (c) this.decks.set(key, c);
+    this.dropPiers(this.pcols.get(key)); this.pcols.set(key, this.makePiers(this.piers.get(key)));
   }
+  // a solid box for each drawn pier (x, z, tangent, width across, height, depth along, foot y): a car that leaves the road beneath stops against it
+  makePiers(L) {
+    if (!L || !L.length || !this.phys) return null;
+    const R = this.phys.R, out = [];
+    for (const [x, z, tx, tz, w, h, d, y0] of L) { const a = Math.atan2(tx, tz); out.push(this.phys.world.createCollider(R.ColliderDesc.cuboid(w / 2, h / 2, d / 2).setTranslation(x, y0 + h / 2, z).setRotation({ x: 0, y: Math.sin(a / 2), z: 0, w: Math.cos(a / 2) }).setFriction(0.6).setCollisionGroups(grp(GR.STATIC, 0xffff)))); }
+    this.stats.pierCols = (this.stats.pierCols || 0) + out.length; return out;
+  }
+  dropPiers(L) { if (L && this.phys) { for (const c of L) this.phys.world.removeCollider(c, true); this.stats.pierCols -= L.length; } }
   blast(x, y, z, radius, dmg) {
     if (!this.G) return;
     for (const r of this.N.roads) for (let i = 0; i < r.pts.length - 1; i++) {
@@ -312,7 +326,7 @@ export class Highways {
     for (const p of this.art) {
       const d = Math.min(Math.hypot(p.cx - cx, p.cz - cz), Math.hypot(p.cx - fx, p.cz - fz)) - p.rad;
       if (!p.meshes) { if (d < p.on) want.push({ p, d }); }
-      else if (d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; this.stats.artLive--; this.dropDeck(p.col); p.col = null; }
+      else if (d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; surf.remove(p); this.stats.artLive--; this.dropDeck(p.col); p.col = null; this.dropPiers(p.pcol); p.pcol = null; }
     }
     want.sort((a, b) => a.d - b.d);
     for (const { p, d } of want) { if (!all && d > NEAR_NOW && performance.now() - t0 >= ART_BUDGET) break; p.meshes = this.artPiece(p); this.stats.artLive++; }
@@ -332,7 +346,7 @@ export class Highways {
   artPiece(p) {
     const r = p.r, { n, half, two } = this.artWidth(r), mat = this.mats.lanes[n - 1], A = new Acc(), S = new Acc(), E = new Acc(), big = r.hw === 'motorway' || r.hw === 'trunk';
     const CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], PIL = [0.4, 0.41, 0.44], EARTH = [0.24, 0.21, 0.16], LIGHT = [3.2, 2.9, 2.2];
-    let dist = 0; const D = new Deck();
+    let dist = 0; const D = new Deck(), top = [], piers = [];
     for (let i = p.a; i < p.b; i++) {
       const f0 = this.frame(r, i), f1 = this.frame(r, i + 1), seg = Math.hypot(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
       const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
@@ -342,14 +356,17 @@ export class Highways {
         return [x, y + dy, z];
       };
       D.quadIfOff(at(f0, -half), at(f1, -half), at(f1, half), at(f0, half));
+      const k0 = A.i.length / 3;
       if (two) {   // a two-way road: a carriageway each side of a centre line (the texture's yellow edge meets in the middle)
         A.quad(at(f0, 0.12), at(f1, 0.12), at(f1, half), at(f0, half), [1, 1, 1], [0, v0], [0, v1], [1, v1], [1, v0]);
         A.quad(at(f0, -half), at(f1, -half), at(f1, -0.12), at(f0, -0.12), [1, 1, 1], [1, v0], [1, v1], [0, v1], [0, v0]);
       } else A.quad(at(f0, -half), at(f1, -half), at(f1, half), at(f0, half), [1, 1, 1], [1, v0], [1, v1], [0, v1], [0, v0]);   // the inner (yellow) edge on +right: traffic keeps right
+      for (let t = k0; t < A.i.length / 3; t++) top[t] = !tunnel;   // the drawn top the land keeps under (roadsurf.js); a tunnel's floor is under it on purpose
       if (big && !tunnel) for (const s of [-1, 1]) { const o = s * (half + 0.3); S.quad(at(f0, o - s * 0.15, 0.78), at(f1, o - s * 0.15, 0.78), at(f1, o + s * 0.15, 0.78), at(f0, o + s * 0.15, 0.78), RAIL); }
       if (!bridge && !tunnel) for (const s of [-1, 1]) {   // earth banks from the edge down to the ground beside the road, where the road stands above it
         const e0 = at(f0, s * half), e1 = at(f1, s * half), g0 = landHeight(f0.x + f0.rx * s * (half + 2.5), f0.z + f0.rz * s * (half + 2.5), 16) - 0.05, g1 = landHeight(f1.x + f1.rx * s * (half + 2.5), f1.z + f1.rz * s * (half + 2.5), 16) - 0.05;
         if (e0[1] - g0 < 0.15 && e1[1] - g1 < 0.15) continue;
+        if (this.onOther(p, r, f0, f1, s, half)) { this.stats.bankSkip = (this.stats.bankSkip || 0) + 1; continue; }   // it would lie over another road
         const o0 = [f0.x + f0.rx * s * (half + 2.5), Math.min(g0, e0[1]), f0.z + f0.rz * s * (half + 2.5)], o1 = [f1.x + f1.rx * s * (half + 2.5), Math.min(g1, e1[1]), f1.z + f1.rz * s * (half + 2.5)];
         if (s > 0) S.quad(e0, e1, o1, o0, EARTH); else S.quad(e1, e0, o0, o1, EARTH);
       }
@@ -357,7 +374,11 @@ export class Highways {
         // the fascias face outward and the soffit faces down (the material draws front faces only: seen from below, a bridge must not lose its deck)
         for (const s of [-1, 1]) { const o = s * (half + 0.5); if (s > 0) S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); else S.quad(at(f1, o, 0), at(f0, o, 0), at(f0, o, -1.7), at(f1, o, -1.7), PIL); }
         S.quad(at(f0, half + 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f0, -half - 0.5, -1.7), PIL);
-        if (i % 4 === 0) { const gy = landHeight(f0.x, f0.z, 16), h = f0.y - 1.7 - gy; if (h > 0.6) box(S, [f0.x, f0.z], f0.tx, f0.tz, Math.min(6, half), h, 2.2, gy, PIL); }   // a pier every 32 m
+        if (i % 4 === 0) {   // a pier every 32 m, but never standing on a road that passes beneath (the bridge spans it, as a real one does)
+          const gy = landHeight(f0.x, f0.z, 16), h = f0.y - 1.7 - gy, w = Math.min(6, half);
+          if (h > 0.6 && [-0.5, 0, 0.5].some((u) => this.roadNear(f0.x + f0.rx * w * u, f0.z + f0.rz * w * u, r, 1.5, 1))) this.stats.pierSkip = (this.stats.pierSkip || 0) + 1;
+          else if (h > 0.6) { box(S, [f0.x, f0.z], f0.tx, f0.tz, w, h, 2.2, gy, PIL); piers.push([f0.x, f0.z, f0.tx, f0.tz, w, h, 2.2, gy]); }
+        }
       }
       if (tunnel) {
         // the ceiling follows the cover (build/world/grade.mjs fills the ground to 8 m over a tunnel where it can): 7 m under a hill, down to the 4.7 m of an
@@ -371,8 +392,28 @@ export class Highways {
       }
     }
     const made = []; for (const [acc, m] of [[A, mat], [S, this.mats.struct], [E, this.mats.glow]]) if (!acc.empty) { const mesh = acc.mesh(m); this.group.add(mesh); made.push(mesh); }
-    p.col = this.makeDeck(D);
+    p.col = this.makeDeck(D); p.pcol = this.makePiers(piers); surf.add(p, A.p, A.i, (t) => top[t]);
     return made;
+  }
+  // would the earth bank on side s of the segment f0-f1 lie over another road? Its middle and outer edge at both ends are tested against the roads'
+  // centre lines (pieces not built yet) and the drawn tops (pavements, junction corners)
+  onOther(p, r, f0, f1, s, half) {
+    for (const f of [f0, f1]) for (const o of [half + 1.25, half + 2.5]) {
+      const x = f.x + f.rx * s * o, z = f.z + f.rz * s * o;
+      if (surf.topAt(x, z, p) === surf.topAt(x, z, p) || this.roadNear(x, z, r, 0.5, -1)) return true;
+    }
+    return false;
+  }
+  // is (x, z) on another road than r (within its half width plus `pad`), leaving out roads of class `skip` (2: under the ground, 1: up on a bridge)?
+  roadNear(x, z, r, pad, skip) {
+    const N = this.N, CS = N.CS, cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) return false;
+    for (let q = 0; q < cell.length; q += 2) {
+      const o2 = N.roads[cell[q]], i = cell[q + 1]; if (o2 === r || o2.cls[i] === 2 || o2.cls[i] === skip) continue;
+      const n = o2.pts.length, A = o2.pts[i], B = o2.pts[(i + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2));
+      const w = o2.kind === 'arterial' ? this.artWidth(o2).half : HALF_W;
+      if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < w + pad) return true;
+    }
+    return false;
   }
   dispose() { this.scene.remove(this.group); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
 }

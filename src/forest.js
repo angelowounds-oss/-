@@ -5,6 +5,7 @@ import { vegCell, CELL, VT, VEG_ORIGIN } from './vegfn.js';
 import { CAPITAL, MAP_HALF, DETAILED_ALL } from './koreamap.js';
 import { nightU, timeUniform } from './shaders.js';
 import { onCountryRoad } from './countryroads.js';
+import { onRoad, anyIn } from './roadsurf.js';
 
 // Trees, shrubs, rocks and grass over the whole world (ADR-0013). The data is one byte per 32 m cell (vegfn.js: kind << 5 | trees, baked as the tiles
 // `veg/<i>_<j>` and kept in memory as one array); the instances inside a cell are made from hashes of the cell, so the same place always grows the same
@@ -158,15 +159,18 @@ export class Forest {
       const ex = OX + (i + 0.5) * CELL - cx, ez = OZ + (j + 0.5) * CELL - cz, d2 = ex * ex + ez * ez; if (d2 > (R + 24) * (R + 24)) continue; list.push([d2, i, j, b]);
     }
     list.sort((a, b) => a[0] - b[0]);
-    const cnt = {}; for (const t of [...TYPES, 'grass']) cnt[t] = 0; let nb = 0, mc = 0;
+    const cnt = {}; for (const t of [...TYPES, 'grass']) cnt[t] = 0; let nb = 0, mc = 0; this.stats.offRoad = 0;
     const set = (m, k, x, y, z, rot, s, tint) => { const a = m.instanceMatrix.array, o = k * 16, c = Math.cos(rot) * s, sn = Math.sin(rot) * s; a[o] = c; a[o + 1] = 0; a[o + 2] = -sn; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0; a[o + 8] = sn; a[o + 9] = 0; a[o + 10] = c; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1; const ic = m.instanceColor.array; ic[k * 3] = tint[0]; ic[k * 3 + 1] = tint[1]; ic[k * 3 + 2] = tint[2]; };
     const bm = this.bill, bt = bm.geometry.attributes.aT.array, bc = bm.instanceColor.array, bmat = bm.instanceMatrix.array;
     const BC = [[0.1, 0.27, 0.08], [0.04, 0.16, 0.08], [0.08, 0.3, 0.1], [0.1, 0.3, 0.12], [0.2, 0.18, 0.15]];
     const grassKinds = [0, 0.9, 0.6, 0, 0.12, 0, 1.0, 0];
     for (const [d2, i, j, b] of list) {
       const rec = this.cell(i, j, b), d = Math.sqrt(d2), kind = b >> 5; mc++;
+      // a drawn road or pavement in or next to the cell (roadsurf.js): nothing grows on it (the cell's records are kept, the roads come and go)
+      const roads = anyIn(OX + i * CELL - 4, OZ + j * CELL - 4, OX + (i + 1) * CELL + 4, OZ + (j + 1) * CELL + 4);
       for (let q = 0; q < rec.length; q += 6) {
         const type = rec[q + 5], name = TYPES[type];
+        if (roads && onRoad(rec[q], rec[q + 2], 0.6 + rec[q + 4])) { this.stats.offRoad++; continue; }
         if (d < Rn) { const m = this.meshes[name]; if (cnt[name] >= CAP[name]) continue; const t = 0.85 + 0.3 * hash(q, i, j), tint = name === 'rock' ? [t, t, t] : [t, 0.9 + 0.2 * hash(i, j, q), t * 0.95]; set(m, cnt[name]++, rec[q], rec[q + 1], rec[q + 2], rec[q + 3], rec[q + 4], tint); }
         else if (type < 5 && nb < this.bbCap && d < R) {
           const keep = Math.min(1, 1.15 - 0.7 * (d - Rn) / Math.max(1, R - Rn)); if (hash(q, i + 7, j) > keep) continue;
@@ -180,7 +184,7 @@ export class Forest {
         const per = Math.floor(grassKinds[kind] * 820 * this.f + hash(i, j, 910)), gm = this.meshes.grass;
         for (let k = 0; k < per && cnt.grass < CAP.grass; k++) {
           const x = OX + i * CELL + hash(i, j, 1000 + k * 2) * CELL, z = OZ + j * CELL + hash(i, j, 1001 + k * 2) * CELL, s = 0.7 + 0.9 * hash(i, j, 1500 + k), t = 0.8 + 0.4 * hash(i, j, 1700 + k);
-          if (onCountryRoad(x, z, 5.6)) continue;
+          if (onCountryRoad(x, z, 5.6) || (roads && onRoad(x, z, 0.3))) continue;
           set(gm, cnt.grass++, x, landHeight(x, z, 8), z, hash(i, j, 1900 + k) * 6.28, s, [t, t, t]);
         }
       }

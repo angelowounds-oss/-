@@ -6,6 +6,7 @@ import { landHeight, physHeight } from './landfn.js';
 import { stream, colorAt } from './heightmap.js';
 import { patchStandard, timeUniform } from './shaders.js';
 import { GR, grp } from './physics.js';
+import { LEVELS as SURF_LEVELS, lowestAround, surfVersion, changesSince } from './roadsurf.js';
 
 // The land outside the city: a geometry clipmap of the whole 100 x 100 km world (worldmap.js), a sea, markers for the cities, and a small
 // physics ground (a Rapier heightfield) that follows the player or the vehicle he drives, so the land can be driven on and landed on.
@@ -40,6 +41,8 @@ function ringIndex(skipHole) {
 }
 
 const BUDGET_MS = 6;
+// how far a terrain vertex stays under the lowest road top around it, per ring (the 32 m ring is seen from 0.5-1 km, where depth is coarser)
+const DROP = [0.12, 0.4];
 export class Farland {
   constructor(scene, opts = {}) {
     this.scene = scene; this.group = new THREE.Group(); this.group.name = 'farland'; this.levels = []; this.levelCount = opts.levels || LEVELS;
@@ -87,7 +90,7 @@ export class Farland {
     this.markers = opts.markers === false ? null : this.buildMarkers();
     scene.add(this.group);
     this.ground = new FarGround(opts.phys);
-    this.stats = { regen: 0, ms: 0, last: 0, reused: 0, computed: 0 };
+    this.stats = { regen: 0, ms: 0, last: 0, reused: 0, computed: 0, lowered: 0, surfMs: 0 }; this.surfV = 0;
   }
 
   // a light pillar and a flat disc at each city: the cities themselves are the next phases, this shows where they will stand
@@ -114,18 +117,44 @@ export class Farland {
       h[k] = y; if (!((cell <= 32 || regionWeight(x, z) > 0) && colorAt(x, z, tmp))) surfaceColor(x, z, y, tmp); cg[k * 3] = tmp[0]; cg[k * 3 + 1] = tmp[1]; cg[k * 3 + 2] = tmp[2]; this.stats.computed++;
     }
     L.h = h; L.h2 = oh; L.cg = cg; L.cg2 = ocg; L.cx = ncx; L.cz = ncz;
-    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
-      const k = j * M + i, y = h[k];
-      pos[k * 3] = x0 + i * cell; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z0 + j * cell;
-      const hl = h[j * M + Math.max(0, i - 1)], hr = h[j * M + Math.min(N, i + 1)], hu = h[Math.max(0, j - 1) * M + i], hd = h[Math.min(N, j + 1) * M + i];
-      const nx = hl - hr, nz = hu - hd, ny = 2 * cell, l = Math.hypot(nx, ny, nz); nor[k * 3] = nx / l; nor[k * 3 + 1] = ny / l; nor[k * 3 + 2] = nz / l;
-    }
     col.set(cg, 0);
+    this.shape(L, 0, 0, N, N);
+    L.mesh.updateMatrix(); this.stats.regen++;
+  }
+  // the drawn heights and normals of ring L's vertices i0..i1 x j0..j1 (and the skirt): the land's height, but in the finest rings never above a
+  // drawn road around the vertex less DROP (roadsurf.js: with every vertex of a triangle under the lowest road top in it, no part of the triangle
+  // rises through the asphalt). The raw heights in L.h stay as they are, so a road that is dropped lets the land come back.
+  shape(L, i0, j0, i1, j1) {
+    const N = GRID, M = N + 1, cell = L.cell, x0 = L.cx - (N / 2) * cell, z0 = L.cz - (N / 2) * cell, { pos, nor, col, h } = L, clamp = L.k < SURF_LEVELS;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const k = j * M + i, x = x0 + i * cell, z = z0 + j * cell; let y = h[k];
+      if (clamp) { const t = lowestAround(L.k, x, z); if (t === t && t - DROP[L.k] < y) { y = t - DROP[L.k]; this.stats.lowered++; } }
+      pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
+    }
+    const Y = (i, j) => pos[(j * M + i) * 3 + 1];
+    for (let j = Math.max(0, j0 - 1); j <= Math.min(N, j1 + 1); j++) for (let i = Math.max(0, i0 - 1); i <= Math.min(N, i1 + 1); i++) {
+      const k = j * M + i, nx = Y(Math.max(0, i - 1), j) - Y(Math.min(N, i + 1), j), nz = Y(i, Math.max(0, j - 1)) - Y(i, Math.min(N, j + 1)), ny = 2 * cell, l = Math.hypot(nx, ny, nz);
+      nor[k * 3] = nx / l; nor[k * 3 + 1] = ny / l; nor[k * 3 + 2] = nz / l;
+    }
     // skirt: the outer boundary again, dropped by a few cells
     const drop = Math.max(40, cell * 3);
     L.skirt.forEach((p, e) => { const o = (L.nv + e) * 3; pos[o] = pos[p * 3]; pos[o + 1] = pos[p * 3 + 1] - drop; pos[o + 2] = pos[p * 3 + 2]; nor[o] = nor[p * 3]; nor[o + 1] = nor[p * 3 + 1]; nor[o + 2] = nor[p * 3 + 2]; col[o] = col[p * 3]; col[o + 1] = col[p * 3 + 1]; col[o + 2] = col[p * 3 + 2]; });
     L.geo.attributes.position.needsUpdate = true; L.geo.attributes.normal.needsUpdate = true; L.geo.attributes.color.needsUpdate = true;
-    L.mesh.updateMatrix(); this.stats.regen++;
+  }
+  // roads registered or dropped since the last look (roadsurf.js): the finest rings take the changed areas again, within the frame's budget
+  roadsChanged(t0) {
+    const v = surfVersion(); if (v === this.surfV) return;
+    const ch = changesSince(this.surfV ?? 0);
+    for (const L of this.levels) {
+      if (L.k >= SURF_LEVELS || Number.isNaN(L.cx)) continue;
+      const N = GRID, cell = L.cell, x0 = L.cx - (N / 2) * cell, z0 = L.cz - (N / 2) * cell;
+      if (!ch) { this.shape(L, 0, 0, N, N); continue; }
+      for (const c of ch) {
+        const i0 = Math.max(0, Math.floor((c.x0 - x0) / cell)), i1 = Math.min(N, Math.ceil((c.x1 - x0) / cell) + 1), j0 = Math.max(0, Math.floor((c.z0 - z0) / cell)), j1 = Math.min(N, Math.ceil((c.z1 - z0) / cell) + 1);
+        if (i0 <= i1 && j0 <= j1) this.shape(L, i0, j0, i1, j1);
+      }
+    }
+    this.surfV = v; this.stats.surfMs = performance.now() - t0;
   }
 
   update(camera, focus = camera.position) {
@@ -137,6 +166,7 @@ export class Farland {
       if (!Number.isNaN(L.cx) && performance.now() - t0 > BUDGET_MS) break;
       this.regen(L, sx, sz);
     }
+    this.roadsChanged(performance.now());
     if (globalThis.__WORLD) stream(globalThis.__WORLD, focus.x, focus.z);   // high-detail ground tiles around what the player controls
     this.sea.position.x = Math.round(cx / 5000) * 5000; this.sea.position.z = Math.round(cz / 5000) * 5000;
     this.ground.update(focus.x, focus.z, focus.by ?? focus.y ?? 0);   // physics follows what the player controls, not the (smoothed, late) camera

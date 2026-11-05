@@ -59,13 +59,14 @@ export function regionWater(x, z) {
 // the arterial road lines: { id, hw, oneway, lanes, half, ref, name, ds, x, z, y, cls, next, prev }
 export const regionRoads = () => region()?.roads || [];
 
-// the physics ground: the compiled ground, filled up (or down) to the road surface on bridges and in tunnels, where the drawn ground is left alone
+// the physics ground: the compiled ground, filled down to the road surface in tunnels, where the drawn ground is left alone. A bridge is not filled:
+// its deck is a collider of its own (highways.js), and the ground under it stays the drawn one, so roads, cars and people can pass beneath it
 let STRUCT = null;
 function structures() {
   if (STRUCT) return STRUCT;
   const grid = new Map(), CS = 64, key = (x, z) => Math.floor(x / CS) * 100003 + Math.floor(z / CS);
   for (const r of regionRoads()) for (let i = 0; i + 1 < r.x.length; i++) {
-    if (!r.cls[i] && !r.cls[i + 1]) continue;
+    if (r.cls[i] !== 2 && r.cls[i + 1] !== 2) continue;
     const pad = r.half + 1;
     for (let a = Math.floor((Math.min(r.x[i], r.x[i + 1]) - pad) / CS); a <= Math.floor((Math.max(r.x[i], r.x[i + 1]) + pad) / CS); a++)
       for (let b = Math.floor((Math.min(r.z[i], r.z[i + 1]) - pad) / CS); b <= Math.floor((Math.max(r.z[i], r.z[i + 1]) + pad) / CS); b++) { const q = a * 100003 + b; let l = grid.get(q); if (!l) grid.set(q, (l = [])); l.push(r, i); }

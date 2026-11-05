@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { landHeight } from './landfn.js';
 import { regionRoads } from './region.js';
 import { roadAt } from './roadnet.js';
+import * as surf from './roadsurf.js';
 import { nightU } from './shaders.js';
 import { GR, grp } from './physics.js';
 import { SignAtlas, PLATE } from './signatlas.js';
@@ -76,6 +77,7 @@ class TileBuild {
     this.ox = (ti - OFF) * TILE + TILE / 2; this.oz = (tj - OFF) * TILE + TILE / 2;
     this.S = new Geo(this.ox, this.oz); this.M = new Geo(this.ox, this.oz); this.G = new Geo(this.ox, this.oz);   // solid things, markings, glow
     this.top = { p: [], i: [] };    // the walkable pavement tops (the physics mesh)
+    this.asph = [];                 // the junction corners' asphalt, triangles in world x, y, z (with the tops: what the land keeps under, roadsurf.js)
     this.heads = [];                // signal heads: x, y, z, facing x, z, group, junction phase, junction id
     this.obst = [];                 // poles and trunks (solid near the player): x, z, y0, h, radius
     this.recs = [];                 // the stops and entrances as placed (where the tests look for them)
@@ -122,7 +124,7 @@ class TileBuild {
       this.stats.corners++;
       const arc = c.arcPts.map((p) => V(p, yAt)), P = V(c.P, yAt), tone = PAVE[(k + jj) & 1];
       // the asphalt between the sharp corner and the arc
-      for (let m = 0; m + 1 < arc.length; m++) this.S.tri(P, arc[m], arc[m + 1], ASPH, 0, 1, 0);
+      for (let m = 0; m + 1 < arc.length; m++) { this.S.tri(P, arc[m], arc[m + 1], ASPH, 0, 1, 0); this.asph.push(...P, ...arc[m], ...arc[m + 1]); }
       // the kerb stone along the arc, then the pavement: fan from the outer corner Q over O1 - arc - O2
       const up = (q) => [q[0], q[1] + KERB, q[2]];
       for (let m = 0; m + 1 < arc.length; m++) {
@@ -473,6 +475,7 @@ export class Streetscape {
       this.stats.tris += T.i.length / 3;
     }
     rec.names = b.names;
+    { const Pp = b.top.p.concat(b.asph), I = b.top.i.slice(); for (let k = b.top.p.length / 3; k < Pp.length / 3; k++) I.push(k); surf.add('str:' + id, Pp, I); }
     rec.meshes = meshes; rec.state = 'ready'; rec.heads = new Float32Array(b.heads); rec.obst = new Float32Array(b.obst); rec.boxes = new Float32Array(b.boxes); rec.recs = b.recs; rec.plateAt = b.plateAt; rec.topP = new Float32Array(b.top.p); rec.topI = new Uint32Array(b.top.i); rec.tris = b.S.i.length / 3 + b.M.i.length / 3 + b.G.i.length / 3 + b.T.i.length / 3;
     rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus', 'stops', 'shelters', 'entrances', 'small', 'mid', 'plates', 'deepSkirt']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
   }
@@ -481,7 +484,7 @@ export class Streetscape {
     if (rec.build) { const i = this.jobs.indexOf(rec.build); if (i >= 0) this.jobs.splice(i, 1); for (const n of rec.build.names) this.atlas.give(n); }
     for (const n of rec.names || []) this.atlas.give(n);
     this.release(rec);
-    this.tiles.delete(id); this.wd.drop(rec.e.key);
+    this.tiles.delete(id); this.wd.drop(rec.e.key); surf.remove('str:' + id);
   }
   release(rec) {
     for (const parts of rec.solid.values()) this.phys.removeBox(parts);

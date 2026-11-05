@@ -20,6 +20,7 @@ for (const r of net().roads) {
 }
 if (m.uncovered) bad.push(['samples off the ground with no deck at all', m.uncovered]);
 if (m.inRegion) bad.push(['old road samples inside the compiled region', m.inRegion]);
-if (m.quads > 8500) bad.push(['too many deck quads', m.quads]);
+// 8,291 before GPL-17; since the ground is no longer filled up to the decks every bridge has one (2,805 bridge segments): 10,745 (2026-11-05)
+if (m.quads > 12000) bad.push(['too many deck quads', m.quads]);
 console.log('RESULT ' + JSON.stringify({ test: 'highway-drivable', pass: bad.length === 0, metrics: m, note: bad.map((b) => b.join(' ')).join(' | ') }));
 process.exitCode = bad.length ? 1 : 0;

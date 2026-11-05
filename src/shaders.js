@@ -152,6 +152,18 @@ export function createGlareMaterial() {
 }
 
 // Install a shader patch into a MeshStandardMaterial
+// far roads drawn a little nearer the camera than they are: beyond 400 m their depth is pulled towards the eye (2.4 m at 1 km, at most 4 m), so the
+// coarse rings of the land (32 m ... 4 km triangles, far from the 8 m heights the roads are laid on) do not cover them; the picture position is kept.
+// Near the camera nothing changes: the land there keeps under the roads by itself (farland.js, roadsurf.js). One cache key for every road material
+// (their programs still differ by their other parameters), compiled at the load-time warm-up like the rest.
+export function pullFar(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev.call(mat, sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n{float pd=length(mvPosition.xyz),pl=clamp((pd-400.)*.004,0.,4.);gl_Position=projectionMatrix*vec4(mvPosition.xyz*(1.-pl/max(pd,1.)),1.);}');
+  };
+  mat.customProgramCacheKey = () => 'road-pull-v1';
+}
 export function patchStandard(mat, key, { vertexDecl = '', vertexMain = '', fragDecl = '', fragMain = '', normalMain = '', uniforms = {} }) {
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);

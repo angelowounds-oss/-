@@ -1,5 +1,5 @@
 import { COUNTRY } from './countryplan.js';
-import { net, HALF_W, CARVE_FADE, BROKEN } from './roadnet.js';
+import { net, HALF_W, CARVE_FADE } from './roadnet.js';
 
 // Grading of the ground under every road and pad (KOREA-PLAN A2b, ADR-0018), one rule for all of them. Pure (no three.js): landfn.js applies it to the
 // natural ground, the bake samples that into the height tiles, and the page reads the tiles back.
@@ -81,10 +81,12 @@ function blend(x, z, h, physics, fine) {
     }
     for (let k = 0; k < nc; k++) {
       const C = IDX.carriers[NEAR_C[k]], s = NEAR_S[k];
-      if (!C.country) {   // the terrain is left alone where the road is a bridge or tunnel; the physics ground fills them unless the span is blown up
+      if (!C.country) {   // the terrain is left alone where the road is a bridge or tunnel; the physics ground fills tunnels only
+        // a bridge stands on its own deck (highways.js makes it where the ground is not at the road): the ground under it is the valley, the river or the
+        // road below, as drawn. Filled up to the deck it was a solid bank under every bridge and no car could pass beneath one
         const cls = C.cls[s];
         if (cls !== 0 && !physics) continue;
-        if (physics && cls === 1 && BROKEN.has(C.id + ':' + s)) continue;
+        if (physics && cls === 1) continue;
       }
       const t1 = (s + 1) % C.n, w = 1 - sstep(C.flat, C.reach, NEAR_D[k]);
       const e = Math.max(0, NEAR_D[k] - C.core) + 1, a = w / (e * e);
