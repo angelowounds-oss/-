@@ -84,8 +84,9 @@ export class Farland {
       this.group.add(mesh);
       this.levels.push({ k, cell: cellOf(k), geo, pos, nor, col, h: new Float32Array(nv), h2: new Float32Array(nv), cg: new Float32Array(nv * 3), cg2: new Float32Array(nv * 3), cx: NaN, cz: NaN, skirt: hole.skirt, nv, mesh });
     }
-    // the sea: one big plane at sea level (the land rises out of it)
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x07253d, roughness: 0.22, metalness: 0.25 }));
+    // the sea: one big plane at sea level (the land rises out of it), in 64 x 64 squares (8 km): as two 500 km triangles, the depth of the one clipped
+    // at the camera went wrong where the camera stood near their shared diagonal, and the sea was drawn over the roads (Mapo, 2026-11-06)
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 64, 64), new THREE.MeshStandardMaterial({ color: 0x07253d, roughness: 0.22, metalness: 0.25 }));
     sea.rotation.x = -Math.PI / 2; sea.scale.set(Math.max(500000, 2.4 * WORLD_HALF), Math.max(500000, 2.4 * WORLD_HALF), 1); sea.position.y = SEA; sea.renderOrder = -3; sea.frustumCulled = false; this.sea = sea; this.group.add(sea);
     this.markers = opts.markers === false ? null : this.buildMarkers();
     scene.add(this.group);
