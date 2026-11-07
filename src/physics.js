@@ -6,6 +6,8 @@ export const PHYS = {
   // the drive train and the air (driveVehicle): wheel power over engine power, air density (kg/m^3), what the brakes reach of the tyres' grip
   // (ABS keeps a wheel just short of locking), the engine's drag with the throttle shut (m/s^2)
   eta: 0.85, rho: 1.2, absK: 0.97, engineBrake: 0.35,
+  // the springs per unit of the car's mass (createVehicle)
+  springK: 15.1,
 };
 
 export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32, RAG: 64, RAGL: 128 };
@@ -196,7 +198,7 @@ export class Physics {
     // springs per unit of the car's mass (Rapier multiplies by it): 4 x 15.1 gives the body a 1.24 Hz bounce, as on a road car, and the 16 cm of sag
     // the models are drawn with (it was 34 under a gravity of 22 m/s^2: the same sag, a 1.9 Hz bounce); the dampers about half of critical
     for (let i = 0; i < 4; i++) {
-      ctrl.setWheelSuspensionStiffness(i, 15.1);
+      ctrl.setWheelSuspensionStiffness(i, PHYS.springK);
       ctrl.setWheelSuspensionCompression(i, 1.75);
       ctrl.setWheelSuspensionRelaxation(i, 2.2);
       ctrl.setWheelMaxSuspensionTravel(i, 0.3);

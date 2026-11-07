@@ -54,7 +54,9 @@
 const { run, freeze, result } = require('../lib.cjs');
 run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   await freeze(page);
-  const o = await page.evaluate(() => {
+  // the updates yield to the event loop every other one (memory the renderer frees only between tasks grew until it was killed, 7.2 GB)
+  const o = await page.evaluate(async () => {
+    let U_n = 0; const U = async (dt) => { window.__upd(dt); if (++U_n % 2 === 0) await new Promise((f) => setTimeout(f, 4)); };
     const g = window.__game, pl = g.player, m = pl.m, THREE = window.__THREE, B = m.bones; g.eng.render = () => {};
     pl.dead = false; pl.reactT = 0; pl.stance = 0; pl.crouch = 0; pl.crouching = false; pl.prone = false; pl.swimming = false; pl.gestUB = null; pl.proc = null;
     const home = { x: pl.x, y: pl.y, z: pl.z };
@@ -127,12 +129,12 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     // core's west column, 14 steps up from south to north), run halfway up, stand a second, run to the landing, turn and run back down. Every
     // frame, each foot that is not moving (below 0.3 m/s) over the flight must stand with its sole (from its bones: the lower of ankle and toe
     // joint, less their height over the sole in Idle, m.feet) on the tread under the ball of the foot
-    const stairs = () => {
+    const stairs = async () => {
       pl.body3 = body3; g.phys.footY = footY; const keys = g.input.keys, V = THREE.Vector3;
       const bd = g.buildings.list.filter((x) => x.lot.h > 60 && !x.lot.model && !x.lot.far).sort((p, q) => q.lot.h - p.lot.h)[0], d = bd.lot.door;
       body3.teleport(d.px + d.nx * 3, 0, d.pz + d.nz * 3); pl.x = d.px + d.nx * 3; pl.z = d.pz + d.nz * 3;
-      for (let i = 0; i < 600 && !bd.open; i++) window.__upd(dt);
-      const K = bd.levels.findIndex((l) => l.tier === 'tower'); bd.ensureRange(K - 1, K + 1, true); for (let i = 0; i < 400; i++) window.__upd(dt);
+      for (let i = 0; i < 600 && !bd.open; i++) await U(dt);
+      const K = bd.levels.findIndex((l) => l.tier === 'tower'); bd.ensureRange(K - 1, K + 1, true); for (let i = 0; i < 400; i++) await U(dt);
       const L = bd.levels[K], c = bd.core, y0 = L.y, ly = y0 + L.h * 0.45, za = c.zc, zb = c.z0 + 1.6, x = c.x0 + 0.8, n = 14;
       const tread = (z) => y0 + ((ly - y0) * (Math.min(n - 1, Math.max(0, Math.floor(((z - za) / (zb - za)) * n))) + 1)) / n;
       body3.teleport(x, y0, za + 1.5); pl.x = x; pl.y = body3.y; pl.z = za + 1.5; pl.vx = pl.vz = 0; pl.ry = Math.PI;
@@ -145,19 +147,19 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
           gaps.push(Math.min(A.y - R.ankle, T.y - R.toe) - tread(mz));
         }
       };
-      const go = (yaw, until, hold = true) => { for (let i = 0; i < 400; i++) { g.cam.yaw = yaw; if (hold) keys.add('KeyW'); else keys.delete('KeyW'); window.__upd(dt); sample(); if (until(i)) break; } keys.delete('KeyW'); };
-      go(Math.PI, () => pl.z < (za + zb) / 2); go(Math.PI, (i) => i >= 60, false);
-      go(Math.PI, () => pl.z < zb - 0.4); go(0, (i) => i >= 30, false); go(0, () => pl.z > za + 1);
+      const go = async (yaw, until, hold = true) => { for (let i = 0; i < 400; i++) { g.cam.yaw = yaw; if (hold) keys.add('KeyW'); else keys.delete('KeyW'); await U(dt); sample(); if (until(i)) break; } keys.delete('KeyW'); };
+      await go(Math.PI, () => pl.z < (za + zb) / 2); await go(Math.PI, (i) => i >= 60, false);
+      await go(Math.PI, () => pl.z < zb - 0.4); await go(0, (i) => i >= 30, false); await go(0, () => pl.z > za + 1);
       const s = gaps.map(Math.abs).sort((p, q) => p - q), pc = (k) => +((s[Math.min(s.length - 1, (s.length * k) | 0)] || 0) * 100).toFixed(1);
       return { uid: bd.uid || bd.lot.uid, samples: s.length, within3cm: +(s.filter((v) => v < 0.03).length / Math.max(1, s.length)).toFixed(3), p50cm: pc(0.5), p95cm: pc(0.95), maxCm: pc(1), climbed: +(top - y0).toFixed(2) };
     };
     // (d) and (f) run the game loop on the player, set back on the ground where the game starts (and dy over it)
     const keys = g.input.keys;
     let lastV = 0; const land0 = g.land; g.land = function (v, w) { lastV = v; return land0.call(this, v, w); };
-    const reset = (dy = 0) => {
+    const reset = async (dy = 0) => {
       keys.clear(); pl.dead = false; pl.hpv = 100; pl.vx = pl.vz = 0; pl.stunT = 0; pl.crouching = false; g.cam.yaw = 0; if (g.mobility.chute) g.mobility.cutAway('land');
       body3.teleport(home.x, home.y, home.z); pl.x = home.x; pl.y = body3.y; pl.z = home.z;
-      for (let i = 0; i < 180 && (i < 60 || !body3.grounded); i++) window.__upd(dt);   // settled on the ground (a jump needs it)
+      for (let i = 0; i < 180 && (i < 60 || !body3.grounded); i++) await U(dt);   // settled on the ground (a jump needs it)
       if (dy) { body3.teleport(pl.x, pl.y + dy, pl.z); pl.y = body3.y; }
     };
     // the biggest turn (deg) any main bone of h made since the last call: against its parent, or in the world (world: a get-up turns the
@@ -169,23 +171,23 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const fn = () => { let mx = 0; if (world) h.group.updateMatrixWorld(true); main.forEach((b, i) => { const c = get(b), a = 2 * Math.acos(Math.min(1, Math.abs(c.dot(prevQ[i])))); if (a > mx) { mx = a; fn.bone = MAIN[i]; } prevQ[i].copy(c); }); return mx * 57.2958; };
       return fn;
     };
-    const air = () => {
+    const air = async () => {
       const V = THREE.Vector3, deg = 180 / Math.PI;
       const snap = snapper(pl);
       const LAND = ['U_Jump_Land', 'U_Land_Three_Point', 'U_Roll'];
       const share = () => { let l = 0, t = 0; for (const k in m.act) { if (k.startsWith('UB_')) continue; const w = m.act[k].weight; t += w; if (LAND.includes(k)) l += w; } return t > 0 ? l / t : 0; };
       const out = {};
       // take-off
-      reset(); g.input.edges.jump = 1; let up = -1, js = 0, vy = 0, jt = -1;
-      for (let i = 0; i < 60; i++) { window.__upd(dt); if (up < 0 && !body3.grounded) { up = i; vy = pl.vy; } if (up >= 0 && i - up <= 7) { js = Math.max(js, (m.act.U_Jump_Start && m.act.U_Jump_Start.weight) || 0); jt = Math.max(jt, pl.jumpT ?? -1); } }
+      await reset(); g.input.edges.jump = 1; let up = -1, js = 0, vy = 0, jt = -1;
+      for (let i = 0; i < 60; i++) { await U(dt); if (up < 0 && !body3.grounded) { up = i; vy = pl.vy; } if (up >= 0 && i - up <= 7) { js = Math.max(js, (m.act.U_Jump_Start && m.act.U_Jump_Start.weight) || 0); jt = Math.max(jt, pl.jumpT ?? -1); } }
       out.takeoff = { startW: +js.toFixed(2), upFrame: up, vy: +vy.toFixed(1), jumpT: +jt.toFixed(2), reactT: +(pl.reactT || 0).toFixed(2) };
       // drops (and the roll)
       for (const [name, H, roll] of [['drop1m', 1, false], ['drop2_5m', 2.5, false], ['drop6m', 6, false], ['roll6m', 6, true]]) {
-        reset(); if (roll) { keys.add('KeyW'); for (let i = 0; i < 30; i++) window.__upd(dt); } body3.teleport(pl.x, pl.y + H, pl.z); pl.y = body3.y; lastV = 0;
+        await reset(); if (roll) { keys.add('KeyW'); for (let i = 0; i < 30; i++) await U(dt); } body3.teleport(pl.x, pl.y + H, pl.z); pl.y = body3.y; lastV = 0;
         const snaps = []; let down = -1, kind = 'none', peak = 0;
         for (let i = 0; i < 60 * 3.5; i++) {
           if (roll && !body3.grounded && pl.vy < -7 && !(pl.rollReq > 0)) g.input.edges.crouch = 1;
-          window.__upd(dt); snaps.push(snap());
+          await U(dt); snaps.push(snap());
           if (down < 0 && lastV > 0) { down = i; kind = pl.landK ? pl.landK.kind : pl.rag ? 'ragdoll' : 'none'; }
           if (down >= 0) peak = Math.max(peak, share());
           if (down >= 0 && i > down + 60) break;
@@ -194,9 +196,9 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
         out[name] = { v: +lastV.toFixed(1), kind, peak: +peak.toFixed(2), snapDeg: down < 0 ? 999 : +Math.max(...snaps.slice(Math.max(0, down - 6), down + 24)).toFixed(1) };
       }
       // freefall
-      reset(200); let spread = 0, tip = 0, flut = 0, n = 0, prevH = null;
+      await reset(200); let spread = 0, tip = 0, flut = 0, n = 0, prevH = null;
       for (let i = 0; i < 60 * 4; i++) {
-        window.__upd(dt); if (pl.vy > -25) continue;
+        await U(dt); if (pl.vy > -25) continue;
         pl.group.updateMatrixWorld(true);
         const L = B.LeftHand.getWorldPosition(new V()), R = B.RightHand.getWorldPosition(new V()), sw = B.LeftArm.getWorldPosition(new V()).distanceTo(B.RightArm.getWorldPosition(new V()));
         spread += L.distanceTo(R) / sw; tip += m.body.rotation.x; n++;
@@ -204,16 +206,16 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       }
       out.freefall = { samples: n, spread: +(spread / Math.max(1, n)).toFixed(2), tipDeg: +(tip / Math.max(1, n) * deg).toFixed(0), flutterCm: +(flut * 100).toFixed(1) };
       // parachute
-      reset(120); if (!g.items.count('parachute')) g.items.add('parachute');
-      for (let i = 0; i < 90; i++) window.__upd(dt);
-      g.mobility.deploy(); for (let i = 0; i < 120; i++) window.__upd(dt); pl.group.updateMatrixWorld(true);
+      await reset(120); if (!g.items.count('parachute')) g.items.add('parachute');
+      for (let i = 0; i < 90; i++) await U(dt);
+      g.mobility.deploy(); for (let i = 0; i < 120; i++) await U(dt); pl.group.updateMatrixWorld(true);
       const hy = B.Head.getWorldPosition(new V()).y;
       out.canopy = { open: !!g.mobility.chute, handsUp: B.LeftHand.getWorldPosition(new V()).y > hy && B.RightHand.getWorldPosition(new V()).y > hy };
-      reset();
+      await reset();
       return out;
     };
     // (f) getting up. Bone heights are over the body's origin (the ground it gets up on)
-    const getUp = () => {
+    const getUp = async () => {
       pl.body3 = body3; g.phys.footY = footY;
       const V = THREE.Vector3, w = new V(), r = (x) => +x.toFixed(2), cm = (x) => +(x * 100).toFixed(0);
       const UP = ['U_LayToIdle', 'U_Pushup', 'U_Land_Three_Point', 'U_Jump_Land', 'U_Hit_Knockback'];
@@ -227,14 +229,14 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const out = {};
       // the player knocked down by a fall moving forward and backward (onto the belly and the back, as the ragdoll lands)
       for (const [name, sx] of [['fwd', 1], ['back', -1]]) {
-        reset(); const snap = snapper(pl, true);
+        await reset(); const snap = snapper(pl, true);
         // tipped over the feet: the chest pushed one way, the shins the other (a push alone lands either way up, by the pose it starts from)
         const d = { x: Math.sin(pl.ry) * sx, z: Math.cos(pl.ry) * sx }, R0 = g.ragdolls.spawn(pl, { cause: 'fall', alive: true, vel: { x: 0, y: 0, z: 0 } });
         if (!R0) { out[name] = { spawned: false }; continue; }
         R0.impulse('chest', { x: d.x * 30, y: 0, z: d.z * 30 }); for (const sg of ['shinL', 'shinR']) R0.impulse(sg, { x: -d.x * 10, y: 0, z: -d.z * 10 });
         let gu = -1, back = -1, end = -1, kind = 'none', front = null, share04 = 0, shareBack = 0, hand = 9, low = 9, snapDeg = 0, snapAt = '', lowAt = '', hipsBack = 0, hipsEnd = 0;
         for (let f = 0; f < 60 * 9 && (end < 0 || f < end + 30); f++) {
-          window.__upd(dt); const s = snap(), R = pl.rag;
+          await U(dt); const s = snap(), R = pl.rag;
           if (gu < 0 && R && R.state === 'GETUP') { gu = f; kind = pl.landK ? pl.landK.kind : 'none'; front = R.chestDown; }
           if (gu < 0) continue;
           if (s > snapDeg) { snapDeg = s; snapAt = snap.bone + '@' + ((f - gu) / 60).toFixed(2); } pl.group.updateMatrixWorld(true);
@@ -248,18 +250,18 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       }
       // the same with no ragdoll to spare: a hard landing from 10 m (v 14 m/s) comes down onto a hand instead
       const q = g.eng.q, cap0 = q.ragdolls; q.ragdolls = 0;
-      reset(10); lastV = 0; let kind = 'none', rag = false;
-      for (let i = 0; i < 240 && !(lastV > 0); i++) { window.__upd(dt); if (lastV > 0) { kind = pl.landK ? pl.landK.kind : 'none'; rag = !!pl.rag; } }
+      await reset(10); lastV = 0; let kind = 'none', rag = false;
+      for (let i = 0; i < 240 && !(lastV > 0); i++) { await U(dt); if (lastV > 0) { kind = pl.landK ? pl.landK.kind : 'none'; rag = !!pl.rag; } }
       out.hardNoRag = { v: +lastV.toFixed(1), kind, rag };
-      for (let i = 0; i < 120; i++) window.__upd(dt);
+      for (let i = 0; i < 120; i++) await U(dt);
       // a citizen knocked down with no ragdoll to spare (Human.ragdoll, legacy path), pushed along +x
-      reset(); const C = g.humans[0].constructor, h = new C(g, 'civ', { hp: 50 });
+      await reset(); const C = g.humans[0].constructor, h = new C(g, 'civ', { hp: 50 });
       h.x = pl.x + 3; h.z = pl.z + 3; h.y = h.floorY = pl.y; h.ry = 0; h.static = true; h.group.visible = true; g.humans.push(h); g.scene.add(h.group);
-      for (let i = 0; i < 30; i++) window.__upd(dt);
+      for (let i = 0; i < 30; i++) await U(dt);
       const snap = snapper(h, true); h.ragdoll(4, 0, 3);
       let f = 0, spin = 0, kb = 0, lay = 0, airLying = 0, snapDeg = 0, snapAt = '', face = 9;
       for (; f < 60 * 6 && h.knock; f++) {
-        window.__upd(dt); const s = snap(); if (s > snapDeg) { snapDeg = s; snapAt = snap.bone + '@' + (h.landK ? h.landK.kind + h.landK.t.toFixed(2) : f); } spin = Math.max(spin, Math.abs(h.m.body.rotation.x));
+        await U(dt); const s = snap(); if (s > snapDeg) { snapDeg = s; snapAt = snap.bone + '@' + (h.landK ? h.landK.kind + h.landK.t.toFixed(2) : f); } spin = Math.max(spin, Math.abs(h.m.body.rotation.x));
         kb = Math.max(kb, shareOf(h, ['U_Hit_Knockback'])); lay = Math.max(lay, shareOf(h, ['U_LayToIdle']));
         if (h.landK && h.landK.t > 0.31 && h.landK.t < 0.62 && h.y > (h.floorY || 0) + 0.05) airLying++;
         if (h.knock) face = Math.abs(Math.atan2(Math.sin(h.ry + Math.PI / 2), Math.cos(h.ry + Math.PI / 2)));   // while down (up, it runs off)
@@ -269,7 +271,7 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
         faceErrDeg: +(face * 57.3).toFixed(0), hipsEndCm: cm(over(h, h.m.bones.Hips)), state: h.state };
       if (cap0 === undefined) delete q.ragdolls; else q.ragdolls = cap0;
       g.humans.splice(g.humans.indexOf(h), 1); g.scene.remove(h.group);
-      reset(); g.land = land0;
+      await reset(); g.land = land0;
       return out;
     };
     const poses = () => {
@@ -298,37 +300,37 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     };
     // (g) looking (CHR-06g), through the game loop. The head's forward in its own frame is taken once from the pose it holds while it looks
     // where the body faces; yaw and pitch are of that direction against the body's facing
-    const look = () => {
-      pl.body3 = body3; g.phys.footY = footY; reset(); pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.lying = false;
+    const look = async () => {
+      pl.body3 = body3; g.phys.footY = footY; await reset(); pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.lying = false;
       const V = THREE.Vector3, q = new THREE.Quaternion(), deg = 180 / Math.PI, r = (x) => +x.toFixed(1), out = {};
       const calib = (h) => { h.group.updateMatrixWorld(true); return new V(Math.sin(h.ry), 0, Math.cos(h.ry)).applyQuaternion(h.m.bones.Head.getWorldQuaternion(q).invert()); };
       const dir = (h, f) => { h.group.updateMatrixWorld(true); const d = f.clone().applyQuaternion(h.m.bones.Head.getWorldQuaternion(q)); return { yaw: Math.atan2(d.x, d.z), pitch: Math.asin(Math.max(-1, Math.min(1, d.y))) }; };
       const rel = (h, f) => { const d = dir(h, f); return { yaw: wrap(d.yaw - h.ry) * deg, pitch: d.pitch * deg }; };
       // the player looks where the camera looks: 40 deg aside, 100 deg (past the limit), 160 deg (behind: lets go), up and down past the limit
-      const hold = (yaw, pitch, n = 90) => { for (let i = 0; i < n; i++) { g.cam.yaw = pl.ry + yaw; g.cam.pitch = pitch; window.__upd(dt); } };
-      hold(0, 0, 120); const fP = calib(pl);
-      for (const [k, yaw, pitch] of [['side40', 0.7, 0], ['side100', 1.75, 0], ['behind160', 2.8, 0], ['up', 0, 0.9], ['down', 0, -0.9]]) { hold(yaw, pitch); const x = rel(pl, fP); out[k] = { yawDeg: r(x.yaw), pitchDeg: r(x.pitch) }; }
+      const hold = async (yaw, pitch, n = 90) => { for (let i = 0; i < n; i++) { g.cam.yaw = pl.ry + yaw; g.cam.pitch = pitch; await U(dt); } };
+      await hold(0, 0, 120); const fP = calib(pl);
+      for (const [k, yaw, pitch] of [['side40', 0.7, 0], ['side100', 1.75, 0], ['behind160', 2.8, 0], ['up', 0, 0.9], ['down', 0, -0.9]]) { await hold(yaw, pitch); const x = rel(pl, fP); out[k] = { yawDeg: r(x.yaw), pitchDeg: r(x.pitch) }; }
       // the camera swung from 100 deg one side to 100 deg the other in a frame: the head goes round the front at a head's pace (deg a frame)
-      hold(1.75, 0); { let mx = 0, prev = dir(pl, fP).yaw; for (let i = 0; i < 60; i++) { g.cam.yaw = pl.ry - 1.75; window.__upd(dt); const y = dir(pl, fP).yaw; mx = Math.max(mx, Math.abs(wrap(y - prev))); prev = y; } out.swing = { maxDegFrame: r(mx * deg), endYawDeg: r(rel(pl, fP).yaw) }; }
+      await hold(1.75, 0); { let mx = 0, prev = dir(pl, fP).yaw; for (let i = 0; i < 60; i++) { g.cam.yaw = pl.ry - 1.75; await U(dt); const y = dir(pl, fP).yaw; mx = Math.max(mx, Math.abs(wrap(y - prev))); prev = y; } out.swing = { maxDegFrame: r(mx * deg), endYawDeg: r(rel(pl, fP).yaw) }; }
       // lying down, the head is the clip's
-      pl.lying = true; hold(0.7, 0); out.lying = { w: +(pl.lookW || 0).toFixed(2) }; pl.lying = false; hold(0, 0, 60);
+      pl.lying = true; await hold(0.7, 0); out.lying = { w: +(pl.lookW || 0).toFixed(2) }; pl.lying = false; await hold(0, 0, 60);
       // a citizen 4 m away facing away from the player at first; the player then stands 40 deg off its facing (the head turns, the body
       // stays) and 100 deg off (the head turns at once, the body comes round after it)
       const C = g.humans[0].constructor, h = new C(g, 'civ', { hp: 50 });
       const at = (a, d) => { pl.x = h.x + Math.sin(a) * d; pl.z = h.z + Math.cos(a) * d; body3.teleport(pl.x, pl.y, pl.z); };
       h.x = pl.x; h.z = pl.z + 4; h.y = h.floorY = pl.y; h.ry = 0; h.static = true; h.lookAtPlayer = true; h.state = 'stand'; h.home = { x: h.x, z: h.z }; h.group.visible = true;
       g.humans.push(h); g.scene.add(h.group);
-      at(Math.PI, 20); hold(0, 0, 120); const fN = calib(h);
-      at(0.7, 3.5); hold(0, 0, 90);
+      at(Math.PI, 20); await hold(0, 0, 120); const fN = calib(h);
+      at(0.7, 3.5); await hold(0, 0, 90);
       { const want = Math.atan2(pl.x - h.x, pl.z - h.z); out.npc40 = { errDeg: r(Math.abs(wrap(dir(h, fN).yaw - want)) * deg), bodyDeg: r(Math.abs(wrap(h.ry)) * deg) }; }
-      at(Math.PI, 20); hold(0, 0, 120); h.ry = 0; hold(0, 0, 30);
+      at(Math.PI, 20); await hold(0, 0, 120); h.ry = 0; await hold(0, 0, 30);
       at(1.75, 3.5);
       { let tH = -1, tB = -1, mx = 0;
-        for (let f = 0; f < 180; f++) { window.__upd(dt); if (tH < 0 && Math.abs(wrap(dir(h, fN).yaw)) > 0.8) tH = f; if (tB < 0 && Math.abs(wrap(h.ry)) > 0.8) tB = f; mx = Math.max(mx, Math.abs(rel(h, fN).yaw)); }
+        for (let f = 0; f < 180; f++) { await U(dt); if (tH < 0 && Math.abs(wrap(dir(h, fN).yaw)) > 0.8) tH = f; if (tB < 0 && Math.abs(wrap(h.ry)) > 0.8) tB = f; mx = Math.max(mx, Math.abs(rel(h, fN).yaw)); }
         const want = Math.atan2(pl.x - h.x, pl.z - h.z);
         out.npc100 = { headS: +(tH / 60).toFixed(2), bodyS: +(tB / 60).toFixed(2), faceErrDeg: r(Math.abs(wrap(h.ry - want)) * deg), headErrDeg: r(Math.abs(wrap(dir(h, fN).yaw - want)) * deg), headRelMaxDeg: r(mx) }; }
       g.humans.splice(g.humans.indexOf(h), 1); g.scene.remove(h.group);
-      g.cam.pitch = -0.15; reset();
+      g.cam.pitch = -0.15; await reset();
       return out;
     };
     // (h) procedural gestures (CHR-06h), the animation stepped alone, the camera ahead (the look-at has nothing else to look at). The chest's
@@ -364,11 +366,11 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const turns = { left90: turn(Math.PI / 2), right90: turn(-Math.PI / 2), back180: turn(Math.PI * 0.98) };
     const leanOut = lean();
     pl.armed = false; pl.aimT = 0; pl.forceAim = false; pl.speed = 0; pl.vx = pl.vz = 0;
-    const stairsOut = stairs();
-    const airOut = air();
+    const stairsOut = await stairs();
+    const airOut = await air();
     const posesOut = poses();
-    const upOut = getUp();
-    const lookOut = look();
+    const upOut = await getUp();
+    const lookOut = await look();
     const procOut = procs();
     const gait = Object.fromEntries(Object.entries(m.gait).map(([k, x]) => [k, [+x.spd.toFixed(2), +(x.dir * 180 / Math.PI).toFixed(0), +x.dur.toFixed(2), +x.off.toFixed(2)]]));
     const turnClips = Object.fromEntries(Object.entries(m.turn).map(([k, x]) => [k, [+(x.end * 57.3).toFixed(0), +x.t0.toFixed(2), +x.t1.toFixed(2)]]));

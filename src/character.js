@@ -43,7 +43,9 @@ export class Character {
     const m = this.ctrl.computedMovement();
     this.x += m.x; this.y += m.y; this.z += m.z;
     const was = this.grounded;
-    this.grounded = this.ctrl.computedGrounded();
+    // a body still rising is not standing on anything: Rapier calls it grounded while the floor is within a few cm, and a real 3.3 m/s take-off
+    // only rises 5 cm in the first frame, so the jump was cancelled on the spot
+    this.grounded = this.ctrl.computedGrounded() && !(this.vy > 0 && m.y > 0);
     let impact = 0;
     if (this.grounded && !was && prevVy < -1) impact = -prevVy;
     if (this.grounded) this.vy = -2;

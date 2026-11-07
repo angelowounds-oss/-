@@ -205,8 +205,17 @@ export class Vehicle {
     const on = hasDriver && !!this.down && this.boostFuel > 0;
     if (on && !this.boosting) { this.G.audio.tone?.(70, 0.8, 'sawtooth', 0.35, 400); this.G.shake(0.5); }
     this.boosting = on; this.boostFuel = clamp(this.boostFuel + (on ? -14 : 5) * dt, 0, 100);
-    pvs.accel = this.b0.a * (on ? 2.6 : 1); pvs.maxSpeed = this.b0.m * (on ? 1.45 : 1);
-    const v = this.speed; if (v > 25) this.pv.body.applyImpulse({ x: 0, y: -this.pv.mass * 0.00035 * v * v * dt, z: 0 }, true);
+    pvs.maxSpeed = this.b0.m * (on ? 1.45 : 1);
+    // the rocket pushes the body through its centre of mass (1.6x the launch limit on top of the wheels: 2.6x in all); put through the rear tyres'
+    // contact patches that thrust reared the car up onto its tail under real gravity
+    const v = this.speed;
+    if (on && this.fwdSpeed < pvs.maxSpeed) { const J = this.pv.mass * this.b0.a * 1.6 * dt; this.pv.body.applyImpulse({ x: Math.sin(this.h) * J, y: 0, z: Math.cos(this.h) * J }, true); }
+    // downforce as on a high-downforce car (2.4 g at 500 km/h, held at 2.5 g): under real gravity the old 0.7 g let a 3 cm seam at 450 km/h lift the
+    // nose and spin the car round on its rear wheels. Active suspension stiffens the springs with it, so the car keeps its 16 cm of sag instead of
+    // bottoming out and dragging its floor into the road
+    const down = v > 25 ? Math.min(0.0012 * v * v, 2.5 * 9.81) : 0;
+    if (down) this.pv.body.applyImpulse({ x: 0, y: -this.pv.mass * down * dt, z: 0 }, true);
+    const c = this.pv.ctrl, kS = PHYS.springK * (1 + down / 9.81); if (c && Math.abs(c.wheelSuspensionStiffness(0) - kS) > 0.05) for (let i = 0; i < 4; i++) c.setWheelSuspensionStiffness(i, kS);
     // on-rails grip: sideways speed is bled off so it follows its nose even when the wheels spin (the handbrake loosens it for drifting)
     const b = this.pv.body, lv = b.linvel(), fx = Math.sin(this.h), fz = Math.cos(this.h), vl = lv.x * fz - lv.z * fx, k = Math.min(1, (this.hand ? 1.2 : 7) * dt);
     b.setLinvel({ x: lv.x - fz * vl * k, y: lv.y, z: lv.z + fx * vl * k }, true);
