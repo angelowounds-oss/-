@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CAR_SPECS } from './carspecs.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rand, TAU } from './util.js';
 import { A, buildSoldier, buildFerrariModel, setFerrariWheels } from './assets.js';
@@ -77,15 +78,7 @@ function wheelPair(track, y) {
   return { tires, rims, both: mergeSafe([paint(tires.clone(), 0x15151a), paint(rims.clone(), 0xc8d2e0)]) };
 }
 
-export const CAR_SPECS = {
-  sedan: { L: 4.7, W: 1.88, belt: 0.95, roof: 1.46, wb: 1.4, cab: [-1.25, -0.8, 0.7, 1.15], hood: 0.82, mass: 1.0, maxSpeed: 46, accel: 17, grip: 7.5, hp: 100, track: 0.8 },
-  sport: { L: 4.5, W: 1.95, belt: 0.78, roof: 1.2, wb: 1.38, cab: [-1.1, -0.55, 0.55, 1.1], hood: 0.62, mass: 0.9, maxSpeed: 62, accel: 26, grip: 9, hp: 85, track: 0.85 },
-  suv: { L: 4.9, W: 2.0, belt: 1.12, roof: 1.78, wb: 1.5, cab: [-2.0, -1.8, 0.8, 1.35], hood: 1.02, mass: 1.35, maxSpeed: 40, accel: 14, grip: 6.5, hp: 140, track: 0.88 },
-  truck: { L: 6.3, W: 2.2, belt: 1.2, roof: 2.9, wb: 2.0, cab: [-0.2, -0.1, 2.1, 2.45], hood: 1.0, mass: 2.4, maxSpeed: 31, accel: 9, grip: 5.2, hp: 220, track: 0.95, boxy: true },
-};
-
-// absurdly fast electric roadster: the sport car's body with a rocket booster (boost: Shift, see Vehicle.applyDrive)
-CAR_SPECS.roadster = { ...CAR_SPECS.sport, mass: 0.85, maxSpeed: 300, accel: 62, grip: 14, hp: 140, boost: true, title: '로드스터' };
+export { CAR_SPECS };
 
 function buildFerrari(color, opts) {
   const sp = CAR_SPECS.sport, { L, W } = sp, hl = L / 2;

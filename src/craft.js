@@ -7,14 +7,17 @@ import { CAPITAL } from './koreamap.js';
 import { landHeight } from './farland.js';
 
 // Motorcycle, boat and helicopter: procedural models + physics drive models (Vehicle subclass-free hooks)
+// moto (a 600 cc bike with its rider, 280 kg, 80 kW) and bus (a 13 t city bus, 210 kW) drive on physics.js driveVehicle with the cars' real figures
+// (carspecs.js); the craft below have their own force models (driveCraft)
 export const CRAFT_SPECS = {
-  moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.2, maxSpeed: 60, accel: 25, grip: 8.5, hp: 55, track: 0.3, cy: 0.5, fuelRate: 0.9, custom: 'moto' },
-  bus: { L: 11, W: 2.55, wb: 3.8, mass: 2.8, maxSpeed: 20, accel: 6, grip: 5, hp: 320, track: 0.95, custom: 'bus', fuelRate: 1 },
-  boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 11, grip: 3, hp: 120, cy: 0.5, fuelRate: 1.2, custom: 'boat', craft: 'boat' },
-  heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 48, accel: 16, grip: 3, hp: 130, cy: 0.9, fuelRate: 1.6, custom: 'heli', craft: 'heli' },
+  moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, hp: 55, track: 0.3, cy: 0.5, fuelRate: 0.9, custom: 'moto' },
+  bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, hp: 320, track: 0.95, custom: 'bus', fuelRate: 1 },
+  // real figures: a 6 m speedboat 0.4 g and 94 km/h, a light helicopter about 0.45 g and 170 km/h (an attack one 270 km/h), a main battle tank 0.2 g and 68 km/h
+  boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 4, grip: 3, hp: 120, cy: 0.5, fuelRate: 1.2, custom: 'boat', craft: 'boat' },
+  heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 60, accel: 4.5, grip: 3, hp: 130, cy: 0.9, fuelRate: 1.6, custom: 'heli', craft: 'heli' },
   // war machines (see warcraft.js): armoured, armed, flown / driven with the camera as the aim
-  tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 17, accel: 6.5, grip: 3, hp: 1800, cy: 1.05, fuelRate: 0.7, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
-  gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 60, accel: 20, grip: 3, hp: 800, cy: 0.9, fuelRate: 1.3, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
+  tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 19, accel: 2, grip: 3, hp: 1800, cy: 1.05, fuelRate: 0.7, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
+  gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 75, accel: 5.5, grip: 3, hp: 800, cy: 0.9, fuelRate: 1.3, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
   // Darkstar: a black hypersonic aircraft, Mach 10 (3,430 m/s) at full throttle; same flight model as the jet with a bigger engine
   darkstar: { L: 15, W: 7.2, mass: 1.2, maxSpeed: 3430, accel: 1500, grip: 3, hp: 600, cy: 1.0, fuelRate: 2.2, custom: 'darkstar', craft: 'jet', war: 'jet', armored: 0.35, hyper: true, title: '다크스타' },
   jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 150, accel: 30, grip: 3, hp: 450, cy: 1.1, fuelRate: 1.8, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
@@ -163,7 +166,7 @@ export function buildCustom(type, color, opts = {}) {
 export function createCraftBody(phys, spec, x, y, z, heading) {
   const R = phys.R, w = phys.world, mass = 1300 * spec.mass;
   const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
-  let desc = R.RigidBodyDesc.dynamic().setGravityScale(22 / 9.81).setTranslation(x, y, z).setRotation(q).setLinearDamping(spec.craft === 'heli' ? 0.5 : 0.05).setAngularDamping(spec.craft === 'heli' ? 3 : 2.5).setCanSleep(spec.craft !== 'boat').setCcdEnabled(true);
+  let desc = R.RigidBodyDesc.dynamic().setGravityScale(1).setTranslation(x, y, z).setRotation(q).setLinearDamping(spec.craft === 'heli' ? 0.5 : 0.05).setAngularDamping(spec.craft === 'heli' ? 3 : 2.5).setCanSleep(spec.craft !== 'boat').setCcdEnabled(true);
   if (spec.craft === 'heli' || spec.craft === 'tank') desc = desc.enabledRotations(false, true, false);
   if (spec.craft === 'jet') desc = desc.enabledRotations(false, false, false);
   const body = w.createRigidBody(desc);
@@ -185,9 +188,9 @@ export function driveCraft(veh, dt) {
     const inWater = wt && t.y < wy + 0.8;
     if (inWater) {
       const target = wy + 0.1, a = clamp((target - t.y) * 38 - lv.y * 7, -30, 40);
-      const nvy = lv.y + (22 + a) * dt;
+      const nvy = lv.y + (9.81 + a) * dt;   // the buoyancy holds the hull at the waterline against gravity (9.81 m/s^2; it was 22)
       const vf = lv.x * fx + lv.z * fz, vl = lv.x * fz - lv.z * fx;
-      const acc = thr * spec.accel * (1 - Math.max(0, vf) / spec.maxSpeed) - brk * (vf > 0.5 ? 14 : spec.accel * 0.4 * Math.max(0, 1 + vf / 8));
+      const acc = thr * spec.accel * (1 - Math.max(0, vf) / spec.maxSpeed) - brk * (vf > 0.5 ? spec.accel : spec.accel * 0.4 * Math.max(0, 1 + vf / 8));   // a boat has no brakes: astern thrust stops it
       let nvx = lv.x + (fx * acc - fz * vl * 3.2) * dt, nvz = lv.z + (fz * acc + fx * vl * 3.2) * dt;
       nvx -= lv.x * 0.25 * dt; nvz -= lv.z * 0.25 * dt;
       b.setLinvel({ x: nvx, y: nvy, z: nvz }, true);
@@ -200,15 +203,15 @@ export function driveCraft(veh, dt) {
     const sp = veh.spool, up = hasDriver ? (veh.hand ? 1 : 0) - (veh.down ? 1 : 0) : 0;
     const alt = t.y;
     // lift: hover at spool 1, collective changes climb rate
-    const hover = sp > 0.85 ? 22 : sp * 18;
-    let ay = hover + (sp > 0.85 ? up * 12 : 0);
+    const hover = sp > 0.85 ? 9.81 : sp * 8;   // lift against gravity (9.81 m/s^2), short of it until the rotor is up to speed
+    let ay = hover + (sp > 0.85 ? up * 5 : 0);   // the collective: about half a g of climb or descent, as a light helicopter
     if (sp > 0.85 && !up) ay += clamp(-lv.y * 6, -12, 12);
     b.applyImpulse({ x: 0, y: m * ay * dt, z: 0 }, true);
     const f = thr - brk;
     const hv = Math.hypot(lv.x, lv.z), vf = lv.x * fx + lv.z * fz, vl = lv.x * fz - lv.z * fx;
     if (sp > 0.85) {
       const acc = f * spec.accel * (1 - clamp(vf / spec.maxSpeed, -1, 1) * Math.sign(f || 1));
-      b.applyImpulse({ x: m * (fx * acc - lv.x * 0.15) * dt, y: 0, z: m * (fz * acc - lv.z * 0.15) * dt }, true);
+      b.applyImpulse({ x: m * (fx * acc - lv.x * 0.02) * dt, y: 0, z: m * (fz * acc - lv.z * 0.02) * dt }, true);   // light air drag: a helicopter is stopped by flaring (brake), not by the air
     }
     const w = b.angvel(); b.setAngvel({ x: 0, y: lerp(w.y, -st * 1.5 * (sp > 0.85 ? 1 : 0.2), 1 - Math.exp(-4 * dt)), z: 0 }, true);
     veh.tiltFwd = damp(veh.tiltFwd || 0, f * 0.2, 3, dt); veh.tiltRoll = damp(veh.tiltRoll || 0, -st * 0.15, 3, dt);
@@ -264,7 +267,7 @@ const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // Space (vertical thrust) holds it up, which also lets it take off and land on a pad. No input = it keeps flying straight.
 function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
   const spec = veh.spec, G = veh.G, pilot = hasDriver && veh.fuel > 0;
-  b.setGravityScale(pilot ? 0 : 22 / 9.81, true);
+  b.setGravityScale(pilot ? 0 : 1, true);
   if (!pilot) { veh.thrLvl = Math.max(0, (veh.thrLvl || 0) - 0.3 * dt); veh.cmdV = null; if (veh.fast) { veh.pv.col.setSensor(false); veh.fast = false; const h = veh.hv || lv, k = Math.min(1, 300 / (Math.hypot(h.x, h.y, h.z) || 1)); b.setLinvel({ x: h.x * k, y: h.y * k, z: h.z * k }, true); veh.hv = null; } veh.jetS = Math.hypot(lv.x, lv.y, lv.z); return; }
   veh.thrLvl = clamp((veh.thrLvl ?? 0) + (thr - brk) * 0.55 * dt, 0, 1);
   const hit = G.phys.ray(t.x, t.y, t.z, 0, -1, 0, 40, 1 | 16), agl = hit ? hit.t - spec.cy : 99;

@@ -1,8 +1,11 @@
 // Rapier-backed physics: fixed-step world, static city colliders, raycast-suspension rigid-body vehicles.
 // RAPIER is injected so the same module can be unit-tested under Node.
 export const PHYS = {
-  dt: 1 / 60, gravity: -9.81, vehGravScale: 22 / 9.81, maxSub: 4,
+  dt: 1 / 60, gravity: -9.81, vehGravScale: 1, maxSub: 4,
   mass: 1300, rest: 0.34, radius: 0.35, connY: -0.12, bodyY: 0.78,
+  // the drive train and the air (driveVehicle): wheel power over engine power, air density (kg/m^3), what the brakes reach of the tyres' grip
+  // (ABS keeps a wheel just short of locking), the engine's drag with the throttle shut (m/s^2)
+  eta: 0.85, rho: 1.2, absK: 0.97, engineBrake: 0.35,
 };
 
 export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32, RAG: 64, RAGL: 128 };
@@ -181,7 +184,7 @@ export class Physics {
     const hx = spec.W / 2, hy = 0.42, hz = spec.L / 2;
     const q = { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) };
     const body = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, PHYS.bodyY, z).setRotation(q)
-      .setLinearDamping(0.04).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true).setGravityScale(PHYS.vehGravScale));
+      .setLinearDamping(0).setAngularDamping(1.2).setCanSleep(true).setCcdEnabled(true).setGravityScale(PHYS.vehGravScale));   // the air's drag is driveVehicle's
     const col = w.createCollider(R.ColliderDesc.cuboid(hx * 0.98, hy, hz * 0.98).setTranslation(0, 0.12, 0).setMass(0.001).setFriction(0.25).setRestitution(0.18).setCollisionGroups(grp(GR.VEH, GR.STATIC | GR.VEH | GR.PROP | GR.OBJ | GR.GLASS | GR.RAG | GR.RAGL)), body);
     // low centre of mass + realistic inertia
     const ix = (mass / 12) * (4 * hy * hy + 4 * hz * hz) * 0.55, iy = (mass / 12) * (4 * hx * hx + 4 * hz * hz) * 0.7, iz = (mass / 12) * (4 * hx * hx + 4 * hy * hy) * 0.55;
@@ -190,13 +193,15 @@ export class Physics {
     const wb = spec.wb, tr = spec.W / 2 - 0.2;
     const pts = [[-tr, wb], [tr, wb], [-tr, -wb], [tr, -wb]]; // FL FR RL RR (x is chassis-right negative = left)
     pts.forEach(([px, pz]) => ctrl.addWheel({ x: px, y: PHYS.connY, z: pz }, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, PHYS.rest, PHYS.radius));
+    // springs per unit of the car's mass (Rapier multiplies by it): 4 x 15.1 gives the body a 1.24 Hz bounce, as on a road car, and the 16 cm of sag
+    // the models are drawn with (it was 34 under a gravity of 22 m/s^2: the same sag, a 1.9 Hz bounce); the dampers about half of critical
     for (let i = 0; i < 4; i++) {
-      ctrl.setWheelSuspensionStiffness(i, 34);
-      ctrl.setWheelSuspensionCompression(i, 2.4);
-      ctrl.setWheelSuspensionRelaxation(i, 3.0);
+      ctrl.setWheelSuspensionStiffness(i, 15.1);
+      ctrl.setWheelSuspensionCompression(i, 1.75);
+      ctrl.setWheelSuspensionRelaxation(i, 2.2);
       ctrl.setWheelMaxSuspensionTravel(i, 0.3);
       ctrl.setWheelMaxSuspensionForce(i, mass * 14);
-      ctrl.setWheelFrictionSlip(i, spec.grip * 0.75);
+      ctrl.setWheelFrictionSlip(i, spec.grip);
       ctrl.setWheelSideFrictionStiffness(i, 1.0);
     }
     const v = { body, col, ctrl, mass, spec };
@@ -212,32 +217,40 @@ export class Physics {
   }
 }
 
-// Apply driver inputs to a vehicle physics handle
+// Apply driver inputs to a vehicle physics handle, with the forces of a real car (spec: power kW, accel = the launch limit m/s^2, maxSpeed = the
+// governor m/s, grip = the tyres' friction coefficient, cda = drag area m^2, crr = rolling resistance). Rapier's engine force is a force (N) and its
+// brake the largest rolling-friction impulse a wheel takes in one step (N s), so the brakes are written as impulses
 export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSteer, dead, parked }) {
-  const { ctrl, mass, spec } = v;
-  const aF = Math.abs(speedFwd);
-  // engine: forward torque falls off toward top speed
+  const { ctrl, mass, spec, body } = v, dt = PHYS.dt, g = -PHYS.gravity;
+  const aF = Math.abs(speedFwd), P = (spec.power ?? 120) * 1000 * PHYS.eta;
+  // the engine: the launch limit up to the speed where the power takes over, then power over speed; nothing past the governor
+  const pull = (lim) => Math.min(mass * spec.accel, P / Math.max(aF, 1)) * (aF < lim ? 1 : 0) / 4;
+  const brakeImp = mass * g * spec.grip * PHYS.absK * dt / 4;   // per wheel: the tyre's grip, which the brakes reach with ABS
   let engine = 0, brk = 0;
-  const wheelsDriven = 4;
   if (!dead) {
     if (throttle > 0) {
-      if (speedFwd < -1.5) brk = mass * 0.4 / 4 * throttle;
-      else engine = (mass * spec.accel * throttle * Math.max(0, 1 - Math.max(speedFwd, 0) / spec.maxSpeed)) / wheelsDriven;
+      if (speedFwd < -1.5) brk = brakeImp * throttle;
+      else engine = pull(spec.maxSpeed) * throttle;
     }
     if (brake > 0) {
-      if (speedFwd > 0.8) brk += mass * (PHYS.brakeK ?? 0.4) / 4 * brake;
-      else engine = -(mass * spec.accel * 0.55 * brake * Math.max(0, 1 - Math.max(-speedFwd, 0) / (spec.maxSpeed * 0.28))) / wheelsDriven;
+      if (speedFwd > 0.8) brk += brakeImp * brake;
+      else engine = -pull(9) * 0.5 * brake;   // reverse: first gear, up to 32 km/h
     }
-  } else brk = mass * (parked ? 1.2 : 0.3);
-  
-  if (!throttle && !brake && !dead) brk += mass * 0.012 / 4 * (aF > 0.2 ? 1 : 12);
+  } else brk = brakeImp * (parked ? 1 : 0.25);
+  // throttle shut: the engine drags the car down (and holds it at a standstill)
+  if (!throttle && !brake && !dead) brk += mass * PHYS.engineBrake * dt / 4 * (aF > 0.2 ? 1 : 12);
+  // the air and the tyres' rolling resistance, against the motion
+  if (body) {
+    const lv = body.linvel(), sp = Math.hypot(lv.x, lv.z);
+    if (sp > 0.05) { const F = 0.5 * PHYS.rho * (spec.cda ?? 0.7) * sp * sp + (spec.crr ?? 0.011) * mass * g, k = Math.min(F * dt, mass * sp * 0.5) / sp; body.applyImpulse({ x: -lv.x * k, y: 0, z: -lv.z * k }, true); }
+  }
   const steerAng = steer * maxSteer;
   for (let i = 0; i < 4; i++) {
     ctrl.setWheelEngineForce(i, engine);
-    ctrl.setWheelBrake(i, i >= 2 && hand ? mass * 0.3 / 4 + brk * 0.3 : brk);
+    ctrl.setWheelBrake(i, i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk);
     ctrl.setWheelSteering(i, i < 2 ? -steerAng : 0);
     // handbrake lets the rear break traction -> drift
-    ctrl.setWheelFrictionSlip(i, spec.grip * 0.75 * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
+    ctrl.setWheelFrictionSlip(i, spec.grip * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
   }
 }
 
@@ -254,7 +267,8 @@ function stabilize(v) {
   const fx = 2 * (q.x * q.z + q.w * q.y), fy = 2 * (q.y * q.z - q.w * q.x), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
   const ux = 2 * (q.x * q.y - q.w * q.z), uy = 1 - 2 * (q.x * q.x + q.z * q.z), uz = 2 * (q.y * q.z + q.w * q.x);
   const wy = w.x * ux + w.y * uy + w.z * uz; // yaw component (about chassis up)
-  const k = uy > 0.5 ? 0.82 : 0.97; // strong damping while mostly upright
+  let on = 0; const c = v.ctrl; if (c) for (let i = 0; i < c.numWheels(); i++) if (c.wheelIsInContact(i)) on++;
+  const k = on < 2 ? 0.995 : uy > 0.5 ? 0.82 : 0.97; // the tyres and dampers settle roll and pitch on the ground; in the air nothing does (a car off a ramp or a cliff tips and tumbles)
   b.setAngvel({ x: ux * wy + (w.x - ux * wy) * k, y: uy * wy + (w.y - uy * wy) * k, z: uz * wy + (w.z - uz * wy) * k }, true);
   v.up = uy;
 }

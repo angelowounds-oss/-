@@ -1,3 +1,4 @@
+import { stopSpeed } from './util.js';
 import { net } from './roadnet.js';
 import { cities } from './worldmap.js';
 
@@ -197,27 +198,33 @@ export class AutoNav {
     const tx = P[j][0] + ((P[j][1] - pj[1]) / fl) * lat, tz = P[j][1] - ((P[j][0] - pj[0]) / fl) * lat, want = Math.atan2(tx - v.x, tz - v.z), dh = Math.atan2(Math.sin(want - v.h), Math.cos(want - v.h));
     v.steer = Math.max(-1, Math.min(1, -dh * 2.4 * (spd > 25 ? 0.6 : 1)));
     // speed: by road class, less for a sharp turn ahead
-    let cls = P[Math.min(P.length - 1, this.i + 2)][2], target = cls ? 36 : 13;
-    let turn = 0; for (let k = this.i; k < Math.min(P.length - 2, this.i + 8); k++) { const a1 = Math.atan2(P[k + 1][0] - P[k][0], P[k + 1][1] - P[k][1]), a2 = Math.atan2(P[k + 2][0] - P[k + 1][0], P[k + 2][1] - P[k + 1][1]); turn = Math.max(turn, Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1)))); }
-    if (turn > 0.5) target = Math.min(target, 11); else if (turn > 0.25) target = Math.min(target, cls ? 28 : 11);
+    let cls = P[Math.min(P.length - 1, this.i + 2)][2], target = cls ? 30 : 13;   // a Korean expressway's 100-110 km/h limit (it was 130 km/h), a city street's 50
+    // corners ahead, as far as it takes to slow down: at each bend the speed that keeps the sideways pull at 3.5 m/s^2 (radius from the turn over
+    // the two segments), from which the car brakes at 4 m/s^2 over the distance to it (a sharp turn had a fixed 11 m/s within 8 points)
+    let s = Math.hypot(P[this.i][0] - v.x, P[this.i][1] - v.z); const reach = 40 + spd * spd / 8;
+    for (let k = this.i; k < P.length - 2 && s < reach; k++) {
+      const l1 = Math.hypot(P[k + 1][0] - P[k][0], P[k + 1][1] - P[k][1]), l2 = Math.hypot(P[k + 2][0] - P[k + 1][0], P[k + 2][1] - P[k + 1][1]);
+      const a1 = Math.atan2(P[k + 1][0] - P[k][0], P[k + 1][1] - P[k][1]), a2 = Math.atan2(P[k + 2][0] - P[k + 1][0], P[k + 2][1] - P[k + 1][1]), tw = Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1)));
+      s += l1; if (tw > 0.02) target = Math.min(target, stopSpeed(s - l1 * 0.5, 4, Math.max(5, Math.sqrt(3.5 * ((l1 + l2) * 0.5) / tw))));
+    }
     if (Math.abs(dh) > 0.5) target = Math.min(target, 8);
     // obstacles: other vehicles and people ahead in the lane
-    const lookO = 12 + Math.max(spd, 0) * 1.3;
+    const lookO = 12 + Math.max(spd, 0) * 1.3 + spd * spd / 10;   // as far as it takes to stop (5 m/s^2)
     // while moving over, a car counts as in the way if it is in the lane being entered, or so close in the current lane that the move cannot clear it
     const free = target, shift = (this.latT || 0) - this.carLat(v, P);
     for (const o of G.vehicles) {
       if (o === v || !o.group.visible) continue; const dx = o.x - v.x, dz = o.z - v.z, along = dx * sH + dz * cH;
       if (along < 1 || along > lookO + o.L * 0.5) continue;
       const side = dx * cH - dz * sH, w = (v.W + o.W) * 0.5 + 0.6, gap = along - o.L * 0.5 - v.L * 0.5;
-      if (Math.abs(side - shift) < w || (Math.abs(side) < w && gap < 4 + spd * 0.35)) target = Math.min(target, Math.max(0, (gap - 3) * 0.9, o.speed * 0.8));
+      if (Math.abs(side - shift) < w || (Math.abs(side) < w && gap < 4 + spd * 0.35)) target = Math.min(target, gap > 3 ? stopSpeed(gap - 3, 5, o.speed) : Math.min(o.speed * 0.5, 1));   // slows to the car ahead's speed within the gap
     }
     this.lanes(v, P, cls, target < free - 4, lookO, dt);
     for (const h of G.humans) {
       if (h.dead || h.hidden) continue; const dx = h.x - v.x, dz = h.z - v.z, along = dx * sH + dz * cH;
-      if (along < 0.5 || along > lookO * 0.8) continue; if (Math.abs(dx * cH - dz * sH) < v.W * 0.5 + 1.2) target = Math.min(target, Math.max(0, (along - 4) * 0.8));
+      if (along < 0.5 || along > lookO * 0.8) continue; if (Math.abs(dx * cH - dz * sH) < v.W * 0.5 + 1.2) target = Math.min(target, stopSpeed(along - 4, 6));
     }
     const err = target - spd;
-    v.throttle = err > 0 ? Math.min(1, err * 0.35) : 0; v.brake = err < -2 ? Math.min(1, -err * 0.12) : 0; v.hand = false;
+    v.throttle = err > 0 ? Math.min(1, err * 0.35) : 0; v.brake = err < -1 ? Math.min(1, -err * 0.25) : 0; v.hand = false;
     // wedged behind a stopped car: back off for a moment (brake at a standstill reverses) with the wheels turned the other way
     if (spd < 1 && target < 1 && free > 3) { this.wedged = (this.wedged || 0) + dt; if (this.wedged > 3) { this.wedged = 0; this.backT = 1.6; } } else this.wedged = 0;
     if (this.backT > 0) { this.backT -= dt; v.throttle = 0; v.brake = 1; v.steer = -v.steer; return; }

@@ -9,9 +9,10 @@ run('region', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     if (!RG || !RG.regionRoads().length) return { noRegion: true };
     const step = (n) => { for (let i = 0; i < n; i++) window.__upd(1 / 60); };
     const park = (x, y, z) => { pl.body3.teleport(x, y, z); pl.x = x; pl.y = y; pl.z = z; pl.vx = pl.vz = pl.vy = 0; pl.dead = false; pl.hpv = 100; };
-    // 1. the ground: the drawn height (tiles) equals the compiled raster where the region decides alone
-    let n = 0, off = 0;
-    for (let k = 0; k < 600; k++) { const x = -7000 + (k * 7919 % 12000), z = -4000 + (k * 104729 % 9400); if (RG.regionWeight(x, z) < 1) continue; n++; if (Math.abs(LF.landHeight(x, z, 16) - RG.regionHeight(x, z)) > 0.15) off++; }
+    // 1. the ground: the drawn height (tiles) equals the compiled raster where the region decides alone, at the tiles' own samples (the 16 m tile
+    // lattice is 8 m off the raster's, so between samples the two interpolations differ by up to 3 m on graded slopes: 85 of 507 places on the raw region)
+    let n = 0, off = 0; const T = { x: -255185, z: -139407 } /* src/heightmap.js TILE_ORIGIN */, snap = (v, o) => o + Math.round((v - o) / 16) * 16;
+    for (let k = 0; k < 600; k++) { const x = snap(-7000 + (k * 7919 % 12000), T.x), z = snap(-4000 + (k * 104729 % 9400), T.z); if (RG.regionWeight(x, z) < 1) continue; n++; if (Math.abs(LF.landHeight(x, z, 16) - RG.regionHeight(x, z)) > 0.15) off++; }
     o.groundSamples = n; o.groundOff = off;
     // 2. a player put down on dry compiled land west of the capital stands on it
     let land = null; for (let k = 0; k < 400 && !land; k++) { const x = -3000 - k * 16, z = 2600; const w = RG.regionWater(x, z); if (RG.regionWeight(x, z) >= 1 && w && !w.cls) land = [x, z]; }

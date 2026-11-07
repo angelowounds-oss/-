@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildCar, CAR_SPECS } from './models.js';
 import { N, P, R, LANE, HALF, roadC, roadIdx, hasEdge } from './world.js';
-import { clamp, lerp, damp, angDiff, rand, TAU } from './util.js';
+import { clamp, lerp, damp, angDiff, rand, TAU, stopSpeed } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { physHeight } from './landfn.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
@@ -221,7 +221,9 @@ export class Vehicle {
     const vf = this.vx * sH + this.vz * cH, vl = this.vx * -cH + this.vz * sH;
     // impact = sudden planar velocity loss that engines/brakes cannot explain
     const isJet = this.spec.craft === 'jet', jet = isJet && this.cmdV, dv = jet ? Math.hypot(this.vx - this.cmdV.x, this.vz - this.cmdV.z, (this.vy || 0) - this.cmdV.y) : isJet ? 0 : Math.hypot(this.vx - pvx, this.vz - pvz);   // aircraft: an impact is what the world took from the commanded velocity (hypersonic ones are swept by ray in stepJet)
-    if (dt > 0 && dv > (jet ? 8 : 2.6 + this.spec.accel * dt * 0.6)) {
+    // a teleport (recovery, a test's reset) sets the velocity outright: that speed change is no crash for the next two frames (noImpact)
+    if (this.noImpact > 0) this.noImpact--;
+    else if (dt > 0 && dv > (jet ? 8 : 2.6 + this.spec.accel * dt * 0.6)) {
       const ix = this.x + sH * this.L * 0.5 * Math.sign(vf || 1), iz = this.z + cH * this.L * 0.5 * Math.sign(vf || 1);
       this.onImpact(dv, ix, iz, null);
     }
@@ -229,7 +231,7 @@ export class Vehicle {
     // flipped & stuck -> right the car
     if (this.q) {
       const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);
-      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); const f = floorBelow(this.phys, this.x, this.by ?? 0, this.z); this.pv.body.setTranslation({ x: this.x, y: (f === f ? f : this.groundRise()) + 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; } } else this.flipT = 0;
+      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); const f = floorBelow(this.phys, this.x, this.by ?? 0, this.z); this.pv.body.setTranslation({ x: this.x, y: (f === f ? f : this.groundRise()) + 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; this.noImpact = 2; } } else this.flipT = 0;
     }
     // fell through the ground (a deck that was not built yet, a hole): back to the last height it stood at once it has been under the ground for half a second
     if (!this.spec.craft && this.by != null) {
@@ -237,7 +239,7 @@ export class Vehicle {
       if (this.by >= gh - 1) this.goodY = this.by;
       else if (this.by < gh - 5 && this.goodY != null) {
         this.lostT = (this.lostT || 0) + dt;
-        if (this.lostT > 0.5) { this.G?.highways?.ensureNear?.(this.x, this.z); this.pv.body.setTranslation({ x: this.x, y: this.goodY + 1.4, z: this.z }, true); this.pv.body.setLinvel({ x: 0, y: 0, z: 0 }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.lostT = 0; this.pv.prevNo = -1; }
+        if (this.lostT > 0.5) { this.G?.highways?.ensureNear?.(this.x, this.z); this.pv.body.setTranslation({ x: this.x, y: this.goodY + 1.4, z: this.z }, true); this.pv.body.setLinvel({ x: 0, y: 0, z: 0 }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.lostT = 0; this.pv.prevNo = -1; this.noImpact = 2; }
       } else this.lostT = 0;
     }
     this.wheelSpin += (vf * dt) / this.model.wheelR;
@@ -262,7 +264,9 @@ export class Vehicle {
     this.impactCd = 0.25;
     const G = this.G;
     if (speed > 6 && !this.spec.craft) this.dent(x, z, Math.min(0.55, speed * 0.03));
-    const dmg = Math.max(0, speed - 4) * (this.dead ? 0 : 3.2) / (this.mass * 0.8 + 0.2);
+    // a road vehicle loses a share of its strength by the speed change (a rigid wall at 50 km/h costs ~30%, at 130 km/h it is wrecked), whatever
+    // its weight (a car hit by a truck takes the bigger speed change itself); craft and war machines keep their armour by mass
+    const dmg = this.dead ? 0 : this.spec.craft ? Math.max(0, speed - 4) * 3.2 / (this.mass * 0.8 + 0.2) : Math.max(0, speed - 4) * 0.03 * this.maxHp;
     if (dmg > 0) this.damage(dmg, other);
     G.fx.sparks(x, 0.6, z, Math.min(speed * 0.8, 24), [1, 0.7, 0.3]);
     G.audio.crash(clamp(speed / 20, 0.2, 1.2), 0);
@@ -343,7 +347,7 @@ export class Vehicle {
     if (this.dest && !this.police) {
       const dd = Math.hypot(this.dest.x - this.x, this.dest.z - this.z);
       if (dd < 22 && G.hasLOS(this.x, 1.2, this.z, this.dest.x, 1.2, this.dest.z)) this.directDest = true;
-      if (this.directDest) { tx = this.dest.x; tz = this.dest.z; target = Math.min(ai.speed, Math.max(0, (dd - 6) * 1.1)); if (dd < 8) { this.arrived = true; target = 0; } }
+      if (this.directDest) { tx = this.dest.x; tz = this.dest.z; target = Math.min(ai.speed, stopSpeed(dd - 6, 3.5)); if (dd < 8) { this.arrived = true; target = 0; } }
     }
     if (tx === undefined && this.police && this.chaseTarget && this.direct) {
       tx = this.chaseTarget.x; tz = this.chaseTarget.z;
@@ -351,7 +355,8 @@ export class Vehicle {
     } else if (tx === undefined) {
       if (!ai.wp.length) this.planAhead();
       let wp = ai.wp[0];
-      while (wp && Math.hypot(wp.x - this.x, wp.z - this.z) < 5.5) { ai.wp.shift(); wp = ai.wp[0]; if (ai.wp.length < 3) this.planAhead(); }
+      // passed waypoints are dropped, at most 64 a frame (a planner that keeps handing out points next to the car must not hang the frame)
+      for (let g = 0; wp && g < 64 && Math.hypot(wp.x - this.x, wp.z - this.z) < 5.5; g++) { ai.wp.shift(); wp = ai.wp[0]; if (ai.wp.length < 3) this.planAhead(); }
       if (!wp) { this.planAhead(); wp = ai.wp[0]; }
       if (!wp) wp = { x: this.x + sH * 20, z: this.z + cH * 20, speed: 0 };   // a planner with nothing to give (the end of a highway): stand still until it is recycled
       // look ahead further for smoother lane following
@@ -366,12 +371,12 @@ export class Vehicle {
         const dist = d1;
         // blacked-out signals: treat the junction as all-way, roll through slowly
         if (G.power && G.power.offAt(roadC(wp.stopFor[0]), roadC(wp.stopFor[1]))) { if (dist < 26) target = Math.min(target, 5.5); }
-        else if (st !== 'G' && dist < 30 && !(st === 'Y' && dist < vf * 1.4)) target = Math.min(target, Math.max(0, (dist - 3) * 1.2));
+        else if (st !== 'G' && dist < 12 + vf * vf / 6 && !(st === 'Y' && dist < vf * 1.4)) target = Math.min(target, stopSpeed(dist - 3, 3.5));   // stopping at the line at a driver's 3.5 m/s^2
       }
       if (this.police) target = Math.max(target, 18 * wp.speed);
     }
     // obstacle ahead
-    const look = 10 + Math.max(vf, 0) * 0.9;
+    const look = 10 + Math.max(vf, 0) * 0.9 + vf * vf / 10;   // as far as it takes to stop (5 m/s^2)
     const vl = G.vehicles;
     for (let vi = 0; vi < vl.length; vi++) {
       const o = vl[vi];
@@ -380,7 +385,7 @@ export class Vehicle {
       const along = dx * sH + dz * cH;
       if (along < 1 || along > look + o.L * 0.5) continue;
       const lat = Math.abs(dx * cH - dz * sH);
-      if (lat < (this.W + o.W) * 0.5 + 0.5) { target = Math.min(target, Math.max(0, (along - o.L * 0.5 - this.L * 0.5 - 2.5) * 1.1, o.speed * 0.7)); if (along < 6 && ai.honk <= 0 && Math.random() < 0.01) { ai.honk = 4; G.audio.horn?.(); } }
+      if (lat < (this.W + o.W) * 0.5 + 0.5) { const gap = along - o.L * 0.5 - this.L * 0.5 - 2.5; target = Math.min(target, gap > 0 ? stopSpeed(gap, 5, o.speed) : Math.min(o.speed * 0.5, 1)); /* slows to the car ahead's speed within the gap */ if (along < 6 && ai.honk <= 0 && Math.random() < 0.01) { ai.honk = 4; G.audio.horn?.(); } }
     }
     const hl = G.humans;
     for (let hi = 0; hi < hl.length; hi++) {
@@ -390,11 +395,11 @@ export class Vehicle {
       const along = dx * sH + dz * cH;
       if (along < 0.5 || along > look * 0.9) continue;
       const lat = Math.abs(dx * cH - dz * sH);
-      if (lat < this.W * 0.5 + 0.9) target = Math.min(target, Math.max(0, (along - 4) * 1.3));
+      if (lat < this.W * 0.5 + 0.9) target = Math.min(target, stopSpeed(along - 4, 6));
     }
     if (G.playerOnFoot && G.player) {
       const dx = G.player.x - this.x, dz = G.player.z - this.z; const along = dx * sH + dz * cH;
-      if (along > 0.5 && along < look * 0.9 && Math.abs(dx * cH - dz * sH) < this.W * 0.5 + 1) target = Math.min(target, Math.max(0, (along - 4) * 1.3));
+      if (along > 0.5 && along < look * 0.9 && Math.abs(dx * cH - dz * sH) < this.W * 0.5 + 1) target = Math.min(target, stopSpeed(along - 4, 6));
     }
     if (ai.honk > 0) ai.honk -= dt;
     // steering: pure pursuit
@@ -405,7 +410,7 @@ export class Vehicle {
     // speed control
     const dv = target - vf;
     if (dv > 0.5) { this.throttle = clamp(dv * 0.35, 0, 1); this.brake = 0; }
-    else if (dv < -0.5) { this.throttle = 0; this.brake = clamp(-dv * 0.25, 0, 1); }
+    else if (dv < -0.5) { this.throttle = 0; this.brake = clamp(-dv * 0.3, 0, 1); }
     else { this.throttle = 0.12; this.brake = 0; }
     this.hand = this.police && this.direct && Math.abs(err) > 0.9 && vf > 12;
     // stuck detection -> reverse

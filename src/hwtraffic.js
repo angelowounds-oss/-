@@ -48,18 +48,22 @@ export class HighwayTraffic {
     this.cars.push(v); return v;
   }
   // waypoints for Vehicle.driveAI: the next few lane points ahead (a loop road wraps around; an open road ends: the car is recycled there)
+  // (iterative, with a cap on joins taken without a step along a line: short lines joined end to end in a ring handed out the same few points for
+  // ever, and driveAI, dropping the near ones and asking again, spun inside one frame until the renderer ran out of memory)
   plan(v) {
-    const h = v.hw, r = h.r, n = r.pts.length, ai = v.ai;
+    const h = v.hw, ai = v.ai; let hops = 0;
     while (ai.wp.length < 5) {
+      const r = h.r, n = r.pts.length;
       let i = h.i + h.dir; if (r.closed) i = (i + n) % n;
       else if (i < 1 || i > n - 2) {
         // a compiled line goes on into the line it was joined to (at its end, or from its start backwards on a two-way road); otherwise the car is done
         const nx = r.kind === 'arterial' && (h.dir > 0 ? r.next : r.prev)?.find((t) => this.roadIdx.has(t.road));
         const to = nx && this.roadIdx.get(nx.road);
-        if (!to || BROKEN.has(to.id + ':' + nx.i)) { v.hwDone = true; return; }
+        if (!to || BROKEN.has(to.id + ':' + nx.i) || ++hops > 4) { v.hwDone = true; return; }
         h.r = to; h.i = Math.min(to.pts.length - 2, Math.max(1, nx.i)); h.dir = to.oneway ? 1 : h.dir; h.lane = Math.min(h.lane, (to.kind === 'arterial' ? lanesOf(to) : 3) - 1);
-        const P = this.lane(to, h.i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 }); return this.plan(v);
+        const P = this.lane(to, h.i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 }); continue;
       }
+      hops = 0;
       if (BROKEN.has(r.id + ':' + Math.min(i, h.i))) { v.hwDone = true; return; }   // a blown-up bridge: no cars across
       h.i = i; const P = this.lane(r, i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 });
     }

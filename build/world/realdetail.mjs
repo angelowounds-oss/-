@@ -97,7 +97,9 @@ export function readDetail(box = BOX) {
 function emit(e, t, rings, out, piece = '') {
   const [o, ...hs] = rings; if (area(o) < 0) o.reverse(); for (const h of hs) if (area(h) > 0) h.reverse();
   if (Math.abs(area(o)) < 4) return;   // a kiosk or a mapping slip: smaller than 2 x 2 m
-  out.push({ id: e.type[0] + e.id + piece, rings: [o, ...hs], ...heightOf(t), tag: t['building:part'] || t.building || 'yes', part: !!t['building:part'] && !t.building, name: t['name:ko'] || t.name || '' });
+  // roof: a roof with no walls under it (a toll plaza's or a filling station's canopy, a carport), which cars drive under
+  const roof = t.building === 'roof' || t.building === 'carport' || t['building:part'] === 'roof' || t.barrier === 'toll_booth';
+  out.push({ id: e.type[0] + e.id + piece, rings: [o, ...hs], ...heightOf(t), tag: t['building:part'] || t.building || 'yes', part: !!t['building:part'] && !t.building, name: t['name:ko'] || t.name || '', roof });
 }
 // is the point inside the ring (even-odd)
 export function inside(p, ring) {

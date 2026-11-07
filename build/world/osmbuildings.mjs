@@ -8,6 +8,7 @@ import { area, LEVEL_H } from './realdetail.mjs';
 const TILE = 512, TILE_OFF = 256, KIND = { house: 0, villa: 1, shop: 2, office: 3, apartment: 4, industrial: 5, tower: 6 };
 
 export const SRC = { guess: 0, levels: 1, height: 2 };
+const ROOF_TOP = 7, ROOF_SLAB = 1.5;   // a canopy with no height mapped: its top, and how thick a roof is solid
 const TAG = {
   apartment: ['apartments'], house: ['house', 'detached', 'semidetached_house', 'terrace', 'hut', 'bungalow', 'cabin', 'farm'], villa: ['residential', 'dormitory'],
   shop: ['retail', 'commercial', 'supermarket', 'kiosk', 'shop'], office: ['office', 'government', 'civic', 'public', 'hospital', 'school', 'university', 'college', 'hotel', 'train_station', 'transportation', 'church', 'temple', 'religious'],
@@ -47,8 +48,12 @@ export function mergeReal(res, detail, blocked = () => false) {
       if (a < 80) fl = Math.min(fl, 3); else if (a < 200) fl = Math.min(fl, 5); else if (a < 400) fl = Math.min(fl, 8);
       h = b.base + fl * LEVEL_H + 0.6;
     }
+    // a roof is a slab at its top (min_height when the map gives one): the toll plaza canopy of 구리남양주TG stood 15 m solid across the motorway, and every
+    // car driving into it was wrecked (WLD-22e); with no height mapped it is a canopy's, 7 m to its top over 5.5 m of clearance
+    let base = b.base;
+    if (b.roof) { if (s === SRC.guess) { h = Math.max(b.base + 2.5, ROOF_TOP); fl = 1; } base = Math.max(b.base, h - ROOF_SLAB); }
     const kind = kindOf(b, near, fl, a);
-    real.push({ id: b.id, rings: b.rings, cx: c[0], cz: c[1], h, base: b.base, fl: Math.max(1, Math.round(fl)), kind, src: s, name: b.name });
+    real.push({ id: b.id, rings: b.rings, cx: c[0], cz: c[1], h, base, fl: Math.max(1, Math.round(fl)), kind, src: s, name: b.name });
     src[s]++;
     // the cells it covers: its corners, and every cell whose centre lies inside (a 300 m warehouse has its corners far apart)
     for (const p of b.rings[0]) add(p[0], p[1], real.length - 1);

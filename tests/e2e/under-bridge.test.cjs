@@ -9,7 +9,7 @@ run('under-bridge', { q: 1, width: 480, height: 360 }, async ({ page }) => {
   const o = await page.evaluate(async () => {
     const g = window.__game, pl = g.player, RG = window.__region, o = { crossings: [] }; g.hurtPlayer = () => {};
     g.eng.render = () => {};
-    const step = async (n) => { for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 10 === 9) await new Promise((f) => setTimeout(f, 10)); } };
+    let ticks = 0; const step = async (n) => { for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (++ticks % 10 === 0) await new Promise((f) => setTimeout(f, 10)); } };   // yields every 10 steps across calls: the page's memory is given back only between tasks (it reached 7.8 GB and crashed)
     if (!RG || !RG.regionRoads().length) return { noRegion: true };
     const roads = RG.regionRoads(), BIG = { primary: 1, secondary: 1, tertiary: 1, trunk: 1 };
     // bridge segments in a 64 m grid, then lower roads crossing one

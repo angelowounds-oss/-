@@ -105,12 +105,21 @@ class TileBuild {
   }
   // the height of the drawn road at (x, z) near a junction: the road's own height there, never under the ground (as highways.js draws it)
   roadY(x, z, fallback) { const r = roadAt(x, z, 14), g = landHeight(x, z, 16) + LIFT; return Math.max(r ? r.y : fallback, g); }
+  // is (x, y, z) inside another road's driven width, at about its height? (a straight-armed corner fan or strip laid over a lane is a wall to cars)
+  onLane(x, y, z, inset) { const r = roadAt(x, z, 20); return !!r && r.d < (r.road.half ?? 3) - inset && Math.abs(r.y - y) < 2; }
+  // a pavement piece is dropped (drawn and physics) when its centre or any corner sits well inside a carriageway
+  overLane(pts) {
+    let cx = 0, cy = 0, cz = 0; for (const q of pts) { cx += q[0]; cy += q[1]; cz += q[2]; if (this.onLane(q[0], q[1], q[2], 1)) return true; }
+    const n = pts.length; return this.onLane(cx / n, cy / n, cz / n, 0.3);
+  }
   // a pavement top (kept for the physics mesh as well)
   topQuad(a, b, c, d, col) {
+    if (this.overLane([a, b, c, d])) { this.stats.laneDrop = (this.stats.laneDrop | 0) + 1; return; }
     this.S.quad(a, b, c, d, col, 0, 1, 0);
     const T = this.top, k = T.p.length / 3; for (const q of [a, b, c, d]) T.p.push(q[0], q[1], q[2]); T.i.push(k, k + 1, k + 2, k, k + 2, k + 3);
   }
   topTri(a, b, c, col) {
+    if (this.overLane([a, b, c])) { this.stats.laneDrop = (this.stats.laneDrop | 0) + 1; return; }
     this.S.tri(a, b, c, col, 0, 1, 0);
     const T = this.top, k = T.p.length / 3; for (const q of [a, b, c]) T.p.push(q[0], q[1], q[2]); T.i.push(k, k + 1, k + 2);
   }

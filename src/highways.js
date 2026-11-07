@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { net, groundH, HALF_W, BROKEN, breakSegment, roadAt } from './roadnet.js';
+import { net, groundH, HALF_W, CARVE_FADE, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand } from './util.js';
 import { landHeight, physHeight } from './landfn.js';
-import { regionWeight } from './region.js';
-import { Deck, oldDeck } from './roaddeck.js';
+import { regionWeight, TUNNEL_FILL, carve } from './region.js';
+import { Deck, oldDeck, oldHalf } from './roaddeck.js';
 import { GR, grp } from './physics.js';
 import * as surf from './roadsurf.js';
 import { pullFar } from './shaders.js';
@@ -19,6 +19,11 @@ const CHUNK = 100, LANE = 3.75, MED = 3.2, SHOULDER = 2.4;
 const LOCAL_LAMPS = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // no lamp poles along the smaller roads
 const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200, motorway_link: 3000, trunk_link: 3000, primary_link: 2200, secondary_link: 1600, tertiary: 1600, tertiary_link: 1200, residential: 700 }, ART_OFF = 1.4, ART_BUDGET = 4, NEAR_NOW = 160;   // pieces within NEAR_NOW of the camera are built at once, over the time budget
 const lerp = (a, b, t) => a + (b - a) * t;
+// the ground over a tunnel (GPL-18): the physics ground along a tunnel is filled down to its road (so the cars inside have a floor and the old checks
+// "is this car under the ground" stay right), and a height field can have no hole; a mesh at the drawn ground over the whole filled corridor is the
+// ground walked and driven on, and over the tunnel it is never lower than COVER_ROOF over the drawn lining's roof (where the lining stands out of a
+// shallow hill, its top). Built within COVER_ON of the camera or the player, dropped beyond COVER_OFF
+const COVER_ROOF = 0.05, COVER_ON = 700, COVER_OFF = 1000;
 
 class Acc {
   constructor() { this.p = []; this.n = []; this.c = []; this.u = []; this.i = []; this.k = 0; }
@@ -91,6 +96,17 @@ export class Highways {
       this.art.push({ r, a, b, cx, cz, rad, on: ART_ON[r.hw] || 2200, meshes: null });
     }
     this.stats.artPieces = this.art.length;
+    // the tunnel runs of every road (in pieces of at most ART segments), for the ground over them
+    this.covers = []; this.tgrid = new Map(); this.stats.covers = 0; this.stats.coverTris = 0;
+    for (const r of this.N.roads) {
+      const n = r.pts.length, m = r.closed ? n : n - 1; let a = -1;
+      for (let i = 0; i <= m; i++) {
+        const tun = i < m && (r.cls[i] === 2 || r.cls[(i + 1) % n] === 2);
+        if (tun) this.gridTunnel(r, i);
+        if (tun && a < 0) a = i;
+        if (a >= 0 && (!tun || i - a >= ART)) { this.covers.push(this.coverRun(r, a, i)); a = tun ? i : -1; }
+      }
+    }
     this.buildGantries(); this.buildTolls(); this.buildServices();
     this.lamps = this.buildLamps();
     scene.add(this.group);
@@ -330,19 +346,143 @@ export class Highways {
     }
     want.sort((a, b) => a.d - b.d);
     for (const { p, d } of want) { if (!all && d > NEAR_NOW && performance.now() - t0 >= ART_BUDGET) break; p.meshes = this.artPiece(p); this.stats.artLive++; }
+    for (const c of this.covers) {   // the ground over the tunnels nearby (COVER_ON)
+      const d = Math.min(Math.hypot(c.cx - cx, c.cz - cz), Math.hypot(c.cx - fx, c.cz - fz)) - c.rad;
+      if (!c.built && d < COVER_ON && this.phys) this.buildCover(c); else if (c.built && d > COVER_OFF) this.dropCover(c);
+    }
   }
   // every piece within `r` of (x, z) now (a spawn, a boarding, a teleport): their decks are in the physics world when the next step runs
   ensureNear(x, z, r = NEAR_NOW + 60) {
     let n = 0; for (const p of this.art) if (!p.meshes && Math.hypot(p.cx - x, p.cz - z) - p.rad < r) { p.meshes = this.artPiece(p); this.stats.artLive++; n++; }
+    if (this.phys) for (const c of this.covers) if (!c.built && Math.hypot(c.cx - x, c.cz - z) - c.rad < COVER_ON) this.buildCover(c);
     return n;
+  }
+  // a run of tunnel segments a .. b-1 of road r, with its centre and radius
+  coverRun(r, a, b) {
+    const n = r.pts.length; let cx = 0, cz = 0, rad = 0;
+    for (let i = a; i <= b; i++) { cx += r.pts[i % n][0]; cz += r.pts[i % n][1]; } cx /= b - a + 1; cz /= b - a + 1;
+    for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.pts[i % n][0] - cx, r.pts[i % n][1] - cz));
+    return { r, a, b, cx, cz, rad, built: false, col: null };
+  }
+  // the ground over a run (see COVER_ROOF): cross-sections every 8 m or less along the road, each 4 m across, at the drawn ground; over the tunnel
+  // itself (and one step past its walls, so that no slope dips into it) never under the drawn lining's roof
+  coverMesh(c) {
+    const r = c.r, n = r.pts.length, art = r.kind === 'arterial', half = this.tunHalf(r);
+    const inner = half + 1.4, outer = art ? half + TUNNEL_FILL + 12 : HALF_W + CARVE_FADE + 12;   // past the filled corridor and the 8 m cells of the height field sloping into it
+    const NA = Math.ceil((2 * outer) / 4), P = [], I = [];
+    // on along the open road past each end as far as the fill reaches round the last tunnel sample (and a height field cell), at the ground only; a road
+    // that ends inside a tunnel (the next way is another road) goes on straight
+    const ext = (art ? half + TUNNEL_FILL : HALF_W + CARVE_FADE) + 8, step = (i, d) => (r.closed ? (i + d + n) % n : Math.max(0, Math.min(n - 1, i + d)));
+    const gap = (i, j) => Math.hypot(r.pts[i][0] - r.pts[j][0], r.pts[i][1] - r.pts[j][1]);
+    let a = c.a, b = c.b, La = 0, Lb = 0;
+    for (; La < ext && a !== step(a, -1) && !(r.closed && step(a, -1) === c.b); a = step(a, -1)) La += gap(a, step(a, -1));
+    for (; Lb < ext && b !== step(b, 1) && !(r.closed && step(b, 1) === c.a); b = step(b, 1)) Lb += gap(b, step(b, 1));
+    const S = [], sec = (x, z, y, rx, rz, roof) => S.push({ x, z, y, rx, rz, roof });
+    const fa = this.frame(r, a), fb = this.frame(r, b);
+    for (let d = ext - La; d > 0; d -= 8) sec(fa.x - fa.tx * d, fa.z - fa.tz * d, fa.y, fa.rx, fa.rz, -Infinity);
+    const cnt = r.closed ? (b - a + n) % n : b - a;
+    for (let u = 0; u < cnt; u++) {
+      const i = (a + u) % n, j = (i + 1) % n, tun = r.cls[i] === 2 || r.cls[j] === 2;
+      const f0 = this.frame(r, i), f1 = this.frame(r, j), ns = Math.max(1, Math.ceil(Math.hypot(f1.x - f0.x, f1.z - f0.z) / 8));
+      for (let s = u === 0 ? 0 : 1; s <= ns; s++) {
+        const t = s / ns, y = lerp(f0.y, f1.y, t);
+        let rx = lerp(f0.rx, f1.rx, t), rz = lerp(f0.rz, f1.rz, t); const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+        sec(lerp(f0.x, f1.x, t), lerp(f0.z, f1.z, t), y, rx, rz, tun ? y + lerp(this.tunCeil(r, f0), this.tunCeil(r, f1), t) + COVER_ROOF : -Infinity);
+      }
+    }
+    for (let d = Math.min(8, ext - Lb); d > 0 && d <= ext - Lb; d += 8) sec(fb.x + fb.tx * d, fb.z + fb.tz * d, fb.y, fb.rx, fb.rz, -Infinity);
+    // at a portal the roof and the ground beside it meet at one cross-section with no slope between them (it would hang in the opening): a copy of the
+    // roofed section at the ground, and nothing between the two
+    for (let k = S.length - 1; k > 0; k--) if ((S[k].roof === -Infinity) !== (S[k - 1].roof === -Infinity)) {
+      const q = S[k].roof === -Infinity ? S[k - 1] : S[k]; S.splice(k, 0, { ...q, roof: -Infinity, seam: true });
+    }
+    const oth = [], mouth = [], gone = [];
+    for (let m = 0; m < S.length; m++) {
+      const q = S[m], v0 = P.length / 3;
+      for (let k = 0; k <= NA; k++) {
+        // the ground is the physics ground's (region.js carve): a road dipping to a portal lies under the 16 m raster, and the drawn ground over it
+        // would close the approach (GPL-20)
+        const o = -outer + (2 * outer * k) / NA, px = q.x + q.rx * o, pz = q.z + q.rz * o, l8 = landHeight(px, pz, 8), g = (art && regionWeight(px, pz) >= 1 ? carve(px, pz, l8) : l8) - 0.03, own = Math.max(g, Math.abs(o) <= inner + 4 ? q.roof : -Infinity);
+        const R = this.roofNear(px, pz, r); let v = Math.max(own, R.top), drop = false;   // and over any other tunnel it crosses
+        // never in another road's open stretch, nor a vertex's step beside it: the ground is drawn under the road tops (roadsurf.js) and a buried road
+        // keeps its space
+        const top = this.openTop(px, pz, r);
+        if (v > top - 0.1) {   // a street over a shallow underpass: the street keeps its height, the underpass a car's height under it, or the cover gives way
+          const floor = R.top > own ? R.floor : q.y; if (v > g && top - 0.1 - floor < 2.6) drop = true; else v = top - 0.1;
+        }
+        P.push(px, v, pz); oth.push(R.top > own); mouth.push(R.mouth); gone.push(drop);
+      }
+      // quads that would slope down in front of another road's portal are left out (that road's own cover has the seam there)
+      if (m > 0 && Math.hypot(S[m].x - S[m - 1].x, S[m].z - S[m - 1].z) > 0.01) {   // not between a seam's two copies
+        const p0 = v0 - NA - 1;
+        for (let k = 0; k < NA; k++) {
+          const a = p0 + k, b = p0 + k + 1, d = v0 + k, e = v0 + k + 1, V = [a, b, d, e];
+          if (V.some((v) => gone[v]) || (V.some((v) => oth[v]) && V.some((v) => mouth[v] && !oth[v]))) continue;
+          // nor over the opening: from the portal's ground copy back to the open road, within the lining and its 4 m step, the ground would slope
+          // down across the road into the approach (a ramp the car drove into)
+          if ((S[m].seam || S[m - 1].seam) && S[m].roof === -Infinity && S[m - 1].roof === -Infinity && Math.min(Math.abs(-outer + (2 * outer * k) / NA), Math.abs(-outer + (2 * outer * (k + 1)) / NA)) <= inner + 4) continue;
+          I.push(a, e, b, a, d, e);   // facing up
+        }
+      }
+    }
+    return { P, I };
+  }
+  // tunnel segment i of road r in the 64 m cells it reaches (with its lining and the cover's 4 m step past it)
+  gridTunnel(r, i) {
+    const n = r.pts.length, A = r.pts[i], B = r.pts[(i + 1) % n], pad = this.tunHalf(r) + 5.4;
+    for (let a = Math.floor((Math.min(A[0], B[0]) - pad) / 64); a <= Math.floor((Math.max(A[0], B[0]) + pad) / 64); a++)
+      for (let b = Math.floor((Math.min(A[1], B[1]) - pad) / 64); b <= Math.floor((Math.max(A[1], B[1]) + pad) / 64); b++) { const k = a * 100003 + b; let l = this.tgrid.get(k); if (!l) this.tgrid.set(k, (l = [])); l.push(r, i); }
+  }
+  // the highest drawn lining roof (plus COVER_ROOF) of another road's tunnel within its lining and 4 m past its walls at (x, z) (top, or -Infinity),
+  // with that tunnel's road height (floor), and whether (x, z) lies in front of one of its portals (mouth: in line with its lining but past its last tunnel sample)
+  roofNear(x, z, self) {
+    const l = this.tgrid.get(Math.floor(x / 64) * 100003 + Math.floor(z / 64)), out = { top: -Infinity, floor: -Infinity, mouth: false }; if (!l) return out;
+    for (let q = 0; q < l.length; q += 2) {
+      const r = l[q], i = l[q + 1]; if (r === self) continue;
+      const n = r.pts.length, j = (i + 1) % n, A = r.pts[i], B = r.pts[j], dx = B[0] - A[0], dz = B[1] - A[1], tr = ((x - A[0]) * dx + (z - A[1]) * dz) / (dx * dx + dz * dz || 1), t = Math.max(0, Math.min(1, tr));
+      if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) > this.tunHalf(r) + 5.4) continue;
+      // past an end of the segment: on only where the tunnel goes on there (a joint inside it), not past a portal or a road's end
+      const e = tr < 0 ? i : tr > 1 ? j : -1, inside = (k) => r.cls[k] === 2 && (r.closed || (k > 0 && k < n - 1));
+      if (e >= 0 && !inside(e)) { out.mouth = true; continue; }
+      const y = lerp(r.y[i], r.y[j], t), h = y + lerp(this.tunCeil(r, this.frame(r, i)), this.tunCeil(r, this.frame(r, j)), t) + COVER_ROOF; if (h > out.top) { out.top = h; out.floor = y; }
+    }
+    return out;
+  }
+  // the lowest surface of the open (not tunnel) road segments, other than road self's, within their half width and 5 m at (x, z), or Infinity
+  openTop(x, z, self) {
+    const N = this.N, cell = N.grid.get(Math.floor(x / N.CS) * 100003 + Math.floor(z / N.CS)); let top = Infinity; if (!cell) return top;
+    for (let q = 0; q < cell.length; q += 2) {
+      const r = N.roads[cell[q]], i = cell[q + 1], n = r.pts.length, j = (i + 1) % n; if (r === self || r.cls[i] === 2 || r.cls[j] === 2) continue;
+      const A = r.pts[i], B = r.pts[j], dx = B[0] - A[0], dz = B[1] - A[1], t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / (dx * dx + dz * dz || 1)));
+      if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) <= this.tunHalf(r) + 5) top = Math.min(top, lerp(r.y[i], r.y[j], t));
+    }
+    return top;
+  }
+  tunHalf(r) { return r.kind === 'arterial' ? this.artWidth(r).half : oldHalf(r); }   // the half width of a road's tunnel lining, less its 1.4 m
+  // the drawn lining's ceiling over sample frame f (artPiece: it follows the ground, 4.7 to 7 m; the old highways' chunks: 7 m)
+  tunCeil(r, f) {
+    if (r.kind !== 'arterial') return 7;
+    const w = this.artWidth(r).half + 1.4;
+    return Math.max(4.7, Math.min(7, Math.min(landHeight(f.x + f.rx * w, f.z + f.rz * w, 16), landHeight(f.x - f.rx * w, f.z - f.rz * w, 16), landHeight(f.x, f.z, 16)) - f.y - 0.6));
+  }
+  buildCover(c) {
+    c.built = true; if (!this.phys) return;
+    const { P, I } = this.coverMesh(c); if (!I.length) return;
+    const R = this.phys.R; c.col = this.phys.world.createCollider(R.ColliderDesc.trimesh(new Float32Array(P), new Uint32Array(I)).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
+    c.tris = I.length / 3; this.stats.covers++; this.stats.coverTris += c.tris;
+  }
+  dropCover(c) {
+    if (c.col && this.phys) { this.phys.world.removeCollider(c.col, true); this.stats.covers--; this.stats.coverTris -= c.tris; }
+    c.col = null; c.built = false;
   }
   // the height of the drawn surface of a compiled road at (x, z), or NaN off the road; a ray only sees a deck after the next physics step, this does not wait
   deckY(x, z) {
     const r = roadAt(x, z, 14); if (!r || r.road.kind !== 'arterial' || r.d > this.artWidth(r.road).half) return NaN;
-    return r.cls ? r.y : Math.max(r.y, landHeight(x, z, 16) + 0.05);
+    return r.cls || regionWeight(x, z) >= 1 ? r.y : Math.max(r.y, landHeight(x, z, 16) + 0.05);   // drawn as artPiece draws it
   }
-  // a piece of a compiled line: asphalt across its width, laid on its own heights but never under the drawn ground (a vertex is lifted to it, with an
-  // earth bank down to the ground where the road stands above it); rails on the big roads, bridge fascia and piers, tunnel lining
+  // a piece of a compiled line: asphalt across its width, laid on its own heights (in the blend band at the region's edge never under the drawn ground: a
+  // vertex is lifted to it), with an earth bank down to the ground where the road stands above it; rails on the big roads, bridge fascia and piers,
+  // tunnel lining
   artPiece(p) {
     const r = p.r, { n, half, two } = this.artWidth(r), mat = this.mats.lanes[n - 1], A = new Acc(), S = new Acc(), E = new Acc(), big = r.hw === 'motorway' || r.hw === 'trunk';
     const CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], PIL = [0.4, 0.41, 0.44], EARTH = [0.24, 0.21, 0.16], LIGHT = [3.2, 2.9, 2.2];
@@ -352,7 +492,10 @@ export class Highways {
       const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
       const at = (f, off, dy = 0) => {
         const x = f.x + f.rx * off, z = f.z + f.rz * off; let y = f.y;
-        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; if (dy === 0 && Math.abs(off) <= half) { if (regionWeight(x, z) < 1) { this.stats.artBand = (this.stats.artBand || 0) + 1; if (g - y > 0.3) this.stats.artBandLifted = (this.stats.artBandLifted || 0) + 1; return [x, Math.max(y, g) + dy, z]; } this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; } else if (dy !== 0 || Math.abs(off) > half) { this.stats.artOther = (this.stats.artOther || 0) + 1; if (g - y > 0.3) this.stats.artOtherLifted = (this.stats.artOtherLifted || 0) + 1; } if (g > y) y = g; }
+        // inside the region the road is drawn at its own height, also where the 16 m ground is over it: the drawn ground is lowered under it (farland.js,
+        // roadsurf.js) and so is the physics ground (region.js carve). Lifted to the ground, a road in a cutting ran on at the ground's height to a portal
+        // whose tunnel floor lay metres lower (GPL-20); artLifted now counts the vertices under the 16 m ground, which no longer move
+        if (!f.cls) { const g = landHeight(x, z, 16) + 0.05; if (dy === 0 && Math.abs(off) <= half) { if (regionWeight(x, z) < 1) { this.stats.artBand = (this.stats.artBand || 0) + 1; if (g - y > 0.3) this.stats.artBandLifted = (this.stats.artBandLifted || 0) + 1; return [x, Math.max(y, g) + dy, z]; } this.stats.artVerts++; if (g - y > 0.3) this.stats.artLifted++; return [x, y + dy, z]; } else if (dy !== 0 || Math.abs(off) > half) { this.stats.artOther = (this.stats.artOther || 0) + 1; if (g - y > 0.3) this.stats.artOtherLifted = (this.stats.artOtherLifted || 0) + 1; if (regionWeight(x, z) >= 1) return [x, y + dy, z]; } if (g > y) y = g; }
         return [x, y + dy, z];
       };
       D.quadIfOff(at(f0, -half), at(f1, -half), at(f1, half), at(f0, half));
@@ -383,8 +526,9 @@ export class Highways {
       if (tunnel) {
         // the ceiling follows the cover (build/world/grade.mjs fills the ground to 8 m over a tunnel where it can): 7 m under a hill, down to the 4.7 m of an
         // underpass right under a street, always 0.6 m under the drawn ground so that the lining never shows through it
-        const w = half + 1.4, wall = [0.34, 0.35, 0.38], ceil = (f) => Math.max(4.7, Math.min(7, Math.min(landHeight(f.x + f.rx * w, f.z + f.rz * w, 16), landHeight(f.x - f.rx * w, f.z - f.rz * w, 16), landHeight(f.x, f.z, 16)) - f.y - 0.6));
+        const w = half + 1.4, wall = [0.34, 0.35, 0.38], ceil = (f) => this.tunCeil(r, f);
         const h0 = ceil(f0), h1 = ceil(f1);
+        for (const s of [-1, 1]) D.wall(at(f0, s * w, 0), at(f1, s * w, 0), at(f1, s * w, h1), at(f0, s * w, h0));   // solid walls (roaddeck.js)
         for (const s of [-1, 1]) { const o = s * w; if (s > 0) S.quad(at(f0, o, h0), at(f1, o, h1), at(f1, o, 0), at(f0, o, 0), wall); else S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, h1), at(f0, o, h0), wall); }
         S.quad(at(f0, w, h0), at(f0, -w, h0), at(f1, -w, h1), at(f1, w, h1), [0.28, 0.29, 0.31]);
         E.quad(at(f0, -0.5, h0 - 0.05), at(f0, 0.5, h0 - 0.05), at(f1, 0.5, h1 - 0.05), at(f1, -0.5, h1 - 0.05), LIGHT);

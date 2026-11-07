@@ -1,6 +1,8 @@
 // Small shared helpers: seeded RNG, math, noise
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const lerp = (a, b, t) => a + (b - a) * t;
+// the speed (m/s) from which a car stops within d metres braking at a (m/s^2), or slows to `to` m/s: drivers' speeds before an obstacle, a light, a corner
+export const stopSpeed = (d, a = 5, to = 0) => Math.sqrt(to * to + 2 * a * Math.max(0, d));
 export const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));
 export const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 export const TAU = Math.PI * 2;

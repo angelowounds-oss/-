@@ -78,6 +78,9 @@ const V3 = THREE.Vector3;
 const SAVE_KEY = 'korea11_v1';   // bumped once at 1:1 (ADR-0038): old saves hold positions of the 1:6.5 map
 const CAR_TYPES = ['sedan', 'sedan', 'sedan', 'sport', 'suv', 'suv', 'truck'];
 
+// take-off speed of a jump: 3.3 m/s lifts the feet 0.55 m, an adult's jump (it was 4.6 m/s, 1.07 m); higher things are climbed (tryMantle)
+const JUMP_V = 3.3;
+
 export class Game {
   constructor(eng) {
     this.eng = eng; this.scene = eng.scene; this.camera = eng.camera;
@@ -600,9 +603,10 @@ export class Game {
       const cam = this.camera.position, cw = this.waterAt(cam.x, cam.z), uw = !!(cw && cam.y < cw.y - 0.05);
       this.ui.uw.classList.toggle('on', uw); this.ui.br.classList.toggle('on', under || pl.breath < 44.5); this.ui.br.firstElementChild.style.width = Math.max(0, pl.breath / 45 * 100) + '%';
     }
-    if (swim) { const k = 0.55; c3.swim(dt, pl.vx * k + curX, pl.vz * k + curZ, wat.y - 1.25 - pl.dive + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
+    // a swimmer's crawl is 1.2 m/s, flat out 1.8 m/s (it was 2.9 and 4.6 m/s, over the 50 m world record's 2.4)
+    if (swim) { const k = sprint ? 0.21 : 0.23; c3.swim(dt, pl.vx * k + curX, pl.vz * k + curZ, wat.y - 1.25 - pl.dive + Math.sin(this.time * 2) * 0.04); pl.sprintFx = 0; }
     else if (this.mobility.active()) this.mobility.move(dt, inp, dx, dz, mag);
-    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? 4.6 * (this.sandbox?.on ? Math.sqrt(this.sandbox.jump) : 1) : 0);
+    else if (!riding) impact = c3.move(dt, pl.vx, pl.vz, this.input.edge('jump') && !pl.crouching && !stunned ? JUMP_V * (this.sandbox?.on ? Math.sqrt(this.sandbox.jump) : 1) : 0);
     this._prevVy = pl.vy;
     pl.x = c3.x; pl.y = c3.y; pl.z = c3.z; pl.vy = c3.vy;
     if (impact > 0) this.land(impact, wat);

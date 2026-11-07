@@ -78,6 +78,13 @@ export const physProc = (x, z, cell = 0) => withRegion(x, z, cell, true);
 // region's own raster at every cell size, so the far rings, the terrain look-ahead of aircraft and the map see the same ground as the tiles.
 export const HM = { land: null, phys: null };
 export function landHeight(x, z, cell = 0) { if (HM.land && cell <= 32) { const h = HM.land(x, z); if (h === h) return h; } return landProc(x, z, cell); }
-export function physHeight(x, z, cell = 0) { if (brokenAt(x, z)) return landHeight(x, z, cell); if (HM.phys && cell <= 32) { const h = HM.phys(x, z); if (h === h) return h; } return physProc(x, z, cell); }
+// Inside a compiled region at 8 m or finer the physics ground is the region's own (a few microseconds; the 8 m tiles hold the same): the 16 m tiles
+// streamed in first could not carry a road narrower than a cell, and stood half a metre or more over 1.9 % of the region's road samples
+export function physHeight(x, z, cell = 0) {
+  if (brokenAt(x, z)) return landHeight(x, z, cell);
+  if (cell <= 8 && regionWeight(x, z) >= 1) return regionPhysHeight(x, z);
+  if (HM.phys && cell <= 32) { const h = HM.phys(x, z); if (h === h) return h; }
+  return physProc(x, z, cell);
+}
 
 if (typeof window !== 'undefined') window.__landfn = { landHeight, physHeight };   // test hook
