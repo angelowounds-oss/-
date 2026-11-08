@@ -18,6 +18,7 @@ import { initBuildingDev } from './buildingdev.js';
 import { keys as binds } from './keys.js';
 import { renderHelp, initKeyUI } from './keyui.js';
 import { preloadFiles } from './files.js';
+import { noteError, copyReport } from './errors.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(pointer:coarse)').matches;
@@ -34,10 +35,17 @@ function keepLauncher() {
   }).catch(() => { /* not served by the launcher (tests, dev server) */ });
 }
 
-function fatal(e) {
-  const p = el('err'); p.style.display = 'block'; p.textContent = '초기화 오류\n' + (e && e.stack || e);
+// the error screen: what failed (loading, or a frame stage that kept failing during play) and a button that copies the report to send
+function fatal(e, during = '초기화 오류') {
+  const p = el('err'); p.style.display = 'block'; p.textContent = during + '\n' + (e && e.stack || e) + '\n\n';
+  if (during !== '초기화 오류') noteError('치명', e, window.__game?.time || 0);
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'pbtn'; b.textContent = '오류 복사';
+  b.onclick = () => copyReport(reportPlace()).then((ok) => { b.textContent = ok ? '복사했습니다' : '복사하지 못했습니다'; });
+  p.appendChild(b);
   console.error(e);
 }
+// where the player was, for the error report
+function reportPlace() { try { return window.__game?.reportPlace() || {}; } catch (e) { return {}; } }
 
 (async () => {
   let eng, game;
@@ -86,7 +94,7 @@ function fatal(e) {
     const dt = Math.min((now - last) / 1000, 0.1); last = now;
     try {
       if (!game.running) { /* black title: nothing is rendered */ } else game.update(dt);
-    } catch (e) { fatal(e); return; }
+    } catch (e) { fatal(e, '실행 오류 (같은 부분이 계속 실패해 게임을 멈췄습니다)'); return; }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);

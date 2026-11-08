@@ -73,6 +73,10 @@ import { Military } from './military.js';
 import { instCull } from './instcull.js';
 import { idLabel } from './buildingdev.js';
 import { keys as binds } from './keys.js';
+import { errors, noteError, copyReport } from './errors.js';
+
+// a frame stage that throws this many frames in a row ends the game on the error screen (about 1.5 s at 60 Hz); fewer are logged and skipped
+const STAGE_FAILS = 90;
 
 const V3 = THREE.Vector3;
 const SAVE_KEY = 'korea11_v1';   // bumped once at 1:1 (ADR-0038): old saves hold positions of the 1:6.5 map
@@ -85,6 +89,7 @@ export class Game {
   constructor(eng) {
     this.eng = eng; this.scene = eng.scene; this.camera = eng.camera;
     this.time = 0; this.dt = 1 / 60; this.running = false; this.paused = false;
+    this.stageFails = {}; this.errToastT = -99; this.errors = errors;   // PERF-03: frame stages that threw, and the shared error log
     this.vehicles = []; this.humans = []; this.pickups = [];
     this.audio = new Audio(); this.input = new Input();
     this.wanted = 0; this.heat = 0; this.evade = 0; this.copTimer = 0;
@@ -322,6 +327,10 @@ export class Game {
     const u = el;
     u('pause').addEventListener('pointerdown', (e) => e.stopPropagation());
     u('resume').onclick = () => this.setPaused(false);
+    // the error report (PERF-03): the errors the game caught and skipped, with where the player is; the label says how many there are
+    const ec = u('errCopy'), ecLabel = () => { ec.textContent = errors.length ? `오류 복사 (${errors.length})` : '오류 복사 (없음)'; };
+    ec.onclick = () => copyReport(this.reportPlace()).then((ok) => { ec.textContent = ok ? '복사했습니다' : '복사하지 못했습니다'; setTimeout(ecLabel, 1500); });
+    this.errLabel = ecLabel;
     u('reset').onclick = () => { try { localStorage.removeItem(this.slotKey()); } catch { /* ignore */ } location.reload(); };
     u('qSel').value = String(this.eng.qIndex);
     u('qSel').onchange = (e) => { this.eng.setQuality(+e.target.value); this.eng.onQuality?.(); };
@@ -342,6 +351,7 @@ export class Game {
   }
   setPaused(p) {
     this.paused = p; el('pause').classList.toggle('on', p);
+    if (p) this.errLabel?.();
     if (p) this.input.unlock(); else this.input.lock();
   }
   attract(dt) {
@@ -378,20 +388,46 @@ export class Game {
     if (input.edge('pause') && this.running) this.setPaused(!this.paused);
     const dt = Math.min(rawDt, 0.05);
     this.frameDt = dt;
-    if (!this.running || this.paused) { input.read(dt); this.renderFrame(dt, true); return; }
+    if (!this.running || this.paused) { input.read(dt); this.stage('렌더', 'renderFrame', dt, true); return; }
     this.time += dt; timeUniform.value = this.time;
     const inp = input.read(dt);
     this.inp = inp;
     const slow = this.player.dead ? 0.35 : 1;
     const sdt = dt * slow;
     const dg = this.diag, pn = dg ? performance.now() : 0;   // frame diagnostics (settings: FPS counter): where the time of a slow frame went
-    this.updatePlayer(sdt, inp);
+    this.stage('플레이어', 'updatePlayer', sdt, inp);
     const d1 = dg ? performance.now() : 0;
-    this.updateVehicles(sdt);
-    this.carRider.draw();
+    this.stage('차량', 'stageVehicles', sdt);
     const d2 = dg ? performance.now() : 0;
-    this.updateHumans(sdt);
+    this.stage('사람', 'updateHumans', sdt);
     const d3 = dg ? performance.now() : 0;
+    this.stage('규칙', 'stageRules', sdt);
+    this.stage('세계', 'stageWorld', sdt, dt);
+    this.stage('카메라', 'stageView', dt, sdt);
+    const d4 = dg ? performance.now() : 0;
+    this.stage('HUD', 'stageHud', dt);
+    const d5 = dg ? performance.now() : 0;
+    this.stage('렌더', 'renderFrame', dt, false);
+    this.workMs = performance.now() - w0;   // what this frame cost the main thread (autoQuality's headroom)
+    if (dg) this.frameDiag(pn, d1, d2, d3, d4, d5, performance.now());
+  }
+  // one stage of the frame, isolated (PERF-03): a throw is logged and the rest of the frame still runs. Only a stage that fails STAGE_FAILS
+  // frames in a row rethrows (to the error screen), because then the game really cannot go on (a broken renderer shows a frozen picture)
+  stage(name, f, a, b) {
+    try { this[f](a, b); this.stageFails[name] = 0; } catch (e) {
+      this.noteError(name, e);
+      if ((this.stageFails[name] = (this.stageFails[name] || 0) + 1) >= STAGE_FAILS) throw e;
+    }
+  }
+  // where the player is, for the error report
+  reportPlace() { const f = this.vehicle || this.player; return { x: Math.round(f.x), y: Math.round(f.y || 0), z: Math.round(f.z), t: Math.round(this.time) }; }
+  // log a caught error, and tell the player the first time in a while that something was skipped
+  noteError(where, e) {
+    if (noteError(where, e, this.time) && this.time - this.errToastT > 10) { this.errToastT = this.time; this.toast('오류가 나서 그 부분을 건너뛰었습니다', '일시정지 › 오류 복사'); }
+  }
+  // the stages (methods, not closures, so a frame allocates nothing for them): the same calls in the same order as before
+  stageVehicles(sdt) { this.updateVehicles(sdt); this.carRider.draw(); }
+  stageRules(sdt) {
     this.updatePolice(sdt);
     this.updateMission(sdt);
     this.updateTimed(sdt);
@@ -402,21 +438,16 @@ export class Game {
     if (this.input.edge('gest') && this.playerOnFoot && !this.player.dead && !this.uiModal) this.gestures.toggle();
     if (this.input.edge('phone') && !this.uiModal && !this.riding && !this.player.dead) this.phone.show();
     this.jobs.update(sdt); this.updateGPS(sdt); this.wmap?.updateHud(sdt); this.transit?.update(sdt); this.aviation?.update(sdt); this.rules?.update(sdt); this.ships?.update(sdt);
+  }
+  stageWorld(sdt, dt) {
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     if (!this.riding) { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }   // (not while riding: opening buildings along the way is wasted work)
     this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); if (!this.riding) this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
-    this.updateCamera(dt, inp);
-    this.fxUpdate(sdt);
-    const d4 = dg ? performance.now() : 0;
-    this.updateHUD(dt);
-    this.audioUpdate(dt);
-    const d5 = dg ? performance.now() : 0;
-    this.renderFrame(dt, false);
-    this.workMs = performance.now() - w0;   // what this frame cost the main thread (autoQuality's headroom)
-    if (dg) this.frameDiag(pn, d1, d2, d3, d4, d5, performance.now());
   }
+  stageView(dt, sdt) { this.updateCamera(dt, this.inp); this.fxUpdate(sdt); }
+  stageHud(dt) { this.updateHUD(dt); this.audioUpdate(dt); }
   // slow-frame log under the FPS counter: real time between frames (what the player sees) and the biggest section of that frame
   frameDiag(t0, d1, d2, d3, d4, d5, t6) {
     const dg = this.diag, gap = dg.last ? t0 - dg.last : 0; dg.last = t6;
@@ -1317,15 +1348,16 @@ export class Game {
         const dd = Math.hypot(v.x - focus.x, v.z - focus.z);
         if (dd > 260) { this.recycleTraffic(v); }
       }
+      if (v.broken && v !== this.vehicle) { this.removeVehicle(v); continue; }   // its update threw last frame (entityFailed)
       if (v.dead && v.age > 45 && d > 60 && v !== this.vehicle) { if (v.exploded && this.memory && !v.spec.craft) { this.memory.addWreck(v); this.memory.rebuildWrecks(); } this.removeVehicle(v); continue; }
       const asleep = v.pv.body.isSleeping();
       if (asleep && !v.driver && !v.dead && !(v.burn > 0)) continue;
       active.push(v);
     }
-    for (const v of active) v.control(dt);
+    for (const v of active) { try { v.control(dt); } catch (e) { this.entityFailed(v, e); } }
     this.phys.step(dt, (sdt) => { for (const v of active) v.applyDrive(); this.ragdolls.preStep(sdt); this.items.keepPoses(this.phys.stepNo + 1); }, active.map((v) => v.pv));
     this.ragdolls.postStep(dt); this.ragdolls.syncBones();
-    for (const v of active) v.post(dt);
+    for (const v of active) { try { v.post(dt); } catch (e) { this.entityFailed(v, e); } }
     this.phys.syncProps(THREE);
     this.vehicleVsHumans();
     // boats and anything else afloat leave a wake
@@ -1386,6 +1418,14 @@ export class Game {
   }
 
   // ====================================================================
+  // an NPC or a car whose update throws leaves the world instead of failing every frame (PERF-03): an NPC goes through the normal removal
+  // (ragdoll, scene, GPU), a car is removed at the start of the next vehicle pass, after this step's physics is done with it. The player's own
+  // body and car are only logged: removing them would end the game anyway
+  entityFailed(o, e) {
+    this.noteError(o instanceof Vehicle ? '차량 하나' : '사람 하나', e);
+    if (o === this.player || o === this.vehicle) return;
+    if (o instanceof Vehicle) o.broken = true; else o.remove = true;
+  }
   updateHumans(dt) {
     const cam = this.camera.position;
     for (const h of this.humans) {
@@ -1400,10 +1440,10 @@ export class Game {
       if (d > 78 && h.team === 'civ' && !h.dead && !h.rag && !h.knock && h.state !== 'flee') {
         h.lodAcc = (h.lodAcc || 0) + dt;
         if ((this.frameNo + h.id) % 3) continue;
-        const a = h.lodAcc; h.lodAcc = 0; h.update(a); continue;
+        const a = h.lodAcc; h.lodAcc = 0; try { h.update(a); } catch (e) { this.entityFailed(h, e); } continue;
       }
       h.lodAcc = 0;
-      h.update(dt);
+      try { h.update(dt); } catch (e) { this.entityFailed(h, e); }
     }
   }
   // a gang member spotted / was hit: nearby friends come running to where the trouble is (they do not magically see the player)
