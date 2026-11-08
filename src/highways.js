@@ -505,7 +505,17 @@ export class Highways {
         A.quad(at(f0, -half), at(f1, -half), at(f1, -0.12), at(f0, -0.12), [1, 1, 1], [1, v0], [1, v1], [0, v1], [0, v0]);
       } else A.quad(at(f0, -half), at(f1, -half), at(f1, half), at(f0, half), [1, 1, 1], [1, v0], [1, v1], [0, v1], [0, v0]);   // the inner (yellow) edge on +right: traffic keeps right
       for (let t = k0; t < A.i.length / 3; t++) top[t] = !tunnel;   // the drawn top the land keeps under (roadsurf.js); a tunnel's floor is under it on purpose
-      if (big && !tunnel) for (const s of [-1, 1]) { const o = s * (half + 0.3); S.quad(at(f0, o - s * 0.15, 0.78), at(f1, o - s * 0.15, 0.78), at(f1, o + s * 0.15, 0.78), at(f0, o + s * 0.15, 0.78), RAIL); }
+      // a concrete barrier along each edge of a motorway or trunk carriageway (0.45 m wide, 0.85 m high, both faces and the top), solid on a bridge: a
+      // flat strip 0.78 m up was all there was, and between the two decks of a viaduct a walker or a car went off the edge into the gap. Left open
+      // where another road's surface reaches the edge (a ramp leaving or joining, a junction), so the way onto it stays free
+      if (big && !tunnel) for (const s of [-1, 1]) {
+        const o = s * (half + 0.25), w = 0.225; if (this.barrierGap(r, f0, f1, o)) continue;
+        const i0 = at(f0, o - s * w), i1 = at(f1, o - s * w), x0 = at(f0, o + s * w), x1 = at(f1, o + s * w), up = (q) => [q[0], q[1] + 0.85, q[2]];
+        // front faces only (as the bridge fascias below): the top up, each side facing away from the barrier's middle
+        if (s > 0) { S.quad(up(i0), up(i1), up(x1), up(x0), RAIL); S.quad(up(i1), up(i0), i0, i1, CONC); S.quad(up(x0), up(x1), x1, x0, CONC); }
+        else { S.quad(up(x0), up(x1), up(i1), up(i0), RAIL); S.quad(up(i0), up(i1), i1, i0, CONC); S.quad(up(x1), up(x0), x0, x1, CONC); }
+        if (bridge) D.wall(i0, i1, up(i1), up(i0));
+      }
       if (!bridge && !tunnel) for (const s of [-1, 1]) {   // earth banks from the edge down to the ground beside the road, where the road stands above it
         const e0 = at(f0, s * half), e1 = at(f1, s * half), g0 = landHeight(f0.x + f0.rx * s * (half + 2.5), f0.z + f0.rz * s * (half + 2.5), 16) - 0.05, g1 = landHeight(f1.x + f1.rx * s * (half + 2.5), f1.z + f1.rz * s * (half + 2.5), 16) - 0.05;
         if (e0[1] - g0 < 0.15 && e1[1] - g1 < 0.15) continue;
@@ -549,6 +559,22 @@ export class Highways {
     return false;
   }
   // is (x, z) on another road than r (within its half width plus `pad`), leaving out roads of class `skip` (2: under the ground, 1: up on a bridge)?
+  // is the barrier at offset o on segment f0-f1 of r to be left out? Another road's surface reaches its line at either end or the middle (the other
+  // carriageway of the same motorway does not count: the barrier stands between the two)
+  barrierGap(r, f0, f1, o) {
+    const N = this.N, CS = N.CS;
+    for (const u of [0, 0.5, 1]) {
+      const x = f0.x + (f1.x - f0.x) * u + (f0.rx + (f1.rx - f0.rx) * u) * o, z = f0.z + (f1.z - f0.z) * u + (f0.rz + (f1.rz - f0.rz) * u) * o, y = f0.y + (f1.y - f0.y) * u;
+      const cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) continue;
+      for (let q = 0; q < cell.length; q += 2) {
+        const o2 = N.roads[cell[q]], i = cell[q + 1]; if (o2 === r || o2.cls[i] === 2 || (o2.ref && o2.ref === r.ref && o2.hw === r.hw)) continue;
+        const n = o2.pts.length, A = o2.pts[i], B = o2.pts[(i + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2));
+        const w = o2.kind === 'arterial' ? this.artWidth(o2).half : o2.kind === 'ramp' ? 4.6 : HALF_W, yo = o2.y[i] + (o2.y[(i + 1) % n] - o2.y[i]) * t;
+        if (Math.abs(yo - y) < 3 && Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < w + 0.6) return true;   // at about the same height: a road over or under it is no way off
+      }
+    }
+    return false;
+  }
   roadNear(x, z, r, pad, skip) {
     const N = this.N, CS = N.CS, cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) return false;
     for (let q = 0; q < cell.length; q += 2) {

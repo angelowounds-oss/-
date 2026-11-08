@@ -148,7 +148,7 @@ export class Router {
       // the right-hand lane: on a highway 7.2 m right of the median line; on a compiled one-way line its outer lane, on a two-way line the first lane right of the centre
       const per = art ? Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2))) : 0, half = art ? (r.oneway ? (per * LANE_W + 2.4) / 2 : per * LANE_W + 2.4) : 0;
       const off = !art ? 7.2 : r.oneway ? half - 2.4 - LANE_W / 2 : 0.12 + LANE_W / 2;
-      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1]);
+      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1, r.y ? r.y[G.ix[id]] : undefined, !!(r.cls && r.cls[G.ix[id]] === 2)]);   // [3]: the road's surface height (a ride follows it over viaducts and through cuttings); [4]: in a tunnel
     }
     const last = nodes[nodes.length - 1]; pts.push([x1, z1, 0]);
     // the way in: street leg from the graph end to the destination (reversed use of the same helper)
@@ -159,7 +159,8 @@ export class Router {
     const out = []; let len = 0;
     for (let i = 0; i < pts.length - 1; i++) {
       const A = pts[i], B = pts[i + 1], d = Math.hypot(B[0] - A[0], B[1] - A[1]), n = Math.max(1, Math.ceil(d / 25));
-      for (let k = 0; k < n; k++) out.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n, A[2]]);
+      const yAB = A[3] != null && B[3] != null;   // a height only between two road samples (a street leg has none: the ground there)
+      for (let k = 0; k < n; k++) out.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n, A[2], yAB ? A[3] + (B[3] - A[3]) * k / n : k === 0 ? A[3] : undefined, !!A[4] && (k === 0 || !!B[4])]);
       len += d;
     }
     out.push(pts[pts.length - 1]);

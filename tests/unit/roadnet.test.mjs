@@ -17,7 +17,9 @@ if (nan) bad.push(['NaN', nan]);
 if (kinds.highway < highways().length - 1) bad.push(['highways lost', kinds.highway, highways().length]);
 if (kinds.connector !== 4) bad.push(['connectors', kinds.connector]);
 if (maxGrade > GRADE + 0.03) bad.push(['grade', maxGrade]);
-if (N.junctions.length < kinds.highway * 2) bad.push(['junctions', N.junctions.length]);
+// an interchange at every highway end except where it forks from another highway (a stretch two highways share is carried by the first one only)
+const fork = (j) => j && String(j.road).startsWith('hw:'), cityEnds = N.roads.filter((r) => r.kind === 'highway').reduce((s, r) => s + (fork(r.joinA) ? 0 : 1) + (fork(r.joinB) ? 0 : 1), 0);
+if (N.junctions.length < cityEnds - 1) bad.push(['junctions', N.junctions.length, cityEnds]);   // the capital's end meets its connectors, not an interchange
 const types = new Set(N.junctions.map((j) => j.type)); if (types.size < 3) bad.push(['interchange types', [...types]]);
 if (bridge / samples > 0.2 || tunnel / samples > 0.2) bad.push(['too many bridges/tunnels', bridge, tunnel, samples]);
 if (kinds.ramp < N.junctions.length) bad.push(['ramps', kinds.ramp]);

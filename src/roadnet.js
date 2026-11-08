@@ -101,9 +101,11 @@ function build() {
   }
   const ringY = (cid, x, z) => { if (!N.rings.has(cid)) return null; let best = null, bd = 1e18; for (const r of N.rings.get(cid).roads) for (let i = 0; i < r.pts.length; i++) { const d = (r.pts[i][0] - x) ** 2 + (r.pts[i][1] - z) ** 2; if (d < bd) { bd = d; best = { road: r, i, d: Math.sqrt(d) }; } } return best; };
   // ---- highways: trimmed at the rings of their two cities, the profile ends on the ring's height
-  // highways that run along one another (shared corridors) take the surface of the one built first, so two roads never stand 100 m apart on the same ground
-  const HG = new Map(), HK = (x, z) => Math.floor(x / 60) * 100003 + Math.floor(z / 60);
-  const shared = (x, z) => { let best = null, bd = 25 * 25; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = HG.get(HK(x + a * 60, z + b * 60)); if (!c) continue; for (const q of c) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = q; } } } return best; };
+  // highways that run along one another (shared corridors): the stretch an earlier highway already carries is left to it. Two cities' highways that
+  // follow the same valley were laid twice on one line for tens of km (hw:3 and hw:8 for 4,124 samples, hw:6 all its length) 1-4 m apart in height,
+  // with lanes, lamps and barriers through each other. What is left of a highway are its own stretches, each joined to the road it forks from
+  const HG = new Map(), HK = (x, z) => Math.floor(x / 60) * 100003 + Math.floor(z / 60), SHARE = 30;
+  const shared = (x, z) => { let best = null, bd = SHARE * SHARE; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = HG.get(HK(x + a * 60, z + b * 60)); if (!c) continue; for (const q of c) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = q; } } } return best; };
   const gaps = [];   // highway ends that stop at the region with none of its motorways within reach: [road, end, city]
   for (const h of highways()) {
     let P = resample(h.pts, DS);
@@ -119,25 +121,37 @@ function build() {
     const i0 = trimEnd(0, 1, a, Ra), i1 = trimEnd(P.length - 1, -1, b, Rb);
     if (i1 - i0 < 6) continue;
     P = P.slice(i0, i1 + 1);
-    const ja = ringY(a.id, P[0][0], P[0][1]), jb = ringY(b.id, P[P.length - 1][0], P[P.length - 1][1]);
-    const sh = P.map((p) => shared(p[0], p[1])), anyShared = sh.some(Boolean), shIdx = new Map(P.map((p, i) => [p, i]));
-    const against = (x, z, c) => { const q = shared(x, z); return q ? q.y : groundH(x, z, c); };
-    const y = profile(P, false, ja ? ja.road.y[ja.i] : null, jb ? jb.road.y[jb.i] : null, anyShared ? against : groundH);
-    const cls = classify(P, y, anyShared ? against : groundH); if (anyShared) sh.forEach((q, i) => { if (q) cls[i] = q.cls; });
-    const road = { id: `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: P, y, closed: false, cls, lanes: 3 }; N.roads.push(road); void shIdx;
-    P.forEach((p, i) => { const k = HK(p[0], p[1]); let l = HG.get(k); if (!l) HG.set(k, (l = [])); l.push({ x: p[0], z: p[1], y: y[i], cls: cls[i] }); });
-    for (const [end, c, jn] of [[0, a, ja], [P.length - 1, b, jb]]) {
-      if (!N.rings.has(c.id)) { const jr = joinRegion(P[end]); road[end ? 'joinB' : 'joinA'] = jr; if (!jr && compiled) gaps.push([road, end, c]); continue; }   // no ring: the end meets the region's roads, no interchange or toll (or, too far from one, a connector below)
-      const p = P[end], q = P[end === 0 ? 1 : P.length - 2], dir = Math.atan2(q[0] - p[0], q[1] - p[1]);   // heading pointing away from the city
-      N.junctions.push({ id: `${road.id}@${c.id}`, city: c.id, type: INTERCHANGE[c.type] || 'diamond', x: p[0], z: p[1], y: y[end], heading: dir, road: road.id, end, ring: jn ? jn.road.id : null });
-      N.tolls.push({ road: road.id, x: P[end === 0 ? Math.min(P.length - 1, 14) : Math.max(0, P.length - 15)][0], z: P[end === 0 ? Math.min(P.length - 1, 14) : Math.max(0, P.length - 15)][1], idx: end === 0 ? 14 : P.length - 15, city: c.id });
-    }
-    // sign gantries 400 m after each junction and every ~6 km
-    const gi = (i, to, km) => { if (i > 2 && i < P.length - 2) N.gantries.push({ road: road.id, idx: i, to, km }); };
-    gi(14 + 4, b.name, Math.round(h.length / 1000)); gi(P.length - 19, a.name, Math.round(h.length / 1000));
-    for (let i = 200; i < P.length - 200; i += 200) gi(i, i < P.length / 2 ? b.name : a.name, Math.round((i < P.length / 2 ? P.length - i : i) * DS / 1000));
-    // service areas about every 12 km, on the side of the road
-    for (let i = 400, k = 0; i < P.length - 300; i += 400, k++) N.services.push({ road: road.id, idx: i, side: k % 2 ? 1 : -1 });
+    // its own stretches: runs of samples no earlier highway carries (fewer than 7 between two shared ones are not worth a road of their own)
+    const on = P.map((p) => shared(p[0], p[1])), runs = [];
+    // a shared stretch is at least 10 samples (300 m) long: a shorter one is where the two cross or touch, and the road goes on through it
+    for (let i = 0; i < P.length;) { if (!on[i]) { i++; continue; } let e = i; while (e + 1 < P.length && on[e + 1]) e++; if (e - i < 9 && i > 0 && e < P.length - 1) for (let k = i; k <= e; k++) on[k] = null; i = e + 1; }
+    for (let i = 0; i < P.length;) { if (on[i]) { i++; continue; } let e = i; while (e + 1 < P.length && !on[e + 1]) e++; if (e - i >= 6 || (i === 0 && e === P.length - 1)) runs.push([i, e]); i = e + 1; }
+    runs.forEach(([s0, e0], k) => {
+      // a run that forks from an earlier highway starts (or ends) on that road's sample, at its height
+      const fa = s0 > 0 ? on[s0 - 1] : null, fb = e0 < P.length - 1 ? on[e0 + 1] : null;
+      const Q = P.slice(s0, e0 + 1); if (fa) Q.unshift([fa.x, fa.z]); if (fb) Q.push([fb.x, fb.z]);
+      const ja = !fa ? ringY(a.id, Q[0][0], Q[0][1]) : null, jb = !fb ? ringY(b.id, Q[Q.length - 1][0], Q[Q.length - 1][1]) : null;
+      const y = profile(Q, false, fa ? fa.y : ja ? ja.road.y[ja.i] : null, fb ? fb.y : jb ? jb.road.y[jb.i] : null, groundH);
+      const cls = classify(Q, y, groundH);
+      const road = { id: k ? `hw:${h.id}:${k}` : `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: Q, y, closed: false, cls, lanes: 3 }; N.roads.push(road);
+      if (fa) road.joinA = { road: fa.road, i: fa.i, d: 0 };
+      if (fb) road.joinB = { road: fb.road, i: fb.i, d: 0 };
+      Q.forEach((p, i) => { const kk = HK(p[0], p[1]); let l = HG.get(kk); if (!l) HG.set(kk, (l = [])); l.push({ x: p[0], z: p[1], y: y[i], cls: cls[i], road: road.id, i }); });
+      for (const [end, c, jn, fork] of [[0, a, ja, fa], [Q.length - 1, b, jb, fb]]) {
+        if (fork) continue;   // a fork from another highway: no interchange or toll there
+        if (!N.rings.has(c.id)) { const jr = joinRegion(Q[end]); road[end ? 'joinB' : 'joinA'] = jr; if (!jr && compiled) gaps.push([road, end, c]); continue; }   // no ring: the end meets the region's roads, no interchange or toll (or, too far from one, a connector below)
+        const p = Q[end], q = Q[end === 0 ? 1 : Q.length - 2], dir = Math.atan2(q[0] - p[0], q[1] - p[1]);   // heading pointing away from the city
+        N.junctions.push({ id: `${road.id}@${c.id}`, city: c.id, type: INTERCHANGE[c.type] || 'diamond', x: p[0], z: p[1], y: y[end], heading: dir, road: road.id, end, ring: jn ? jn.road.id : null });
+        N.tolls.push({ road: road.id, x: Q[end === 0 ? Math.min(Q.length - 1, 14) : Math.max(0, Q.length - 15)][0], z: Q[end === 0 ? Math.min(Q.length - 1, 14) : Math.max(0, Q.length - 15)][1], idx: end === 0 ? 14 : Q.length - 15, city: c.id });
+      }
+      // sign gantries 400 m after each junction and every ~6 km
+      const gi = (i, to, km) => { if (i > 2 && i < Q.length - 2) N.gantries.push({ road: road.id, idx: i, to, km }); };
+      if (!fa) gi(14 + 4, b.name, Math.round(h.length / 1000));
+      if (!fb) gi(Q.length - 19, a.name, Math.round(h.length / 1000));
+      for (let i = 200; i < Q.length - 200; i += 200) gi(i, i < Q.length / 2 ? b.name : a.name, Math.round((i < Q.length / 2 ? Q.length - i : i) * DS / 1000));
+      // service areas about every 12 km, on the side of the road
+      for (let i = 400, m = 0; i < Q.length - 300; i += 400, m++) N.services.push({ road: road.id, idx: i, side: m % 2 ? 1 : -1 });
+    });
   }
   // ---- the capital's connectors: from the mountain loop (r ~ 1.3 km) straight out to the ring road
   const cap = byId.get('neon'), loop = roadsData()[0].pts;

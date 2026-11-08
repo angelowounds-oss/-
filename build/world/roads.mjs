@@ -422,6 +422,149 @@ function weldJunctions(lines) {
   return st;
 }
 
+// 7. surfaces that lie on one another: two lines whose carriageways overlap in plan (a ramp leaving or joining its road, a street meeting another on
+// the slant, two lines of one road drawn into each other) but stood 0.3-6.5 m apart, so the game drew one through the other: lanes, kerbs, lamps
+// and deck sides of one cut across the other's lanes, and a gap opened between them (6,295 such places in the capital region, 2026-11-08). The
+// junction weld above levels only the one point where two centre lines cross. Here the later line in the laying order follows the earlier one's
+// surface over the whole overlap and blends back over a raised cosine within its class grade. A grade separation (a structure or a motorway
+// crossing an unrelated road) keeps its clearance, and two ground roads more than WELD_MAX apart are a terrace, not one surface; a tunnel never moves.
+const FUSE_MIN = 0.3, fam = (L) => L.hw.replace('_link', '');
+export function fuseOverlaps(lines, R, gh, claimed, opt = {}) {   // opt.mayRelay(cell, line, y): the grade step's say over a cell another road holds; opt.still(line): a line that stays
+  const CS = 48, K = (a, b) => a * 100003 + b, grid = new Map();
+  lines.forEach((L, li) => { for (let i = 0; i + 1 < L.n; i++) { const k = K(Math.floor(L.X[i] / CS), Math.floor(L.Z[i] / CS)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(li, i); } });
+  const st = { lines: 0, samples: 0, maxMove: 0, lifted: 0, maxLift: 0, skippedSeparation: 0, skippedTerrace: 0, relaid: 0 };
+  const along = (L) => { const a = [0]; for (let q = 1; q < L.n; q++) a.push(a[q - 1] + Math.hypot(L.X[q] - L.X[q - 1], L.Z[q] - L.Z[q - 1])); return a; };
+  // the crossings of each line, with the height difference before this pass. A move must not take a grade separation (a structure or a motorway in the
+  // crossing) under 6 m where it had that, nor lift apart a junction on the level (under 0.3 m); other crossings are free (the test's own split)
+  const yAt = (L, i, t) => L.Y[i] + (L.Y[i + 1] - L.Y[i]) * t, XS = new Map();
+  for (const c of crossings(lines)) {
+    const P = lines[c.A], Q = lines[c.B], d0 = Math.abs(yAt(P, c.a, c.ta) - yAt(Q, c.b, c.tb)), mw = P.hw === 'motorway' || Q.hw === 'motorway';
+    for (const [L, i, t, M, j, u] of [[P, c.a, c.ta, Q, c.b, c.tb], [Q, c.b, c.tb, P, c.a, c.ta]]) { if (!XS.has(L)) XS.set(L, []); XS.get(L).push({ i, t, M, j, u, d0, mw }); }
+  }
+  const SEP = 6;
+  const hurtAt = (L) => { const out = [], A = along(L); for (const c of XS.get(L) || []) {
+    const d = Math.abs(yAt(L, c.i, c.t) - yAt(c.M, c.j, c.u)), sep = c.mw || L.cls[c.i] || L.cls[c.i + 1] || c.M.cls[c.j] || c.M.cls[c.j + 1];
+    const bad = sep ? c.d0 >= SEP && d < SEP : c.d0 < FUSE_MIN && d > c.d0 + FUSE_MIN;
+    if (bad) out.push(A[c.i] + (A[c.i + 1] - A[c.i]) * c.t); } return out; };
+  // the nearest earlier line whose carriageway the point i of line li lies on (tunnels left out): { M, j, d, y, cross, structure, related } or null
+  const under = (L, li, i) => {
+    const n = L.n, hL = halfOf(L), x = L.X[i], z = L.Z[i], a = Math.floor(x / CS), b = Math.floor(z / CS), ti = Math.min(n - 1, i + 1), si = Math.max(0, i - 1);
+    const lx = L.X[ti] - L.X[si], lz = L.Z[ti] - L.Z[si], ll = Math.hypot(lx, lz) || 1; let best = null;
+    for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) {
+      const cell = grid.get(K(a + da, b + db)); if (!cell) continue;
+      for (let q = 0; q < cell.length; q += 2) {
+        if (cell[q] >= li) continue; const M = lines[cell[q]], j = cell[q + 1]; if (M.cls[j] === 2 || M.cls[j + 1] === 2) continue;
+        const dx = M.X[j + 1] - M.X[j], dz = M.Z[j + 1] - M.Z[j], l2 = dx * dx + dz * dz || 1, t = ((x - M.X[j]) * dx + (z - M.Z[j]) * dz) / l2; if (t < 0 || t > 1) continue;
+        const d = Math.hypot(x - M.X[j] - dx * t, z - M.Z[j] - dz * t); if (d > 0.7 * (hL + halfOf(M)) || (best && best.d <= d)) continue;
+        const cos = Math.abs(lx * dx + lz * dz) / (ll * Math.sqrt(l2));
+        best = { M, j: t > 0.5 ? j + 1 : j, d, y: M.Y[j] + (M.Y[j + 1] - M.Y[j]) * t, cross: cos < Math.cos(MIN_ANGLE), structure: L.cls[i] === 1 || M.cls[j] === 1 || M.cls[j + 1] === 1, related: fam(L) === fam(M) };
+      }
+    }
+    return best;
+  };
+  // first the viaducts over an unrelated road that runs along under them (one move per 160 m stretch of a viaduct, as in the clearance rounds): they go
+  // up to the clearance; merged into the road under them, the road would have climbed onto the viaduct
+  const lifts = new Map();
+  lines.forEach((L, li) => { for (let i = 0; i < L.n; i++) {
+    if (L.cls[i] === 2) continue; const u = under(L, li, i); if (!u || u.related || u.cross) continue;
+    const dy = u.y - L.Y[i]; if (Math.abs(dy) < FUSE_MIN || Math.abs(dy) >= CLEAR) continue;
+    const [V, vi, h] = dy > 0 ? [u.M, u.j, L.Y[i] + CLEAR + 0.5 - u.y] : [L, i, u.y + CLEAR + 0.5 - L.Y[i]];   // the upper one, raised to clear the lower
+    if (V.cls[vi] !== 1 || (opt.still && opt.still(V))) continue; if (!lifts.has(V)) lifts.set(V, []); const lv = lifts.get(V), o = lv.find((m) => Math.hypot(V.X[m.i] - V.X[vi], V.Z[m.i] - V.Z[vi]) < 160);
+    if (o) { if (h > o.h) { o.h = h; o.i = vi; } } else lv.push({ i: vi, h });
+  } });
+  // each lift a raised cosine at half the class grade, the largest one deciding where two reach (bump() rebuilds Y from the profile before the weld);
+  // a lift that would cut the clearance of a crossing on the viaduct (a road over it) is left out
+  for (const [V, lv] of lifts) {
+    const at = along(V), gr = CLASS[V.hw].grade, top = 14, Y0 = Float64Array.from(V.Y);
+    let keep = lv.slice();
+    for (let round = 0; round < 6 && keep.length; round++) {
+      const F = new Float64Array(V.n);
+      for (const m of keep) { const foot = m.h * Math.PI / (2 * gr * 0.5); for (let q = 0; q < V.n; q++) { const e = Math.max(0, Math.abs(at[q] - at[m.i]) - top); if (e < foot) F[q] = Math.max(F[q], m.h * 0.5 * (1 + Math.cos(Math.PI * e / foot))); } }
+      for (let q = 0; q < V.n; q++) V.Y[q] = Y0[q] + (V.cls[q] === 2 ? 0 : F[q]);
+      const bad = hurtAt(V); if (!bad.length) { for (let q = 0; q < V.n; q++) if (F[q] > 1.5 && !V.cls[q]) { V.cls[q] = 1; V.why[q] = WHY.bump; } break; }
+      keep = keep.filter((m) => !bad.some((s) => Math.abs(s - at[m.i]) < m.h * Math.PI / (2 * gr * 0.5) + top + 8)); st.liftsHeld = (st.liftsHeld || 0) + 1;
+      if (!keep.length) for (let q = 0; q < V.n; q++) V.Y[q] = Y0[q];
+    }
+    for (const m of keep) { st.lifted++; st.maxLift = Math.max(st.maxLift, m.h); }
+  }
+  st.maxLift = +st.maxLift.toFixed(2);
+  lines.forEach((L, li) => {
+    if (opt.still && opt.still(L)) return;
+    const n = L.n, hL = halfOf(L), tgt = new Float64Array(n).fill(NaN);
+    for (let i = 0; i < n; i++) {
+      if (L.cls[i] === 2) continue;
+      const u = under(L, li, i); if (!u) continue; const ad = Math.abs(u.y - L.Y[i]); if (ad >= CLEAR) continue;
+      if (ad < FUSE_MIN) { if (u.related || !u.structure) tgt[i] = u.y; continue; }   // already one surface: pinned, so a move nearby does not part them
+      if (!u.related && (u.structure || (u.cross && (L.hw === 'motorway' || u.M.hw === 'motorway')))) { st.skippedSeparation++; continue; }
+      if (!u.structure && ad > WELD_MAX) { st.skippedTerrace++; continue; }
+      tgt[i] = u.y;
+    }
+    // the offsets: exact on the overlapped samples (those already level pinned at their small difference), a cosine blend between two of them close
+    // enough for their reaches to meet, and beyond that a raised cosine down to nothing within the grade the profile leaves free there (at least a
+    // quarter of the class grade). The largest or the nearest offset alone moved stretches that were already level (new overlaps, first runs)
+    const at = along(L), gr = CLASS[L.hw].grade, Y0 = Float64Array.from(L.Y), slope = new Float64Array(n);
+    for (let q = 0; q + 1 < n; q++) { const sg = at[q + 1] - at[q]; slope[q] = sg > 0.5 ? Math.abs(Y0[q + 1] - Y0[q]) / sg : 0; }
+    const budget = (i) => { let u = 0; for (let q = i; q >= 0 && at[i] - at[q] < 60; q--) u = Math.max(u, slope[q]); for (let q = i; q < n && at[q] - at[i] < 60; q++) u = Math.max(u, slope[q]); return gr * 1.35 - u; };
+    let on = []; for (let i = 0; i < n; i++) if (tgt[i] === tgt[i]) on.push({ i, h: tgt[i] - Y0[i], foot: 0 });
+    if (!on.some((o) => Math.abs(o.h) >= FUSE_MIN)) return;
+    // a move needs grade left to climb back: where the profile already uses it (within 0.15 of the class grade of 1.35 times it) the overlap stays
+    on = on.filter((o) => { const b = budget(o.i); if (Math.abs(o.h) >= FUSE_MIN && b < gr * 0.15) { st.noGrade = (st.noGrade || 0) + 1; return false; } o.foot = Math.abs(o.h) * Math.PI / (2 * Math.max(b, gr * 0.15)); return true; });
+    if (!on.some((o) => Math.abs(o.h) >= FUSE_MIN)) return;
+    const O = new Float64Array(n), cosd = (e, f) => (e >= f ? 0 : 0.5 * (1 + Math.cos(Math.PI * e / f)));
+    for (let round = 0; round < 6 && on.length; round++) {
+      O.fill(0); let k = 0;
+      for (let q = 0; q < n; q++) {
+        while (k < on.length && on[k].i < q) k++;
+        if (k < on.length && on[k].i === q) { O[q] = on[k].h; continue; }
+        const A = on[k - 1], B = on[k];   // the targets either side of q
+        if (A && B && at[B.i] - at[A.i] <= A.foot + B.foot + 1) { const t = (at[q] - at[A.i]) / (at[B.i] - at[A.i]); O[q] = A.h + (B.h - A.h) * 0.5 * (1 - Math.cos(Math.PI * t)); }
+        else O[q] = (A ? A.h * cosd(at[q] - at[A.i], A.foot) : 0) + (B ? B.h * cosd(at[B.i] - at[q], B.foot) : 0);
+      }
+      for (let q = 0; q < n; q++) { if (L.cls[q] === 2) O[q] = 0; L.Y[q] = Y0[q] + O[q]; }
+      // a crossing on this line whose clearance the move cuts, or a junction on the level it lifts apart: the overlaps reaching it are left out
+      const bad = hurtAt(L); if (!bad.length) break;
+      on = on.filter((o) => !bad.some((s) => Math.abs(s - at[o.i]) < o.foot + 8)); st.held = (st.held || 0) + 1;
+      if (!on.some((o) => Math.abs(o.h) >= FUSE_MIN)) on = [];
+      if (!on.length) { O.fill(0); for (let q = 0; q < n; q++) L.Y[q] = Y0[q]; }
+    }
+    if (!on.length) return;
+    for (let q = 0; q < n; q++) L.Y[q] = Y0[q];
+    const moved = new Uint8Array(n);
+    for (let q = 0; q < n; q++) { if (!O[q] || L.cls[q] === 2) continue; L.Y[q] += O[q]; st.maxMove = Math.max(st.maxMove, Math.abs(O[q])); if (!L.cls[q] && Math.abs(O[q]) > 0.05) moved[q] = 1; }
+    // the profile stays within 1.2 times its class grade: where the line it follows changes (two roads below it at different heights) the exact
+    // targets stepped 2-6 m in one segment (1,100 steps in ground-contract); the moved samples ease toward each other, the ones it did not move stay
+    const lim = gr * 1.2, free = (q) => Math.abs(O[q]) > 0.01 && L.cls[q] !== 2;
+    for (let pass = 0; pass < 200; pass++) {
+      let any = false;
+      for (let q = 0; q + 1 < n; q++) {
+        const a = free(q), b = free(q + 1); if (!a && !b) continue;
+        const sg = at[q + 1] - at[q], dy = L.Y[q + 1] - L.Y[q], ex = Math.abs(dy) - lim * sg; if (sg < 1 || ex <= 0.005) continue;
+        const sd = Math.sign(dy) * ex; if (a && b) { L.Y[q] += sd / 2; L.Y[q + 1] -= sd / 2; } else if (a) L.Y[q] += sd; else L.Y[q + 1] -= sd;
+        if (!L.cls[q] && a) moved[q] = 1; if (!L.cls[q + 1] && b) moved[q + 1] = 1; any = true; if (!pass) st.eased = (st.eased || 0) + 1;
+      }
+      if (!any) break;
+    }
+    st.lines++; st.samples += on.length;
+    // the ground under a moved stretch on the ground follows it: the carriageway flat, the fade only over cells no other road holds
+    if (CLASS[L.hw].lay === false && !opt.mayRelay) return;
+    const flat = Math.max(hL + 1, R.g * 1.05), reach = flat + FADE, near = new Map();
+    for (let s = 0; s + 1 < n; s++) {
+      if (!moved[s] && !moved[s + 1]) continue;
+      const ax = L.X[s], az = L.Z[s], dx = L.X[s + 1] - ax, dz = L.Z[s + 1] - az, l2 = dx * dx + dz * dz || 1;
+      for (let j = Math.max(0, Math.floor((Math.min(az, az + dz) - reach - R.z0) / R.g)); j <= Math.min(R.nz - 1, Math.ceil((Math.max(az, az + dz) + reach - R.z0) / R.g)); j++)
+        for (let i = Math.max(0, Math.floor((Math.min(ax, ax + dx) - reach - R.x0) / R.g)); i <= Math.min(R.nx - 1, Math.ceil((Math.max(ax, ax + dx) + reach - R.x0) / R.g)); i++) {
+          const c = j * R.nx + i; if (R.water[c] === 1) continue;
+          const px = R.x0 + i * R.g, pz = R.z0 + j * R.g, t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2)), d = Math.hypot(px - ax - dx * t, pz - az - dz * t);
+          if (d >= reach || (d > flat && claimed[c])) continue; const yy = L.Y[s] + (L.Y[s + 1] - L.Y[s]) * t; if (opt.mayRelay && !opt.mayRelay(c, L, yy)) continue;
+          const o = near.get(c); if (o && o[0] <= d) continue; near.set(c, [d, L.Y[s] + (L.Y[s + 1] - L.Y[s]) * t]);
+        }
+    }
+    for (const [c, [d, y]] of near) { gh[c] += (y - 0.05 - gh[c]) * (1 - sstep(flat, reach, d)); st.relaid++; }
+  });
+  st.maxMove = +st.maxMove.toFixed(2);
+  return st;
+}
+
 // the whole pass: returns the generalized lines (with profiles) and their numbers; gh is changed in place
 export function roadPass(R, gh, els, sites = [], opt = {}) {
   const lines = chains(els, sites).map(generalize).filter((L) => L.n >= 3).sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order);
@@ -432,7 +575,7 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
   // the surface of the lines done so far nearest a point (within SNAP), for a line with no ground of its own
   const done = [], nearY = (x, z) => { let best = null, bd = SNAP; for (const D of done) for (let q = 0; q < D.n; q++) { const d = Math.hypot(D.X[q] - x, D.Z[q] - z); if (d < bd) { bd = d; best = D.Y[q]; } } return best; };
   for (const L of lines) { profile(L, R, gh, claimed, { ...opt, nearY }); done.push(L); if (CLASS[L.hw].lay !== false) layLine(R, gh, L, claimed); }
-  const clearance = clearancePass(lines), weld = weldJunctions(lines);
+  const clearance = clearancePass(lines), weld = weldJunctions(lines), fuse = fuseOverlaps(lines, R, gh, claimed);
   // last, one rule for every road: the ground under a carriageway is never above its surface (it is only lowered), measured against the surface at
   // the nearest point of the line. Only the carriageway's own width: a cell-wide reach also pushed the ground down under the roads beside it
   for (const L of lines) {
@@ -477,6 +620,7 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
     for (let i = 0; i + 1 < L.n; i++) { const seg = Math.hypot(L.X[i + 1] - L.X[i], L.Z[i + 1] - L.Z[i]); r.km += seg; if (L.cls[i] !== 1) continue; r.bridge += seg; if (L.why[i] === WHY.osm) r.osm += seg; else if (!(R.water[Math.round((L.Z[i] - R.z0) / R.g) * R.nx + Math.round((L.X[i] - R.x0) / R.g)])) r.gaps.push(L.Y[i] - ground(R, gh, L.X[i], L.Z[i])); }
   }
   stats.motorwayRefs = Object.fromEntries(Object.entries(refs).filter(([, r]) => r.km > 2000).map(([k, r]) => { r.gaps.sort((a, b) => a - b); return [k, { kmReal: Math.round(r.km * KOREA_SCALE / 1000), bridgePct: +(r.bridge / r.km * 100).toFixed(1), osmPct: +(r.osm / r.km * 100).toFixed(1), madeGapMedian: +(r.gaps[r.gaps.length >> 1] || 0).toFixed(1) }]; }));
-  stats.clearance = clearance; stats.snap = snap; stats.weld = weld;
+  stats.clearance = clearance; stats.snap = snap; stats.weld = weld; stats.fuse = fuse;
   return { lines, stats };
 }
+

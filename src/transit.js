@@ -4,7 +4,9 @@ import { keys as binds } from './keys.js';
 import { cities } from './worldmap.js';
 import { MAP_K } from './koreamap.js';
 import { Acc } from './citysites.js';
-import { FarGround } from './farland.js';
+import { FarGround, landHeight } from './farland.js';
+import { topAt } from './roadsurf.js';
+import { EXTENT, heightAt } from './terrain.js';
 import { buildCar } from './models.js';
 import { buildAirliner } from './aviation.js';
 import { el } from './util.js';
@@ -34,6 +36,9 @@ const CSS = `
 #rideFade{position:fixed;inset:0;z-index:15;background:#000;opacity:0;pointer-events:none;transition:opacity .7s;display:flex;align-items:flex-end;justify-content:center;color:#9bd;font:14px "Space Mono",monospace;padding-bottom:12vh;text-align:center}
 #rideCap{position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:16;color:#dff;font:15px "Space Mono",monospace;text-shadow:0 0 12px #000;display:none;text-align:center;pointer-events:none}
 `;
+
+// the ground the player sees at (x, z): the capital's own terrain inside it, the far land (the region's raster where it is compiled) elsewhere
+function drawnGround(x, z) { return Math.abs(x) < EXTENT && Math.abs(z) < EXTENT ? heightAt(x, z) : landHeight(x, z, 8); }
 
 // the rail lines: every highway, offset 27 m to the left of its direction of travel (the highway carries the median on its centre)
 export function railLines() {
@@ -268,8 +273,15 @@ export class Transit {
     return this.mk('air', a, b, [{ pts: [[a.x, g, a.z], [rw.x, g, rw.z]], ug: false, taxi: true }, { pts, ug: false }]);
   }
   planTaxi(wp) {
-    const G = this.G, f = G.focusPos(), r = G.autonav.router.route(f.x, f.z, wp.x, wp.z), pts = r.pts.map((p) => [p[0], FarGround.at(p[0], p[1]) + 0.1, p[1]]);
-    return this.mk('taxi', { name: '현재 위치' }, { x: wp.x, z: wp.z, name: wp.name }, [{ pts, ug: false }], { straight: r.straight });
+    // on a road of the graph the taxi rides at that road's height (over a viaduct, through a cutting), elsewhere on the drawn ground: the 8 m physics
+    // height it rode on before was up to tens of metres under a raised road and under the ground the player sees, and the camera went under the land.
+    // Inside the capital the city's own terrain and roads are drawn, not the region's: there the region road ran up to 74 m under a city hill
+    const G = this.G, f = G.focusPos(), r = G.autonav.router.route(f.x, f.z, wp.x, wp.z), city = (p) => Math.abs(p[0]) < EXTENT && Math.abs(p[1]) < EXTENT;
+    const pts = r.pts.map((p) => [p[0], (city(p) ? heightAt(p[0], p[1]) : p[3] ?? drawnGround(p[0], p[1])) + 0.1, p[1]]);
+    // a tunnel of the region road is a dark stretch (the ride fades as the train's does): from above the ground it ran tens of metres under the land
+    const segs = []; let cur = null;
+    pts.forEach((q, i) => { const ug = !city(r.pts[i]) && !!r.pts[i][4]; if (!cur || cur.ug !== ug) { const prev = cur && cur.pts[cur.pts.length - 1]; cur = { pts: prev ? [prev] : [], ug, text: ug ? '터널 구간' : undefined }; segs.push(cur); } cur.pts.push(q); });
+    return this.mk('taxi', { name: '현재 위치' }, { x: wp.x, z: wp.z, name: wp.name }, segs.filter((sg) => sg.pts.length > 1), { straight: r.straight });
   }
 
   // ---- the ride
@@ -291,6 +303,7 @@ export class Transit {
     const nat = r.nat * (plan.kind === 'rail' || plan.kind === 'metro' ? 1 : 1), speed = Math.max(nat, plan.len / r.cap), ease = Math.min(1, r.t / 2.2, (plan.len - r.s) / (speed * 1.8) + 0.08);
     r.sp = speed * Math.max(0.1, ease); r.s = Math.min(plan.len, r.s + r.sp * dt);
     const p = this.pathAt(plan, r.s); if (!p) return this.arrive();
+    if (plan.kind === 'taxi' && !p.ug) { const t = topAt(p.x, p.z); if (t === t && t > p.y - 3) p.y = t + 0.1; p.y = Math.max(p.y, drawnGround(p.x, p.z) + 0.1); }   // a road drawn here by now is the surface the taxi rolls on; not one deep under it (topAt gives the lowest: a city tunnel 60 m down took the taxi under a hill); never under the drawn ground (a route between two samples 25 m apart cut 4 m into a hill)
     pl.x = p.x; pl.z = p.z; pl.y = Math.max(0, p.y); pl.vx = pl.vz = pl.vy = 0; pl.body3.teleport(p.x, Math.max(0, p.y) + 1, p.z);
     // fade through the tunnel sections
     if (p.ug !== r.ug) { r.ug = p.ug; this.fade.style.opacity = p.ug ? '1' : '0'; }
@@ -307,8 +320,14 @@ export class Transit {
   camera(c, dt) {
     const r = this.ride; if (!r || !r.pose) return; const p = r.pose, kind = r.plan.kind;
     const back = kind === 'air' ? 95 : kind === 'rail' ? 34 : 9.5, up = kind === 'air' ? 30 : kind === 'rail' ? 11 : 3.8, side = kind === 'rail' ? 12 : 0;
-    const fx = Math.sin(p.h), fz = Math.cos(p.h), tx = p.x - fx * back + fz * side, ty = p.y + up, tz = p.z - fz * back - fx * side;
-    if (!r.camSet) { r.cam.set(tx, ty, tz); r.camSet = true; } else r.cam.lerp(this._p.set(tx, ty, tz), 1 - Math.exp(-4 * dt));
+    const fx = Math.sin(p.h), fz = Math.cos(p.h), tx = p.x - fx * back + fz * side, tz = p.z - fz * back - fx * side;
+    // never under what is drawn behind the vehicle (a hill side, the bank of a cutting, a road above): from under the land the screen showed sky only
+    const tt = topAt(tx, tz), ty = Math.max(p.y + up, drawnGround(tx, tz) + 1.5, tt === tt && tt < p.y + up + 6 ? tt + 1.5 : -1e9);
+    // the camera moves with the vehicle and eases only the change of its offset: eased as a whole it trailed a fast ride by v/4 (80 m on a long taxi ride)
+    if (!r.camSet) { r.cam.set(tx, ty, tz); r.camSet = true; } else { r.cam.x += p.x - r.camPx; r.cam.y += p.y - r.camPy; r.cam.z += p.z - r.camPz; r.cam.lerp(this._p.set(tx, ty, tz), 1 - Math.exp(-4 * dt)); }
+    r.camPx = p.x; r.camPy = p.y; r.camPz = p.z;
+    // the eased camera trails the vehicle and cut under a ridge between two good points (22 m after a tunnel): held over the ground where it is
+    { const gy = drawnGround(r.cam.x, r.cam.z) + 1.5; if (r.cam.y < gy) r.cam.y = gy; }
     c.position.copy(r.cam); c.lookAt(p.x + fx * 6, p.y + (kind === 'air' ? 6 : 2), p.z + fz * 6);
   }
   arrive() {
