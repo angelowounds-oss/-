@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildHuman, rifleLook } from './models.js';
+import { buildHuman, rifleLook, idMark, disposeOwned } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
 import * as AI from './ai.js';
@@ -326,10 +326,12 @@ function stepLook(h, dt, on, aiming) {
 }
 
 export class Human {
+  // free the materials this body cloned for itself (soldier models clone theirs per person) once it has left the world for good
+  dispose() { disposeOwned(this.group, this.idMark); }
   constructor(G, team, o = {}) {
     this.G = G; this.team = team; this.id = ++uid;
     const look = o.look || {};
-    this.m = buildHuman(look);
+    this.idMark = idMark(); this.m = buildHuman(look);
     this.group = this.m.group;
     this.x = 0; this.z = 0; this.y = 0; this.vy = 0; this.ry = rand(0, TAU);
     this.vx = 0; this.vz = 0;

@@ -230,7 +230,8 @@ export class Game {
     for (let k = 0; k < q.npc; k++) this.spawnCivilian(true);
   }
   addVehicle(v) { this.vehicles.push(v); this.scene.add(v.group); v.group.visible = true; v.attachPhysics(this.phys); if (v.kind === 'parked') v.pv.body.sleep(); v.syncMesh(); return v; }
-  removeVehicle(v) { const i = this.vehicles.indexOf(v); if (i >= 0) this.vehicles.splice(i, 1); v.detachPhysics(); this.scene.remove(v.group); }
+  // a removed car is gone for good (nothing re-adds one), so its own geometry and materials are freed with it
+  removeVehicle(v) { const i = this.vehicles.indexOf(v); if (i >= 0) this.vehicles.splice(i, 1); v.detachPhysics(); this.scene.remove(v.group); v.dispose?.(); }
 
   randomLane(minD, maxD) {
     const pl = this.focusPos();
@@ -1343,7 +1344,7 @@ export class Game {
       else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
         const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
-        if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.ragdolls.destroy(h); this.scene.remove(h.group); this.humans.splice(i, 1); }
+        if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.ragdolls.destroy(h); this.scene.remove(h.group); this.humans.splice(i, 1); h.dispose?.(); }
       }
     }
   }

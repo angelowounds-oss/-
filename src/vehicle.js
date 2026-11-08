@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildCar, CAR_SPECS } from './models.js';
+import { buildCar, CAR_SPECS, idMark, disposeOwned } from './models.js';
 import { N, P, R, LANE, HALF, roadC, roadIdx, hasEdge } from './world.js';
 import { clamp, lerp, damp, angDiff, rand, TAU, stopSpeed } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
@@ -23,6 +23,7 @@ export class Vehicle {
     const police = kind === 'police', taxi = opts.taxi;
     const base = CAR_SPECS[type] || CRAFT_SPECS[type];
     const mo = { police, taxi, hero: kind === 'player' || !!opts.glow, glow: opts.glow || GLOWS[Math.floor(Math.random() * GLOWS.length)] };
+    this.idMark = idMark();
     this.model = base.custom ? buildCustom(type, color, mo) : buildCar(type, police ? 0x0c1220 : taxi ? 0xe8b820 : color, mo);
     this.group = this.model.group;
     if (police) {
@@ -48,6 +49,8 @@ export class Vehicle {
     this.underColor = this.model.ug.material.uniforms.uColor.value;
     this.setLights(kind !== 'parked' || Math.random() < 0.25);
   }
+  // free the GPU buffers and materials this car made for itself once it has left the world (traffic recycles cars all the time)
+  dispose() { disposeOwned(this.group, this.idMark); }
   setLights(on) {
     this.lightsOn = on;
     this.model.head.visible = on; this.model.beams.visible = on;

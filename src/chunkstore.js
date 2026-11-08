@@ -15,17 +15,20 @@ function worker() {
     return (pool = w);
   } catch (e) { return (pool = false); }
 }
+// the bytes go to the worker as a copy of just this chunk, handed over (transferred): a chunk of an in-memory pack is a view into the whole
+// pack, and posting the view cloned the entire buffer (138 MB for core.pak) once per chunk, so a drive or a teleport that streamed a few
+// hundred chunks queued gigabytes for the worker and the tab was killed (PERF-07)
 export async function inflate(bytes) {
   const w = worker();
   if (w) {
-    try { return await new Promise((res, rej) => { const id = nextId++; waiting.set(id, { res, rej }); w.postMessage({ id, b: bytes }); }); } catch (e) { /* fall through to the main thread */ }
+    try { return await new Promise((res, rej) => { const id = nextId++, b = bytes.slice(); waiting.set(id, { res, rej }); w.postMessage({ id, b }, [b.buffer]); }); } catch (e) { /* fall through to the main thread */ }
   }
   const s = new DecompressionStream('deflate-raw'), wr = s.writable.getWriter(); wr.write(bytes); wr.close();
   return new Uint8Array(await new Response(s.readable).arrayBuffer());
 }
 
 export class WorldData {
-  constructor() { this.sources = []; this.cache = new Map(); this.pending = new Map(); this.stats = { chunks: 0, bytes: 0, ms: 0 }; }
+  constructor() { this.sources = []; this.cache = new Map(); this.pending = new Map(); this.dropped = new Set(); this.stats = { chunks: 0, bytes: 0, ms: 0 }; }
   // a source: {name, container}; a newer source with a higher priority (packs) goes in front
   add(name, container, front = false) { const s = { name, c: container }; if (front) this.sources.unshift(s); else this.sources.push(s); return s; }
   remove(name) { this.sources = this.sources.filter((s) => s.name !== name); this.cache.clear(); }
@@ -35,18 +38,21 @@ export class WorldData {
   peek(key) { return this.cache.get(key); }   // a chunk that has been loaded already, or undefined
   async get(key) {
     if (this.cache.has(key)) return this.cache.get(key);
-    if (this.pending.has(key)) return this.pending.get(key);
-    const p = this.load(key).finally(() => this.pending.delete(key)); this.pending.set(key, p); return p;
+    if (this.pending.has(key)) { this.dropped.delete(key); return this.pending.get(key); }   // asked for again: keep it after all
+    const p = this.load(key).finally(() => { this.pending.delete(key); this.dropped.delete(key); }); this.pending.set(key, p); return p;
   }
   async load(key) {
     const s = this.find(key); if (!s) throw new Error('world data: no chunk ' + key);
     const t0 = performance.now(), e = s.c.chunks[key], z = await s.c.read(s.c.start + e.o, e.z);
     if (hash53(z) !== e.h) throw new Error(`world data: chunk ${key} of ${s.name} is damaged (hash)`);
     const obj = decodeChunk(await inflate(z));
-    this.cache.set(key, obj); this.stats.chunks++; this.stats.bytes += e.z; this.stats.ms += performance.now() - t0;
+    if (this.dropped.delete(key)) { /* let go while it was read: the caller still gets it, the cache does not keep it */ } else this.cache.set(key, obj);
+    this.stats.chunks++; this.stats.bytes += e.z; this.stats.ms += performance.now() - t0;
     return obj;
   }
-  drop(key) { this.cache.delete(key); }   // let a streamed chunk go; it is read again when asked for
+  // let a streamed chunk go; it is read again when asked for. A chunk still being read is marked, or it lands in the cache after its streamer has
+  // moved on and stays there for good (fast driving and teleports filled the cache without bound)
+  drop(key) { this.cache.delete(key); if (this.pending.has(key)) this.dropped.add(key); }
 }
 export const memoryReader = (bytes) => async (o, n) => bytes.subarray(o, o + n);
 export const fileReader = (file) => async (o, n) => new Uint8Array(await file.slice(o, o + n).arrayBuffer());

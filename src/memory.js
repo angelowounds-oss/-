@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ZONES } from './society.js';
-import { buildCar } from './models.js';
+import { buildCar, idMark, disposeOwned } from './models.js';
 
 // "The city remembers": what the player does leaves marks and stories.
 //  - bullet holes and blast scorches stay where they hit (saved), wrecks stay where cars burned out
@@ -73,11 +73,12 @@ export class Memory {
   addWreck(v) {
     const w = this.st.wrecks; w.push({ x: +v.x.toFixed(1), z: +v.z.toFixed(1), h: +v.h.toFixed(2), type: v.spec.craft ? 'sedan' : v.type in { sedan: 1, sport: 1, suv: 1, truck: 1 } ? v.type : 'sedan' }); if (w.length > MAX_WRECKS) w.shift();
   }
+  // every wreck model is rebuilt from the saved list; the old ones free what they made (each rebuild used to leave a full set of models behind)
   rebuildWrecks() {
-    const G = this.G; for (const o of [...this.wreckGroup.children]) this.wreckGroup.remove(o);
+    const G = this.G; for (const o of [...this.wreckGroup.children]) { this.wreckGroup.remove(o); if (o.userData.idMark) disposeOwned(o, o.userData.idMark); }
     for (const b of this.wreckCols) G.world.colliders.removeBox(b); this.wreckCols = [];
     for (const w of this.st.wrecks) {
-      const m = buildCar(w.type, 0x15110e, {}); m.group.position.set(w.x, 0, w.z); m.group.rotation.y = w.h; m.group.position.y = -0.12; m.group.rotation.z = 0.05;
+      const mark = idMark(), m = buildCar(w.type, 0x15110e, {}); m.group.userData.idMark = mark; m.group.position.set(w.x, 0, w.z); m.group.rotation.y = w.h; m.group.position.y = -0.12; m.group.rotation.z = 0.05;
       m.group.traverse((o) => { if (o.isMesh && o.material && o !== m.paint) { o.material = o.material.clone(); o.material.color?.multiplyScalar?.(0.35); if (o.material.emissive) o.material.emissive.setHex(0); } });
       if (m.head) m.head.visible = false; if (m.tail) m.tail.visible = false;
       this.wreckGroup.add(m.group);

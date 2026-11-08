@@ -104,6 +104,17 @@ function buildFerrari(color, opts) {
   };
 }
 
+// the ids THREE hands out next: a geometry or material with a higher id was made after this call, so it belongs to the model built after it
+// (and to the copies a dent or a wreck makes later) and can be freed with it; shared module materials and geometries all have lower ids
+export function idMark() { return { g: new THREE.BufferGeometry().id, m: new THREE.Material().id }; }
+// free what a model made for itself (see idMark): a removed car otherwise kept its merged body buffers and paint on the GPU for good
+export function disposeOwned(root, mark) {
+  root.traverse((o) => {
+    if (o.geometry && o.geometry.id > mark.g) o.geometry.dispose();
+    for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) if (m.id > mark.m) m.dispose();
+  });
+}
+
 export function buildCar(type, color, opts = {}) {
   // the 190k-triangle glTF is reserved for the player's own car; ambient traffic uses the procedural model
   if ((type === 'sport' || type === 'roadster') && A.ok && !opts.police && opts.hero) return buildFerrari(color, opts);
