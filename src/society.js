@@ -152,11 +152,12 @@ export class Society {
     const G = this.G, pl = G.player;
     if (G.wanted <= 0 || pl.dead || G.sleeping || this.busted) { this.arrestT = 0; return; }
     let cop = null;
-    for (const h of G.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 2.4) { cop = h; break; }
+    const near = (h, r) => h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < r && Math.abs((h.y || 0) - pl.y) < 2;   // within reach, on the same level (not on a bridge above or below)
+    for (const h of G.humans) if (near(h, 2.4)) { cop = h; break; }
     if (!cop && G.vehicle && G.vehicle.speed < 2.5) for (const v of G.vehicles) if (v.police && !v.dead && Math.hypot(v.x - pl.x, v.z - pl.z) < 7) { cop = v; break; }
     if (pl.surrenderT > 0) { pl.surrenderT -= dt; pl.weaponDrawn = false; }
     const quiet = G.time - (G.lastShotT || -9) > 1.8 && !pl.weaponDrawn;
-    if (!cop && pl.surrenderT > 0) for (const h of G.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 4.5) { cop = h; break; }
+    if (!cop && pl.surrenderT > 0) for (const h of G.humans) if (near(h, 4.5)) { cop = h; break; }
     if (cop && quiet) { this.arrestT += dt * (pl.surrenderT > 0 ? 2 : 1); if (this.arrestT > 1.6 && !this.hint) { this.hint = true; G.toast('체포 중…', '총을 쏘면 저항'); } if (this.arrestT > 3.2) this.arrest(); }
     else { this.arrestT = Math.max(0, this.arrestT - dt); this.hint = false; }
   }
@@ -173,7 +174,7 @@ export class Society {
     for (const a of pl.ammo) a.reserve = Math.min(a.reserve, 30);
     G.clearWanted(); G.clock.t += 120;
     for (const h of G.humans) if (h.team === 'cop') { h.hidden = h.remove = true; }
-    const sp = G.world.spawn; pl.body3.teleport(sp.x, 0, sp.z); pl.x = sp.x; pl.z = sp.z; pl.y = 0.06;
+    const sp = G.world.spawn, sy = G.groundY(sp.x, sp.z, 2); pl.body3.teleport(sp.x, sy, sp.z); pl.x = sp.x; pl.z = sp.z; pl.y = sy + 0.06;   // released at the station, on its ground
     G.toast('석방', `벌금 $${fine}${seized ? ` · 압수 ${seized}점` : ''}`);
     this.busted = false; G.uiModal = false; G.save();
     await G.fadeTo(0);

@@ -191,6 +191,9 @@ export class Physics {
     // low centre of mass + realistic inertia
     const ix = (mass / 12) * (4 * hy * hy + 4 * hz * hz) * 0.55, iy = (mass / 12) * (4 * hx * hx + 4 * hz * hz) * 0.7, iz = (mass / 12) * (4 * hx * hx + 4 * hy * hy) * 0.55;
     body.setAdditionalMassProperties(mass, { x: 0, y: -0.42, z: 0 }, { x: ix, y: iy, z: iz }, { x: 0, y: 0, z: 0, w: 1 });
+    // Rapier sums the mass only at the next step: a car woken with a speed before it (the traffic start() puts back on its lanes) was driven by its
+    // wheels against the collider's 1 g, flung at 400 m/s and wrecked on the first frame of every game
+    body.recomputeMassPropertiesFromColliders();
     const ctrl = w.createVehicleController(body);
     const wb = spec.wb, tr = spec.W / 2 - 0.2;
     const pts = [[-tr, wb], [tr, wb], [-tr, -wb], [tr, -wb]]; // FL FR RL RR (x is chassis-right negative = left)

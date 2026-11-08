@@ -1,5 +1,4 @@
 import { cities } from './worldmap.js';
-import { MAP_HALF } from './koreamap.js';
 import { Human } from './human.js';
 import { rand } from './util.js';
 import { cityPart } from './regions/index.js';
@@ -38,7 +37,9 @@ export class CityRules {
       const w = 1 - sm(c.r * 1.2, c.r * 4.5, Math.hypot(f.x - c.x, f.z - c.z)); if (w <= 0) continue; const r = RULES[c.id]; if (!r) continue;
       for (let k = 0; k < 3; k++) tint[k] += (r.tint[k] - 1) * w; wet += r.wet * w; econ += (r.econ - 1) * w; wsum += w;
     }
-    L.hourOffset = f.x / MAP_HALF * 1.5;   // the east is ahead of the west: about an hour either side of the capital's clock
+    // the sun's local time against the capital's (Korea keeps one clock, KST; the sun runs 4 min per degree of longitude, so Busan is ~8.4 min ahead
+    // and Mokpo ~2.4 min behind). It was a made-up ±1.5 h across the map, which on the 1:1 map put the sun an hour off in the cities
+    { const lat = (37.5665 - f.z / 111195) * Math.PI / 180; L.hourOffset = f.x / (6371000 * Math.cos(lat)) * 180 / Math.PI / 15; }
     L.tint = tint; L.wet = wet; L.econ = econ; L.near = wsum;
     return L;
   }
@@ -101,7 +102,7 @@ export class CityRules {
     crew = []; this.crews.set(c.id, crew); const port = c.type === 'port';
     for (const p of pts) for (let k = 0; k < 2; k++) {
       const h = new Human(G, 'gang', { hp: 90, weapon: port ? 2 : 1, look: port ? DOCK_LOOK : GUARD_LOOK });
-      h.x = p.x + rand(-5, 5); h.z = p.z + rand(-5, 5); h.y = 0; h.floorY = 0; h.ry = rand(0, 6.28); h.home = { x: h.x, z: h.z }; h.patrol = true; h.state = 'idle'; h.detect = port ? 30 : 24; h.guard = true; h.static = false; h.lookAtPlayer = false; h.cash = Math.floor(rand(30, 90)); h.facility = c.id;
+      h.x = p.x + rand(-5, 5); h.z = p.z + rand(-5, 5); h.y = h.floorY = G.groundY(h.x, h.z); h.ground = true; h.ry = rand(0, 6.28); h.home = { x: h.x, z: h.z }; h.patrol = true; h.state = 'idle'; h.detect = port ? 30 : 24; h.guard = true; h.static = false; h.lookAtPlayer = false; h.cash = Math.floor(rand(30, 90)); h.facility = c.id;   // on the ground at the facility (it was 0)
       G.humans.push(h); G.scene.add(h.group); crew.push(h);
     }
   }

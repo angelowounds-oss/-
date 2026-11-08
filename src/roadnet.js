@@ -104,6 +104,7 @@ function build() {
   // highways that run along one another (shared corridors) take the surface of the one built first, so two roads never stand 100 m apart on the same ground
   const HG = new Map(), HK = (x, z) => Math.floor(x / 60) * 100003 + Math.floor(z / 60);
   const shared = (x, z) => { let best = null, bd = 25 * 25; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = HG.get(HK(x + a * 60, z + b * 60)); if (!c) continue; for (const q of c) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = q; } } } return best; };
+  const gaps = [];   // highway ends that stop at the region with none of its motorways within reach: [road, end, city]
   for (const h of highways()) {
     let P = resample(h.pts, DS);
     const a = byId.get(h.a), b = byId.get(h.b), Ra = N.rings.get(a.id)?.R, Rb = N.rings.get(b.id)?.R;
@@ -126,7 +127,7 @@ function build() {
     const road = { id: `hw:${h.id}`, kind: 'highway', a: a.id, b: b.id, pts: P, y, closed: false, cls, lanes: 3 }; N.roads.push(road); void shIdx;
     P.forEach((p, i) => { const k = HK(p[0], p[1]); let l = HG.get(k); if (!l) HG.set(k, (l = [])); l.push({ x: p[0], z: p[1], y: y[i], cls: cls[i] }); });
     for (const [end, c, jn] of [[0, a, ja], [P.length - 1, b, jb]]) {
-      if (!N.rings.has(c.id)) { road[end ? 'joinB' : 'joinA'] = joinRegion(P[end]); continue; }   // no ring: the end meets the region's roads, no interchange or toll
+      if (!N.rings.has(c.id)) { const jr = joinRegion(P[end]); road[end ? 'joinB' : 'joinA'] = jr; if (!jr && compiled) gaps.push([road, end, c]); continue; }   // no ring: the end meets the region's roads, no interchange or toll (or, too far from one, a connector below)
       const p = P[end], q = P[end === 0 ? 1 : P.length - 2], dir = Math.atan2(q[0] - p[0], q[1] - p[1]);   // heading pointing away from the city
       N.junctions.push({ id: `${road.id}@${c.id}`, city: c.id, type: INTERCHANGE[c.type] || 'diamond', x: p[0], z: p[1], y: y[end], heading: dir, road: road.id, end, ring: jn ? jn.road.id : null });
       N.tolls.push({ road: road.id, x: P[end === 0 ? Math.min(P.length - 1, 14) : Math.max(0, P.length - 15)][0], z: P[end === 0 ? Math.min(P.length - 1, 14) : Math.max(0, P.length - 15)][1], idx: end === 0 ? 14 : P.length - 15, city: c.id });
@@ -198,6 +199,20 @@ function build() {
       // tight classes as the capital's connectors: nothing carves for them, so a deck carries them wherever the ground falls 3 m below (the coast here)
       N.roads.push({ id: `conn:${c.id}:${ref}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls: classifyTight(P, y, groundH), lanes: 2, joinB: { road: e.r.id, i: e.i, d: 0 } });
     }
+  }
+  // a highway end cut where the region begins but with no motorway or trunk of it within 600 m: at 1:1 the cut left a gap of a kilometre or more
+  // (the capital's highway to mid3 began 1.4 km from the end of motorway 35), and the generated network (five cities) and the region's were two
+  // islands that no car or route crossed. A connector is laid from the nearest motorway or trunk end within 4 km to the highway's end
+  for (const [road, end, c] of gaps) {
+    const p = road.pts[end], q = road.pts[end ? end - 1 : 1]; let e = null, bd = 4000 * 4000;
+    for (const r of regionRoads()) { if (r.hw !== 'motorway' && r.hw !== 'trunk') continue; for (const i of [0, r.x.length - 1]) { const d = (r.x[i] - p[0]) ** 2 + (r.z[i] - p[1]) ** 2; if (d < bd) { bd = d; e = { r, i }; } } }
+    if (!e) continue;
+    const tx = e.r.x[e.i], tz = e.r.z[e.i], j = e.i ? e.i - 4 : 4, ox = tx - e.r.x[j], oz = tz - e.r.z[j], ol = Math.hypot(ox, oz) || 1;   // out of the motorway's end
+    const hx = p[0] - q[0], hz = p[1] - q[1], hl = Math.hypot(hx, hz) || 1, k = Math.sqrt(bd) * 0.4;   // out of the highway's end
+    const B = []; for (let t = 0; t <= 200; t++) B.push(bez3([tx, tz], [tx + ox / ol * k, tz + oz / ol * k], [p[0] + hx / hl * k, p[1] + hz / hl * k], p, t / 200));
+    const P = resample(B, DS); if (Math.hypot(P[P.length - 1][0] - p[0], P[P.length - 1][1] - p[1]) < DS * 0.5) P.pop(); P.push([p[0], p[1]]); P[0] = [tx, tz];
+    const y = profile(P, false, e.r.y[e.i], road.y[end]), cls = classify(P, y);
+    N.roads.push({ id: `conn:${road.id}:${end ? 'b' : 'a'}`, kind: 'connector', city: c.id, pts: P, y, closed: false, cls, lanes: 2, joinA: { road: e.r.id, i: e.i, d: 0 }, joinB: { road: road.id, i: end, d: 0 } });
   }
   // ---- interchange ramps: slip roads (Bezier) from a point of the highway back from the ring onto the ring, by interchange type
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

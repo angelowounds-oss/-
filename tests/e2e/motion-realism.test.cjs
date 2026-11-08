@@ -319,6 +319,7 @@ run('motion-realism', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const C = g.humans[0].constructor, h = new C(g, 'civ', { hp: 50 });
       const at = (a, d) => { pl.x = h.x + Math.sin(a) * d; pl.z = h.z + Math.cos(a) * d; body3.teleport(pl.x, pl.y, pl.z); };
       h.x = pl.x; h.z = pl.z + 4; h.y = h.floorY = pl.y; h.ry = 0; h.static = true; h.lookAtPlayer = true; h.state = 'stand'; h.home = { x: h.x, z: h.z }; h.group.visible = true;
+      h._ambT = 1e9;   // no ambient gesture: one starts 4-18 s in at random and its head follows the hands (headErrDeg read 0, 1.9 or 11.4 by the draw)
       g.humans.push(h); g.scene.add(h.group);
       at(Math.PI, 20); await hold(0, 0, 120); const fN = calib(h);
       at(0.7, 3.5); await hold(0, 0, 90);

@@ -30,10 +30,11 @@ export class HighwayTraffic {
     const rx = tz, rz = -tx;
     return { x: p[0] + rx * off, z: p[1] + rz * off, y: r.y[i], h: Math.atan2(tx * dir, tz * dir) };
   }
-  nearestSample(x, z, max = 2500) {
+  // local: also the secondary and smaller roads that carry no highway traffic (a patrol car comes on whatever road is nearest)
+  nearestSample(x, z, max = 2500, local = false) {
     const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS);
     let best = null, bd = max * max;
-    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || (r.kind === 'arterial' && LOCAL[r.hw])) continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
   }
 
@@ -115,7 +116,7 @@ export class HighwayTraffic {
     for (const s of N.services) if (Math.hypot(s.x - pl.x, s.z - pl.z) < 400) { const tx = Math.sin(s.heading), tz = Math.cos(s.heading); for (const o of [-1, 1]) want.push({ key: 'svc:' + s.road + ':' + s.idx + ':' + o, x: s.x + tz * (s.side * 16) + tx * (22 + o * 6) , z: s.z - tx * (s.side * 16) + tz * (22 + o * 6), y: s.y + 0.3, look: { top: 0xd24b2a, pants: 0x222222, cap: 0xd24b2a, trim: [1, 0.8, 0.3], hair: 0x111111 } }); }
     // travellers walking about the service areas (they stretch their legs between the pumps and the cars)
     for (const s of N.services) if (Math.hypot(s.x - pl.x, s.z - pl.z) < 400) for (let k = 0; k < 3; k++) { const key = 'trav:' + s.road + ':' + s.idx + ':' + k; if (!this.npcs.has(key) || this.npcs.get(key).remove) want.push({ key, x: s.x + (k - 1) * 9, z: s.z + 12, y: s.y + 0.3, walker: true, look: { top: [0x4a6a9a, 0x9a4a4a, 0x4a9a6a][k], pants: 0x23262e, cap: null, trim: null, hair: 0x222222 } }); }
-    for (const w of want) { const have = this.npcs.get(w.key); if (have && !have.remove && G.humans.includes(have)) continue; const h = new Human(G, 'civ', { hp: 40, weapon: undefined, look: w.look }); h.x = w.x; h.z = w.z; h.y = w.y; h.floorY = w.y; h.static = !w.walker; h.lookAtPlayer = !w.walker; h.state = w.walker ? 'walk' : 'stand'; h.home = { x: w.x, z: w.z }; h.hwNpc = w.key; h.cash = 60; h.noVisit = true;
+    for (const w of want) { const have = this.npcs.get(w.key); if (have && !have.remove && G.humans.includes(have)) continue; const h = new Human(G, 'civ', { hp: 40, weapon: undefined, look: w.look }); h.x = w.x; h.z = w.z; h.y = w.y; h.floorY = w.y; h.static = !w.walker; h.lookAtPlayer = !w.walker; h.state = w.walker ? 'walk' : 'stand'; h.home = { x: w.x, z: w.z }; h.hwNpc = w.key; h.ground = !!w.walker;   /* a walker at a service area keeps to the ground */ h.cash = 60; h.noVisit = true;
       if (w.walker) h.steerFn = (hh, dt) => { hh.wt = (hh.wt || 0) - dt; if (hh.wt <= 0 || !hh.wp) { hh.wt = 3 + Math.random() * 5; hh.wp = { x: hh.home.x + (Math.random() - 0.5) * 24, z: hh.home.z + (Math.random() - 0.5) * 14 }; } const dx = hh.wp.x - hh.x, dz = hh.wp.z - hh.z, d = Math.hypot(dx, dz); return d < 1 ? { x: 0, z: 0, s: 0, face: null } : { x: dx / d, z: dz / d, s: 1.2, face: null }; }; G.humans.push(h); G.scene.add(h.group); this.npcs.set(w.key, h); }
     for (const [k, h] of this.npcs) if (h.dead || h.remove || !G.humans.includes(h)) this.npcs.delete(k);
   }

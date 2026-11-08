@@ -18,9 +18,11 @@ export const CRAFT_SPECS = {
   // war machines (see warcraft.js): armoured, armed, flown / driven with the camera as the aim
   tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 19, accel: 2, grip: 3, hp: 1800, cy: 1.05, fuelRate: 0.7, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
   gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 75, accel: 5.5, grip: 3, hp: 800, cy: 0.9, fuelRate: 1.3, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
-  // Darkstar: a black hypersonic aircraft, Mach 10 (3,430 m/s) at full throttle; same flight model as the jet with a bigger engine
-  darkstar: { L: 15, W: 7.2, mass: 1.2, maxSpeed: 3430, accel: 1500, grip: 3, hp: 600, cy: 1.0, fuelRate: 2.2, custom: 'darkstar', craft: 'jet', war: 'jet', armored: 0.35, hyper: true, title: '다크스타' },
-  jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 150, accel: 30, grip: 3, hp: 450, cy: 1.1, fuelRate: 1.8, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
+  // Darkstar: a black hypersonic aircraft, Mach 10 (3,430 m/s) at full throttle; same flight model as the jet with a bigger engine. Its thrust is 6 g
+  // (what a pilot in a g-suit bears for minutes): it took 1,500 m/s^2 (150 g) and was at Mach 5 a second and a half after the throttle
+  darkstar: { L: 15, W: 7.2, mass: 1.2, maxSpeed: 3430, accel: 60, grip: 3, hp: 600, cy: 1.0, fuelRate: 2.2, custom: 'darkstar', craft: 'jet', war: 'jet', armored: 0.35, hyper: true, title: '다크스타' },
+  // a fighter: thrust to weight ~1.2 (12 m/s^2 from rest), Mach ~1.05 in level flight at low altitude (it was 150 m/s at 3 g)
+  jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 360, accel: 12, grip: 3, hp: 450, cy: 1.1, fuelRate: 1.8, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
 };
 
 const std = (c, r = 0.5, m = 0.3, e) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, emissive: e || 0x000000, emissiveIntensity: e ? 1.6 : 0 });
@@ -103,7 +105,7 @@ export function buildCustom(type, color, opts = {}) {
     const gear = new THREE.Group(); g.add(gear); m.gear = gear;
     for (const [gx, gz] of [[0, 3.6], [-1.1, -1.0], [1.1, -1.0]]) { box(M.metal, 0.08, 0.7, 0.08, gx, 0.45, gz, gear); cyl(M.rubber, 0.2, 0.18, gx, 0.2, gz, gear, [0, 0, Math.PI / 2]); }
     m.craftVisual = (v, dt) => {
-      const thr = v.thrLvl || 0; jetFx.material.opacity = 0.4 + 0.6 * thr; jetFx.scale.setScalar(1.2 + thr * 3); gear.visible = (v.speed < 55) && (v.by < 14 || v.speed < 20);
+      const thr = v.thrLvl || 0; jetFx.material.opacity = 0.4 + 0.6 * thr; jetFx.scale.setScalar(1.2 + thr * 3); gear.visible = (v.speed < 55) && ((v.agl ?? v.by) < 14 || v.speed < 20);   // low over the ground under it (not over 0)
       g.userData.bank = damp(g.userData.bank || 0, v.bank || 0, 5, dt);
     };
   } else if (type === 'darkstar') {
@@ -125,7 +127,7 @@ export function buildCustom(type, color, opts = {}) {
     for (const [gx, gz] of [[0, 4.2], [-1.2, -1.6], [1.2, -1.6]]) { box(M.metal, 0.08, 0.6, 0.08, gx, 0.55, gz, gear); cyl(M.rubber, 0.18, 0.16, gx, 0.2, gz, gear, [0, 0, Math.PI / 2]); }
     m.craftVisual = (v, dt) => {
       const thr = v.thrLvl || 0, mach = v.speed / 343; nozzle.material.opacity = 0.35 + 0.65 * thr; nozzle.scale.setScalar(1.4 + thr * (2 + Math.min(3, mach * 0.4)));
-      gear.visible = v.speed < 55 && (v.by < 14 || v.speed < 20);
+      gear.visible = v.speed < 55 && ((v.agl ?? v.by) < 14 || v.speed < 20);
       // aerodynamic heating: the hull glows dull red -> orange -> white-hot with Mach
       const h = clamp((mach - 1.5) / 7, 0, 1); blk.emissive.setRGB(h * 3.2, h * h * 1.6 + h * 0.2, h * h * h * 1.2); blk.emissiveIntensity = 1;
     };
@@ -195,7 +197,7 @@ export function driveCraft(veh, dt) {
       nvx -= lv.x * 0.25 * dt; nvz -= lv.z * 0.25 * dt;
       b.setLinvel({ x: nvx, y: nvy, z: nvz }, true);
       const w = b.angvel(); b.setAngvel({ x: w.x * 0.5, y: lerp(w.y, -st * 1.15 * clamp(Math.abs(vf) / 4, 0, 1), 1 - Math.exp(-3 * dt)), z: w.z * 0.5 }, true);
-      if (Math.abs(vf) > 4 && Math.random() < dt * 30) G.fx.tireSmoke(t.x - fx * 3 + rand(-0.8, 0.8), t.z - fz * 3 + rand(-0.8, 0.8));
+      if (Math.abs(vf) > 4 && Math.random() < dt * 30) G.fx.tireSmoke(t.x - fx * 3 + rand(-0.8, 0.8), t.z - fz * 3 + rand(-0.8, 0.8), t.y - spec.cy);
     } else b.setLinvel({ x: lv.x * (1 - 2.5 * dt), y: lv.y, z: lv.z * (1 - 2.5 * dt) }, true);
     uprightAssist(b, 0.2);
   } else if (spec.craft === 'heli') {
@@ -241,7 +243,8 @@ function terrainAhead(t, h, s, secs) {
 function flightAssist(veh, t, s, pilot, pt, lim, dt, agl) {
   const G = veh.G, spec = veh.spec; veh.pullUp = false;
   if (!pilot || veh.dead || s < 120) { if (s < 120 && veh.altHold) { veh.altHold = null; } return pt; }
-  const heading = veh.h, ahead = terrainAhead(t, heading, s, spec.hyper ? 5 : 8);
+  // a 9 g pull-up at speed s needs s / 88 seconds per radian, so the look ahead grows with the speed (8 s at 1,000 m/s, up to 24 km)
+  const heading = veh.h, look = 4 + s / 250, ahead = terrainAhead(t, heading, s, Math.max(spec.hyper ? 5 : 8, look));
   if (veh.altHold != null) {
     // the mouse moves the target (climb rate up to ~220 m/s for the hypersonic one, 80 for the others)
     veh.altHold += clamp(veh.aimPitch ?? 0, -0.6, 0.6) * (spec.hyper ? 220 : 80) * dt;
@@ -251,10 +254,10 @@ function flightAssist(veh, t, s, pilot, pt, lim, dt, agl) {
   // low altitude: the path ahead against the ground
   if (!veh.hand && !veh.down) {
     let risk = 0;
-    const hz = Math.min(s * 4, 6000), sinP = Math.sin(veh.pitchA || 0), rise = t.y + sinP * hz;   // where the nose is heading, 4 s out
-    const gAhead = terrainAhead(t, heading, s, 4);
-    risk = Math.max(risk, 1 - clamp((Math.min(t.y, rise) - 70 - gAhead) / 260, 0, 1));
-    if (s < 900 && Math.abs(t.x) < 1500 && Math.abs(t.z) < 1500 && t.y < 260) {   // over the city: a building in the ray ahead
+    const hz = Math.min(s * look, 24000), sinP = Math.sin(veh.pitchA || 0), rise = t.y + sinP * hz;   // where the nose is heading, `look` seconds out
+    const gAhead = terrainAhead(t, heading, s, look);
+    risk = Math.max(risk, 1 - clamp((Math.min(t.y, rise) - 70 - gAhead) / (260 + s * 0.3), 0, 1));
+    if (s < 900 && t.y - landHeight(t.x, t.z, 32) < 300) {   // low (the 1:1 country has buildings everywhere, not only in the capital): a building in the ray ahead
       const hit = G.phys.ray(t.x, t.y, t.z, Math.sin(heading) * Math.cos(veh.pitchA || 0), Math.sin(veh.pitchA || 0), Math.cos(heading) * Math.cos(veh.pitchA || 0), s * 3.5, 1 | 16);
       if (hit) risk = Math.max(risk, 1 - clamp((hit.t - 60) / (s * 3), 0, 1));
     }
@@ -263,6 +266,8 @@ function flightAssist(veh, t, s, pilot, pt, lim, dt, agl) {
   return pt;
 }
 const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const G_LIM = 9 * 9.81;   // what a pilot in a g-suit bears: the most a turn or a pull-up asks of the airframe
+if (typeof window !== 'undefined') window.__craftEdge = { CAPITAL, WORLD_HALF };   // test hook: the map edge in world coordinates
 // Fighter with VTOL: the nose follows the camera (mouse aim), speed follows the throttle level; below stall speed it sinks unless
 // Space (vertical thrust) holds it up, which also lets it take off and land on a pad. No input = it keeps flying straight.
 function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
@@ -271,13 +276,23 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
   if (!pilot) { veh.thrLvl = Math.max(0, (veh.thrLvl || 0) - 0.3 * dt); veh.cmdV = null; if (veh.fast) { veh.pv.col.setSensor(false); veh.fast = false; const h = veh.hv || lv, k = Math.min(1, 300 / (Math.hypot(h.x, h.y, h.z) || 1)); b.setLinvel({ x: h.x * k, y: h.y * k, z: h.z * k }, true); veh.hv = null; } veh.jetS = Math.hypot(lv.x, lv.y, lv.z); return; }
   veh.thrLvl = clamp((veh.thrLvl ?? 0) + (thr - brk) * 0.55 * dt, 0, 1);
   const hit = G.phys.ray(t.x, t.y, t.z, 0, -1, 0, 40, 1 | 16), agl = hit ? hit.t - spec.cy : 99;
-  const onGround = agl < 0.5;
+  const onGround = agl < 0.5; veh.agl = agl;
   let s = veh.jetS ?? 0;
   // the hypersonic one crosses the world in half a minute: near the edge of the map it slows down and turns back by itself
   // the map's edge is measured in map coordinates (ADR-0017)
-  if (spec.hyper) { const r = Math.max(Math.abs(t.x + CAPITAL.x), Math.abs(t.z + CAPITAL.z)), lim = WORLD_HALF - 3500; veh.returning = r > lim ? true : r < lim - 8000 ? false : !!veh.returning; }
-  const target = Math.min(veh.thrLvl * spec.maxSpeed, veh.returning ? 700 : 1e9);
-  s += clamp(target - s, -spec.accel * 1.6 * dt, spec.accel * dt);
+  // it turns at 9 g, so the turn back starts a turning radius (v^2 / 9 g: 45 km at Mach 6) before the edge, and ends once it points home again
+  if (spec.hyper) {
+    const r = Math.max(Math.abs(t.x + CAPITAL.x), Math.abs(t.z + CAPITAL.z)), lim = WORLD_HALF - 3500 - Math.min(140000, s * s / G_LIM);
+    const home = Math.atan2(-t.x, -t.z), inward = Math.cos(wrapPi(home - veh.h)) > 0.7;
+    veh.returning = r > lim ? true : r < lim - 8000 && inward ? false : !!veh.returning; veh.edgeR = r;
+  }
+  // thrust against drag and gravity: full throttle gives spec.accel from rest and holds spec.maxSpeed in level flight (drag grows with the square of the
+  // speed); a climb costs speed and a dive gains it (g sin pitch); braking in the air triples the drag; no more than 8 g of deceleration. The speed used
+  // to follow the throttle as a set point, whatever the nose did (a vertical climb was free)
+  const vmax = veh.returning ? Math.min(700, spec.maxSpeed) : spec.maxSpeed, q = s / vmax, thrust = veh.returning && s > vmax ? 0 : veh.thrLvl;   // the autopilot throttles back on the way home
+  const drag = Math.min(Math.max(40, spec.accel), spec.accel * q * Math.abs(q) * (brk > 0.1 && !onGround ? 3 : 1));
+  const wing = onGround ? 0 : 1 - clamp(1 - (s - 30) / 14, 0, 1);   // in the hover the vectored thrust holds the weight; on the wings a climb is paid with speed
+  s = Math.max(0, s + (spec.accel * thrust - drag - wing * 9.81 * Math.sin(veh.pitchA || 0)) * dt);
   if (onGround && brk > 0.1 && s > 0) s = Math.max(0, s - 28 * dt);
   veh.jetS = s;
   let yaw = veh.h, pitch = veh.pitchA || 0, bank = veh.bank || 0;
@@ -291,11 +306,13 @@ function stepJet(veh, b, t, lv, hasDriver, thr, brk, st, dt) {
     veh.airborne = !!lift;
   } else {
     veh.airborne = true;
-    const dy = wrapPi((veh.returning ? Math.atan2(-t.x, -t.z) : (veh.aimYaw ?? yaw)) - yaw), turn = (veh.returning ? 1.8 : 1.25) * clamp(s / 55, 0.5, 1);
+    // the turn and the pitch are held to 9 g (v * rate): 0.25 rad/s at 360 m/s, 0.04 at Mach 6; they were 1.25 and 1.2 rad/s at any speed (46 g at 360 m/s)
+    const gRate = G_LIM / Math.max(1, s);
+    const dy = wrapPi((veh.returning ? Math.atan2(-t.x, -t.z) : (veh.aimYaw ?? yaw)) - yaw), turn = Math.min(gRate, (veh.returning ? 1.8 : 1.25) * clamp(s / 55, 0.5, 1));
     yaw += clamp(dy, -turn * dt, turn * dt);
     const lim = 0.95 - hover * 0.6; let pt = clamp(veh.aimPitch ?? 0, -lim, lim);
     pt = flightAssist(veh, t, s, pilot, pt, lim, dt, agl);
-    pitch = pitch + clamp(pt - pitch, -1.2 * dt, 1.2 * dt);
+    const pr = Math.min(1.2, gRate); pitch = pitch + clamp(pt - pitch, -pr * dt, pr * dt);
     bank = damp(bank, clamp(-dy * 1.3, -1.0, 1.0), 4, dt);
     vy = (vtol ? 9 : down ? -9 : -2.5) * hover;
   }

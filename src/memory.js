@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ZONES } from './society.js';
 import { buildCar, idMark, disposeOwned } from './models.js';
+import { physHeight } from './landfn.js';
 
 // "The city remembers": what the player does leaves marks and stories.
 //  - bullet holes and blast scorches stay where they hit (saved), wrecks stay where cars burned out
@@ -52,38 +53,40 @@ export class Memory {
   // a hit on the world with the surface normal from the physics ray
   markHit(x, y, z, n) {
     if (Math.hypot(x - this.G.player.x, z - this.G.player.z) > 140) return;
-    if (!n) { this.addHole(x, 0.012, z, 0, 1, 0); return; }
+    if (!n) { this.addHole(x, y + 0.012, z, 0, 1, 0); return; }   // the ground the shot hit (it is not at 0)
     const l = Math.hypot(n.nx, n.ny, n.nz) || 1; this.addHole(x, y, z, +(n.nx / l).toFixed(3), +(n.ny / l).toFixed(3), +(n.nz / l).toFixed(3));
   }
   worldHit(x, y, z, ref, ground) {
     if (Math.hypot(x - this.G.player.x, z - this.G.player.z) > 140) return;
-    if (ground || !ref) { this.addHole(x, 0.012, z, 0, 1, 0); return; }
+    if (ground || !ref) { this.addHole(x, y + 0.012, z, 0, 1, 0); return; }
     const c = [[Math.abs(x - ref.x0), -1, 0, 0], [Math.abs(x - ref.x1), 1, 0, 0], [Math.abs(z - ref.z0), 0, 0, -1], [Math.abs(z - ref.z1), 0, 0, 1], [Math.abs(y - (ref.h ?? 99)), 0, 1, 0]];
     if (ref.r != null) { const dx = x - ref.x, dz = z - ref.z, l = Math.hypot(dx, dz) || 1; this.addHole(x, y, z, dx / l, 0, dz / l); return; }
     c.sort((a, b) => a[0] - b[0]); this.addHole(x, y, z, c[0][1], c[0][2], c[0][3]);
   }
-  addScorch(x, z, r) {
-    const s = this.st.scorch; s.push([+x.toFixed(1), +z.toFixed(1), +r.toFixed(1)]); if (s.length > MAX_SCORCH) s.shift(); this.rebuildScorch();
+  // a burn mark on the ground at height y (the ground is not at 0; a mark saved before the height was kept takes the terrain's)
+  addScorch(x, z, r, y = physHeight(x, z, 8)) {
+    const s = this.st.scorch; s.push([+x.toFixed(1), +z.toFixed(1), +r.toFixed(1), +y.toFixed(2)]); if (s.length > MAX_SCORCH) s.shift(); this.rebuildScorch();
   }
   rebuildScorch() {
-    this.st.scorch.forEach((r, i) => { this.m4.makeScale(r[2], 1, r[2]); this.m4.setPosition(r[0], 0.02 + i * 0.0004, r[1]); this.scorch.setMatrixAt(i, this.m4); });
+    this.st.scorch.forEach((r, i) => { this.m4.makeScale(r[2], 1, r[2]); this.m4.setPosition(r[0], (r[3] ?? physHeight(r[0], r[1], 8)) + 0.02 + i * 0.0004, r[1]); this.scorch.setMatrixAt(i, this.m4); });
     this.scorch.count = this.st.scorch.length; this.scorch.instanceMatrix.needsUpdate = true;
   }
   // a car that burned out leaves a wreck where it stood (also after reloading)
   addWreck(v) {
-    const w = this.st.wrecks; w.push({ x: +v.x.toFixed(1), z: +v.z.toFixed(1), h: +v.h.toFixed(2), type: v.spec.craft ? 'sedan' : v.type in { sedan: 1, sport: 1, suv: 1, truck: 1 } ? v.type : 'sedan' }); if (w.length > MAX_WRECKS) w.shift();
+    const w = this.st.wrecks; w.push({ x: +v.x.toFixed(1), z: +v.z.toFixed(1), y: +v.baseY().toFixed(2), h: +v.h.toFixed(2), type: v.spec.craft ? 'sedan' : v.type in { sedan: 1, sport: 1, suv: 1, truck: 1 } ? v.type : 'sedan' }); if (w.length > MAX_WRECKS) w.shift();
   }
   // every wreck model is rebuilt from the saved list; the old ones free what they made (each rebuild used to leave a full set of models behind)
   rebuildWrecks() {
     const G = this.G; for (const o of [...this.wreckGroup.children]) { this.wreckGroup.remove(o); if (o.userData.idMark) disposeOwned(o, o.userData.idMark); }
     for (const b of this.wreckCols) G.world.colliders.removeBox(b); this.wreckCols = [];
     for (const w of this.st.wrecks) {
-      const mark = idMark(), m = buildCar(w.type, 0x15110e, {}); m.group.userData.idMark = mark; m.group.position.set(w.x, 0, w.z); m.group.rotation.y = w.h; m.group.position.y = -0.12; m.group.rotation.z = 0.05;
+      const gy = w.y ?? physHeight(w.x, w.z, 8);   // where the car burned out (a wreck saved before the height was kept: the terrain there)
+      const mark = idMark(), m = buildCar(w.type, 0x15110e, {}); m.group.userData.idMark = mark; m.group.position.set(w.x, gy - 0.12, w.z); m.group.rotation.y = w.h; m.group.rotation.z = 0.05;
       m.group.traverse((o) => { if (o.isMesh && o.material && o !== m.paint) { o.material = o.material.clone(); o.material.color?.multiplyScalar?.(0.35); if (o.material.emissive) o.material.emissive.setHex(0); } });
       if (m.head) m.head.visible = false; if (m.tail) m.tail.visible = false;
       this.wreckGroup.add(m.group);
       const hl = m.spec.L / 2, hw = m.spec.W / 2, c = Math.abs(Math.cos(w.h)), s = Math.abs(Math.sin(w.h)), ex = hw * c + hl * s, ez = hw * s + hl * c;
-      this.wreckCols.push(G.world.colliders.addBox(w.x - ex, w.z - ez, w.x + ex, w.z + ez, 1.3, 'wreck'));
+      this.wreckCols.push(G.world.colliders.addBox(w.x - ex, w.z - ez, w.x + ex, w.z + ez, gy + 1.3, 'wreck', gy - 0.2));
     }
   }
   rebuild() { this.rebuildHoles(); this.rebuildScorch(); this.rebuildWrecks(); }

@@ -82,9 +82,12 @@ export class Phone {
     } else if (this.tab === 'set') {
       const slot = +(localStorage.getItem('neon_slot') || 1);
       for (let s = 1; s <= 3; s++) {
-        const raw = localStorage.getItem(`korea11_v1_${s}`); let info = '비어 있음'; try { const d = JSON.parse(raw); if (d) info = `$${d.cash | 0} · 미션 ${d.mission ?? 0}`; } catch (e) { /* ignore */ }
-        this.row(`슬롯 ${s}${s === slot ? ' (현재)' : ''}`, info, [['저장', () => { G.saveSlot(s); G.toast('저장됨', `슬롯 ${s}`); }], ['불러오기', () => { if (raw) { localStorage.setItem('neon_slot', s); location.reload(); } }]]);
+        // the slot's money, mission and size (SAV-02: the budget is 1 MB a slot); a slot that does not parse says so
+        const raw = localStorage.getItem(`korea11_v1_${s}`); let info = '비어 있음'; try { const d = JSON.parse(raw); if (d) info = `$${d.cash | 0} · 미션 ${d.mission ?? 0} · ${Math.max(1, Math.round(raw.length / 1024))} KB`; } catch (e) { if (raw) info = '손상됨 (불러오면 백업 사용)'; }
+        this.row(`슬롯 ${s}${s === slot ? ' (현재)' : ''}`, info, [['저장', () => { if (G.saveSlot(s)) G.toast('저장됨', `슬롯 ${s}`); }], ['불러오기', () => { if (raw) { G.lockSaves(); localStorage.setItem('neon_slot', s); location.reload(); } }]]);   // no save between the switch and the reload (it would land in the slot being loaded)
       }
+      // SAV-03: the current game out to a file, and a file back into the current slot (checked and brought up to date; the game restarts on it)
+      this.row('저장 파일', '현재 게임을 파일로 내보내거나 파일에서 가져옵니다', [['내보내기', () => G.exportSave()], ['가져오기', () => { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = async () => { const file = f.files && f.files[0]; if (file) G.importSave(await file.text()); }; f.click(); }]]);
       this.row('현실성 모드 (허기·갈증·피로)', G.needs.s.on ? '켜짐' : '꺼짐', [['전환', () => { G.needs.s.on = !G.needs.s.on; }]]);
       this.row('건물 번호 표시 (개발용)', G.showIds ? '켜짐 · 시계 줄에 #번호' : '꺼짐', [['전환', () => { G.showIds = !G.showIds; }]]);
     }

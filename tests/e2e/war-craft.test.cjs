@@ -31,7 +31,7 @@ run('war-craft', { q: 0, width: 480, height: 270 }, async ({ page }) => {
 
     // fighter: vertical thrust lifts it off the pad, throttle gives speed, leaving it high up ejects with the parachute
     const J = slot('jet'); await board(J); g.cam.yaw = -1.57; set({ hand: true }); await step(200); o.jetAlt = +(J.by - J.spec.cy).toFixed(1);
-    set({ hand: true, gas: 1, my: 1 }); await step(90); o.jetSpeed = +J.speed.toFixed(1);
+    set({ hand: true, gas: 1, my: 1 }); await step(300); o.jetSpeed = +J.speed.toFixed(1);   // a fighter gains ~12 m/s a second at full throttle (the throttle itself takes ~2 s)
     const jm = J.war.w[1].ammo; set({ aim: true }); await step(3); set({}); o.missileUsed = jm - J.war.w[1].ammo;
     J.by > 0 && (set({ hand: true }), await step(120)); const alt = J.by - J.spec.cy; g.exitVehicle(); await step(3);
     o.ejectAlt = +alt.toFixed(0); o.ejected = !!g.mobility.chute || pl.y > 5; o.chute = !!g.mobility.chute;
@@ -42,9 +42,12 @@ run('war-craft', { q: 0, width: 480, height: 270 }, async ({ page }) => {
 
     // Darkstar: Mach 10 at full throttle (the body is moved by hand above Rapier's 400 m/s cap), the world boundary turns it back, a dive into the ground destroys it
     const D = slot('darkstar'); await board(D); o.darkTitle = D.spec.title;
-    D.pv.body.setTranslation({ x: D.x, y: 1300, z: D.z }, true); D.airborne = true; D.jetS = 150; g.cam.yaw = 1.57; g.cam.pitch = 0; set({ gas: 1, my: 1 }); await step(95);
+    // its engine pushes 6 g (a pilot bears that for minutes): from 150 m/s at full throttle it gains ~59 m/s each second, and at Mach 5.2 it keeps going
+    D.pv.body.setTranslation({ x: D.x, y: 1300, z: D.z }, true); D.airborne = true; D.jetS = 150; D.thrLvl = 1; D.pitchA = 0; D.pv.body.setRotation({ x: 0, y: Math.sin(0.785), z: 0, w: Math.cos(0.785) }, true); g.cam.yaw = 1.57; g.cam.pitch = 0; set({ gas: 1, my: 1 }); await step(95);
+    o.darkAccelG = +((D.speed - 150) / (95 / 60) / 9.81).toFixed(2);
+    D.jetS = 1800; D.pitchA = 0; await step(95);
     o.darkMach = +(D.speed / 343).toFixed(1); o.darkAlive = !D.dead; o.darkReturning = true;   // the edge of the world is tested in farland.test.cjs
-    g.cam.pitch = -0.9; set({ gas: 1, my: 1, sprint: true }); /* the descend key switches the low-altitude assist off: a deliberate dive */ D.pv.body.setTranslation({ x: 100, y: 900, z: 189 }, true); D.jetS = 2500; await step(200); o.darkCrashed = D.dead === true;
+    g.cam.pitch = -0.9; set({ gas: 1, my: 1, sprint: true }); /* the descend key switches the low-altitude assist off: a deliberate dive */ D.pv.body.setTranslation({ x: 100, y: 900, z: 189 }, true); D.jetS = 2500; D.pitchA = -0.6; await step(200); o.darkCrashed = D.dead === true;   // already nosed down: at 2,500 m/s a 9 g pull turns the nose 0.035 rad a second
     g.exitVehicle(true); g.mobility.cutAway?.('test'); pl.y = 0; pl.body3.teleport(pl.x, 0, pl.z); g.cam.pitch = 0; set({});
 
     // roadster: absurdly fast on a straight avenue; the rocket booster adds thrust and drains its tank
@@ -70,6 +73,6 @@ run('war-craft', { q: 0, width: 480, height: 270 }, async ({ page }) => {
   });
   const pass = o.base && o.kinds === 'tank,jet,gunship,darkstar' && o.guards >= 6 && o.hud && o.scopeKept && o.scopeAfterShot && o.scopeOff
     && o.tankIn && o.tankWanted >= 4 && o.tankMoved > 8 && o.tankStopped < 0.5 && Math.abs(o.turYaw - 1.0) < 0.3 && o.shellAmmoUsed === 1 && o.shellExploded && o.mgUsed > 5 && o.hudOn && o.pipShown
-    && o.jetAlt > 5 && o.jetSpeed > 30 && o.missileUsed === 1 && o.ejected && o.gunshipAlt > 4 && o.rocketsUsed >= 2 && o.darkTitle === '다크스타' && o.darkMach > 5 && o.darkAlive && o.darkReturning && o.darkCrashed && o.roadster && o.roadster2s > 200 && o.roadsterBoost2s > o.roadster2s + 80 && o.boostFuel < 95 && o.tankLeft && o.tankCaptured && o.captureIn && o.heliCaptured;
+    && o.jetAlt > 5 && o.jetSpeed > 30 && o.missileUsed === 1 && o.ejected && o.gunshipAlt > 4 && o.rocketsUsed >= 2 && o.darkTitle === '다크스타' && o.darkAccelG > 4.5 && o.darkAccelG < 6.5 && o.darkMach > 5 && o.darkAlive && o.darkReturning && o.darkCrashed && o.roadster && o.roadster2s > 200 && o.roadsterBoost2s > o.roadster2s + 80 && o.boostFuel < 95 && o.tankLeft && o.tankCaptured && o.captureIn && o.heliCaptured;
   result('war-craft', pass, o);
 });

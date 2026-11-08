@@ -39,6 +39,7 @@ import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
 import { buildSigns } from './signs.js';
 import { buildTerrain, addTerrainPhysics, heightAt, roadsData, EXTENT } from './terrain.js';
+import { onRoad } from './roadsurf.js';   // a footstep on a drawn road is on pavement wherever the road's ground is (not just near 0 m)
 import { farWater } from './waterfn.js';
 import { buildRivers } from './rivers.js';
 import { Forest } from './forest.js';
@@ -74,6 +75,7 @@ import { instCull } from './instcull.js';
 import { idLabel } from './buildingdev.js';
 import { keys as binds } from './keys.js';
 import { errors, noteError, copyReport } from './errors.js';
+import { SAVE_V, readSave, writeSave, encode, importText } from './savefile.js';
 
 // a frame stage that throws this many frames in a row ends the game on the error screen (about 1.5 s at 60 Hz); fewer are logged and skipped
 const STAGE_FAILS = 90;
@@ -108,11 +110,47 @@ export class Game {
 
   // init timing of the big pieces (shown by the boot test; useful when the load gets slower)
   timed_(name, f) { const t0 = performance.now(), r = f(); (this.initMs = this.initMs || {})[name] = Math.round(performance.now() - t0); return r; }
-  slotKey() { return SAVE_KEY + '_' + (localStorage.getItem('neon_slot') || 1); }
-  load() { try { return JSON.parse(localStorage.getItem(this.slotKey())) || JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } }
-  saveSlot(n) { try { localStorage.setItem(`${SAVE_KEY}_${n}`, JSON.stringify(this.snapshot())); localStorage.setItem('neon_slot', n); } catch { /* ignore */ } }
-  snapshot() { return { cash: this.cash, mission: this.missionIndex, kills: this.stats.kills, world: this.state }; }
-  save() { try { localStorage.setItem(this.slotKey(), JSON.stringify(this.snapshot())); } catch { /* ignore */ } }
+  slotKey() { let s = 1; try { s = localStorage.getItem('neon_slot') || 1; } catch (e) { /* storage refused: slot 1 */ } return SAVE_KEY + '_' + s; }
+  // the slot (or its backup, or the pre-slot key), brought up to the current schema (savefile.js); storage that is refused altogether is a new game
+  load() {
+    let r; try { r = readSave(localStorage, this.slotKey(), SAVE_KEY); } catch (e) { r = { data: {}, from: 0, future: false, source: 'new' }; }
+    this.saveInfo = { from: r.from, future: r.future, source: r.source }; return r.data;
+  }
+  // save to slot n and make it the current one; false (and a warning on screen) when the write failed
+  saveSlot(n) { const r = this.writeSlot(`${SAVE_KEY}_${n}`); if (r.ok) { try { localStorage.setItem('neon_slot', n); } catch (e) { /* the save itself is written */ } } return r.ok; }
+  snapshot() { return { v: SAVE_V, cash: this.cash, mission: this.missionIndex, kills: this.stats.kills, world: this.state }; }
+  save() { return this.saveInfo?.future || this.saveLocked ? false : this.writeSlot(this.slotKey()).ok; }   // a save from a newer build is never written over; nor a slot about to be reloaded
+  // stop saving before the page reloads into another slot or an imported file: an autosave or a closing phone in between would write this game over it
+  lockSaves() { this.saveLocked = true; }
+  // the current game as a file the player keeps (SAV-03): the browser puts it in its downloads. → { name, bytes } or null
+  exportSave() {
+    const { text } = encode(this.snapshot()), slot = this.slotKey().slice(SAVE_KEY.length + 1), name = `korea11-slot${slot}-${new Date().toISOString().slice(0, 10)}.json`;
+    try {
+      const a = document.createElement('a'), url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) { this.noteError('저장', e); this.toast('<span style="color:#ff4560">내보내기 실패</span>', '브라우저가 파일을 만들지 못했습니다'); return null; }
+    this.toast('저장 파일을 내보냈습니다', name); return { name, bytes: text.length };
+  }
+  // a save file read into the current slot (SAV-03): checked and brought up to date first (savefile.importText), then the game restarts on it.
+  // The slot's own text becomes its backup. → { ok, error, from }
+  importSave(text, reload = true) {
+    const r = importText(text), why = { parse: '파일을 읽을 수 없습니다 (JSON 아님)', 'not-a-save': '이 게임의 저장 파일이 아닙니다', future: '더 새로운 버전에서 만든 저장입니다' };
+    if (!r.ok) { this.toast('<span style="color:#ff4560">가져오기 실패</span>', why[r.error] || r.error); return { ok: false, error: r.error }; }
+    let w; try { w = writeSave(localStorage, this.slotKey(), r.data); } catch (e) { w = { ok: false, error: String((e && e.message) || e) }; }
+    if (!w.ok) { this.toast('<span style="color:#ff4560">가져오기 실패</span>', w.error === 'quota' ? '브라우저 저장 공간이 가득 찼습니다' : '저장 공간에 쓰지 못했습니다'); return { ok: false, error: w.error }; }
+    this.lockSaves(); if (reload) location.reload();
+    return { ok: true, error: null, from: r.from };
+  }
+  // one write with its outcome kept (lastSave) and a failure shown (once a minute at most) and logged: it was swallowed, so progress could be lost unseen
+  writeSlot(key) {
+    let r; try { r = writeSave(localStorage, key, this.snapshot()); } catch (e) { r = { ok: false, bytes: 0, trimmed: 0, error: String((e && e.message) || e) }; }
+    this.lastSave = { ...r, t: this.time };
+    if (!r.ok && (this.time - (this._saveWarnT ?? -1e9) > 60)) {
+      this._saveWarnT = this.time; noteError('저장', new Error('save failed: ' + r.error), this.time);
+      this.toast('<span style="color:#ff4560">저장 실패</span>', r.error === 'quota' ? '브라우저 저장 공간이 가득 찼습니다 — 다른 슬롯을 비우세요' : r.error === 'over-budget' ? '저장 데이터가 너무 큽니다' : '브라우저가 저장을 거부했습니다');
+    }
+    return r;
+  }
 
   // ====================================================================
   async init(progress) {
@@ -174,6 +212,8 @@ export class Game {
     this.populate(); this.spawnCrafts(); this.war.buildBase();
     this.spawnPickups();
     this.startMission(this.missionIndex);
+    // after the mission's own toast: a save read from its backup, or one from a newer build (kept as it is), is said once
+    const si = this.saveInfo; if (si && (si.future || si.source === 'backup')) setTimeout(() => this.toast(si.future ? '<span style="color:#ffc94d">새 버전의 저장 파일</span>' : '<span style="color:#ffc94d">저장 파일 복구</span>', si.future ? '이 저장은 더 새 버전에서 만들어졌습니다 — 덮어쓰지 않습니다' : '손상된 저장 대신 직전 백업을 불러왔습니다'), 3200);
     progress(1, '준비 완료');
   }
 
@@ -188,7 +228,7 @@ export class Game {
       },
       smoke(x, y, z, big = 1) { G.smokeP.emit(x + rand(-0.2, 0.2), y, z + rand(-0.2, 0.2), rand(-0.6, 0.6), rand(1.5, 3), rand(-0.6, 0.6), rand(1.2, 2.2), rand(0.8, 1.6) * big, 0.07, 0.07, 0.09, 0.8, 0.2, 0.4); },
       fire(x, y, z) { G.fireP.emit(x, y, z, rand(-0.4, 0.4), rand(2, 4.5), rand(-0.4, 0.4), rand(0.4, 0.9), rand(0.7, 1.5), 3.2, rand(0.7, 1.4), 0.2, 1, 0, 0.6); if (Math.random() < 0.25) G.smokeP.emit(x, y + 1, z, rand(-1, 1), rand(2, 4), rand(-1, 1), rand(1.5, 2.8), rand(1.2, 2.4), 0.05, 0.05, 0.06, 0.8, 0.3, 0.3); },
-      tireSmoke(x, z) { G.smokeP.emit(x, 0.2, z, rand(-1, 1), rand(0.3, 1), rand(-1, 1), rand(0.6, 1.1), rand(0.7, 1.2), 0.3, 0.3, 0.33, 0.45, 0.3, 0.6); },
+      tireSmoke(x, z, y = G.groundY(x, z)) { G.smokeP.emit(x, y + 0.2, z, rand(-1, 1), rand(0.3, 1), rand(-1, 1), rand(0.6, 1.1), rand(0.7, 1.2), 0.3, 0.3, 0.33, 0.45, 0.3, 0.6); },
       muzzle(p, dir, sup = false) {
         if (sup) { G.sparksP.emit(p.x, p.y, p.z, dir.x * 2, dir.y * 2, dir.z * 2, 0.05, 0.12, 3, 1.8, 1, 1, 0, 1); return; }
         for (let i = 0; i < 3; i++) G.sparksP.emit(p.x + dir.x * 0.1, p.y + dir.y * 0.1, p.z + dir.z * 0.1, dir.x * rand(3, 9) + rand(-1, 1), dir.y * rand(3, 9) + rand(-1, 1), dir.z * rand(3, 9) + rand(-1, 1), rand(0.04, 0.09), rand(0.25, 0.5), 4, 2.6, 1, 1, 0, 1);
@@ -331,7 +371,7 @@ export class Game {
     const ec = u('errCopy'), ecLabel = () => { ec.textContent = errors.length ? `오류 복사 (${errors.length})` : '오류 복사 (없음)'; };
     ec.onclick = () => copyReport(this.reportPlace()).then((ok) => { ec.textContent = ok ? '복사했습니다' : '복사하지 못했습니다'; setTimeout(ecLabel, 1500); });
     this.errLabel = ecLabel;
-    u('reset').onclick = () => { try { localStorage.removeItem(this.slotKey()); } catch { /* ignore */ } location.reload(); };
+    u('reset').onclick = () => { try { localStorage.removeItem(this.slotKey()); localStorage.removeItem(this.slotKey() + '_bak'); } catch { /* ignore */ } location.reload(); };   // the backup too, or the next load would bring the old game back
     u('qSel').value = String(this.eng.qIndex);
     u('qSel').onchange = (e) => { this.eng.setQuality(+e.target.value); this.eng.onQuality?.(); };
     // settings persist between sessions
@@ -644,7 +684,9 @@ export class Game {
     if (impact > 0) this.land(impact, wat);
     this.carRider.after(dt);
     if (c3.grounded && pl.momentum && !this.carRider.roof) pl.momentum = false;
-    if (c3.y < -30) c3.teleport(this.world.spawn.x, 0, this.world.spawn.z);
+    // fallen through the ground: put back on it where they are (it sent them to the capital's spawn below -30 m, which on 1:1 ground 100 m up
+    // came only after a 130 m fall). Falling fast 30 m under the terrain is no bridge jump or tunnel walk
+    if (c3.vy < -15 && c3.y < physHeight(c3.x, c3.z, 8) - 30) { const gy = this.groundY(c3.x, c3.z); c3.teleport(c3.x, gy + 1, c3.z); c3.vy = 0; noteError('플레이어', new Error(`fell through the ground at ${Math.round(c3.x)},${Math.round(c3.z)}`), this.time); }   // logged for a report, no toast
     // vehicles block player
     { const ox = pl.x, oz = pl.z; this.pushOutOfVehicles(pl, 0.38); if (pl.x !== ox || pl.z !== oz) c3.shift(pl.x - ox, 0, pl.z - oz); }
     pl.speed = Math.hypot(pl.vx, pl.vz);
@@ -652,7 +694,7 @@ export class Game {
     if (pl.speed > 0.6 && !pl.swimming) {
       this.stepD = (this.stepD || 0) + pl.speed * dt;
       const stride = pl.speed > 5.5 ? 1.9 : 1.25;
-      if (this.stepD > stride) { this.stepD = 0; this.audio.footstep(this.indoor || heightAt(pl.x, pl.z) < 2 ? 'hard' : 'soft', pl.prone ? 0.15 : pl.crouching ? 0.35 : pl.speed > 5.5 ? 0.85 : 0.55); }
+      if (this.stepD > stride) { this.stepD = 0; this.audio.footstep(this.indoor || heightAt(pl.x, pl.z) < 2 || onRoad(pl.x, pl.z, 0.5) ? 'hard' : 'soft', pl.prone ? 0.15 : pl.crouching ? 0.35 : pl.speed > 5.5 ? 0.85 : 0.55); }
     } else this.stepD = 0;
     // facing
     const shooting = inp.fire || aim;
@@ -776,13 +818,25 @@ export class Game {
     pl.animate(dt, 2);
     if (k >= 1) { pl.mantle = null; }
   }
-  setWaypoint(x, z) { this.setBeacon(x, z, 0xffc94d); this.gpsT = 0; this.gpsPath = gpsRoute(this.player.x, this.player.z, x, z); this.toast('목적지 설정', `${Math.hypot(x - this.player.x, z - this.player.z) | 0}m`); }
+  setWaypoint(x, z) { this.setBeacon(x, z, 0xffc94d); this.gpsT = 0; this.gpsPath = this.route(this.player.x, this.player.z, x, z); this.toast('목적지 설정', `${Math.hypot(x - this.player.x, z - this.player.z) | 0}m`); }
   updateGPS(dt) {
     this.gpsT = (this.gpsT || 0) - dt; if (this.gpsT > 0) return; this.gpsT = 1;
     const j = this.jobs.cur; const el2 = this.ui.job || (this.ui.job = el('job'));
     if (j) { el2.classList.add('on'); el2.innerHTML = `<b>${j.title}</b> · ${j.hud || j.text}`; } else el2.classList.remove('on');
     if (!this.markerPos) { this.gpsPath = null; return; }
-    const pl = this.vehicle || this.player; this.gpsPath = gpsRoute(pl.x, pl.z, this.markerPos.x, this.markerPos.z);
+    const pl = this.vehicle || this.player; this.gpsPath = this.route(pl.x, pl.z, this.markerPos.x, this.markerPos.z, this.gpsPath);
+  }
+  // a GPS route: inside the capital its own road grid; anywhere else the 1:1 road network (the grid search knows nothing outside the capital and led every
+  // far route back into it). The 1:1 route is searched again only when the player has left it (an A* over the network is not work for every second)
+  route(x0, z0, x1, z1, prev = null) {
+    const inGrid = (x, z) => Math.abs(x) < HALF + 40 && Math.abs(z) < HALF + 40;
+    if (inGrid(x0, z0) && inGrid(x1, z1)) return gpsRoute(x0, z0, x1, z1);
+    if (prev && prev.world && prev.to[0] === x1 && prev.to[1] === z1) {
+      let best = 1e9, bi = 0; for (let i = 0; i < Math.min(prev.length, 60); i++) { const d = Math.hypot(prev[i][0] - x0, prev[i][1] - z0); if (d < best) { best = d; bi = i; } }
+      if (best < 60) { const out = prev.slice(bi); out[0] = [x0, z0]; out.world = true; out.to = prev.to; return out; }
+    }
+    const r = this.autonav?.router?.route(x0, z0, x1, z1), out = r ? r.pts.map((p) => [p[0], p[1]]) : [[x0, z0], [x1, z1]];
+    out.world = true; out.to = [x1, z1]; return out;
   }
   waterAt(x, z) {
     for (const w of this.world.waters) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w;
@@ -918,7 +972,7 @@ export class Game {
   driveControl(dt, inp) {
     if (this.rider) { const m = this.player.m; m.mixer.update(dt); m.applyPose(0, 0); m.body.position.y = m.rideOn ? 0 : -0.5; if (this.riderCar) this.player.group.visible = this.cam.mode !== 2; }
     const v = this.vehicle, pl = this.player;
-    if (this.passenger) { this.taxiTick(); pl.x = v.x; pl.z = v.z; pl.body3.teleport(pl.x, 0, pl.z); if (this.input.edge('use') && v.speed < 3) this.endPassenger(false); if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3; return; }
+    if (this.passenger) { this.taxiTick(); pl.x = v.x; pl.z = v.z; pl.y = v.baseY(); pl.body3.teleport(pl.x, pl.y, pl.z); if (this.input.edge('use') && v.speed < 3) this.endPassenger(false); if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3; return; }
     v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
     if (this.autonav?.active) this.autonav.control(v, inp, dt);   // the autopilot sets throttle / brake / steer; the driver's own input takes it back
     if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.held('jump'); }
@@ -930,7 +984,7 @@ export class Game {
     if (this.input.edge('horn')) { this.audio.horn(); this.alertCivs(v.x, v.z, 25); }
     if (this.input.edge('cam')) this.cam.mode = (this.cam.mode + 1) % 3;
     if (this.input.edge('lights')) v.setLights(!v.lightsOn);
-    pl.x = v.x; pl.z = v.z; pl.y = v.spec.craft === 'heli' || v.spec.craft === 'jet' ? v.by : 0; pl.body3.teleport(pl.x, pl.y, pl.z);
+    pl.x = v.x; pl.z = v.z; pl.y = v.spec.craft === 'heli' || v.spec.craft === 'jet' ? v.by : v.baseY(); pl.body3.teleport(pl.x, pl.y, pl.z);   // at the car's road (it was 0: under the ground of the 1:1 world, where every sight line to the driver ran)
     if (v.dead && !this.vehicleDeathHandled) { /* handled by explosion */ }
   }
   playerVehicleExploded(v) {
@@ -995,7 +1049,7 @@ export class Game {
       const silent = unaware && behind && pl.crouching, dmg = m.dmg * (silent ? 5 : 1);
       best.hurt(dmg, pl, false, pl); const dx = best.x - pl.x, dz = best.z - pl.z, l = Math.hypot(dx, dz) || 1;
       if (!best.dead) best.ragdoll(dx / l * 3.5, dz / l * 3.5, 1.5);
-      this.markHit(false); this.audio.impact(0.7, 0); this.fx.sparks(best.x, 1.2, best.z, 3, [1, 0.3, 0.3], 4);
+      this.markHit(false); this.audio.impact(0.7, 0); this.fx.sparks(best.x, (best.y || 0) + 1.2, best.z, 3, [1, 0.3, 0.3], 4);   // at the struck body's height
       if (best.team === 'civ') this.society.crime('assault', silent ? 8 : 10, best.x, best.z);
       this.noise(pl.x, pl.z, silent ? 6 : 14);
       if (silent && best.dead) this.toast('암살', '소리 없이 제압');
@@ -1042,7 +1096,8 @@ export class Game {
       tw = acc + t; hitRef = ref; const lh = this.world.colliders.lastHit; this._hitN = lh ? { nx: lh.nx, ny: lh.ny, nz: lh.nz } : null; break;
     }
     if (tw >= 0) { best = tw; kind = 'world'; if (hitRef && hitRef.isProp) { hitRef.hit?.(dx, dy, dz, damage); } else if (hitRef && hitRef.onShot) hitRef.onShot(); }
-    if (dy < -1e-4) { const tg = -oy / dy; if (tg > 0 && tg < best) { best = tg; kind = 'ground'; } }
+    // the terrain: near the player its physics heightfield is in the ray above; this catches what lies past it (a long shot) or under no heightfield
+    if (dy < -1e-4 || best > 300) { const tg = this.groundHit(ox, oy, oz, dx, dy, dz, best); if (tg >= 0 && tg < best) { best = tg; kind = 'ground'; } }
     // humans
     for (const h of this.humans) {
       if (h === owner || h.dead || h.hidden || !h.group.visible) continue;
@@ -1065,18 +1120,8 @@ export class Game {
       if (this.vehicle === v && owner === this.player) continue;
       const rx = ox - v.x, rz = oz - v.z;
       if (Math.abs(rx) > best + 6 && Math.abs(rz) > best + 6) continue;
-      const s = Math.sin(v.h), c = Math.cos(v.h);
-      const lo = [rx * c - rz * s, oy, rx * s + rz * c], ld = [dx * c - dz * s, dy, dx * s + dz * c];
-      const bx = [v.W / 2, 1.5, v.L / 2];
-      let t0 = 0, t1 = best, ok = true;
-      for (let a = 0; a < 3; a++) {
-        const lo2 = a === 1 ? 0.3 : -bx[a], hi2 = a === 1 ? bx[a] : bx[a];
-        if (Math.abs(ld[a]) < 1e-8) { if (lo[a] < lo2 || lo[a] > hi2) { ok = false; break; } continue; }
-        let ta = (lo2 - lo[a]) / ld[a], tb = (hi2 - lo[a]) / ld[a];
-        if (ta > tb) { const tt = ta; ta = tb; tb = tt; }
-        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) { ok = false; break; }
-      }
-      if (ok && t0 < best) { best = t0; kind = 'vehicle'; obj = v; }
+      const t0 = this.rayVehicle(v, ox, oy, oz, dx, dy, dz, best);   // heights from the road the car stands on (it was from 0)
+      if (t0 >= 0 && t0 < best) { best = t0; kind = 'vehicle'; obj = v; }
     }
     { const mh = this.military?.rayHit(ox, oy, oz, dx, dy, dz, best); if (mh && owner === this.player) { best = mh.t; kind = 'military'; obj = mh.e; } }
     const px = ox + dx * best, py = oy + dy * best, pz = oz + dz * best;
@@ -1099,7 +1144,7 @@ export class Game {
       if (obj.kind === 'traffic' && owner === this.player) { obj.ai.speed = 24; this.addHeat(2); }
     } else if (kind !== 'none') {
       this.fx.sparks(px, py, pz, kind === 'ground' ? 3 : 7, [1, 0.8, 0.5], kind === 'ground' ? 3 : 6);
-      if (kind === 'ground' && Math.random() < 0.5) this.fx.smoke(px, 0.1, pz, 0.4);
+      if (kind === 'ground' && Math.random() < 0.5) this.fx.smoke(px, py + 0.1, pz, 0.4);
     }
     res.t = best; res.kind = kind; res.obj = obj; res.head = head;
     return res;
@@ -1108,16 +1153,64 @@ export class Game {
     const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = Math.hypot(dx, dy, dz) || 1;
     return this.world.colliders.raycastT(x1, y1, z1, dx / d, dy / d, dz / d, d) < 0;
   }
+  // the ground under (x, z): the terrain or a road deck, the highest of them not more than 1.2 m above y (a hill or deck higher than that is a roof: a tunnel, a bridge overhead)
+  groundY(x, z, y = 1e9) {
+    const g = physHeight(x, z, 8), d = this.highways ? this.highways.deckY(x, z) : NaN;
+    let f = g < y + 1.2 ? g : -1e9; if (d === d && d < y + 1.2 && d > f) f = d;
+    return f > -1e9 ? f : g;
+  }
+  // where a ray first passes from above the terrain to below it (distance along the ray), or -1: marched in steps that grow with the distance, then
+  // bisected. A ray that starts under the terrain (in a tunnel) only counts once it has been above it, so a shot inside a tunnel is not stopped at its start
+  groundHit(ox, oy, oz, dx, dy, dz, maxT, maxStep = 4) {
+    let t = 0, above = oy >= physHeight(ox, oz, 8);
+    while (t < maxT) {
+      const t1 = Math.min(maxT, t + Math.min(maxStep, 0.5 + t * 0.04));
+      if (oy + dy * t1 < physHeight(ox + dx * t1, oz + dz * t1, 8)) {
+        if (above) { let a = t, b = t1; for (let k = 0; k < 8; k++) { const m = (a + b) / 2; if (oy + dy * m < physHeight(ox + dx * m, oz + dz * m, 8)) b = m; else a = m; } return b; }
+      } else above = true;
+      t = t1;
+    }
+    return -1;
+  }
+  // where a ray (unit direction) enters a car's box (its footprint, from 0.3 m over the road it stands on to its roof) within maxT, or -1 (slab test)
+  rayVehicle(v, ox, oy, oz, dx, dy, dz, maxT) {
+    const rx = ox - v.x, rz = oz - v.z, s = Math.sin(v.h), c = Math.cos(v.h), by = v.baseY(), roof = v.spec.roof ?? 1.5;
+    let t0 = 0, t1 = maxT;
+    for (let a = 0; a < 3; a++) {
+      const o = a === 0 ? rx * c - rz * s : a === 1 ? oy - by : rx * s + rz * c, d = a === 0 ? dx * c - dz * s : a === 1 ? dy : dx * s + dz * c;
+      const lo = a === 0 ? -v.W / 2 : a === 1 ? 0.3 : -v.L / 2, hi = a === 0 ? v.W / 2 : a === 1 ? roof : v.L / 2;
+      if (Math.abs(d) < 1e-8) { if (o < lo || o > hi) return -1; continue; }
+      let ta = (lo - o) / d, tb = (hi - o) / d; if (ta > tb) { const q = ta; ta = tb; tb = q; }
+      if (ta > t0) t0 = ta; if (tb < t1) t1 = tb; if (t0 > t1) return -1;
+    }
+    return t0;
+  }
+  // where a ray meets a standing person (a 0.5 m column from the feet to 1.85 m) within maxT, or -1
+  rayHuman(h, ox, oy, oz, dx, dy, dz, maxT) {
+    const A = dx * dx + dz * dz; if (A < 1e-8) return -1;
+    const tc = ((h.x - ox) * dx + (h.z - oz) * dz) / A; if (tc < 0 || tc > maxT + 0.5) return -1;
+    const dd = Math.hypot(ox + dx * tc - h.x, oz + dz * tc - h.z); if (dd > 0.5) return -1;
+    const t = tc - Math.sqrt(Math.max(0, 0.25 - dd * dd) / A), y = oy + dy * t - (h.y || 0);
+    return y < 0 || y > 1.85 || t < 0 || t > maxT ? -1 : t;
+  }
+  // chest height of a body in world metres (the ground is not at 0): a person's feet + 1.3 (crouched 0.8, prone 0.35), a vehicle's body centre + 0.4
+  bodyY(o) { return o.pv ? o.baseY() + (o.spec.cy ?? 0.78) + 0.4 : (o.y || 0) + (o.prone ? 0.35 : o.crouching ? 0.8 : 1.3); }
+  // how much of a blast reaches a point: all of it in the open, a quarter behind a wall or a hill (fragments are stopped, some pressure goes round);
+  // the ray starts a little toward the target so a blast on a wall's face is not inside the wall
+  blastCover(x, y, z, tx, ty, tz) {
+    const dx = tx - x, dy = ty - y - 0.4, dz = tz - z, d = Math.hypot(dx, dy, dz) || 1, s = Math.min(0.6, d * 0.5) / d;
+    return this.hasLOS(x + dx * s, y + 0.4 + dy * s, z + dz * s, tx, ty, tz) ? 1 : 0.25;
+  }
   noise(x, z, r, kind = 'shot') { for (const h of this.humans) { if (h.dead) continue; if (h.team !== 'civ') { if (h.rag === undefined || !h.rag) AI.hear(h, x, z, r * 0.8, kind); continue; } if (h.team === 'civ' && Math.hypot(h.x - x, h.z - z) < r * 0.6 && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(5, 9); h.threat = { x, z }; } } }
   alertCivs(x, z, r) { this.noise(x, z, r * 1.6); }
   enemyShoot(h, target) {
     const w = h.weapon, pl = this.player;
     const from = this.muzzleWorld(h); h.recoil = 1;
-    const tx = pl.x, ty = (this.playerOnFoot ? 1.2 : 1.1), tz = pl.z;
+    const tx = pl.x, ty = this.playerOnFoot || !this.vehicle ? pl.y + 1.2 : this.bodyY(this.vehicle), tz = pl.z;
     const dist = Math.hypot(tx - h.x, tz - h.z);
     const moving = this.playerOnFoot ? pl.speed : (this.vehicle ? this.vehicle.speed : 0);
     const hitChance = clamp(0.62 - dist * 0.012 - moving * 0.025 - (this.playerOnFoot && pl.aiming ? 0.05 : 0), 0.08, 0.6) * (h.team === 'cop' ? 0.7 : 0.8);
-    const cover = !this.hasLOS(from.x, from.y, from.z, tx, (this.playerOnFoot ? pl.y + (pl.prone ? 0.35 : pl.crouching ? 0.75 : 1.25) : 1.1), tz);
+    const cover = !this.hasLOS(from.x, from.y, from.z, tx, (this.playerOnFoot ? pl.y + (pl.prone ? 0.35 : pl.crouching ? 0.75 : 1.25) : ty), tz);
     const hit = !cover && Math.random() < hitChance;
     const end = new V3(tx + (hit ? 0 : rand(-1.6, 1.6)), ty + (hit ? 0 : rand(-0.6, 0.8)), tz + (hit ? 0 : rand(-1.6, 1.6)));
     this.tracers.add(from, end, h.team === 'cop' ? [0.4, 0.5, 1] : [1, 0.35, 0.3]);
@@ -1127,7 +1220,7 @@ export class Game {
       const dmg = (h.team === 'cop' ? 3 : 4.5) + Math.random() * 2;
       if (this.vehicle) { this.vehicle.damage(dmg * 0.5, h); this.fx.sparks(end.x, end.y, end.z, 5, [1, 0.8, 0.4], 4); this.audio.impact(0.5, 0); }
       this.hurtPlayer(dmg, h, 'bullet');
-    } else if (dist < 30) { this.audio.impact(0.25, rand(-0.5, 0.5)); this.fx.sparks(end.x, 0.1, end.z, 3, [1, 0.8, 0.5], 3); }
+    } else if (dist < 30) { this.audio.impact(0.25, rand(-0.5, 0.5)); this.fx.sparks(end.x, this.groundY(end.x, end.z, end.y) + 0.1, end.z, 3, [1, 0.8, 0.5], 3); }   // the miss strikes the ground there (it sparked at 0.1)
   }
   hurtPlayer(dmg, src, kind) {
     const pl = this.player; if (pl.dead) return;
@@ -1206,7 +1299,7 @@ export class Game {
     for (const k in pl.m.act) pl.m.act[k].weight = 0; pl.m.act.Idle.weight = 1; pl.m.mixer.update(0);
     pl.dead = false; pl.state = 'walk'; pl.hpv = 100; pl.armor = 0; pl.m.body.rotation.set(0, 0, 0); pl.m.body.position.y = 0; pl.group.scale.setScalar(1);
     const cost = Math.floor(this.cash * 0.1); this.cash -= cost;
-    const hp = this.hospital; pl.x = hp ? hp.x : this.world.spawn.x; pl.z = hp ? hp.z : this.world.spawn.z; pl.y = 0; pl.vx = pl.vz = 0; pl.knock = 0; pl.bleed = 0; pl.body3.teleport(pl.x, 0, pl.z);
+    const hp = this.hospital; pl.x = hp ? hp.x : this.world.spawn.x; pl.z = hp ? hp.z : this.world.spawn.z; pl.y = this.groundY(pl.x, pl.z, 2); pl.vx = pl.vz = 0; pl.knock = 0; pl.bleed = 0; pl.body3.teleport(pl.x, pl.y, pl.z);
     pl.setWeapon(pl.cur === 9 ? 100 : pl.cur);
     pl.prone = false; pl.crouching = false; pl.sitting = false; pl.aiming = false; pl.scoped = false; pl.reloadT = 0; this.rollK = 0;
     if (this.needs?.s) { const n = this.needs.s; n.food = Math.max(n.food, 45); n.water = Math.max(n.water, 45); n.energy = Math.max(n.energy, 50); }
@@ -1251,26 +1344,27 @@ export class Game {
     for (let i = 0; i < 18; i++) this.smokeP.emit(x + rand(-1, 1), y + rand(0, 2), z + rand(-1, 1), rand(-3, 3), rand(2, 6), rand(-3, 3), rand(2, 4), rand(2, 4), 0.05, 0.05, 0.06, 0.9, 0.2, 0.4);
     this.fx.sparks(x, y, z, 18, [1, 0.6, 0.2], 24);
     this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9); this.blastWorld(x, y, z, radius); this.power?.blast(x, z, radius);
-    if (this.memory && y < 3) { this.memory.addScorch(x, z, Math.min(5, radius * 0.45)); if (src === this.player || src?.driver === 'player' || Math.hypot(x - this.player.x, z - this.player.z) < 60) this.memory.log('explosion', x, z); }
+    const gy = this.groundY(x, z, y), low = y - gy < 3;   // a blast near the ground (which is not at 0) scorches it and can start a fire
+    if (this.memory && low) { this.memory.addScorch(x, z, Math.min(5, radius * 0.45), gy); if (src === this.player || src?.driver === 'player' || Math.hypot(x - this.player.x, z - this.player.z) < 60) this.memory.log('explosion', x, z); }
     const d = Math.hypot(x - this.camera.position.x, z - this.camera.position.z);
     this.shake(clamp(1.4 - d / 50, 0, 1.5));
     this.flashT = 0.15;
     for (const h of this.humans) {
-      if (h.dead) continue; const dd = Math.hypot(h.x - x, h.z - z); if (dd > radius * 1.4) continue;
-      const k = 1 - dd / (radius * 1.4); h.hurt(dmg * k * 1.2, src, false, src);
+      if (h.dead) continue; const dd = Math.hypot(h.x - x, (h.y || 0) + 0.9 - y, h.z - z); if (dd > radius * 1.4) continue;
+      const k = (1 - dd / (radius * 1.4)) * this.blastCover(x, y, z, h.x, (h.y || 0) + 1, h.z); h.hurt(dmg * k * 1.2, src, false, src);
       const nx = (h.x - x) / (dd || 1), nz = (h.z - z) / (dd || 1); h.ragdoll(nx * 10 * k, nz * 10 * k, 7 * k);
     }
-    const pl = this.player; const dp = Math.hypot(pl.x - x, pl.z - z);
-    if (dp < radius * 1.3 && !pl.dead && !(src && src === this.vehicle)) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6, null, 'explosion'); }
+    const pl = this.player; const dp = Math.hypot(pl.x - x, pl.y + 0.9 - y, pl.z - z);
+    if (dp < radius * 1.3 && !pl.dead && !(src && src === this.vehicle)) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6 * this.blastCover(x, y, z, pl.x, pl.y + 1, pl.z), null, 'explosion'); }
     for (const v of this.vehicles) {
-      if (v === src) continue; const dd = Math.hypot(v.x - x, v.z - z); if (dd > radius * 1.5) continue;
-      const k = 1 - dd / (radius * 1.5); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
+      if (v === src) continue; const dd = Math.hypot(v.x - x, (v.by ?? y) - y, v.z - z); if (dd > radius * 1.5) continue;
+      const k = (1 - dd / (radius * 1.5)) * this.blastCover(x, y, z, v.x, v.by ?? y, v.z); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
       const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.addImpulse(nx * 14 * k, 5 * k, nz * 14 * k);
     }
     this.military?.blast(x, y, z, radius, dmg, src); this.villages?.blast(x, y, z, radius, dmg, src); this.landmarks?.blast(x, y, z, radius, dmg, src); this.industry?.blast(x, y, z, radius, dmg, src); this.highways?.blast(x, y, z, radius, dmg, src);
     this.blaze.blast(x, y, z, radius, src === this.player || src?.driver === 'player' ? this.player : null);
-    if (y < 3 && radius >= 6) this.fire.ignite(x, z, { fuel: 6 + radius * 0.6, r: radius * 0.28, src: src === this.player || src?.driver === 'player' ? this.player : null });
-    this.addHeat(6);
+    if (low && radius >= 6) this.fire.ignite(x, z, { fuel: 6 + radius * 0.6, r: radius * 0.28, src: src === this.player || src?.driver === 'player' ? this.player : null });
+    if (src === this.player || src?.driver === 'player') this.addHeat(6);   // only the player's own blasts are his crime (a wreck far off or a tank's shell is not)
   }
 
   updatePolice(dt) {
@@ -1282,7 +1376,7 @@ export class Game {
     // heat decay when not being seen
     if (this.wanted > 0) {
       let seen = false;
-      for (const c of cars) { const d = Math.hypot(c.x - real.x, c.z - real.z); if (d < 55 && this.hasLOS(c.x, 1.5, c.z, real.x, 1.5, real.z)) { seen = true; break; } }
+      for (const c of cars) { const d = Math.hypot(c.x - real.x, c.z - real.z); if (d < 55 && this.hasLOS(c.x, this.bodyY(c) + 0.3, c.z, real.x, this.bodyY(real), real.z)) { seen = true; break; } }
       for (const h of this.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 45) { seen = true; break; }
       if (seen) this.evade = 0; else this.evade += dt;
       if (this.evade > 8) { this.heat = Math.max(0, this.heat - dt * (1.5 + (this.evade - 8) * 0.25)); const prev = this.wanted; this.recalcStars(); if (prev > 0 && this.wanted === 0) { this.toast('<span style="color:#47ffa8">WANTED LEVEL LOST</span>', '추적에서 벗어났습니다'); this.clearWanted(); } }
@@ -1295,13 +1389,16 @@ export class Game {
     for (const c of cars) {
       c.chaseTarget = this.wanted > 0 ? target : null;
       const d = Math.hypot(c.x - target.x, c.z - target.z);
-      c.direct = this.wanted > 0 && d < 40 && this.hasLOS(c.x, 1.2, c.z, target.x, 1.2, target.z);
+      // on a real road (outside the capital's grid) roads are far apart, so a car with the target in sight leaves the road for it from 120 m, and one
+      // at the end of its road goes straight for it
+      c.direct = this.wanted > 0 && (d < (c.hw ? 120 : 40) && this.hasLOS(c.x, this.bodyY(c), c.z, target.x, this.bodyY(target), target.z) || (c.hwDone && d < 400));
+      if (c.hwDone && d >= 400) c.despawn = true;
       c.siren = true;
       if (this.wanted === 0) { c.ai.speed = 12; c.chaseTarget = null; if (d > 90) c.despawn = true; }
       // deploy officers
       if (this.wanted > 0 && d < 20 && c.speed < 7 && !c.deployed) {
         c.deployed = true; const n = this.wanted >= 5 ? 4 : this.wanted >= 4 ? 3 : this.wanted >= 3 ? 2 : 1;
-        for (let k = 0; k < n; k++) this.spawnCop(c.x + Math.cos(c.h) * (c.W / 2 + 1.2) * (k ? -1 : 1), c.z - Math.sin(c.h) * (c.W / 2 + 1.2) * (k ? -1 : 1));
+        for (let k = 0; k < n; k++) this.spawnCop(c.x + Math.cos(c.h) * (c.W / 2 + 1.2) * (k ? -1 : 1), c.z - Math.sin(c.h) * (c.W / 2 + 1.2) * (k ? -1 : 1), c.baseY());
       }
       if (c.despawn) { this.removeVehicle(c); }
     }
@@ -1314,24 +1411,57 @@ export class Game {
     if (cars.length) {
       const ph = Math.floor(this.time * 6) % 2;
       const c = cars.reduce((a, b) => (Math.hypot(a.x - this.camera.position.x, a.z - this.camera.position.z) < Math.hypot(b.x - this.camera.position.x, b.z - this.camera.position.z) ? a : b));
-      this.lights.flash(c.x, 3, c.z, ph ? 0xff2020 : 0x2050ff, 14, 28, 0.2);
+      this.lights.flash(c.x, this.bodyY(c) + 1.4, c.z, ph ? 0xff2020 : 0x2050ff, 14, 28, 0.2);   // over the car's roof bar (it was 3 m over 0)
     }
   }
+  // a patrol car 110-200 m away: on the capital's grid as before, anywhere else on the real road nearest the target (there was none outside the grid,
+  // so a wanted level away from the capital brought no police car at all)
   spawnPoliceCar() {
     const target = this.vehicle || this.player;
     const lane = (() => { for (let t = 0; t < 10; t++) { const l = this.randomLane(110, 200); if (l) return l; } return null; })();
-    if (!lane) return;
+    const road = lane ? null : this.policeRoadSpot(target);
+    if (!lane && !road) return;
     const v = new Vehicle(this, 'sedan', 0x0c1220, 'police', { glow: [0.2, 0.4, 1] });
     v.driver = 'ai'; v.police = true; v.ai.speed = 22; v.maxHp = v.hp = 130;
-    v.setRoute(lane.i, lane.j, lane.di, lane.dj, lane.frac);
+    if (lane) v.setRoute(lane.i, lane.j, lane.di, lane.dj, lane.frac);
+    else { v.hw = road.hw; v.x = road.x; v.z = road.z; v.h = road.h; v.vx = Math.sin(road.h) * 15; v.vz = Math.cos(road.h) * 15; v.startY = undefined; v.planAhead = () => this.planPolice(v); }
     v.chaseTarget = target; v.siren = true;
     this.addVehicle(v);
+    if (road) { v.pv.body.setTranslation({ x: road.x, y: road.y + 1.2, z: road.z }, true); v.pv.body.setLinvel({ x: v.vx, y: 0, z: v.vz }, true); }
+    return v;
   }
-  spawnCop(x, z) {
+  // a lane point on the real road nearest the target, 110-250 m from it along the road (not in view nearer than 170 m), facing toward it
+  policeRoadSpot(t) {
+    const hw = this.hwtraffic, near = hw && hw.nearestSample(t.x, t.z, 900, true); if (!near || near.r.pts.length < 8) return null;   // any road: a country lane brought no police car
+    const r = near.r, n = r.pts.length, oneway = r.kind === 'arterial' && r.oneway;
+    for (let tr = 0; tr < 8; tr++) {
+      const dir = oneway || Math.random() < 0.5 ? 1 : -1, want = rand(110, 250); let i = near.i;
+      for (let s = 0; s < 600; s++) { const ni = i - dir; if (ni < 3 || ni > n - 4) break; i = ni; if (Math.hypot(r.pts[i][0] - t.x, r.pts[i][1] - t.z) >= want) break; }
+      const P = hw.lane(r, i, dir, 0), d = Math.hypot(P.x - t.x, P.z - t.z);
+      if (d < 90 || d > 320 || (this.inView(P.x, P.z) && d < 170)) continue;
+      if (this.vehicles.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 11)) continue;
+      return { x: P.x, y: P.y, z: P.z, h: P.h, hw: { r, i, dir, lane: 0 } };
+    }
+    return null;
+  }
+  // a patrol car on a real road follows it whichever way brings it nearer the one it chases (a two-way road either way; it turns round on the spot)
+  planPolice(v) {
+    const h = v.hw, r = h.r, n = r.pts.length, t = v.chaseTarget;
+    if (t && !(r.kind === 'arterial' && r.oneway)) {
+      const a = r.pts[Math.min(n - 1, h.i + 4)], b = r.pts[Math.max(0, h.i - 4)];
+      const dir = Math.hypot(a[0] - t.x, a[1] - t.z) <= Math.hypot(b[0] - t.x, b[1] - t.z) ? 1 : -1;
+      if (dir !== h.dir) {
+        let bi = h.i, bd = 1e18; for (let i = Math.max(0, h.i - 12); i <= Math.min(n - 1, h.i + 12); i++) { const d = (r.pts[i][0] - v.x) ** 2 + (r.pts[i][1] - v.z) ** 2; if (d < bd) { bd = d; bi = i; } }
+        h.dir = dir; h.i = bi; v.ai.wp.length = 0;
+      }
+    }
+    this.hwtraffic.plan(v);
+  }
+  spawnCop(x, z, y = this.player.y) {   // y: the level of the street it gets out on (the ground or a deck under it is found from there)
     if (this.humans.filter((h) => h.team === 'cop' && !h.dead).length > (this.wanted >= 5 ? 14 : this.wanted >= 4 ? 11 : 8)) return;
     const w = this.wanted, swat = w >= 4, army = w >= 5;
     const h = new Human(this, 'cop', { hp: army ? 150 : swat ? 110 : 70, weapon: army ? (Math.random() < 0.25 ? 4 : Math.random() < 0.5 ? 3 : 2) : w >= 3 ? 2 : 1, look: army ? { top: 0x39422b, pants: 0x2b3322, cap: 0x2b3322, trim: [0.5, 0.6, 0.3], hair: 0x111111 } : swat ? { top: 0x0d0f14, pants: 0x0d0f14, cap: 0x0d0f14, trim: [0.2, 0.25, 0.3], hair: 0x111111 } : { top: 0x101a38, pants: 0x0b1020, cap: 0x0b1020, trim: [0.3, 0.45, 1], hair: 0x111111 } });
-    h.x = x; h.z = z; h.state = 'attack'; this.humans.push(h); this.scene.add(h.group);
+    h.x = x; h.z = z; h.y = h.floorY = this.groundY(x, z, y + 1.5); h.ground = true; h.state = 'attack'; this.humans.push(h); this.scene.add(h.group);   // on the ground where the car stopped (it was 0)
   }
 
   // ====================================================================
@@ -1391,10 +1521,11 @@ export class Game {
     for (const v of this.vehicles) {
       if (!v.group.visible || v.speed < 3) continue;
       if (!all) all = [...this.humans];
-      const s = Math.sin(v.h), c = Math.cos(v.h), spd = v.speed;
+      const s = Math.sin(v.h), c = Math.cos(v.h), spd = v.speed, vb = v.baseY(), reach = Math.max(4, v.L / 2 + 1);
       for (const h of all) {
         if (h.dead && h.knock === 0 && h.deadT > 1) continue;
-        const dx = h.x - v.x, dz = h.z - v.z; if (Math.abs(dx) > 4 || Math.abs(dz) > 4) continue;
+        // a bus is 11 m long (the 4 m box missed its ends); someone on the bridge above or the street below is not in the car's way
+        const dx = h.x - v.x, dz = h.z - v.z; if (Math.abs(dx) > reach || Math.abs(dz) > reach || Math.abs((h.y || 0) - vb) > 1.6) continue;
         const lf = dx * s + dz * c, ll = dx * c - dz * s;
         if (Math.abs(lf) < v.L / 2 + 0.4 && Math.abs(ll) < v.W / 2 + 0.3 && !h.knock && !(h.dead)) {
           const dmg = spd * 5;
@@ -1408,7 +1539,7 @@ export class Game {
         }
       }
       // player on foot hit by cars
-      if (this.playerOnFoot && !this.player.dead && v.driver && this.player.y < 0.9) {
+      if (this.playerOnFoot && !this.player.dead && v.driver && Math.abs(this.player.y - vb) < 1.2) {
         const pl = this.player; const dx = pl.x - v.x, dz = pl.z - v.z; const lf = dx * s + dz * c, ll = dx * c - dz * s;
         if (Math.abs(lf) < v.L / 2 + 0.4 && Math.abs(ll) < v.W / 2 + 0.3 && this.time - (this.lastRunOver || -9) > 0.6) {
           this.lastRunOver = this.time; this.hurtPlayer(spd * 2.2, null, 'car'); pl.vx = v.vx; pl.vz = v.vz; pl.vy = 4;
@@ -1487,11 +1618,14 @@ export class Game {
     g.visible = false; this.scene.add(g);
     this.beacon = { g, ring, ring2, beam };
   }
-  setBeacon(x, z, color) { this.beacon.g.position.set(x, 0, z); this.beacon.g.visible = true; if (color) this.beacon.beam.material.uniforms.uColor.value.set(color); this.markerPos = { x, z }; }
+  setBeacon(x, z, color) { this.beacon.g.position.set(x, this.groundY(x, z), z); this.beacon.g.visible = true; if (color) this.beacon.beam.material.uniforms.uColor.value.set(color); this.markerPos = { x, z }; }
   hideBeacon() { this.beacon.g.visible = false; this.markerPos = null; }
 
+  // a mission place minD..maxD from the player: a sidewalk corner of the capital's grid, or (outside the grid, where it used to fall back to one fixed
+  // corner of the capital, up to hundreds of km away) the side of a real road near the player
   pickSpot(minD, maxD, near = null) {
     const pl = this.player;
+    if (Math.abs(pl.x) > HALF + 40 || Math.abs(pl.z) > HALF + 40) { const s = this.roadSpot(pl, minD, maxD); if (s) return s; }
     for (let t = 0; t < 40; t++) {
       const i = Math.floor(rand(1, N)), j = Math.floor(rand(1, N));
       const x = roadC(i) + (Math.random() < 0.5 ? 1 : -1) * 12.5, z = roadC(j) + (Math.random() < 0.5 ? 1 : -1) * 12.5;
@@ -1499,6 +1633,20 @@ export class Game {
       if (d > minD && d < maxD) return { x, z, i, j };
     }
     return { x: roadC(5) + 12.5, z: roadC(3) + 12.5, i: 5, j: 3 };
+  }
+  // the edge of the road sample nearest a random point minD..maxD from p (any road of the 1:1 network, local streets too), with its ground height
+  roadSpot(p, minD, maxD) {
+    const RG = this.autonav?.router?.G; if (!RG) return null;
+    for (let t = 0; t < 30; t++) {
+      const a = rand(0, TAU), r = rand(minD, maxD), id = RG.nearest(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, 400); if (id < 0) continue;
+      const road = RG.roads[RG.rd[id]], i = RG.ix[id], n = road.pts.length, q0 = road.pts[Math.max(0, i - 1)], q1 = road.pts[Math.min(n - 1, i + 1)];
+      let tx = q1[0] - q0[0], tz = q1[1] - q0[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      const lanes = road.kind === 'arterial' ? Math.max(1, Math.min(4, road.lanes || 1)) : 4, side = Math.random() < 0.5 ? 1 : -1, off = side * (lanes * 3.75 + (road.kind === 'arterial' ? 2.5 : 5));
+      const x = RG.x[id] + tz * off, z = RG.z[id] - tx * off, d = Math.hypot(x - p.x, z - p.z);
+      if (d < minD * 0.8 || d > maxD * 1.25 || this.waterAt(x, z)) continue;
+      return { x, z, y: this.groundY(x, z, (road.y ? road.y[i] : physHeight(x, z, 8)) + 1.5), road: true };
+    }
+    return null;
   }
 
   startMission(idx) {
@@ -1566,7 +1714,7 @@ export class Game {
               const a = (k / n) * TAU, r = rand(4, 11);
               const h = new Human(G, 'gang', { hp: 75, weapon: k % 3 === 0 ? 2 : 1, look: { top: 0x3a0c18, pants: 0x151015, trim: [1, 0.2, 0.25], hair: 0x111111, cap: k % 2 ? 0x201018 : null } });
               h.x = spot.x + Math.cos(a) * r; h.z = spot.z + Math.sin(a) * r; h.home = { x: spot.x, z: spot.z }; h.patrol = true; h.state = 'idle'; h.detect = 45; h.cash = Math.floor(rand(60, 180));
-              const rr = G.world.colliders.resolve(h.x, h.z, 0.4, 0); h.x = rr.x; h.z = rr.z;
+              const rr = G.world.colliders.resolve(h.x, h.z, 0.4, spot.y || 0); h.x = rr.x; h.z = rr.z; h.y = h.floorY = G.groundY(h.x, h.z, (spot.y || 0) + 1.5); h.ground = true;   // on the ground there (it was 0)
               G.humans.push(h); G.scene.add(h.group); gang.push(h);
             }
             G.missionKill = () => { };
@@ -1594,6 +1742,8 @@ export class Game {
       },
       // 5. rooftop: walk into a tower, ride its elevator to the roof
       (i) => {
+        // the towers with a lift are the capital's: away from it this is a trip to a road-side place instead (it sent the player to the capital)
+        if (Math.abs(G.player.x) > HALF + 40 || Math.abs(G.player.z) > HALF + 40) { const spot = G.pickSpot(150, 320); return { title: '현장 확인', text: '표시된 장소로 이동해 상황을 확인하라.', reward: 900, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; }
         const cands = (G.world.enterables || []).filter((e) => Math.hypot(e.x - G.player.x, e.z - G.player.z) > 90).sort((p, q) => Math.hypot(p.x - G.player.x, p.z - G.player.z) - Math.hypot(q.x - G.player.x, q.z - G.player.z));
         const e = cands[Math.min(2, cands.length - 1)] || G.world.enterables[0];
         const b = G.buildings.byLot.get(e.lot); b.plan();
@@ -1619,7 +1769,7 @@ export class Game {
             for (let k = 0; k < n; k++) {
               const h = new Human(G, 'gang', { hp: k === 0 ? 150 : 80, weapon: k % 2 ? 2 : 1, look: { top: k === 0 ? 0x4a2a05 : 0x2a0f2a, pants: 0x111111, trim: [1, 0.3, 0.9], hair: 0x111111 } });
               const a = (k / n) * TAU; h.x = spot.x + Math.cos(a) * rand(3, 9); h.z = spot.z + Math.sin(a) * rand(3, 9); h.home = { x: spot.x, z: spot.z }; h.patrol = true; h.state = 'idle'; h.detect = 48; h.cash = Math.floor(rand(80, 250));
-              const rr = G.world.colliders.resolve(h.x, h.z, 0.4, 0); h.x = rr.x; h.z = rr.z; G.humans.push(h); G.scene.add(h.group); gang.push(h);
+              const rr = G.world.colliders.resolve(h.x, h.z, 0.4, spot.y || 0); h.x = rr.x; h.z = rr.z; h.y = h.floorY = G.groundY(h.x, h.z, (spot.y || 0) + 1.5); h.ground = true; G.humans.push(h); G.scene.add(h.group); gang.push(h);
             }
           },
           update() { const left = gang.filter((h) => !h.dead).length; this.hud = `남은 적 ${left}`; if (left === 0) G.completeMission(); },
@@ -1798,8 +1948,9 @@ export class Game {
   updateHeadlight() {
     if (!this.head) { this.head = new THREE.SpotLight(0xfff0d0, 0, 80, 0.5, 0.6, 1.6); this.scene.add(this.head, this.head.target); }
     const v = this.vehicle, h = v.rh ?? v.h, x = v.rx ?? v.x, z = v.rz ?? v.z, s = Math.sin(h), c = Math.cos(h);
-    this.head.position.set(x + s * v.L * 0.4, 0.9, z + c * v.L * 0.4);
-    this.head.target.position.set(x + s * 30, 0, z + c * 30);
+    const b = (v.rby ?? v.by ?? 0) - (v.spec.cy ?? 0.78);   // the lamps sit 0.9 m over the road the car is on and light the road 30 m ahead (the road is not at 0)
+    this.head.position.set(x + s * v.L * 0.4, b + 0.9, z + c * v.L * 0.4);
+    this.head.target.position.set(x + s * 30, this.groundY(x + s * 30, z + c * 30, b + 3), z + c * 30);
     this.head.intensity = 520; this.head.angle = 0.5; this.head.penumbra = 0.7;
   }
 

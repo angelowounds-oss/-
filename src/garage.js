@@ -120,7 +120,8 @@ export const garage = {
     const v = this.passenger, pl = this.player; if (!v) return;
     this.passenger = null; this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true;
     const s = Math.sin(v.h), c = Math.cos(v.h);
-    pl.body3.teleport(v.x + c * 3, v.y || 0, v.z - s * 3); pl.x = v.x + c * 3; pl.z = v.z - s * 3; pl.y = 0.06;
+    const gx = v.x + c * 3, gz = v.z - s * 3, gy = this.groundY(gx, gz, v.baseY() + 1);   // out of the taxi onto the ground beside it (not at 0: the 1:1 world has hills)
+    pl.body3.teleport(gx, gy + 0.06, gz); pl.x = gx; pl.z = gz; pl.y = gy + 0.06;
     document.body.classList.add('onfoot'); document.body.classList.remove('incar'); this.ui.speedo.classList.remove('on');
     v.dest = null; v.arrived = false; v.callTaxi = false; this.taxi = null;
   },

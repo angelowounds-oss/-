@@ -223,7 +223,8 @@ export class Citizens {
   killed(h) {
     const c = h.citizen; if (!c || this.st.dead[c.id]) return;
     this.st.dead[c.id] = { t: this.G.clock.t, x: h.x, z: h.z, y: h.y || 0 };
-    if ((h.y || 0) < 0.5) { this.st.memorials.push({ x: h.x, z: h.z, name: c.name, age: c.age, t: this.G.clock.t }); if (this.st.memorials.length > 40) this.st.memorials.shift(); this.rebuildMemorials(); }
+    const gy = this.G.groundY ? this.G.groundY(h.x, h.z, (h.y || 0) + 1) : 0;   // the street under the body (the ground is not at 0 away from the capital's centre)
+    if ((h.y || 0) - gy < 0.5) { this.st.memorials.push({ x: h.x, z: h.z, y: +gy.toFixed(2), name: c.name, age: c.age, t: this.G.clock.t }); if (this.st.memorials.length > 40) this.st.memorials.shift(); this.rebuildMemorials(); }
     this.G.feed?.(`${c.name}(${c.age}) 사망 — ${c.job}`, '#ff8a5c');
     c.indoor = null;
   }
@@ -235,14 +236,14 @@ export class Citizens {
     const flower = new THREE.InstancedMesh(new THREE.ConeGeometry(0.12, 0.3, 6).rotateX(Math.PI).translate(0, 0.15, 0), new THREE.MeshStandardMaterial({ color: 0xf2f2f6, roughness: 0.8 }), ms.length * 3);
     const m4 = new THREE.Matrix4(); let ci = 0, fi = 0;
     for (const mm of ms) {
-      const r = mulberry32(Math.floor(mm.t * 13) + mm.name.length);
-      for (let k = 0; k < 5; k++) { m4.makeTranslation(mm.x + Math.cos(k * 1.26) * 0.45 + (r() - 0.5) * 0.1, 0, mm.z + Math.sin(k * 1.26) * 0.45); candle.setMatrixAt(ci++, m4); }
-      for (let k = 0; k < 3; k++) { m4.makeTranslation(mm.x + (r() - 0.5) * 0.4, 0, mm.z + (r() - 0.5) * 0.4); flower.setMatrixAt(fi++, m4); }
+      const r = mulberry32(Math.floor(mm.t * 13) + mm.name.length), y = mm.y || 0;   // on the street where it happened (a memorial saved before the height was kept is at 0: the capital's streets)
+      for (let k = 0; k < 5; k++) { m4.makeTranslation(mm.x + Math.cos(k * 1.26) * 0.45 + (r() - 0.5) * 0.1, y, mm.z + Math.sin(k * 1.26) * 0.45); candle.setMatrixAt(ci++, m4); }
+      for (let k = 0; k < 3; k++) { m4.makeTranslation(mm.x + (r() - 0.5) * 0.4, y, mm.z + (r() - 0.5) * 0.4); flower.setMatrixAt(fi++, m4); }
       const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96; const x = cv.getContext('2d');
       x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, 256, 96); x.strokeStyle = '#d8d8d8'; x.strokeRect(4, 4, 248, 88);
       x.fillStyle = '#eee'; x.font = '28px sans-serif'; x.textAlign = 'center'; x.fillText(`故 ${mm.name}`, 128, 44); x.font = '18px sans-serif'; x.fillStyle = '#aaa'; x.fillText(`향년 ${mm.age}세`, 128, 74);
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-      const card = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.19), new THREE.MeshBasicMaterial({ map: tex })); card.position.set(mm.x, 0.32, mm.z); card.rotation.x = -0.9; g.add(card);
+      const card = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.19), new THREE.MeshBasicMaterial({ map: tex })); card.position.set(mm.x, y + 0.32, mm.z); card.rotation.x = -0.9; g.add(card);
     }
     g.add(candle, flower);
   }

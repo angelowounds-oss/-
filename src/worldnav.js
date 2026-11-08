@@ -47,31 +47,55 @@ export class RoadGraph {
     // CSR: the neighbours of u are nb[at[u]] .. nb[at[u + 1] - 1], in the order they were linked (a counting sort keeps it, so routes are unchanged)
     this.at = new Int32Array(n + 1); for (let e = 0; e < ne; e++) this.at[E[e * 2] + 1]++; for (let u = 0; u < n; u++) this.at[u + 1] += this.at[u];
     this.nb = new Int32Array(ne); const fill = this.at.slice(0, n); for (let e = 0; e < ne; e++) this.nb[fill[E[e * 2]]++] = E[e * 2 + 1];
+    // connected parts (union-find over every link, direction ignored): the region's OSM extract has pieces joined to nothing, and a route that began
+    // on one found no path and was drawn as a straight line across the country
+    const par = new Int32Array(n); for (let i = 0; i < n; i++) par[i] = i;
+    const find = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+    for (let e = 0; e < ne; e++) { const a = find(E[e * 2]), b = find(E[e * 2 + 1]); if (a !== b) par[a] = b; }
+    const size = new Int32Array(n); for (let i = 0; i < n; i++) { par[i] = find(i); size[par[i]]++; }
+    let main = 0; for (let i = 0; i < n; i++) if (size[i] > size[main]) main = i;
+    this.comp = par; this.mainComp = main; this.mainShare = n ? size[main] / n : 0;
   }
-  nearest(x, z, max = 8000) {
+  // the nearest sample to (x, z) within max m; with comp, only one in that connected part
+  nearest(x, z, max = 8000, comp = -1) {
     const CS = this.CS, R = Math.ceil(max / CS); let best = -1, bd = max * max; const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
     for (let r = 0; r <= R && best < 0; r++) {
       for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
         if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
         const a = this.grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue;
-        for (const j of a) { const d = (this.x[j] - x) ** 2 + (this.z[j] - z) ** 2; if (d < bd) { bd = d; best = j; } }
+        for (const j of a) { if (comp >= 0 && this.comp[j] !== comp) continue; const d = (this.x[j] - x) ** 2 + (this.z[j] - z) ** 2; if (d < bd) { bd = d; best = j; } }
       }
     }
     return best;
   }
   // A* from node s to node t; returns the node list or null
+  // A* from node s to node t; returns the node list or null. The arrays live across calls (a stamp per search marks what this one touched) and the
+  // open list is a typed heap: on the 1:1 graph (3.7 M samples) the fresh arrays and a heap of [f, v] pairs took 2.4 s for a cross-country route,
+  // a hitch on every waypoint. The heuristic is weighted (1.5): a route at most half again as long as the best (in the tests no longer at all), found from far fewer samples
   path(s, t) {
-    const n = this.n, g = new Float32Array(n).fill(1e18), from = new Int32Array(n).fill(-1), done = new Uint8Array(n);
-    const heap = [[0, s]]; g[s] = 0;
-    const push = (it) => { heap.push(it); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
-    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
-    while (heap.length) {
-      const [, u] = pop(); if (done[u]) continue; done[u] = 1;
+    const n = this.n; if (!this._g) { this._g = new Float32Array(n); this._from = new Int32Array(n); this._stamp = new Uint32Array(n); this._run = 0; this._hk = new Float64Array(1 << 16); this._hv = new Int32Array(1 << 16); }
+    if (this._run > 2e9) { this._stamp.fill(0); this._run = 0; }   // the stamps would wrap
+    // stamp 2 run: reached by this search, 2 run + 1: settled by it
+    const g = this._g, from = this._from, stamp = this._stamp, run = (this._run += 2), done = run + 1, X = this.x, Z = this.z, tx = X[t], tz = Z[t], W = 1.5;
+    let hk = this._hk, hv = this._hv, hn = 0;
+    const push = (f, v) => {
+      if (hn === hk.length) { const k2 = new Float64Array(hn * 2), v2 = new Int32Array(hn * 2); k2.set(hk); v2.set(hv); this._hk = hk = k2; this._hv = hv = v2; }
+      let k = hn++; while (k > 0) { const p = (k - 1) >> 1; if (hk[p] <= f) break; hk[k] = hk[p]; hv[k] = hv[p]; k = p; } hk[k] = f; hv[k] = v;
+    };
+    const pop = () => {
+      const top = hv[0], f = hk[--hn], v = hv[hn]; let k = 0;
+      for (;;) { const l = 2 * k + 1, r = l + 1; let m = l; if (l >= hn) break; if (r < hn && hk[r] < hk[l]) m = r; if (hk[m] >= f) break; hk[k] = hk[m]; hv[k] = hv[m]; k = m; }
+      if (hn) { hk[k] = f; hv[k] = v; } return top;
+    };
+    stamp[s] = run; g[s] = 0; from[s] = -1; push(0, s);
+    while (hn) {
+      const u = pop(); if (stamp[u] === done) continue; stamp[u] = done;
       if (u === t) { const out = []; for (let c = u; c >= 0; c = from[c]) out.push(c); return out.reverse(); }
+      const gu = g[u], xu = X[u], zu = Z[u], ru = this.rd[u];
       for (let q = this.at[u]; q < this.at[u + 1]; q++) {
-        const v = this.nb[q];
-        const d = Math.hypot(this.x[u] - this.x[v], this.z[u] - this.z[v]), ng = g[u] + d * (this.rd[u] === this.rd[v] ? 1 : 1.4);
-        if (ng < g[v]) { g[v] = ng; from[v] = u; push([ng + Math.hypot(this.x[v] - this.x[t], this.z[v] - this.z[t]), v]); }
+        const v = this.nb[q]; if (stamp[v] === done) continue;
+        const ng = gu + Math.hypot(xu - X[v], zu - Z[v]) * (ru === this.rd[v] ? 1 : 1.4);
+        if (stamp[v] !== run || ng < g[v]) { stamp[v] = run; g[v] = ng; from[v] = u; push(ng + W * Math.hypot(X[v] - tx, Z[v] - tz), v); }
       }
     }
     return null;
@@ -103,7 +127,9 @@ export class Router {
   constructor(lineOf) { this.G = graph(); this.lineOf = lineOf; }
   // → { pts: [[x, z, speedClass]], length } ; speedClass 0 = street, 1 = highway
   route(x0, z0, x1, z1) {
-    const G = this.G, a = G.nearest(x0, z0), b = G.nearest(x1, z1);
+    const G = this.G; let a = G.nearest(x0, z0), b = G.nearest(x1, z1);
+    // ends on two unjoined pieces (a stub of the OSM extract): both ends go onto the main network instead, the street legs bridge the gap
+    if (a >= 0 && b >= 0 && G.comp[a] !== G.comp[b]) { const m = G.mainComp; if (G.comp[a] !== m) a = G.nearest(x0, z0, 8000, m); if (G.comp[b] !== m) b = G.nearest(x1, z1, 8000, m); }
     if (a < 0 || b < 0) return { pts: [[x0, z0, 0], [x1, z1, 0]], length: Math.hypot(x1 - x0, z1 - z0), straight: true };
     const nodes = a === b ? [a] : G.path(a, b);
     if (!nodes) return { pts: [[x0, z0, 0], [x1, z1, 0]], length: Math.hypot(x1 - x0, z1 - z0), straight: true };

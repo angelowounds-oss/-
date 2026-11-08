@@ -12,12 +12,15 @@ run('worldnav', { q: 1, width: 640, height: 360 }, async ({ page }) => {
   const o = await page.evaluate(async (shots) => {
     const g = window.__game, S = g.citysites, L = g.citylife, pl = g.player, o = { shots: {} }; g.hurtPlayer = () => {};
     const realRender = g.eng.render; g.eng.render = () => {};
-    const step = async (n) => { for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 2) await new Promise((f) => setTimeout(f, 4)); } }; const stepSync = (n) => { for (let i = 0; i < n; i++) window.__upd(1 / 60); };
+    // the headless page refuses pointer lock: closing the map asks for it, the refusal arrives later as an unlock and paused the game for the rest of the test
+    g.input.onLockChange = () => {};
+    let ticks = 0; const step = async (n) => { for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (++ticks % 2 === 0) await new Promise((f) => setTimeout(f, 4)); } };   /* counted across calls: step(1) in a loop yields too */ const stepSync = (n) => { for (let i = 0; i < n; i++) window.__upd(1 / 60); };
     o.has = !!L && !!g.wmap && !!g.autonav; if (!o.has) return o;
     // street life: stand in the fourth city
     { const C = S.cities[3], c = C.c; pl.body3.teleport(c.x + 30, 1, c.z + 30); pl.x = c.x + 30; pl.y = 1; pl.z = c.z + 30; await step(60);
-      const t0 = performance.now(); stepSync(480);   // timed: no yields in it
-      o.lifeMs = +((performance.now() - t0) / 480).toFixed(2);
+      // timed in 8 runs of 60 ticks with a yield between them (the yields are not timed): 480 ticks in one go crashed the tab
+      let tLife = 0; for (let k = 0; k < 8; k++) { const t0 = performance.now(); stepSync(60); tLife += performance.now() - t0; await new Promise((f) => setTimeout(f, 4)); }
+      o.lifeMs = +(tLife / 480).toFixed(2);
       o.walkers = L.walkers.length; o.cars = L.cars.length; o.carsMoving = L.cars.filter((v) => v.speed > 3).length;
       const w0 = L.walkers.map((h) => [h.x, h.z]); await step(180); o.walked = L.walkers.filter((h, i) => Math.hypot(h.x - w0[i][0], h.z - w0[i][1]) > 2).length;
       o.inCity = L.walkers.every((h) => Math.hypot(h.x - c.x, h.z - c.z) < C.L.R * 1.1);
@@ -27,9 +30,9 @@ run('worldnav', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     for (let lv = 0; lv < 4; lv++) { M.level = lv; M.draw(); if (shots) { o.shots['map' + lv] = M.cv.toDataURL('image/png'); } }
     M.level = 1; M.cx = S.cities[0].c.x; M.cz = S.cities[0].c.z; M.draw();
     M.pick(S.cities[2].c.x + 5, S.cities[2].c.z); o.map.wp = g.waypoint && g.waypoint.name; o.map.pillar = M.pillar.visible; M.updateHud(0, true); o.map.hud = M.hud.textContent;
-    M.toggle(false); g.setPaused(false); o.map.closed = !g.uiModal;
+    M.toggle(false); g.setPaused(false); o.map.closed = !g.uiModal && !g.paused;
     // a route between two cities over the highways
-    const R = g.autonav.router, a = S.cities[0].c, b = S.cities[1].c, r = R.route(a.x + 60, a.z, b.x, b.z); o.route = { straight: r.straight, km: Math.round(r.length / 1000), pts: r.pts.length, hw: r.pts.filter((p) => p[2] === 1).length };
+    const R = g.autonav.router, a = S.cities[0].c, b = S.cities[1].c, r = R.route(a.x + 60, a.z, b.x, b.z); o.route = { straight: r.straight, km: Math.round(r.length / 1000), pts: r.pts.length, hw: r.pts.filter((p) => p[2] === 1).length, mainShare: +R.G.mainShare.toFixed(3) };   // mainShare: the samples on the largest joined network
     // autopilot: a car on a highway, a waypoint 3 km along it
     const N = g.hwtraffic.N, hw = N.roads.find((q) => q.kind === 'highway'), mid = Math.floor(hw.pts.length / 2), f = g.highways.frame(hw, mid), P = g.hwtraffic.lane(hw, mid, 1, 1), tgt = hw.pts[Math.min(hw.pts.length - 1, mid + 100)];
     pl.body3.teleport(P.x, P.y + 1, P.z + 4); pl.x = P.x; pl.y = P.y + 1; pl.z = P.z + 4; pl.vy = 0; await step(90);   // the ground under the car first

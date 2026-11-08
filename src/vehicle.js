@@ -106,7 +106,7 @@ export class Vehicle {
       const r = g.quaternion;
       this.rx = g.position.x; this.rz = g.position.z; this.rby = g.position.y + cy;
       this.rh = Math.atan2(2 * (r.x * r.z + r.w * r.y), 1 - 2 * (r.x * r.x + r.y * r.y));
-    } else { g.position.set(this.x, 0, this.z); g.rotation.set(0, this.h, 0); this.rx = this.x; this.rz = this.z; this.rh = this.h; this.rby = this.by; }
+    } else { g.position.set(this.x, this.baseY(), this.z); g.rotation.set(0, this.h, 0); this.rx = this.x; this.rz = this.z; this.rh = this.h; this.rby = this.by; }   // before its body is read: on the ground under it (not at 0)
     if (this.model.syncWheels) this.model.syncWheels(this.wheelSpin, -this.steerA);
     else { this.model.front.rotation.y = -this.steerA; this.model.fa.rotation.x = this.wheelSpin; this.model.ra.rotation.x = this.wheelSpin; }
   }
@@ -127,7 +127,7 @@ export class Vehicle {
     this.G.onVehicleDestroyed?.(this, src);
   }
   explode() {
-    this.G.explosion(this.x, 1.0, this.z, 9, 90, this);
+    this.G.explosion(this.x, this.baseY() + 1.0, this.z, 9, 90, this);   // at the car, on the ground it stands on (the 1:1 ground is not at 0)
     this.explodeT = 0; this.burn = 2;
     if (this.driver === 'player') this.G.playerVehicleExploded(this);
     if (this.pv) this.addImpulse(rand(-3, 3), 6 + rand(0, 3), rand(-3, 3));
@@ -137,7 +137,7 @@ export class Vehicle {
   // ---------- Physics (Rapier rigid body + raycast suspension) ----------
   attachPhysics(phys) {
     this.phys = phys;
-    this.pv = this.spec.craft ? createCraftBody(phys, this.spec, this.x, this.startY ?? this.spec.cy + 0.25, this.z, this.h) : phys.createVehicle(this.spec, this.x, this.z, this.h);
+    this.pv = this.spec.craft ? createCraftBody(phys, this.spec, this.x, this.startY ?? this.craftStartY(), this.z, this.h) : phys.createVehicle(this.spec, this.x, this.z, this.h);
     this.pv.owner = this;
     this.syncToBody(true);
     this.spawnY = null;   // used once: a later teleport finds its own ground
@@ -147,10 +147,14 @@ export class Vehicle {
   // a car put down on raised ground starts on it, not at the flat city's height (it would be inside the hill and never get out)
   // A spawner that knows the floor (a bridge deck: physHeight is the ground under it, GPL-15) sets spawnY.
   groundRise() { if (this.spawnY != null) return this.spawnY; const h = physHeight(this.x, this.z, 8); return h > 0 ? h : 0; }
+  // the height the car stands at (its body centre less the body's height over the ground); before the body was read: the ground under it
+  baseY() { return this.by != null && this.by === this.by ? this.by - (this.spec.cy ?? PHYS.bodyY) : this.groundRise(); }
+  // where a craft's body starts when the spawner gave no height: its own height over the ground (or road deck) under it (the ground is not at 0 in the 1:1 world)
+  craftStartY() { return (this.G.groundY ? this.G.groundY(this.x, this.z) : 0) + this.spec.cy + 0.25; }
   // Teleport body to current x,z,h and velocity fields
   syncToBody(sleep = false) {
     const b = this.pv.body;
-    b.setTranslation({ x: this.x, y: this.spec.craft ? (this.startY ?? this.spec.cy + 0.25) : PHYS.bodyY + 0.05 + this.groundRise(), z: this.z }, true);
+    b.setTranslation({ x: this.x, y: this.spec.craft ? (this.startY ?? this.craftStartY()) : PHYS.bodyY + 0.05 + this.groundRise(), z: this.z }, true);
     b.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true);
     b.setLinvel({ x: this.vx, y: 0, z: this.vz }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     if (sleep) b.sleep();
@@ -176,10 +180,11 @@ export class Vehicle {
     if (this.dead) {
       this.throttle = 0; this.brake = 0.3; this.steer = 0;
       if (this.explodeT > 0 && (this.explodeT -= dt) <= 0) this.explode();
-      if (this.burn > 0.2 && Math.random() < dt * 24) G.fx.fire(this.x + rand(-1, 1), 0.8 + Math.random(), this.z + rand(-1, 1));
+      if (this.burn > 0.2 && Math.random() < dt * 24) G.fx.fire(this.x + rand(-1, 1), this.baseY() + 0.8 + Math.random(), this.z + rand(-1, 1));   // flames on the wreck, not at sea level under it
     } else if (this.burn > 0 && this.hp < this.maxHp * 0.3) {
-      if (Math.random() < dt * 8) G.fx.smoke(this.x + Math.sin(this.h) * this.L * 0.35, 1.0, this.z + Math.cos(this.h) * this.L * 0.35);
-      if (this.hp < this.maxHp * 0.12) { this.hp -= dt * 2; if (this.hp <= 0) this.destroy(null); if (Math.random() < dt * 14) G.fx.fire(this.x + rand(-.6, .6), 1, this.z + rand(-.6, .6)); }
+      const yb = this.baseY();   // smoke and flames from the engine where the car is (the ground is not at 0)
+      if (Math.random() < dt * 8) G.fx.smoke(this.x + Math.sin(this.h) * this.L * 0.35, yb + 1.0, this.z + Math.cos(this.h) * this.L * 0.35);
+      if (this.hp < this.maxHp * 0.12) { this.hp -= dt * 2; if (this.hp <= 0) this.destroy(null); if (Math.random() < dt * 14) G.fx.fire(this.x + rand(-.6, .6), yb + 1, this.z + rand(-.6, .6)); }
     }
     if (this.driver === 'ai' && !this.dead) this.driveAI(dt);
     if (this.fuel <= 0 && this.driver === 'player') this.throttle = 0;
@@ -258,7 +263,7 @@ export class Vehicle {
     const hasDriver = this.driver && !this.dead;
     const braking = hasDriver && (this.brake > 0.1 && vf > 0.5 || this.throttle > 0 && vf < -0.5);
     if (this.model.brake.visible !== braking) { this.model.brake.visible = braking; if (!this.lightsOn) this.model.tailSprites.forEach((s) => (s.visible = braking)); }
-    if (this.slip > 0.4 && Math.random() < dt * 30) G.fx.tireSmoke(this.x - sH * this.L * 0.3, this.z - cH * this.L * 0.3);
+    if (this.slip > 0.4 && Math.random() < dt * 30) G.fx.tireSmoke(this.x - sH * this.L * 0.3, this.z - cH * this.L * 0.3, this.baseY());
     if (this.model.siren) {
       const ph = Math.floor(G.time * 6) % 2 === 0;
       this.model.siren.rs.visible = ph; this.model.siren.bs.visible = !ph;
@@ -266,7 +271,8 @@ export class Vehicle {
     this.lastSpeed = this.speed;
     if (this.driver === 'player' && !this.dead) this.fuel = Math.max(0, this.fuel - dt * (0.04 + Math.abs(this.throttle) * 0.09) * (this.spec.fuelRate || 1));
     this.model.craftVisual?.(this, dt); this.animDoor(dt);
-    if (this.boosting) { const fx = Math.sin(this.h), fz = Math.cos(this.h); for (let k = 0; k < 3; k++) G.fireP.emit(this.x - fx * 2.4 + rand(-0.4, 0.4), 0.55 + rand(0, 0.2), this.z - fz * 2.4 + rand(-0.4, 0.4), -fx * 10, 0.3, -fz * 10, rand(0.2, 0.45), rand(0.9, 1.7), 1.2, 2.2, 3.5, 1, -1, 1.2); }
+    // the boost flame leaves the tail at its height over the car's own ground (the 1:1 ground is not at 0)
+    if (this.boosting) { const fx = Math.sin(this.h), fz = Math.cos(this.h), yb = this.baseY(); for (let k = 0; k < 3; k++) G.fireP.emit(this.x - fx * 2.4 + rand(-0.4, 0.4), yb + 0.55 + rand(0, 0.2), this.z - fz * 2.4 + rand(-0.4, 0.4), -fx * 10, 0.3, -fz * 10, rand(0.2, 0.45), rand(0.9, 1.7), 1.2, 2.2, 3.5, 1, -1, 1.2); }
     if (this.kind === 'parked' && !this.driver && !this.dead && this.speed < 0.15) { this.idleT = (this.idleT || 0) + dt; if (this.idleT > 1) { this.pv.body.sleep(); this.idleT = 0; } } else this.idleT = 0;
     this.syncMesh();
   }
@@ -280,7 +286,7 @@ export class Vehicle {
     // its weight (a car hit by a truck takes the bigger speed change itself); craft and war machines keep their armour by mass
     const dmg = this.dead ? 0 : this.spec.craft ? Math.max(0, speed - 4) * 3.2 / (this.mass * 0.8 + 0.2) : Math.max(0, speed - 4) * 0.03 * this.maxHp;
     if (dmg > 0) this.damage(dmg, other);
-    G.fx.sparks(x, 0.6, z, Math.min(speed * 0.8, 24), [1, 0.7, 0.3]);
+    G.fx.sparks(x, this.baseY() + 0.6, z, Math.min(speed * 0.8, 24), [1, 0.7, 0.3]);   // at the bumpers' height over the car's own ground
     G.audio.crash(clamp(speed / 20, 0.2, 1.2), 0);
     if (this.driver === 'player') G.shake(clamp(speed / 14, 0.1, 1.2)), G.onPlayerCrash?.(speed);
   }
@@ -358,7 +364,7 @@ export class Vehicle {
     let tx, tz;
     if (this.dest && !this.police) {
       const dd = Math.hypot(this.dest.x - this.x, this.dest.z - this.z);
-      if (dd < 22 && G.hasLOS(this.x, 1.2, this.z, this.dest.x, 1.2, this.dest.z)) this.directDest = true;
+      if (dd < 22 && G.hasLOS(this.x, this.by ?? 1.2, this.z, this.dest.x, (this.by ?? 1.2) + 0.2, this.dest.z)) this.directDest = true;
       if (this.directDest) { tx = this.dest.x; tz = this.dest.z; target = Math.min(ai.speed, stopSpeed(dd - 6, 3.5)); if (dd < 8) { this.arrived = true; target = 0; } }
     }
     if (tx === undefined && this.police && this.chaseTarget && this.direct) {

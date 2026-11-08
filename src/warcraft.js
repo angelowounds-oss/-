@@ -15,16 +15,16 @@ import { clamp, damp, rand, TAU, angDiff } from './util.js';
 // weapon kits: [primary, secondary]
 const KITS = {
   tank: [
-    { id: 'cannon', name: '120mm 주포', max: 24, rate: 2.2, dmg: 150, radius: 7.5, speed: 210, shell: 'shell' },
+    { id: 'cannon', name: '120mm 주포', max: 24, rate: 2.2, dmg: 150, radius: 7.5, speed: 1100, shell: 'shell' },   // HE-MP leaves the gun at ~1,100 m/s (it was 210)
     { id: 'mg', name: '동축 기관총', max: 600, rate: 0.075, dmg: 11, range: 380, auto: true },
   ],
   gunship: [
     { id: 'gun', name: '30mm 기관포', max: 800, rate: 0.055, dmg: 10, range: 420, auto: true, cone: 0.75 },
-    { id: 'rocket', name: '로켓 포드', max: 24, rate: 0.35, dmg: 85, radius: 6.5, speed: 150, shell: 'rocket', cone: 0.75, auto: true },
+    { id: 'rocket', name: '로켓 포드', max: 24, rate: 0.35, dmg: 85, radius: 6.5, speed: 45, acc: 600, vmax: 700, shell: 'rocket', cone: 0.75, auto: true },   // a 70 mm rocket: out of the pod at ~45 m/s, its motor takes it to ~700 m/s in ~1.1 s
   ],
   jet: [
     { id: 'cannon', name: '20mm 기관포', max: 700, rate: 0.045, dmg: 13, range: 520, auto: true, cone: 0.1 },
-    { id: 'missile', name: '공대지 미사일', max: 8, rate: 0.9, dmg: 165, radius: 9.5, speed: 170, shell: 'missile', cone: 0.1, homing: true },
+    { id: 'missile', name: '공대지 미사일', max: 8, rate: 0.9, dmg: 165, radius: 9.5, speed: 30, acc: 350, vmax: 450, shell: 'missile', cone: 0.1, homing: true },   // Mach 1.3 class: drops off the rail at the jet's speed, the motor adds the rest
   ],
 };
 const NAMES = { tank: '전차', gunship: '공격헬기', jet: '전투기' };
@@ -91,7 +91,7 @@ export class War {
   }
   stock(s) {
     const G = this.G, v = new Vehicle(G, s.kind, s.kind === 'darkstar' ? 0x0b0d12 : s.kind === 'jet' ? 0x59606c : 0x4a5236, 'parked', { glow: [1, 0.3, 0.2] });
-    v.x = s.home.x; v.z = s.home.z; v.h = s.kind === 'gunship' ? 1.57 : s.kind === 'jet' || s.kind === 'darkstar' ? 0 : -1.57; v.startY = v.spec.cy + 0.25; v.awake = false; v.base = true;
+    v.x = s.home.x; v.z = s.home.z; v.h = s.kind === 'gunship' ? 1.57 : s.kind === 'jet' || s.kind === 'darkstar' ? 0 : -1.57; v.startY = undefined; v.awake = false; v.base = true;   // on the ground of the pad (Vehicle.craftStartY; not over 0)
     G.addVehicle(v); s.v = v; s.t = 0; this.kit(v);
   }
   guards(first) {
@@ -146,7 +146,7 @@ export class War {
   aimPoint(out) {
     const G = this.G, c = G.camera; c.getWorldDirection(tmpA);
     const o = c.position, d = tmpA; let t = G.world.colliders.raycast(o.x, o.y, o.z, d.x, d.y, d.z, 700); if (t < 0) t = 700;
-    if (d.y < -1e-4) { const tg = -(o.y - 0) / d.y; if (tg > 0 && tg < t) t = tg; }
+    const tg = G.groundHit(o.x, o.y, o.z, d.x, d.y, d.z, t, 12); if (tg >= 0) t = tg;   // the terrain past the physics ground (it was a plane at 0, under the hills)
     return out.set(o.x + d.x * t, o.y + d.y * t, o.z + d.z * t);
   }
   muzzle(v, pos, dir) {
@@ -217,10 +217,10 @@ export class War {
     G.noise?.(v.x, v.z, w.shell ? 140 : 90); G.addHeatIfWitnessed?.(w.shell ? 1.5 : 0.25);
     if (w.shell) {
       const sp = w.speed, vel = dir.clone().multiplyScalar(sp);
-      if (w.id === 'rocket') { vel.x += rand(-1.5, 1.5); vel.y += rand(-1.5, 1.5); vel.z += rand(-1.5, 1.5); }
-      vel.x += v.vx * 0.5; vel.z += v.vz * 0.5;
+      if (w.id === 'rocket') { const e = 0.006 * sp; vel.x += rand(-e, e); vel.y += rand(-e, e); vel.z += rand(-e, e); }   // a rocket pod's spread: ~6 mil
+      vel.x += v.vx || 0; vel.z += v.vz || 0;   // a round keeps the launcher's own velocity (it kept half)
       const m = new THREE.Mesh(shellGeo, this.shellMat); m.scale.set(1, w.shell === 'shell' ? 0.9 : 1.2, 1); m.position.copy(pos); m.quaternion.setFromUnitVectors(tmpA.set(0, 1, 0), vel.clone().normalize()); G.scene.add(m);
-      const p = { m, p: pos.clone(), v: vel, w, src: v, life: w.shell === 'shell' ? 4 : 7, target: w.homing ? this.lock : null, trail: 0 };
+      const p = { m, p: pos.clone(), v: vel, w, src: v, life: w.shell === 'shell' ? 4 : 7, target: w.homing ? this.lock : null, trail: 0, vmax: w.vmax ? Math.max(w.vmax, vel.length() + 150) : 0 };
       this.proj.push(p);
       G.fx.muzzle(pos, dir, false); G.audio.explosion?.(w.shell === 'shell' ? 0.6 : 0.3, 0); if (w.shell === 'shell') { G.shake(0.7); if (v.spec.war === 'tank') v.addImpulse(-dir.x * 0.5, 0, -dir.z * 0.5); }
       if (w.shell === 'rocket' || w.shell === 'missile') G.audio.tone?.(w.shell === 'missile' ? 520 : 420, 0.35, 'sawtooth', 0.12, 80);
@@ -244,7 +244,7 @@ export class War {
       tmpA.set(x - pos.x, y - pos.y, z - pos.z); const d = tmpA.length(); if (d < 30 || d > 650) return;
       const a = tmpA.normalize().angleTo(dir); if (a < bd) { bd = a; best = o; }
     };
-    for (const e of [...G.military.heli, ...G.military.tank]) if (!e.dead) consider(e, e.x, e.kind === 'heli' ? e.y : 1.7, e.z);
+    for (const e of [...G.military.heli, ...G.military.tank]) if (!e.dead) consider(e, e.x, e.kind === 'heli' ? e.y : e.y + 1.7, e.z);
     for (const o of G.vehicles) if (o !== v && !o.dead && o.group.visible && (o.police || o.kind === 'traffic' || o.kind === 'parked')) consider(o, o.x, (o.by || 1) + 0.6, o.z);
     if (best !== (this.lock && this.lock.o)) { this.lock = best ? { o: best, t: 0 } : null; } else if (this.lock) this.lock.t += dt;
   }
@@ -255,29 +255,32 @@ export class War {
   }
 
   // ------------------------------------------------------------------ projectiles
+  // a round's path over one frame is up to 18 m (a tank shell at 1,100 m/s): the world, the terrain, units, cars and people are tested along the path,
+  // not only where it ends (a point test let fast rounds pass through what they crossed between two frames)
   stepProj(dt) {
     const G = this.G;
     for (const s of this.proj) {
       const prev = tmpA.copy(s.p);
-      // missiles steer toward their target
+      // missiles steer toward their target, at most ~30 g of turn: the rate a missile can turn falls with its speed
       if (s.w.homing && s.target && !(s.target.o.dead)) {
-        const o = s.target.o, ty = o.kind === 'heli' ? o.y : o.kind === 'tank' ? 1.7 : (o.by || 1) + 0.6;
+        const o = s.target.o, ty = o.kind === 'heli' ? o.y : o.kind === 'tank' ? o.y + 1.7 : (o.by ?? 1) + 0.6;
         tmpB.set(o.x - s.p.x, ty - s.p.y, o.z - s.p.z).normalize(); const sp = s.v.length(); const cur = tmpC.copy(s.v).normalize();
-        const a = cur.angleTo(tmpB), k = Math.min(1, 1.9 * dt / Math.max(a, 0.001)); cur.lerp(tmpB, k).normalize(); s.v.copy(cur).multiplyScalar(sp);
+        const a = cur.angleTo(tmpB), k = Math.min(1, Math.min(1.9, 300 / Math.max(sp, 1)) * dt / Math.max(a, 0.001)); cur.lerp(tmpB, k).normalize(); s.v.copy(cur).multiplyScalar(sp);
       }
-      if (s.w.shell === 'shell') s.v.y -= 22 * 0.35 * dt;
+      if (s.vmax) { const sp = s.v.length(); if (sp < s.vmax) s.v.addScaledVector(tmpC.copy(s.v).normalize(), Math.min(s.w.acc * dt, s.vmax - sp)); }   // the motor
+      s.v.y -= 9.81 * dt;   // every round falls at g (shells fell at 7.7 m/s^2, rockets and missiles not at all)
       s.p.addScaledVector(s.v, dt); s.life -= dt; s.m.position.copy(s.p); s.m.quaternion.setFromUnitVectors(tmpB.set(0, 1, 0), tmpC.copy(s.v).normalize());
       s.trail -= dt; if (s.trail <= 0) { s.trail = 0.03; G.smokeP.emit(s.p.x, s.p.y, s.p.z, rand(-0.2, 0.2), rand(-0.2, 0.2), rand(-0.2, 0.2), rand(1.4, 2.2), rand(0.5, 0.9), 0.75, 0.75, 0.75, 0.5, 0.1, 0.3); }
-      let boom = s.life <= 0 || s.p.y <= physHeight(s.p.x, s.p.z, 8) + 0.12 || !G.hasLOS(prev.x, prev.y, prev.z, s.p.x, s.p.y, s.p.z);
-      if (!boom) {
-        const dir = tmpB.copy(s.v).normalize(), len = s.v.length() * dt + 1.2, mh = G.military?.rayHit(prev.x, prev.y, prev.z, dir.x, dir.y, dir.z, len);
-        if (mh) { G.military.damage(mh.e, s.w.dmg * 0.8, s.src, false); boom = true; }
+      const len = prev.distanceTo(s.p) || 1e-6, dx = (s.p.x - prev.x) / len, dy = (s.p.y - prev.y) / len, dz = (s.p.z - prev.z) / len;
+      let hit = G.world.colliders.raycastT(prev.x, prev.y, prev.z, dx, dy, dz, len), at = hit >= 0 ? hit : len;
+      { const tg = G.groundHit(prev.x, prev.y, prev.z, dx, dy, dz, at); if (tg >= 0) { hit = tg; at = tg; } }
+      { const mh = G.military?.rayHit(prev.x, prev.y, prev.z, dx, dy, dz, at + 1.2); if (mh) { G.military.damage(mh.e, s.w.dmg * 0.8, s.src, false); hit = Math.min(mh.t, at); at = hit; } }   // a proximity fuse of ~1.2 m
+      for (const o of G.vehicles) { if (o === s.src || o.dead || !o.group.visible || Math.abs(o.x - prev.x) > len + 8 || Math.abs(o.z - prev.z) > len + 8) continue; const t = G.rayVehicle(o, prev.x, prev.y, prev.z, dx, dy, dz, at); if (t >= 0) { hit = t; at = t; } }
+      for (const h of G.humans) { if (h.dead || h.hidden || !h.group.visible || Math.abs(h.x - prev.x) > len + 2 || Math.abs(h.z - prev.z) > len + 2) continue; const t = G.rayHuman(h, prev.x, prev.y, prev.z, dx, dy, dz, at); if (t >= 0) { hit = t; at = t; } }
+      if (hit >= 0 || s.life <= 0) {
+        const px = hit >= 0 ? prev.x + dx * hit : s.p.x, py = hit >= 0 ? prev.y + dy * hit : s.p.y, pz = hit >= 0 ? prev.z + dz * hit : s.p.z;
+        G.scene.remove(s.m); s.dead = true; G.explosion(px, py, pz, s.w.radius, s.w.dmg, s.src); G.markHit?.(false);
       }
-      if (!boom) {
-        for (const o of G.vehicles) { if (o === s.src || o.dead || !o.group.visible) continue; if (Math.abs(o.x - s.p.x) < o.W / 2 + 1 && Math.abs(o.z - s.p.z) < o.L / 2 + 1 && Math.abs(s.p.y - ((o.by || 0))) < 3) { boom = true; break; } }
-        if (!boom) for (const h of G.humans) { if (h.dead || h.hidden || !h.group.visible) continue; if (Math.abs(h.x - s.p.x) < 0.9 && Math.abs(h.z - s.p.z) < 0.9 && s.p.y - h.y > 0 && s.p.y - h.y < 2) { boom = true; break; } }
-      }
-      if (boom) { G.scene.remove(s.m); s.dead = true; G.explosion(s.p.x, Math.max(0.4, s.p.y), s.p.z, s.w.radius, s.w.dmg, s.src); G.markHit?.(false); }
     }
     if (this.proj.some((s) => s.dead)) this.proj = this.proj.filter((s) => !s.dead);
   }

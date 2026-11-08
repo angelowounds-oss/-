@@ -33,9 +33,9 @@ export class Power {
   damage(s, d) {
     if (s.hp <= 0 || (this.isOff(s.zone) && this.st.off[s.zone].cause === 'wreck')) return;
     s.hp -= d; this.st.hp[s.zone] = s.hp;
-    this.G.fx.sparks(s.x, 1.4, s.z, 4, [1, 0.8, 0.3], 6);
+    this.G.fx.sparks(s.x, this.G.groundY(s.x, s.z) + 1.4, s.z, 4, [1, 0.8, 0.3], 6);   // sparks off the box, on its ground
     // wrecked: cut the power first, then the blast (which would otherwise hit this same yard again)
-    if (s.hp <= 0) { this.cut(s, 'wreck'); this.G.explosion(s.x, 1.2, s.z, 6, 30, this.G.player); }
+    if (s.hp <= 0) { this.cut(s, 'wreck'); this.G.explosion(s.x, this.G.groundY(s.x, s.z) + 1.2, s.z, 6, 30, this.G.player); }   // the box blows where it stands (the 1:1 ground is not at 0)
   }
   blast(x, z, r) { for (const s of this.subs) if (Math.hypot(s.x - x, s.z - z) < r + 3) this.damage(s, SUB_HP); }
   cut(s, cause) {

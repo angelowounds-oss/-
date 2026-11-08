@@ -52,14 +52,15 @@ export class CityLife {
   }
   // put a walker on a pavement 35..NEAR m from the player, walking along a street
   place(C, h, f) {
-    const L = this.linesOf(C), c = C.c;
+    const G = this.G, L = this.linesOf(C), c = C.c;
     for (let tr = 0; tr < 12; tr++) {
       const vert = Math.random() < 0.5, set = (vert ? L.v : L.h).filter((q) => Math.abs(q.c - (vert ? f.x - c.x : f.z - c.z)) < NEAR); if (!set.length) continue;
       const ln = set[Math.floor(Math.random() * set.length)], side = Math.random() < 0.5 ? 1 : -1, pc = vert ? f.z - c.z : f.x - c.x, t = Math.max(ln.a + 10, Math.min(ln.b - 10, pc + rand(-NEAR, NEAR))), off = side * (ln.w / 2 + 2.2);
       const x = c.x + (vert ? ln.c + off : t), z = c.z + (vert ? t : ln.c + off), d = Math.hypot(x - f.x, z - f.z);
       if (d < 35 || d > NEAR) continue;
-      h.x = x; h.z = z; h.y = 0; h.floorY = 0; h.vx = h.vz = 0; h.knock = 0; h.state = 'walk'; h.walk = { vert, ln, side, dir: Math.random() < 0.5 ? 1 : -1, cool: 0 };
-      h.group.position.set(x, 0, z); h.group.visible = true; return true;
+      const gy = G.groundY(x, z); h.ground = true;   // on the city's pavement, wherever its ground is (the city pads are at 0 today), and following it
+      h.x = x; h.z = z; h.y = gy; h.floorY = gy; h.vx = h.vz = 0; h.knock = 0; h.state = 'walk'; h.walk = { vert, ln, side, dir: Math.random() < 0.5 ? 1 : -1, cool: 0 };
+      h.group.position.set(x, gy, z); h.group.visible = true; return true;
     }
     return false;
   }
@@ -111,7 +112,7 @@ export class CityLife {
     v.kind = 'traffic'; v.driver = 'ai'; v.cl = cur; v.ai.speed = rand(9, 15) * (type === 'truck' ? 0.8 : 1);
     v.x = P.x; v.z = P.z; v.h = P.h; v.vx = Math.sin(P.h) * 8; v.vz = Math.cos(P.h) * 8; v.startY = undefined;
     v.planAhead = () => this.plan(C, v);
-    G.addVehicle(v); v.pv.body.setTranslation({ x: P.x, y: 0.9, z: P.z }, true); v.pv.body.setLinvel({ x: v.vx, y: 0, z: v.vz }, true);
+    G.addVehicle(v); v.pv.body.setTranslation({ x: P.x, y: G.groundY(P.x, P.z) + 0.9, z: P.z }, true); v.pv.body.setLinvel({ x: v.vx, y: 0, z: v.vz }, true);   // on the city's street, wherever its ground is (the city pads are at 0 today)
     this.cars.push(v); return v;
   }
   // the next waypoints: STEP m along the line; where a crossing line lies in that step, straight on or a turn into it; U-turn at a line's end

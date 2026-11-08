@@ -516,11 +516,17 @@ export class Human {
       wantX = this.cmdX || 0; wantZ = this.cmdZ || 0; spd = this.cmdSpeed || 0; face = this.faceAngle;
     }
     // movement integration
-    const tvx = wantX * spd, tvz = wantZ * spd;
+    // on a slope one walks slower (Tobler's hiking function against the flat pace, never faster than flat): the grade is the one just walked
+    const slow = this.ground && this.grade ? Math.min(1, Math.max(0.3, Math.exp(-3.5 * (Math.abs(this.grade + 0.05) - 0.05)))) : 1;
+    const tvx = wantX * spd * slow, tvz = wantZ * spd * slow;
     this.vx = damp(this.vx, tvx, 9, dt); this.vz = damp(this.vz, tvz, 9, dt);
+    const ox = this.x, oz = this.z;   // where this step started (the grade is measured over it)
     let nx = this.x + this.vx * dt, nz = this.z + this.vz * dt;
     const r = G.world.colliders.resolve(nx, nz, this.radius, this.y);
     this.x = r.x; this.z = r.z; this.blocked = !!r.hit;
+    // one put on the open ground (a city pavement, a road side, out of a patrol car) walks on it as it rises and falls; it kept the height it was
+    // placed at, so a cop chasing up a slope walked into the hill. A drop of more than 4 m (a wall, a bridge edge) is not followed
+    if (this.ground && this.speed > 0.05) { const gy = G.groundY(this.x, this.z, this.y + 0.8), run = Math.hypot(this.x - ox, this.z - oz); if (Math.abs(gy - this.y) < 4) { if (run > 1e-3) this.grade = damp(this.grade || 0, Math.max(-1, Math.min(1, (gy - this.y) / run)), 4, dt); this.y = this.floorY = gy; } }   // the grade walked feeds the pace above
     // slide blocked sidewalk walkers: if blocked, pick another node
     if (r.hit && this.team === 'civ' && this.state !== 'flee') { if (Math.random() < 0.05) this.chooseNext(); }
     this.speed = Math.hypot(this.vx, this.vz);
