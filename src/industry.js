@@ -4,7 +4,7 @@ import { settlements } from './settlements.js';
 import { net } from './roadnet.js';
 import { landHeight } from './landfn.js';
 import { nightU, timeUniform } from './shaders.js';
-import { rand } from './util.js';
+import { rand, VIEW } from './util.js';
 
 // The country's works (ADR-0013): wind farms (rotors turn), solar fields, mines, refineries with a flare, comms towers with beacons and the pylon lines
 // with their wires. Towers, pylons and turbines are instances of one mesh each so that they can be knocked over one at a time: a blast that hurts one
@@ -128,7 +128,7 @@ export class Industry {
     this.time += dt; this.t -= dt; const bl = Math.sin(this.time * 4.4) > 0.55;
     this.beacons.visible = bl || nightU.value > 0.5; this.beacons.material.opacity = 1;
     for (const it of this.rotors) if (Math.hypot(it.x - cam.position.x, it.z - cam.position.z) < 5000) this.rotor(it);
-    for (const st of this.sites) { const d = Math.hypot(st.s.x - cam.position.x, st.s.z - cam.position.z); st.group.visible = d < SITE_VIS; if (st.s.flameMesh && st.group.visible) { const f = st.s.flameMesh; f.scale.set(0.8 + 0.4 * Math.sin(this.time * 17) * Math.sin(this.time * 5.3), 0.7 + 0.5 * Math.abs(Math.sin(this.time * 9.1 + 1)), 1); f.lookAt(cam.position.x - st.group.position.x, f.position.y, cam.position.z - st.group.position.z); f.rotation.x = 0; } for (const tk of st.tanks) if (tk.burning > 0) { tk.burning -= dt; if (Math.random() < dt * 8) this.G.smokeP.emit(tk.x + rand(-5, 5), st.y + 14, tk.z + rand(-5, 5), rand(-1, 1), rand(4, 9), rand(-1, 1), rand(4, 7), rand(5, 9), 0.05, 0.05, 0.06, 0.8, 0.2, 0.4); } }
+    for (const st of this.sites) { const d = Math.hypot(st.s.x - cam.position.x, st.s.z - cam.position.z); st.group.visible = d < SITE_VIS * VIEW.b; if (st.s.flameMesh && st.group.visible) { const f = st.s.flameMesh; f.scale.set(0.8 + 0.4 * Math.sin(this.time * 17) * Math.sin(this.time * 5.3), 0.7 + 0.5 * Math.abs(Math.sin(this.time * 9.1 + 1)), 1); f.lookAt(cam.position.x - st.group.position.x, f.position.y, cam.position.z - st.group.position.z); f.rotation.x = 0; } for (const tk of st.tanks) if (tk.burning > 0) { tk.burning -= dt; if (Math.random() < dt * 8) this.G.smokeP.emit(tk.x + rand(-5, 5), st.y + 14, tk.z + rand(-5, 5), rand(-1, 1), rand(4, 9), rand(-1, 1), rand(4, 7), rand(5, 9), 0.05, 0.05, 0.06, 0.8, 0.2, 0.4); } }
     // falls
     let moved = false;
     for (const it of this.items) { const f = it.fall; if (!f || f.done) continue; f.t += dt; const T = it.type === 'pylon' ? 1.8 : 2.8, k = Math.min(1, f.t / T); f.ang = 1.45 * (k * k * (1.4 - 0.4 * k)); if (k >= 1) { f.done = true; f.ang = 1.45; this.dust(it); if (it.line) this.wire(it.line); } this.place(it); moved = true; }

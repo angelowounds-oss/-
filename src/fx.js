@@ -3,6 +3,8 @@ import { timeUniform } from './shaders.js';
 import { rand, TAU, LIGHT_CAP } from './util.js';
 
 // ---------- Rain ----------
+// the share of the effect particles that are made (settings.js: the effects density); 1 = all
+export const FXQ = { k: 1 };
 export function createRain(scene, count) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(count * 6);
@@ -70,6 +72,7 @@ export class Particles {
     this.additive = additive;
   }
   emit(x, y, z, vx, vy, vz, life, size, r, g, b, a = 1, grav = 0, drag = 0.5) {
+    if (FXQ.k < 1 && Math.random() > FXQ.k) return;
     const i = this.head; this.head = (this.head + 1) % this.max;
     this.p[i * 3] = x; this.p[i * 3 + 1] = y; this.p[i * 3 + 2] = z;
     this.v[i * 3] = vx; this.v[i * 3 + 1] = vy; this.v[i * 3 + 2] = vz;

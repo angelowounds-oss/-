@@ -37,7 +37,7 @@ export class DayNight {
     skyU.uSun.value.copy(this.sun); skyU.uMoon.value.copy(this.moon);
     const useSun = D > 0.35;
     const dir = useSun ? this.sun : this.moon;
-    const fx = focus.x, fz = focus.z, snap = (170 / (e.q?.shadow || 2048)) * 24, sx = Math.round(fx / snap) * snap, sz = Math.round(fz / snap) * snap;
+    const fx = focus.x, fz = focus.z, snap = (2 * (e.ov?.shadowDist ?? 85) / ((e.shadowSize ? e.shadowSize() : e.q?.shadow) || 2048)) * 24, sx = Math.round(fx / snap) * snap, sz = Math.round(fz / snap) * snap;
     const moon = e.moon;
     moon.target.position.set(sx, 0, sz);
     moon.position.set(sx + dir.x * 120, Math.max(30, dir.y * 130), sz + dir.z * 120);
@@ -52,9 +52,9 @@ export class DayNight {
     if (L) { fogC.r *= L.tint[0]; fogC.g *= L.tint[1]; fogC.b *= L.tint[2]; }   // the light of the place
     e.scene.fog.color.copy(fogC); e.scene.fog.density = lerp(0.0105, 0.0072, D) * (0.75 + 0.3 * clamp(wet, 0, 1.4));
     e.scene.background.copy(NIGHT.bg).lerp(DAY.bg, D); e.renderer.setClearColor(e.scene.background, 1);
-    e.renderer.toneMappingExposure = lerp(1.05, 0.88, D);
+    e.renderer.toneMappingExposure = lerp(1.05, 0.88, D) * (e.ov?.exposure ?? 1);   // the player's brightness
     e.scene.environmentIntensity = lerp(0.45, 0.85, D);
-    e.bloom.strength = e.q.bloom * lerp(1, 0.5, D);
+    e.bloom.strength = e.q.bloom * (e.ov?.bloom ?? 1) * lerp(1, 0.5, D);   // the tier's bloom, the player's share of it, and less of it by day
     for (const m of G.world.dayMats || []) m.color.setScalar(0.25 + 0.75 * night);
     for (const e of G.world.nightEmit || []) e.m.emissiveIntensity = e.k * night;
     G.world.sky.position.copy(G.camera.position);

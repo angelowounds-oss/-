@@ -1,3 +1,4 @@
+import { VIEW } from './util.js';
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { landHeight } from './landfn.js';
@@ -150,7 +151,7 @@ export class Forest {
   }
 
   refresh(cam) {
-    const cx = cam.position.x, cz = cam.position.z, fog = this.scene.fog, R = Math.min(this.maxR, Math.max(120, SAFE_FOG / Math.max(fog ? fog.density : 0.01, 1e-4) + 30)), Rn = Math.min(R, this.nearR);
+    const cx = cam.position.x, cz = cam.position.z, fog = this.scene.fog, R = Math.min(this.maxR * VIEW.b, Math.max(120, SAFE_FOG / Math.max(fog ? fog.density : 0.01, 1e-4) + 30)), Rn = Math.min(R, this.nearR);
     // too high to see single trees (beyond 1 km the ground colour carries the forest): nothing is drawn
     const alt = cam.position.y - landHeight(cx, cz, 64), idle = alt > 600;
     const c0x = Math.floor((cx - R - OX) / CELL), c1x = Math.floor((cx + R - OX) / CELL), c0z = Math.floor((cz - R - OZ) / CELL), c1z = Math.floor((cz + R - OZ) / CELL), list = [];

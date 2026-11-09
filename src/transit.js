@@ -198,9 +198,22 @@ export class Transit {
         const i = T.base + c; if (!near) { this.carMesh.setMatrixAt(i, this._z); continue; }
         const sc = s - dir * c * 25.6; if (sc < 0 || sc > L.len) { this.carMesh.setMatrixAt(i, this._z); continue; }
         const p = along(L.pts, L.S, sc); if (dir < 0) { p.h += Math.PI; p.p = -p.p; } this.setCar(i, p);
+        if (near && Math.hypot(head.x - cam.x, head.z - cam.z) < 600) this.trainHit(p, V);
       }
     }
     this.carMesh.instanceMatrix.needsUpdate = true;
+  }
+  // a train car (25.6 m, 3 m wide, V = 70 m/s, hundreds of tonnes) hits whatever stands in its way: a person is killed, a car is thrown off the line and
+  // wrecked, a person on foot hurled. The trains ran through everything (they were pictures); only what is on the rails at the car's height is hit
+  trainHit(p, V) {
+    const G = this.G, s = Math.sin(p.h), c = Math.cos(p.h), hit = (x, z, y, hl, hw) => { const dx = x - p.x, dz = z - p.z, lf = dx * s + dz * c, ll = dx * c - dz * s; return Math.abs(lf) < 12.8 + hl && Math.abs(ll) < 1.5 + hw && Math.abs(y - p.y) < 3.5; };
+    const pl = G.player; if (!pl.dead && G.playerOnFoot && hit(pl.x, pl.z, pl.y, 0.4, 0.4) && G.time - (this.lastHitT || -9) > 1) { this.lastHitT = G.time; G.hurtPlayer(300, null, 'train'); pl.vx = s * V * 0.5; pl.vz = c * V * 0.5; pl.vy = 5; }
+    for (const h of G.humans) if (!h.dead && hit(h.x, h.z, h.y || 0, 0.4, 0.4)) { h.hurt(300, null, false, null); h.ragdoll(s * V * 0.4, c * V * 0.4, 6); }
+    for (const v of G.vehicles) {
+      if (v.dead || !v.pv || !hit(v.x, v.z, v.baseY(), v.L / 2, v.W / 2) || G.time - (v.trainT || -9) < 1) continue;
+      v.trainT = G.time; v.damage(v.maxHp * 3, null); v.pv.body.wakeUp(); v.addImpulse(s * 22, 4, c * 22);
+      if (v.driver === 'player') { G.shake?.(1.2); G.hurtPlayer(300, null, 'train'); }
+    }
   }
 
   // ---- UI

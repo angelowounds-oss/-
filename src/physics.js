@@ -222,15 +222,20 @@ export class Physics {
   }
 }
 
+// what is left of the tyres' grip on a wet road (wet: 0 dry, 1 rain, 1.4 storm; v: speed m/s): wet asphalt gives about 0.65-0.7 of the dry friction (braking
+// distances grow by half in rain), and above ~80 km/h a film of water lifts the tread (aquaplaning) and takes up to a fifth more
+export function wetGrip(wet, v) { const w = Math.max(0, Math.min(1.4, wet || 0)), rain = Math.min(1, w); return Math.max(0.4, 1 - 0.28 * rain - 0.12 * Math.max(0, w - 1) / 0.4 - rain * 0.2 * Math.max(0, Math.min(1, (v - 22) / 40))); }
+
 // Apply driver inputs to a vehicle physics handle, with the forces of a real car (spec: power kW, accel = the launch limit m/s^2, maxSpeed = the
 // governor m/s, grip = the tyres' friction coefficient, cda = drag area m^2, crr = rolling resistance). Rapier's engine force is a force (N) and its
 // brake the largest rolling-friction impulse a wheel takes in one step (N s), so the brakes are written as impulses
-export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSteer, dead, parked }) {
-  const { ctrl, mass, spec, body } = v, dt = PHYS.dt, g = -PHYS.gravity;
-  const aF = Math.abs(speedFwd), P = (spec.power ?? 120) * 1000 * PHYS.eta;
+export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSteer, dead, parked, wet = 0, health = 1 }) {
+  const { ctrl, mass, spec, body } = v, dt = PHYS.dt, g = -PHYS.gravity, wg = wet > 0 ? wetGrip(wet, Math.abs(speedFwd)) : 1;   // wg: the wet road's share of the tyres' grip
+  const hk = health < 0.5 ? 0.5 + health : 1;   // a wreck limps: under half its strength the engine gives up to half its power and speed (a hit engine, a bent frame)
+  const aF = Math.abs(speedFwd), P = (spec.power ?? 120) * 1000 * PHYS.eta * hk;
   // the engine: the launch limit up to the speed where the power takes over, then power over speed; nothing past the governor
-  const pull = (lim) => Math.min(mass * spec.accel, P / Math.max(aF, 1)) * (aF < lim ? 1 : 0) / 4;
-  const brakeImp = mass * g * spec.grip * PHYS.absK * dt / 4;   // per wheel: the tyre's grip, which the brakes reach with ABS
+  const pull = (lim) => Math.min(mass * Math.min(spec.accel * hk, spec.grip * wg * g), P / Math.max(aF, 1)) * (aF < lim * hk ? 1 : 0) / 4;   // the tyres carry no more than their grip: a wet road limits the launch
+  const brakeImp = mass * g * spec.grip * wg * PHYS.absK * dt / 4;   // per wheel: the tyre's grip, which the brakes reach with ABS
   let engine = 0, brk = 0;
   if (!dead) {
     if (throttle > 0) {
@@ -255,7 +260,7 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
     ctrl.setWheelBrake(i, i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk);
     ctrl.setWheelSteering(i, i < 2 ? -steerAng : 0);
     // handbrake lets the rear break traction -> drift
-    ctrl.setWheelFrictionSlip(i, spec.grip * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
+    ctrl.setWheelFrictionSlip(i, spec.grip * wg * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
   }
 }
 

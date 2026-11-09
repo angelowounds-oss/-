@@ -15,6 +15,15 @@ export const CAR_COLORS = [0x1a2433, 0x7a1020, 0xc9ced8, 0x0d3b66, 0x2b2f38, 0xe
 const GLOWS = [[0.2, 0.9, 1], [1, 0.2, 0.8], [0.6, 0.3, 1], [0.2, 1, 0.5], [1, 0.5, 0.15], [1, 0.15, 0.2]];
 const tmpV = new THREE.Vector3();
 let uid = 0;
+// a vertex normal of length 0 (the vertices of triangles with no area, which the model has: they are never seen) becomes NaN in the shader's normalize the moment a dent
+// moves the vertex and the triangle shows; it points up instead. Read and written as the attribute holds them (the wheels' are 16-bit integers)
+function fixZeroNormals(geo) {
+  const nor = geo.attributes.normal; if (!nor) return 0; let n = 0;
+  for (let i = 0; i < nor.count; i++) { const x = nor.getX(i), y = nor.getY(i), z = nor.getZ(i); if (!(x * x + y * y + z * z > 1e-6)) { nor.setXYZ(i, 0, 1, 0); n++; } }
+  if (n) nor.needsUpdate = true; return n;
+}
+// how far (km) a full tank takes a road vehicle, or how long (hours) it keeps an aircraft or boat going
+const FUEL = { sedan: { km: 650 }, sport: { km: 480 }, suv: { km: 600 }, truck: { km: 800 }, roadster: { km: 400 }, moto: { km: 350 }, bus: { km: 700 }, boat: { hours: 4 }, heli: { hours: 2.5 }, gunship: { hours: 2.2 }, tank: { hours: 8 }, jet: { hours: 1.3 }, darkstar: { hours: 1.3 } };
 
 export class Vehicle {
   constructor(G, type, color, kind = 'parked', opts = {}) {
@@ -65,18 +74,30 @@ export class Vehicle {
     const lp = g.worldToLocal(new THREE.Vector3(wx, 0.7, wz)), v = new THREE.Vector3(), r = 1.5;
     g.traverse((m) => {
       if (!m.isMesh || m === this.doorMesh || m.userData.noDent) return;
-      if (!m.userData.dentGeo) { m.geometry = m.geometry.clone(); m.userData.dentGeo = true; }
+      // the original positions as the attribute reads them (the wheels' positions are stored as 16-bit integers: the raw array is another scale)
+      if (!m.userData.dentGeo) { m.geometry = m.geometry.clone(); m.userData.dentGeo = true; const a0 = m.geometry.attributes; if (a0.position) { const pa = a0.position, f = new Float32Array(pa.count * 3); for (let i = 0; i < pa.count; i++) { f[i * 3] = pa.getX(i); f[i * 3 + 1] = pa.getY(i); f[i * 3 + 2] = pa.getZ(i); } m.userData.dentPos = f; } fixZeroNormals(m.geometry); }
       const pos = m.geometry.attributes.position; if (!pos) return;
       m.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(g.matrixWorld).invert().multiply(m.matrixWorld);
       const back = new THREE.Matrix4().copy(inv).invert(); let ch = false;
       for (let i = 0; i < pos.count; i++) {
         v.fromBufferAttribute(pos, i).applyMatrix4(inv);
         const dx = v.x - lp.x, dz = v.z - lp.z, d = Math.hypot(dx, dz); if (d > r || v.y < 0.25) continue;
-        const f = (1 - d / r) * amt * (0.6 + 0.4 * Math.sin(i * 12.9898));
+        const f = (1 - d / r) * amt;   // by where the vertex is, never by its number: vertices that share a place (the body is not indexed) moved by different amounts and tore it into shards
         const l = Math.hypot(v.x, v.z) || 1; v.x -= v.x / l * f; v.z -= v.z / l * f; v.y -= f * 0.15;
-        v.applyMatrix4(back); pos.setXYZ(i, v.x, v.y, v.z); ch = true;
+        v.applyMatrix4(back);
+        // the crumple has a depth: a vertex is never more than 0.5 m from where it was drawn (an 878 km/h crash dented it 25 times and the vertices went through the
+        // axis and onto each other: triangles of no area, vertex normals of length 0, and a NaN pixel for each in the lighting)
+        const o0 = m.userData.dentPos, ox = o0[i * 3], oy = o0[i * 3 + 1], oz = o0[i * 3 + 2], ex = v.x - ox, ey = v.y - oy, ez = v.z - oz, el = Math.hypot(ex, ey, ez);
+        if (el > 0.5) { const k = 0.5 / el; v.x = ox + ex * k; v.y = oy + ey * k; v.z = oz + ez * k; }
+        if (pos.normalized) { v.x = Math.max(-1, Math.min(1, v.x)); v.y = Math.max(-1, Math.min(1, v.y)); v.z = Math.max(-1, Math.min(1, v.z)); }   // a 16-bit position past its range wraps to the other side of the part
+        pos.setXYZ(i, v.x, v.y, v.z); ch = true;
       }
-      if (ch) { pos.needsUpdate = true; m.geometry.computeVertexNormals(); }
+      if (ch) {
+        pos.needsUpdate = true;
+        // a body whose vertices are not shared keeps the normals it was drawn with: recomputed, every triangle got its own and the car turned into facets
+        if (m.geometry.index) m.geometry.computeVertexNormals();
+        fixZeroNormals(m.geometry);   // recomputed normals of vertices whose triangles have no area are of length 0 as well
+      }
     });
   }
   doorFx() { if (this.spec.craft || this.type === 'moto' || this.type === 'bus') return; this.doorT = 1.3; this.model.group.updateMatrixWorld(); if (!this.doorMesh) { const pv = new THREE.Group(); pv.position.set(this.W / 2, 0.8, 0.55); const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 1.1), new THREE.MeshStandardMaterial({ color: 0x2c3448, roughness: 0.3, metalness: 0.7 })); m.position.set(0.02, 0, -0.55); pv.add(m); this.group.add(pv); this.doorMesh = pv; } this.G.audio.door?.(); }
@@ -199,9 +220,9 @@ export class Vehicle {
     const hasDriver = this.driver && !this.dead;
     if (this.spec.boost) this.boostStep(hasDriver, 1 / 60);
     driveVehicle(this.pv, {
-      throttle: hasDriver ? this.throttle : 0, brake: hasDriver ? this.brake : (this.dead ? 0.4 : 0.15),
+      throttle: hasDriver && !this.flooded ? this.throttle : 0, brake: hasDriver ? this.brake : (this.dead ? 0.4 : 0.15),
       steer: this.maxSteerNow ? this.steerA / this.maxSteerNow : 0, maxSteer: this.maxSteerNow || 0.3,
-      hand: hasDriver && this.hand, speedFwd: this.fwdSpeed, dead: this.dead || !hasDriver, parked: !this.dead && this.kind === 'parked',
+      hand: hasDriver && this.hand, speedFwd: this.fwdSpeed, dead: this.dead || !hasDriver, parked: !this.dead && this.kind === 'parked', wet: this.G.daynight?.wet || 0, health: this.hp / this.maxHp,
     });
     if (this.type === 'moto') motoAssist(this.pv.body);
   }
@@ -234,6 +255,7 @@ export class Vehicle {
     const G = this.G;
     const pvx = this.vx, pvz = this.vz;
     this.readBody(dt);
+    this.waterStep(dt);
     const sH = Math.sin(this.h), cH = Math.cos(this.h);
     const vf = this.vx * sH + this.vz * cH, vl = this.vx * -cH + this.vz * sH;
     // impact = sudden planar velocity loss that engines/brakes cannot explain
@@ -242,8 +264,8 @@ export class Vehicle {
     if (this.noImpact > 0) this.noImpact--;
     else if (dt > 0 && dv > (jet ? 8 : 2.6 + this.spec.accel * dt * 0.6)) {
       const ix = this.x + sH * this.L * 0.5 * Math.sign(vf || 1), iz = this.z + cH * this.L * 0.5 * Math.sign(vf || 1);
-      this.onImpact(dv, ix, iz, null);
-    }
+      this.onImpact(dv, ix, iz, null); this.vyW = null;
+    } else if (dt > 0) this.fallImpact();
     this.slip = clamp((Math.abs(vl) - 2.2) / 6, 0, 1) * clamp(Math.abs(vf) / 8, 0, 1);
     // flipped & stuck -> right the car
     if (this.q) {
@@ -269,7 +291,13 @@ export class Vehicle {
       this.model.siren.rs.visible = ph; this.model.siren.bs.visible = !ph;
     }
     this.lastSpeed = this.speed;
-    if (this.driver === 'player' && !this.dead) this.fuel = Math.max(0, this.fuel - dt * (0.04 + Math.abs(this.throttle) * 0.09) * (this.spec.fuelRate || 1));
+    if (this.driver === 'player' && !this.dead) {
+      // the tank empties by the distance driven (a full one is the car's range: 650 km for a sedan, as a 50 L tank at 7.5 L/100 km), 0.55 at a steady
+      // cruise up to 1.45 at full throttle, and 0.0005 %/s at idle (0.8 L/h); an aircraft or boat by the hour (its endurance). It was 3.4 % a kilometre
+      // for a sedan at 90 km/h (a tank was gone in 30 km, 20 times what the car really drinks) in a country that is 400 km from end to end
+      const k = FUEL[this.type] || FUEL.sedan, th = Math.abs(this.throttle);
+      this.fuel = Math.max(0, this.fuel - (k.hours ? dt * 100 / (k.hours * 3600) * (0.6 + 0.8 * th) : Math.abs(vf) * dt / 1000 * (100 / k.km) * (0.55 + 0.9 * th) + dt * 0.0005));
+    }
     this.model.craftVisual?.(this, dt); this.animDoor(dt);
     // the boost flame leaves the tail at its height over the car's own ground (the 1:1 ground is not at 0)
     if (this.boosting) { const fx = Math.sin(this.h), fz = Math.cos(this.h), yb = this.baseY(); for (let k = 0; k < 3; k++) G.fireP.emit(this.x - fx * 2.4 + rand(-0.4, 0.4), yb + 0.55 + rand(0, 0.2), this.z - fz * 2.4 + rand(-0.4, 0.4), -fx * 10, 0.3, -fz * 10, rand(0.2, 0.45), rand(0.9, 1.7), 1.2, 2.2, 3.5, 1, -1, 1.2); }
@@ -277,6 +305,46 @@ export class Vehicle {
     this.syncMesh();
   }
 
+  // a fall is a sudden loss of downward speed (a car off a bridge, a tank off a cliff, a helicopter dropped): the planar speed change in post() never
+  // saw it, so a car that landed from 20 m was whole. The loss counts 1.3 times (nothing in a body crumples vertically as it does head on), and the
+  // springs' first 2 m/s are taken out and onImpact's own threshold takes 4 more: a 2 m hop costs 5 %, a 10 m fall a third of a car, 20 m over half, 40 m wrecks it
+  fallImpact() {
+    if (this.spec.craft === 'jet' || this.spec.craft === 'boat' || this.dead) return;
+    const w = this.vyW || (this.vyW = []), t = this.age, vy = this.vy || 0;
+    w.push(t, vy); while (w.length > 2 && t - w[0] > 0.3) w.splice(0, 2);
+    if (this.noImpact > 0) { w.length = 0; return; }
+    let pk = 0; for (let i = 1; i < w.length; i += 2) pk = Math.min(pk, w[i]);
+    if (pk < -4.5 && vy - pk > 4) { w.length = 0; this.onImpact(Math.max(0, -pk - 2) * 1.3 * (this.inWater ? 0.4 : 1), this.x, this.z, null); }   // 2 m/s of it is the springs'; water takes most of a landing
+  }
+  // a road vehicle in water (checked every 0.1 s): the wading drag of the water it pushes aside, then at 0.55 m (the air intake) the engine floods and
+  // stays dead; a car with a closed cabin floats on its hull for a while and sinks as it fills (25-45 s), a bike does not float; a driver whose head
+  // is under for 5 s drowns. Under a roof (a tunnel under a river) or on a deck above the water this does not apply
+  waterStep(dt) {
+    if (this.spec.craft || !this.pv) return;
+    this.wT = (this.wT || 0) + dt; if (this.wT < 0.1) return; dt = this.wT; this.wT = 0;
+    const G = this.G, w = this.by != null ? G.waterAt(this.x, this.z) : null, base = this.baseY(), sub = w ? w.y - base : 0;
+    if (!w || sub < 0.15 || this.by == null) { this.inWater = 0; this.floatT = Math.max(0, (this.floatT || 0) - dt * 0.5); this.floodT = Math.max(0, (this.floodT || 0) - dt * 0.2); this.drownT = 0; return; }
+    if (this.phys.rayT(this.x, this.by + 1, this.z, 0, 1, 0, 12, 1) >= 0) { this.inWater = 0; return; }   // covered: not open water
+    this.inWater = sub;
+    const b = this.pv.body, lv = b.linvel(), m = this.pv.mass, sp = Math.hypot(lv.x, lv.z);
+    // the bow wave of a vehicle driven through water: 0.5 rho Cd A v^2 on the immersed front (water 1000 kg/m^3)
+    if (sp > 0.3) { const F = 0.5 * 1000 * 0.35 * this.W * Math.min(sub, 0.9) * sp * sp, k = Math.min(F * dt / m, sp * 0.8) / sp; b.applyImpulse({ x: -lv.x * k * m, y: 0, z: -lv.z * k * m }, true); }
+    if (sub > 0.55) this.floodT = (this.floodT || 0) + dt; else this.floodT = Math.max(0, (this.floodT || 0) - dt * 0.2);
+    if (this.floodT > 1.2 && !this.flooded) {
+      this.flooded = true; this.throttle = 0; this.setLights(false);
+      if (this.driver === 'player') G.toast?.('엔진이 물에 잠겼다', '시동이 꺼졌습니다');
+    }
+    if (this.type !== 'moto' && sub > 0.25) {
+      this.floatT = (this.floatT || 0) + dt;
+      const leak = this.floatT < 25 ? 1 : Math.max(0, 1 - (this.floatT - 25) / 20);   // the cabin fills: the hull's lift goes
+      const fill = 0.5 * this.L * this.W * Math.min(sub, 1.0), Fb = 1000 * 9.81 * fill * leak, om = Math.sqrt(1000 * 9.81 * 0.5 * this.L * this.W / m);
+      const J = (Fb - 0.8 * m * om * lv.y) * Math.min(dt, 0.12);   // the lift less a damper at 0.4 of critical, so the hull settles on its waterline
+      b.applyImpulse({ x: 0, y: J, z: 0 }, true);
+      const wv = b.angvel(); b.setAngvel({ x: wv.x * (1 - Math.min(1, 3 * dt)), y: wv.y, z: wv.z * (1 - Math.min(1, 3 * dt)) }, true);
+      if (leak > 0 && sp > 0.3) { const k = Math.min(1, 0.6 * dt); b.applyImpulse({ x: -lv.x * m * k, y: 0, z: -lv.z * m * k }, true); }   // afloat, a car is dragged along by the water
+    }
+    if (this.driver === 'player' && sub > 1.5) { this.drownT = (this.drownT || 0) + dt; if (this.drownT > 5) G.hurtPlayer?.(14 * dt, null, 'drown'); } else this.drownT = 0;
+  }
   onImpact(speed, x, z, other) {
     if (speed < 2.2 || this.impactCd > 0) return;
     this.impactCd = 0.25;
@@ -359,7 +427,7 @@ export class Vehicle {
     const G = this.G, ai = this.ai;
     const sH = Math.sin(this.h), cH = Math.cos(this.h);
     const vf = this.vx * sH + this.vz * cH;
-    let target = ai.speed;
+    let target = ai.speed * (this.police ? 1 : 1 - 0.12 * Math.min(1, G.daynight?.wet || 0));   // drivers take it 12 % easier on a wet road (the police do not)
     // direct chase for police near target
     let tx, tz;
     if (this.dest && !this.police) {

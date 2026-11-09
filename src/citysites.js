@@ -1,3 +1,4 @@
+import { VIEW } from './util.js';
 import { cityUid } from './buildingid.js';
 import * as THREE from 'three';
 import { cities, farHeight, SEA } from './worldmap.js';
@@ -236,20 +237,20 @@ export class CitySites {
     if (this.prev && dt > 0 && dt < 0.2) { const vx = (cx - this.prev[0]) / dt, vz = (cz - this.prev[1]) / dt, sp = Math.hypot(vx, vz), k = sp > 1 ? Math.min(3, 900 / sp) : 0; lx = cx + vx * k; lz = cz + vz * k; }
     this.prev = [cx, cz];
     for (const C of this.cities) {
-      const dxc = cx - C.c.x, dzc = cz - C.c.z, dc = Math.hypot(dxc, dzc), inReach = dc < C.L.R * 1.2 + MID;
+      const dxc = cx - C.c.x, dzc = cz - C.c.z, dc = Math.hypot(dxc, dzc), inReach = dc < C.L.R * 1.2 + MID * VIEW.m;
       C.group.visible = dc < 170000;
       if (C.sky) C.sky.visible = dc > C.L.R * 0.6;
       if (C.signs) C.signs.visible = dc < C.L.R + 900;
       for (const t of C.tiles.values()) {
-        const d = inReach ? Math.min(Math.hypot(cx - t.wx, cz - t.wz), Math.hypot(lx - t.wx, lz - t.wz)) - TILE * 0.7 : 1e9, wantNear = d < NEAR, keepNear = d < NEAR_OFF;
+        const d = inReach ? Math.min(Math.hypot(cx - t.wx, cz - t.wz), Math.hypot(lx - t.wx, lz - t.wz)) - TILE * 0.7 : 1e9, wantNear = d < NEAR * VIEW.n, keepNear = d < NEAR_OFF * VIEW.n;
         if (t.near && t.near.stale) {   // only the facade of a tile with ruins is kept (the merged mid mesh does not know about ruins): back near, make it whole again; far away, let it go
-          if (wantNear && !this.madeThisFrame) { this.dropNear(t, false); this.makeNear(C, t); this.madeThisFrame = true; } else if (d > MID) this.dropNear(t, false);
+          if (wantNear && !this.madeThisFrame) { this.dropNear(t, false); this.makeNear(C, t); this.madeThisFrame = true; } else if (d > MID * VIEW.m) this.dropNear(t, false);
         } else if (t.near && !keepNear) this.dropNear(t, t.near.lots.some((l) => this.G.state.rruins[l.id] != null));
         else if (!t.near && wantNear && t.bld.length && !this.madeThisFrame && this.G?.buildings) { this.makeNear(C, t); this.madeThisFrame = true; }
         if (d < DET_REQ && t.detS === undefined) this.loadDetail(C, t);
         else if (t.detS === 2 && d > DET_KEEP) this.dropDetail(t);
         if (t.det) for (const m of t.det) m.visible = d < m.userData.rng;
-        const vis = d < MID;
+        const vis = d < MID * VIEW.m;
         if (t.gnd) t.gnd.visible = vis;
         if (t.mid) t.mid.visible = vis && !t.near;
         if (t.near && !t.near.stale) near++; if (vis) mid++;

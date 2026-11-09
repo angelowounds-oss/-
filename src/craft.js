@@ -10,19 +10,19 @@ import { landHeight } from './farland.js';
 // moto (a 600 cc bike with its rider, 280 kg, 80 kW) and bus (a 13 t city bus, 210 kW) drive on physics.js driveVehicle with the cars' real figures
 // (carspecs.js); the craft below have their own force models (driveCraft)
 export const CRAFT_SPECS = {
-  moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, hp: 55, track: 0.3, cy: 0.5, fuelRate: 0.9, custom: 'moto' },
-  bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, hp: 320, track: 0.95, custom: 'bus', fuelRate: 1 },
+  moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, hp: 55, track: 0.3, cy: 0.5, custom: 'moto' },
+  bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, hp: 320, track: 0.95, custom: 'bus' },
   // real figures: a 6 m speedboat 0.4 g and 94 km/h, a light helicopter about 0.45 g and 170 km/h (an attack one 270 km/h), a main battle tank 0.2 g and 68 km/h
-  boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 4, grip: 3, hp: 120, cy: 0.5, fuelRate: 1.2, custom: 'boat', craft: 'boat' },
-  heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 60, accel: 4.5, grip: 3, hp: 130, cy: 0.9, fuelRate: 1.6, custom: 'heli', craft: 'heli' },
+  boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 4, grip: 3, hp: 120, cy: 0.5, custom: 'boat', craft: 'boat' },
+  heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 60, accel: 4.5, grip: 3, hp: 130, cy: 0.9, custom: 'heli', craft: 'heli' },
   // war machines (see warcraft.js): armoured, armed, flown / driven with the camera as the aim
-  tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 19, accel: 2, grip: 3, hp: 1800, cy: 1.05, fuelRate: 0.7, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
-  gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 75, accel: 5.5, grip: 3, hp: 800, cy: 0.9, fuelRate: 1.3, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
+  tank: { L: 7.6, W: 3.5, mass: 4.5, maxSpeed: 19, accel: 2, grip: 3, hp: 1800, cy: 1.05, custom: 'tank', craft: 'tank', war: 'tank', armored: 0.5 },
+  gunship: { L: 10.5, W: 3.4, mass: 1.3, maxSpeed: 75, accel: 5.5, grip: 3, hp: 800, cy: 0.9, custom: 'gunship', craft: 'heli', war: 'gunship', armored: 0.3 },
   // Darkstar: a black hypersonic aircraft, Mach 10 (3,430 m/s) at full throttle; same flight model as the jet with a bigger engine. Its thrust is 6 g
   // (what a pilot in a g-suit bears for minutes): it took 1,500 m/s^2 (150 g) and was at Mach 5 a second and a half after the throttle
-  darkstar: { L: 15, W: 7.2, mass: 1.2, maxSpeed: 3430, accel: 60, grip: 3, hp: 600, cy: 1.0, fuelRate: 2.2, custom: 'darkstar', craft: 'jet', war: 'jet', armored: 0.35, hyper: true, title: '다크스타' },
+  darkstar: { L: 15, W: 7.2, mass: 1.2, maxSpeed: 3430, accel: 60, grip: 3, hp: 600, cy: 1.0, custom: 'darkstar', craft: 'jet', war: 'jet', armored: 0.35, hyper: true, title: '다크스타' },
   // a fighter: thrust to weight ~1.2 (12 m/s^2 from rest), Mach ~1.05 in level flight at low altitude (it was 150 m/s at 3 g)
-  jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 360, accel: 12, grip: 3, hp: 450, cy: 1.1, fuelRate: 1.8, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
+  jet: { L: 13, W: 8.4, mass: 1.2, maxSpeed: 360, accel: 12, grip: 3, hp: 450, cy: 1.1, custom: 'jet', craft: 'jet', war: 'jet', armored: 0.2 },
 };
 
 const std = (c, r = 0.5, m = 0.3, e) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, emissive: e || 0x000000, emissiveIntensity: e ? 1.6 : 0 });
@@ -208,6 +208,14 @@ export function driveCraft(veh, dt) {
     const hover = sp > 0.85 ? 9.81 : sp * 8;   // lift against gravity (9.81 m/s^2), short of it until the rotor is up to speed
     let ay = hover + (sp > 0.85 ? up * 5 : 0);   // the collective: about half a g of climb or descent, as a light helicopter
     if (sp > 0.85 && !up) ay += clamp(-lv.y * 6, -12, 12);
+    // out of fuel (or the engine shut down) in the air: the rotor freewheels on the air coming up through it (autorotation) and the helicopter sinks at about
+    // 9 m/s instead of falling; the pilot's collective (Space) is the flare over the last 15 m, down to 2.5 m/s (1 m/s in the last 3 m), as the real manoeuvre.
+    // Without the flare the landing is a 9 m/s one: the fall damage of Vehicle.fallImpact. A wrecked helicopter has no rotor to turn
+    const agl = alt - (G.groundY ? G.groundY(t.x, t.z, alt) : 0);
+    if (!veh.dead && veh.fuel <= 0 && agl > 1.5) {
+      const flare = hasDriver && veh.hand && agl < 15, tgt = flare ? (agl < 3 ? -1 : -2.5) : -9;
+      ay = clamp((tgt - lv.y) * 2.5 + 9.81, 0, 16); veh.autoRot = true; veh.spool = Math.max(veh.spool || 0, 0.6);
+    } else veh.autoRot = false;
     b.applyImpulse({ x: 0, y: m * ay * dt, z: 0 }, true);
     const f = thr - brk;
     const hv = Math.hypot(lv.x, lv.z), vf = lv.x * fx + lv.z * fz, vl = lv.x * fz - lv.z * fx;

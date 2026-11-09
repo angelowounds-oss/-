@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { net, groundH, HALF_W, CARVE_FADE, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
-import { rand } from './util.js';
+import { rand, VIEW } from './util.js';
 import { landHeight, physHeight } from './landfn.js';
 import { regionWeight, TUNNEL_FILL, carve } from './region.js';
 import { Deck, oldDeck, oldHalf } from './roaddeck.js';
@@ -341,8 +341,8 @@ export class Highways {
     const t0 = performance.now(), want = [];
     for (const p of this.art) {
       const d = Math.min(Math.hypot(p.cx - cx, p.cz - cz), Math.hypot(p.cx - fx, p.cz - fz)) - p.rad;
-      if (!p.meshes) { if (d < p.on) want.push({ p, d }); }
-      else if (d > p.on * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; surf.remove(p); this.stats.artLive--; this.dropDeck(p.col); p.col = null; this.dropPiers(p.pcol); p.pcol = null; }
+      if (!p.meshes) { if (d < p.on * VIEW.b) want.push({ p, d }); }
+      else if (d > p.on * VIEW.b * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; surf.remove(p); this.stats.artLive--; this.dropDeck(p.col); p.col = null; this.dropPiers(p.pcol); p.pcol = null; }
     }
     want.sort((a, b) => a.d - b.d);
     for (const { p, d } of want) { if (!all && d > NEAR_NOW && performance.now() - t0 >= ART_BUDGET) break; p.meshes = this.artPiece(p); this.stats.artLive++; }

@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import { el, LIGHT_CAP } from './util.js';
+import { el, LIGHT_CAP, VIEW } from './util.js';
 import { need, bytes } from './files.js';
 import hdriPlazaUrl from '../assets/env/hansaplatz.rgbe';
 import hdriSuiteUrl from '../assets/env/interior_suite.rgbe';
@@ -117,6 +117,10 @@ export function createEngine(parent, qIndex) {
   let gtao = null;
   const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.4, 1.15);
   composer.addPass(bloom);
+  // a NaN or infinite pixel in the scene (a vertex normal of length 0 on a crumpled car, 2026-11-10: the screen went black in blocks after a crash) must not
+  // reach the bloom's blur, which spreads it over the screen through its mips; negative light is no light
+  { const m = bloom.materialHighPassFilter, src = 'vec4 texel = texture2D( tDiffuse, vUv );';
+    if (m.fragmentShader.includes(src)) m.fragmentShader = m.fragmentShader.replace(src, src + ' texel = ( any( isnan( texel ) ) || any( isinf( texel ) ) ) ? vec4( 0.0 ) : clamp( texel, 0.0, 4000.0 );'); else console.warn('bloom guard: shader layout changed'); }
   // the colour grade runs inside the output pass (tone mapping + sRGB): one full-screen pass less, and no half-float round trip in between
   const grade = new OutputPass();
   for (const k in GradeShader.uniforms) if (k !== 'tDiffuse') grade.uniforms[k] = { value: GradeShader.uniforms[k].value };
@@ -132,15 +136,60 @@ export function createEngine(parent, qIndex) {
   composer.addPass(grade);
   let smaa = null;
 
+  // the player's own settings (settings.js) over the tier's: null / 1 = what the tier says
+  //  res: render resolution as a share of the screen's own pixels (null: the tier's), shadow: shadow map size (0: no shadows), shadowDist: half the width of the
+  //  shadowed square (m), shadowEvery: frames between shadow updates, bloom: its strength's share (0: the pass is skipped), ao / aa: on / off (null: the tier's),
+  //  aber / vig / grain / speedBlur: the share of each film effect, fog: the fog density's share, exposure: the brightness's share, post: false = no post at all
+  const ov = { res: null, shadow: null, shadowDist: 85, shadowEvery: null, bloom: 1, ao: null, aa: null, aber: 1, vig: 1, grain: 1, speedBlur: 1, fog: 1, exposure: 1, post: null, camFar: null };
+  const GRADE0 = { uAber: GradeShader.uniforms.uAber.value, uVig: GradeShader.uniforms.uVig.value, uGrain: GradeShader.uniforms.uGrain.value };
+
   const eng = {
-    renderer, scene, camera, composer, moon, hemi, bloom, grade, env, envIndoor, envDay, q: QUALITY[qIndex], qIndex,
+    renderer, scene, camera, composer, moon, hemi, bloom, grade, env, envIndoor, envDay, q: QUALITY[qIndex], qIndex, ov,
     time: 0, scale: 1, frame: 0,
+    // the pixel ratio before dynamic resolution: the player's own share of the screen's pixels, or what the tier allows
+    baseRatio() { const d = devicePixelRatio || 1; return ov.res != null ? Math.max(0.3, Math.min(3, d * ov.res)) : Math.min(d, eng.q.dpr); },
+    shadowSize() { return ov.shadow != null ? ov.shadow : eng.q.shadow; },
+    // the settings that only change a value (no pass is made or dropped): bloom, the film effects, the shadow reach, the far plane
+    applyOv() {
+      const q = eng.q;
+      bloom.strength = q.bloom * ov.bloom; bloom.enabled = q.bloom * ov.bloom > 0.001;
+      grade.uniforms.uAber.value = GRADE0.uAber * ov.aber; grade.uniforms.uVig.value = GRADE0.uVig * ov.vig; grade.uniforms.uGrain.value = GRADE0.uGrain * ov.grain;
+      const SHD = ov.shadowDist; Object.assign(moon.shadow.camera, { left: -SHD, right: SHD, top: SHD, bottom: -SHD }); moon.shadow.camera.updateProjectionMatrix();
+      moon.castShadow = eng.shadowSize() > 0;
+      const far = (ov.camFar ?? (q.camFar ? q.camFar * VIEW.b : 170000)); if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
+    },
+    // the render target size, the shadow map, the AO and the anti-aliasing pass follow the tier and the settings (made and dropped as asked)
+    applyTargets() {
+      const q = eng.q, ratio = eng.baseRatio() * eng.scale;
+      renderer.setPixelRatio(ratio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
+      const S = Math.max(256, eng.shadowSize() || 256);
+      if (moon.shadow.mapSize.x !== S) { moon.shadow.mapSize.set(S, S); if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; } }
+      const wantAO = ov.ao ?? q.ao;
+      if (!!gtao !== !!wantAO) {
+        if (gtao) { composer.removePass(gtao); gtao.dispose?.(); gtao = null; }
+        if (wantAO) {
+          try {
+            gtao = new GTAOPass(scene, camera, innerWidth, innerHeight); gtao.output = GTAOPass.OUTPUT.Default;
+            gtao.updateGtaoMaterial({ radius: 1.2, distanceExponent: 1.4, thickness: 2, scale: 1.1, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
+            gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+            composer.insertPass(gtao, 1);
+          } catch (e) { console.warn('GTAO unavailable', e); gtao = null; }
+        }
+      }
+      const wantAA = ov.aa ?? q.smaa, px = renderer.getPixelRatio();
+      if (smaa && wantAA) smaa.setSize(innerWidth * px, innerHeight * px);
+      else {
+        if (smaa && !wantAA) { composer.removePass(smaa); smaa.dispose?.(); smaa = null; }
+        if (!smaa && wantAA) { smaa = new SMAAPass(innerWidth * px, innerHeight * px); composer.addPass(smaa); }
+      }
+      eng.applyOv();
+    },
     // dynamic resolution: only the render-target size changes, pipelines stay intact
     setScale(sc) {
       sc = Math.max(0.7, Math.min(1, sc));
       if (Math.abs(sc - eng.scale) < 0.01) return;
       eng.scale = sc;
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, eng.q.dpr) * sc);
+      renderer.setPixelRatio(eng.baseRatio() * sc);
       renderer.setSize(innerWidth, innerHeight);
       composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(innerWidth, innerHeight);
@@ -152,33 +201,7 @@ export function createEngine(parent, qIndex) {
       eng.qIndex = i;
       const q = (eng.q = QUALITY[i]);
       eng.scale = 1; if (!opt.keepLights) [LIGHT_CAP.fx, LIGHT_CAP.bld] = q.lights;
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.dpr));
-      renderer.setSize(innerWidth, innerHeight);
-      composer.setPixelRatio(renderer.getPixelRatio());
-      composer.setSize(innerWidth, innerHeight);
-      moon.shadow.mapSize.set(q.shadow, q.shadow);
-      if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; }
-      bloom.strength = q.bloom;
-      camera.far = q.camFar || 170000; camera.updateProjectionMatrix();
-      if (gtao) { composer.removePass(gtao); gtao.dispose?.(); gtao = null; }
-      if (q.ao) {
-        try {
-          gtao = new GTAOPass(scene, camera, innerWidth, innerHeight);
-          gtao.output = GTAOPass.OUTPUT.Default;
-          gtao.updateGtaoMaterial({ radius: 1.2, distanceExponent: 1.4, thickness: 2, scale: 1.1, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
-          gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
-          composer.insertPass(gtao, 1);
-        } catch (e) { console.warn('GTAO unavailable', e); gtao = null; }
-      }
-      // every tier uses SMAA: keep the pass (and its compiled shaders) and only resize it
-      if (smaa && q.smaa) smaa.setSize(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
-      else {
-        if (smaa) { composer.removePass(smaa); smaa.dispose?.(); smaa = null; }
-        if (q.smaa) {
-          smaa = new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
-          composer.addPass(smaa);
-        }
-      }
+      eng.applyTargets();   // the tier's targets, passes and values with the player's settings over them
       eng.onQuality?.(q); eng.onTier?.(q);
     },
     resize() {
@@ -193,8 +216,8 @@ export function createEngine(parent, qIndex) {
       grade.uniforms.uTime.value = eng.time;
       // shadow map is the biggest fixed cost on integrated GPUs: refresh it less often on low tiers
       renderer.shadowMap.autoUpdate = false;
-      if (eng.frame++ % eng.q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
-      if (eng.q.post === false) { renderer.render(scene, camera); return; }   // LOW: no post-processing, straight to the screen (ACES tone mapping from the renderer)
+      if (eng.frame++ % (ov.shadowEvery ?? eng.q.shadowEvery) === 0 && eng.shadowSize() > 0) renderer.shadowMap.needsUpdate = true;
+      if (ov.post === false || (ov.post == null && eng.q.post === false)) { renderer.render(scene, camera); return; }   // LOW: no post-processing, straight to the screen (ACES tone mapping from the renderer)
       composer.render(dt);
     },
   };

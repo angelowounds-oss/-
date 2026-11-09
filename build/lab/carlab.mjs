@@ -14,7 +14,7 @@ function lab(type) {
   const fwd = () => { const q = b.rotation(), fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y), l = Math.hypot(fx, fz), lv = b.linvel(); return (lv.x * fx + lv.z * fz) / l; };
   const sp = () => { const lv = b.linvel(); return Math.hypot(lv.x, lv.z); };
   let steerA = 0;
-  const step = (n = 1) => { for (let i = 0; i < n; i++) { const vf = fwd(), ms = lerp(0.52, 0.075, clamp(Math.abs(vf) / 34, 0, 1)); steerA += (C.s * ms - steerA) * (1 - Math.exp(-9 / 60)); P.step(1 / 60, () => driveVehicle(v, { throttle: C.t, brake: C.b, steer: steerA / ms, maxSteer: ms, hand: false, speedFwd: fwd(), dead: false, parked: false }), [v]); } };
+  const step = (n = 1) => { for (let i = 0; i < n; i++) { const vf = fwd(), ms = lerp(0.52, 0.075, clamp(Math.abs(vf) / 34, 0, 1)); steerA += (C.s * ms - steerA) * (1 - Math.exp(-9 / 60)); P.step(1 / 60, () => driveVehicle(v, { wet: +(process.env.WET || 0), throttle: C.t, brake: C.b, steer: steerA / ms, maxSteer: ms, hand: false, speedFwd: fwd(), dead: false, parked: false }), [v]); } };
   const reset = (s, x = -3900) => { b.setTranslation({ x, y: PHYS.bodyY + 0.05, z: 0 }, true); b.setRotation({ x: 0, y: Math.sin(Math.PI / 4), z: 0, w: Math.cos(Math.PI / 4) }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true); b.setLinvel({ x: s, y: 0, z: 0 }, true); C.t = C.b = C.s = 0; steerA = 0; step(20); b.setLinvel({ x: s, y: b.linvel().y, z: 0 }, true); };
   const c = { mass: Math.round(v.mass) };
   reset(0); step(60); C.t = 1; let t = 0, top = 0, t100 = null;

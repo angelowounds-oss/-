@@ -19,7 +19,7 @@ canvas{display:block}
 #hud.scoped{opacity:.0}
 #dmg{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,20,50,.55) 100%);transition:opacity .25s}
 #uw{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(10,70,100,.55),rgba(2,22,40,.82));transition:opacity .2s}#uw.on{opacity:1}
-#breath{position:fixed;left:50%;top:62%;width:160px;height:6px;margin-left:-80px;background:rgba(0,0,0,.45);border-radius:3px;opacity:0;pointer-events:none;transition:opacity .2s}#breath.on{opacity:1}#breath i{display:block;height:100%;background:#7fd4ff;border-radius:3px}
+#breath{position:fixed;left:50%;top:62%;width:160px;height:6px;margin-left:-80px;background:rgba(0,0,0,.45);border-radius:3px;opacity:0;pointer-events:none;transition:opacity .2s}#breath.on{opacity:1}#breath i{display:block;height:100%;background:#7fd4ff;border-radius:3px}#stam{position:fixed;left:50%;top:66%;width:110px;height:4px;margin-left:-55px;background:rgba(0,0,0,.4);border-radius:2px;opacity:0;pointer-events:none;transition:opacity .3s}#stam.on{opacity:.9}#stam i{display:block;height:100%;background:#ffd36b;border-radius:2px}#stam.out i{background:#ff7a5c}
 #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#fff;mix-blend-mode:overlay}
 .letter{position:fixed;left:0;right:0;height:0;background:#000;pointer-events:none;transition:height .5s;z-index:3}
 .letter.t{top:0}.letter.b{bottom:0}.letter.on{height:9vh}
@@ -197,6 +197,28 @@ body.touch #helpov{display:none!important}
 .kslot.empty{color:var(--muted);font-weight:400}
 .kslot.wait{border-color:var(--cyan);color:var(--cyan)}
 #kc .krow{display:flex;gap:8px;margin-top:14px}#kc .krow .pbtn{flex:1;margin:0}
+#sc{display:none;width:min(880px,96vw);padding:20px 22px;border-radius:18px;max-height:92vh;flex-direction:column}
+#sc.on{display:flex}
+#sc header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+#sc h2{margin:0;letter-spacing:.2em;font-size:15px;color:var(--cyan)}
+#sc header label{font-size:12px;color:var(--muted)}
+#sc select{background:#0c1422;color:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px}
+#scBody{display:flex;gap:16px;min-height:0;flex:1}
+#scTabs{display:flex;flex-direction:column;gap:6px;min-width:116px}
+#scTabs button{font:inherit;font-size:13px;font-weight:700;text-align:left;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:9px;padding:10px 12px;cursor:pointer}
+#scTabs button.on{color:#00131b;background:linear-gradient(90deg,#1596bd,#36cde8);border-color:transparent}
+#scList{flex:1;overflow-y:auto;max-height:58vh;padding-right:8px}
+.srow{display:grid;grid-template-columns:minmax(118px,1.2fr) minmax(150px,1.5fr) 52px 88px;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.07);font-size:12.5px}
+.srow:hover{background:rgba(255,255,255,.03)}
+.srow label small{display:block;margin-top:2px;font-size:10.5px;color:var(--cyan)}
+.srow .sctl select,.srow .sctl input[type=range]{width:100%}
+.srow input[type=range]{accent-color:#36cde8}
+.sval{text-align:right;color:var(--cyan);font-size:11.5px;font-variant-numeric:tabular-nums}
+.scost{font-size:9.5px;letter-spacing:.04em;text-align:center;border-radius:8px;padding:3px 4px;white-space:nowrap}
+.scost.c1{color:var(--green);background:rgba(71,255,168,.1)}.scost.c2{color:var(--gold);background:rgba(255,201,77,.1)}.scost.c3{color:var(--red);background:rgba(255,69,96,.1)}
+#scTip{min-height:2.8em;margin:12px 0 2px;font-size:12px;line-height:1.45;color:#dfe6f0}
+#sc .krow{display:flex;gap:8px;margin-top:8px}#sc .krow .pbtn{flex:1;margin:0}
+@media (max-width:660px){#scBody{flex-direction:column}#scTabs{flex-direction:row;flex-wrap:wrap}.srow{grid-template-columns:1fr 1fr}.srow .sval,.srow .scost{display:none}}
 body.touch #keysBtn{display:none}
 .set{display:flex;justify-content:space-between;align-items:center;margin:10px 0;font-size:13px}
 .set select,.set input[type=range]{width:150px;background:#0c1422;color:#fff;border:1px solid var(--line);border-radius:8px;padding:6px}
@@ -252,7 +274,7 @@ body.touch #keysBtn{display:none}
 </head>
 <body>
 <div id="game"></div>
-<div id="uw"></div><div id="breath"><i></i></div><div id="dmg"></div><div id="flash"></div><div id="fade"></div>
+<div id="uw"></div><div id="breath"><i></i></div><div id="stam"><i></i></div><div id="dmg"></div><div id="flash"></div><div id="fade"></div>
 <div id="letterT" class="letter t"></div><div id="letterB" class="letter b"></div>
 <div id="hud">
   <div id="status" class="glass">
@@ -303,8 +325,7 @@ body.touch #keysBtn{display:none}
 <div id="inv"><div id="invCard" class="glass"><header><h2 id="invT">가방</h2><span id="invW" style="font-size:11px;color:var(--muted)"></span><button class="xb" id="invX" type="button">닫기 (Esc)</button></header><div id="invCols"><section id="invLS"><h3 id="invLT">소지품</h3><ul class="ul" id="invL"></ul></section><section id="invRS"><h3 id="invRT"></h3><ul class="ul" id="invR"></ul></section></div><div id="invF"></div></div></div>
 <div id="pause"><div id="pc" class="glass">
   <h2>PAUSED</h2>
-  <div class="set"><span>그래픽 품질</span><select id="qSel"><option value="0">낮음 (극단 저사양)</option><option value="1">보통</option><option value="2">높음</option><option value="3">울트라</option></select></div>
-  <div class="set"><span>마스터 볼륨</span><input id="vol" type="range" min="0" max="1" step="0.05" value="0.7" /></div>
+    <div class="set"><span>마스터 볼륨</span><input id="vol" type="range" min="0" max="1" step="0.05" value="0.7" /></div>
   <div class="set"><span>음악</span><input id="musicOn" type="checkbox" checked /></div>
   <div class="set"><span>시점 감도</span><input id="sens" type="range" min="0.4" max="2.2" step="0.05" value="1" /></div>
   <div class="set"><span>FPS 표시</span><input id="fpsOn" type="checkbox" /></div>

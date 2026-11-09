@@ -1,3 +1,4 @@
+import { VIEW } from './util.js';
 import * as THREE from 'three';
 import { landHeight } from './landfn.js';
 import * as surf from './roadsurf.js';
@@ -98,7 +99,7 @@ export class CountryRoads {
     if ((this.t -= dt) > 0) return; this.t = 0.4; let built = 0;
     for (const pc of this.pieces) {
       const d = Math.hypot(pc.cx - focus.x, pc.cz - focus.z) - pc.rad;
-      if (!pc.meshes) { if (d < PIECE_ON && built < 3) { this.build(pc); built++; } } else if (d > PIECE_OFF) this.drop(pc);
+      if (!pc.meshes) { if (d < PIECE_ON * VIEW.b && built < 3) { this.build(pc); built++; } } else if (d > PIECE_OFF * VIEW.b) this.drop(pc);
     }
     this.stats.live = this.live.size;
   }

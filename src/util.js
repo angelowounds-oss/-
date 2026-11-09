@@ -38,5 +38,10 @@ export function hash2(x, y) {
 
 export function el(id) { return document.getElementById(id); }
 
+// the player's view distance (settings.js): k scales how far the air is clear (the fog density is divided by it), b how far the streamed things are built
+// (the forest, the city tiles, the road pieces, the country roads, the industrial sites): the fog hides what they draw beyond it, so they grow with it
+export const VIEW = { k: 1, b: 1, n: 1, m: 1 };   // n: the costly near detail (the square root of b), m: the mid-distance one (b up to 2)
+export function setViewDistance(k) { VIEW.k = k; VIEW.b = Math.max(0.7, Math.min(3, k)); VIEW.n = Math.sqrt(VIEW.b); VIEW.m = Math.min(2, VIEW.b); }
+
 // active dynamic-light budget per quality tier (set by engine.setQuality); lights past the cap are hidden so they leave the shader loop
 export const LIGHT_CAP = { fx: 6, bld: 6 };

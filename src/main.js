@@ -91,6 +91,8 @@ function reportPlace() { try { return window.__game?.reportPlace() || {}; } catc
   eng.onQuality = () => { try { sessionStorage.setItem('neon_q', String(eng.qIndex)); } catch (e) { /* ignore */ } };
   let last = performance.now();
   const loop = (now) => {
+    const cap = game.opt?.fpsCap;   // the player's frame cap (settings.js): a frame that comes early is skipped, the time it left carries into the next
+    if (cap && now - last < 1000 / cap - 1.5) { requestAnimationFrame(loop); return; }
     const dt = Math.min((now - last) / 1000, 0.1); last = now;
     try {
       if (!game.running) { /* black title: nothing is rendered */ } else game.update(dt);

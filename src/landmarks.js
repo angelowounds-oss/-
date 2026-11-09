@@ -4,7 +4,7 @@ import { need, bytes } from './files.js';
 import { layouts } from './citylayout.js';
 import { cities } from './worldmap.js';
 import { nightU } from './shaders.js';
-import { rand } from './util.js';
+import { rand, VIEW } from './util.js';
 const lmBin = need(lmBinUrl);   // decoded by synchronous code (files.js)
 
 // Landmark towers (assets/landmarks, docs/ASSETS.md): the shapes of real skyscrapers from the supplied Manhattan and Camellia City models stand in the
@@ -58,7 +58,7 @@ export class Landmarks {
     this.facade.emissiveIntensity = Math.max(0, nightU.value - 0.08) * 1.25; const col = this.G.world.colliders, t = this.G.clock.t; let built = 0;
     for (const L of this.list) {
       const d = Math.hypot(focus.x - L.x, focus.z - L.z);
-      if (d < BUILD && !L.built) this.build(L); else if (d > DROP && L.built) this.dispose(L);
+      if (d < BUILD * VIEW.b && !L.built) this.build(L); else if (d > DROP * VIEW.b && L.built) this.dispose(L);
       if (!L.built) continue; built++;
       if (!L.alive && L.anim === undefined && this.P.ruins[L.key] != null && t - this.P.ruins[L.key] > REBUILD) { delete this.P.ruins[L.key]; this.look(L, false); }
       if (L.anim !== undefined) this.collapse(L, dt);

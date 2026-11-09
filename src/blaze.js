@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Particles } from './fx.js';
 import { instCull } from './instcull.js';
-import { clamp, rand } from './util.js';
+import { clamp, rand, VIEW } from './util.js';
 
 // Building fires and collapse (GPL-08c). Any city building can burn: its height is split into 3.6 m bands with heat and fuel. Fire reaching
 // a wall (a burning car, a molotov against the facade, an explosion, a fire lit inside) heats the band it touches; a band above IGNITE
@@ -129,7 +129,7 @@ export class Blaze {
   // after the day/night pass set the fog: smoke inside a burning building closes in
   lateUpdate() {
     const fog = this.G.scene.fog; if (!fog) return;
-    fog.density *= this.G.eng.q.fogK || 1;   // LOW: a shorter view distance, a little more fog
+    fog.density *= (this.G.eng.q.fogK || 1) * (this.G.eng.ov?.fog ?? 1) / VIEW.k;   // LOW: a shorter view distance, a little more fog; the player's fog and view distance (settings.js)
     if (this.smoke > 0.01) fog.density *= 1 + this.smoke * 7;
     // high above the city (tall roofs, a helicopter, the sky tower) the haze is thin: the fog hugs the streets
     const cy = this.G.camera.position.y; if (cy > 80) { const k = Math.min(1, (cy - 80) / 370); fog.density *= 1 - 0.85 * k * k * (3 - 2 * k); }

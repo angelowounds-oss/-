@@ -34,6 +34,7 @@ const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: 
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
 import { QUALITY } from './engine.js';
+import { Settings } from './settings.js';
 import { loadAssets, A } from './assets.js';
 import { buildDressing } from './dressing.js';
 import { buildSkyline } from './skyline.js';
@@ -90,6 +91,7 @@ const JUMP_V = 3.3;
 export class Game {
   constructor(eng) {
     this.eng = eng; this.scene = eng.scene; this.camera = eng.camera;
+    this.settings = new Settings(this); this.settings.apply();   // the player's graphics and screen choices (settings.js): the engine's values and the game's own (this.opt) before anything is made
     this.time = 0; this.dt = 1 / 60; this.running = false; this.paused = false;
     this.stageFails = {}; this.errToastT = -99; this.errors = errors;   // PERF-03: frame stages that threw, and the shared error log
     this.vehicles = []; this.humans = []; this.pickups = [];
@@ -214,6 +216,7 @@ export class Game {
     this.startMission(this.missionIndex);
     // after the mission's own toast: a save read from its backup, or one from a newer build (kept as it is), is said once
     const si = this.saveInfo; if (si && (si.future || si.source === 'backup')) setTimeout(() => this.toast(si.future ? '<span style="color:#ffc94d">새 버전의 저장 파일</span>' : '<span style="color:#ffc94d">저장 파일 복구</span>', si.future ? '이 저장은 더 새 버전에서 만들어졌습니다 — 덮어쓰지 않습니다' : '손상된 저장 대신 직전 백업을 불러왔습니다'), 3200);
+    this.settings.apply();   // what needs the world: the rain, the forest, the building detail
     progress(1, '준비 완료');
   }
 
@@ -257,7 +260,7 @@ export class Game {
     const q = this.eng.q, w = this.world;
     // parked cars along curbs
     let tries = 0;
-    while (this.vehicles.filter((v) => v.kind === 'parked').length < q.parked && tries++ < 400) {
+    while (this.vehicles.filter((v) => v.kind === 'parked').length < Math.round(q.parked * (this.opt?.parked ?? 1)) && tries++ < 400) {
       const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N)), side = Math.random() < 0.5 ? 1 : -1, ns = Math.random() < 0.5;
       const t = rand(0.18, 0.82), along = roadC(j) + R / 2 + (blockLen(j) - R) * t;
       const off = (R / 2 - 1.55) * side;
@@ -270,9 +273,9 @@ export class Game {
       this.addVehicle(v);
     }
     // traffic
-    for (let k = 0; k < q.traffic; k++) this.spawnTraffic(true);
+    for (let k = 0; k < Math.round(q.traffic * (this.opt?.traffic ?? 1)); k++) this.spawnTraffic(true);
     // pedestrians
-    for (let k = 0; k < q.npc; k++) this.spawnCivilian(true);
+    for (let k = 0; k < Math.round(q.npc * (this.opt?.npc ?? 1)); k++) this.spawnCivilian(true);
   }
   addVehicle(v) { this.vehicles.push(v); this.scene.add(v.group); v.group.visible = true; v.attachPhysics(this.phys); if (v.kind === 'parked') v.pv.body.sleep(); v.syncMesh(); return v; }
   // a removed car is gone for good (nothing re-adds one), so its own geometry and materials are freed with it
@@ -372,8 +375,7 @@ export class Game {
     ec.onclick = () => copyReport(this.reportPlace()).then((ok) => { ec.textContent = ok ? '복사했습니다' : '복사하지 못했습니다'; setTimeout(ecLabel, 1500); });
     this.errLabel = ecLabel;
     u('reset').onclick = () => { try { localStorage.removeItem(this.slotKey()); localStorage.removeItem(this.slotKey() + '_bak'); } catch { /* ignore */ } location.reload(); };   // the backup too, or the next load would bring the old game back
-    u('qSel').value = String(this.eng.qIndex);
-    u('qSel').onchange = (e) => { this.eng.setQuality(+e.target.value); this.eng.onQuality?.(); };
+    this.settings.build();   // the graphics and screen window, opened from this menu
     // settings persist between sessions
     let cfg = {}; try { cfg = JSON.parse(localStorage.getItem('neon_settings') || '{}'); } catch { /* ignore */ }
     const keep = (k, v) => { cfg[k] = v; try { localStorage.setItem('neon_settings', JSON.stringify(cfg)); } catch { /* ignore */ } };
@@ -390,7 +392,7 @@ export class Game {
     this.input.onLockChange = (locked) => { if (!locked && this.running && !this.paused && !this.input.touch && !this.uiModal) this.setPaused(true); };
   }
   setPaused(p) {
-    this.paused = p; el('pause').classList.toggle('on', p);
+    this.paused = p; el('pause').classList.toggle('on', p); this.settings?.show?.(false);
     if (p) this.errLabel?.();
     if (p) this.input.unlock(); else this.input.lock();
   }
@@ -518,7 +520,7 @@ export class Game {
     this.rain.material.uniforms.uCam.value.copy(camera.position);
     doorCamU.value.set(this.player.x, this.player.y, this.player.z);
     const g = eng.grade.uniforms;
-    g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) : 0, 3, dt);
+    g.uSpeed.value = damp(g.uSpeed.value, this.vehicle ? clamp((this.vehicle.speed - 28) / 30, 0, 1) * eng.ov.speedBlur : 0, 3, dt);   // the player's speed blur
     g.uDamage.value = damp(g.uDamage.value, 0, 2.2, dt);
     if (this.dmgPulse) { g.uDamage.value = Math.max(g.uDamage.value, this.dmgPulse); this.dmgPulse = 0; }
     eng.render(dt);
@@ -595,7 +597,7 @@ export class Game {
       for (const [k, i] of [['w1', 0], ['w2', 1], ['w3', 2], ['w4', 3], ['w5', 4], ['w6', 9]]) if (this.input.edge(k) && (i === 9 || pl.owned[i])) this.switchWeapon(i); }
     this.input.edge('lights');
     if (this.playerOnFoot) this.footControl(dt, inp);
-    else this.driveControl(dt, inp);
+    else { this.driveControl(dt, inp); if (this.ui.sb) this.ui.sb.classList.remove('on'); }   // no stamina bar in a seat
     this.regen = (this.regen || 0) + dt;
   }
 
@@ -626,7 +628,14 @@ export class Game {
     if (latch) { if (inp.aim && !this._aimPrev) pl.scoped = !pl.scoped; } else pl.scoped = false;
     this._aimPrev = inp.aim;
     const aim = latch ? !!pl.scoped : inp.aim; pl.aiming = aim;
-    const sprint = inp.sprint && !aim && !inp.fire && inp.my > 0.3 && !pl.crouching && (!this.needs.on || this.needs.canSprint !== false);
+    // a sprint is anaerobic: about 18 s from full (150 m), then the legs give out and it is the run again until the breath is back to 0.5; it comes back in
+    // 12 s of walking or 8 s standing still (it ran on indefinitely, bounded only by the day's energy)
+    if (pl.stam == null) pl.stam = 1;
+    const sprint = inp.sprint && !aim && !inp.fire && inp.my > 0.3 && !pl.crouching && (!this.needs.on || this.needs.canSprint !== false) && !pl.winded;
+    { const running = sprint && !pl.swimming && !this.sandbox?.on, still = Math.hypot(inp.mx, inp.my) < 0.15;
+      pl.stam = clamp(pl.stam + dt * (running ? -1 / 18 : still ? 1 / 8 : 1 / 12), 0, 1);
+      if (pl.stam <= 0) pl.winded = true; else if (pl.stam > 0.5) pl.winded = false;
+      const sb = this.ui.sb || (this.ui.sb = el('stam')); if (sb) { sb.classList.toggle('on', pl.stam < 0.995); sb.classList.toggle('out', !!pl.winded); sb.firstElementChild.style.width = pl.stam * 100 + '%'; } }
     const fwdX = Math.sin(cam.yaw), fwdZ = Math.cos(cam.yaw), rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
     let mx = inp.mx, my = inp.my; const mag = Math.min(1, Math.hypot(mx, my));
     let dx = fwdX * my + rX * mx, dz = fwdZ * my + rZ * mx;
@@ -993,10 +1002,13 @@ export class Game {
     this.hurtPlayer(60, null, 'explosion');
     const pl = this.player; pl.vy = 6; pl.vx = rand(-4, 4); pl.vz = rand(-4, 4);
   }
+  // what a belted occupant takes of a sudden speed change (m/s): the part over 4 m/s (the crumple zone's and the belt's share) squared, 100 at 36 m/s: about 10 of 100
+  // at 50 km/h, a third at 80 km/h, over half at 100 km/h and none left at 130 km/h, as in frontal crash statistics (it was 0.3 x (v - 12): 5 of 100 at 100 km/h);
+  // an armoured hull spares the crew most of it
   onPlayerCrash(speed) {
     if (!this.vehicle) return;
-    const dmg = Math.max(0, speed - 12) * 0.6;
-    if (dmg > 0) { this.hurtPlayer(dmg * 0.5, null, 'crash'); }
+    const dmg = 100 * (Math.max(0, speed - 4) / 32) ** 2 * (this.vehicle.spec.armored ? 0.3 : 1);
+    if (dmg > 0.5) { this.hurtPlayer(dmg, null, 'crash'); }
   }
 
   // ---- weapons ----
@@ -1359,7 +1371,7 @@ export class Game {
     for (const v of this.vehicles) {
       if (v === src) continue; const dd = Math.hypot(v.x - x, (v.by ?? y) - y, v.z - z); if (dd > radius * 1.5) continue;
       const k = (1 - dd / (radius * 1.5)) * this.blastCover(x, y, z, v.x, v.by ?? y, v.z); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
-      const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); v.addImpulse(nx * 14 * k, 5 * k, nz * 14 * k);
+      const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); { const mk = Math.min(2, Math.pow(1.15 / Math.max(0.2, v.spec.mass), 0.8)); v.addImpulse(nx * 14 * k * mk, 5 * k * mk, nz * 14 * k * mk); }   // the same blast moves a bus or a tank far less than a car (an impulse over the cross section, shared by the mass)
     }
     this.military?.blast(x, y, z, radius, dmg, src); this.villages?.blast(x, y, z, radius, dmg, src); this.landmarks?.blast(x, y, z, radius, dmg, src); this.industry?.blast(x, y, z, radius, dmg, src); this.highways?.blast(x, y, z, radius, dmg, src);
     this.blaze.blast(x, y, z, radius, src === this.player || src?.driver === 'player' ? this.player : null);
@@ -1499,9 +1511,9 @@ export class Game {
       this.popT = 0.3;
       const tc = list.filter((v) => v.kind === 'traffic' && v.driver === 'ai' && !v.hw).length;
       const pf = this.society.popFactor();
-      if (tc < Math.round(this.eng.q.traffic * (0.4 + 0.6 * pf))) this.spawnTraffic(false);
+      if (tc < Math.round(this.eng.q.traffic * (this.opt?.traffic ?? 1) * (0.4 + 0.6 * pf))) this.spawnTraffic(false);
       const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside && !h.remoteCiv);
-      const want = Math.round(this.eng.q.npc * pf);
+      const want = Math.round(this.eng.q.npc * (this.opt?.npc ?? 1) * pf);
       if (civs.length < want) { const n = want - civs.length > 8 ? 3 : 1; for (let i = 0; i < n; i++) this.spawnCivilian(false); }
       else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
@@ -1542,7 +1554,7 @@ export class Game {
       if (this.playerOnFoot && !this.player.dead && v.driver && Math.abs(this.player.y - vb) < 1.2) {
         const pl = this.player; const dx = pl.x - v.x, dz = pl.z - v.z; const lf = dx * s + dz * c, ll = dx * c - dz * s;
         if (Math.abs(lf) < v.L / 2 + 0.4 && Math.abs(ll) < v.W / 2 + 0.3 && this.time - (this.lastRunOver || -9) > 0.6) {
-          this.lastRunOver = this.time; this.hurtPlayer(spd * 2.2, null, 'car'); pl.vx = v.vx; pl.vz = v.vz; pl.vy = 4;
+          this.lastRunOver = this.time; this.hurtPlayer(spd * 5, null, 'car'); pl.vx = v.vx; pl.vz = v.vz; pl.vy = 4;   // as hard as it hits anyone else (a pedestrian hit at 50 km/h dies about half the time, at 70 almost always)
         }
       }
     }
@@ -1803,7 +1815,7 @@ export class Game {
 
   // ====================================================================
   // Camera
-  shake(a) { this.shakeAmt = Math.min(1.6, this.shakeAmt + a); }
+  shake(a) { this.shakeAmt = Math.min(1.6, this.shakeAmt + a * (this.opt?.shake ?? 1)); }   // the player's share of the screen shake
   // first person: camera at the eye, body hidden, current weapon drawn as a view model fixed to the camera
   setScope(k) {
     if (this._scope === k) return; this._scope = k;
@@ -1925,7 +1937,7 @@ export class Game {
     const fallTarget = !pl.dead && this.playerOnFoot && pl.body3 && !pl.body3.grounded && !pl.swimming && !pl.hang ? clamp((-(pl.vy || 0) - 7) / 25, 0, 1) : 0;
     this.fallK = damp(this.fallK || 0, fallTarget, 4, dt); this.audio.wind?.(this.fallK);
     if ((this.landKick || 0) > 0.002) { c.position.y -= this.landKick * 0.3; this.landKick *= Math.exp(-7 * dt); }
-    const fov = cam.fov + this.fallK * 16;
+    const fov = cam.fov + this.fallK * 16 + (this.opt?.fov ?? 0);   // the player's field of view over the game's own
     if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     this.cam.pos.copy(c.position);
     if (this.riding) this.transit.camera(c, dt);   // a ride (transit.js) places the camera itself
@@ -1997,6 +2009,7 @@ export class Game {
     }
   }
   autoQuality(dt) {
+    if (this.opt?.dynRes === false) return;   // the player turned the automatic resolution off (settings.js)
     // frame-time driven dynamic resolution; tier drop only when already at minimum scale.
     // With vsync the interval sits at the refresh period however light the frame is, so "fast frames" never show on a 60 Hz screen and the
     // resolution would never come back after one bad moment. Headroom is therefore also read from the work a frame takes (update + render
@@ -2015,7 +2028,7 @@ export class Game {
       a.slow = 0; a.cool = 1.2;
       if (a.probe > 0) a.wait = Math.min(60, a.wait * 2);
       if (eng.scale > 0.7) eng.setScale(eng.scale - 0.1);
-      else if (eng.qIndex > 0) { this.dropQualityTier(); a.cool = 6; }
+      else if (eng.qIndex > 0 && this.settings.preset === 'auto') { this.dropQualityTier(); a.cool = 6; }   // only on the automatic preset: a chosen one is what the player asked for
     } else if (a.fast > a.wait && eng.scale < 1) { a.fast = 0; a.cool = 3; a.probe = 5; eng.setScale(eng.scale + 0.1); }
   }
   // Automatic tier drop: resolution, shadow map size, bloom and AO go down, the light caps stay. The number of lights is part of every
@@ -2023,7 +2036,7 @@ export class Game {
   // too). Picking a quality level by hand in the menu still sets everything, lights included.
   dropQualityTier() {
     const eng = this.eng; if (eng.qIndex <= 0) return;
-    eng.setQuality(eng.qIndex - 1, { keepLights: true }); el('qSel').value = String(eng.qIndex);
+    eng.setQuality(eng.qIndex - 1, { keepLights: true });
   }
   audioUpdate(dt) {
     const v = this.vehicle;

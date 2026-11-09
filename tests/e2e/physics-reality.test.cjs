@@ -10,6 +10,7 @@ run('physics-reality', { q: 1, width: 320, height: 180 }, async ({ page }) => {
   await freeze(page);
   const o = await page.evaluate(async () => {
     const g = window.__game, pl = g.player, P = g.phys, R = P.R, o = { cars: {}, player: {} }; g.eng.render = () => {};
+    g.state.weather = { type: 'clear', until: 1e12 }; g.daynight.wet = 0;   // the game starts in rain (state.weather): the road must be dry for the dry-road figures
     let ticks = 0; const step = async (n) => { for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (++ticks % 10 === 0) await new Promise((f) => setTimeout(f, 10)); } };
     // the track: slabs 500 m square, top at Y, from x -3000 to 3000 along z 0 (and a wall at its far end for the crash)
     const X0 = 40000, Z0 = 40000, Y = 2000, slabs = [];
