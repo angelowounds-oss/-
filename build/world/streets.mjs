@@ -340,10 +340,11 @@ export function realShare(res) {
 // ---- command line
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), dir = path.join(root, 'build/baked/world/capital');
-  const file = process.argv[2] || path.join(dir, 'region.bin'), bfile = process.argv[3] || path.join(dir, 'buildings.bin'), out = process.argv[4] || dir;
+  const file = process.argv[2] || path.join(dir, 'region.bin'), bfile = process.argv[3] || path.join(path.dirname(file), 'buildings.bin'), out = process.argv[4] || path.dirname(file);
   const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
-  // the map's points and, inside Seoul, the city's own crossing and signal records (seouldata.mjs)
-  const t0 = Date.now(), detail = readDetail(); detail.points = detail.points.concat(readSeoul());
+  // the map's points and, inside Seoul, the city's own crossing and signal records (seouldata.mjs); a province reads its own box (ADR-0044)
+  const P = R.own ? (await import('./pieces.mjs')).pieceOf(R.name) : null;
+  const t0 = Date.now(), detail = readDetail(P ? { w: P.box.w - 0.02, s: P.box.s - 0.02, e: P.box.e + 0.02, n: P.box.n + 0.02 } : undefined); detail.points = detail.points.concat(readSeoul());
   const res = makeStreets(R, readBuildings(bfile), detail), tiles = toTiles(res);
   const km = res.runs.reduce((s, r) => { const L = R.roads[r.ri]; let d = 0; for (let i = r.i0; i < r.i1; i++) d += Math.hypot(L.x[i + 1] - L.x[i], L.z[i + 1] - L.z[i]); return s + d; }, 0) / 1000;
   const sig = res.junctions.filter((j) => j.signal).length, cross = res.junctions.reduce((s, j) => s + j.arms.filter((a) => a.cross).length, 0);

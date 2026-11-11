@@ -8,26 +8,56 @@ import { REGIONS } from './regions/index.js';
 import { CAPITAL, KOREA_SCALE, LEGACY_SCALE } from './koreamap.js';
 
 // A region compiled at another map scale is in other metres and heights (WLD-23b): it is left out, with a warning, until it is compiled again.
-let CUR = undefined;
+let CUR = undefined, LIST = null;
 const usable = (R) => {
   if (!R) return null;
   if ((R.scale ?? LEGACY_SCALE) === KOREA_SCALE) return R;
   console.warn(`compiled region "${R.name}" is at scale 1:${R.scale ?? LEGACY_SCALE}, the map is 1:${KOREA_SCALE}: ignored (compile it again: node build/world/compile.mjs)`);
   return null;
 };
+// the capital's region (the one with the keep zone around the hand-made city)
 export function region() {
-  if (CUR === undefined || (CUR === null && (globalThis.__BAKED?.region || globalThis.__REGION))) CUR = usable(globalThis.__BAKED?.region || globalThis.__REGION || null);
+  if (CUR === undefined || (CUR === null && (globalThis.__BAKED?.region || globalThis.__REGION))) { CUR = usable(globalThis.__BAKED?.region || globalThis.__REGION || null); LIST = null; }
   return CUR;
 }
+// every compiled region (WLD-25b): the capital first, then the provinces (build/world/compile.mjs --region <id>, globalThis.__BAKED.regions or
+// __REGIONS), each owning its own cells (R.own, emit.mjs ownership)
+export function regions() {
+  const c = region(), more = globalThis.__BAKED?.regions || globalThis.__REGIONS || [];
+  if (LIST && LIST.src === more && LIST.c === c) return LIST.all;
+  const all = [c, ...more.map(usable)].filter(Boolean);
+  LIST = { src: more, c, all }; ROADS = null; PLACES = null; return all;
+}
 
-// how much the region decides the ground at (x, z): 1 inside, 0 outside it and in the capital's keep zone, smooth across the two bands
-export function regionWeight(x, z) {
-  const R = region(); if (!R) return 0;
+// how much one region decides the ground at (x, z). The capital: 1 inside, 0 outside it and in its keep zone, smooth across the two bands. A province:
+// 1 on the cells it owns, fading out over its edge band where the cells around are nobody's
+function weightOf(R, x, z) {
   const x1 = R.x0 + (R.nx - 1) * R.g, z1 = R.z0 + (R.nz - 1) * R.g, edge = Math.min(x - R.x0, x1 - x, z - R.z0, z1 - z);
   if (edge <= 0) return 0;
-  let w = Math.min(sstep(0, R.edge, edge), sstep(R.keep, R.keep + R.band, Math.max(Math.abs(x), Math.abs(z))));
+  let w;
+  if (R.own) { const o = R.own[Math.round((z - R.z0) / R.g) * R.nx + Math.round((x - R.x0) / R.g)]; w = Math.min(o === 255 ? 1 : 1 - sstep(0, R.edge, o * R.g), sstep(0, R.g, edge)); }
+  else w = Math.min(sstep(0, R.edge, edge), sstep(R.keep, R.keep + R.band, Math.max(Math.abs(x), Math.abs(z))));
   for (const h of holes()) if (w > 0) w = Math.min(w, sstep(h.r, h.r + HOLE_BAND, Math.hypot(x - h.x, z - h.z)));
   return w;
+}
+// the regions that speak at (x, z) and how much: the first at full weight alone (an owned cell, or the capital inside its bands); otherwise each in
+// order over what the ones before it left
+const WS = [];
+function weights(x, z) {
+  const L = regions(); WS.length = 0;
+  let left = 1;
+  for (const R of L) {
+    const w = weightOf(R, x, z); if (w <= 0) continue;
+    if (w >= 1) { WS.length = 0; WS.push(R, 1); return WS; }
+    WS.push(R, w * left); left *= 1 - w;
+  }
+  return WS;
+}
+// how much the compiled regions decide the ground at (x, z): 1 inside one, 0 outside them all, smooth across their bands
+export function regionWeight(x, z) {
+  const L = regions(); if (!L.length) return 0;
+  if (L.length === 1) return weightOf(L[0], x, z);
+  const W = weights(x, z); let s = 0; for (let k = 1; k < W.length; k += 2) s += W[k]; return Math.min(1, s);
 }
 // Cities that keep their own flat ground where the raster reaches them (viaRegion: the airport city on Yeongjong, ADR-0037): the region gives way
 // inside 1.15 r and returns over HOLE_BAND, which ends before the compiled roads begin (their ground is laid into the raster, not re-graded).
@@ -35,29 +65,60 @@ const HOLE_BAND = 220;
 let HOLES = null;
 const holes = () => HOLES || (HOLES = REGIONS.flatMap((r) => r.cities).filter((c) => c.def.viaRegion).map((c) => ({ x: c.def.x - CAPITAL.x, z: c.def.z - CAPITAL.z, r: c.def.r * 1.15 })));
 
-// the compiled ground (game metres, bilinear), NaN outside the region's raster
-export function regionHeight(x, z) {
-  const R = region(); if (!R) return NaN;
+// one region's ground (game metres, bilinear), NaN outside its raster
+function heightOf(R, x, z) {
   const fx = (x - R.x0) / R.g, fz = (z - R.z0) / R.g;
   if (!(fx >= 0 && fz >= 0 && fx <= R.nx - 1 && fz <= R.nz - 1)) return NaN;
   const i = Math.min(R.nx - 2, Math.floor(fx)), j = Math.min(R.nz - 2, Math.floor(fz)), u = fx - i, v = fz - j, k = j * R.nx + i, h = R.h;
   return ((h[k] * (1 - u) + h[k + 1] * u) * (1 - v) + (h[k + R.nx] * (1 - u) + h[k + R.nx + 1] * u) * v) / 10;
 }
+// the compiled ground (game metres), NaN outside every region's raster: the regions that speak there, by their weights; where none does (the keep
+// zone, past the edge bands) the first raster that holds the point
+export function regionHeight(x, z) {
+  const L = regions(); if (!L.length) return NaN;
+  if (L.length === 1) return heightOf(L[0], x, z);
+  const W = weights(x, z); let s = 0, ws = 0;
+  for (let k = 0; k < W.length; k += 2) { const h = heightOf(W[k], x, z); if (h === h) { s += h * W[k + 1]; ws += W[k + 1]; } }
+  if (ws > 0) return s / ws;
+  for (const R of L) { const h = heightOf(R, x, z); if (h === h) return h; }
+  return NaN;
+}
 
-// the real settlements the compiler found: { id, name, kind, pop, x, z, y, r } (y in game metres, r the flat pad)
-export const regionPlaces = () => region()?.places || [];
+// the real settlements the compiler found: { id, name, kind, pop, x, z, y, r } (y in game metres, r the flat pad), of every region
+let PLACES = null;
+export const regionPlaces = () => { const L = regions(); return L.length <= 1 ? L[0]?.places || [] : PLACES || (PLACES = L.flatMap((R) => R.places || [])); };
 
-// the water of the nearest cell: { cls: 0 land, 1 sea, 2 inland, level (game metres) }, or null outside the region
-export function regionWater(x, z) {
-  const R = region(); if (!R) return null;
+// the water of the nearest cell: { cls: 0 land, 1 sea, 2 inland, level (game metres) }, or null outside every region; from the region that speaks
+// most there
+function waterOf(R, x, z) {
   const i = Math.round((x - R.x0) / R.g), j = Math.round((z - R.z0) / R.g);
   if (i < 0 || j < 0 || i >= R.nx || j >= R.nz) return null;
   const k = j * R.nx + i;
   return { cls: R.water[k], level: R.level[k] / 10 };
 }
+export function regionWater(x, z) {
+  const L = regions(); if (!L.length) return null;
+  if (L.length === 1) return waterOf(L[0], x, z);
+  const W = weights(x, z); let best = null, bw = 0;
+  for (let k = 0; k < W.length; k += 2) if (W[k + 1] > bw) { bw = W[k + 1]; best = W[k]; }
+  if (best) return waterOf(best, x, z);
+  for (const R of L) { const w = waterOf(R, x, z); if (w) return w; }
+  return null;
+}
 
-// the arterial road lines: { id, hw, oneway, lanes, half, ref, name, ds, x, z, y, cls, next, prev }
-export const regionRoads = () => region()?.roads || [];
+// the arterial road lines of every region: { id, hw, oneway, lanes, half, ref, name, ds, x, z, y, cls, next, prev } (next and prev: [line, sample]
+// pairs, renumbered into the joined list)
+let ROADS = null;
+export const regionRoads = () => {
+  const L = regions(); if (L.length <= 1) return L[0]?.roads || [];
+  if (ROADS) return ROADS;
+  ROADS = [];
+  for (const R of L) {
+    const off = ROADS.length, re = (a) => a.map(([ri, i]) => [ri + off, i]);
+    for (const r of R.roads || []) ROADS.push(off ? { ...r, next: re(r.next || []), prev: re(r.prev || []) } : r);
+  }
+  return ROADS;
+};
 
 // the physics ground: the compiled ground, filled down to the road surface in tunnels, where the drawn ground is left alone. A bridge is not filled:
 // its deck is a collider of its own (highways.js), and the ground under it stays the drawn one, so roads, cars and people can pass beneath it.
@@ -151,4 +212,4 @@ export function carve(x, z, h) {   // exported for the ground over tunnels (high
   return Math.min(h, e <= CARVE_IN ? y : cut);
 }
 
-if (typeof window !== 'undefined') window.__region = { regionPlaces, regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight };   // test hook
+if (typeof window !== 'undefined') window.__region = { regions, regionPlaces, regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight };   // test hook

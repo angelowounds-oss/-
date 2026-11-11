@@ -6,6 +6,9 @@ const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 // the compiled region (ADR-0019): installed before any generator runs, so the ground, the roads and the water of every job see it
 export const REGION_FILE = 'build/baked/world/capital/region.bin';
 globalThis.__REGION = (await imp('build/world/emit.mjs')).readRegion(path.join(root, REGION_FILE));
+// the compiled provinces (WLD-25c, compile.mjs --region <id>), in src/regions order: each owns its cells (src/region.js regions)
+export const PROVINCE_FILES = (await imp('build/world/pieces.mjs')).PIECES.map((p) => `build/baked/world/${p.name}/region.bin`);   // pieces of the big ones too
+globalThis.__REGIONS = await Promise.all(PROVINCE_FILES.map(async (f) => (await imp('build/world/emit.mjs')).readRegion(path.join(root, f)))).then((a) => a.filter(Boolean));
 // the procedural buildings of the region (WLD-24a, build/world/blocks.mjs): one chunk per 512 m tile
 export const BUILDINGS_FILE = 'build/baked/world/capital/buildings.bin';
 globalThis.__BUILDINGS = (await imp('build/world/blocks.mjs')).readBuildings(path.join(root, BUILDINGS_FILE));
@@ -13,12 +16,25 @@ globalThis.__BUILDINGS = (await imp('build/world/blocks.mjs')).readBuildings(pat
 // the street data of the region (WLD-24g, build/world/streets.mjs): one chunk per 512 m tile
 export const STREETS_FILE = 'build/baked/world/capital/streets.bin';
 globalThis.__STREETS = (await imp('build/world/streets.mjs')).readStreets(path.join(root, STREETS_FILE));
+// the provinces' buildings and streets joined into the same tiles (ADR-0044, mergetiles.mjs): their street tiles' road indices moved up to the joined list
+if (globalThis.__REGIONS.length) {
+  const { mergeTiles } = await imp('build/world/mergetiles.mjs'), { readBuildings } = await imp('build/world/blocks.mjs'), { readStreets } = await imp('build/world/streets.mjs');
+  const dirs = PROVINCE_FILES.map((f) => path.dirname(path.join(root, f))).filter((d) => globalThis.__REGIONS.some((R) => path.basename(d) === R.name));
+  let off = globalThis.__REGION?.roads.length || 0; const bs = [{ tiles: globalThis.__BUILDINGS?.tiles }], ss = [{ tiles: globalThis.__STREETS?.tiles }];
+  for (const R of globalThis.__REGIONS) {
+    const d = dirs.find((x) => path.basename(x) === R.name), B = readBuildings(path.join(d, 'buildings.bin')), S = readStreets(path.join(d, 'streets.bin'));
+    if (B) bs.push({ tiles: B.tiles }); if (S) ss.push({ tiles: S.tiles, roadOff: off }); off += R.roads.length;
+  }
+  const base = (T) => T || { tile: 512, off: 0, tiles: {} };
+  if (bs.length > 1) globalThis.__BUILDINGS = { ...base(globalThis.__BUILDINGS), tiles: mergeTiles(bs, 'bld').tiles };
+  if (ss.length > 1) globalThis.__STREETS = { ...base(globalThis.__STREETS), tiles: mergeTiles(ss, 'str').tiles };
+}
 
 export const RUN = {
   // the coarse world, the road network and the city layouts: what the page used to generate at start-up
   async core() {
     const [{ world }, { net }, { layouts }] = await Promise.all([imp('src/worldmap.js'), imp('src/roadnet.js'), imp('src/citylayout.js')]);
-    return { world: world(), net: net(), layouts: layouts(), region: globalThis.__REGION };
+    return { world: world(), net: net(), layouts: layouts(), region: globalThis.__REGION, regions: globalThis.__REGIONS };
   },
   // one tile of baked ground (heightmap.js): the ground of landfn.js on the tile's grid; the physics layer only when it differs (bridges, tunnels)
   async tile(j) {

@@ -20,7 +20,7 @@ const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 // A job makes one chunk: `src` lists the files whose content decides the result, `tier` says where it goes ('embed' = into the page, 'pack' = into
 // the high-detail pack), `run` (in jobs.mjs) returns the object to store. Later steps add the terrain tiles, city tiles, forests... here.
 // the compiled region (build/world/compile.mjs --emit) is a source of every job that reads the ground or the roads, when it exists
-const REGION_SRC = fs.existsSync(path.join(root, 'build/baked/world/capital/region.bin')) ? ['build/baked/world/capital/region.bin', 'src/region.js'] : ['src/region.js'];
+const REGION_SRC = ['capital', ...(await import('./world/pieces.mjs')).PIECES.map((p) => p.name)].map((id) => `build/baked/world/${id}/region.bin`).filter((f) => fs.existsSync(path.join(root, f))).concat('src/region.js');   // the provinces too (WLD-25c)
 const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js', 'src/roadnet.js', 'src/landfn.js', 'src/groundfn.js', 'src/heightmap.js', 'src/bakefmt.js', 'build/jobs.mjs',
   'src/roadgrade.js', 'src/countryplan.js', ...REGION_SRC];
 // which tiles each city has (cheap to compute here: the plan only gives the radius)

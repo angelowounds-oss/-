@@ -14,7 +14,7 @@ import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
 import { districtAt } from '../../src/districts.js';
 import { readRegion, KEEP, BAND } from './emit.mjs';
 
-export const TILE = 512, TILE_OFF = 256;   // tile index = floor(x / TILE) + TILE_OFF (never negative inside the region)
+export const TILE = 512, TILE_OFF = 256;   // tile index = floor(x / TILE) + TILE_OFF: the capital's tiles keep their keys; beyond 131 km (the provinces, ADR-0044) an index goes negative, and the game keys a tile i * 4096 + j
 export const KIND = { house: 0, villa: 1, shop: 2, office: 3, apartment: 4, industrial: 5, tower: 6 };
 const C = 4;   // metres per raster cell
 const SKIP = new Set(['motorway', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']);   // sound walls and ramps: nothing faces them
@@ -71,7 +71,8 @@ export function makeBuildings(R, { exclude = [] } = {}) {
   }
   // the keep zone (the hand-made city, until WLD-24c) and the places that have a city of their own
   const keepR = KEEP + BAND;
-  fillCells(cx2i(-keepR), cz2j(-keepR), cx2i(keepR) + 1, cz2j(keepR) + 1, 4);
+  if (!R.own) fillCells(cx2i(-keepR), cz2j(-keepR), cx2i(keepR) + 1, cz2j(keepR) + 1, 4);
+  else for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) if (R.own[j * nx + i] !== 255) fillCells(Math.round((i - 0.5) * per), Math.round((j - 0.5) * per), Math.round((i + 0.5) * per), Math.round((j + 0.5) * per), 4);   // a province builds on its own cells only (ADR-0044)
   for (const e of exclude) for (let j = cz2j(e.z - e.r); j <= cz2j(e.z + e.r); j++) for (let i = cx2i(e.x - e.r); i <= cx2i(e.x + e.r); i++) {
     if (i >= 0 && j >= 0 && i < W && j < H && Math.hypot(x0 + (i + 0.5) * C - e.x, z0 + (j + 0.5) * C - e.z) < e.r) occ[j * W + i] = 4;
   }
@@ -263,16 +264,19 @@ export function readBuildings(file) {
 // ---- command line: node build/world/blocks.mjs [region.bin] [out dir]
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), dir = path.join(root, 'build/baked/world/capital');
-  const file = process.argv[2] || path.join(dir, 'region.bin'), out = process.argv[3] || dir;
+  const file = process.argv[2] || path.join(dir, 'region.bin'), out = process.argv[3] || path.dirname(file);
   const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
   const { REGIONS } = await import('../../src/regions/index.js'), { CAPITAL } = await import('../../src/koreamap.js');
   const exclude = REGIONS.flatMap((r) => r.cities).filter((c) => c.def.viaRegion).map((c) => ({ x: c.def.x - CAPITAL.x, z: c.def.z - CAPITAL.z, r: c.def.r * 1.15 + 60 }));
   const t0 = Date.now(), res = makeBuildings(R, { exclude });
   // the real buildings of the map (WLD-24h) where the detail tiles were fetched (build/world/fetch-detail.mjs); the procedural ones stay in the gaps
-  const { readDetail } = await import('./realdetail.mjs'), { mergeReal, addRealTiles } = await import('./osmbuildings.mjs'), detail = readDetail();
+  // a province reads the real buildings of its own box (the nationwide store, ADR-0044) and keeps those on its cells
+  const P = R.own ? (await import('./pieces.mjs')).pieceOf(R.name) : null, box = P ? { w: P.box.w - 0.02, s: P.box.s - 0.02, e: P.box.e + 0.02, n: P.box.n + 0.02 } : undefined;
+  const ownAt = (x, z) => { const i = Math.round((x - R.x0) / R.g), j = Math.round((z - R.z0) / R.g); return i >= 0 && j >= 0 && i < R.nx && j < R.nz && R.own[j * R.nx + i] === 255; };
+  const { readDetail } = await import('./realdetail.mjs'), { mergeReal, addRealTiles } = await import('./osmbuildings.mjs'), detail = readDetail(box);
   let real = null;
   if (detail.buildings.length) {
-    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r), R.roads); real = m.stats; real.missingTiles = detail.missing.length; real.underground = detail.underground; real.notBuilding = detail.notBuilding;
+    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (R.own ? !ownAt(x, z) : Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r), R.roads); real = m.stats; real.missingTiles = detail.missing.length; real.underground = detail.underground; real.notBuilding = detail.notBuilding;
     for (const k of Object.keys(res.B)) res.B[k] = res.B[k].filter((v, i) => m.keep[i]);
     res.count = res.B.cx.length; res.real = m.real;
   }

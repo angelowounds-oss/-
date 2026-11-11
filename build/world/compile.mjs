@@ -5,12 +5,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { project, CAPITAL, KOREA_SCALE, V_SCALE } from '../../src/koreamap.js';
-import { BRIDGES } from '../../src/regions/index.js';
+import { BRIDGES, REGIONS as PROVINCES } from '../../src/regions/index.js';
 import { unproject, mapBox } from './geo.mjs';
 import { Dem, osmTiles } from './dem.mjs';
 import { relief, sheet, profile, roadSvg, crop } from './preview.mjs';
 import { roadPass } from './roads.mjs';
-import { emitRegion } from './emit.mjs';
+import { emitRegion, ownership, readRegion } from './emit.mjs';
+import { pieceOf } from './pieces.mjs';
 import { placesPass } from './places.mjs';
 import { SEA } from '../../src/worldmap.js';
 import { overpass, bbox, REGION_QL } from './osm.mjs';
@@ -25,7 +26,13 @@ const REGIONS = {
 const G = +(process.argv.join(' ').match(/--cell (\d+)/)?.[1] || 16);   // map metres per cell: 16 for the t16 tiles, 8 for the t8 pack (--cell 8)
 
 const args = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean).map((s) => { const [k, ...v] = s.trim().split(/\s+/); return [k, v.join(' ') || true]; }));
-const region = REGIONS[args.region || 'capital']; if (!region) { console.error('unknown region', args.region); process.exit(2); }
+// a province, or a piece of a big one (build/world/pieces.mjs, WLD-25c), compiles from its own lon/lat box: its city hall (or the piece's centre) as the
+// mark and a section across the box through it
+const province = (name) => { const p = pieceOf(name); if (!p) return null; const P = PROVINCES.find((r) => r.id === p.id), b = p.box;
+  const hall = P.hall.lon >= b.w && P.hall.lon <= b.e && P.hall.lat >= b.s && P.hall.lat <= b.n ? [P.hall.name, P.hall.lon, P.hall.lat] : [name, (b.w + b.e) / 2, (b.s + b.n) / 2];
+  const PAD = 0.02;   // about 1.8 km of pad: the raster reaches past the piece's cells by more than the edge band that fades them out
+  return { id: p.id, piece: p, province: true, box: { w: b.w - PAD, e: b.e + PAD, s: b.s - PAD, n: b.n + PAD }, osmZoom: 9, marks: [hall], section: { from: [b.w, hall[2]], to: [b.e, hall[2]], name: `${name} west -> east` } }; };
+const region = REGIONS[args.region || 'capital'] || province(args.region); if (!region) { console.error('unknown region', args.region); process.exit(2); }
 const Vs = String(args.v || V_SCALE).split(',').map((s) => { const [a, b] = s.split('/').map(Number); return { name: s, v: b ? a / b : a }; });
 const out = path.join('build/baked/world', (args.region || 'capital') + (G === 16 ? '' : '-' + G)); fs.mkdirSync(out, { recursive: true });
 
@@ -84,7 +91,9 @@ if (args.roads) {
   const spans = BRIDGES.map((b) => { const p = project(b.lon, b.lat); return { ref: b.ref, x: p.x, z: p.z, half: b.span / 2 / KOREA_SCALE, deck: b.clearance ? b.clearance * Vs[0].v + 1 : 0 }; });
   roads = { gh, ...roadPass(R, gh, rels.concat(minor), sites, { V: Vs[0].v, spans }) };
   stats.roads = { V: Vs[0].name, seconds: +((Date.now() - t1) / 1000).toFixed(1), ...roads.stats };
-  if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v, pl.places);
+  // a province owns its cells of the box (emit.mjs ownership), as against its neighbours and the capital's compiled raster
+  const own = region.province ? ownership(R, region.id, readRegion('build/baked/world/capital/region.bin'), region.piece.box) : null;
+  if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v, pl.places, own);
 }
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify(stats, null, 1));
 console.log(JSON.stringify(stats));
@@ -99,8 +108,8 @@ if (args.preview) {
   if (roads) {
     const rgb = relief(R, Vs[0].v, roads.gh), svg = roadSvg(roads.lines, x0, z0, G);
     await sheet(path.join(out, 'roads.png'), [{ title: 'OpenStreetMap (reference)', rgb: ref }, { title: `compiled roads, V = ${Vs[0].name}`, rgb, svg }, { title: 'ground after laying the roads in', rgb }], nx, nz, marks);
-    // the centre of Seoul enlarged: 4 x 3 km of map around City Hall, three times
-    const c = project(126.978, 37.5665), Z = 3, w = Math.round(4000 / G), hh = Math.round(3000 / G), i0 = Math.round((c.x - x0) / G - w / 2), j0 = Math.round((c.z - z0) / G - hh / 2);
+    // the centre enlarged: 4 x 3 km of map around the first mark (City Hall), three times
+    const c = project(region.marks[0][1], region.marks[0][2]), Z = 3, w = Math.round(4000 / G), hh = Math.round(3000 / G), i0 = Math.round((c.x - x0) / G - w / 2), j0 = Math.round((c.z - z0) / G - hh / 2);
     const zm = marks.map((m) => ({ ...m, px: (m.px - i0) * Z, py: (m.py - j0) * Z })).filter((m) => m.px > 0 && m.py > 0 && m.px < w * Z && m.py < hh * Z);
     const cz = await crop(rgb, nx, nz, i0, j0, w, hh, Z), cref = Buffer.alloc(w * Z * hh * Z * 3), osmZ = osmTiles(13), cc = [0, 0, 0];   // a finer reference for the enlargement
     const corners = [[0, 0], [w, 0], [0, hh], [w, hh]].map(([a, b]) => unproject(x0 + (i0 + a) * G, z0 + (j0 + b) * G));

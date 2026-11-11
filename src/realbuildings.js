@@ -151,7 +151,7 @@ export class RealBuildings {
     this.R = simple ? 900 : high ? 2200 : 1500;   // how far tiles are drawn; they sit in the fog beyond it anyway
     this.RC = 220;                                 // buildings this close to the player (or what he drives) are solid
     this.stats = { tiles: 0, buildings: 0, solid: 0, building: 0 };
-    for (const k of wd?.keys('bld/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 1024 + tj, { key: k, ti, tj }); }
+    for (const k of wd?.keys('bld/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 4096 + tj, { key: k, ti, tj }); }
     this.mat = makeMaterial(); this.group = new THREE.Group(); this.group.name = 'realbuildings'; scene.add(this.group);
     // a placeholder with the same attributes: the first frame of the loading warm-up compiles the material (and its shadow program) for all later tiles
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
@@ -162,7 +162,7 @@ export class RealBuildings {
   wanted(fx, fz) {
     const out = [], R = this.R, i0 = Math.floor((fx - R) / TILE) + OFF, i1 = Math.floor((fx + R) / TILE) + OFF, j0 = Math.floor((fz - R) / TILE) + OFF, j1 = Math.floor((fz + R) / TILE) + OFF;
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      const e = this.index.get(i * 1024 + j); if (!e) continue;
+      const e = this.index.get(i * 4096 + j); if (!e) continue;
       const cx = (i - OFF) * TILE + TILE / 2, cz = (j - OFF) * TILE + TILE / 2, dx = Math.max(Math.abs(fx - cx) - TILE / 2, 0), dz = Math.max(Math.abs(fz - cz) - TILE / 2, 0);
       if (dx * dx + dz * dz <= R * R) out.push({ e, d: dx * dx + dz * dz });
     }
@@ -177,8 +177,8 @@ export class RealBuildings {
       this.last = this.t;
       const want = this.wanted(focus.x, focus.z), keep = new Set();
       for (const { e } of want) {
-        keep.add(e.ti * 1024 + e.tj);
-        const id = e.ti * 1024 + e.tj; if (this.tiles.has(id)) continue;
+        keep.add(e.ti * 4096 + e.tj);
+        const id = e.ti * 4096 + e.tj; if (this.tiles.has(id)) continue;
         const rec = { e, state: 'loading', mesh: null }; this.tiles.set(id, rec);
         this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('realbuildings', e.key, err); });
       }
@@ -192,7 +192,7 @@ export class RealBuildings {
     if (this.t - this.lastCol >= 0.25) { this.lastCol = this.t; this.solid(focus); }
   }
   finish(b) {
-    const id = b.ti * 1024 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) return;
+    const id = b.ti * 4096 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) return;
     const mesh = new THREE.Mesh(b.geometry(), this.mat); mesh.position.set(b.ox, 0, b.oz); mesh.matrixAutoUpdate = false; mesh.updateMatrix(); mesh.receiveShadow = true; mesh.castShadow = false; mesh.name = 'bld ' + b.key;
     rec.mesh = mesh; rec.state = 'ready'; rec.base = b.base; rec.roofs = b.roofs; rec.build = null; this.group.add(mesh);
     this.stats.buildings += b.n + b.pn;

@@ -14,25 +14,35 @@ if (regions) { const { IDS } = await import('../src/regions/index.js'), bad = re
 // every shipped file is listed with its licence (ADR-0028): an unlisted file, a changed one or a licence outside the allowed list stops the build
 { const { check } = await import('./assets/fetch.mjs'), m = check(); if (m.errors.length) { for (const e of m.errors) console.error('asset:', e); process.exit(1); } }
 // the compiled region (ADR-0019) is made before the bake reads it: again when it is missing or older than the compiler (DEM and OSM are cached)
+// the compiled regions (ADR-0044): the capital, then the provinces of WORLD_PROVINCES (default: all of src/regions; a comma list, or none), each through
+// the same chain in build/baked/world/<id>/: compile, grade, buildings, the street fit with its grade and buildings again, the streets
 if (!small) {
-  const { V_SCALE } = await import('../src/koreamap.js');
-  const out = 'build/baked/world/capital/region.bin', srcs = [...fs.readdirSync('build/world').filter((f) => !['blocks.mjs', 'grade.mjs', 'streets.mjs', 'streetfurn.mjs', 'realdetail.mjs', 'osmbuildings.mjs', 'fetch-detail.mjs', 'bbbike-detail.mjs', 'bbbike-roads.mjs', 'streetpoints.mjs', 'seouldata.mjs', 'fit.mjs', 'sites.mjs', 'floaters.mjs', 'corridor.mjs', 'blockers.mjs'].includes(f)).map((f) => 'build/world/' + f), 'src/koreamap.js'];   // the scale lives in koreamap.js; blocks.mjs reads the region, it does not make it
-  if (!fs.existsSync(out) || srcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs)) execFileSync('node', ['build/world/compile.mjs', '--region', 'capital', '--v', String(V_SCALE), '--roads', '--emit'], { stdio: 'inherit' });
-  // the ground contract (grade.mjs): the raster conditioned to the roads, bridges and tunnels; again after a compile or when the rules changed
-  const gstats = 'build/baked/world/capital/grade-stats.json';
-  if (!fs.existsSync(gstats) || fs.statSync(out).mtimeMs > fs.statSync(gstats).mtimeMs || fs.statSync('build/world/grade.mjs').mtimeMs > fs.statSync(gstats).mtimeMs) execFileSync('node', ['--max-old-space-size=8000', 'build/world/grade.mjs'], { stdio: 'inherit' });
-  // the procedural buildings (WLD-24a) stand on the compiled region: again when it, their generator or the district table is newer
-  const bout = 'build/baked/world/capital/buildings.bin', bsrcs = [out, 'build/world/blocks.mjs', 'build/world/emit.mjs', 'build/world/realdetail.mjs', 'build/world/osmbuildings.mjs', 'build/world/fetch-detail.mjs', 'src/districts.js', 'src/koreamap.js', ...(fs.existsSync('build/.osm-cache/world') ? fs.readdirSync('build/.osm-cache/world') : []).filter((f) => f.startsWith('detail-') && f.endsWith('.json')).map((f) => 'build/.osm-cache/world/' + f)];
-  if (!fs.existsSync(bout) || bsrcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(bout).mtimeMs)) execFileSync('node', ['--max-old-space-size=8000', 'build/world/blocks.mjs'], { stdio: 'inherit' });
-  // the residential streets fitted to the walls of the real buildings (WLD-33, fit.mjs), then graded and built on again: after a compile (grade.mjs made a
-  // new raw copy) or when the fit's rules changed
-  const fstats = 'build/baked/world/capital/fit-stats.json', raw = 'build/baked/world/capital/region-raw.bin';
-  if (!fs.existsSync(fstats) || ['build/world/fit.mjs', 'build/world/corridor.mjs', raw].some((f) => fs.statSync(f).mtimeMs > fs.statSync(fstats).mtimeMs)) {
-    for (const [s, heap] of [['fit', 12000], ['grade', 12000], ['blocks', 12000]]) execFileSync('node', ['--max-old-space-size=' + heap, 'build/world/' + s + '.mjs'], { stdio: 'inherit' });
+  const { V_SCALE } = await import('../src/koreamap.js'), { IDS } = await import('../src/regions/index.js');
+  // the provinces asked for, as their compiled pieces (build/world/pieces.mjs: a big one is a grid of pieces; Seoul, inside the capital's box, has none)
+  const { PIECES, piecesFor } = await import('./world/pieces.mjs'), want = process.env.WORLD_PROVINCES ?? IDS.map(([id]) => id).join(',');
+  const ids = ['capital', ...piecesFor(want.split(',')).map((p) => p.name)];
+  const NOT_COMPILER = ['blocks.mjs', 'grade.mjs', 'streets.mjs', 'streetfurn.mjs', 'realdetail.mjs', 'osmbuildings.mjs', 'fetch-detail.mjs', 'bbbike-detail.mjs', 'bbbike-roads.mjs', 'streetpoints.mjs', 'seouldata.mjs', 'fit.mjs', 'sites.mjs', 'floaters.mjs', 'corridor.mjs', 'blockers.mjs', 'mergetiles.mjs', 'pbf-store.py', 'pieces.mjs'];
+  const srcs = [...fs.readdirSync('build/world').filter((f) => !NOT_COMPILER.includes(f)).map((f) => 'build/world/' + f), 'src/koreamap.js'];   // the scale lives in koreamap.js; blocks.mjs reads the region, it does not make it
+  const newer = (out, list) => !fs.existsSync(out) || list.some((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs > fs.statSync(out).mtimeMs);
+  const detailFiles = (fs.existsSync('build/.osm-cache/world') ? fs.readdirSync('build/.osm-cache/world') : []).filter((f) => f.startsWith('detail-') && f.endsWith('.json')).map((f) => 'build/.osm-cache/world/' + f).concat(fs.existsSync('build/.osm-cache/pbf/meta.json') ? ['build/.osm-cache/pbf/meta.json'] : []);
+  const run = (script, heap, ...a) => execFileSync('node', ['--max-old-space-size=' + heap, 'build/world/' + script, ...a], { stdio: 'inherit' });
+  for (const id of ids) {
+    const dir = 'build/baked/world/' + id, out = dir + '/region.bin', heap = id === 'capital' ? 12000 : 14000;
+    // the region (DEM and OSM are cached), again when it is missing or older than the compiler
+    if (newer(out, srcs)) run('compile.mjs', heap, '--region', id, '--v', String(V_SCALE), '--roads', '--emit');
+    // the ground contract (grade.mjs): the raster conditioned to the roads, bridges and tunnels; again after a compile or when the rules changed
+    const gstats = dir + '/grade-stats.json';
+    if (newer(gstats, [out, 'build/world/grade.mjs'])) run('grade.mjs', heap, out);
+    // the procedural and real buildings (WLD-24a, WLD-24h) on the region: again when it, their generator or the district table is newer
+    const bout = dir + '/buildings.bin';
+    if (newer(bout, [out, 'build/world/blocks.mjs', 'build/world/emit.mjs', 'build/world/realdetail.mjs', 'build/world/osmbuildings.mjs', 'build/world/fetch-detail.mjs', 'src/districts.js', 'src/koreamap.js', ...detailFiles])) run('blocks.mjs', heap, out);
+    // the residential streets fitted to the walls of the real buildings (WLD-33, fit.mjs), then graded and built on again: after a compile (grade.mjs made a
+    // new raw copy) or when the fit's rules changed
+    if (newer(dir + '/fit-stats.json', ['build/world/fit.mjs', 'build/world/corridor.mjs', dir + '/region-raw.bin'])) { run('fit.mjs', heap, dir); run('grade.mjs', heap, out); run('blocks.mjs', heap, out); }
+    // the street data (WLD-24g: junctions and pavement runs) from the roads and the buildings
+    const sout = dir + '/streets.bin';
+    if (newer(sout, [out, bout, 'build/world/streets.mjs', 'build/world/streetfurn.mjs', 'build/world/streetpoints.mjs', 'src/streetgeo.js', 'build/world/emit.mjs', 'build/world/realdetail.mjs', 'build/world/seouldata.mjs', 'build/world/osmbuildings.mjs', ...['crossings.zip', 'signals.csv'].map((f) => 'build/.osm-cache/seoul/' + f)])) run('streets.mjs', heap, out);
   }
-  // the street data (WLD-24g: junctions and pavement runs) from the roads and the buildings
-  const sout = 'build/baked/world/capital/streets.bin', ssrcs = [out, bout, 'build/world/streets.mjs', 'build/world/streetfurn.mjs', 'build/world/streetpoints.mjs', 'src/streetgeo.js', 'build/world/emit.mjs', 'build/world/realdetail.mjs', 'build/world/seouldata.mjs', 'build/world/osmbuildings.mjs', ...['crossings.zip', 'signals.csv'].map((f) => 'build/.osm-cache/seoul/' + f).filter((f) => fs.existsSync(f))];
-  if (!fs.existsSync(sout) || ssrcs.some((f) => fs.statSync(f).mtimeMs > fs.statSync(sout).mtimeMs)) execFileSync('node', ['--max-old-space-size=8000', 'build/world/streets.mjs'], { stdio: 'inherit' });
 }
 const { bake, writePack, writeBase } = await import('./bake.mjs');
 fs.rmSync(DIST, { recursive: true, force: true });

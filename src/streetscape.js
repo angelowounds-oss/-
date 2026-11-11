@@ -415,7 +415,7 @@ export class Streetscape {
     this.R = simple ? 400 : high ? 1000 : 700;   // how far tiles are drawn (a lamp or a kerb beyond this is only a speck in the fog)
     this.RC = 70;                                  // how close poles, trunks and the pavement are solid
     this.stats = { tiles: 0, solid: 0, pave: 0, lamps: 0, trees: 0, signals: 0, crossings: 0, corners: 0, arrows: 0, diamonds: 0, bus: 0, stops: 0, shelters: 0, entrances: 0, small: 0, mid: 0, plates: 0, deepSkirt: 0, walk: 0, tris: 0 };
-    for (const k of wd?.keys('str/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 1024 + tj, { key: k, ti, tj }); }
+    for (const k of wd?.keys('str/') || []) { const [ti, tj] = k.slice(4).split('_').map(Number); this.index.set(ti * 4096 + tj, { key: k, ti, tj }); }
     const hw = G?.highways?.mats;
     // the same programs as the road structures (vertex-coloured standard) and the lights (basic): nothing new to compile
     this.mat = hw?.struct || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 });
@@ -441,7 +441,7 @@ export class Streetscape {
   wanted(fx, fz) {
     const out = [], R = this.R, i0 = Math.floor((fx - R) / TILE) + OFF, i1 = Math.floor((fx + R) / TILE) + OFF, j0 = Math.floor((fz - R) / TILE) + OFF, j1 = Math.floor((fz + R) / TILE) + OFF;
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      const e = this.index.get(i * 1024 + j); if (!e) continue;
+      const e = this.index.get(i * 4096 + j); if (!e) continue;
       const cx = (i - OFF) * TILE + TILE / 2, cz = (j - OFF) * TILE + TILE / 2, dx = Math.max(Math.abs(fx - cx) - TILE / 2, 0), dz = Math.max(Math.abs(fz - cz) - TILE / 2, 0);
       if (dx * dx + dz * dz <= R * R) out.push({ e, d: dx * dx + dz * dz });
     }
@@ -456,7 +456,7 @@ export class Streetscape {
       this.last = this.t;
       const want = this.wanted(focus.x, focus.z), keep = new Set();
       for (const { e } of want) {
-        const id = e.ti * 1024 + e.tj; keep.add(id); if (this.tiles.has(id)) continue;
+        const id = e.ti * 4096 + e.tj; keep.add(id); if (this.tiles.has(id)) continue;
         const rec = { e, state: 'loading', meshes: null, col: null, solid: new Map() }; this.tiles.set(id, rec);
         this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk, this.lines, this.atlas); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('streetscape', e.key, err); });
       }
@@ -470,7 +470,7 @@ export class Streetscape {
     if (this.t - this.sigAt >= 0.5) { this.sigAt = this.t; this.signals(focus); }
   }
   finish(b) {
-    const id = b.ti * 1024 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) { for (const n of b.names) this.atlas.give(n); return; }
+    const id = b.ti * 4096 + b.tj, rec = this.tiles.get(id); if (!rec || rec.build !== b) { for (const n of b.names) this.atlas.give(n); return; }
     const meshes = [];
     for (const [geo, mat] of [[b.S, this.mat], [b.M, this.markMat], [b.G, this.glowMat]]) {
       if (geo.empty) continue;
