@@ -45,7 +45,8 @@ else {
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const k = j * nx + i, s = (j + j0) * R0.nx + i + i0; h[k] = R0.h[s]; water[k] = R0.water[s]; level[k] = R0.level[s]; }
     const keep = R0.roads.map((r) => { for (let i = 0; i < r.x.length; i++) if (Math.abs(r.x[i] - cx) < half + 60 && Math.abs(r.z[i] - cz) < half + 60) return true; return false; }), remap = new Map(); keep.forEach((k, i) => { if (k) remap.set(i, remap.size); });
     const roads = R0.roads.filter((r, i) => keep[i]).map((r) => ({ ...r, next: (r.next || []).filter(([l]) => remap.has(l)).map(([l, i]) => [remap.get(l), i]), prev: (r.prev || []).filter(([l]) => remap.has(l)).map(([l, i]) => [remap.get(l), i]) }));
-    return { ...R0, nx, nz, x0: R0.x0 + i0 * R0.g, z0: R0.z0 + j0 * R0.g, h, water, level, roads };
+    // edge 0: the cut of a piece of the interior is not the region's border, where the bake would leave the ground to the world outside (emit.mjs drawnGround)
+    return { ...R0, nx, nz, x0: R0.x0 + i0 * R0.g, z0: R0.z0 + j0 * R0.g, h, water, level, roads, edge: 0 };
   };
   const gn = at(127.0276, 37.4979), half = 2500, C = crop(gn.x, gn.z, half), inCrop = (x, z) => Math.abs(x - gn.x) < half && Math.abs(z - gn.z) < half;
   const sub = { ...detail, buildings: detail.buildings.filter((b) => inCrop(b.rings[0][0][0], b.rings[0][0][1])), points: detail.points.filter((p) => inCrop(p.x, p.z)) };

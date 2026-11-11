@@ -81,13 +81,22 @@ export function placePoints(J, roads, points, why) {
       const r = shelter ? SHELTER.hw : 0.15, ok = clear(x, z, s.y, r) === true && (!shelter || ([-1, 1].every((e) => clear(x + s.tx * e * SHELTER.hl, z + s.tz * e * SHELTER.hl, s.y, 0.2) === true)));
       if (!ok) continue;
       if (shelter !== want) why.noRoom = (why.noRoom || 0) + 1;
-      return { x, z, y: s.y, ix: -ox, iz: -oz, v: (shelter ? 1 : 0) | (tagged ? 2 : 0), bridge: L.cls[s.i] === 1 ? 1 : 0, ri: s.ri };
+      // off a deck the stop stands on the ground beside the kerb: a road on an embankment or in a cutting there has no footway at its level (WLD-32)
+      const deck = L.cls[s.i] === 1 || L.cls[s.i + 1] === 1;
+      if (!deck && Math.abs(s.y - J.groundY(x, z)) > 1.5) return no('level');
+      return { x, z, y: s.y, ix: -ox, iz: -oz, v: (shelter ? 1 : 0) | (tagged ? 2 : 0), bridge: deck ? 1 : 0, ri: s.ri };
     }
     const x = s.fx + ox * (L.half + 0.5), z = s.fz + oz * (L.half + 0.5), res = clear(x, z, s.y, 0.15); return no(res === true ? 'room' : res);
   }
   function dupBus(x, z) { for (const q of items) if (q.t === PTYPE.bus && Math.hypot(q.x - x, q.z - z) < DUP.bus) return true; return false; }
+  // the height a record off the carriageway stands at (WLD-32): the ground, or the road's surface where that road is on the ground here (a kerb a little
+  // above or below the terrain); a flyover or a ramp beside the spot is another level, its height would hang the record in the air
+  function footAt(s, x, z) {
+    const g = J.groundY(x, z); if (!s) return g;
+    const L = roads[s.ri]; return !L.cls[s.i] && !L.cls[s.i + 1] && Math.abs(s.y - g) < 1.5 ? s.y : g;
+  }
   function entrance(p) {
-    const s = J.nearestRoad(p.x, p.z, 25, true), y = s ? s.y : J.groundY(p.x, p.z);
+    const s = J.nearestRoad(p.x, p.z, 25, true), y = footAt(s, p.x, p.z);
     if (J.water(p.x, p.z)) return no('water');
     // an entrance inside a building's outline opens in its wall (no canopy of its own)
     if (J.bdist(p.x, p.z, 14).d < 0) return no('inBuilding');
@@ -109,7 +118,7 @@ export function placePoints(J, roads, points, why) {
     let x = p.x, z = p.z;
     // a point on the carriageway goes onto the pavement beside it
     if (s && s.gap < r) { const push = r - s.gap + 0.3; if (push > 4) return no('road'); x -= s.nx * push; z -= s.nz * push; }
-    const y = s && s.gap < 6 ? s.y : J.groundY(x, z), res = clear(x, z, y, kind === 'bench' ? 0.3 : 0.15);
+    const y = s && s.gap < 6 ? footAt(s, x, z) : J.groundY(x, z), res = clear(x, z, y, kind === 'bench' ? 0.3 : 0.15);
     if (res !== true) return no(res);
     if (J.nearPlaced(x, z, DUP[kind], PTYPE[kind])) return no('dup');
     if (J.onCrossing(x, z, 0.5)) return no('crossing');

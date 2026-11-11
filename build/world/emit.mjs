@@ -7,10 +7,21 @@ import { CAPITAL, KOREA_SCALE } from '../../src/koreamap.js';
 import { SEA } from '../../src/worldmap.js';
 import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
 import { lanesOf, halfOf } from './roads.mjs';
+import { REGIONS } from '../../src/regions/index.js';
 
 // the capital's own ground stays the city's (|x|, |z| below KEEP, local metres); the compiled data starts beyond KEEP + BAND, where the two blend
 export const KEEP = 1500, BAND = 600, EDGE = 1000;   // EDGE: the blend band at the region's outer border, towards the world outside it
-const JOIN = 20;   // map metres: a line end this close to another line meets it there
+export const HOLE_BAND = 220;   // metres over which the region returns around a city that keeps its own ground (src/region.js)
+const JOIN = 20;
+
+// where the region's raster is the ground the game draws (WLD-29): the same test as src/region.js regionWeight(x, z) >= 1, for the bake. Outside it the
+// drawn ground is the hand-made city's (the keep zone and its band), a city's own (the airport's hole) or a blend toward the world outside (the edge band),
+// and a height baked from the raster would put a record above or below what the player sees.
+export function drawnGround(R) {
+  const holes = REGIONS.flatMap((r) => r.cities).filter((c) => c.def.viaRegion).map((c) => ({ x: c.def.x - CAPITAL.x, z: c.def.z - CAPITAL.z, r: c.def.r * 1.15 + HOLE_BAND }));
+  const keep = (R.keep ?? KEEP) + (R.band ?? BAND), edge = R.edge ?? EDGE, x1 = R.x0 + (R.nx - 1) * R.g, z1 = R.z0 + (R.nz - 1) * R.g;
+  return (x, z) => Math.max(Math.abs(x), Math.abs(z)) >= keep && Math.min(x - R.x0, x1 - x, z - R.z0, z1 - z) >= edge && holes.every((h) => Math.hypot(x - h.x, z - h.z) >= h.r);
+}   // map metres: a line end this close to another line meets it there
 
 export function emitRegion(file, name, R, gh, lines, V, places = []) {
   const lx0 = R.x0 - CAPITAL.x, lz0 = R.z0 - CAPITAL.z, n = R.nx * R.nz;

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 import path from 'node:path';
 import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
-import { readRegion, KEEP, BAND } from './emit.mjs';
+import { readRegion, drawnGround } from './emit.mjs';
 import { TILE, TILE_OFF, readBuildings } from './blocks.mjs';
 import { trims, radiusOf, decodeTile } from '../../src/streetgeo.js';
 import { placeFurniture } from './streetfurn.mjs';
@@ -80,7 +80,9 @@ export function flyovers(R) {
 
 // detail: readDetail()'s result (the map's records), or null for rules only
 export function makeStreets(R, bld, detail = null) {
-  const roads = R.roads, urb = urbanOf(bld), keepR = KEEP + BAND, PI = pointIndex(detail?.points), used = new Set();   // used: crossing records a junction arm took
+  const roads = R.roads, urb = urbanOf(bld), drawn = drawnGround(R), used = new Set();   // used: crossing records a junction arm took
+  // the records of the map only where the region's raster is the drawn ground (WLD-29): in the keep zone the hand-made city has its own ground and streets
+  const PI = pointIndex((detail?.points || []).filter((p) => drawn(p.x, p.z)));
   const tileOf = (x, z) => [Math.floor(x / TILE) + TILE_OFF, Math.floor(z / TILE) + TILE_OFF];
   const urbanAt = (x, z) => { const [a, b] = tileOf(x, z); return urb(a, b); };
   // ---- which sides of which segments have pavement (sample i to i + 1), per line: bit 0 the left, bit 1 the right side of the line's direction
@@ -111,7 +113,7 @@ export function makeStreets(R, bld, detail = null) {
     const sl = [0]; for (let i = 1; i < n; i++) sl.push(sl[i - 1] + Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1]));
     for (let i = 0; i + 1 < n; i++) {
       const mx = (r.x[i] + r.x[i + 1]) / 2, mz = (r.z[i] + r.z[i + 1]) / 2;
-      if (!(r.cls[i] !== 2 && r.cls[i + 1] !== 2 && Math.max(Math.abs(mx), Math.abs(mz)) >= keepR && urbanAt(mx, mz) >= URBAN[rk])) continue;
+      if (!(r.cls[i] !== 2 && r.cls[i + 1] !== 2 && drawn(mx, mz) && urbanAt(mx, mz) >= URBAN[rk])) continue;
       if (fly[i] && fly[i + 1]) { flyoverSegs++; continue; }
       let m = 3;
       const sm = (sl[i] + sl[i + 1]) / 2;
@@ -161,7 +163,7 @@ export function makeStreets(R, bld, detail = null) {
   for (const g of [...groups.keys()].sort((a, b) => a - b)) {
     const list = groups.get(g); if (list.length < 3) continue;
     let x = 0, z = 0, y = 0; for (const a of list) { x += a.x; z += a.z; y += roads[a.ri].y[a.i]; } x /= list.length; z /= list.length; y /= list.length;
-    if (Math.max(Math.abs(x), Math.abs(z)) < keepR) continue;
+    if (!drawn(x, z)) continue;
     // not on a bridge or in a tunnel; not where only ramps and motorways meet
     if (list.some((a) => roads[a.ri].cls[a.i] || roads[a.ri].cls[Math.max(0, a.i - 1)] || roads[a.ri].cls[Math.min(roads[a.ri].cls.length - 1, a.i + 1)])) continue;
     const ranks = list.map((a) => rankOf(roads[a.ri].hw)); if (ranks.every((k) => k >= 8)) continue;
@@ -220,8 +222,10 @@ export function makeStreets(R, bld, detail = null) {
   void q10;
   // ---- lamps and trees, each judged against what is around it (streetfurn.mjs)
   // ---- and before them the records of the street (streetpoints.mjs): stops, entrances, benches, bins, hydrants, and the crossings away from junctions
-  const crossRecs = (detail?.points || []).filter((p) => p.t === 'crossing' && p.marked);
-  const { items, mids, why, judge } = placeFurniture(R, bld, junctions, runs, tileOf, PI.tree, { points: detail?.points || [], cross: crossRecs, used });
+  const points = (detail?.points || []).filter((p) => drawn(p.x, p.z)), crossRecs = points.filter((p) => p.t === 'crossing' && p.marked);
+  const placed = placeFurniture(R, bld, junctions, runs, tileOf, PI.tree, { points, cross: crossRecs, used }), { mids, why, judge } = placed;
+  // a lamp or tree set out sideways from a run can land past the line where the drawn ground stops being the raster's (WLD-29)
+  const items = placed.items.filter((f) => f.bridge || drawn(f.x, f.z)); why.offGround = placed.items.length - items.length;
   return { junctions, runs, items, mids, why, judge, flyoverSegs };
 }
 
