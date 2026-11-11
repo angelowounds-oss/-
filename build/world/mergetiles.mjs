@@ -44,3 +44,21 @@ export function mergeTiles(sets, kind) {
   }
   return { tiles: out, shared };
 }
+
+// the capital's and the provinces' building and street sets joined (the bake's job list and its workers must see the same tiles): `capital` the
+// capital's region (or its road count), `provinces` the loaded province regions in src/region.js order (or { name, roads: count })
+export async function joinedSets(root, capital, provinces) {
+  const path = await import('node:path'), { readBuildings } = await import('./blocks.mjs'), { readStreets } = await import('./streets.mjs');
+  const dir = (n) => path.join(root, 'build/baked/world', n), count = (R) => (typeof R?.roads === 'number' ? R.roads : R?.roads?.length || 0);
+  let B = readBuildings(path.join(dir('capital'), 'buildings.bin')), S = readStreets(path.join(dir('capital'), 'streets.bin'));
+  if (!provinces.length) return { B, S };
+  let off = count(capital); const bs = [{ tiles: B?.tiles }], ss = [{ tiles: S?.tiles }];
+  for (const R of provinces) {
+    const b = readBuildings(path.join(dir(R.name), 'buildings.bin')), t = readStreets(path.join(dir(R.name), 'streets.bin'));
+    if (b) bs.push({ tiles: b.tiles }); if (t) ss.push({ tiles: t.tiles, roadOff: off }); off += count(R);
+  }
+  const base = (T) => T || { tile: 512, off: 256, tiles: {} };
+  if (bs.length > 1) B = { ...base(B), tiles: mergeTiles(bs, 'bld').tiles };
+  if (ss.length > 1) S = { ...base(S), tiles: mergeTiles(ss, 'str').tiles };
+  return { B, S };
+}

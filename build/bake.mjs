@@ -26,8 +26,12 @@ const TERRAIN_SRC = ['src/worldmap.js', 'src/terrainfn.js', 'src/settlements.js'
 // which tiles each city has (cheap to compute here: the plan only gives the radius)
 const CITY_IDS = ['harbor', 'airfield', 'mid1', 'mid2', 'mid3', 'mid4'];
 const CITY_TILES = await (async () => { const { CITY_DEFS } = await imp('src/worldmap.js'), { tilesOf } = await imp('src/citydetail.js'), o = {}; for (const id of CITY_IDS) { const d = CITY_DEFS.find((c) => c.id === id); o[id] = tilesOf({ R: d.r }); } return o; })();
-const STREETS = (await imp('build/world/streets.mjs')).readStreets(path.join(root, 'build/baked/world/capital/streets.bin'));   // the street data (WLD-24g), null before the first run
-const BUILDINGS = (await imp('build/world/blocks.mjs')).readBuildings(path.join(root, 'build/baked/world/capital/buildings.bin'));   // the procedural buildings (WLD-24a), null before the first run
+// the buildings (WLD-24a) and streets (WLD-24g) of every compiled region, joined as the workers join them (build/jobs.mjs); the road counts that move a
+// province's street indices are read from the region files here and let go, so the main thread does not keep the rasters (null before the first run)
+const { B: BUILDINGS, S: STREETS } = await (async () => {
+  const { readRegion } = await imp('build/world/emit.mjs'), { joinedSets } = await imp('build/world/mergetiles.mjs'), rd = (f) => { const R = readRegion(path.join(root, f)); return R && { name: R.name, roads: R.roads.length }; };
+  return joinedSets(root, rd('build/baked/world/capital/region.bin'), REGION_SRC.slice(1).filter((f) => f.endsWith('.bin')).map(rd).filter(Boolean));
+})();
 // The region files (src/regions/<id>.js, ADR-0036) enter the hash as data, not as files, so that a change to one province redoes only what
 // reads it. Every job depends on what the files say about the cities' places, the villages and anything else (`place`); a city's style,
 // roofs and trees are read only by its own layout (seeded per city, citylayout.js) and tiles, so they are a dependency of that city's tiles
@@ -115,7 +119,10 @@ if (!isMainThread && workerData?.bakeWorker) {
 }
 
 // returns {embedded: Uint8Array (container), pack: Map(file -> Uint8Array) | null, manifest}
-export async function bake({ pack = false, regions = null, jobs: given = null, cache = true, threads = Math.max(1, Math.min(os.cpus().length, 4)) } = {}) {
+// each worker loads every compiled region (build/jobs.mjs, about 1.6 GB with Gyeonggi), so the provinces cut the worker count to what memory holds:
+// BAKE_THREADS overrides
+const THREADS = +process.env.BAKE_THREADS || Math.max(1, Math.min(os.cpus().length, 4, REGION_SRC.length > 2 ? Math.floor(os.totalmem() / 2 ** 30 / 6) : 4));
+export async function bake({ pack = false, regions = null, jobs: given = null, cache = true, threads = THREADS } = {}) {
   const jobs = given || jobsFor({ pack, regions }), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
   const todo = jobs.filter((j) => pack || j.tier === 'embed'), results = new Map(), miss = [];
   for (const j of todo) {
