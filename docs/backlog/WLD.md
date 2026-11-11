@@ -639,11 +639,11 @@
 - 할 일: 실제 송전선 기록(OSM `power=line`, `power=tower`)으로 바꾸거나(ADR-0042), 지역 밖 구간만 남긴다. 고친 뒤 `industry`의 `pylons > 100`을 실제 개수에 맞춘다.
 
 ### 배치 보완 (2026-11-11, 근거·구현 방법: `docs/IMPROVEMENTS-2026-11-11.md`)
-- WLD-35 배치 감사 단위 테스트 — P0 · S · Todo. AC: `unit/placement`가 3.7절의 항목을 검사한다.
-- WLD-29 보존 구역·띠에 구워진 가로 기록 — P0 · S · Todo. AC: `floaters.mjs`의 보존 구역·띠·가장자리 항목 0(지금 2,756).
-- WLD-31 간선도로를 덮은 지도 건물 — P0 · S · Todo. AC: `corridor.mjs`의 `crossed` 0건(지금 78동).
-- WLD-30 실제 지명 위 가상 마을 — P0 · M · Todo. AC: `blockers.mjs sites`의 도로 위 집 0(지금 240).
-- WLD-32 고가·터널 옆 기록 높이 — P1 · S · Todo. AC: 지역 안쪽 뜸 0(지금 195).
-- WLD-33 도로 폭과 중심선을 통로에 맞추기(33a~e) — P1 · L · Todo. AC: 3.5절.
-- WLD-34 공항 터미널을 지나는 격자 도로 — P2 · S · Todo.
+- WLD-35 배치 감사 단위 테스트 — P0 · S · Review. AC: `unit/placement`가 3.7절의 항목을 검사한다. 결과: unit 스위트에 들어갔고 통과한다.
+- WLD-29 보존 구역·띠에 구워진 가로 기록 — P0 · S · Review. AC: `floaters.mjs`의 보존 구역·띠·가장자리 항목 0(지금 2,756). 결과: 0이다(`emit.mjs drawnGround`, 4만 점에서 `regionWeight`와 일치).
+- WLD-31 간선도로를 덮은 지도 건물 — P0 · S · Review. AC: `corridor.mjs`의 `crossed` 0건(지금 78동). 결과: 0건이다. 지하 4동은 뺐고, 고가·역사 42동과 그 밖 41동은 바닥을 5.5 m로 올렸다. `building=no` 11개도 뺐다.
+- WLD-30 실제 지명 위 가상 마을 — P0 · M · Review. AC: `blockers.mjs sites`의 도로 위 집 0(지금 240). 결과: 도로 위 0채, 지도 건물 위 0채다. 실제 지명은 지도 표시로만 남았다. 고속도로 60 m 안의 농장도 뺐다.
+- WLD-32 고가·터널 옆 기록 높이 — P1 · S · Review. AC: 지역 안쪽 뜸 0(지금 195). 결과: 0이다. 받침 없는 다리 위 기록도 0이다.
+- WLD-33 도로 폭과 중심선을 통로에 맞추기(33a~e) — P1 · L · Review. AC: 3.5절. 결과(ADR-0043): 못 지나는 주거도로 0, 벽 덮음 1,535 → 87 km, 25% 넘게 덮인 건물 46,277 → 1,439동. 골목 370 km는 차 경로에서 뺐다.
+- WLD-34 공항 터미널을 지나는 격자 도로 — P2 · S · Review. 결과: 도시 도로에 걸친 건물 164 → 2동, 25% 넘게 겹친 건물 4 → 0동. `unit/carriage`가 공항 도로를 검사한다.
 - WLD-25 전국 확장(25a~f) — P1 · XL · Blocked (지도 자료 경로: `download.geofabrik.de` 허용 필요). 계획: 4절.
