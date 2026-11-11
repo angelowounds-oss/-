@@ -31,6 +31,27 @@ const segDist = (px, pz, s) => {
   return Math.hypot(px - (s[0] + dx * t), pz - (s[1] + dz * t));
 };
 
+// the parts of a street [x0, z0, x1, z1, w] (any direction: the radial plan's spokes and ring too) outside every rect [x0, z0, x1, z1], each rect widened by
+// the street's half width (Liang-Barsky clip, the part inside dropped); pieces under 20 m dropped
+function outside(s, rects) {
+  let parts = [s];
+  for (const q of rects) {
+    const next = [];
+    for (const p of parts) {
+      const h = p[4] / 2, dx = p[2] - p[0], dz = p[3] - p[1]; let t0 = 0, t1 = 1, hit = true;
+      for (const [d, lo, hi, o] of [[dx, q[0] - h, q[2] + h, p[0]], [dz, q[1] - h, q[3] + h, p[1]]]) {
+        if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) hit = false; continue; }
+        const a = (lo - o) / d, b = (hi - o) / d; t0 = Math.max(t0, Math.min(a, b)); t1 = Math.min(t1, Math.max(a, b));
+      }
+      if (!hit || t0 >= t1) { next.push(p); continue; }
+      const L = Math.hypot(dx, dz), at = (t) => [p[0] + dx * t, p[1] + dz * t];
+      if (t0 * L >= 20) next.push([...at(0), ...at(t0), p[4]]); if ((1 - t1) * L >= 20) next.push([...at(t1), ...at(1), p[4]]);
+    }
+    parts = next;
+  }
+  return parts;
+}
+
 export function layoutCity(c, index) {
   const S = STYLES[c.id]; if (!S) return null;
   const rnd = mulberry(7001 + index * 977), R = c.r, roads = [], areas = [], props = [], bld = [];
@@ -61,6 +82,8 @@ export function layoutCity(c, index) {
     bld.push([-380, R * 0.28 - 260, 36, 36, 6, 40, 1.2, 0, 5, 3 + KIND.tower * 16]);             // control tower
     for (let k = 0; k < 4; k++) bld.push([-520 + k * 130, R * 0.28 - 130, 90, 70, 3, 14, 4.4 + k, 0, 1, 2 + KIND.hangar * 16]);   // hangars
     keepOut.push([-600, R * 0.28 - 440, 600, R * 0.28 - 90]);
+    // the grid streets were laid first: cut them where they would run through a runway, the apron or the terminal (WLD-34: lanes on the terminal floor)
+    const cut = []; for (const s of roads) cut.push(...outside(s, keepOut)); roads.length = 0; roads.push(...cut);
   }
   // ---- the port: the sea-ward sector of the disc is quay, container yards, warehouses, cranes
   let seaDir = null;
@@ -84,7 +107,8 @@ export function layoutCity(c, index) {
   // ---- blocks and lots
   const block = [];
   for (let i = 0; i < xs.length - 1; i++) for (let j = 0; j < zs.length - 1; j++) {
-    const ax = xs[i] + S.roadW / 2 + 5, bx = xs[i + 1] - S.roadW / 2 - 5, az = zs[j] + S.roadW / 2 + 5, bz = zs[j + 1] - S.roadW / 2 - 5;
+    // each side clears its own street (an avenue, every 4th line, is 1.5 x wider) by 6 m: a lot of a 22 m avenue's block stood 0.5 m on it (WLD-34)
+    const half = (k) => (k % 4 === 0 ? 1.5 : 1) * S.roadW / 2 + 6, ax = xs[i] + half(i), bx = xs[i + 1] - half(i + 1), az = zs[j] + half(j), bz = zs[j + 1] - half(j + 1);
     if (bx - ax < 24 || bz - az < 24) continue;
     const cx = (ax + bx) / 2, cz = (az + bz) / 2, t = Math.hypot(cx, cz) / R;
     if (t > 0.96 || sea(cx, cz)) continue;
