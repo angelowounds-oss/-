@@ -25,9 +25,10 @@ function kindOf(b, near, fl, a) {
   return k;
 }
 
-// merge: res is makeBuildings' result (procedural, struct of arrays), detail is readDetail's result, blocked(x, z) ground left alone. Returns { real: [...], keep: Uint8Array over the
+// merge: res is makeBuildings' result (procedural, struct of arrays), detail is readDetail's result, blocked(x, z) ground left alone, roads the region's lines
+// (the buildings a big road runs through, below). Returns { real: [...], keep: Uint8Array over the
 // procedural buildings (1 stays), stats }
-export function mergeReal(res, detail, blocked = () => false) {
+export function mergeReal(res, detail, blocked = () => false, roads = null) {
   const B = res.B, nP = B.cx.length, C = 32, grid = new Map(), key = (a, b) => a * 65536 + b;
   const add = (x, z, v) => { const k = key(Math.floor(x / C), Math.floor(z / C)); let l = grid.get(k); if (!l) grid.set(k, (l = [])); l.push(v); };
   // building parts stand for the outline they sit in: an outline with parts inside is left out (the parts carry the real shape and heights)
@@ -39,7 +40,7 @@ export function mergeReal(res, detail, blocked = () => false) {
   // the procedural buildings, indexed, for the guesses
   const pgridP = new Map(); for (let i = 0; i < nP; i++) { const k = key(Math.floor(B.cx[i] / C), Math.floor(B.cz[i] / C)); let l = pgridP.get(k); if (!l) pgridP.set(k, (l = [])); l.push(i); }
   const nearest = (x, z, R) => { let best = -1, bd = R * R; for (let b = Math.floor((z - R) / C); b <= Math.floor((z + R) / C); b++) for (let a = Math.floor((x - R) / C); a <= Math.floor((x + R) / C); a++) for (const i of pgridP.get(key(a, b)) || []) { const d = (B.cx[i] - x) ** 2 + (B.cz[i] - z) ** 2; if (d < bd) { bd = d; best = i; } } return best; };
-  const real = [], src = [0, 0, 0];
+  const real = [], src = [0, 0, 0], passage = { under: 0, over: 0, lifted: 0, ids: [] }, crossing = roads ? throughRoads(roads) : null;
   for (const b of list) {
     const c = centroid(b.rings[0]), a = Math.abs(area(b.rings[0])), ni = nearest(c[0], c[1], 60), near = ni >= 0 ? { kind: B.kind[ni], fl: B.fl[ni] } : null;
     let h = b.h, fl = b.levels, s = b.src;
@@ -53,6 +54,15 @@ export function mergeReal(res, detail, blocked = () => false) {
     let base = b.base;
     if (b.roof) { if (s === SRC.guess) { h = Math.max(b.base + 2.5, ROOF_TOP); fl = 1; } base = Math.max(b.base, h - ROOF_SLAB); }
     const kind = kindOf(b, near, fl, a);
+    // a building a collector road or a bigger one runs through at ground level (WLD-31): the map puts a structure there that the road passes under or
+    // over. Below the ground (a negative layer, with the road on the ground through it) it is left out; above the road it stands on the road's
+    // clearance (an elevated station, a deck, a building over the road); the rest are listed for a look at the map
+    const through = crossing ? crossing(b.rings[0]) : 0;
+    if (through >= THROUGH && base < CLEAR - 1) {
+      if (b.layer < 0) { passage.under++; continue; }
+      const up = b.layer > 0 || b.tag === 'train_station' || b.tag === 'bridge' ? 'over' : 'lifted'; passage[up]++; if (up === 'lifted') passage.ids.push(b.id);
+      const tall = Math.max(3, h - base); base = CLEAR; h = Math.max(h, base + tall); fl = Math.max(1, Math.round((h - base) / LEVEL_H));
+    }
     real.push({ id: b.id, rings: b.rings, cx: c[0], cz: c[1], h, base, fl: Math.max(1, Math.round(fl)), kind, src: s, name: b.name });
     src[s]++;
     // the cells it covers: its corners, and every cell whose centre lies inside (a 300 m warehouse has its corners far apart)
@@ -70,7 +80,30 @@ export function mergeReal(res, detail, blocked = () => false) {
     keep[i] = mapped ? 0 : 1;
   }
   let kept = 0; for (const k of keep) kept += k;
-  return { real, keep, stats: { real: real.length, height: src[2], levels: src[1], guessed: src[0], dropped: detail.buildings.length - list.length, procedural: nP, kept, realShare: +(real.length / Math.max(1, real.length + kept)).toFixed(3), heightShare: +((src[1] + src[2]) / Math.max(1, real.length + kept)).toFixed(3) } };
+  return { real, keep, stats: { real: real.length, height: src[2], levels: src[1], guessed: src[0], dropped: detail.buildings.length - list.length, procedural: nP, kept, passage, realShare: +(real.length / Math.max(1, real.length + kept)).toFixed(3), heightShare: +((src[1] + src[2]) / Math.max(1, real.length + kept)).toFixed(3) } };
+}
+// the metres of ground-level centre line of the collector roads and bigger ones inside a ring (2 m samples, the keep zone's lines included: the caller's
+// `blocked` leaves those buildings out anyway). Returns a function of the ring.
+const BIG = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link']);
+const THROUGH = 1.5, CLEAR = 5.5, STEP = 2;   // metres inside (one sample) before a building counts as across the road; the clearance of a road under a structure (toll canopies, WLD-22e)
+function throughRoads(roads) {
+  const G = 64, cells = new Map(), key = (a, b) => a * 65536 + b;
+  for (const r of roads) {
+    if (!BIG.has(r.hw)) continue;
+    for (let i = 0; i + 1 < r.x.length; i++) {
+      if (r.cls[i] || r.cls[i + 1]) continue;
+      const L = Math.hypot(r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]), n = Math.max(1, Math.round(L / STEP)), w = L / n;
+      for (let k = 0; k < n; k++) { const x = r.x[i] + (r.x[i + 1] - r.x[i]) * (k + 0.5) / n, z = r.z[i] + (r.z[i + 1] - r.z[i]) * (k + 0.5) / n, c = key(Math.floor(x / G), Math.floor(z / G)); let l = cells.get(c); if (!l) cells.set(c, (l = [])); l.push(x, z, w); }
+    }
+  }
+  return (ring) => {
+    const bb = bbox(ring); let m = 0;
+    for (let j = Math.floor(bb[1] / G); j <= Math.floor(bb[3] / G); j++) for (let i = Math.floor(bb[0] / G); i <= Math.floor(bb[2] / G); i++) {
+      const l = cells.get(key(i, j)); if (!l) continue;
+      for (let q = 0; q < l.length; q += 3) if (l[q] >= bb[0] && l[q] <= bb[2] && l[q + 1] >= bb[1] && l[q + 1] <= bb[3] && inRing([l[q], l[q + 1]], ring)) m += l[q + 2];
+    }
+    return m;
+  };
 }
 export function centroid(r) { let a = 0, x = 0, z = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const f = r[j][0] * r[i][1] - r[i][0] * r[j][1]; a += f; x += (r[j][0] + r[i][0]) * f; z += (r[j][1] + r[i][1]) * f; } if (Math.abs(a) < 1e-9) return r[0]; return [x / (3 * a), z / (3 * a)]; }
 const bbox = (r) => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; for (const p of r) { a = Math.min(a, p[0]); b = Math.min(b, p[1]); c = Math.max(c, p[0]); d = Math.max(d, p[1]); } return [a, b, c, d]; };

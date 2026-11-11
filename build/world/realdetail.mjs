@@ -53,10 +53,10 @@ export function heightOf(t) {
 }
 
 // read every cached tile of the box: { buildings: [{ id, rings: [[x, z]...] (outer first, counter-clockwise; holes after, clockwise), h, base, levels, src,
-// tag, part, name }], points: [{ id, t, x, z, ...facts }], missing: [tile names not yet fetched], underground: buildings left out as below the ground }
+// tag, part, name }], points: [{ id, t, x, z, ...facts }], missing: [tile names not yet fetched], underground: buildings left out as below the ground, notBuilding: outlines tagged building=no }
 export function readDetail(box = BOX) {
   const seenW = new Set(), seenN = new Set(), buildings = [], points = [], missing = [];
-  let underground = 0;
+  let underground = 0, notBuilding = 0;
   for (const [name, ql] of tiles(box)) {
     const f = cacheFile(name, ql); if (!fs.existsSync(f)) { missing.push(name); continue; }
     const els = JSON.parse(fs.readFileSync(f, 'utf8')).elements;
@@ -80,6 +80,9 @@ export function readDetail(box = BOX) {
       // building it would cover the street over it (강남역지하쇼핑센터, w305923846). A negative layer alone is not enough (it is also used for a building
       // that a flyover passes over), so only the explicit tags count.
       if (t.location === 'underground' || t.tunnel === 'yes' || t.building === 'underground') { underground++; continue; }
+      // building=no: an outline that is explicitly not a building (the marketplace over the 고속터미널 underground mall, w1354860678, a street market): a
+      // box drawn there stood 1.8 km long across 신반포로 (WLD-31)
+      if (t.building === 'no' && !t['building:part']) { notBuilding++; continue; }
       let rings = [];
       if (e.type === 'way' && e.geometry) { const r = clean(e.geometry); if (r) rings.push(r); }
       else if (e.type === 'relation' && e.members) {
@@ -92,14 +95,14 @@ export function readDetail(box = BOX) {
       if (rings.length) emit(e, t, rings, buildings);
     }
   }
-  return { buildings, points, missing, underground };
+  return { buildings, points, missing, underground, notBuilding };
 }
 function emit(e, t, rings, out, piece = '') {
   const [o, ...hs] = rings; if (area(o) < 0) o.reverse(); for (const h of hs) if (area(h) > 0) h.reverse();
   if (Math.abs(area(o)) < 4) return;   // a kiosk or a mapping slip: smaller than 2 x 2 m
   // roof: a roof with no walls under it (a toll plaza's or a filling station's canopy, a carport), which cars drive under
   const roof = t.building === 'roof' || t.building === 'carport' || t['building:part'] === 'roof' || t.barrier === 'toll_booth';
-  out.push({ id: e.type[0] + e.id + piece, rings: [o, ...hs], ...heightOf(t), tag: t['building:part'] || t.building || 'yes', part: !!t['building:part'] && !t.building, name: t['name:ko'] || t.name || '', roof });
+  out.push({ id: e.type[0] + e.id + piece, rings: [o, ...hs], ...heightOf(t), tag: t['building:part'] || t.building || 'yes', part: !!t['building:part'] && !t.building, name: t['name:ko'] || t.name || '', roof, layer: Number.parseInt(t.layer, 10) || 0 });
 }
 // is the point inside the ring (even-odd)
 export function inside(p, ring) {
