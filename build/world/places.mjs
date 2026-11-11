@@ -9,9 +9,11 @@ const KIND = { city: { rank: 4, r: [900, 600, 300] }, town: { rank: 3, r: [500, 
 const SPACING = 800, MAX_PLACES = 80, MAX_SLOPE = 0.3, MAX_WET = 0.1, FADE = 40;
 const hangul = (s) => /[가-힣]/.test(s || '');
 
-export function placesPass(R, gh, els, SEA) {
+// opt.owned (a province, ADR-0044): only sites on the province's own cells count, so the cap is spent on them and not on the neighbours'
+export function placesPass(R, gh, els, SEA, opt = {}) {
+  const max = opt.max || MAX_PLACES, owned = opt.owned || (() => true);
   const lx0 = R.x0 - CAPITAL.x, lz0 = R.z0 - CAPITAL.z, g = R.g;
-  const ok = (x, z) => Math.max(Math.abs(x), Math.abs(z)) >= KEEP + BAND && x >= lx0 + EDGE && z >= lz0 + EDGE && x <= lx0 + (R.nx - 1) * g - EDGE && z <= lz0 + (R.nz - 1) * g - EDGE;
+  const ok = (x, z) => Math.max(Math.abs(x), Math.abs(z)) >= KEEP + BAND && x >= lx0 + EDGE && z >= lz0 + EDGE && x <= lx0 + (R.nx - 1) * g - EDGE && z <= lz0 + (R.nz - 1) * g - EDGE && owned(x, z);
   const cand = [];
   for (const e of els) {
     const t = e.tags || {}, k = KIND[t.place], name = t['name:ko'] || t.name; if (!k || !hangul(name)) continue;
@@ -32,7 +34,7 @@ export function placesPass(R, gh, els, SEA) {
   };
   const out = [], st = { candidates: cand.length, water: 0, steep: 0, crowded: 0, placed: 0 };
   for (const c of cand) {
-    if (out.length >= MAX_PLACES) break;
+    if (out.length >= max) break;
     let best = null, why = 'crowded';
     for (const [dx, dz] of [[0, 0], ...[200, 400].flatMap((d) => Array.from({ length: 8 }, (_, a) => [Math.cos(a * Math.PI / 4) * d, Math.sin(a * Math.PI / 4) * d]))]) {
       const x = c.x + dx, z = c.z + dz; if (!ok(x, z)) continue;
@@ -44,7 +46,7 @@ export function placesPass(R, gh, els, SEA) {
       if (best) break;
     }
     if (!best) { if (why === 'site') st.steep++; else st.crowded++; continue; }
-    out.push({ id: `osm:place:${out.length}`, name: c.name, kind: c.kind, pop: c.pop, x: best.x, z: best.z, r: best.r, y0: best.y });
+    out.push({ id: `${opt.prefix || ''}osm:place:${out.length}`, name: c.name, kind: c.kind, pop: c.pop, x: best.x, z: best.z, r: best.r, y0: best.y });
   }
   // the pads: inside r the ground is the site height, over the next FADE metres it returns to the natural ground
   for (const o of out) disc(o.x, o.z, o.r + FADE, (k, d) => { if (R.water[k]) return; const w = d <= o.r ? 1 : 1 - (d - o.r) / FADE, s = w * w * (3 - 2 * w); gh[k] = gh[k] * (1 - s) + o.y0 * s; });

@@ -24,6 +24,8 @@ const REGIONS = {
     section: { from: [126.597, 37.476], to: [126.9779, 37.6587], name: 'Wolmido (Incheon) -> Bukhansan' } },
 };
 const G = +(process.argv.join(' ').match(/--cell (\d+)/)?.[1] || 16);   // map metres per cell: 16 for the t16 tiles, 8 for the t8 pack (--cell 8)
+// the most real settlements a province piece places on its own cells (build/world/places.mjs; the capital keeps MAX_PLACES = 80)
+const PROVINCE_PLACES = 240;
 
 const args = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean).map((s) => { const [k, ...v] = s.trim().split(/\s+/); return [k, v.join(' ') || true]; }));
 // a province, or a piece of a big one (build/world/pieces.mjs, WLD-25c), compiles from its own lon/lat box: its city hall (or the piece's centre) as the
@@ -85,14 +87,16 @@ if (args.roads) {
   const t1 = Date.now(), rels = overpass(...REGION_QL.roads(args.region || 'capital', B4)), minor = overpass(...REGION_QL.minor(args.region || 'capital', B4));
   const gh = waterHeights(R, Vs[0].v);
   // the real settlements (M4a): sites chosen and their pads cut into the ground before the roads are laid in
-  const pl = placesPass(R, gh, overpass(...REGION_QL.places(args.region || 'capital', B4)), SEA); stats.places = pl.stats;
+  // a province owns its cells of the box (emit.mjs ownership), as against its neighbours and the capital's compiled raster; worked out first so the
+  // settlements are chosen among its own cells (PROVINCE_PLACES, more than the capital's 80: a province is several times its land)
+  const own = region.province ? ownership(R, region.id, readRegion('build/baked/world/capital/region.bin'), region.piece.box) : null;
+  const ownAt = own && ((x, z) => own[Math.min(R.nz - 1, Math.max(0, Math.round((z - (R.z0 - CAPITAL.z)) / R.g))) * R.nx + Math.min(R.nx - 1, Math.max(0, Math.round((x - (R.x0 - CAPITAL.x)) / R.g)))] === 255);
+  const pl = placesPass(R, gh, overpass(...REGION_QL.places(args.region || 'capital', B4)), SEA, own ? { max: PROVINCE_PLACES, owned: ownAt, prefix: region.piece.name + ':' } : {}); stats.places = pl.stats;
   const sites = pl.places.map((o) => ({ x: o.x + CAPITAL.x, z: o.z + CAPITAL.z, r: o.r + 120 }));   // map metres
   // the main spans of the sea bridges (src/regions/*.js bridges, ADR-0037): map metres, the deck at the clearance over the sea at this height scale
   const spans = BRIDGES.map((b) => { const p = project(b.lon, b.lat); return { ref: b.ref, x: p.x, z: p.z, half: b.span / 2 / KOREA_SCALE, deck: b.clearance ? b.clearance * Vs[0].v + 1 : 0 }; });
   roads = { gh, ...roadPass(R, gh, rels.concat(minor), sites, { V: Vs[0].v, spans }) };
   stats.roads = { V: Vs[0].name, seconds: +((Date.now() - t1) / 1000).toFixed(1), ...roads.stats };
-  // a province owns its cells of the box (emit.mjs ownership), as against its neighbours and the capital's compiled raster
-  const own = region.province ? ownership(R, region.id, readRegion('build/baked/world/capital/region.bin'), region.piece.box) : null;
   if (args.emit) stats.emit = emitRegion(path.join(out, 'region.bin'), args.region || 'capital', R, roads.gh, roads.lines, Vs[0].v, pl.places, own);
 }
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify(stats, null, 1));
