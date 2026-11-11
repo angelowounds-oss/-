@@ -9,10 +9,34 @@ import { execFileSync, execFile } from 'node:child_process';
 const MIRRORS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const CACHE = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '.osm-cache', 'world');
 
-// the elements of an Overpass QL query (with `out geom`), cached by the query text
+// ---- the country's records from one pbf (build/world/pbf-store.py, WLD-25a): a tile store that answers the compiler's queries without the network
+export const PBF_STORE = path.join(CACHE, '..', 'pbf');
+const KIND = [['roads-minor-', ['minor']], ['roads-', ['roads']], ['water-', ['water']], ['places-', ['places']], ['detail-', ['detail']], ['roadedge-', ['roads', 'minor', 'places']], ['roadcheck-', ['roads']]];
+let storeMeta;
+// the elements the store holds for a query (its kind from the cache name, its box from the first (s,w,n,e) of the query text), or null without a store
+export function localElements(name, ql) {
+  if (storeMeta === undefined) storeMeta = fs.existsSync(path.join(PBF_STORE, 'meta.json')) ? JSON.parse(fs.readFileSync(path.join(PBF_STORE, 'meta.json'), 'utf8')) : null;
+  if (!storeMeta) return null;
+  const kinds = KIND.find(([p]) => name.startsWith(p))?.[1], m = ql.match(/\((-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)\)/); if (!kinds || !m) return null;
+  const [s, w, n, e] = m.slice(1).map(Number), S = storeMeta.step, seen = new Set(), out = [];
+  for (const kind of kinds) for (let i = Math.floor(s / S); i <= Math.floor(n / S); i++) for (let j = Math.floor(w / S); j <= Math.floor(e / S); j++) {
+    const f = path.join(PBF_STORE, kind, `${i}_${j}.jsonl`); if (!fs.existsSync(f)) continue;
+    for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+      if (!line) continue; const el = JSON.parse(line), key = el.type + el.id; if (seen.has(key)) continue;
+      const b = el.bounds || { minlat: el.lat, maxlat: el.lat, minlon: el.lon, maxlon: el.lon };
+      if (b.maxlat < s || b.minlat > n || b.maxlon < w || b.minlon > e) continue;
+      // a node at the box's north or east edge belongs to the next tile's query, as Overpass's closed box would give it twice; the bake dedupes by id
+      seen.add(key); delete el.bounds; out.push(el);
+    }
+  }
+  return out;
+}
+
+// the elements of an Overpass QL query (with `out geom`), cached by the query text; then the pbf store; then the network
 export function overpass(name, ql) {
   const f = path.join(CACHE, `${name}-${crypto.createHash('sha1').update(ql).digest('hex').slice(0, 10)}.json`);
   if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8')).elements;
+  const local = localElements(name, ql); if (local) return local;
   fs.mkdirSync(CACHE, { recursive: true });
   for (let k = 0; k < 6; k++) {
     try {

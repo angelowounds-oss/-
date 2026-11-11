@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { tiles, BOX } from './fetch-detail.mjs';
-import { cacheFile } from './osm.mjs';
+import { cacheFile, localElements } from './osm.mjs';
 
 export const LEVEL_H = 3.3, GROUND_H = 4.5;   // a storey and a shop's ground floor in Korea (metres): the height of a building known only by its levels
 const xz = (lon, lat) => { const p = project(lon, lat); return [p.x - CAPITAL.x, p.z - CAPITAL.z]; };
@@ -58,8 +58,9 @@ export function readDetail(box = BOX) {
   const seenW = new Set(), seenN = new Set(), buildings = [], points = [], missing = [];
   let underground = 0, notBuilding = 0;
   for (const [name, ql] of tiles(box)) {
-    const f = cacheFile(name, ql); if (!fs.existsSync(f)) { missing.push(name); continue; }
-    const els = JSON.parse(fs.readFileSync(f, 'utf8')).elements;
+    // a fetched tile, else the country's pbf store (WLD-25a)
+    const f = cacheFile(name, ql), els = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).elements : localElements(name, ql);
+    if (!els) { missing.push(name); continue; }
     for (const e of els) {
       const t = e.tags || {}, key = e.type + e.id;
       if (e.type === 'node') {
