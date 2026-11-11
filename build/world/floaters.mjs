@@ -32,13 +32,13 @@ export async function floaters(R, S) {
   };
   // road surfaces in 50 m cells, for the items that say they stand on a deck
   const CELL = 50, K = (a, b) => a * 100003 + b, grid = new Map(), SG = [];
-  R.roads.forEach((r) => { for (let i = 0; i + 1 < r.x.length; i++) { const id = SG.push([r.x[i], r.z[i], r.x[i + 1], r.z[i + 1], r.y[i], r.y[i + 1], r.half || 4]) - 1, m = 12; for (let a = Math.floor((Math.min(r.x[i], r.x[i + 1]) - m) / CELL); a <= Math.floor((Math.max(r.x[i], r.x[i + 1]) + m) / CELL); a++) for (let b = Math.floor((Math.min(r.z[i], r.z[i + 1]) - m) / CELL); b <= Math.floor((Math.max(r.z[i], r.z[i + 1]) + m) / CELL); b++) { const k = K(a, b); let g = grid.get(k); if (!g) grid.set(k, (g = [])); g.push(id); } } });
+  R.roads.forEach((r) => { for (let i = 0; i + 1 < r.x.length; i++) { const id = SG.push([r.x[i], r.z[i], r.x[i + 1], r.z[i + 1], r.y[i], r.y[i + 1], r.half || 4]) - 1, m = (r.half || 4) + 3; for (let a = Math.floor((Math.min(r.x[i], r.x[i + 1]) - m) / CELL); a <= Math.floor((Math.max(r.x[i], r.x[i + 1]) + m) / CELL); a++) for (let b = Math.floor((Math.min(r.z[i], r.z[i + 1]) - m) / CELL); b <= Math.floor((Math.max(r.z[i], r.z[i + 1]) + m) / CELL); b++) { const k = K(a, b); let g = grid.get(k); if (!g) grid.set(k, (g = [])); g.push(id); } } });
   // is there a road surface under (x, y, z): within its half width and the 2 m of a deck's footway (a shelter stands 1.15 m off the kerb), at the item's height
   const onDeck = (x, z, y) => { const g = grid.get(K(Math.floor(x / CELL), Math.floor(z / CELL))); if (!g) return false; for (const id of g) { const s = SG[id], ex = s[2] - s[0], ez = s[3] - s[1], l2 = ex * ex + ez * ez || 1, t = Math.max(0, Math.min(1, ((x - s[0]) * ex + (z - s[1]) * ez) / l2)); if (Math.hypot(s[0] + ex * t - x, s[1] + ez * t - z) <= s[6] + 2 && Math.abs(s[4] + (s[5] - s[4]) * t - y) < 1.5) return true; } return false; };
   const zones = {}, list = [], deck = { n: 0, unsupported: 0 };
   for (const key of Object.keys(S.tiles)) for (const f of decodeTile(key, S.tiles[key]).F) {
     const type = TYPE[f.t] || 't' + f.t;
-    if (f.bridge) { deck.n++; if (!onDeck(f.x, f.z, f.y)) { deck.unsupported++; list.push({ t: type, zone: 'deck', x: f.x, z: f.z, gap: f.y - landProc(f.x, f.z, 16) }); } continue; }
+    if (f.bridge) { deck.n++; if (!onDeck(f.x, f.z, f.y)) { deck.unsupported++; list.push({ t: type, zone: 'deck', x: f.x, z: f.z, y: f.y, gap: f.y - landProc(f.x, f.z, 16) }); } continue; }
     const gap = f.y - landProc(f.x, f.z, 16), zone = zoneOf(f.x, f.z), o = (zones[zone] ||= {})[type] ||= { n: 0, floating: 0, misplaced: 0, max: 0 };
     o.n++; if (gap > FLOAT) { o.floating++; list.push({ t: type, zone, x: f.x, z: f.z, gap }); } else if (gap < -FLOAT) o.misplaced++; if (gap > o.max) o.max = +gap.toFixed(1);
   }
