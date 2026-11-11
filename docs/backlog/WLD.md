@@ -637,3 +637,13 @@
 - 증상: e2e `industry`에서 `pylons: 0`이다. 송전탑 쓰러뜨리기와 송전탑 밑동 충돌 검사는 할 대상이 없어 실패한다. 나머지 검사(터빈, 통신탑, 정유탱크, 다리)는 통과한다.
 - 원인: `src/settlements.js`는 송전선을 수도권('neon')에서 다른 도시로 가는 고속도로를 따라 만든다. 그런데 컴파일된 지역(서울, 인천, 경기)을 지나는 선은 통째로 뺀다(`pylons: P.filter(...)`). 1:1에서는 모든 선이 그 지역에서 시작하므로 하나도 남지 않는다.
 - 할 일: 실제 송전선 기록(OSM `power=line`, `power=tower`)으로 바꾸거나(ADR-0042), 지역 밖 구간만 남긴다. 고친 뒤 `industry`의 `pylons > 100`을 실제 개수에 맞춘다.
+
+### 배치 보완 (2026-11-11, 근거·구현 방법: `docs/IMPROVEMENTS-2026-11-11.md`)
+- WLD-35 배치 감사 단위 테스트 — P0 · S · Todo. AC: `unit/placement`가 3.7절의 항목을 검사한다.
+- WLD-29 보존 구역·띠에 구워진 가로 기록 — P0 · S · Todo. AC: `floaters.mjs`의 보존 구역·띠·가장자리 항목 0(지금 2,756).
+- WLD-31 간선도로를 덮은 지도 건물 — P0 · S · Todo. AC: `corridor.mjs`의 `crossed` 0건(지금 78동).
+- WLD-30 실제 지명 위 가상 마을 — P0 · M · Todo. AC: `blockers.mjs sites`의 도로 위 집 0(지금 240).
+- WLD-32 고가·터널 옆 기록 높이 — P1 · S · Todo. AC: 지역 안쪽 뜸 0(지금 195).
+- WLD-33 도로 폭과 중심선을 통로에 맞추기(33a~e) — P1 · L · Todo. AC: 3.5절.
+- WLD-34 공항 터미널을 지나는 격자 도로 — P2 · S · Todo.
+- WLD-25 전국 확장(25a~f) — P1 · XL · Blocked (지도 자료 경로: `download.geofabrik.de` 허용 필요). 계획: 4절.
