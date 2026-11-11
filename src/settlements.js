@@ -27,6 +27,7 @@ const PALETTES = { en: [0xb9a58a, 0xa8b0b8, 0xc9b79a, 0x9a8a78, 0xb8b0a0], sv: [
 const ROOFS = [0x7a2f22, 0x3a3f4a, 0x5a4a38, 0x4a5a48];
 
 let CACHE = null;
+const FARM_CLEAR = 60;   // metres from a highway's centre line a farm keeps (WLD-30: Viknäs Ranch had its house on the old motorway)
 export function settlements() {
   if (CACHE) return CACHE;
   const rnd = mulberry(9137), C = cities(), hw = highways(), rv = rivers(), V = [], F = [], I = [], T = [], P = [];
@@ -61,7 +62,9 @@ export function settlements() {
   // the real settlements of a compiled region (ADR-0021): Korean names, on the pad the compiler cut for them
   const SIZE = { village: 6, suburb: 8, town: 11, city: 13 }, BASE = { village: 200, suburb: 230, town: 260, city: 300 };   // a wider pad (M4b-1) has more houses, up to what its radius holds
   for (const q of regionPlaces()) { const nc = nearest(q.x, q.z).c; V.push({ id: 'v' + V.length, name: q.name, x: q.x, z: q.z, y: q.y, seed: 1000 + V.length * 7919, lang: 'ko', tag: 'real', city: nc.id, nHouses: Math.max(6, Math.min(Math.round((SIZE[q.kind] || 6) * q.r / (BASE[q.kind] || 200)), Math.floor((q.r - 140) / 9))), real: q.id }); }
-  for (const v of V) layoutVillage(v);
+  // a real settlement is a name and a place (WLD-30): the map's own streets and buildings stand there now (WLD-24a, 24h), and a village laid over them put
+  // houses on its roads. It stays in V until the end so the random stream of the farms and works outside the region is drawn as before
+  for (const v of V) if (v.tag !== 'real') layoutVillage(v);
   // farms: one or two near each third village on farmland or plains, 600-1400 m out
   V.forEach((v, i) => { if (i % 3 !== 0) return; for (let k = 0; k < 2; k++) for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, d = 600 + rnd() * 800, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d, h = farHeight(x, z, 60); if (h > 6 && sl(x, z) < 0.04 && !riverNear(x, z, 150) && farFrom(x, z, F, 900) && ![0, 1, 7, 9].includes(biomeAt(x, z, h))) { F.push({ id: 'f' + F.length, x, z, y: farHeight(x, z, 80), seed: Math.floor(rnd() * 1e6), village: v.id }); break; } } });
   for (const f of F) layoutFarm(f, V.find((q) => q.id === f.village));
@@ -91,9 +94,14 @@ export function settlements() {
   const K = [], hp = []; for (const h of hw) for (let i = 0; i < h.pts.length; i += 10) hp.push(h.pts[i]);
   for (const v of V) { let b = null, bd = 1e18; for (const p of hp) { const d = Math.hypot(p[0] - v.x, p[1] - v.z); if (d < bd) { bd = d; b = p; } } let o = null, od = 1e18; for (const w of V) if (w !== v) { const d = Math.hypot(w.x - v.x, w.z - v.z); if (d < od) { od = d; o = w; } } if (b && bd < 9000) K.push([v.x, v.z, b[0], b[1]]); if (o && od < 9000 && v.id < o.id) K.push([v.x, v.z, o.x, o.z]); }
   for (const f of F) { const v = V.find((q) => q.id === f.village); if (v) K.push([f.x, f.z, v.x, v.z]); }
-  // inside a compiled region the real ground and roads are the only source (ADR-0020): the invented places leave it until real settlements come in M4
-  const out = (q) => q.tag !== 'real' && regionWeight(q.x, q.z) > 0, away = (a) => a.filter((q) => !out(q));
-  CACHE = { villages: away(V), farms: away(F), industry: away(I), towers: away(T), pylons: P.filter((l) => !l.pts.some((p) => regionWeight(p[0], p[1]) > 0)), tracks: K.filter((k) => !out({ x: k[0], z: k[1] }) && !out({ x: k[2], z: k[3] })) };
+  // inside a compiled region the real ground and roads are the only source (ADR-0020): the invented places and the dirt tracks leave it, and the real
+  // settlements are named places only (ADR-0021, amended by WLD-30)
+  const out = (q) => q.tag === 'real' || regionWeight(q.x, q.z) > 0, away = (a) => a.filter((q) => !out(q));
+  // a farm laid within reach of a highway's carriageway (its house and barn reach 22 m from its centre, the dual highway 15.25 m from its line) is left out
+  const onHighway = (f) => hw.some((h) => h.pts.some((p, i) => { const q = h.pts[i + 1]; if (!q) return false; const ex = q[0] - p[0], ez = q[1] - p[1], l2 = ex * ex + ez * ez || 1, t = Math.max(0, Math.min(1, ((f.x - p[0]) * ex + (f.z - p[1]) * ez) / l2)); return Math.hypot(p[0] + ex * t - f.x, p[1] + ez * t - f.z) < FARM_CLEAR; }));
+  const places = V.filter((v) => v.tag === 'real').map((v) => ({ id: v.id, name: v.name, x: v.x, z: v.z, y: v.y, city: v.city, real: v.real }));
+  const farms = away(F).filter((f) => !onHighway(f)), gone = new Set(F.filter((f) => !farms.includes(f)).map((f) => f.x + ',' + f.z));
+  CACHE = { villages: away(V), places, farms, industry: away(I), towers: away(T), pylons: P.filter((l) => !l.pts.some((p) => regionWeight(p[0], p[1]) > 0)), tracks: K.filter((k) => !gone.has(k[0] + ',' + k[1]) && !out({ x: k[0], z: k[1] }) && !out({ x: k[2], z: k[3] })) };
   return CACHE;
 }
 

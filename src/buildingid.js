@@ -52,7 +52,7 @@ export function registry(lots = null) {
   }
   const S = settlements();
   for (const v of S.villages) {
-    const area = v.tag === 'real' ? v.name : v.id.toUpperCase();
+    const area = v.id.toUpperCase();
     (v.houses || []).forEach((h, i) => out.push(row(villageUid(v.id, i), area, h.kind, v.x + h.x, v.z + h.z, h.w, h.d, h.kind === 'block' ? 18 : h.kind === 'church' ? 11 : 6, h.name || '', h.kind === 'house' || h.kind === 'shop', 'settlements.js')));
     if (v.tower) out.push(row(villageUid(v.id, 'tower'), area, 'water-tower', v.x - 26, v.z - 34, 7, 7, 15, '', false, 'village.js'));
     if (v.gas) out.push(row(villageUid(v.id, 'canopy'), area, 'canopy', v.x - 48, v.z + 22, 17, 11, 5.5, '', false, 'village.js'));

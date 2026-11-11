@@ -1,5 +1,5 @@
 // The real settlements of the compiled region (build/world/places.mjs, ADR-0021): Korean names, on land, on a flat pad, apart from one another, inside the
-// region proper, and every one is a village of the game.
+// region proper, and every one is a named place of the game (WLD-30: not a village laid over the map's own streets and buildings).
 import '../../build/jobs.mjs';
 const { regionPlaces, regionHeight, regionWater, regionWeight, region } = await import('../../src/region.js');
 const { settlements } = await import('../../src/settlements.js');
@@ -20,9 +20,10 @@ else {
   });
   m.flatShare = +(totFlat / tot).toFixed(2); if (totFlat / tot < 0.85) bad.push(['pads are not flat', m.flatShare]); m.nameBad = nameBad; m.wet = wet; m.rough = rough; m.close = close; m.band = band;
   for (const [k, v] of Object.entries({ nameBad, wet, rough, close, band })) if (v) bad.push([k, v]);
-  const real = settlements().villages.filter((v) => v.tag === 'real'); m.villages = real.length; if (real.length !== P.length) bad.push(['villages differ from places', real.length, P.length]);
+  // every real place is a named place of the game, not a laid-out village (WLD-30: the map's streets and buildings stand there)
+  const S = settlements(), real = S.places; m.named = real.length; if (real.length !== P.length) bad.push(['named places differ from places', real.length, P.length]);
+  m.realVillages = S.villages.filter((v) => v.tag === 'real').length; if (m.realVillages) bad.push(['villages laid over real places', m.realVillages]);
   m.big = P.filter((p) => p.r > 320).length; if (!m.big) bad.push(['no district-sized pad', 0]);
-  const over = real.filter((v) => { const p = P.find((q) => q.id === v.real); return v.nHouses > Math.max(6, Math.floor((p.r - 140) / 9)); }).length; m.overfull = over; if (over) bad.push(['villages longer than their pad', over]);
   void SEA;
   console.log('RESULT ' + JSON.stringify({ test: 'world-places', pass: bad.length === 0, metrics: m, note: bad.map((b) => b.join(' ')).join(' | ') }));
   process.exitCode = bad.length ? 1 : 0;
