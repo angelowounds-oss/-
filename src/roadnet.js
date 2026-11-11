@@ -255,7 +255,7 @@ function build() {
   // ---- the compiled region's arterial roads (ADR-0019): one record per carriageway line, with its own width, lanes, direction and junctions
   const idOf = new Map();
   for (const r of regionRoads()) {
-    const road = { id: r.id, kind: 'arterial', hw: r.hw, oneway: r.oneway, lanes: r.lanes, half: r.half, ds: r.ds, ref: r.ref, name: r.name,
+    const road = { id: r.id, kind: 'arterial', hw: r.hw, oneway: r.oneway, lanes: r.lanes, half: r.half, fit: r.fit, alley: r.alley, ds: r.ds, ref: r.ref, name: r.name,
       pts: Array.from(r.x, (x, i) => [x, r.z[i]]), y: r.y, cls: r.cls, closed: false, next: [], prev: [] };
     idOf.set(r, road); N.roads.push(road);
   }

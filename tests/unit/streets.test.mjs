@@ -46,7 +46,8 @@ if (!R0) {
     const keep = R0.roads.map((r) => { for (let i = 0; i < r.x.length; i++) if (Math.abs(r.x[i] - cx) < half + 60 && Math.abs(r.z[i] - cz) < half + 60) return true; return false; }), remap = new Map(); keep.forEach((k, i) => { if (k) remap.set(i, remap.size); });
     const roads = R0.roads.filter((r, i) => keep[i]).map((r) => ({ ...r, next: (r.next || []).filter(([l]) => remap.has(l)).map(([l, i]) => [remap.get(l), i]), prev: (r.prev || []).filter(([l]) => remap.has(l)).map(([l, i]) => [remap.get(l), i]) }));
     void 0; const unused = R0.roads.filter((r) => { for (let i = 0; i < r.x.length; i++) if (Math.abs(r.x[i] - cx) < half + 60 && Math.abs(r.z[i] - cz) < half + 60) return true; return false; });
-    return { ...R0, nx, nz, x0: R0.x0 + i0 * R0.g, z0: R0.z0 + j0 * R0.g, h, water, level, roads };
+    // edge 0: the cut of a piece of the interior is not the region's border, where the bake would leave the ground to the world outside (emit.mjs drawnGround)
+    return { ...R0, nx, nz, x0: R0.x0 + i0 * R0.g, z0: R0.z0 + j0 * R0.g, h, water, level, roads, edge: 0 };
   };
   const at = (lon, lat) => { const p = project(lon, lat); return { x: p.x - CAPITAL.x, z: p.z - CAPITAL.z }; };
   const gn = at(127.0276, 37.4979), C = crop(gn.x, gn.z, 4500);
@@ -117,7 +118,10 @@ if (!R0) {
     m.violations = v;
     for (const [k, n] of Object.entries(v)) if (n) bad.push(['a ' + k + ' violation', n]);
     // each refusal reason is real: the judge refused something for most of them in 9 x 9 km of Gangnam
-    for (const k of ['building', 'road', 'crossing', 'signal', 'lit']) if (!a.why.lamp[k] && !a.why.tree[k]) bad.push(['the judge never refused for ' + k]);
+    // a wall refuses as 'building' or, for a tree's crown, as 'facade': since the streets are fitted to the walls (build/world/fit.mjs) the procedural
+    // buildings of this crop stand back from the narrower carriageways and the wall test mostly speaks through the crown
+    const said = (k) => a.why.lamp[k] || a.why.tree[k] || (k === 'building' && (a.why.lamp.facade || a.why.tree.facade));
+    for (const k of ['building', 'road', 'crossing', 'signal', 'lit']) if (!said(k)) bad.push(['the judge never refused for ' + k]);
   }
   // 6. road markings: arrows only where traffic arrives on a collector or bigger, every painted arrow names a way out that exists, a bus lane only on a
   //    two-way trunk or primary road with three lanes a way or more, and a diamond only ahead of an unsignalled crossing

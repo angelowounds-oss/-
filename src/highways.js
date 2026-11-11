@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { carriage } from './carriage.js';
 import { net, groundH, HALF_W, CARVE_FADE, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand, VIEW } from './util.js';
@@ -57,7 +58,8 @@ function asphaltTexture(lanes) {
   for (let i = 0; i < 1800; i++) { const v = 44 + Math.random() * 26; g.fillStyle = `rgb(${v},${v},${v + 4})`; g.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 2, 1 + Math.random() * 2); }
   const wTotal = lanes === 1 ? 9.2 : Math.max(1, Math.round(lanes)) * LANE + SHOULDER, px = (m) => (m / wTotal) * W;   // lanes 1: the ramp ribbon; -n: n lanes of a carriageway
   g.fillStyle = '#e9e9e2';
-  if (lanes === 1) { g.fillRect(px(0.35), 0, 3, H); g.fillRect(px(8.85) - 3, 0, 3, H); }
+  if (lanes === 0) { /* an alley (ADR-0043): paving with no markings */ }
+  else if (lanes === 1) { g.fillRect(px(0.35), 0, 3, H); g.fillRect(px(8.85) - 3, 0, 3, H); }
   else if (lanes < 2) { g.fillStyle = '#e8c640'; g.fillRect(px(0.15), 0, 4, H); g.fillStyle = '#ecece4'; g.fillRect(px(LANE) - 2, 0, 4, H); }   // a single lane: edge lines only
   else {
     g.fillStyle = '#e8c640'; g.fillRect(px(0.15), 0, 4, H);                        // yellow edge at the median
@@ -87,7 +89,9 @@ export class Highways {
     };
     // one carriageway of 1..4 lanes: the same shader as the highway asphalt, only its texture differs (no new program at run time)
     this.mats.lanes = [1, 2, 3, 4].map((n) => { const t = asphaltTexture(n === 1 ? 1.0001 : n); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.82, metalness: 0, envMapIntensity: 0.3 }); });
-    for (const m of [this.mats.asphalt, this.mats.ramp, ...this.mats.lanes]) pullFar(m);
+    // an alley's paving: the same shader again, a texture with no lines (no new program at run time)
+    this.mats.alley = new THREE.MeshStandardMaterial({ map: asphaltTexture(0), roughness: 0.82, metalness: 0, envMapIntensity: 0.3 });
+    for (const m of [this.mats.asphalt, this.mats.ramp, this.mats.alley, ...this.mats.lanes]) pullFar(m);
     this.stats = { chunks: 0, tris: 0, artPieces: 0, artLive: 0, artVerts: 0, artLifted: 0 }; this.cm = new Map(); this.decks = new Map(); this.piers = new Map(); this.pcols = new Map();
     for (const r of this.N.roads) if (r.kind !== 'arterial') this.buildRoad(r);
     this.art = []; for (const r of this.N.roads) if (r.kind === 'arterial') for (let a = 0; a < r.pts.length - 1; a += ART) {
@@ -326,10 +330,8 @@ export class Highways {
     L.poleMesh.count = L.headMesh.count = k; L.poleMesh.instanceMatrix.needsUpdate = true; L.headMesh.instanceMatrix.needsUpdate = true;
   }
   // ---- compiled arterial lines: one carriageway (or a two-way road without median) per line, its own width and lanes
-  artWidth(r) {
-    const n = Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
-    return r.oneway ? { n, half: (n * LANE + SHOULDER) / 2, two: false } : { n, half: n * LANE + SHOULDER, two: true };
-  }
+  // the drawn carriageway (src/carriage.js): a line fitted to the walls is drawn at its own width
+  artWidth(r) { return carriage(r); }
   // `all`: build every piece in reach now, with no time budget (after a jump: a reference view, views.js). Pieces are built nearest first, and those within
   // NEAR_NOW at once: a piece owns the physics deck of its viaduct or tunnel, and a car or walker put down on it must not wait for seconds on a deck that
   // is not there (below a raised road the only ground is the terrain far under it). A jump skips the 300 ms pause. `focus` (the player or the vehicle
@@ -484,7 +486,7 @@ export class Highways {
   // vertex is lifted to it), with an earth bank down to the ground where the road stands above it; rails on the big roads, bridge fascia and piers,
   // tunnel lining
   artPiece(p) {
-    const r = p.r, { n, half, two } = this.artWidth(r), mat = this.mats.lanes[n - 1], A = new Acc(), S = new Acc(), E = new Acc(), big = r.hw === 'motorway' || r.hw === 'trunk';
+    const r = p.r, { n, half, two } = this.artWidth(r), mat = r.alley ? this.mats.alley : this.mats.lanes[n - 1], A = new Acc(), S = new Acc(), E = new Acc(), big = r.hw === 'motorway' || r.hw === 'trunk';
     const CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], PIL = [0.4, 0.41, 0.44], EARTH = [0.24, 0.21, 0.16], LIGHT = [3.2, 2.9, 2.2];
     let dist = 0; const D = new Deck(), top = [], piers = [];
     for (let i = p.a; i < p.b; i++) {

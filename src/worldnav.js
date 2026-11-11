@@ -1,4 +1,5 @@
 import { stopSpeed } from './util.js';
+import { carriage } from './carriage.js';
 import { net } from './roadnet.js';
 import { cities } from './worldmap.js';
 
@@ -12,7 +13,7 @@ const LINK = 90;
 
 export class RoadGraph {
   constructor() {
-    const N = net(), roads = N.roads.filter((r) => r.kind !== 'ramp');
+    const N = net(), roads = N.roads.filter((r) => r.kind !== 'ramp' && !r.alley);   // an alley (build/world/fit.mjs) is paved for walkers only
     this.roads = roads; this.off = []; let n = 0;
     for (const r of roads) { this.off.push(n); n += r.pts.length; }
     this.n = n; this.x = new Float32Array(n); this.z = new Float32Array(n); this.rd = new Int32Array(n); this.ix = new Int32Array(n);
@@ -146,8 +147,8 @@ export class Router {
       let tx = G.x[p1] - G.x[p0], tz = G.z[p1] - G.z[p0]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
       const r = G.roads[G.rd[id]], art = r.kind === 'arterial';
       // the right-hand lane: on a highway 7.2 m right of the median line; on a compiled one-way line its outer lane, on a two-way line the first lane right of the centre
-      const per = art ? Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2))) : 0, half = art ? (r.oneway ? (per * LANE_W + 2.4) / 2 : per * LANE_W + 2.4) : 0;
-      const off = !art ? 7.2 : r.oneway ? half - 2.4 - LANE_W / 2 : 0.12 + LANE_W / 2;
+      // a fitted street (src/carriage.js) keeps its narrower lanes: the car runs in the middle of the lane that is drawn
+      const C = art ? carriage(r) : null, off = !art ? 7.2 : r.fit ? (C.two ? 0.12 + C.lane / 2 : C.half - C.edge - C.lane / 2) : r.oneway ? C.half - 2.4 - LANE_W / 2 : 0.12 + LANE_W / 2;
       pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1, r.y ? r.y[G.ix[id]] : undefined, !!(r.cls && r.cls[G.ix[id]] === 2)]);   // [3]: the road's surface height (a ride follows it over viaducts and through cuttings); [4]: in a tunnel
     }
     const last = nodes[nodes.length - 1]; pts.push([x1, z1, 0]);

@@ -39,4 +39,5 @@
 | [0040](0040-name-korea-1to1.md) | 이름: NeonCity → KOREA 1:1 (`Korea.exe`, `dist/Korea/`) (BLD-08) | 채택 |
 | [0041](0041-ground-contract-and-placement-judge.md) | 땅 경계 규칙(그레이딩)과 거리 물체 배치 판정 | 채택 |
 | [0042](0042-data-first-real-records.md) | 데이터 우선: 실제 기록으로 건물·거리, 규칙은 빈칸만 | 채택 |
+| [0043](0043-fitted-residential-streets.md) | 주거도로를 벽 사이 통로에 맞추기: 폭·중심선·골목, 공항 도로 절단 (WLD-33·34) | 채택 |
 | [0038](0038-scale-1to1.md) | 실제 축척 1:1과 높이 V=1, 지도 650 km, 구운 범위 (WLD-23b) | 채택 |

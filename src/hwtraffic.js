@@ -2,13 +2,14 @@ import { net, HALF_W, BROKEN } from './roadnet.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human } from './human.js';
 import { clamp, rand } from './util.js';
+import { carriage } from './carriage.js';
 
 // Life on the highways: AI traffic that follows the lanes (a pool around the player, recycled when it falls behind), attendants at toll plazas and
 // service areas, and road-side events (an accident, road works, a police checkpoint) at fixed places along the roads (a hash of road and
 // position, so they are the same every time). Everything exists only within ~1.5 km of the player.
 const LANE = 3.75, MED = 3.2, CAP = 16, NEAR = 1500, FAR = 2100;
 // lanes per direction of a compiled line, as drawn (highways.js artWidth)
-const lanesOf = (r) => Math.max(1, Math.min(4, r.oneway ? r.lanes : Math.ceil(r.lanes / 2)));
+const lanesOf = (r) => carriage(r).n;
 const SPEED = { motorway: [27, 38], trunk: [20, 30], primary: [13, 19], secondary: [10, 14], motorway_link: [15, 22], trunk_link: [12, 18], primary_link: [10, 15], secondary_link: [8, 12], tertiary: [8, 12], tertiary_link: [7, 10], residential: [5, 8] };
 const LOCAL = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // roads that carry no highway traffic
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13; return ((h >>> 0) % 100000) / 100000; };
@@ -25,8 +26,8 @@ export class HighwayTraffic {
     // two-way road's from its centre line
     let off;
     if (r.kind !== 'arterial') off = -dir * (MED / 2 + LANE * (laneNo + 0.5));
-    else if (r.oneway) { const n = lanesOf(r); off = (n * LANE + 2.4) / 2 - LANE * (laneNo + 0.5); }
-    else off = -dir * (0.12 + LANE * (laneNo + 0.5));
+    else if (r.oneway) { const C = carriage(r); off = C.half - (r.fit ? C.edge : 0) - C.lane * (laneNo + 0.5); }   // a fitted street's lanes are its own width
+    else off = -dir * (0.12 + carriage(r).lane * (laneNo + 0.5));
     const rx = tz, rz = -tx;
     return { x: p[0] + rx * off, z: p[1] + rz * off, y: r.y[i], h: Math.atan2(tx * dir, tz * dir) };
   }
@@ -34,7 +35,7 @@ export class HighwayTraffic {
   nearestSample(x, z, max = 2500, local = false) {
     const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS);
     let best = null, bd = max * max;
-    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || r.alley || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; /* no car is put in an alley */ const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
   }
 

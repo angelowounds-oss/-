@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { carriage } from './carriage.js';
 import { addRipple } from './world.js';
 import { RagdollSystem, RAG_TUNE } from './ragdoll.js';
 import { Mobility } from './mobility.js';
@@ -1653,7 +1654,8 @@ export class Game {
       const a = rand(0, TAU), r = rand(minD, maxD), id = RG.nearest(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, 400); if (id < 0) continue;
       const road = RG.roads[RG.rd[id]], i = RG.ix[id], n = road.pts.length, q0 = road.pts[Math.max(0, i - 1)], q1 = road.pts[Math.min(n - 1, i + 1)];
       let tx = q1[0] - q0[0], tz = q1[1] - q0[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-      const lanes = road.kind === 'arterial' ? Math.max(1, Math.min(4, road.lanes || 1)) : 4, side = Math.random() < 0.5 ? 1 : -1, off = side * (lanes * 3.75 + (road.kind === 'arterial' ? 2.5 : 5));
+      // just off the drawn carriageway: a fitted street (src/carriage.js) is narrower than its lanes say, and its walls stand close
+      const lanes = road.kind === 'arterial' ? Math.max(1, Math.min(4, road.lanes || 1)) : 4, side = Math.random() < 0.5 ? 1 : -1, off = side * (road.fit ? carriage(road).half + 1.2 : lanes * 3.75 + (road.kind === 'arterial' ? 2.5 : 5));
       const x = RG.x[id] + tz * off, z = RG.z[id] - tx * off, d = Math.hypot(x - p.x, z - p.z);
       if (d < minD * 0.8 || d > maxD * 1.25 || this.waterAt(x, z)) continue;
       return { x, z, y: this.groundY(x, z, (road.y ? road.y[i] : physHeight(x, z, 8)) + 1.5), road: true };

@@ -252,6 +252,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
   if (R.graded) { if (!fs.existsSync(raw)) { console.error('region is graded and has no raw copy: compile it again'); process.exit(1); } R = readRegion(raw); }
   else fs.copyFileSync(file, raw);
   const t0 = Date.now(), before = contractOf(R), st = gradeRegion(R), after = contractOf(R);
+  // the grade moved fitted streets: close to cars the ones that now pass under PASS m of the walls (build/world/fit.mjs)
+  const bfile = path.join(path.dirname(file), 'buildings.bin');
+  if (R.roads.some((r) => r.fit) && fs.existsSync(bfile)) { const { readBuildings } = await import('./blocks.mjs'), { wallIndex } = await import('./corridor.mjs'), { recheckPinches } = await import('./fit.mjs'); st.fitPinched = recheckPinches(R, wallIndex(readBuildings(bfile))); }
   fs.writeFileSync(file, zlib.deflateRawSync(encodeChunk(R), { level: 9 }));
   const out = { version: GRADE_VERSION, changed: st, before, after, seconds: (Date.now() - t0) / 1000 };
   fs.writeFileSync(path.join(path.dirname(file), 'grade-stats.json'), JSON.stringify(out)); console.log(JSON.stringify(out));
