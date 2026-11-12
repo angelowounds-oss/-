@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import { el, LIGHT_CAP, VIEW } from './util.js';
+import { LIGHT_CAP, VIEW } from './util.js';
 import { need, bytes } from './files.js';
 import hdriPlazaUrl from '../assets/env/hansaplatz.rgbe';
 import hdriSuiteUrl from '../assets/env/interior_suite.rgbe';

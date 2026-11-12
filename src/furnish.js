@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { A } from './assets.js';
 import { toFloatGeo, holeCU, holeHU, takeF32, poolOnDispose } from './gfx.js';
 import defs from '../assets/interior/defs.json';

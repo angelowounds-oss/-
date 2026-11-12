@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { Human } from './human.js';
 import { clamp, rand, TAU } from './util.js';
-import { roadC, N } from './world.js';
 import { navPath } from './nav.js';
 
 export const ZONES = [
@@ -30,7 +29,7 @@ export class Society {
     return out;
   }
   zoneAt(x, z) {
-    const G = this.G; const d = Math.hypot(x, z);
+    const d = Math.hypot(x, z);
     if (d < 90) return 0;
     if (Math.abs(x) > Math.abs(z)) return x > 0 ? 2 : 3;
     return z > 0 ? 1 : 4;

@@ -143,7 +143,7 @@ export function layoutVillage(v) {
 // a farm: a farmhouse and a barn either side of a short track, a silo, hay; one farmer
 export function layoutFarm(f, v) {
   const rnd = mulberry(f.seed), pal = PALETTES[v?.lang] || PALETTES.en;
-  f.name = (v ? v.name : 'Old') + ' ' + ['Farm', 'Ranch', 'Acres', 'Steading'][Math.floor(rnd() * 4)]; f.lang = v?.lang || 'en'; f.Lh = 45; f.r = 70; f.pitched = true; f.farm = true; f.y = f.y;
+  f.name = (v ? v.name : 'Old') + ' ' + ['Farm', 'Ranch', 'Acres', 'Steading'][Math.floor(rnd() * 4)]; f.lang = v?.lang || 'en'; f.Lh = 45; f.r = 70; f.pitched = true; f.farm = true;
   const house = { kind: 'house', x: -14, z: -(4.5 + 4 + 4.5), w: 11, d: 9, r: [-19.5, -17.5, -8.5, -8.5], side: -1, door: { x: -14, z: -4.5 }, color: pal[Math.floor(rnd() * pal.length)], roof: ROOFS[Math.floor(rnd() * ROOFS.length)] };
   const barn = { kind: 'barn', name: 'Barn', x: 14, z: 4.5 + 4 + 5.5, w: 16, d: 11, r: [6, 8.5, 22, 19.5], side: 1, door: { x: 14, z: 4.5 }, color: 0x7a2f22, roof: 0x3a3f4a };
   f.houses = [house, barn]; f.residents = [{ id: f.id + ':0', home: 0, work: 'fields', seed: Math.floor(rnd() * 1e6), age: rnd(), name: ['Hank', 'Marta', 'Olle', 'Rosa', 'Jun', 'Walt'][Math.floor(rnd() * 6)] }]; f.shopKind = null; f.gas = false; f.tower = false; f.church = false;

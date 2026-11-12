@@ -18,11 +18,14 @@ export function pack(root) {
     }
     return walk1(v);
   };
+  // a typed array reachable twice (a road's samples shared with its region line, EV-02) is stored once and referenced by the same offset
+  const views = new Map();
   const walk1 = (v) => {
     if (ArrayBuffer.isView(v)) {
+      if (views.has(v)) return views.get(v);
       const t = NAME.get(v.constructor); if (!t) throw new Error('bakefmt: unsupported typed array');
       off = (off + 7) & ~7; const o = off; parts.push([o, new Uint8Array(v.buffer, v.byteOffset, v.byteLength)]); off += v.byteLength;
-      return { $t: t, o, n: v.length };
+      const ref = { $t: t, o, n: v.length }; views.set(v, ref); return ref;
     }
     if (v instanceof Map) return { $m: [...v].map(([k, x]) => [walk(k), walk(x)]) };
     if (Array.isArray(v)) return v.map(walk);
@@ -35,13 +38,13 @@ export function pack(root) {
 
 export function unpack(json, blob) {
   const buf = blob.buffer.byteLength === blob.byteLength && blob.byteOffset === 0 ? blob.buffer : blob.slice().buffer;
-  const defs = new Map();
+  const defs = new Map(), views = new Map();
   const walk = (v) => {
     if (v === null || typeof v !== 'object') return v;
     if (Array.isArray(v)) return v.map(walk);
     if (v.$r !== undefined) return defs.get(v.$r);
     if (v.$d !== undefined) { const o = walk(v.v); defs.set(v.$d, o); return o; }
-    if (v.$t) return new TYPES[v.$t](buf, v.o, v.n);
+    if (v.$t) { const k = v.$t + v.o + ':' + v.n; let a = views.get(k); if (!a) views.set(k, (a = new TYPES[v.$t](buf, v.o, v.n))); return a; }   // one view per stored array: shared arrays stay shared
     if (v.$m) return new Map(v.$m.map(([k, x]) => [walk(k), walk(x)]));
     const out = {}; for (const k of Object.keys(v)) out[k] = walk(v[k]); return out;
   };

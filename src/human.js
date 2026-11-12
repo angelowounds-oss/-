@@ -450,7 +450,6 @@ export class Human {
     }
     if (this.dead) {
       this.deadT += dt;
-      const k = Math.min(1, this.deadT * 3);
       if (this.clipDeath) {
         const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
         if (cd < 75) { if (this.m.unturnHips) this.m.unturnHips(); this.m.mixer.update(dt); this.m.applyPose(0, 0); }
@@ -553,7 +552,6 @@ export class Human {
   }
   snapToNode() {
     // pick nearest sidewalk corner as new node
-    const G = this.G;
     let best = null, bd = 1e9;
     const i0 = roadIdx(this.x), j0 = roadIdx(this.z);
     for (let i = Math.max(0, i0 - 1); i <= Math.min(N, i0 + 1); i++) for (let j = Math.max(0, j0 - 1); j <= Math.min(N, j0 + 1); j++) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {

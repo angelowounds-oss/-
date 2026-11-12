@@ -1,6 +1,6 @@
-import { el, clamp } from './util.js';
+import { el } from './util.js';
 import { keys as binds } from './keys.js';
-import { N, P, R, HALF, roadC, roadIdx, hasEdge } from './world.js';
+import { N, P, roadC, roadIdx, hasEdge } from './world.js';
 import { ZONES } from './society.js';
 
 const CSS = `
@@ -115,7 +115,7 @@ export class Phone {
     const g = cv.getContext('2d'), S = 300 / (N * P + P * 3), half = (N * P + P * 3) / 2;
     const tx = (x) => (x + half) * S, tz = (z) => (z + half) * S;
     g.drawImage(G.mapCanvas, 0, 0, 300, 300);
-    g.globalAlpha = 0.18; ZONES.forEach((z, i) => { g.fillStyle = z.c; const cxz = [[0, 0, 90], [0, 200, 0], [200, 0, 0], [-200, 0, 0], [0, -200, 0]][i]; }); g.globalAlpha = 1;
+    g.globalAlpha = 0.18; ZONES.forEach((z, i) => { g.fillStyle = z.c; }); g.globalAlpha = 1;
     if (this.G.gpsPath) { g.strokeStyle = '#4de3ff'; g.lineWidth = 3; g.beginPath(); this.G.gpsPath.forEach((p, i) => (i ? g.lineTo(tx(p[0]), tz(p[1])) : g.moveTo(tx(p[0]), tz(p[1])))); g.stroke(); }
     if (G.markerPos) { g.fillStyle = '#ffc94d'; g.beginPath(); g.arc(tx(G.markerPos.x), tz(G.markerPos.z), 5, 0, 7); g.fill(); }
     const pl = G.player; g.fillStyle = '#4de3ff'; g.strokeStyle = '#000'; g.beginPath(); g.arc(tx(pl.x), tz(pl.z), 5, 0, 7); g.fill(); g.stroke();

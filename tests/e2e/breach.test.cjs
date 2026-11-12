@@ -9,7 +9,7 @@ run('breach', { q: 0 }, async ({ page }) => {
     pl.body3.teleport(d.px + d.nx * 3, 0, d.pz + d.nz * 3); pl.x = d.px + d.nx * 3; pl.z = d.pz + d.nz * 3;
     for (let i = 0; i < 600 && !bd.open; i++) window.__upd(1 / 60);
     const k = bd.levels.findIndex((l) => l.tier === 'tower'); bd.ensureRange(k - 1, k + 1, true); for (let i = 0; i < 400; i++) window.__upd(1 / 60);
-    const fl = bd.floors.get(k), L = bd.levels[k], r = L.rect, o = {};
+    const L = bd.levels[k], r = L.rect, o = {};
     // the interior layout decides what stands in front of a wall (furniture, windows): probe several spots along the wall, take the first that finds it
     const tryWall = (px, pz, yaw) => {
       const along = Math.abs(Math.sin(yaw)) > 0.5 ? [0, 1] : [1, 0];   // wall runs along z for east/west looks, along x for north/south

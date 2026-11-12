@@ -38,8 +38,8 @@ run('region-drive', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     o.gateRays = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => g.world.colliders.raycast(sx * 1400, 2, sz * 1400, sx * 0.7071, 0, sz * 0.7071, 300));
     // the connectors' tunnelled and bridged stretch inside the capital square has a deck: a ray down from 3 m above the road meets it
     let deck = 0, deckHit = 0;
-    for (const r of g.highways.N.roads) if (r.kind === 'connector' && r.joinB) for (let i = 0; i < r.pts.length; i++) {
-      const [x, z] = r.pts[i]; if (!r.cls[i] || Math.max(Math.abs(x), Math.abs(z)) > 1490) continue;
+    for (const r of g.highways.N.roads) if (r.kind === 'connector' && r.joinB) for (let i = 0; i < r.x.length; i++) {
+      const x = r.x[i], z = r.z[i]; if (!r.cls[i] || Math.max(Math.abs(x), Math.abs(z)) > 1490) continue;
       deck++; const h = g.phys.ray(x, r.y[i] + 3, z, 0, -1, 0, 8, 1); if (h ? Math.abs(h.t - 3.25) < 0.6 : Math.abs(window.__landfn.physHeight(x, z, 8) - r.y[i]) < 0.5) deckHit++;   // or left to the physics ground where it lies at the road (roaddeck.js quadIfOff), whose heightfield is built only near the player
     }
     o.deck = deck; o.deckHit = deckHit;

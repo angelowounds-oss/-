@@ -52,7 +52,7 @@ function put(F, deco, id, lx, ld, face, o = {}) {
   const sz = deco.size(id, o.s ?? 1); if (!sz) return null;
   const ry = o.ry ?? F.ry(face) + (o.turn || 0), c = Math.abs(Math.cos(ry)), n = Math.abs(Math.sin(ry));
   // footprint in local (lateral, depth) axes: yaw multiples of 90 deg swap w and d
-  const lat = F.dirIn > 0 ? 1 : 1, hxl = (c * sz.w + n * sz.d) / 2, hzl = (c * sz.d + n * sz.w) / 2;
+  const hxl = (c * sz.w + n * sz.d) / 2, hzl = (c * sz.d + n * sz.w) / 2;
   if (!o.force && !o.ghost && !F.free(lx, ld, hxl, hzl, o.margin ?? 0.1)) {
     // slide: the piece may move along the wall it stands against, to the nearest place it fits
     const ok = o.slide && [0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6].find((d) => F.free(lx + d, ld, hxl, hzl, o.margin ?? 0.1));

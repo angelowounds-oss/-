@@ -13,8 +13,8 @@ run('world-perf', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const measure = (name, n = 360) => { const a = []; for (let i = 0; i < n; i++) { const t = performance.now(); window.__upd(1 / 60); a.push(performance.now() - t); } o.at[name] = { ...stats(a), ...gpu() }; };
     park(0, 0); step(120); measure('capital street');
     { const C = S.cities.find((q) => q.c.id === 'mid3'), c = C.c; park(c.x + 30, c.z + 30); step(240); measure('city street (street life)'); }
-    { const C = S.cities.find((q) => q.c.id === 'harbor'), c = C.c; park(c.x + 30, c.z + 30); step(240); const cam = g.camera; measure('port city street'); o.harborTiles = { near: S.stats.near, mid: S.stats.mid, tris: Math.round(S.stats.tris) }; }
-    { const N = g.hwtraffic.N, hw = N.roads.find((q) => q.kind === 'highway'), m = hw.pts[Math.floor(hw.pts.length / 2)]; park(m[0], m[1]); step(240); measure('highway'); }
+    { const C = S.cities.find((q) => q.c.id === 'harbor'), c = C.c; park(c.x + 30, c.z + 30); step(240); measure('port city street'); o.harborTiles = { near: S.stats.near, mid: S.stats.mid, tris: Math.round(S.stats.tris) }; }
+    { const N = g.hwtraffic.N, hw = N.roads.find((q) => q.kind === 'highway'), mi = Math.floor(hw.x.length / 2), m = [hw.x[mi], hw.z[mi]]; park(m[0], m[1]); step(240); measure('highway'); }
     // the transition: walk 4 km across a city at 30 m/s (a car) and take the worst frame; tile creation is a frame at a time
     { const C = S.cities.find((q) => q.c.id === 'airfield'), c = C.c; park(c.x - 1800, c.z + 800); step(180); const a = []; for (let k = 0; k < 900; k++) { park(c.x - 1800 + k * 4, c.z + 800); const t = performance.now(); window.__upd(1 / 60); a.push(performance.now() - t); } o.crossing = stats(a); }
     g.eng.render = realRender; return o;

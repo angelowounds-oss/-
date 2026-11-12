@@ -22,8 +22,8 @@ run('industry', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     // colliders exist near the player and the pylon base is solid
     const st = by('pylon').find((p) => p.alive); if (st) { park(st.x + 40, st.y + 1, st.z); await run(120); o.baseBox = I.cb.has(st.id); }
     // a bridge: the physics ground under it is the valley all along (its deck is its own collider), blown up it loses the deck; cars stop coming; the save remembers; it is rebuilt after five days
-    { const H = g.highways, br = g.hwtraffic.N.roads.find((r) => r.kind === 'highway' && r.cls.some((c, i) => c === 1 && i > 6 && i < r.pts.length - 8)); if (br) {
-      const i = br.cls.findIndex((c, k) => c === 1 && k > 6 && k < br.pts.length - 8) + 2, p = br.pts[i], y = br.y[i]; pl.body3.teleport(p[0] + 90, y + 6, p[1]); pl.x = p[0] + 90; pl.y = y + 6; pl.z = p[1]; await run(90);
+    { const H = g.highways, br = g.hwtraffic.N.roads.find((r) => r.kind === 'highway' && r.cls.some((c, i) => c === 1 && i > 6 && i < r.x.length - 8)); if (br) {
+      const i = br.cls.findIndex((c, k) => c === 1 && k > 6 && k < br.x.length - 8) + 2, p = [br.x[i], br.z[i]], y = br.y[i]; pl.body3.teleport(p[0] + 90, y + 6, p[1]); pl.x = p[0] + 90; pl.y = y + 6; pl.z = p[1]; await run(90);
       const { physHeight } = window.__farHeights, before = physHeight(p[0], p[1], 8); const tris0 = H.stats.tris;
       for (let k = 0; k < 4; k++) { g.explosion(p[0], y, p[1], 30, 600, null); await run(8); }
       o.bridgeBroken = window.__bro.has(br.id + ':' + (i >> 1) * 2); o.groundUnder = before < y - 4 && Math.abs(physHeight(p[0], p[1], 8) - before) < 0.5; o.bridgeSaved = Object.keys(g.state.places.bridges).length > 0; o.deckGone = H.stats.tris < tris0; } else o.noBridge = true; }

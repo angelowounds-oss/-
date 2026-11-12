@@ -30,13 +30,13 @@ function ringIndex(skipHole) {
     idx.push(a, c, b, b, c, d);
   }
   // skirt: a wall below the outer boundary (vertices N+1)^2 .. appended in build()
-  const base = (N + 1) * (N + 1); let s = 0;
+  const base = (N + 1) * (N + 1);
   const edge = [];
   for (let i = 0; i <= N; i++) edge.push(i);                                 // top row
   for (let j = 1; j <= N; j++) edge.push(j * (N + 1) + N);                  // right column
   for (let i = N - 1; i >= 0; i--) edge.push(N * (N + 1) + i);              // bottom row
   for (let j = N - 1; j >= 1; j--) edge.push(j * (N + 1));                  // left column
-  for (let e = 0; e < edge.length; e++) { const p = edge[e], q = edge[(e + 1) % edge.length]; idx.push(p, base + e, q, q, base + e, base + (e + 1) % edge.length); s++; }
+  for (let e = 0; e < edge.length; e++) { const p = edge[e], q = edge[(e + 1) % edge.length]; idx.push(p, base + e, q, q, base + e, base + (e + 1) % edge.length); }
   return { idx: new Uint32Array(idx), skirt: edge };
 }
 
@@ -108,7 +108,7 @@ export class Farland {
 
   // ring `L` moves to the centre (ncx, ncz): vertices that stay in the ring are copied from where they were, only the new strip is computed
   regen(L, ncx, ncz) {
-    const N = GRID, M = N + 1, cell = L.cell, x0 = ncx - (N / 2) * cell, z0 = ncz - (N / 2) * cell, { pos, nor, col } = L, tmp = [0, 0, 0];
+    const N = GRID, M = N + 1, cell = L.cell, x0 = ncx - (N / 2) * cell, z0 = ncz - (N / 2) * cell, { col } = L, tmp = [0, 0, 0];
     const first = Number.isNaN(L.cx), di = first ? 1e9 : Math.round((ncx - L.cx) / cell), dj = first ? 1e9 : Math.round((ncz - L.cz) / cell), reuse = Math.abs(di) <= N && Math.abs(dj) <= N;
     const h = L.h2, cg = L.cg2, oh = L.h, ocg = L.cg;
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {

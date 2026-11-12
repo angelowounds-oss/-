@@ -37,7 +37,7 @@ for (const n of nodes) {
 const parent = new Map(nodes.map((n) => [n.id, n.id])), find = (i) => { while (parent.get(i) !== i) { parent.set(i, parent.get(parent.get(i))); i = parent.get(i); } return i; };
 const edges = [...cand.values()].sort((p, q) => p[2] - q[2]);
 // a village beside a highway also gets its own short road to the carriageway (a frontage road that stops outside the fence)
-const hw = N.roads.filter((r) => r.kind === 'highway'), hwPts = []; for (const r of hw) for (let i = 0; i < r.pts.length; i += 2) hwPts.push([r.pts[i][0], r.pts[i][1]]);
+const hw = N.roads.filter((r) => r.kind === 'highway'), hwPts = []; for (const r of hw) for (let i = 0; i < r.x.length; i += 2) hwPts.push([r.x[i], r.z[i]]);
 const hwGrid = new Map(), hk = (x, z) => Math.floor(x / 64) * 100003 + Math.floor(z / 64);
 for (const p of hwPts) { const k = hk(p[0], p[1]); (hwGrid.get(k) || hwGrid.set(k, []).get(k)).push(p); }
 const hwNear = (x, z, r) => { for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const a = hwGrid.get(hk(x + i * 64, z + j * 64)); if (a) for (const p of a) if ((p[0] - x) ** 2 + (p[1] - z) ** 2 < r * r) return p; } return null; };
@@ -66,7 +66,6 @@ function route(a, b, slopeMax = 0.3, crossMax = 0.25) {
   const W = Math.ceil((x1 - x0) / G), H = Math.ceil((z1 - z0) / G), cost = new Float32Array(W * H).fill(-1), hts = new Float32Array(W * H).fill(NaN);
   const cx = (i) => x0 + (i + 0.5) * G, cz = (j) => z0 + (j + 0.5) * G;
   const height = (i, j) => { const k = j * W + i; if (hts[k] !== hts[k]) hts[k] = landHeight(cx(i), cz(j), 32); return hts[k]; };
-  const near = (n, x, z) => n.r && Math.hypot(x - n.x, z - n.z) < n.r + 24;
   const blocked = (i, j) => {
     const k = j * W + i; if (cost[k] >= 0) return cost[k] > 1e8; const x = cx(i), z = cz(j); let bad = false;
     const h = height(i, j); if (h < SEA + 2.5) bad = true;

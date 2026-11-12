@@ -266,7 +266,7 @@ export async function loadAssets() {
 }
 
 const q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
-const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 
 export function buildSoldier(look = {}, gunParts) {
   const S = look.player && A.player ? A.player : A.soldier, scale = S === A.player ? A.playerScale : A.soldierScale;
@@ -276,7 +276,6 @@ export function buildSoldier(look = {}, gunParts) {
   root.rotation.y = CHARACTER_YAW; root.position.z = CHARACTER_SHIFT_Z;
   body.add(root); wrap.add(body);
   const tint = new THREE.Color(look.top ?? 0x445566);
-  const skinMats = [];
   const topMats = [];
   const bones = {}, skinMeshes = [];
   root.traverse((o) => {
@@ -311,7 +310,7 @@ export function buildSoldier(look = {}, gunParts) {
   const ws = new THREE.Vector3(); hand.getWorldScale(ws);
   const mount = new THREE.Group(); mount.scale.setScalar(1 / ws.x); mount.rotation.set(-Math.PI / 2, 0, Math.PI / 2); mount.position.set(0, 0.06 / ws.x, 0.0);
   hand.add(mount);
-  const { pistol, rifle, muzzle } = gunParts();
+  const { pistol, rifle } = gunParts();
   mount.add(pistol, rifle);
   const mz = new THREE.Object3D(); mz.position.set(0, 0.03, 0.3); mount.add(mz);
   // hand-held melee tools reuse the pistol's material (same shader program, so showing one never compiles anything); built on first use
@@ -530,7 +529,6 @@ const RIFLE_M4 = new THREE.Matrix4(), ORIGIN = new THREE.Vector3();
 const clamp01 = (v) => Math.max(-0.7, Math.min(0.7, v));
 export const AIM = { sitThigh: -1.45, sitKnee: 1.5, rx: -1.35, ry: 0.35, rfx: -0.2, lx: -1.25, ly: -0.55, lfx: -0.5, spine: 0 };
 // ---- Ferrari ----
-const glowTexLazy = {};
 export function buildFerrariModel(color) {
   const root = A.ferrari.scene.clone(true);
   const wrap = new THREE.Group();

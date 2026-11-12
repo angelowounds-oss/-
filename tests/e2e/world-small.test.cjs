@@ -11,7 +11,7 @@ const { openGame, result, ROOT, GAME } = require('../lib.cjs');
   const probe = () => {
     const g = window.__game, F = g.farland, S = g.citysites, N = g.hwtraffic.N;
     const sum = (a) => { let s = 0; for (let i = 0; i < a.length; i += 7) s += a[i]; return Math.round(s * 100) / 100; };
-    return { baked: !!globalThis.__BAKED, bakedMs: globalThis.__BAKED_MS || 0, h: [sum(F.levels[4].h), sum(F.levels[6].h)], buildings: S.cities.map((C) => C.L.bld.length / 12), roads: N.roads.length, pts: N.roads.reduce((s, r) => s + r.pts.length, 0), ramps: N.roads.filter((r) => r.kind === 'ramp').length, stations: g.transit.stations.length };
+    return { baked: !!globalThis.__BAKED, bakedMs: globalThis.__BAKED_MS || 0, h: [sum(F.levels[4].h), sum(F.levels[6].h)], buildings: S.cities.map((C) => C.L.bld.length / 12), roads: N.roads.length, pts: N.roads.reduce((s, r) => s + r.x.length, 0), ramps: N.roads.filter((r) => r.kind === 'ramp').length, stations: g.transit.stations.length };
   };
   let A, B, errs = [];
   for (const [url, key] of [[GAME, 'A'], [out, 'B']]) {

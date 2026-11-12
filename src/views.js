@@ -15,7 +15,7 @@ function viaduct(g) {
   let best = null;
   for (const r of g.highways?.N?.roads || []) {
     let i = 0; const motor = r.hw === 'motorway';
-    while (i < r.pts.length) { if (r.cls[i] !== 1) { i++; continue; } let j = i; while (j < r.pts.length && r.cls[j] === 1) j++; const score = (j - i) * (motor ? 3 : 1); if (!best || score > best.score) best = { r, i: (i + j) >> 1, score }; i = j; }
+    while (i < r.x.length) { if (r.cls[i] !== 1) { i++; continue; } let j = i; while (j < r.x.length && r.cls[j] === 1) j++; const score = (j - i) * (motor ? 3 : 1); if (!best || score > best.score) best = { r, i: (i + j) >> 1, score }; i = j; }
   }
   return best;
 }
@@ -35,7 +35,7 @@ export const VIEWS = [
   { id: 'sky-tower-dusk', name: '스카이타워 해질녘', hour: 18.6, weather: 'clear', place: (g) => { const l = g.world.skyTower || g.world.plaza, cx = l.cx ?? (l.x0 + l.x1) / 2, cz = l.cz ?? (l.z0 + l.z1) / 2; return { p: at(cx + 60, cz + 60), cam: look({ x: cx + 700, y: 420, z: cz + 800 }, { x: cx, y: 450, z: cz }, 55) }; } },
   { id: 'city-street-day', name: '지방 도시 거리 낮', hour: 11, weather: 'clear', place: (g) => { const c = city(g, 'mid1').c; return { p: { x: c.x + 40, y: c.y + 1, z: c.z + 40 }, cam: look({ x: c.x, y: c.y + 260, z: c.z + 520 }, { x: c.x, y: c.y, z: c.z - 100 }) }; } },
   { id: 'harbor-sunset', name: '부산 부두 해질녘', hour: 18.2, weather: 'clear', place: (g) => { const C = city(g, 'harbor'), c = C.c, d = C.L.seaDir || { x: 0, z: 1 }, R = C.L.R; return { p: { x: c.x, y: c.y + 1, z: c.z }, cam: look({ x: c.x + d.x * R * 0.2, y: c.y + 220, z: c.z + d.z * R * 0.2 - 260 }, { x: c.x + d.x * R * 0.6, y: c.y, z: c.z + d.z * R * 0.6 }) }; } },
-  { id: 'viaduct-day', name: '고속도로 고가 낮', hour: 10, weather: 'clear', place: (g) => { const v = viaduct(g); if (!v) return null; const r = v.r, i = v.i, a = r.pts[Math.max(0, i - 1)], b = r.pts[Math.min(r.pts.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = (b[1] - a[1]) / l, nz = -(b[0] - a[0]) / l, [x, z] = r.pts[i];
+  { id: 'viaduct-day', name: '고속도로 고가 낮', hour: 10, weather: 'clear', place: (g) => { const v = viaduct(g); if (!v) return null; const r = v.r, i = v.i, a = Math.max(0, i - 1), b = Math.min(r.x.length - 1, i + 1), l = Math.hypot(r.x[b] - r.x[a], r.z[b] - r.z[a]) || 1, nx = (r.z[b] - r.z[a]) / l, nz = -(r.x[b] - r.x[a]) / l, x = r.x[i], z = r.z[i];
     return { p: at(x + nx * 40, z + nz * 40), cam: look(at(x + nx * 90, z + nz * 90, 1.8), { x, y: r.y[i], z }, 62) }; } },
   { id: 'mountain-day', name: '산 낮', hour: 14, weather: 'clear', place: () => { const s = summit(); if (!s) return null; return { p: at(s.x + 300, s.z + 300), cam: look(at(s.x + 260, s.z + 260, 30), { x: s.x, y: s.y, z: s.z }, 60) }; } },
   { id: 'korea-town-day', name: '실제 읍·면 낮', hour: 12, weather: 'clear', place: () => { const q = regionPlaces().find((o) => o.kind === 'town') || regionPlaces()[0]; if (!q) return null; return { p: at(q.x, q.z, 1), cam: look(at(q.x + q.r * 0.9, q.z + q.r * 0.9, 45), { x: q.x, y: q.y, z: q.z }) }; } },

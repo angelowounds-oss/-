@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GR, grp } from './physics.js';
-import { clamp, damp, rand } from './util.js';
+import { clamp, rand } from './util.js';
 import { A } from './assets.js';
 import { gesture } from './gesture.js';
 
@@ -272,7 +272,6 @@ export class ItemWorld {
       return;
     }
     let best = null, bd = 2.3;
-    const cam = this.G.camera;
     const fx = Math.sin(this.G.cam.yaw), fz = Math.cos(this.G.cam.yaw);
     for (const p of this.props.values()) {
       const t = p.body.translation(), dx = t.x - pl.x, dz = t.z - pl.z, dy = t.y - (pl.y + 0.9);

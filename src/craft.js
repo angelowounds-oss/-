@@ -182,7 +182,7 @@ export function createCraftBody(phys, spec, x, y, z, heading) {
 export function driveCraft(veh, dt) {
   const { pv } = veh, b = pv.body, spec = pv.spec, G = veh.G, m = pv.mass;
   const hasDriver = veh.driver && !veh.dead;
-  const t = b.translation(), lv = b.linvel(), q = b.rotation();
+  const t = b.translation(), lv = b.linvel();
   const h = veh.h, fx = Math.sin(h), fz = Math.cos(h);
   const thr = hasDriver && veh.fuel > 0 ? veh.throttle : 0, brk = hasDriver ? veh.brake : 0, st = hasDriver ? veh.steer : 0;
   if (spec.craft === 'boat') {
@@ -218,7 +218,7 @@ export function driveCraft(veh, dt) {
     } else veh.autoRot = false;
     b.applyImpulse({ x: 0, y: m * ay * dt, z: 0 }, true);
     const f = thr - brk;
-    const hv = Math.hypot(lv.x, lv.z), vf = lv.x * fx + lv.z * fz, vl = lv.x * fz - lv.z * fx;
+    const vf = lv.x * fx + lv.z * fz;
     if (sp > 0.85) {
       const acc = f * spec.accel * (1 - clamp(vf / spec.maxSpeed, -1, 1) * Math.sign(f || 1));
       b.applyImpulse({ x: m * (fx * acc - lv.x * 0.02) * dt, y: 0, z: m * (fz * acc - lv.z * 0.02) * dt }, true);   // light air drag: a helicopter is stopped by flaring (brake), not by the air

@@ -10,7 +10,6 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 import { quantize } from '@gltf-transform/functions';
 import sharp from 'sharp';
 import fs from 'fs';
-import path from 'path';
 
 const dir = process.argv[2].replace(/\/?$/, '/'), MAXTRIS = +(process.env.MAXTRIS || 3200);
 const ATLAS = 3072, TILE = 192, COLS = 16, ROWS = 14, SW = 8, PALY = TILE * ROWS; // 224 tiles; the palette strip starts at y=2688

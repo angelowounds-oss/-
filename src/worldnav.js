@@ -15,20 +15,20 @@ export class RoadGraph {
   constructor() {
     const N = net(), roads = N.roads.filter((r) => r.kind !== 'ramp' && !r.alley);   // an alley (build/world/fit.mjs) is paved for walkers only
     this.roads = roads; this.off = []; let n = 0;
-    for (const r of roads) { this.off.push(n); n += r.pts.length; }
+    for (const r of roads) { this.off.push(n); n += r.x.length; }
     this.n = n; this.x = new Float32Array(n); this.z = new Float32Array(n); this.rd = new Int32Array(n); this.ix = new Int32Array(n);
-    roads.forEach((r, k) => r.pts.forEach((p, i) => { const id = this.off[k] + i; this.x[id] = p[0]; this.z[id] = p[1]; this.rd[id] = k; this.ix[id] = i; }));
+    roads.forEach((r, k) => { for (let i = 0; i < r.x.length; i++) { const id = this.off[k] + i; this.x[id] = r.x[i]; this.z[id] = r.z[i]; this.rd[id] = k; this.ix[id] = i; } });
     // edges are gathered as (from, to) pairs and packed into CSR arrays below (one JS array per sample was 290 MB of heap on the 1:1 region)
     let E = new Int32Array(1 << 16), ne = 0; const link = (a, b) => { if (ne * 2 === E.length) { const F = new Int32Array(E.length * 2); F.set(E); E = F; } E[ne * 2] = a; E[ne * 2 + 1] = b; ne++; };
     roads.forEach((r, k) => {   // consecutive samples; a one-way line only in its direction
-      const m = r.pts.length, one = r.kind === 'arterial' && r.oneway;
+      const m = r.x.length, one = r.kind === 'arterial' && r.oneway;
       for (let i = 0; i < m - 1 + (r.closed ? 1 : 0); i++) { const a = this.off[k] + i, b = this.off[k] + (i + 1) % m; link(a, b); if (!one) link(b, a); }
     });
     // compiled lines meet where the compiler joined them (a line's end to the point of the next line, a line's start from the point before it), and a
     // highway that stops at the region meets the line it was joined to
-    const idx = new Map(roads.map((r, k) => [r.id, k])), node = (id, i) => (idx.has(id) ? this.off[idx.get(id)] + Math.min(i, roads[idx.get(id)].pts.length - 1) : -1);
+    const idx = new Map(roads.map((r, k) => [r.id, k])), node = (id, i) => (idx.has(id) ? this.off[idx.get(id)] + Math.min(i, roads[idx.get(id)].x.length - 1) : -1);
     roads.forEach((r, k) => {
-      const end = this.off[k] + r.pts.length - 1, start = this.off[k];
+      const end = this.off[k] + r.x.length - 1, start = this.off[k];
       for (const t of r.next || []) { const b = node(t.road, t.i); if (b >= 0) { link(end, b); if (!r.oneway) link(b, end); } }
       for (const t of r.prev || []) { const b = node(t.road, t.i); if (b >= 0) { link(b, start); if (!r.oneway) link(start, b); } }
       for (const [j, at] of [[r.joinA, start], [r.joinB, end]]) if (j) { const b = node(j.road, j.i); if (b >= 0) { link(at, b); link(b, at); } }
@@ -45,6 +45,21 @@ export class RoadGraph {
       for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { if (this.rd[j] === this.rd[i] || this.art[this.rd[j]]) continue; const d = (this.x[i] - this.x[j]) ** 2 + (this.z[i] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
       if (best >= 0) { link(i, best); link(best, i); }
     }
+    // region seams (ADR-0044): each region's compiler joined only its own lines, so a line that ends where the next region begins is joined to nothing
+    // and the regions were separate graphs (the capital's routes could not reach the highways joined to Gyeonggi). An open line end meets the
+    // nearest sample of another region's line within SEAM m; lines of the same region keep the compiler's junctions only.
+    const SEAM = 60, regOf = (r) => (r.id.startsWith('osm:') ? '' : r.id.slice(0, r.id.indexOf(':')));
+    const reg = roads.map((r) => (r.kind === 'arterial' ? regOf(r) : null));
+    roads.forEach((r, k) => {
+      if (reg[k] === null) return;
+      for (const [open, at, out] of [[!(r.prev && r.prev.length), this.off[k], false], [!(r.next && r.next.length), this.off[k] + r.x.length - 1, true]]) {
+        if (!open) continue;
+        const cx = Math.floor(this.x[at] / CS), cz = Math.floor(this.z[at] / CS); let best = -1, bd = SEAM * SEAM;
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { const rj = reg[this.rd[j]]; if (rj === null || rj === reg[k]) continue; const d = (this.x[at] - this.x[j]) ** 2 + (this.z[at] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
+        if (best < 0) continue;
+        if (!r.oneway) { link(at, best); link(best, at); } else if (out) link(at, best); else link(best, at);
+      }
+    });
     // CSR: the neighbours of u are nb[at[u]] .. nb[at[u + 1] - 1], in the order they were linked (a counting sort keeps it, so routes are unchanged)
     this.at = new Int32Array(n + 1); for (let e = 0; e < ne; e++) this.at[E[e * 2] + 1]++; for (let u = 0; u < n; u++) this.at[u + 1] += this.at[u];
     this.nb = new Int32Array(ne); const fill = this.at.slice(0, n); for (let e = 0; e < ne; e++) this.nb[fill[E[e * 2]]++] = E[e * 2 + 1];

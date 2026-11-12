@@ -1,4 +1,4 @@
-import { surfaceColor, biomeAt, vn, sstep, cities, SEA } from './worldmap.js';
+import { surfaceColor, vn, sstep, cities, SEA } from './worldmap.js';
 import { roadAt, HALF_W } from './roadnet.js';
 import { riverAt } from './landfn.js';
 import { settlements } from './settlements.js';

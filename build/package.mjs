@@ -65,7 +65,7 @@ export function writeLicences(game) {
 // Zips the folder as Korea/... next to it; files that are compressed already are stored as they are. Returns the zip's path.
 export function zipDist(dist, info) {
   if (!fs.existsSync(path.join(dist, 'Korea.exe'))) throw new Error('no Korea.exe in ' + dist + ' (Go missing or LAUNCHER=0): not zipping a folder that cannot start');
-  const parent = path.dirname(path.resolve(dist)), name = path.basename(dist);
+  const parent = path.dirname(path.resolve(dist));
   const out = path.join(parent, `Korea-${info.date.replace(/-/g, '')}-${info.commit}.zip`);
   fs.rmSync(out, { force: true });
   // a fixed top folder name in the zip, whatever the local folder is called

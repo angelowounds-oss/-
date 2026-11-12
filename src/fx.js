@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { timeUniform } from './shaders.js';
-import { rand, TAU, LIGHT_CAP } from './util.js';
+import { LIGHT_CAP } from './util.js';
 
 // ---------- Rain ----------
 // the share of the effect particles that are made (settings.js: the effects density); 1 = all

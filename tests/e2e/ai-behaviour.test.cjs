@@ -10,7 +10,6 @@ run('ai-behaviour', { q: 0 }, async ({ page }) => {
     g.wanted = 0;
     const h = mk('gang', pl.x + 18, pl.z, Math.PI / 2);
     step(h, 60); o.unseenBehind = h.state;
-    const d0 = Math.hypot(h.x - pl.x, h.z - pl.z);
     // the route to the noise is found by A* and the walk can be blocked by whatever random traffic stands there: fresh members at four spots
     o.afterNoise = null; o.movedToward = 0; o.tries = 0;
     for (const [dx, dz] of [[0, 0], [0, 18], [-18, 0], [0, -18], [18, 18]]) {

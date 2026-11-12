@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Builder, mats, disposeGroup, SURF } from './gfx.js';
 import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
-import { mulberry32, clamp, lerp, damp, TAU, LIGHT_CAP } from './util.js';
+import { mulberry32, clamp, TAU, LIGHT_CAP } from './util.js';
 import { livingSet, LIVING_COLLIDERS } from './livingset.js';
 import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
 import { roomWalkable } from './walkgrid.js';
@@ -24,7 +24,6 @@ const PAINT = [0xd2cbbf, 0xcdbfa6, 0xbec6b3, 0xb6c2cd, 0xd0bcb5, 0xc3bcb0, 0xc5c
 const PAINT_OFFICE = [0xcfd2d7, 0xc4cad1, 0xd1cfc9, 0xb7c4c6, 0xc8ccd3];
 const hash2 = (a, b) => { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0; };
 
-const hexc = (h) => new THREE.Color(h);
 const KINDS = ['apartment', 'office', 'hotel'];
 
 export class Building {
@@ -175,7 +174,6 @@ export class Building {
     if (k === 0) B.ext('decor', r.x0, 0.0, r.z0, r.x1, 0.03, r.z1, slabC);
     yield;
     // ---- perimeter ----
-    const ceilY = isRoof ? y : top;
     if (!isRoof) yield* this.perimeter(fl, B, cc, L, r, y, L.h, wallC);
     else this.parapet(fl, B, cc, r, y, wallC);
     if (L.first) this.parapet(fl, B, cc, L.slab, y, wallC, 1.0);   // the roof of the stage below, around the foot of this one
@@ -270,10 +268,9 @@ export class Building {
     ];
     const ground = L.k === 0 && L.tier === 'podium';
     const sill = ground ? 0.3 : 0.95, head = ground ? Math.min(h - 0.6, 3.1) : Math.min(h - 0.6, 3.1);
-    const pw = 0.7, door = this.door, isTowerSide = L.tier === 'tower';
+    const pw = 0.7, door = this.door;
     for (const sd of sides) {
       const len = sd.x1 - sd.x0, nb = Math.max(3, Math.round(len / BAY)), bay = len / nb;
-      const a0 = sd.ax === 'x' ? 0 : 0;
       // wall slab extents along the axis (corners handled by n/s full, e/w shortened)
       let u0 = sd.x0, u1 = sd.x1; if (sd.ax === 'z') { u0 += WALL; u1 -= WALL; }
       const wi0 = sd.z + sd.d * 0.05, wi1 = sd.z + sd.d * WALL;
@@ -298,7 +295,7 @@ export class Building {
         box(ca, cb, y, y + sill, 'decor', wallC);
         box(ca, cb, y + head, y + h, 'decor', wallC);
         if (!ground) { // interior dressing: sill board, curtains (every other bay) in a few fabrics
-          const inner = sd.d > 0 ? mx : mn - 0.09, o = sd.d > 0 ? mx + 0.09 : mn;
+          const inner = sd.d > 0 ? mx : mn - 0.09;
           const place = (ua2, ub2, ya, yb, col, off) => { const e = sd.ax === 'x' ? [ua2, ya, inner - (sd.d < 0 ? off : 0), ub2, yb, inner + 0.09 + (sd.d > 0 ? off : 0)] : [inner - (sd.d < 0 ? off : 0), ya, ua2, inner + 0.09 + (sd.d > 0 ? off : 0), yb, ub2]; B.ext('decor', e[0], e[1], e[2], e[3], e[4], e[5], col); };
           place(ca, cb, y + sill, y + sill + 0.04, 0xd9d4c8, 0.16);
           if ((i + L.k) % 2 === 0) { const col = [0x7a3a48, 0x35546a, 0xb9a98a, 0x4e4e5e][(i * 3 + L.k) % 4], cw = Math.min(0.55, (cb - ca) * 0.2); place(ca, ca + cw, y + 0.25, y + head + 0.25, col, 0.06); place(cb - cw, cb, y + 0.25, y + head + 0.25, col, 0.06); }
@@ -322,7 +319,7 @@ export class Building {
   }
   // street entrance: opening between pillars, double glass door leaves (real, hinged)
   makeEntrance(fl, sd, ca, cb, y, mn, mx) {
-    const G = this.G, w = cb - ca, mid = (ca + cb) / 2;
+    const mid = (ca + cb) / 2;
     const hingeA = new Door(this, fl, { axis: sd.ax, wallC: (mn + mx) / 2, from: ca, to: mid - 0.02, y, h: 2.65, thick: 0.08, kind: 'glass', hingeAt: 'from', swing: sd.d, name: this.name + ' 정문' });
     const hingeB = new Door(this, fl, { axis: sd.ax, wallC: (mn + mx) / 2, from: mid + 0.02, to: cb, y, h: 2.65, thick: 0.08, kind: 'glass', hingeAt: 'to', swing: sd.d, name: this.name + ' 정문' });
     hingeA.partner = hingeB; hingeB.partner = hingeA;
@@ -334,7 +331,7 @@ export class Building {
 
   // ---------- core: stairs + elevator shaft ----------
   buildCore(fl, B, cc, L, y, wallC, isRoof) {
-    const c = this.core, zc = c.zc, h = L.h, top = y + h, cx0 = c.x0, cz0 = c.z0;
+    const c = this.core, zc = c.zc, h = L.h, cx0 = c.x0, cz0 = c.z0;
     const steel = 0x30343f, W = wallC;
     const solid = (x0, y0, z0, x1, y1, z1, color, tag) => { B.ext('decor', x0, y0, z0, x1, y1, z1, color); cc(x0, z0, x1, z1, y0, y1, tag); };
     const hh = isRoof ? 3.4 : h;
@@ -367,7 +364,6 @@ export class Building {
       const m = new THREE.Mesh(mergeGeometries(gs), digitMaterial()); m.frustumCulled = true; fl.group.add(m);
     }
     // stairs
-    const rise = L.h / 2, run = CORE_D - 1.6, ang = Math.atan2(rise, run);
     if (!isRoof) {
       // landing (mid-level) over both columns at the north end
       const ly = y + L.h * 0.45;
@@ -413,7 +409,7 @@ export class Building {
   }
   *furnishLobby(fl, L) {
     this.floorFinish(fl, L.rect.x0 + WALL, L.rect.z0 + WALL, L.rect.x1 - WALL, L.rect.z1 - WALL, L.y, SURF.tile, 0xc8ccd6);
-    const { B, solid, R } = fl, r = L.rect, acc = fl.acc, c = this.core;
+    const { B, solid } = fl, r = L.rect, acc = fl.acc, c = this.core;
     const em = acc.clone().multiplyScalar(2.4);
     // reception desk facing the entrance
     const d = this.door, inX = d.nx !== 0;
@@ -475,7 +471,7 @@ export class Building {
   }
   *furnishOpen(fl, L, kind) {
     this.floorFinish(fl, L.rect.x0 + WALL, L.rect.z0 + WALL, L.rect.x1 - WALL, L.rect.z1 - WALL, L.y, SURF.tile, 0xb4b8c4);
-    const { B, solid, R } = fl, r = L.rect, c = this.core;
+    const { B, solid } = fl, r = L.rect, c = this.core;
     const free = (x0, z0, x1, z1) => !(x1 > c.x0 - 1.2 && x0 < c.x0 + CORE_W + 1.2 && z1 > c.z0 - 1.2 && z0 < c.zc + 3.2);
     const cols = [0x4a3a2a, 0x2c3a4a, 0x3a2c4a, 0x2c4a3a];
     fl.shelves = []; let n = 0;
@@ -510,7 +506,7 @@ export class Building {
     yield* this.populate(fl, L);
   }
   *furnishRoof(fl, L) {
-    const { B, solid, cc, R } = fl, tow = this.roofRect;
+    const { B, solid, cc } = fl, tow = this.roofRect;
     // heliport + AC units + water tank for parkour
     const cx = (tow.x0 + tow.x1) / 2 + 2, cz = (tow.z0 + tow.z1) / 2 + 2;
     for (let i = 0; i < 24; i++) { const a = i / 24 * TAU; B.box('emit', cx + Math.cos(a) * 4, this.roofY + 0.02, cz + Math.sin(a) * 4, 0.5, 0.02, 0.18, new THREE.Color(1, 0.85, 0.3), -a, 1.4); }
@@ -544,7 +540,7 @@ export class Building {
     yield* this.populate(fl, L);
   }
   *furnishRooms(fl, L) {
-    const { B, solid, cc, R, rnd } = fl, r = L.rect, c = this.core, zc = c.zc;
+    const { B, cc, R } = fl, r = L.rect, c = this.core, zc = c.zc;
     const ix0 = r.x0 + WALL, ix1 = r.x1 - WALL, iz0 = r.z0 + WALL, iz1 = r.z1 - WALL, y = L.y, h = L.h - SLAB;
     const wallC = fl.wallC, rooms = [];
     const t = 0.18;
@@ -894,7 +890,6 @@ export class Door {
     this.ang = st ? st.ang : 0; this.target = this.ang; this.vel = 0;
     if (st && st.swing) this.swing = st.swing;
     this.broken = st?.broken || false;
-    const m = mats();
     const color = o.kind === 'glass' ? 0x9fb8d0 : 0x5a4636;
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), o.kind === 'glass' ? new THREE.MeshPhysicalMaterial({ color: 0x9fd0e0, roughness: 0.05, transparent: true, opacity: 0.32, clearcoat: 1 }) : new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1 }));
     this.mesh.scale.set(o.thick, o.h, this.len); this.mesh.castShadow = false; this.mesh.frustumCulled = false;

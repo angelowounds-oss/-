@@ -1,6 +1,6 @@
 // Ride height at rest, a 100 km/h double lane change (ISO 3888: 3.5 m over 25 m and back), a 2 m drop, and a 90 km/h drive off a 5 m ledge: node build/lab/ridelab.mjs
 import RAPIER from '@dimforge/rapier3d-compat';
-import { Physics, driveVehicle, PHYS } from '../../src/physics.js';
+import { Physics, driveVehicle } from '../../src/physics.js';
 import { CAR_SPECS } from '../../src/carspecs.js';
 await RAPIER.init();
 for (const type of ['sedan', 'sport', 'suv', 'truck']) {
@@ -10,7 +10,7 @@ for (const type of ['sedan', 'sport', 'suv', 'truck']) {
   const step = (C, n = 1) => { for (let i = 0; i < n; i++) P.step(1 / 60, () => driveVehicle(v, { throttle: C.t || 0, brake: C.b || 0, steer: C.s || 0, maxSteer: 0.2, hand: false, speedFwd: fwd(), dead: false, parked: false }), [v]); };
   step({}, 180); o.restY = +b.translation().y.toFixed(3);
   // lane change at 100 km/h: steer by a pure pursuit on the ISO path
-  b.setTranslation({ x: -1000, y: o.restY, z: 0 }, true); b.setLinvel({ x: 27.8, y: 0, z: 0 }, true); let minUp = 1, maxRoll = 0;
+  b.setTranslation({ x: -1000, y: o.restY, z: 0 }, true); b.setLinvel({ x: 27.8, y: 0, z: 0 }, true); let minUp = 1;
   for (let k = 0; k < 300; k++) { const t = b.translation(), x = t.x + 1000, zt = x < 15 ? 0 : x < 45 ? 3.5 * Math.sin(Math.min(1, (x - 15) / 25) * Math.PI / 2) : x < 70 ? 3.5 : x < 95 ? 3.5 * Math.cos(((x - 70) / 25) * Math.PI / 2) : 0;
     const q = b.rotation(), h = Math.atan2(2 * (q.x * q.z + q.w * q.y), 1 - 2 * (q.x * q.x + q.y * q.y)), want = Math.atan2(zt + 0 - t.z, 12) , dh = Math.atan2(Math.sin(Math.PI / 2 - want - h), Math.cos(Math.PI / 2 - want - h));
     step({ t: fwd() < 27.8 ? 0.6 : 0, s: Math.max(-1, Math.min(1, dh * 3)) }); const up = 1 - 2 * (q.x * q.x + q.z * q.z); minUp = Math.min(minUp, up); }

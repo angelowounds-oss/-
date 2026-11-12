@@ -20,7 +20,7 @@ run('farland', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     o.flyAvgMs = +(sum / N).toFixed(2); o.flyWorstMs = +worst.toFixed(1);
     // the ground holds outside the city (Harbor Gate), and the city's own area is under the discard
     // the player stands on the far ground (Harbor Gate lies at ~43 m); without it he would fall through
-    const hw = g.hwtraffic.N.roads.find((q) => q.kind === 'highway'), hp = hw.pts[Math.floor(hw.pts.length * 0.4)], hx = hp[0], hz = hp[1], hy = hw.y[Math.floor(hw.pts.length * 0.4)] + 3; pl.body3.teleport(hx, hy, hz); pl.x = hx; pl.y = hy; pl.z = hz; pl.vy = 0; await tick(240);
+    const hw = g.hwtraffic.N.roads.find((q) => q.kind === 'highway'), hi = Math.floor(hw.x.length * 0.4), hx = hw.x[hi], hz = hw.z[hi], hy = hw.y[Math.floor(hw.x.length * 0.4)] + 3; pl.body3.teleport(hx, hy, hz); pl.x = hx; pl.y = hy; pl.z = hz; pl.vy = 0; await tick(240);
     o.landed = Math.abs(pl.y - (hy - 3)) < 3 && !pl.dead; o.groundTile = !!F.ground.col;
     o.discardsCity = F.mat.onBeforeCompile.toString().length > 0;
     // Darkstar: the edge of the map and a mountain

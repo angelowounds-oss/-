@@ -1,9 +1,12 @@
 import { procGesture, gesture } from './gesture.js';
 import * as THREE from 'three';
 import { initLoading } from './loading.js';
-import { createEngine, QUALITY } from './engine.js';
+import { createEngine } from './engine.js';
 import { furnitureIds, furnitureInfo, furnitureMaterial, furnitureReady } from './furnish.js';
 import { Game } from './game.js';
+import { installTestApi } from './testapi.js';
+import { initCredits } from './credits.js';
+import { PerfOverlay } from './perfoverlay.js';
 import { el } from './util.js';
 import * as V from './vehicle.js';
 import RAPIER from '@dimforge/rapier3d-compat';
@@ -53,23 +56,28 @@ function reportPlace() { try { return window.__game?.reportPlace() || {}; } catc
   // opened as a file, the page cannot read the game files next to it
   if (location.protocol === 'file:') { loading.set(0, 'Korea.exe로 실행해 주세요 (index.html을 직접 열면 게임 파일을 읽을 수 없습니다)'); return; }
   keepLauncher();
+  initCredits();   // the credits and licences screen, reachable from the title screen while loading (EV-84)
   try {
-    await preloadFiles();   // files that synchronous set-up code decodes (engine HDRIs, block and landmark shapes, country roads)
+    const mark = (n) => { try { performance.mark('boot:' + n); } catch (e) { /* no marks */ } };   // boot stage times for the boot gate (EV-93)
+    await preloadFiles(); mark('preload');   // files that synchronous set-up code decodes (engine HDRIs, block and landmark shapes, country roads)
     eng = createEngine(el('game'), q);
-    await RAPIER.init();
-    await loadBaked();   // the baked world must be in place before the first terrain/road query
+    await RAPIER.init(); mark('engine');
+    await loadBaked(); mark('baked');   // the baked world must be in place before the first terrain/road query
     await initDetail();   // mounts the high pack next to the page (world/high/) when the high detail is chosen
     // the high world detail starts at the 'high' graphics level (shadows, post-processing, textures) unless the player or the URL chose one
     { let stored = null; try { stored = sessionStorage.getItem('neon_q'); } catch (e) { /* ignore */ } if (detail.tier === 'high' && !params.has('q') && stored === null && !mobile) eng.setQuality(Math.max(q, 2)); }
     if (detail.tier === 'high') await loadHiAssets(eng.renderer);   // the pack's compressed textures, before the world that uses them is built
     if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
     if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
+    mark('world-data');
     game = new Game(eng); game.RAPIER = RAPIER; initKeyUI();
     window.__game = game; window.__THREE = THREE; window.__furn = { ids: furnitureIds, info: furnitureInfo, mat: furnitureMaterial }; window.__V = V; window.__AIM = AIM; window.__gesture = { procGesture, gesture };
-    await game.init((p, t) => loading.set(p, t));
+    game.perfOv = new PerfOverlay(game);   // F3 device performance overlay (EV-92)
+    installTestApi(game);   // window.__test: the verbs tests use instead of Game's fields (EV-96)
+    await game.init((p, t) => loading.set(p, t)); mark('game');
     furnitureReady();   // prepare the furniture models during loading, not in the middle of the first building that opens
     game.buildings.warm(game.player.x, game.player.z, game.player.y || 0);
-    game.prewarmShaders();
+    game.prewarmShaders(); mark('ready');
   } catch (e) { fatal(e); return; }
   const go = el('go');
   initDetailUI(() => location.reload());   // a change of world detail rebuilds the world: only offered here, before the game starts
@@ -86,6 +94,7 @@ function reportPlace() { try { return window.__game?.reportPlace() || {}; } catc
   go.addEventListener('click', begin);
   addEventListener('keydown', (e) => {
     if (!game.running && go.classList.contains('rdy') && !e.metaKey && !e.ctrlKey && e.code !== 'F12') begin();
+    else if (game.running && !e.repeat && binds.is(e.code, 'perf')) { e.preventDefault(); if (e.shiftKey) game.perfOv.copy(); else game.perfOv.toggle(); }
     else if (game.running && !e.repeat && (binds.is(e.code, 'help') || (e.code === 'Escape' && el('helpov').classList.contains('on')))) { const on = !el('helpov').classList.contains('on') && e.code !== 'Escape'; if (on) renderHelp(); el('helpov').classList.toggle('on', on); }
   });
   eng.onQuality = () => { try { sessionStorage.setItem('neon_q', String(eng.qIndex)); } catch (e) { /* ignore */ } };

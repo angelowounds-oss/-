@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { roadC, R, SW } from './world.js';
-import { clamp, rand } from './util.js';
+import { rand } from './util.js';
 import { keys as binds } from './keys.js';
 
 const STATION_NODES = [[1, 3], [3, 1], [5, 4], [7, 5], [3, 7], [6, 7], [2, 5]];

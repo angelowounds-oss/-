@@ -22,18 +22,18 @@ export function medianGap(N, r, i) {
   if (!r.med) {
     if (!N.medGrid) {   // the samples of every one-way motorway and trunk line with a ref, on a 32 m grid
       const g = new Map(); N.medGrid = g;
-      for (const o of N.roads) { if (o.kind !== 'arterial' || !o.oneway || !o.ref || (o.hw !== 'motorway' && o.hw !== 'trunk')) continue; o.pts.forEach((p, j) => { const k = Math.floor(p[0] / MED_GRID) * 100003 + Math.floor(p[1] / MED_GRID); (g.get(k) || g.set(k, []).get(k)).push(o, j); }); }
+      for (const o of N.roads) { if (o.kind !== 'arterial' || !o.oneway || !o.ref || (o.hw !== 'motorway' && o.hw !== 'trunk')) continue; for (let j = 0; j < o.x.length; j++) { const k = Math.floor(o.x[j] / MED_GRID) * 100003 + Math.floor(o.z[j] / MED_GRID); (g.get(k) || g.set(k, []).get(k)).push(o, j); } }
     }
-    const P = r.pts, n = P.length, med = (r.med = new Float32Array(n)), half = carriage(r).half;
+    const X = r.x, Z = r.z, n = X.length, med = (r.med = new Float32Array(n)), half = carriage(r).half;
     for (let s = 0; s < n; s++) {
-      const a = P[Math.max(0, s - 1)], b = P[Math.min(n - 1, s + 1)]; let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-      let best = 0, bd = Infinity; const cx = Math.floor(P[s][0] / MED_GRID), cz = Math.floor(P[s][1] / MED_GRID);
+      const a = Math.max(0, s - 1), b = Math.min(n - 1, s + 1); let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      let best = 0, bd = Infinity; const cx = Math.floor(X[s] / MED_GRID), cz = Math.floor(Z[s] / MED_GRID);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
         const l2 = N.medGrid.get((cx + dx) * 100003 + cz + dz); if (!l2) continue;
         for (let q = 0; q < l2.length; q += 2) {
           const o = l2[q], j = l2[q + 1]; if (o === r || o.ref !== r.ref || o.hw !== r.hw || Math.abs(o.y[j] - r.y[s]) > 3) continue;
-          const A = o.pts[Math.max(0, j - 1)], B = o.pts[Math.min(o.pts.length - 1, j + 1)]; if ((B[0] - A[0]) * tx + (B[1] - A[1]) * tz >= 0) continue;   // the same way: a branch, not the other carriageway
-          const ex = o.pts[j][0] - P[s][0], ez = o.pts[j][1] - P[s][1], along = ex * tx + ez * tz, side = ex * tz - ez * tx; if (Math.abs(along) > 8) continue;
+          const A = Math.max(0, j - 1), B = Math.min(o.x.length - 1, j + 1); if ((o.x[B] - o.x[A]) * tx + (o.z[B] - o.z[A]) * tz >= 0) continue;   // the same way: a branch, not the other carriageway
+          const ex = o.x[j] - X[s], ez = o.z[j] - Z[s], along = ex * tx + ez * tz, side = ex * tz - ez * tx; if (Math.abs(along) > 8) continue;
           if (Math.abs(side) < bd) { bd = Math.abs(side); best = side; }
         }
       }

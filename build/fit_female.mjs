@@ -86,7 +86,7 @@ const acc = (type, arr) => doc.createAccessor().setType(type).setArray(arr).setB
 for (const s of prim.listSemantics()) prim.setAttribute(s, null);
 prim.setAttribute('POSITION', acc('VEC3', W)).setAttribute('NORMAL', acc('VEC3', NR)).setAttribute('COLOR_0', acc('VEC3', new Float32Array(outC)))
   .setAttribute('JOINTS_0', acc('VEC4', J)).setAttribute('WEIGHTS_0', acc('VEC4', WT)).setIndices(acc('SCALAR', new Uint32Array(outI)));
-const mat = prim.getMaterial().setName('Female').setBaseColorTexture(null).setBaseColorFactor([1, 1, 1, 1]).setRoughnessFactor(0.72).setMetallicFactor(0).setDoubleSided(false);
+prim.getMaterial().setName('Female').setBaseColorTexture(null).setBaseColorFactor([1, 1, 1, 1]).setRoughnessFactor(0.72).setMetallicFactor(0).setDoubleSided(false);
 for (const a of root.listAnimations()) { for (const c of a.listChannels()) c.dispose(); for (const sm of a.listSamplers()) sm.dispose(); a.dispose(); }
 await doc.transform(prune());
 await io.write('assets/player_female.glb', doc);

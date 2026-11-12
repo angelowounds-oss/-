@@ -3,7 +3,7 @@ import { carriage, medianGap } from './carriage.js';
 import { net, groundH, HALF_W, CARVE_FADE, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand, VIEW } from './util.js';
-import { landHeight, physHeight } from './landfn.js';
+import { landHeight } from './landfn.js';
 import { regionWeight, TUNNEL_FILL, carve } from './region.js';
 import { Deck, oldDeck, oldHalf } from './roaddeck.js';
 import { GR, grp } from './physics.js';
@@ -94,16 +94,16 @@ export class Highways {
     for (const m of [this.mats.asphalt, this.mats.ramp, this.mats.alley, ...this.mats.lanes]) pullFar(m);
     this.stats = { chunks: 0, tris: 0, artPieces: 0, artLive: 0, artVerts: 0, artLifted: 0 }; this.cm = new Map(); this.decks = new Map(); this.piers = new Map(); this.pcols = new Map();
     for (const r of this.N.roads) if (r.kind !== 'arterial') this.buildRoad(r);
-    this.art = []; for (const r of this.N.roads) if (r.kind === 'arterial') for (let a = 0; a < r.pts.length - 1; a += ART) {
-      const b = Math.min(r.pts.length - 1, a + ART); let cx = 0, cz = 0, rad = 0; for (let i = a; i <= b; i++) { cx += r.pts[i][0]; cz += r.pts[i][1]; } cx /= b - a + 1; cz /= b - a + 1;
-      for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.pts[i][0] - cx, r.pts[i][1] - cz));
+    this.art = []; for (const r of this.N.roads) if (r.kind === 'arterial') for (let a = 0; a < r.x.length - 1; a += ART) {
+      const b = Math.min(r.x.length - 1, a + ART); let cx = 0, cz = 0, rad = 0; for (let i = a; i <= b; i++) { cx += r.x[i]; cz += r.z[i]; } cx /= b - a + 1; cz /= b - a + 1;
+      for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.x[i] - cx, r.z[i] - cz));
       this.art.push({ r, a, b, cx, cz, rad, on: ART_ON[r.hw] || 2200, meshes: null });
     }
     this.stats.artPieces = this.art.length;
     // the tunnel runs of every road (in pieces of at most ART segments), for the ground over them
     this.covers = []; this.tgrid = new Map(); this.stats.covers = 0; this.stats.coverTris = 0;
     for (const r of this.N.roads) {
-      const n = r.pts.length, m = r.closed ? n : n - 1; let a = -1;
+      const n = r.x.length, m = r.closed ? n : n - 1; let a = -1;
       for (let i = 0; i <= m; i++) {
         const tun = i < m && (r.cls[i] === 2 || r.cls[(i + 1) % n] === 2);
         if (tun) this.gridTunnel(r, i);
@@ -117,18 +117,18 @@ export class Highways {
   }
 
   frame(r, i) {   // centre, tangent, right of sample i
-    const P = r.pts, n = P.length, a = P[r.closed ? (i + n - 1) % n : Math.max(0, i - 1)], b = P[r.closed ? (i + 1) % n : Math.min(n - 1, i + 1)];
-    let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-    return { x: P[i][0], z: P[i][1], y: r.y[i], tx, tz, rx: tz, rz: -tx, cls: r.cls[i] };
+    const X = r.x, Z = r.z, n = X.length, a = r.closed ? (i + n - 1) % n : Math.max(0, i - 1), b = r.closed ? (i + 1) % n : Math.min(n - 1, i + 1);
+    let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+    return { x: X[i], z: Z[i], y: r.y[i], tx, tz, rx: tz, rz: -tx, cls: r.cls[i] };
   }
 
   buildRoad(r) {
-    const n = r.pts.length, m = r.closed ? n : n - 1; let dist = 0; r.st = [];
+    const n = r.x.length, m = r.closed ? n : n - 1; let dist = 0; r.st = [];
     for (let c0 = 0; c0 < m; c0 += CHUNK) { r.st.push(dist); dist = this.chunk(r, c0, dist); }
   }
   // one 3 km chunk of a road (also rebuilt when a bridge in it is blown up): returns the distance along the road at its end
   chunk(r, c0, dist) {
-    const n = r.pts.length, ramp = r.kind === 'ramp', m = r.closed ? n : n - 1;
+    const n = r.x.length, ramp = r.kind === 'ramp', m = r.closed ? n : n - 1;
     const half = ramp ? 4.6 : MED / 2 + 3 * LANE + SHOULDER, medH = MED / 2;
     const BARR = [0.3, 0.36, 0.38], CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], DARK = [0.19, 0.2, 0.22], PIL = [0.4, 0.41, 0.44], LIGHT = [3.2, 2.9, 2.2];
     {
@@ -189,7 +189,7 @@ export class Highways {
   // bridges can be blown up: a span of two 30 m samples loses its deck (colliders: the physics ground there is the valley again), the rest of the
   // chunk is drawn anew without it, cars stop coming; spans are remembered in the save and stand again after five days
   attach(G) {
-    this.G = G; this.phys = G.phys; for (const r of this.N.roads) if (r.kind !== 'arterial') for (let c0 = 0; c0 < r.pts.length; c0 += CHUNK) this.deckChunk(r, c0); const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
+    this.G = G; this.phys = G.phys; for (const r of this.N.roads) if (r.kind !== 'arterial') for (let c0 = 0; c0 < r.x.length; c0 += CHUNK) this.deckChunk(r, c0); const P = (G.state.places = G.state.places || { dead: {}, ruins: {} }); P.bridges = P.bridges || {}; this.hp = new Map(); this.byId = new Map(this.N.roads.map((r) => [r.id, r]));
     for (const [k, v] of Object.entries(P.bridges)) { if (G.clock.t - v.t > 7200) { delete P.bridges[k]; continue; } this.breakSpan(this.byId.get(v.road), v.span, true); }
   }
   // ---- physics decks: where the ground below a road is not at its surface (a viaduct, a stacked interchange, a tunnel, a road laid at another height than
@@ -215,22 +215,22 @@ export class Highways {
   dropPiers(L) { if (L && this.phys) { for (const c of L) this.phys.world.removeCollider(c, true); this.stats.pierCols -= L.length; } }
   blast(x, y, z, radius, dmg) {
     if (!this.G) return;
-    for (const r of this.N.roads) for (let i = 0; i < r.pts.length - 1; i++) {
+    for (const r of this.N.roads) for (let i = 0; i < r.x.length - 1; i++) {
       // compiled lines keep their bridges (no span bookkeeping yet)
       if (r.cls[i] !== 1 || r.kind === 'arterial') continue;
-      const p = r.pts[i], dx = p[0] - x, dz = p[1] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
+      const p = i, dx = r.x[p] - x, dz = r.z[p] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
       const d = Math.hypot(dx, dz); if (d > radius + 16 || Math.abs(r.y[i] - y) > radius + 30) continue;
       const span = i >> 1, key = r.id + ':' + span; if (BROKEN.has(r.id + ':' + span * 2)) continue;
       const hp = (this.hp.get(key) ?? 480) - dmg * (1 - d / (radius + 16)) * 1.4; this.hp.set(key, hp); if (hp <= 0) this.breakSpan(r, span, false);
     }
   }
   breakSpan(r, span, silent) {
-    if (!r) return; for (const i of [span * 2, span * 2 + 1]) if (i < r.pts.length - 1) breakSegment(r, i);
-    this.rebuild(r, span * 2); const G = this.G, p = r.pts[Math.min(r.pts.length - 1, span * 2 + 1)];
+    if (!r) return; for (const i of [span * 2, span * 2 + 1]) if (i < r.x.length - 1) breakSegment(r, i);
+    this.rebuild(r, span * 2); const G = this.G, p = Math.min(r.x.length - 1, span * 2 + 1);
     if (silent) return;
     G.state.places.bridges[r.id + ':' + span] = { road: r.id, span, t: G.clock.t }; G.farland?.ground?.clear?.();
-    for (let k = 0; k < 30; k++) G.smokeP.emit(p[0] + rand(-12, 12), r.y[span * 2] + rand(-2, 3), p[1] + rand(-12, 12), rand(-3, 3), rand(-1, 5), rand(-3, 3), rand(4, 8), rand(5, 9), 0.12, 0.11, 0.1, 0.8, 0.2, 0.5);
-    G.audio.explosion?.(1.6, 0); G.memory?.log('collapse', p[0], p[1], { city: '', text: '고속도로 교량 붕괴' }); G.addHeat?.(15);
+    for (let k = 0; k < 30; k++) G.smokeP.emit(r.x[p] + rand(-12, 12), r.y[span * 2] + rand(-2, 3), r.z[p] + rand(-12, 12), rand(-3, 3), rand(-1, 5), rand(-3, 3), rand(4, 8), rand(5, 9), 0.12, 0.11, 0.1, 0.8, 0.2, 0.5);
+    G.audio.explosion?.(1.6, 0); G.memory?.log('collapse', r.x[p], r.z[p], { city: '', text: '고속도로 교량 붕괴' }); G.addHeat?.(15);
   }
   // blown-up spans: the chunk is made again without them
   rebuild(r, i) { const c0 = Math.floor(i / CHUNK) * CHUNK, key = r.id + ':' + c0; for (const o of this.cm.get(key) || []) { this.group.remove(o); o.geometry.dispose(); this.stats.tris -= (o.geometry.index ? o.geometry.index.count : 0) / 3; this.stats.chunks--; } this.chunk(r, c0, r.st[c0 / CHUNK]); this.deckChunk(r, c0); }
@@ -260,7 +260,7 @@ export class Highways {
   buildTolls() {
     const S = new Acc(), E = new Acc(), steel = [0.5, 0.52, 0.56], booth = [0.78, 0.78, 0.72], STRIP = [2.4, 1.5, 0.4];
     for (const t of this.N.tolls) {
-      const r = this.N.roads.find((q) => q.id === t.road), f = this.frame(r, Math.max(1, Math.min(r.pts.length - 2, t.idx))), half = MED / 2 + 3 * LANE + SHOULDER + 1.5;
+      const r = this.N.roads.find((q) => q.id === t.road), f = this.frame(r, Math.max(1, Math.min(r.x.length - 2, t.idx))), half = MED / 2 + 3 * LANE + SHOULDER + 1.5;
       box(S, [f.x, f.z], f.tx, f.tz, 2 * half + 6, 0.9, 16, f.y + 6.2, [0.62, 0.64, 0.68]);
       E.quad([f.x - f.rx * half + f.tx * 8, f.y + 6.15, f.z - f.rz * half + f.tz * 8], [f.x + f.rx * half + f.tx * 8, f.y + 6.15, f.z + f.rz * half + f.tz * 8], [f.x + f.rx * half - f.tx * 8, f.y + 6.15, f.z + f.rz * half - f.tz * 8], [f.x - f.rx * half - f.tx * 8, f.y + 6.15, f.z - f.rz * half - f.tz * 8], [2.2, 2.0, 1.6]);
       for (const off of [-half - 1.2, -MED / 2 - 3 * LANE - 0.3, -MED / 2 - 1.5 * LANE, -MED / 2, MED / 2, MED / 2 + 1.5 * LANE, MED / 2 + 3 * LANE + 0.3, half + 1.2]) {
@@ -322,7 +322,7 @@ export class Highways {
       const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue;
       for (let q = 0; q < cell.length; q += 2) {
         const ri = cell[q], i = cell[q + 1], r = N.roads[ri]; if (r.kind === 'ramp' || (r.kind === 'arterial' ? LOCAL_LAMPS[r.hw] || i % 5 : i % 2)) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
-        const px = r.pts[i][0], pz = r.pts[i][1]; if ((px - x) ** 2 + (pz - z) ** 2 > R * R || r.cls[i] === 2) continue;
+        const px = r.x[i], pz = r.z[i]; if ((px - x) ** 2 + (pz - z) ** 2 > R * R || r.cls[i] === 2) continue;
         const f = this.frame(r, i), side = r.kind === 'arterial' ? this.artWidth(r).half + 0.8 : 0; L.pos.set(f.x + f.rx * side, f.y, f.z + f.rz * side); L.q.setFromAxisAngle(L.up, Math.atan2(f.rx, f.rz)); L.mat.compose(L.pos, L.q, L.one);
         L.poleMesh.setMatrixAt(k, L.mat); L.headMesh.setMatrixAt(k, L.mat); if (++k >= L.MAX) break outer;
       }
@@ -361,21 +361,21 @@ export class Highways {
   }
   // a run of tunnel segments a .. b-1 of road r, with its centre and radius
   coverRun(r, a, b) {
-    const n = r.pts.length; let cx = 0, cz = 0, rad = 0;
-    for (let i = a; i <= b; i++) { cx += r.pts[i % n][0]; cz += r.pts[i % n][1]; } cx /= b - a + 1; cz /= b - a + 1;
-    for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.pts[i % n][0] - cx, r.pts[i % n][1] - cz));
+    const n = r.x.length; let cx = 0, cz = 0, rad = 0;
+    for (let i = a; i <= b; i++) { cx += r.x[i % n]; cz += r.z[i % n]; } cx /= b - a + 1; cz /= b - a + 1;
+    for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.x[i % n] - cx, r.z[i % n] - cz));
     return { r, a, b, cx, cz, rad, built: false, col: null };
   }
   // the ground over a run (see COVER_ROOF): cross-sections every 8 m or less along the road, each 4 m across, at the drawn ground; over the tunnel
   // itself (and one step past its walls, so that no slope dips into it) never under the drawn lining's roof
   coverMesh(c) {
-    const r = c.r, n = r.pts.length, art = r.kind === 'arterial', half = this.tunHalf(r);
+    const r = c.r, n = r.x.length, art = r.kind === 'arterial', half = this.tunHalf(r);
     const inner = half + 1.4, outer = art ? half + TUNNEL_FILL + 12 : HALF_W + CARVE_FADE + 12;   // past the filled corridor and the 8 m cells of the height field sloping into it
     const NA = Math.ceil((2 * outer) / 4), P = [], I = [];
     // on along the open road past each end as far as the fill reaches round the last tunnel sample (and a height field cell), at the ground only; a road
     // that ends inside a tunnel (the next way is another road) goes on straight
     const ext = (art ? half + TUNNEL_FILL : HALF_W + CARVE_FADE) + 8, step = (i, d) => (r.closed ? (i + d + n) % n : Math.max(0, Math.min(n - 1, i + d)));
-    const gap = (i, j) => Math.hypot(r.pts[i][0] - r.pts[j][0], r.pts[i][1] - r.pts[j][1]);
+    const gap = (i, j) => Math.hypot(r.x[i] - r.x[j], r.z[i] - r.z[j]);
     let a = c.a, b = c.b, La = 0, Lb = 0;
     for (; La < ext && a !== step(a, -1) && !(r.closed && step(a, -1) === c.b); a = step(a, -1)) La += gap(a, step(a, -1));
     for (; Lb < ext && b !== step(b, 1) && !(r.closed && step(b, 1) === c.a); b = step(b, 1)) Lb += gap(b, step(b, 1));
@@ -431,9 +431,9 @@ export class Highways {
   }
   // tunnel segment i of road r in the 64 m cells it reaches (with its lining and the cover's 4 m step past it)
   gridTunnel(r, i) {
-    const n = r.pts.length, A = r.pts[i], B = r.pts[(i + 1) % n], pad = this.tunHalf(r) + 5.4;
-    for (let a = Math.floor((Math.min(A[0], B[0]) - pad) / 64); a <= Math.floor((Math.max(A[0], B[0]) + pad) / 64); a++)
-      for (let b = Math.floor((Math.min(A[1], B[1]) - pad) / 64); b <= Math.floor((Math.max(A[1], B[1]) + pad) / 64); b++) { const k = a * 100003 + b; let l = this.tgrid.get(k); if (!l) this.tgrid.set(k, (l = [])); l.push(r, i); }
+    const n = r.x.length, A = i, B = (i + 1) % n, pad = this.tunHalf(r) + 5.4;
+    for (let a = Math.floor((Math.min(r.x[A], r.x[B]) - pad) / 64); a <= Math.floor((Math.max(r.x[A], r.x[B]) + pad) / 64); a++)
+      for (let b = Math.floor((Math.min(r.z[A], r.z[B]) - pad) / 64); b <= Math.floor((Math.max(r.z[A], r.z[B]) + pad) / 64); b++) { const k = a * 100003 + b; let l = this.tgrid.get(k); if (!l) this.tgrid.set(k, (l = [])); l.push(r, i); }
   }
   // the highest drawn lining roof (plus COVER_ROOF) of another road's tunnel within its lining and 4 m past its walls at (x, z) (top, or -Infinity),
   // with that tunnel's road height (floor), and whether (x, z) lies in front of one of its portals (mouth: in line with its lining but past its last tunnel sample)
@@ -441,8 +441,8 @@ export class Highways {
     const l = this.tgrid.get(Math.floor(x / 64) * 100003 + Math.floor(z / 64)), out = { top: -Infinity, floor: -Infinity, mouth: false }; if (!l) return out;
     for (let q = 0; q < l.length; q += 2) {
       const r = l[q], i = l[q + 1]; if (r === self) continue;
-      const n = r.pts.length, j = (i + 1) % n, A = r.pts[i], B = r.pts[j], dx = B[0] - A[0], dz = B[1] - A[1], tr = ((x - A[0]) * dx + (z - A[1]) * dz) / (dx * dx + dz * dz || 1), t = Math.max(0, Math.min(1, tr));
-      if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) > this.tunHalf(r) + 5.4) continue;
+      const n = r.x.length, j = (i + 1) % n, A = i, B = j, dx = r.x[B] - r.x[A], dz = r.z[B] - r.z[A], tr = ((x - r.x[A]) * dx + (z - r.z[A]) * dz) / (dx * dx + dz * dz || 1), t = Math.max(0, Math.min(1, tr));
+      if (Math.hypot(x - r.x[A] - dx * t, z - r.z[A] - dz * t) > this.tunHalf(r) + 5.4) continue;
       // past an end of the segment: on only where the tunnel goes on there (a joint inside it), not past a portal or a road's end
       const e = tr < 0 ? i : tr > 1 ? j : -1, inside = (k) => r.cls[k] === 2 && (r.closed || (k > 0 && k < n - 1));
       if (e >= 0 && !inside(e)) { out.mouth = true; continue; }
@@ -454,9 +454,9 @@ export class Highways {
   openTop(x, z, self) {
     const N = this.N, cell = N.grid.get(Math.floor(x / N.CS) * 100003 + Math.floor(z / N.CS)); let top = Infinity; if (!cell) return top;
     for (let q = 0; q < cell.length; q += 2) {
-      const r = N.roads[cell[q]], i = cell[q + 1], n = r.pts.length, j = (i + 1) % n; if (r === self || r.cls[i] === 2 || r.cls[j] === 2) continue;
-      const A = r.pts[i], B = r.pts[j], dx = B[0] - A[0], dz = B[1] - A[1], t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / (dx * dx + dz * dz || 1)));
-      if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) <= this.tunHalf(r) + 5) top = Math.min(top, lerp(r.y[i], r.y[j], t));
+      const r = N.roads[cell[q]], i = cell[q + 1], n = r.x.length, j = (i + 1) % n; if (r === self || r.cls[i] === 2 || r.cls[j] === 2) continue;
+      const A = i, B = j, dx = r.x[B] - r.x[A], dz = r.z[B] - r.z[A], t = Math.max(0, Math.min(1, ((x - r.x[A]) * dx + (z - r.z[A]) * dz) / (dx * dx + dz * dz || 1)));
+      if (Math.hypot(x - r.x[A] - dx * t, z - r.z[A] - dz * t) <= this.tunHalf(r) + 5) top = Math.min(top, lerp(r.y[i], r.y[j], t));
     }
     return top;
   }
@@ -574,10 +574,10 @@ export class Highways {
       const x = f0.x + (f1.x - f0.x) * u + (f0.rx + (f1.rx - f0.rx) * u) * o, z = f0.z + (f1.z - f0.z) * u + (f0.rz + (f1.rz - f0.rz) * u) * o, y = f0.y + (f1.y - f0.y) * u;
       const cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) continue;
       for (let q = 0; q < cell.length; q += 2) {
-        const o2 = N.roads[cell[q]], i = cell[q + 1]; if ((o2 === r && (ia < 0 || Math.min(Math.abs(i - ia), o2.pts.length - Math.abs(i - ia)) < 40)) || o2.cls[i] === 2) continue;
-        const n = o2.pts.length, A = o2.pts[i], B = o2.pts[(i + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1];
+        const o2 = N.roads[cell[q]], i = cell[q + 1]; if ((o2 === r && (ia < 0 || Math.min(Math.abs(i - ia), o2.x.length - Math.abs(i - ia)) < 40)) || o2.cls[i] === 2) continue;
+        const n = o2.x.length, A = i, B = (i + 1) % n, dx = o2.x[B] - o2.x[A], dz = o2.z[B] - o2.z[A];
         if (o2.ref && o2.ref === r.ref && o2.hw === r.hw && dx * ux + dz * uz < 0) continue;
-        const l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2));
+        const l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o2.x[A]) * dx + (z - o2.z[A]) * dz) / l2));
         const w = o2.kind === 'arterial' ? this.artWidth(o2).half : o2.kind === 'ramp' ? 4.6 : HALF_W, yo = o2.y[i] + (o2.y[(i + 1) % n] - o2.y[i]) * t;
         if (Math.abs(yo - y) < 3 && Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < w + 0.6) return true;   // at about the same height: a road over or under it is no way off
       }
@@ -588,9 +588,9 @@ export class Highways {
     const N = this.N, CS = N.CS, cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) return false;
     for (let q = 0; q < cell.length; q += 2) {
       const o2 = N.roads[cell[q]], i = cell[q + 1]; if (o2 === r || o2.cls[i] === 2 || o2.cls[i] === skip) continue;
-      const n = o2.pts.length, A = o2.pts[i], B = o2.pts[(i + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2));
+      const n = o2.x.length, A = i, B = (i + 1) % n, dx = o2.x[B] - o2.x[A], dz = o2.z[B] - o2.z[A], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o2.x[A]) * dx + (z - o2.z[A]) * dz) / l2));
       const w = o2.kind === 'arterial' ? this.artWidth(o2).half : HALF_W;
-      if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < w + pad) return true;
+      if (Math.hypot(x - o2.x[A] - dx * t, z - o2.z[A] - dz * t) < w + pad) return true;
     }
     return false;
   }

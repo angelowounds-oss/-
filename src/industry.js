@@ -20,7 +20,7 @@ function part(geo0, col, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, ry
 }
 const box = (w, h, d, col, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => part(new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0), col, x, y, z, 1, 1, 1, rx, ry, rz);
 const cyl = (r0, r1, h, col, x = 0, y = 0, z = 0, seg = 10) => part(new THREE.CylinderGeometry(r1, r0, h, seg, 1).translate(0, h / 2, 0), col, x, y, z);
-const STEEL = [0.34, 0.35, 0.38], WHITE = [0.72, 0.74, 0.76], RED = [0.7, 0.1, 0.08];
+const STEEL = [0.34, 0.35, 0.38], WHITE = [0.72, 0.74, 0.76];
 // lattice mast: four legs that lean together, rungs every few metres, optional arms; h metres tall, base half width b
 function mast(h, b, arms, col = STEEL) {
   const g = [], top = Math.max(0.4, b * 0.18);

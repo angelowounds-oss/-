@@ -164,7 +164,7 @@ export class WorldMapUI {
       g.strokeStyle = art ? HW_COL[r.hw] : r.kind === 'ramp' ? '#caa' : KIND_COL[r.kind] || '#ffd24a'; g.lineWidth = Math.max(art ? 0.8 : 1.2, (art ? HW_W[r.hw] : r.kind === 'ramp' ? 5 : 14) * s * (L > 1 ? 1 : 1)) * (L === 0 ? 1.6 : 1);
       if (L >= 2) g.lineWidth = Math.max(2, (r.kind === 'ramp' ? 7 : 18) * s);
       g.beginPath(); let on = false;
-      for (let i = 0; i < r.pts.length; i += L === 0 ? 4 : 1) { const p = r.pts[i]; if (!vis(p[0], p[1])) { on = false; continue; } const [px, py] = this.toScreen(p[0], p[1]); if (!on) { g.moveTo(px, py); on = true; } else g.lineTo(px, py); }
+      for (let i = 0; i < r.x.length; i += L === 0 ? 4 : 1) { if (!vis(r.x[i], r.z[i])) { on = false; continue; } const [px, py] = this.toScreen(r.x[i], r.z[i]); if (!on) { g.moveTo(px, py); on = true; } else g.lineTo(px, py); }
       g.stroke();
     }
     // rail lines (beside the highways): thin dashed orange

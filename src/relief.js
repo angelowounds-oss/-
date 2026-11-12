@@ -21,7 +21,6 @@ export function buildRelief(world, scene, instCull, tiers) {
   const rnd = mulberry32(5150);
   const M = [], C = [], ranges = new Map();
   const col = new THREE.Color(), tmp = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
-  let total = 0;
   // estimate the per-floor ledge count to pick the step (1 = every floor)
   let est = 0;
   for (const l of lots) for (const st of l.stages) { if (st.kind === 'podium') est += 4 * Math.max(1, Math.round(st.y1 / FH)); else if (st.kind === 'tower') est += 4 * Math.max(2, Math.floor((st.y1 - st.y0) / FH)); }
@@ -29,7 +28,7 @@ export function buildRelief(world, scene, instCull, tiers) {
   const push = (x0, y0, z0, x1, y1, z1, c, k = 1) => {
     if (!(x1 - x0 > 0.01 && y1 - y0 > 0.01 && z1 - z0 > 0.01)) return;   // no degenerate boxes
     sc.set(x1 - x0, y1 - y0, z1 - z0); ps.set((x0 + x1) / 2, y0, (z0 + z1) / 2);   // the unit box stands on y = 0
-    tmp.compose(ps, q, sc); M.push(tmp.toArray()); col.copy(c).multiplyScalar(k); C.push(col.r, col.g, col.b); total++;
+    tmp.compose(ps, q, sc); M.push(tmp.toArray()); col.copy(c).multiplyScalar(k); C.push(col.r, col.g, col.b);
   };
   const base = new THREE.Color();
   for (const l of lots) {
@@ -37,7 +36,7 @@ export function buildRelief(world, scene, instCull, tiers) {
     const start = M.length;
     const stone = new THREE.Color().copy(tcol).multiplyScalar(0.55).lerp(base.set(0x55524f), 0.45);
     const trim = new THREE.Color().copy(tcol).multiplyScalar(0.92).lerp(base.set(0xb8b2a8), 0.35);
-    const style = l.style | 0, wide = (r) => Math.max(r.x1 - r.x0, r.z1 - r.z0);
+    const style = l.style | 0;
     const d = l.door, doorSide = d ? d.side : '';
     // a ring of boxes around a rectangle at height y (projection p, thickness h); skip the door side where asked
     const ring = (r, y, h, p, c, skipSide = '') => {

@@ -51,7 +51,7 @@ run('building-fire', { q: 0 }, async ({ page }) => {
   });
   // persistence: a ruin is saved with the game and comes back as a ruin after a reload (applied at start-up, no animation)
   const idx = await page.evaluate(() => {
-    const g = window.__game, B = g.blaze, pl = g.player; g.eng.render = () => {};
+    const g = window.__game, B = g.blaze; g.eng.render = () => {};
     const lot = B.lots.filter((l) => !B.ruins.has(l) && !B.fires.has(l) && l.h > 30)[3]; B.collapseNow(lot, null);
     for (let i = 0; i < 600; i++) window.__upd(1 / 60);
     g.save(); return g.world.lots.indexOf(lot);

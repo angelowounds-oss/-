@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { Vehicle } from './vehicle.js';
 import { Human } from './human.js';
-import { physHeight } from './landfn.js';
 import { clamp, damp, rand, TAU, angDiff } from './util.js';
 
 // War machines the player can drive or fly: main battle tank, attack helicopter (gunship) and a VTOL fighter. They come from the army base

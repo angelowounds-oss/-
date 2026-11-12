@@ -1,6 +1,6 @@
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, quantize } from '@gltf-transform/functions';
+import { prune, dedup } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'draco3d.decoder': await draco3d.createDecoderModule() });
 for (const f of ['ferrari','Soldier']) {

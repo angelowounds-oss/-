@@ -23,8 +23,8 @@ export class Deck {
 export const oldHalf = (r) => (r.kind === 'ramp' ? 4.6 : MED / 2 + 3 * LANE + SHOULDER);
 // the deck of the samples c0 .. c0 + count of a road that is not a compiled line; spans in `broken` have none
 export function oldDeck(r, c0, count, broken) {
-  const D = new Deck(), P = r.pts, n = P.length, half = oldHalf(r), m = r.closed ? n : n - 1;
-  const fr = (i) => { const a = P[r.closed ? (i + n - 1) % n : Math.max(0, i - 1)], b = P[r.closed ? (i + 1) % n : Math.min(n - 1, i + 1)]; let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l; return { x: P[i][0], z: P[i][1], y: r.y[i], rx: tz, rz: -tx }; };
+  const D = new Deck(), X = r.x, Z = r.z, n = X.length, half = oldHalf(r), m = r.closed ? n : n - 1;
+  const fr = (i) => { const a = r.closed ? (i + n - 1) % n : Math.max(0, i - 1), b = r.closed ? (i + 1) % n : Math.min(n - 1, i + 1); let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l; return { x: X[i], z: Z[i], y: r.y[i], rx: tz, rz: -tx }; };
   for (let i = c0; i < Math.min(c0 + count, m); i++) {
     if (broken && broken.has(r.id + ':' + i)) continue;
     const f0 = fr(i), f1 = fr((i + 1) % n);

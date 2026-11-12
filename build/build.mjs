@@ -19,7 +19,7 @@ if (regions) { const { IDS } = await import('../src/regions/index.js'), bad = re
 if (!small) {
   const { V_SCALE } = await import('../src/koreamap.js'), { IDS } = await import('../src/regions/index.js');
   // the provinces asked for, as their compiled pieces (build/world/pieces.mjs: a big one is a grid of pieces; Seoul, inside the capital's box, has none)
-  const { PIECES, piecesFor } = await import('./world/pieces.mjs'), want = process.env.WORLD_PROVINCES ?? IDS.map(([id]) => id).join(',');
+  const { piecesFor } = await import('./world/pieces.mjs'), want = process.env.WORLD_PROVINCES ?? IDS.map(([id]) => id).join(',');
   const ids = ['capital', ...piecesFor(want.split(',')).map((p) => p.name)];
   const NOT_COMPILER = ['blocks.mjs', 'grade.mjs', 'streets.mjs', 'streetfurn.mjs', 'realdetail.mjs', 'osmbuildings.mjs', 'fetch-detail.mjs', 'bbbike-detail.mjs', 'bbbike-roads.mjs', 'streetpoints.mjs', 'seouldata.mjs', 'fit.mjs', 'sites.mjs', 'floaters.mjs', 'corridor.mjs', 'blockers.mjs', 'mergetiles.mjs', 'pbf-store.py', 'pieces.mjs'];
   const srcs = [...fs.readdirSync('build/world').filter((f) => !NOT_COMPILER.includes(f)).map((f) => 'build/world/' + f), 'src/koreamap.js'];   // the scale lives in koreamap.js; blocks.mjs reads the region, it does not make it
@@ -58,7 +58,8 @@ await build({
 const FONTS = [['Anton-400.woff2', 'Anton', 400], ['SpaceMono-400.woff2', 'Space Mono', 400], ['SpaceMono-700.woff2', 'Space Mono', 700]];
 for (const [f] of FONTS) fs.copyFileSync('assets/fonts/' + f, path.join(GAME, 'fonts', f));
 const fonts = FONTS.map(([f, family, weight]) => `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;font-display:swap;src:url(fonts/${f}) format('woff2')}`).join('\n');
-fs.writeFileSync(path.join(GAME, 'index.html'), fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts));
+const { creditsJson } = await import('./assets/credits.mjs');   // the credits screen's list (EV-84)
+fs.writeFileSync(path.join(GAME, 'index.html'), fs.readFileSync('src/template.html', 'utf8').replace('/*__FONTS__*/', () => fonts).replace('/*__CREDITS__*/', () => creditsJson()));
 
 // the baked "laptop" world (bakedload.js); WORLD=small leaves it out and the page generates the world itself (slower to start; for quick tests).
 // The high pack's world part is baked with it every time (the cache redoes only what changed): copied from the folder as an older bake left

@@ -35,6 +35,7 @@ export const ACTIONS = [
   ['phone', '휴대폰', '화면', ['ArrowUp']],
   ['inv', '인벤토리', '화면', ['Tab', 'KeyI']],
   ['help', '조작법 보기', '화면', ['F1']],
+  ['perf', '성능 오버레이 (Shift: 기록 복사)', '화면', ['F3']],
   ['pause', '일시정지 (Esc도)', '화면', ['KeyP']],
 ];
 // interaction verbs carry a slot letter (building.js, life.js ...); the slot is fired by this action

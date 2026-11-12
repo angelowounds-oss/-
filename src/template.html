@@ -156,6 +156,7 @@ body.touch.onfoot .car,body.touch.incar .foot{display:none}
 #loadBar{position:absolute;left:64px;right:64px;bottom:56px;height:36px;display:grid;grid-template-columns:repeat(40,minmax(0,1fr));gap:4px}
 #loadBar div{background:#26221f}
 #loadBar div.on{background:#ff3b2f}
+#creditsPanel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:9999}#creditsPanel.on{display:flex}#creditsPanel .cp{width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 64px);overflow:auto;padding:20px 24px}#creditsList h3{margin:16px 0 6px;font-size:13px;opacity:.8}#creditsList li{font-size:12px;line-height:1.5;margin-left:16px}#creditsList a{color:inherit}#credit{cursor:pointer}
 #credit{position:absolute;left:64px;right:64px;bottom:20px;font:10px 'Space Mono',monospace;color:#5a554f;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #go{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;background:none;cursor:pointer;opacity:0;pointer-events:none}
 #go.rdy{pointer-events:auto}
@@ -224,6 +225,7 @@ body.touch #keysBtn{display:none}
 .set select,.set input[type=range]{width:150px;background:#0c1422;color:#fff;border:1px solid var(--line);border-radius:8px;padding:6px}
 .pbtn{width:100%;margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--line);background:#111b2c;color:#fff;font-weight:700;cursor:pointer}
 .pbtn.p{background:linear-gradient(90deg,#1596bd,#36cde8);color:#00131b;border:0}
+#perfov{display:none;position:fixed;right:8px;top:64px;margin:0;padding:8px 10px;font:11px/1.4 ui-monospace,monospace;color:#e8f0f4;background:rgba(8,12,16,.78);border:1px solid rgba(255,255,255,.12);border-radius:6px;z-index:60;pointer-events:none;white-space:pre}
 #fps{position:fixed;left:6px;bottom:4px;font:10px ui-monospace,monospace;color:rgba(255,255,255,.35);z-index:4;pointer-events:none;white-space:pre;line-height:1.35}
 #err{position:fixed;inset:0;z-index:99;display:none;padding:30px;background:#05080d;color:#ffb48a;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow:auto}
 
@@ -332,6 +334,7 @@ body.touch #keysBtn{display:none}
   <button id="resume" class="pbtn p" type="button">계속하기</button>
   <button id="reset" class="pbtn" type="button">진행 초기화</button>
   <button id="errCopy" class="pbtn" type="button">오류 복사</button>
+  <button id="creditsBtn" class="pbtn" type="button">크레딧 · 라이선스</button>
 </div></div>
 <div id="title" role="status" aria-live="polite">
   <div id="pdGlow" class="pd-siren" aria-hidden="true"></div>
@@ -355,5 +358,7 @@ body.touch #keysBtn{display:none}
 window.addEventListener('error',function(e){var p=document.getElementById('err');if(p){p.style.display='block';p.textContent+=(e.message||'')+'\n'+((e.error&&e.error.stack)||'')+'\n'}});
 </script>
 <script src="main.js"></script>
+<script type="application/json" id="creditsData">/*__CREDITS__*/</script>
+<div id="creditsPanel" role="dialog" aria-modal="true" aria-label="크레딧과 라이선스"><div class="glass cp"><h2>크레딧 · 라이선스</h2><div id="creditsList"></div><button id="creditsClose" class="pbtn p" type="button">닫기</button></div></div>
 </body>
 </html>

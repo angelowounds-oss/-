@@ -5,7 +5,7 @@ run('ragdoll-skytower', { q: 0 }, async ({ page }) => {
   const o = await page.evaluate(() => {
     const g = window.__game, l = g.world.skyTower, pl = g.player; g.eng.render = () => {};
     const H = g.humans[0].constructor, mk = (x, z) => { const h = new H(g, 'civ', { hp: 50 }); h.x = x; h.z = z; h.y = 0; h.group.visible = true; g.humans.push(h); g.scene.add(h.group); return h; };
-    const cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, o = {};
+    const cz = (l.z0 + l.z1) / 2, o = {};
     pl.body3.teleport(l.x0 - 20, 0, cz); pl.x = l.x0 - 20; pl.z = cz; for (let i = 0; i < 60; i++) window.__upd(1 / 60);
     const near = mk(l.x0 - 12, cz); o.nearRag = !!g.ragdolls.spawn(near, { cause: 'test', alive: false });
     const far = mk(l.x0 - 12, cz); far.x = pl.x + 400; o.farUsable = g.ragdolls.nearSkyTower(far.x, far.z) === false;

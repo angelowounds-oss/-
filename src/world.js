@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Builder , holeCU, holeHU } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, FAKE_ROOM_GLSL, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky, setTowerFog } from './shaders.js';
-import { mulberry32, clamp, lerp, TAU } from './util.js';
+import { mulberry32, clamp, TAU } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { buildRelief } from './relief.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
@@ -933,7 +933,6 @@ export function buildWorld(scene, quality) {
   }
   world._ring = true;
   // Outer ring: solid mega-blocks forming the city boundary
-  const ringN = N + 2;
   for (let i = -1; i <= N; i++) {
     for (let j = -1; j <= N; j++) {
       if (i >= 0 && i < N && j >= 0 && j < N) continue;
@@ -1576,7 +1575,6 @@ function buildEntrances(world, scene) {
     bx(0, 0.025, 5.4, 2.0, 0.02, 7.2, new THREE.Color(...accent).multiplyScalar(0.7));
     for (const sx of [-1.4, 1.4]) for (const lz of [3.0, 6.5]) { bx(sx, 0, lz, 0.14, 0.9, 0.14, new THREE.Color(0.05, 0.06, 0.09), 'decor'); bx(sx, 0.9, lz, 0.18, 0.1, 0.18, em); }
     bx(0, 3.35, 1.5, 3.2, 0.04, 2.0, new THREE.Color(1, 0.86, 0.62).multiplyScalar(2.2));
-    const sc = new THREE.Color(...accent);
     let sg = signs.get(name); if (!sg) { sg = { name, accent, list: [] }; signs.set(name, sg); }
     const [sx, sz] = W(0, 0.14); sg.list.push({ x: sx, y: 5.0, z: sz, th });
     world.fakeLights.push({ x: d.px + d.nx * 2.5, y: 0, z: d.pz + d.nz * 2.5, c: accent.map((v) => v * 1.2), rad: 12 });

@@ -218,7 +218,7 @@ export class Builder {
     let b = ICO.get(r); if (!b) { b = new THREE.IcosahedronGeometry(r, 1); b.deleteAttribute('uv'); ICO.set(r, b); }
     const g = b.clone(); g.scale(1, sy, 1); g.translate(x, y, z); this._push(key, g, col);
   }
-  finish(parent) { const out = []; for (const m of this.finishGen(parent, out)); return out; }
+  finish(parent) { const out = []; for (const _ of this.finishGen(parent, out)); return out; }   // run the generator to the end
   // one mesh per material class (exact-length copies of the buffers, which go back to the pool); a generator so a floor build can pause
   *finishGen(parent, out = []) {
     const m = mats();

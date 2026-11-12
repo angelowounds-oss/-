@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CAR_SPECS } from './carspecs.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { rand, TAU } from './util.js';
+import { TAU } from './util.js';
 import { A, buildSoldier, buildFerrariModel, setFerrariWheels } from './assets.js';
 
 const shapeGeo = (pts, depth, bevel = 0.06, curve = 6) => {
@@ -14,12 +14,6 @@ const shapeGeo = (pts, depth, bevel = 0.06, curve = 6) => {
   return g;
 };
 const box = (w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; };
-const stripVertexColors = (g, c) => {
-  const n = g.attributes.position.count; const a = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { a[i * 3] = c[0]; a[i * 3 + 1] = c[1]; a[i * 3 + 2] = c[2]; }
-  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
-  g.deleteAttribute('uv'); return g;
-};
 const mergeSafe = (arr) => {
   arr.forEach((g) => { if (g.index) { /* keep */ } });
   const prepared = arr.map((g) => { const c = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'color'].includes(k)) c.deleteAttribute(k); return c; });
@@ -34,9 +28,7 @@ const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1a1b22, roughness: 0.
 const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.8).multiplyScalar(3.2), toneMapped: false });
 const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.06, 0.04).multiplyScalar(1.1) });
 const brakeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.08, 0.06).multiplyScalar(3.4) });
-const tireMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.85, metalness: 0.0 });
 const wheelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.55 });
-const rimMat = new THREE.MeshStandardMaterial({ color: 0xaab4c4, roughness: 0.25, metalness: 1.0 });
 const lightBarRed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.05, 0.05).multiplyScalar(4) });
 const lightBarBlue = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.25, 1).multiplyScalar(4) });
 const glowTex = (() => {
@@ -91,7 +83,7 @@ function buildFerrari(color, opts) {
   const beams = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.35, 17), beamMat);
   beams.rotation.x = -Math.PI / 2; beams.position.set(0, 0.07, hl + 8.5); beams.renderOrder = 1; group.add(beams);
   const headSprMat = glowSpriteMat(0xfff0cc, 1.4), tailSprMat = glowSpriteMat(0xff1a10, 1.1);
-  const sprites = []; const spr = (x, y, z, mat, s) => { const t = new THREE.Sprite(mat); t.position.set(x, y, z); t.scale.setScalar(s); group.add(t); return t; };
+  const spr = (x, y, z, mat, s) => { const t = new THREE.Sprite(mat); t.position.set(x, y, z); t.scale.setScalar(s); group.add(t); return t; };
   const hs = [spr(-0.68, 0.62, hl - 0.05, headSprMat, 0.9), spr(0.68, 0.62, hl - 0.05, headSprMat, 0.9)];
   const ts = [spr(-0.7, 0.8, -hl + 0.05, tailSprMat, 0.5), spr(0.7, 0.8, -hl + 0.05, tailSprMat, 0.5)];
   const brake = new THREE.Group();

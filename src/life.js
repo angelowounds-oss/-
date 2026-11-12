@@ -76,7 +76,7 @@ export class Life {
         yield;
       }
       // ATM near the entrance
-      const d = b.door, ax = b.pod.x0 + 2.2, az = b.pod.z1 - 2.2;
+      const d = b.door;
       this.item(b, fl, n++, 'newspaper', b.cx + R(-3, 3), y + 0.5, b.cz + R(-3, 3));
       const ap = { x: clamp(b.cx + d.nx * -2 + 3, b.pod.x0 + 1, b.pod.x1 - 1), z: clamp(b.pod.z0 + 1.4, b.pod.z0 + 1, b.pod.z1 - 1) };
       fl.B.ext('steel', ap.x - 0.4, y, ap.z - 0.3, ap.x + 0.4, y + 1.9, ap.z + 0.3, 0x2a3140);
@@ -122,10 +122,9 @@ export class Life {
     // counter + cashier
     const c = fl.counter;
     if (c) {
-      const cx = (c.x0 + c.x1) / 2, cz = (c.z0 + c.z1) / 2;
+      const cx = (c.x0 + c.x1) / 2;
       const h = this.npc(b, fl, cx, y, c.z0 - 0.7, { role: 'cashier', ry: 0, look: { top: 0x2a2f50, pants: 0x14161f, hair: 0x2a1a10 }, weapon: kind === 'arms' || kind === 'pawn' ? 1 : 0 });
       fl.shop.cashier = h;
-      const sale = () => Object.entries(G.items.inv.unpaid);
       this.fix(fl, cx, y + 1, c.z1 + 0.2, 3.0, fl.shop.name, [
         { key: 'F', label: () => { if (this.canRob()) return '강도! (총을 겨눈 채 위협)'; const t = this.unpaidTotal(); return t > 0 ? `계산 $${t}` : '인사'; }, run: () => (this.canRob() ? this.robStore(fl) : this.checkout(fl)) },
         { key: 'G', label: () => (def.clothes ? '옷 갈아입기' : '상점 이용'), run: () => { if (def.clothes) this.outfitMenu(); else G.panels.show('shop', { name: fl.shop.name, stock: def.stock.map(([id, p]) => [id, Math.round(p * 1.25)]), mult: 1 }); } },
@@ -134,7 +133,7 @@ export class Life {
     }
   }
   outfitMenu() {
-    const G = this, g = this.G, cols = [['블랙', 0x1a2230], ['네이비', 0x1c3a6a], ['버건디', 0x6a1c2c], ['포레스트', 0x1c5a3a], ['머스타드', 0x8a6a1c], ['퍼플', 0x4a2a7a], ['화이트', 0xb8bcc8]];
+    const g = this.G, cols = [['블랙', 0x1a2230], ['네이비', 0x1c3a6a], ['버건디', 0x6a1c2c], ['포레스트', 0x1c5a3a], ['머스타드', 0x8a6a1c], ['퍼플', 0x4a2a7a], ['화이트', 0xb8bcc8]];
     g.panels.show('talk', { name: '의류점', text: '상의 색상 ($40)', options: cols.map(([n, c]) => ({ text: n, fn: () => { if (g.cash < 40) return g.toast('돈이 부족합니다'); g.cash -= 40; g.state.outfit = c; g.player.m.setTop?.(c); g.audio.cash(); g.toast('옷 구매', n); } })) });
   }
   unpaidTotal() { return Math.round(this.G.items.inv.unpaidCost || 0); }

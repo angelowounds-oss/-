@@ -120,7 +120,7 @@ function raise(h, why) {
 
 // ------------------------------------------------------------------ armed brain
 export function combat(h, dt) {
-  const G = h.G, pl = G.player, W = h.weapon;
+  const G = h.G, pl = G.player;
   const dxp = pl.x - h.x, dzp = pl.z - h.z, dp = Math.hypot(dxp, dzp) || 1;
   h.cmdSpeed = 0; h.faceAngle = null; h.crouching = false; h.crouch = 0;
   if (!ENGAGED.has(h.state)) h.state = 'idle';
@@ -330,7 +330,6 @@ export function civMove(h, dt) {
 }
 // fleeing civilians: run away for a while, then (sometimes) crouch and cower until the danger has passed
 export function flee(h, dt, threatX, threatZ) {
-  const G = h.G;
   if (h.cower && h.fleeT < 4) {
     h.crouching = true; h.crouch = 1;
     if (Math.hypot(threatX - h.x, threatZ - h.z) < 6) { h.cower = false; h.crouch = 0; h.crouching = false; }

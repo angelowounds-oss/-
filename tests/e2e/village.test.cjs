@@ -19,7 +19,7 @@ run('village', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     const shop = L.houses.find((H) => H.h.kind === 'shop'); o.shopOpen = V.open(L, shop);
     // walls stop him: from the street walk into the back of the first house
     const H1 = L.houses.find((H) => H.h.kind === 'house'), h1 = H1.h, sg = h1.side, wx = h1.x - 3.2; // away from the door
-    park(v.x + wx, v.z + sg * 6.5); const z0 = pl.z; for (let i = 0; i < 90; i++) { pl.vx = 0; pl.vz = sg * 3; window.__upd(1 / 60); } o.wallHolds = Math.abs(pl.z - (v.z + sg * 6.5)) < 2.2;
+    park(v.x + wx, v.z + sg * 6.5); for (let i = 0; i < 90; i++) { pl.vx = 0; pl.vz = sg * 3; window.__upd(1 / 60); } o.wallHolds = Math.abs(pl.z - (v.z + sg * 6.5)) < 2.2;
     // through the door he gets in
     park(v.x + h1.x, v.z + sg * 6.5); for (let i = 0; i < 120; i++) { pl.vx = 0; pl.vz = sg * 3; window.__upd(1 / 60); } o.doorOpen = Math.abs(pl.z - (v.z + sg * 6.5)) > 3.2;
     // the shopkeeper: a counter and verbs

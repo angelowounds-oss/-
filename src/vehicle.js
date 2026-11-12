@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildCar, CAR_SPECS, idMark, disposeOwned } from './models.js';
-import { N, P, R, LANE, HALF, roadC, roadIdx, hasEdge } from './world.js';
-import { clamp, lerp, damp, angDiff, rand, TAU, stopSpeed } from './util.js';
+import { N, R, LANE, roadC, roadIdx, hasEdge } from './world.js';
+import { clamp, lerp, damp, angDiff, rand, stopSpeed } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { physHeight } from './landfn.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
@@ -13,7 +13,6 @@ const QB = new THREE.Quaternion();
 
 export const CAR_COLORS = [0x1a2433, 0x7a1020, 0xc9ced8, 0x0d3b66, 0x2b2f38, 0xe0b020, 0x14654b, 0x5a1f7a, 0xd8d8d0, 0x111418, 0x8a2a10, 0x1c6fa8];
 const GLOWS = [[0.2, 0.9, 1], [1, 0.2, 0.8], [0.6, 0.3, 1], [0.2, 1, 0.5], [1, 0.5, 0.15], [1, 0.15, 0.2]];
-const tmpV = new THREE.Vector3();
 let uid = 0;
 // a vertex normal of length 0 (the vertices of triangles with no area, which the model has: they are never seen) becomes NaN in the shader's normalize the moment a dent
 // moves the vertex and the triangle shows; it points up instead. Read and written as the attribute holds them (the wheels' are 16-bit integers)
@@ -375,7 +374,7 @@ export class Vehicle {
     this.planAhead();
   }
   planAhead() {
-    const ai = this.ai; const G = this.G;
+    const ai = this.ai; 
     let [ni, nj] = ai.node; let [di, dj] = ai.dir;
     let guard = 0;
     while (ai.wp.length < 4 && guard++ < 4) {

@@ -54,7 +54,7 @@ export function updateGesture(h, dt, armed) {
 // (negative) and up, Z swings it out to the side, Y turns it in. k is the fade (0..1), t the time in seconds, side +1 is the character's left arm.
 // CHR-06h: `look` is where the head looks while the hands work (yaw from the way the body faces, + its left, and pitch, + up; rad), `bend`
 // how far the chest leans in (+) or arches back (-).
-const sin = Math.sin, TAU = Math.PI * 2;
+const sin = Math.sin;
 export const PROC = {
   handshake: { dur: 2.4, look: [0, -0.1], bend: 0.05, f: (t, k) => [['RightArm', 'x', -1.0 * k], ['RightArm', 'y', 0.5 * k], ['RightForeArm', 'x', (-0.55 + 0.22 * sin(t * 13)) * k]] },
   hug: { dur: 3.0, look: [0, 0], bend: 0.12, f: (t, k) => { const c = Math.min(1, Math.max(0, Math.min(t / 0.9, (3.0 - t) / 0.7))); return [['RightArm', 'x', -1.15 * k], ['LeftArm', 'x', -1.15 * k], ['RightArm', 'y', (0.35 + 0.55 * c) * k], ['LeftArm', 'y', -(0.35 + 0.55 * c) * k], ['RightForeArm', 'x', -0.7 * k], ['LeftForeArm', 'x', -0.7 * k], ['RightArm', 'z', -0.5 * (1 - c) * k], ['LeftArm', 'z', 0.5 * (1 - c) * k]]; } },

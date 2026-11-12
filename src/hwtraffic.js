@@ -22,8 +22,8 @@ export class HighwayTraffic {
 
   // a point on a lane of road r at sample i: dir +1 = travelling toward increasing i. Right-hand traffic: the right of travel is -(rx, rz)
   lane(r, i, dir, laneNo) {
-    const n = r.pts.length, a = r.pts[Math.max(0, i - 1)], b = r.pts[Math.min(n - 1, i + 1)], p = r.pts[i];
-    let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+    const n = r.x.length, a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
+    let tx = r.x[b] - r.x[a], tz = r.z[b] - r.z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
     // a highway: lanes from the median on the centre line; a compiled line (ADR-0019): a one-way carriageway's lanes from its inner (+right) edge, a
     // two-way road's from its centre line
     let off;
@@ -32,13 +32,13 @@ export class HighwayTraffic {
     else if (r.oneway) { const C = carriage(r), e = innerEdge(this.N, r, i), w = Math.min(C.lane, (e + C.half - 0.6) / C.n); off = e - w * (laneNo + 0.5); }   // from the median barrier, which stands nearer where the other carriageway is close (carriage.js)
     else off = -dir * (0.12 + carriage(r).lane * (laneNo + 0.5));
     const rx = tz, rz = -tx;
-    return { x: p[0] + rx * off, z: p[1] + rz * off, y: r.y[i], h: Math.atan2(tx * dir, tz * dir) };
+    return { x: r.x[i] + rx * off, z: r.z[i] + rz * off, y: r.y[i], h: Math.atan2(tx * dir, tz * dir) };
   }
   // local: also the secondary and smaller roads that carry no highway traffic (a patrol car comes on whatever road is nearest)
   nearestSample(x, z, max = 2500, local = false) {
     const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS);
     let best = null, bd = max * max;
-    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || r.alley || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; /* no car is put in an alley */ const i = cell[q + 1], p = r.pts[i], d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || r.alley || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; /* no car is put in an alley */ const i = cell[q + 1], d = (r.x[i] - x) ** 2 + (r.z[i] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
   }
 
@@ -58,14 +58,14 @@ export class HighwayTraffic {
   plan(v) {
     const h = v.hw, ai = v.ai; let hops = 0;
     while (ai.wp.length < 5) {
-      const r = h.r, n = r.pts.length;
+      const r = h.r, n = r.x.length;
       let i = h.i + h.dir; if (r.closed) i = (i + n) % n;
       else if (i < 1 || i > n - 2) {
         // a compiled line goes on into the line it was joined to (at its end, or from its start backwards on a two-way road); otherwise the car is done
         const nx = r.kind === 'arterial' && (h.dir > 0 ? r.next : r.prev)?.find((t) => this.roadIdx.has(t.road));
         const to = nx && this.roadIdx.get(nx.road);
         if (!to || BROKEN.has(to.id + ':' + nx.i) || ++hops > 4) { v.hwDone = true; return; }
-        h.r = to; h.i = Math.min(to.pts.length - 2, Math.max(1, nx.i)); h.dir = to.oneway ? 1 : h.dir; h.lane = Math.min(h.lane, (to.kind === 'arterial' ? lanesOf(to) : 3) - 1);
+        h.r = to; h.i = Math.min(to.x.length - 2, Math.max(1, nx.i)); h.dir = to.oneway ? 1 : h.dir; h.lane = Math.min(h.lane, (to.kind === 'arterial' ? lanesOf(to) : 3) - 1);
         const P = this.lane(to, h.i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 }); continue;
       }
       hops = 0;
@@ -84,10 +84,10 @@ export class HighwayTraffic {
       if (v === G.vehicle) { v.hw = null; this.cars.splice(k, 1); continue; }
       if (d > FAR || v.hwDone || (v.dead && v.age > 30)) { G.removeVehicle(v); this.cars.splice(k, 1); }
     }
-    if (near && near.r.pts.length >= 8 && this.cars.length < CAP && (pl.y || 0) < 120) {   // a road under 8 points has no sample 3 from both ends (the clamp below ran off it)
+    if (near && near.r.x.length >= 8 && this.cars.length < CAP && (pl.y || 0) < 120) {   // a road under 8 points has no sample 3 from both ends (the clamp below ran off it)
       // a few cars ahead of and behind the player on the nearest road, in both directions
       for (let tries = 0; tries < 3 && this.cars.length < CAP; tries++) {
-        const r = near.r, art = r.kind === 'arterial', dir = art && r.oneway ? 1 : Math.random() < 0.5 ? 1 : -1, lane = Math.floor(Math.random() * (art ? lanesOf(r) : 3)), back = rand(-1, 1) * 24, i = clamp(near.i + Math.round(back * (Math.random() < 0.5 ? 1 : -1) * 3 + (Math.random() < 0.5 ? 1 : -1) * 12), 3, r.pts.length - 4);
+        const r = near.r, art = r.kind === 'arterial', dir = art && r.oneway ? 1 : Math.random() < 0.5 ? 1 : -1, lane = Math.floor(Math.random() * (art ? lanesOf(r) : 3)), back = rand(-1, 1) * 24, i = clamp(near.i + Math.round(back * (Math.random() < 0.5 ? 1 : -1) * 3 + (Math.random() < 0.5 ? 1 : -1) * 12), 3, r.x.length - 4);
         const P = this.lane(r, i, dir, lane), dd = Math.hypot(P.x - pl.x, P.z - pl.z);
         if (dd < 140 || dd > NEAR) continue;
         if (this.cars.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 30)) continue;
@@ -103,8 +103,8 @@ export class HighwayTraffic {
     // road events: one candidate per 2.4 km of road
     if (this.nearestSample(pl.x, pl.z, 1100)) for (const r of N.roads) {
       if (r.kind === 'ramp' || r.kind === 'arterial') continue;
-      for (let i = 40; i < r.pts.length - 40; i += 80) {
-        const p = r.pts[i]; if (Math.abs(p[0] - pl.x) > 900 || Math.abs(p[1] - pl.z) > 900) continue;
+      for (let i = 40; i < r.x.length - 40; i += 80) {
+        const p = [r.x[i], r.z[i]]; if (Math.abs(p[0] - pl.x) > 900 || Math.abs(p[1] - pl.z) > 900) continue;
         const key = r.id + ':' + i, hv = hash(r.id.length * 977 + i, r.id.charCodeAt(r.id.length - 1) * 31 + i);
         if (hv > 0.5 || this.events.has(key) || r.cls[i] !== 0 || Math.hypot(p[0] - pl.x, p[1] - pl.z) > 800) continue;
         this.events.set(key, this.makeEvent(r, i, hv < 0.2 ? 'accident' : hv < 0.35 ? 'roadwork' : 'checkpoint'));
@@ -116,7 +116,7 @@ export class HighwayTraffic {
     }
     // attendants
     const want = [];
-    for (const t of N.tolls) { const r = this.roadIdx.get(t.road), p = r.pts[Math.max(0, Math.min(r.pts.length - 1, t.idx))]; if (Math.hypot(p[0] - pl.x, p[1] - pl.z) < 400) want.push({ key: 'toll:' + t.road + ':' + t.idx, x: p[0] + 5.6, z: p[1], y: r.y[t.idx], look: { top: 0x2b4d7a, pants: 0x1c2a40, cap: 0x2b4d7a, trim: [0.9, 0.9, 0.9], hair: 0x111111 } }); }
+    for (const t of N.tolls) { const r = this.roadIdx.get(t.road), ti = Math.max(0, Math.min(r.x.length - 1, t.idx)), p = [r.x[ti], r.z[ti]]; if (Math.hypot(p[0] - pl.x, p[1] - pl.z) < 400) want.push({ key: 'toll:' + t.road + ':' + t.idx, x: p[0] + 5.6, z: p[1], y: r.y[t.idx], look: { top: 0x2b4d7a, pants: 0x1c2a40, cap: 0x2b4d7a, trim: [0.9, 0.9, 0.9], hair: 0x111111 } }); }
     for (const s of N.services) if (Math.hypot(s.x - pl.x, s.z - pl.z) < 400) { const tx = Math.sin(s.heading), tz = Math.cos(s.heading); for (const o of [-1, 1]) want.push({ key: 'svc:' + s.road + ':' + s.idx + ':' + o, x: s.x + tz * (s.side * 16) + tx * (22 + o * 6) , z: s.z - tx * (s.side * 16) + tz * (22 + o * 6), y: s.y + 0.3, look: { top: 0xd24b2a, pants: 0x222222, cap: 0xd24b2a, trim: [1, 0.8, 0.3], hair: 0x111111 } }); }
     // travellers walking about the service areas (they stretch their legs between the pumps and the cars)
     for (const s of N.services) if (Math.hypot(s.x - pl.x, s.z - pl.z) < 400) for (let k = 0; k < 3; k++) { const key = 'trav:' + s.road + ':' + s.idx + ':' + k; if (!this.npcs.has(key) || this.npcs.get(key).remove) want.push({ key, x: s.x + (k - 1) * 9, z: s.z + 12, y: s.y + 0.3, walker: true, look: { top: [0x4a6a9a, 0x9a4a4a, 0x4a9a6a][k], pants: 0x23262e, cap: null, trim: null, hair: 0x222222 } }); }

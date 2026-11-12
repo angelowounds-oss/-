@@ -15,7 +15,7 @@ import { tileDetail, kOf } from './citydetail.js';
 // L1 and L2 use one material (one program). Roads, parks, runways, container yards and cranes are a separate merged mesh per tile (always
 // there while the tile is in range) because the L0 facades replace only the buildings. Tiles are TILE m squares relative to the city centre;
 // every position is stored relative to the tile so Float32 stays exact 40 km from the origin.
-const TILE = 600, NEAR = 650, NEAR_OFF = 850, MID = 6500, COLL = 420, COLL_OFF = 640, TALL = 30;
+const TILE = 600, NEAR = 650, NEAR_OFF = 850, MID = 6500, TALL = 30;
 const DET_B = 1100, DET_F = 600, DET_REQ = 1500, DET_KEEP = 2600;   // the small things (citydetail.js): solids (roofs, furniture) shown within DET_B m of a tile, ground marks within DET_F, asked for within DET_REQ, dropped beyond DET_KEEP
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -197,7 +197,7 @@ export class CitySites {
 
   // 8 words on a 2 x 4 canvas atlas; a sign is a plane on a rooftop edge, bright and unlit (neon)
   buildSigns(city) {
-    const { S, L, c } = city, cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
+    const { S, L } = city, cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
     const g = cv.getContext('2d'); g.fillStyle = '#05060c'; g.fillRect(0, 0, 1024, 512);
     const neon = ['#ff2ec8', '#27d9ff', '#ffa02a', '#9d6bff', '#35ff9a', '#ff3a52'];
     S.words.forEach((w, k) => {

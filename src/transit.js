@@ -9,7 +9,6 @@ import { topAt } from './roadsurf.js';
 import { EXTENT, heightAt } from './terrain.js';
 import { buildCar } from './models.js';
 import { buildAirliner } from './aviation.js';
-import { el } from './util.js';
 
 // Fast travel (ADR-0012 phase 5). Three ways to cross the world without driving, and a taxi for anywhere:
 //   metro   — entrances in every city (the capital's own subway entrances too): a ride to another entrance of the same city
@@ -21,7 +20,7 @@ import { el } from './util.js';
 const CAP = { metro: 14, rail: 42, air: 40, taxi: 34 }, NATURAL = { metro: 22, rail: 78, air: 210, taxi: 38 };
 // fares are per distance on the 1:6.5 map; the same trip is 6.5 times longer at 1:1, so the per-metre part is divided by MAP_K (a ride still has a capped duration, CAP)
 const FARE = { metro: () => 2, rail: (d) => Math.round(10 + d * 0.002 / MAP_K), air: (d) => Math.round(30 + d * 0.003 / MAP_K), taxi: (d) => Math.round(10 + d * 0.01 / MAP_K) };
-const KIND_NAME = ['지하철', '고속철도 중앙역', '공항 탑승구'], KIND_COL = [[0.2, 0.9, 1], [1, 0.55, 0.15], [1, 0.85, 0.2]];
+const KIND_COL = [[0.2, 0.9, 1], [1, 0.55, 0.15], [1, 0.85, 0.2]];
 const CSS = `
 #transit{position:fixed;inset:0;z-index:18;display:none;align-items:center;justify-content:center;background:rgba(2,5,10,.78);color:#dff;font:13px/1.4 "Space Mono",monospace}
 #transit.on{display:flex}
@@ -45,10 +44,10 @@ export function railLines() {
   const out = [];
   for (const r of net().roads) {
     if (r.kind !== 'highway') continue;
-    const n = r.pts.length, pts = [];
+    const n = r.x.length, pts = [];
     for (let i = 0; i < n; i++) {
-      const a = r.pts[Math.max(0, i - 1)], b = r.pts[Math.min(n - 1, i + 1)], p = r.pts[i]; let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-      pts.push([p[0] + tz * 27, r.y[i] - 0.5, p[1] - tx * 27]);
+      const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1); let tx = r.x[b] - r.x[a], tz = r.z[b] - r.z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      pts.push([r.x[i] + tz * 27, r.y[i] - 0.5, r.z[i] - tx * 27]);
     }
     let len = 0; const S = [0]; for (let i = 1; i < n; i++) { len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]); S.push(len); }
     out.push({ id: r.id, a: r.a, b: r.b, pts, S, len });
@@ -77,7 +76,7 @@ export class Transit {
     metro.forEach((m, i) => S.push({ id: 'neon:' + i, city: 'neon', kind: 0, x: m.x, z: m.z, name: m.name }));
     if (metro.length) S.push({ id: 'neon:rail', city: 'neon', kind: 1, x: metro[0].x + (metro[0].v ? 0 : 10), z: metro[0].z + (metro[0].v ? 10 : 0), name: '네온 중앙역' });
     for (const C of G.citysites?.cities || []) {
-      const names = ['중앙', '북', '동', '남', '서'], A = C.L.stations;
+      const A = C.L.stations;
       let k = 0;
       for (let i = 0; i < A.length; i += 3) {
         const kind = A[i + 2], x = C.c.x + A[i], z = C.c.z + A[i + 1];

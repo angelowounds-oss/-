@@ -267,7 +267,7 @@ function bump(L, i, h) {
 // levelled in the crossing rounds, a carriageway lifted to its partner was lifted again at the next crossing and the decks climbed past 100 m
 const PCS = 48, PK = (a, b) => a * 100003 + b, two = (L) => L.ref && L.oneway && L.hw === 'motorway';   // motorways only: the carriageways of a trunk or primary road meet streets at grade, and a lifted one left its junctions
 function levelPairs(lines) {
-  const grid = new Map(), over = lines.map(() => []), pk = (a, b) => (a < b ? a + '|' + b : b + '|' + a), crossed = new Set(), idx = new Map(lines.map((L, k) => [L, k]));
+  const grid = new Map(), over = lines.map(() => []), pk = (a, b) => (a < b ? a + '|' + b : b + '|' + a), crossed = new Set();
   lines.forEach((L, li) => { if (two(L)) for (let i = 0; i < L.n; i++) { const k = PK(Math.floor(L.X[i] / PCS), Math.floor(L.Z[i] / PCS)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(li, i); } });
   // the crossings of each line (the other road's height there), and the carriageways of one road that cross each other (where they swap sides: not partners)
   for (const c of crossings(lines)) {
@@ -597,14 +597,14 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
   const stats = {};
   for (const hw of Object.keys(CLASS)) {
     const ls = lines.filter((L) => L.hw === hw); if (!ls.length) continue;
-    let km = 0, onGround = 0, bridge = 0, tunnel = 0, gradeMax = 0, tightLeft = 0, shiftMax = 0, poke = 0, floating = 0; const grades = [], gaps = [], why = {};
+    let km = 0, bridge = 0, tunnel = 0, gradeMax = 0, tightLeft = 0, shiftMax = 0, poke = 0, floating = 0; const grades = [], gaps = [], why = {};
     for (const L of ls) {
       shiftMax = Math.max(shiftMax, L.shift); if (L.rminSeen < CLASS[hw].rmin * 0.95) tightLeft++;
       for (let i = 0; i + 1 < L.n; i++) {
         const seg = Math.hypot(L.X[i + 1] - L.X[i], L.Z[i + 1] - L.Z[i]); km += seg; if (seg < 0.5) continue;   // the last point can sit on top of the one before
         if (L.cls[i]) { const w = (L.cls[i] === 1 ? 'bridge:' : 'tunnel:') + WHY_NAME[L.why[i]]; why[w] = (why[w] || 0) + seg; }
         if (L.cls[i] === 1) bridge += seg; else if (L.cls[i] === 2) tunnel += seg;
-        else { onGround += seg; const gr = Math.abs(L.Y[i + 1] - L.Y[i]) / (seg || 1); grades.push(gr); gradeMax = Math.max(gradeMax, gr); const sg = ground(R, gh, L.X[i], L.Z[i]) - L.Y[i]; gaps.push(Math.abs(sg)); if (sg > 0.3) poke++; if (sg < -2) floating++; }
+        else { const gr = Math.abs(L.Y[i + 1] - L.Y[i]) / (seg || 1); grades.push(gr); gradeMax = Math.max(gradeMax, gr); const sg = ground(R, gh, L.X[i], L.Z[i]) - L.Y[i]; gaps.push(Math.abs(sg)); if (sg > 0.3) poke++; if (sg < -2) floating++; }
       }
     }
     grades.sort((a, b) => a - b); gaps.sort((a, b) => a - b);

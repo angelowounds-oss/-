@@ -19,8 +19,7 @@ run('physics-reality', { q: 1, width: 320, height: 180 }, async ({ page }) => {
     const put = (x, y, z) => { pl.body3.teleport(x, y, z); pl.x = x; pl.y = y; pl.z = z; pl.vx = pl.vz = pl.vy = 0; pl.dead = false; };
     g.hurtPlayer = () => {};
     // the car's controls each frame come from here (the autopilot's hook in driveControl)
-    const C = { t: 0, b: 0, s: 0 }, AN = g.autonav;
-    const lab = { active: true, control: (v) => { v.throttle = C.t; v.brake = C.b; v.steer = C.s; v.hand = false; }, cancel() {}, start() { return true; } };
+    const C = { t: 0, b: 0, s: 0 };
     const V = g.vehicles[0].constructor;
     // the car is stepped on its own (its controls, the physics world, its post-step), as the game's vehicle loop does (game.js), 60 steps a second
     let car = null; const cstep = async (n) => { for (let i = 0; i < n; i++) { car.throttle = C.t; car.brake = C.b; car.steer = C.s; car.hand = false; car.control(1 / 60); car.throttle = C.t; car.brake = C.b; car.steer = C.s; P.step(1 / 60, () => car.applyDrive(), [car.pv]); car.post(1 / 60); if (++ticks % 200 === 0) await new Promise((f) => setTimeout(f, 0)); } };
@@ -66,7 +65,7 @@ run('physics-reality', { q: 1, width: 320, height: 180 }, async ({ page }) => {
       console.log('## ' + type + ' ' + JSON.stringify(c));
     }
     // the player on foot
-    const pp = o.player, c3 = pl.body3, hurt = []; g.hurtPlayer = (d, a, why) => { hurt.push([d, why]); };
+    const pp = o.player, hurt = []; g.hurtPlayer = (d, a, why) => { hurt.push([d, why]); };
     put(X0, Y, Z0 + 100); await step(60);
     // jump: the highest the feet get over the ground
     const inp = g.input; let top = 0; inp.edges.jump = 1; for (let k = 0; k < 90; k++) { await step(1); top = Math.max(top, pl.y - Y); } pp.jumpM = +top.toFixed(2);

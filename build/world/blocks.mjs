@@ -20,7 +20,6 @@ const C = 4;   // metres per raster cell
 const SKIP = new Set(['motorway', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']);   // sound walls and ramps: nothing faces them
 const RANK = { trunk: 0, primary: 0, secondary: 0, tertiary: 1, residential: 2 };
 const ORDER = { trunk: 0, primary: 1, secondary: 2, tertiary: 3, residential: 4 };
-const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // a stable number in [0, 1) from three integers (no shared random sequence: a change in one place never reorders another)

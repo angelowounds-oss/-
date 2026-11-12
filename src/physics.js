@@ -274,7 +274,6 @@ export { keepPose };
 function stabilize(v) {
   if (v.spec.craft) return;
   const b = v.body, q = b.rotation(), w = b.angvel();
-  const fx = 2 * (q.x * q.z + q.w * q.y), fy = 2 * (q.y * q.z - q.w * q.x), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
   const ux = 2 * (q.x * q.y - q.w * q.z), uy = 1 - 2 * (q.x * q.x + q.z * q.z), uz = 2 * (q.y * q.z + q.w * q.x);
   const wy = w.x * ux + w.y * uy + w.z * uz; // yaw component (about chassis up)
   let on = 0; const c = v.ctrl; if (c) for (let i = 0; i < c.numWheels(); i++) if (c.wheelIsInContact(i)) on++;

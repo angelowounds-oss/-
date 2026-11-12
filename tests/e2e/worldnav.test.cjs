@@ -34,7 +34,7 @@ run('worldnav', { q: 1, width: 640, height: 360 }, async ({ page }) => {
     // a route between two cities over the highways
     const R = g.autonav.router, a = S.cities[0].c, b = S.cities[1].c, r = R.route(a.x + 60, a.z, b.x, b.z); o.route = { straight: r.straight, km: Math.round(r.length / 1000), pts: r.pts.length, hw: r.pts.filter((p) => p[2] === 1).length, mainShare: +R.G.mainShare.toFixed(3) };   // mainShare: the samples on the largest joined network
     // autopilot: a car on a highway, a waypoint 3 km along it
-    const N = g.hwtraffic.N, hw = N.roads.find((q) => q.kind === 'highway'), mid = Math.floor(hw.pts.length / 2), f = g.highways.frame(hw, mid), P = g.hwtraffic.lane(hw, mid, 1, 1), tgt = hw.pts[Math.min(hw.pts.length - 1, mid + 100)];
+    const N = g.hwtraffic.N, hw = N.roads.find((q) => q.kind === 'highway'), mid = Math.floor(hw.x.length / 2), f = g.highways.frame(hw, mid), P = g.hwtraffic.lane(hw, mid, 1, 1), ti = Math.min(hw.x.length - 1, mid + 100), tgt = [hw.x[ti], hw.z[ti]];
     pl.body3.teleport(P.x, P.y + 1, P.z + 4); pl.x = P.x; pl.y = P.y + 1; pl.z = P.z + 4; pl.vy = 0; await step(90);   // the ground under the car first
     const V = g.vehicles[0].constructor, v = new V(g, 'sport', 0x333333, 'parked', {}); v.x = P.x; v.z = P.z; v.h = P.h; v.startY = undefined; v.awake = true; g.addVehicle(v); v.pv.body.setTranslation({ x: P.x, y: P.y + 1.2, z: P.z }, true);
     await step(30); g.enterVehicle(v); void f;

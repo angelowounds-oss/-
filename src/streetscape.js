@@ -26,6 +26,18 @@ const POLE = [0.20, 0.21, 0.22], POLE_G = [0.30, 0.34, 0.31], HOUSING = [0.04, 0
 // a plane tree broad, a zelkova a wide vase, a cherry low and round.
 const TREE = [{ r: 1.5, tall: 1.7, trunk: 2.6, col: [0.17, 0.25, 0.06] }, { r: 2.3, tall: 1.0, trunk: 3.0, col: [0.10, 0.20, 0.06] }, { r: 2.2, tall: 0.9, trunk: 3.2, col: [0.07, 0.16, 0.05] }, { r: 1.9, tall: 0.8, trunk: 2.2, col: [0.12, 0.19, 0.07] }];
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b + 1, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+// the junctions and crossings of a tile as the traffic audit reads them (tests/e2e/traffic-audit, EV-20): signalled junctions with each arm's
+// direction, signal group and stop line (the far edge of its crossing), the junction's signal phase, and every crossing as a rectangle
+function auditOf(J, C) {
+  const sig = [], xing = [];
+  for (const j of J) {
+    const gr = j.signal ? signalGroups(j.arms) : null;
+    for (const a of j.arms) { if (!a.cross) continue; const { s0, len } = crossingSpan(a), dx = Math.cos(a.ang), dz = Math.sin(a.ang), m = s0 + len / 2; xing.push({ x: j.x + dx * m, z: j.z + dz * m, ax: dx, az: dz, hl: len / 2, hw: a.half }); }
+    if (gr) sig.push({ x: j.x, z: j.z, R: radiusOf(j.arms), phase: hash(Math.round(j.x), Math.round(j.z)), arms: j.arms.map((a, k) => { const c = crossingSpan(a); return { ang: a.ang, g: gr[k], stop: c.s0 + c.len, half: a.half, flow: a.flow }; }) });
+  }
+  for (const c of C) xing.push({ x: c.x, z: c.z, ax: c.tx, az: c.tz, hl: c.wid / 2, hw: c.half, signal: c.signal });
+  return { sig, xing };
+}
 const LAMP_H = [10, 9, 7.5, 6];   // mounting height by rank, as build/world/streetfurn.mjs LAMP_H
 // the street's records (build/world/streetpoints.mjs PTYPE and its footprints): bus stop, subway entrance, bench, bin, hydrant, vending machine
 const P = { bus: 2, subway: 3, bench: 4, bin: 5, hydrant: 6, vending: 7 }, SHELTER = { hl: 2.6, hw: 0.75, h: 2.6 }, ENTRANCE = { hl: 2.6, hw: 1.4, h: 2.7 };
@@ -92,6 +104,7 @@ class TileBuild {
   }
   *run() {
     const { J, R, F, C } = decodeTile(this.ti + '_' + this.tj, this.chunk);   // the key without its 'str/' prefix
+    this.audit = auditOf(J, C);
     for (const j of J) { this.junction(j); yield; }
     for (let q = 0; q < R.length; q++) { this.strip(R[q], q); yield; }
     for (const c of C) this.midCross(c);
@@ -404,8 +417,6 @@ class TileBuild {
   }
 }
 
-const RANK = { trunk: 0, primary: 0, secondary: 1, tertiary: 2, residential: 3, living_street: 3, unclassified: 3 };
-const rankOf = (hw) => (hw in RANK ? RANK[hw] : 9);
 
 export class Streetscape {
   constructor(scene, phys, G, wd = globalThis.__WORLD) {
@@ -486,7 +497,7 @@ export class Streetscape {
     rec.names = b.names;
     { const Pp = b.top.p.concat(b.asph), I = b.top.i.slice(); for (let k = b.top.p.length / 3; k < Pp.length / 3; k++) I.push(k); surf.add('str:' + id, Pp, I); }
     rec.meshes = meshes; rec.state = 'ready'; rec.heads = new Float32Array(b.heads); rec.obst = new Float32Array(b.obst); rec.boxes = new Float32Array(b.boxes); rec.recs = b.recs; rec.plateAt = b.plateAt; rec.topP = new Float32Array(b.top.p); rec.topI = new Uint32Array(b.top.i); rec.tris = b.S.i.length / 3 + b.M.i.length / 3 + b.G.i.length / 3 + b.T.i.length / 3;
-    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus', 'stops', 'shelters', 'entrances', 'small', 'mid', 'plates', 'deepSkirt']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
+    rec.build = null; rec.tile = { ox: b.ox, oz: b.oz, audit: b.audit }; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus', 'stops', 'shelters', 'entrances', 'small', 'mid', 'plates', 'deepSkirt']) { this.stats[k] += b.stats[k]; } rec.counts = b.stats;
   }
   drop(id, rec) {
     if (rec.meshes) { for (const m of rec.meshes) { this.group.remove(m); m.geometry.dispose(); } this.stats.tris -= rec.tris || 0; for (const k of ['pave', 'lamps', 'trees', 'signals', 'crossings', 'corners', 'arrows', 'diamonds', 'bus', 'stops', 'shelters', 'entrances', 'small', 'mid', 'plates', 'deepSkirt']) this.stats[k] -= rec.counts[k]; }

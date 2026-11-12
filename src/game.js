@@ -7,7 +7,7 @@ import { Breach } from './breach.js';
 import { CarRider, MOUNT_MAX } from './carrider.js';
 import { Sandbox } from './sandbox.js';
 import { effective, attOf, refreshVisuals, attach, detach } from './attachments.js';
-import { buildWorld, uploadSigns, N, P, R, SW, LANE, HALF, roadC, nodePos, blockLen, roadIdx, hasEdge, CUTS, cutRect } from './world.js';
+import { buildWorld, uploadSigns, N, P, R, SW, LANE, HALF, roadC, blockLen, hasEdge, CUTS, cutRect } from './world.js';
 import { createRain, Particles, Tracers, LightPool } from './fx.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human, WEAPONS } from './human.js';
@@ -33,8 +33,7 @@ import { Ships } from './ships.js';
 import { HighwayTraffic } from './hwtraffic.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
-import { clamp, lerp, damp, dampAngle, angDiff, rand, el, TAU, smooth, LIGHT_CAP } from './util.js';
-import { QUALITY } from './engine.js';
+import { clamp, lerp, damp, dampAngle, rand, el, TAU } from './util.js';
 import { Settings } from './settings.js';
 import { loadAssets, A } from './assets.js';
 import { buildDressing } from './dressing.js';
@@ -258,7 +257,7 @@ export class Game {
   }
 
   populate() {
-    const q = this.eng.q, w = this.world;
+    const q = this.eng.q;
     // parked cars along curbs
     let tries = 0;
     while (this.vehicles.filter((v) => v.kind === 'parked').length < Math.round(q.parked * (this.opt?.parked ?? 1)) && tries++ < 400) {
@@ -452,15 +451,19 @@ export class Game {
     const d5 = dg ? performance.now() : 0;
     this.stage('렌더', 'renderFrame', dt, false);
     this.workMs = performance.now() - w0;   // what this frame cost the main thread (autoQuality's headroom)
+    this.perfOv?.frame(rawDt, this.workMs);
     if (dg) this.frameDiag(pn, d1, d2, d3, d4, d5, performance.now());
   }
   // one stage of the frame, isolated (PERF-03): a throw is logged and the rest of the frame still runs. Only a stage that fails STAGE_FAILS
   // frames in a row rethrows (to the error screen), because then the game really cannot go on (a broken renderer shows a frozen picture)
+  // While the performance overlay (EV-92) is on, each stage's time goes to it.
   stage(name, f, a, b) {
+    const po = this.perfOv, t0 = po && po.on ? performance.now() : 0;
     try { this[f](a, b); this.stageFails[name] = 0; } catch (e) {
       this.noteError(name, e);
       if ((this.stageFails[name] = (this.stageFails[name] || 0) + 1) >= STAGE_FAILS) throw e;
     }
+    if (t0) po.stage(name, performance.now() - t0);
   }
   // where the player is, for the error report
   reportPlace() { const f = this.vehicle || this.player; return { x: Math.round(f.x), y: Math.round(f.y || 0), z: Math.round(f.z), t: Math.round(this.time) }; }
@@ -577,7 +580,7 @@ export class Game {
   // ====================================================================
   // PLAYER
   updatePlayer(dt, inp) {
-    const pl = this.player, cam = this.cam, G = this;
+    const pl = this.player, cam = this.cam;
     if (pl.dead) {
       this.deadT += dt / 0.35;
       if (this.deadT > 4.2) this.respawn();
@@ -786,7 +789,7 @@ export class Game {
   // ledge climb / vault: probe forward at knee & chest height, find the top surface, glide over it
   tryMantle(inp) {
     const pl = this.player, ph = this.phys, yaw = (inp.mx || inp.my) ? Math.atan2(pl.vx || Math.sin(this.cam.yaw), pl.vz || Math.cos(this.cam.yaw)) : pl.ry;
-    const dx = Math.sin(yaw), dz = Math.cos(yaw), M = 1 | 16 | 8 | 32;
+    const dx = Math.sin(yaw), dz = Math.cos(yaw);
     const probe = (h) => ph.ray(pl.x, pl.y + h, pl.z, dx, 0, dz, 1.1, 1 | 2 | 16 | 32);
     const lo = probe(0.55), hi = probe(1.15);
     if (!lo && !hi) return false;
@@ -815,7 +818,7 @@ export class Game {
   }
   stepHang(dt, inp) {
     const pl = this.player, hg = pl.hang; hg.t += dt;
-    const k = Math.min(1, hg.t / 0.3), y = pl.y + (hg.y - pl.y) * Math.min(1, dt * 12);
+    const y = pl.y + (hg.y - pl.y) * Math.min(1, dt * 12);
     pl.body3.teleport(hg.x, y - 0.06, hg.z); pl.x = hg.x; pl.z = hg.z; pl.y = y; pl.ry = hg.ry; pl.speed = 0; pl.animate(dt, 0);
     if (this.input.edge('jump') || inp.my > 0.4) { pl.hang = null; pl.mantle = { t: 0, dur: 1.0, from: [hg.x, y, hg.z], to: [hg.px, hg.ty + 0.05, hg.pz], h: 3 }; }
     else if (this.input.edge('crouch') || inp.my < -0.4) { pl.hang = null; pl.body3.vy = 0; }
@@ -1068,7 +1071,6 @@ export class Game {
       if (silent && best.dead) this.toast('암살', '소리 없이 제압');
       return;
     }
-    const cam = this.camera, d = this.tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
     const h = this.phys.ray(pl.x, pl.y + 1.3, pl.z, fx, 0, fz, 1.8, 1 | 8 | 16 | 32);
     if (h && h.ref) {
       if (h.ref.tag === 'glass' && h.ref.pane) { h.ref.pane.b.breakPane(h.ref, pl); }
@@ -1098,7 +1100,7 @@ export class Game {
 
   // Ray vs world/humans/vehicles
   hitscan(ox, oy, oz, dx, dy, dz, range, owner, damage, headMul = 2) {
-    const G = this, res = this.hit;
+    const res = this.hit;
     let best = range, kind = 'none', obj = null, head = false;
     let tw = -1, acc = 0, hitRef = null;
     for (let n = 0; n < 5; n++) {
@@ -1351,7 +1353,6 @@ export class Game {
     if (src === this.player || (v.driver === 'player')) this.addHeat(v.police ? 35 : 8);
   }
   explosion(x, y, z, radius, dmg, src) {
-    const G = this;
     this.audio.explosion(1, clamp((x - this.camera.position.x) * 0.01, -1, 1));
     for (let i = 0; i < 40; i++) { const a = Math.random() * TAU, s = rand(2, 14); this.fireP.emit(x, y + rand(0, 1), z, Math.cos(a) * s, rand(1, 9), Math.sin(a) * s, rand(0.5, 1.3), rand(1.2, 3), 3.5, rand(0.8, 1.6), 0.25, 1, -3, 1.2); }
     for (let i = 0; i < 18; i++) this.smokeP.emit(x + rand(-1, 1), y + rand(0, 2), z + rand(-1, 1), rand(-3, 3), rand(2, 6), rand(-3, 3), rand(2, 4), rand(2, 4), 0.05, 0.05, 0.06, 0.9, 0.2, 0.4);
@@ -1445,11 +1446,11 @@ export class Game {
   }
   // a lane point on the real road nearest the target, 110-250 m from it along the road (not in view nearer than 170 m), facing toward it
   policeRoadSpot(t) {
-    const hw = this.hwtraffic, near = hw && hw.nearestSample(t.x, t.z, 900, true); if (!near || near.r.pts.length < 8) return null;   // any road: a country lane brought no police car
-    const r = near.r, n = r.pts.length, oneway = r.kind === 'arterial' && r.oneway;
+    const hw = this.hwtraffic, near = hw && hw.nearestSample(t.x, t.z, 900, true); if (!near || near.r.x.length < 8) return null;   // any road: a country lane brought no police car
+    const r = near.r, n = r.x.length, oneway = r.kind === 'arterial' && r.oneway;
     for (let tr = 0; tr < 8; tr++) {
       const dir = oneway || Math.random() < 0.5 ? 1 : -1, want = rand(110, 250); let i = near.i;
-      for (let s = 0; s < 600; s++) { const ni = i - dir; if (ni < 3 || ni > n - 4) break; i = ni; if (Math.hypot(r.pts[i][0] - t.x, r.pts[i][1] - t.z) >= want) break; }
+      for (let s = 0; s < 600; s++) { const ni = i - dir; if (ni < 3 || ni > n - 4) break; i = ni; if (Math.hypot(r.x[i] - t.x, r.z[i] - t.z) >= want) break; }
       const P = hw.lane(r, i, dir, 0), d = Math.hypot(P.x - t.x, P.z - t.z);
       if (d < 90 || d > 320 || (this.inView(P.x, P.z) && d < 170)) continue;
       if (this.vehicles.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 11)) continue;
@@ -1459,12 +1460,12 @@ export class Game {
   }
   // a patrol car on a real road follows it whichever way brings it nearer the one it chases (a two-way road either way; it turns round on the spot)
   planPolice(v) {
-    const h = v.hw, r = h.r, n = r.pts.length, t = v.chaseTarget;
+    const h = v.hw, r = h.r, n = r.x.length, t = v.chaseTarget;
     if (t && !(r.kind === 'arterial' && r.oneway)) {
-      const a = r.pts[Math.min(n - 1, h.i + 4)], b = r.pts[Math.max(0, h.i - 4)];
-      const dir = Math.hypot(a[0] - t.x, a[1] - t.z) <= Math.hypot(b[0] - t.x, b[1] - t.z) ? 1 : -1;
+      const a = Math.min(n - 1, h.i + 4), b = Math.max(0, h.i - 4);
+      const dir = Math.hypot(r.x[a] - t.x, r.z[a] - t.z) <= Math.hypot(r.x[b] - t.x, r.z[b] - t.z) ? 1 : -1;
       if (dir !== h.dir) {
-        let bi = h.i, bd = 1e18; for (let i = Math.max(0, h.i - 12); i <= Math.min(n - 1, h.i + 12); i++) { const d = (r.pts[i][0] - v.x) ** 2 + (r.pts[i][1] - v.z) ** 2; if (d < bd) { bd = d; bi = i; } }
+        let bi = h.i, bd = 1e18; for (let i = Math.max(0, h.i - 12); i <= Math.min(n - 1, h.i + 12); i++) { const d = (r.x[i] - v.x) ** 2 + (r.z[i] - v.z) ** 2; if (d < bd) { bd = d; bi = i; } }
         h.dir = dir; h.i = bi; v.ai.wp.length = 0;
       }
     }
@@ -1542,7 +1543,6 @@ export class Game {
         const lf = dx * s + dz * c, ll = dx * c - dz * s;
         if (Math.abs(lf) < v.L / 2 + 0.4 && Math.abs(ll) < v.W / 2 + 0.3 && !h.knock && !(h.dead)) {
           const dmg = spd * 5;
-          const was = h.dead;
           h.hurt(dmg, v.driver === 'player' ? this.player : v, false, v.driver === 'player' ? this.player : null);
           h.ragdoll(v.vx * 0.8 + rand(-1, 1), v.vz * 0.8 + rand(-1, 1), 4 + spd * 0.15);
           this.audio.impact(1, 0); this.audio.crash(0.3, 0);
@@ -1652,8 +1652,8 @@ export class Game {
     const RG = this.autonav?.router?.G; if (!RG) return null;
     for (let t = 0; t < 30; t++) {
       const a = rand(0, TAU), r = rand(minD, maxD), id = RG.nearest(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, 400); if (id < 0) continue;
-      const road = RG.roads[RG.rd[id]], i = RG.ix[id], n = road.pts.length, q0 = road.pts[Math.max(0, i - 1)], q1 = road.pts[Math.min(n - 1, i + 1)];
-      let tx = q1[0] - q0[0], tz = q1[1] - q0[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      const road = RG.roads[RG.rd[id]], i = RG.ix[id], n = road.x.length, q0 = Math.max(0, i - 1), q1 = Math.min(n - 1, i + 1);
+      let tx = road.x[q1] - road.x[q0], tz = road.z[q1] - road.z[q0]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
       // just off the drawn carriageway: a fitted street (src/carriage.js) is narrower than its lanes say, and its walls stand close
       const lanes = road.kind === 'arterial' ? Math.max(1, Math.min(4, road.lanes || 1)) : 4, side = Math.random() < 0.5 ? 1 : -1, off = side * (road.fit ? carriage(road).half + 1.2 : lanes * 3.75 + (road.kind === 'arterial' ? 2.5 : 5));
       const x = RG.x[id] + tz * off, z = RG.z[id] - tx * off, d = Math.hypot(x - p.x, z - p.z);
@@ -1703,7 +1703,7 @@ export class Game {
         let car = null, phase = 0, timer = 0;
         return {
           title: '차량 탈취', text: '붉은 스포츠카를 찾아 탈취하라.', reward: 800,
-          start() { car = new Vehicle(G, 'sport', 0xd01030, 'parked', { glow: [1, 0.1, 0.3] }); const dx = spot.x < 0 ? 1 : -1; car.x = spot.x + 0; car.z = spot.z + 4; car.h = 0; car.awake = false; G.addVehicle(car); G.setBeacon(car.x, car.z, 0xff3050); this.car = car; },
+          start() { car = new Vehicle(G, 'sport', 0xd01030, 'parked', { glow: [1, 0.1, 0.3] }); car.x = spot.x + 0; car.z = spot.z + 4; car.h = 0; car.awake = false; G.addVehicle(car); G.setBeacon(car.x, car.z, 0xff3050); this.car = car; },
           update(dt) {
             if (phase === 0 && G.vehicle === car) { phase = 1; timer = 150; G.setBeacon(dest.x, dest.z); G.setMissionText('차량 탈취', '차를 목적지 차고로 가져가라. 경찰을 조심!'); G.addHeat(12); }
             if (phase === 1) {
@@ -1718,7 +1718,7 @@ export class Game {
       },
       // 3. clear gang
       (i) => {
-        const spot = G.pickSpot(140, 260); let gang = []; let spawned = false;
+        const spot = G.pickSpot(140, 260); let gang = []; 
         return {
           title: '갱단 소탕', text: '표시된 구역의 갱단원을 모두 제거하라.', reward: 1200,
           start() {
@@ -1742,7 +1742,7 @@ export class Game {
       },
       // 4. heist
       (i) => {
-        const spot = G.pickSpot(150, 280); let phase = 0; let pick = null;
+        const spot = G.pickSpot(150, 280); let phase = 0; 
         return {
           title: '현금 가방', text: '가방을 회수하라. 경찰이 곧 출동한다!', reward: 2000,
           start() { G.setBeacon(spot.x, spot.z); },
@@ -1861,7 +1861,7 @@ export class Game {
     return Math.max(y, f + 0.35);
   }
   updateCamera(dt, inp) {
-    const cam = this.cam, c = this.camera, pl = this.player, G = this;
+    const cam = this.cam, c = this.camera, pl = this.player;
     let ax, ay, az;
     const aw0 = pl.aiming && pl.cur !== 9 && WEAPONS[pl.cur] && !pl.sitting ? this.pw(pl.cur) : null, adsW = aw0 && (!pl.prone || aw0.scope === 'sniper') ? aw0 : null;   // a prone sniper can scope
     const fpOn = (!!cam.fp || !!adsW) && !pl.dead && this.playerOnFoot;
@@ -1898,7 +1898,7 @@ export class Game {
       if (v.spec.war) this.war.camera(v, dt); else {
       // yaw follows velocity direction
       if (cam.offsetT > 0) cam.offsetT -= dt;
-      else { const target = sp > 3 ? Math.atan2(v.vx, v.vz) * (v.fwdSpeed < -1 ? 0 : 1) + (v.fwdSpeed < -1 ? v.h : 0) : v.h; const targetH = v.fwdSpeed >= -1 ? (sp > 3 ? Math.atan2(v.vx, v.vz) : v.h) : v.h; cam.yaw = dampAngle(cam.yaw, v.fwdSpeed < -2 ? v.h + Math.PI : targetH, sp > 3 ? 2.6 : 1.2, dt); }
+      else { const targetH = v.fwdSpeed >= -1 ? (sp > 3 ? Math.atan2(v.vx, v.vz) : v.h) : v.h; cam.yaw = dampAngle(cam.yaw, v.fwdSpeed < -2 ? v.h + Math.PI : targetH, sp > 3 ? 2.6 : 1.2, dt); }
       cam.pitch = damp(cam.pitch, -0.14 - clamp(sp / 140, 0, 0.1), 3, dt);
       const big = v.spec.craft ? (v.spec.craft === 'heli' ? 15 : 10) : 0;
       const dist = (cam.mode === 0 ? 6.4 + big : cam.mode === 1 ? 9.5 + big : 0.1) + sp * 0.03;

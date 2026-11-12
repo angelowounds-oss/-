@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { keys as binds } from './keys.js';
-import { clamp, dampAngle } from './util.js';
+import { dampAngle } from './util.js';
 
 // Movement gear: grappling hook (fire at any wall / roof edge, the winch reels you in, swing on the rope, jump off) and
 // a ram-air parachute (deploy while falling, steer with the camera, W/S to dive/flare, Z to cut away).
@@ -105,7 +105,7 @@ export class Mobility {
 
   // ---------------------------------------------------------------- parachute
   deploy() {
-    const G = this.G, pl = G.player;
+    const G = this.G;
     if (!G.items.take('parachute')) return;
     this.chute = { t: 0, open: 0, yaw: G.cam.yaw };
     this.canopy.visible = true; this.canopy.traverse((o) => { if (o.material) o.material.opacity = 1; });

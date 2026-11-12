@@ -35,7 +35,7 @@ const SEGS = [
   { id: 'head', kind: 'head', bone: 'Head', r: 0.11, mass: 5.5, par: 'chest', ja: 'Head', j: { t: 'sph', dir: 'out', fF: 50, fB: 40, sP: 35, sN: 35, tw: 60 } },
 ];
 for (const s of ['L', 'R']) {
-  const S = L(s), lower = s.toLowerCase();
+  const S = L(s);
   SEGS.push(
     { id: 'uArm' + s, bone: S + 'Arm', a: S + 'Arm', b: S + 'ForeArm', r: 0.055, mass: 2.1, par: 'chest', ja: S + 'Arm', side: s, j: { t: 'sph', dir: 'up', fF: 100, fB: 60, sP: 100, sN: 115, tw: 70 } },
     { id: 'fArm' + s, bone: S + 'ForeArm', a: S + 'ForeArm', b: S + 'Hand', ext: 0.08, r: 0.045, mass: 1.6, par: 'uArm' + s, ja: S + 'ForeArm', side: s, hinge: true, j: { t: 'hinge', tip: +1, max: 145 } },
@@ -45,12 +45,10 @@ for (const s of ['L', 'R']) {
 }
 const SEG_BY_ID = Object.fromEntries(SEGS.map((s, i) => [s.id, Object.assign(s, { i })]));
 // bones the physics writes, parents first. spine1/neck are blended from their neighbours
-const DRIVE = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftArm', 'LeftForeArm', 'RightArm', 'RightForeArm', 'LeftUpLeg', 'LeftLeg', 'RightUpLeg', 'RightLeg'];
 
 const q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), q3 = new THREE.Quaternion(), q4 = new THREE.Quaternion(), q5 = new THREE.Quaternion(), q6 = new THREE.Quaternion();
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
 const qP = new THREE.Quaternion(), vP = new THREE.Vector3();
-const m4 = new THREE.Matrix4();
 const UP_BLEND = 0.35;   // s from the pose lying to the get-up clip (CHR-06f)
 // slerp from a to b along the arc between the two quaternions as given (no switch to the shorter way when they are over half a turn apart)
 function slerpArc(out, a, b, t) {
@@ -286,7 +284,7 @@ export class Ragdoll {
   // after the step: ground contact damping, settling
   postStep(dt) {
     if (this.state === 'BAKED' || this.state === 'GETUP') return;
-    let vmax = 0, wmax = 0, low = true;
+    let vmax = 0, wmax = 0;
     for (const b of this.bodies) {
       const l = b.linvel(), w = b.angvel();
       vmax = Math.max(vmax, Math.hypot(l.x, l.y, l.z)); wmax = Math.max(wmax, Math.hypot(w.x, w.y, w.z));
@@ -379,7 +377,6 @@ export class Ragdoll {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(fq);
     // the hip bone's forward may differ from the character's facing; use the head-to-pelvis direction on the ground plane as the facing when lying on the belly
     this.getUpFront = fw.y < 0;       // heuristic: placeholder, refined by the facing of the chest
-    const chestFwd = new THREE.Vector3(0, 0, 1).applyQuaternion(this.worldBoneQuat('Spine2'));
     const chestUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.worldBoneQuat('Spine2'));
     void up; void chestUp;
     const face = this.facingYaw();
@@ -504,7 +501,6 @@ export class RagdollSystem {
   }
   // impulses by cause
   apply(r, opt) {
-    const T = RAG_TUNE;
     if (opt.hit) {
       const hv = opt.hit, d = hv.dir; r.impulse(hv.seg || 'chest', { x: d.x * hv.j, y: d.y * hv.j + hv.j * 0.1, z: d.z * hv.j }, hv.point);
     }

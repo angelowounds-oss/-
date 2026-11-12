@@ -1,7 +1,4 @@
-import * as THREE from 'three';
 import { Vehicle } from './vehicle.js';
-import { roadC, N } from './world.js';
-import { rand } from './util.js';
 
 // Side jobs: delivery, taxi fare, building patrol, roadside repair, hacking contract
 export class Jobs {

@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { clamp, rand } from './util.js';
 import { ITEMS } from './items.js';
 import { keys as binds } from './keys.js';
 

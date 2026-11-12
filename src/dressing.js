@@ -64,7 +64,7 @@ export function buildDressing(scene, world) {
     slots.push({ x: roadC(i) + side, z: a, along: 'z', fx: -Math.sign(side), fz: 0 }, { x: roadC(j) + R / 2 + (blockLen(j) - R) * t, z: roadC(i) + side * -1, along: 'x', fx: 0, fz: Math.sign(side) });
   }
   const pick = () => { let r = rnd() * WSUM; for (const k of Object.keys(WEIGHT)) { r -= WEIGHT[k]; if (r <= 0) return k; } return 'trash'; };
-  const cells = new Map(), place = [];
+  const place = [];
   for (const s of slots) {
     if (rnd() > 0.5) continue;
     const type = pick(), sp = SPEC[type], ry = sp.face ? Math.atan2(s.fx, s.fz) : rnd() * Math.PI * 2;

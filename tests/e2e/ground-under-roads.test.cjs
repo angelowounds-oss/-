@@ -64,8 +64,8 @@ const { run, freeze, result } = require('../lib.cjs');
         let best = null;
         for (const q of g.highways.art) { if (!q.meshes) continue; const d = Math.hypot(q.cx - p.x, q.cz - p.z); if (!best || d < best.d) best = { d, q }; }
         if (best) {
-          const r = best.q.r, i = Math.floor((best.q.a + best.q.b) / 2), j = Math.min(r.pts.length - 1, i + 12), y = g.highways.deckY(r.pts[i][0], r.pts[i][1]);
-          g.viewCam = { x: r.pts[i][0], y: (y === y ? y : gy) + 2, z: r.pts[i][1], tx: r.pts[j][0], ty: (y === y ? y : gy) + 1, tz: r.pts[j][1], fov: 60 }; await frames(20); res.shots[name + '-road'] = await shot();
+          const r = best.q.r, i = Math.floor((best.q.a + best.q.b) / 2), j = Math.min(r.x.length - 1, i + 12), y = g.highways.deckY(r.x[i], r.z[i]);
+          g.viewCam = { x: r.x[i], y: (y === y ? y : gy) + 2, z: r.z[i], tx: r.x[j], ty: (y === y ? y : gy) + 1, tz: r.z[j], fov: 60 }; await frames(20); res.shots[name + '-road'] = await shot();
         }
         g.viewCam = null;
       }

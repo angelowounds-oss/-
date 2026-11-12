@@ -26,7 +26,7 @@ const path = require('path');
       res.tiles = RB.stats.tiles; res.buildings = RB.stats.buildings; res.solid = RB.stats.solid; res.meshes = [...RB.tiles.values()].filter((r) => r.mesh).length;
       // the roof of a building 30-80 m away is where a ray from above ends; a ray along the ground at the foot of its wall hits it
       let probe = null;
-      for (const [id, rec] of RB.tiles) { if (rec.state !== 'ready') continue; const T = rec.chunk, cx = (rec.e.ti - 256) * 512 + 256, cz = (rec.e.tj - 256) * 512 + 256; for (let q = 0; q < T.n; q++) { const bx = cx + T.cx[q] / 10, bz = cz + T.cz[q] / 10, d = Math.hypot(bx - pl.x, bz - pl.z); if (d > 30 && d < 120 && T.fl[q] >= 4 && !T.notch[q]) { probe = { bx, bz, fl: T.fl[q], kind: T.kind[q], base: rec.base[q], w: T.w[q] / 10, d: T.d[q] / 10, rot: T.rot[q] / 65535 * Math.PI, q }; break; } } if (probe) break; }
+      for (const [, rec] of RB.tiles) { if (rec.state !== 'ready') continue; const T = rec.chunk, cx = (rec.e.ti - 256) * 512 + 256, cz = (rec.e.tj - 256) * 512 + 256; for (let q = 0; q < T.n; q++) { const bx = cx + T.cx[q] / 10, bz = cz + T.cz[q] / 10, d = Math.hypot(bx - pl.x, bz - pl.z); if (d > 30 && d < 120 && T.fl[q] >= 4 && !T.notch[q]) { probe = { bx, bz, fl: T.fl[q], kind: T.kind[q], base: rec.base[q], w: T.w[q] / 10, d: T.d[q] / 10, rot: T.rot[q] / 65535 * Math.PI, q }; break; } } if (probe) break; }
       if (probe) {
         const hit = P.ray(probe.bx, probe.base + 400, probe.bz, 0, -1, 0, 800, 1 | 16);
         res.roofHit = hit ? +(probe.base + 400 - hit.t).toFixed(1) : null; res.roofTag = hit?.ref?.tag || null; res.roofExpect = +(probe.base + probe.fl * [2.9, 2.9, 3.6, 3.9, 2.9, 6, 3.9][probe.kind] + 0.4).toFixed(1);

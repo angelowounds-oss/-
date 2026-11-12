@@ -16,7 +16,7 @@ run('fire-spread', { q: 0 }, async ({ page }) => {
     o.carHpLoss = Math.round(hp0 - car.hp); o.carBurning = car.burn > 0.2 || car.dead; o.carNode = !!car.fireNode || car.dead;
     clearNodes();
     // --- fuel pool + flame
-    const px = pl.x + 20, pz = pl.z + 20; F.pour(px, pz, pl); o.poolsBefore = F.pools.length; const n0 = F.nodes.length;
+    const px = pl.x + 20, pz = pl.z + 20; F.pour(px, pz, pl); o.poolsBefore = F.pools.length; 
     F.ignite(px + 2.5, pz, { fuel: 6, r: 1.2, src: pl }); upd(1); o.poolConsumed = F.pools.length === 0; o.poolNode = F.nodes.some((n) => Math.hypot(n.x - px, n.z - pz) < 0.5 && n.r > 2);
     clearNodes();
     // --- civilians flee, a person standing in the fire takes damage and burns on

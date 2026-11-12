@@ -1,5 +1,5 @@
 import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS, KHRMeshQuantization } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { quantize, weld, prune, dedup } from '@gltf-transform/functions';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const doc = await io.read('../assets/ferrari.glb');

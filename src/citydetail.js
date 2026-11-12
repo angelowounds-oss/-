@@ -14,7 +14,7 @@ const byte = (v) => Math.max(0, Math.min(255, Math.round(Math.sqrt(Math.max(0, v
 // the share of pitched roofs and the street trees (1 = every row) of a city: from its region file (ADR-0036), else these tables (WLD-21e)
 const PITCHED = { mid1: 0.8, mid3: 0.7, mid2: 0.25, mid4: 0.1, harbor: 0.1 };
 const ROOF = [[0.36, 0.14, 0.09], [0.2, 0.2, 0.24], [0.3, 0.2, 0.12], [0.16, 0.2, 0.17]];
-const WHITE = [0.8, 0.8, 0.76], YELLOW = [0.7, 0.55, 0.15], GREY = [0.22, 0.23, 0.26], DARK = [0.05, 0.05, 0.06], GREEN = [0.05, 0.16, 0.06], RED = [0.5, 0.06, 0.05];
+const WHITE = [0.8, 0.8, 0.76], YELLOW = [0.7, 0.55, 0.15], GREY = [0.22, 0.23, 0.26], DARK = [0.05, 0.05, 0.06], RED = [0.5, 0.06, 0.05];
 
 class Out {
   constructor() { this.b = []; this.bc = []; this.p = []; this.pc = []; this.q = []; this.qc = []; }

@@ -32,7 +32,6 @@ export function vn(x, z, s) {
   return (ih(ix, iz, s) * (1 - ux) + ih(ix + 1, iz, s) * ux) * (1 - uz) + (ih(ix, iz + 1, s) * (1 - ux) + ih(ix + 1, iz + 1, s) * ux) * uz;
 }
 export function fbm(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let i = 0; i < oct; i++) { sum += a * vn(x * f, z * f, s + i * 17); n += a; a *= 0.5; f *= 2.03; } return sum / n; }
-function ridged(x, z, oct, s) { let a = 0.5, f = 1, sum = 0, n = 0; for (let i = 0; i < oct; i++) { const r = 1 - Math.abs(2 * vn(x * f, z * f, s + i * 31) - 1); sum += a * r * r; n += a; a *= 0.5; f *= 2.07; } return sum / n; }
 export const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
 const OCTAVES = 7 + Math.round(Math.log2(MAP_K));

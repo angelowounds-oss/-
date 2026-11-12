@@ -22,7 +22,7 @@ run('sky-tower', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     // stand in the cab (it waits at the lobby with the doors open) and send it to the roof
     pl.body3.teleport(E.cx, E.y + 0.1, E.cz); pl.x = E.cx; pl.y = E.y + 0.1; pl.z = E.cz; for (let i = 0; i < 20; i++) window.__upd(1 / 60);
     o.riding0 = E.riding(pl);
-    E.send(roofK); let t = 0, vmax = 0, floorsMid = 0, maxOff = 0, minY = 1e9;
+    E.send(roofK); let t = 0, vmax = 0, floorsMid = 0, maxOff = 0;
     const builtBefore = bd.floors.size;
     while (t < 90 && !(E.state === 'idle' && E.level === roofK && E.doorOpen > 0.9)) {
       window.__upd(1 / 60); t += 1 / 60; vmax = Math.max(vmax, E.speed || 0);

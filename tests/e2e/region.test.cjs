@@ -19,7 +19,7 @@ run('region', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     park(land[0], LF.physHeight(land[0], land[1], 8) + 1.5, land[1]); step(150);
     o.standGap = +(pl.y - LF.physHeight(pl.x, pl.z, 8)).toFixed(2); o.stands = Math.abs(o.standGap) < 1.2 && !pl.swimming;
     // 3. the Han: a deep cell of inland water swims
-    let wet = null; for (const r of RG.regionRoads()) { if (wet) break; }
+    let wet = null;
     for (let k = 0; k < 4000 && !wet; k++) { const x = -7000 + (k * 7919 % 12000), z = -4000 + (k * 104729 % 9400), w = RG.regionWater(x, z); if (RG.regionWeight(x, z) >= 1 && w && w.cls === 2 && w.level - LF.landHeight(x, z, 16) > 2.5) wet = [x, z, w.level]; }
     if (wet) { const wa = g.waterAt(wet[0], wet[1]); o.water = !!wa && wa.depth > 2; park(wet[0], wet[2] + 1, wet[1]); step(150); o.swims = pl.swimming; }
     // 3b. a car put down on raised ground starts on it, not inside it

@@ -256,16 +256,18 @@ function build() {
   const idOf = new Map();
   for (const r of regionRoads()) {
     const road = { id: r.id, kind: 'arterial', hw: r.hw, oneway: r.oneway, lanes: r.lanes, half: r.half, fit: r.fit, alley: r.alley, ds: r.ds, ref: r.ref, name: r.name,
-      pts: Array.from(r.x, (x, i) => [x, r.z[i]]), y: r.y, cls: r.cls, closed: false, next: [], prev: [] };
+      x: r.x, z: r.z, y: r.y, cls: r.cls, closed: false, next: [], prev: [] };   // the region's own sample arrays, not a copy (EV-02)
     idOf.set(r, road); N.roads.push(road);
   }
   const lines = regionRoads();
   for (const r of lines) { const road = idOf.get(r); road.next = r.next.map(([li, i]) => ({ road: lines[li].id, i })); road.prev = r.prev.map(([li, i]) => ({ road: lines[li].id, i })); }
+  // the generated roads' [x, z] points become sample arrays like the arterials': 3.7 million two-element arrays were most of the boot heap (EV-02)
+  for (const r of N.roads) if (r.pts) { r.x = Float64Array.from(r.pts, (p) => p[0]); r.z = Float64Array.from(r.pts, (p) => p[1]); delete r.pts; }
   // ---- service area pads: flat ground next to the road, carved into the terrain (the buildings stand on them)
   N.pads = [];
   for (const sv of N.services) {
-    const r = N.roads.find((q) => q.id === sv.road), i = sv.idx, p = r.pts[i], q = r.pts[Math.min(r.pts.length - 1, i + 1)], l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, nx = (q[1] - p[1]) / l, nz = -(q[0] - p[0]) / l;
-    sv.x = p[0] + nx * sv.side * 62; sv.z = p[1] + nz * sv.side * 62; sv.y = r.y[i] - 0.25; sv.heading = Math.atan2(q[0] - p[0], q[1] - p[1]); sv.r = 52; N.pads.push(sv);
+    const r = N.roads.find((q) => q.id === sv.road), i = sv.idx, j = Math.min(r.x.length - 1, i + 1), px = r.x[i], pz = r.z[i], qx = r.x[j], qz = r.z[j], l = Math.hypot(qx - px, qz - pz) || 1, nx = (qz - pz) / l, nz = -(qx - px) / l;
+    sv.x = px + nx * sv.side * 62; sv.z = pz + nz * sv.side * 62; sv.y = r.y[i] - 0.25; sv.heading = Math.atan2(qx - px, qz - pz); sv.r = 52; N.pads.push(sv);
   }
   // ---- flat pads under the villages, farms, industry and comms towers (settlements.js): carved into the terrain, the places stand on them
   { const S = settlements(), pad = (id, x, z, r) => N.pads.push({ id, x, z, y: Math.round(groundH(x, z, 100) * 10) / 10, r });
@@ -273,7 +275,9 @@ function build() {
     for (const s of S.industry) pad(s.id, s.x, s.z, s.type === 'wind' ? 60 : s.type === 'refinery' ? 210 : s.type === 'mine' ? 190 : 150); for (const t of S.towers) pad(t.id, t.x, t.z, 24); }
   // ---- spatial index for carving: cell 240 m, every segment of every road
   const CS = 240, grid = new Map();
-  N.roads.forEach((r, ri) => { const n = r.pts.length, m = r.closed ? n : n - 1; for (let i = 0; i < m; i++) { const A = r.pts[i], B = r.pts[(i + 1) % n]; const x0 = Math.floor((Math.min(A[0], B[0]) - 70) / CS), x1 = Math.floor((Math.max(A[0], B[0]) + 70) / CS), z0 = Math.floor((Math.min(A[1], B[1]) - 70) / CS), z1 = Math.floor((Math.max(A[1], B[1]) + 70) / CS); for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) { const key = cx * 100003 + cz; (grid.get(key) || grid.set(key, []).get(key)).push(ri, i); } } });
+  N.roads.forEach((r, ri) => { const X = r.x, Z = r.z, n = X.length, m = r.closed ? n : n - 1; for (let i = 0; i < m; i++) { const j = (i + 1) % n; const x0 = Math.floor((Math.min(X[i], X[j]) - 70) / CS), x1 = Math.floor((Math.max(X[i], X[j]) + 70) / CS), z0 = Math.floor((Math.min(Z[i], Z[j]) - 70) / CS), z1 = Math.floor((Math.max(Z[i], Z[j]) + 70) / CS); for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) { const key = cx * 100003 + cz; (grid.get(key) || grid.set(key, []).get(key)).push(ri, i); } } });
+  // each cell's [road, sample] pairs as one Int32Array: same indexing for the readers, no GC-scanned array per cell (226 MB of the boot heap, EV-02)
+  for (const [k, a] of grid) grid.set(k, Int32Array.from(a));
   N.grid = grid; N.CS = CS;
   return N;
 }
@@ -283,8 +287,8 @@ export function roadAt(x, z, max = CARVE_FADE + HALF_W) {
   const N = net(), CS = N.CS, cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) return null;
   let best = null, bd = max * max;
   for (let q = 0; q < cell.length; q += 2) {
-    const r = N.roads[cell[q]], i = cell[q + 1], n = r.pts.length, A = r.pts[i], B = r.pts[(i + 1) % n];
-    const dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2)), px = A[0] + dx * t, pz = A[1] + dz * t, d2 = (x - px) ** 2 + (z - pz) ** 2;
+    const r = N.roads[cell[q]], i = cell[q + 1], n = r.x.length, j = (i + 1) % n, ax = r.x[i], az = r.z[i];
+    const dx = r.x[j] - ax, dz = r.z[j] - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), px = ax + dx * t, pz = az + dz * t, d2 = (x - px) ** 2 + (z - pz) ** 2;
     if (d2 < bd) { bd = d2; best = { d: Math.sqrt(d2), road: r, i, t, y: r.y[i] + (r.y[(i + 1) % n] - r.y[i]) * t, cls: r.cls[i] }; }
   }
   return best;
@@ -294,6 +298,6 @@ export function roadAt(x, z, max = CARVE_FADE + HALF_W) {
 export const BROKEN = new Set(), BREAK_AT = [];
 if (typeof window !== 'undefined') window.__bro = BROKEN;   // test hook
 export const brokenAt = (x, z) => { for (const b of BREAK_AT) if ((x - b.x) ** 2 + (z - b.z) ** 2 < b.r * b.r) return true; return false; };
-export function breakSegment(road, i) { const k = road.id + ':' + i; if (BROKEN.has(k)) return; BROKEN.add(k); const p = road.pts[i], q = road.pts[Math.min(road.pts.length - 1, i + 1)]; BREAK_AT.push({ k, x: (p[0] + q[0]) / 2, z: (p[1] + q[1]) / 2, r: 21 }); }
+export function breakSegment(road, i) { const k = road.id + ':' + i; if (BROKEN.has(k)) return; BROKEN.add(k); const j = Math.min(road.x.length - 1, i + 1); BREAK_AT.push({ k, x: (road.x[i] + road.x[j]) / 2, z: (road.z[i] + road.z[j]) / 2, r: 21 }); }
 export function repairSegment(road, i) { const k = road.id + ':' + i; BROKEN.delete(k); const j = BREAK_AT.findIndex((b) => b.k === k); if (j >= 0) BREAK_AT.splice(j, 1); }
 export { WORLD_HALF };

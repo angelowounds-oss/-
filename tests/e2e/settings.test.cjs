@@ -84,7 +84,7 @@ run('settings', { q: 1, width: 960, height: 540 }, async ({ page }) => {
     const g = window.__game, S = g.settings, E = g.eng, pl = g.player, res = {};
     const upd = async (n) => { const r = E.render; E.render = () => {}; for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 10 === 9) await new Promise((f) => setTimeout(f, 8)); } E.render = r; };
     pl.body3.teleport(0, 2, 0); pl.x = 0; pl.y = 2; pl.z = 0; await upd(60); g.cam.yaw = Math.PI / 2; await upd(30);
-    for (const [name, view] of [['near', 1], ['far', 8]]) { S.set('view', view); await upd(120); E.render = E.render; g.renderFrame(0, true); await window.__zshot('settings-' + name, E.renderer.domElement.toDataURL('image/png')); res[name] = { fog: +g.scene.fog.density.toFixed(5) }; }
+    for (const [name, view] of [['near', 1], ['far', 8]]) { S.set('view', view); await upd(120); g.renderFrame(0, true); await window.__zshot('settings-' + name, E.renderer.domElement.toDataURL('image/png')); res[name] = { fog: +g.scene.fog.density.toFixed(5) }; }
     S.reset(); return res;
   });
   o.shots = shots; const bad = o.bad;

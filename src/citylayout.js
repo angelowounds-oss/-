@@ -89,7 +89,6 @@ export function layoutCity(c, index) {
   let seaDir = null;
   if (c.type === 'port') {
     seaDir = { x: c.seaDir.x, z: c.seaDir.z, d: c.r * 0.74 };
-    const q = (px, pz) => px * seaDir.x + pz * seaDir.z;
     // yards on the sea side of the plane q > R*0.35: 5 x 3 yards of 20-foot container stacks, warehouses behind
     const ux = -seaDir.z, uz = seaDir.x, rows = 3, cols = 5;
     for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
