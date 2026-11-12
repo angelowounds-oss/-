@@ -42,3 +42,4 @@
 | [0043](0043-fitted-residential-streets.md) | 주거도로를 벽 사이 통로에 맞추기: 폭·중심선·골목, 공항 도로 절단 (WLD-33·34) | 채택 |
 | [0038](0038-scale-1to1.md) | 실제 축척 1:1과 높이 V=1, 지도 650 km, 구운 범위 (WLD-23b) | 채택 |
 | [0044](0044-multi-region-world.md) | 여러 지역을 함께 쓰는 월드: 전국 OSM 추출본, 도 단위 컴파일, 소유 칸 (WLD-25) | 채택 |
+| [0045](0045-renderer-direction.md) | 렌더러 방향: WebGL2 유지 vs WebGPURenderer 이전 (EV-40 스파이크) | 제안 |

@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- Renderer spike (EV-40): one scene drawn by WebGLRenderer (today's path) or by WebGPURenderer (three r180, WebGPU with its WebGL2 fallback),
+     so the two can be compared on the same machine: first frame (shader compile), JS time per frame, draw calls, GPU time where measurable.
+     Query: ?r=gl|gpu|gpu-gl &scene=block|night|crowd &lights=N &frames=N. build/lab/renderer-spike.mjs serves and drives it. -->
+<html><head><meta charset="utf-8"><title>Renderer spike</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}</style>
+<script type="importmap">{"imports":{"three":"/three/build/three.webgpu.js","three/webgpu":"/three/build/three.webgpu.js","three/tsl":"/three/build/three.tsl.js","three-gl":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+const q = new URLSearchParams(location.search), R = q.get('r') || 'gl', SCENE = q.get('scene') || 'block', LIGHTS = +(q.get('lights') || 0), FRAMES = +(q.get('frames') || 120);
+// the WebGL path imports the classic build, the WebGPU paths the node build (the classes differ: node materials)
+const THREE = R === 'gl' ? await import('three-gl') : await import('three/webgpu');
+const W = 960, H = 540, out = { r: R, scene: SCENE, lights: LIGHTS };
+// a seeded random so both renderers draw the same scene
+let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(60, W / H, 0.5, 3000);
+cam.position.set(0, 60, 160); cam.lookAt(0, 0, 0);
+scene.add(new THREE.HemisphereLight(0x8899aa, 0x223344, 0.6));
+const sun = new THREE.DirectionalLight(0xffeedd, 2); sun.position.set(80, 150, 60); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, far: 500 }); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.9 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+// "block": 1,500 separate buildings (10 shapes, 12 materials): many draw calls, the city's case
+const geos = Array.from({ length: 10 }, (_, i) => new THREE.BoxGeometry(6 + i, 1, 6 + (i * 3) % 7));
+const mats = Array.from({ length: 12 }, (_, i) => new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(i / 12, 0.25, 0.45), roughness: 0.5 + (i % 4) * 0.1, metalness: i % 3 === 0 ? 0.6 : 0.05 }));
+for (let i = 0; i < 1500; i++) { const m = new THREE.Mesh(geos[i % 10], mats[i % 12]); const h = 4 + rnd() * 60; m.scale.y = h; m.position.set((rnd() - 0.5) * 700, h / 2, (rnd() - 0.5) * 700); m.castShadow = m.receiveShadow = true; scene.add(m); }
+// "crowd": plus 4 x 5,000 instances (people, trees, props): few calls, many vertices
+if (SCENE === 'crowd') {
+  const ig = [new THREE.CapsuleGeometry(0.3, 1.1, 4, 8), new THREE.ConeGeometry(1.5, 5, 8), new THREE.CylinderGeometry(0.15, 0.15, 3, 6), new THREE.SphereGeometry(0.5, 10, 8)], mtx = new THREE.Matrix4();
+  for (let k = 0; k < 4; k++) { const im = new THREE.InstancedMesh(ig[k], mats[k], 5000); for (let i = 0; i < 5000; i++) im.setMatrixAt(i, mtx.makeTranslation((rnd() - 0.5) * 700, 1, (rnd() - 0.5) * 700)); im.castShadow = true; scene.add(im); }
+}
+// "night": the sun low, N point lights along the streets (the game today caps them; the question is what N costs)
+if (SCENE === 'night' || LIGHTS) {
+  sun.intensity = SCENE === 'night' ? 0.15 : sun.intensity;
+  for (let i = 0; i < LIGHTS; i++) { const l = new THREE.PointLight(new THREE.Color().setHSL(rnd(), 0.7, 0.6), 30, 40, 2); l.position.set((rnd() - 0.5) * 600, 6, (rnd() - 0.5) * 600); scene.add(l); }
+}
+let renderer;
+if (R === 'gl') { renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' }); }
+else { renderer = new THREE.WebGPURenderer({ antialias: false, forceWebGL: R === 'gpu-gl', trackTimestamp: true }); await renderer.init(); }   // timestamps: its own GPU timer
+let lost = null; if (renderer.backend?.device) renderer.backend.device.lost.then((i) => { lost = i.message || 'lost'; });
+renderer.setSize(W, H); renderer.shadowMap.enabled = true; document.body.appendChild(renderer.domElement);
+out.backend = R === 'gl' ? 'WebGL2' : (renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2 (fallback)');
+// GPU time: WebGL's timer query where the browser has it (the WebGPU path has its own timestamp queries, off here: not in this container)
+const gl = R === 'gl' ? renderer.getContext() : null, tq = gl && gl.getExtension('EXT_disjoint_timer_query_webgl2');
+const t0 = performance.now(); renderer.render(scene, cam); if (gl) gl.finish(); out.firstFrameMs = Math.round(performance.now() - t0);
+const js = [], gpu = []; let pending = [], calls = 0, tris = 0;
+for (let f = 0; f < FRAMES; f++) {
+  cam.position.x = Math.sin(f / 40) * 160; cam.position.z = Math.cos(f / 40) * 160; cam.lookAt(0, 0, 0);
+  let qy = null; if (tq) { qy = gl.createQuery(); gl.beginQuery(tq.TIME_ELAPSED_EXT, qy); }
+  const a = performance.now(); renderer.render(scene, cam); js.push(performance.now() - a);
+  const ri = renderer.info.render; calls = ri.drawCalls ?? ri.calls; tris = ri.triangles;   // this frame's, before anything resets them
+  if (qy) { gl.endQuery(tq.TIME_ELAPSED_EXT); pending.push(qy); }
+  await new Promise((r) => requestAnimationFrame(r));
+  if (R !== 'gl' && renderer.hasFeature?.('timestamp-query') !== false) { try { await renderer.resolveTimestampsAsync('render'); if (renderer.info.render.timestamp) gpu.push(renderer.info.render.timestamp); } catch (e) { /* no timer */ } }
+  if (!gl) continue;
+  pending = pending.filter((p) => { if (!gl.getQueryParameter(p, gl.QUERY_RESULT_AVAILABLE)) return true; gpu.push(gl.getQueryParameter(p, gl.QUERY_RESULT) / 1e6); gl.deleteQuery(p); return false; });
+}
+const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? +s[Math.floor(s.length / 2)].toFixed(2) : null; };
+out.jsMs = med(js.slice(5)); out.jsP95 = js.length ? +[...js].sort((x, y) => x - y)[Math.floor(js.length * 0.95)].toFixed(2) : null; out.gpuMs = med(gpu);
+const info = renderer.info; out.calls = calls; out.triangles = tris;   // the node renderer counts draws as drawCalls
+out.programs = R === 'gl' ? info.programs.length : null;
+out.heapMB = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
+out.lost = lost; window.__done = out;
+</script></body></html>
