@@ -2,7 +2,7 @@ import { net, HALF_W, BROKEN } from './roadnet.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human } from './human.js';
 import { clamp, rand } from './util.js';
-import { carriage } from './carriage.js';
+import { carriage, innerEdge } from './carriage.js';
 
 // Life on the highways: AI traffic that follows the lanes (a pool around the player, recycled when it falls behind), attendants at toll plazas and
 // service areas, and road-side events (an accident, road works, a police checkpoint) at fixed places along the roads (a hash of road and
@@ -10,7 +10,9 @@ import { carriage } from './carriage.js';
 const LANE = 3.75, MED = 3.2, CAP = 16, NEAR = 1500, FAR = 2100;
 // lanes per direction of a compiled line, as drawn (highways.js artWidth)
 const lanesOf = (r) => carriage(r).n;
-const SPEED = { motorway: [27, 38], trunk: [20, 30], primary: [13, 19], secondary: [10, 14], motorway_link: [15, 22], trunk_link: [12, 18], primary_link: [10, 15], secondary_link: [8, 12], tertiary: [8, 12], tertiary_link: [7, 10], residential: [5, 8] };
+// cruising speeds (m/s) by road class: a Korean expressway is signed 100-110 km/h and its traffic keeps 90-112 (it drew 97-137, and the fast lane's
+// 1.15 made 157); an urban expressway is signed 80
+const SPEED = { motorway: [25, 31], trunk: [19, 25], primary: [13, 19], secondary: [10, 14], motorway_link: [15, 22], trunk_link: [12, 18], primary_link: [10, 15], secondary_link: [8, 12], tertiary: [8, 12], tertiary_link: [7, 10], residential: [5, 8] };
 const LOCAL = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // roads that carry no highway traffic
 const hash = (a, b) => { let h = Math.imul(a, 0x27d4eb2d) ^ Math.imul(b, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13; return ((h >>> 0) % 100000) / 100000; };
 const KINDS = ['sedan', 'sedan', 'sedan', 'suv', 'sport', 'truck', 'truck', 'suv'];
@@ -26,7 +28,8 @@ export class HighwayTraffic {
     // two-way road's from its centre line
     let off;
     if (r.kind !== 'arterial') off = -dir * (MED / 2 + LANE * (laneNo + 0.5));
-    else if (r.oneway) { const C = carriage(r); off = C.half - (r.fit ? C.edge : 0) - C.lane * (laneNo + 0.5); }   // a fitted street's lanes are its own width
+    else if (r.oneway && r.fit) { const C = carriage(r); off = C.half - C.edge - C.lane * (laneNo + 0.5); }   // a fitted street's lanes are its own width
+    else if (r.oneway) { const C = carriage(r), e = innerEdge(this.N, r, i), w = Math.min(C.lane, (e + C.half - 0.6) / C.n); off = e - w * (laneNo + 0.5); }   // from the median barrier, which stands nearer where the other carriageway is close (carriage.js)
     else off = -dir * (0.12 + carriage(r).lane * (laneNo + 0.5));
     const rx = tz, rz = -tx;
     return { x: p[0] + rx * off, z: p[1] + rz * off, y: r.y[i], h: Math.atan2(tx * dir, tz * dir) };
@@ -43,7 +46,7 @@ export class HighwayTraffic {
     const G = this.G, P = this.lane(r, i, dir, lane), type = KINDS[Math.floor(Math.random() * KINDS.length)];
     const v = new Vehicle(G, type, CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'traffic');
     const sp = SPEED[r.hw] || [27, 40];
-    v.kind = 'traffic'; v.driver = 'ai'; v.hw = { r, i, dir, lane }; v.ai.speed = rand(sp[0], sp[1]) * (type === 'truck' ? 0.72 : 1) * (lane === 0 ? 1.15 : lane === 2 ? 0.88 : 1);
+    v.kind = 'traffic'; v.driver = 'ai'; v.hw = { r, i, dir, lane }; v.ai.speed = rand(sp[0], sp[1]) * (lane === 0 ? 1.06 : lane === 2 ? 0.92 : 1); if (type === 'truck') v.ai.speed = Math.min(v.ai.speed * 0.85, 25);   // a lorry's limiter holds it at 90 km/h (Korean law for over 3.5 t)
     v.x = P.x; v.z = P.z; v.h = P.h; v.vx = Math.sin(P.h) * 20; v.vz = Math.cos(P.h) * 20; v.startY = undefined;
     v.planAhead = () => this.plan(v);
     G.addVehicle(v); v.pv.body.setTranslation({ x: P.x, y: P.y + 1.2, z: P.z }, true); v.pv.body.setLinvel({ x: v.vx, y: 0, z: v.vz }, true);

@@ -28,7 +28,7 @@ function kindOf(b, near, fl, a) {
 // merge: res is makeBuildings' result (procedural, struct of arrays), detail is readDetail's result, blocked(x, z) ground left alone, roads the region's lines
 // (the buildings a big road runs through, below). Returns { real: [...], keep: Uint8Array over the
 // procedural buildings (1 stays), stats }
-export function mergeReal(res, detail, blocked = () => false, roads = null) {
+export function mergeReal(res, detail, blocked = () => false, roads = null, ground = null) {
   const B = res.B, nP = B.cx.length, C = 32, grid = new Map(), key = (a, b) => a * 65536 + b;
   const add = (x, z, v) => { const k = key(Math.floor(x / C), Math.floor(z / C)); let l = grid.get(k); if (!l) grid.set(k, (l = [])); l.push(v); };
   // building parts stand for the outline they sit in: an outline with parts inside is left out (the parts carry the real shape and heights)
@@ -40,7 +40,7 @@ export function mergeReal(res, detail, blocked = () => false, roads = null) {
   // the procedural buildings, indexed, for the guesses
   const pgridP = new Map(); for (let i = 0; i < nP; i++) { const k = key(Math.floor(B.cx[i] / C), Math.floor(B.cz[i] / C)); let l = pgridP.get(k); if (!l) pgridP.set(k, (l = [])); l.push(i); }
   const nearest = (x, z, R) => { let best = -1, bd = R * R; for (let b = Math.floor((z - R) / C); b <= Math.floor((z + R) / C); b++) for (let a = Math.floor((x - R) / C); a <= Math.floor((x + R) / C); a++) for (const i of pgridP.get(key(a, b)) || []) { const d = (B.cx[i] - x) ** 2 + (B.cz[i] - z) ** 2; if (d < bd) { bd = d; best = i; } } return best; };
-  const real = [], src = [0, 0, 0], passage = { under: 0, over: 0, lifted: 0, ids: [] }, crossing = roads ? throughRoads(roads) : null;
+  const real = [], src = [0, 0, 0], passage = { under: 0, over: 0, lifted: 0, deck: 0, ids: [] }, crossing = roads ? throughRoads(roads) : null, deck = roads && ground ? deckOver(roads, ground) : null;
   for (const b of list) {
     const c = centroid(b.rings[0]), a = Math.abs(area(b.rings[0])), ni = nearest(c[0], c[1], 60), near = ni >= 0 ? { kind: B.kind[ni], fl: B.fl[ni] } : null;
     let h = b.h, fl = b.levels, s = b.src;
@@ -53,6 +53,9 @@ export function mergeReal(res, detail, blocked = () => false, roads = null) {
     // car driving into it was wrecked (WLD-22e); with no height mapped it is a canopy's, 7 m to its top over 5.5 m of clearance
     let base = b.base;
     if (b.roof) { if (s === SRC.guess) { h = Math.max(b.base + 2.5, ROOF_TOP); fl = 1; } base = Math.max(b.base, h - ROOF_SLAB); }
+    // ...over the road it covers, not the ground: at 구리남양주TG the motorway runs through the plaza on a deck 6 m over the land, and the slab put 5.5 m over
+    // the land cut through it (every car on the autopilot was wrecked there)
+    if (b.roof && deck) { const rise = deck(b.rings[0]); if (rise > 0.5) { base += rise; h += rise; passage.deck++; } }
     const kind = kindOf(b, near, fl, a);
     // a building a collector road or a bigger one runs through at ground level (WLD-31): the map puts a structure there that the road passes under or
     // over. Below the ground (a negative layer, with the road on the ground through it) it is left out; above the road it stands on the road's
@@ -81,6 +84,22 @@ export function mergeReal(res, detail, blocked = () => false, roads = null) {
   }
   let kept = 0; for (const k of keep) kept += k;
   return { real, keep, stats: { real: real.length, height: src[2], levels: src[1], guessed: src[0], dropped: detail.buildings.length - list.length, procedural: nP, kept, passage, realShare: +(real.length / Math.max(1, real.length + kept)).toFixed(3), heightShare: +((src[1] + src[2]) / Math.max(1, real.length + kept)).toFixed(3) } };
+}
+// the height of the highest road surface (any road, bridges included) inside a ring over the lowest ground at its corners, the base the game builds on
+// (realbuildings.js: the lowest ground under the outline); 0 where no road runs inside it. ground(x, z) is the region's height there.
+function deckOver(roads, ground) {
+  const G = 64, cells = new Map(), key = (a, b) => a * 65536 + b;
+  for (const r of roads) for (let i = 0; i < r.x.length; i++) { const c = key(Math.floor(r.x[i] / G), Math.floor(r.z[i] / G)); let l = cells.get(c); if (!l) cells.set(c, (l = [])); l.push(r.x[i], r.z[i], r.y[i]); }
+  return (ring) => {
+    const bb = bbox(ring); let top = -Infinity;
+    for (let j = Math.floor(bb[1] / G); j <= Math.floor(bb[3] / G); j++) for (let i = Math.floor(bb[0] / G); i <= Math.floor(bb[2] / G); i++) {
+      const l = cells.get(key(i, j)); if (!l) continue;
+      for (let q = 0; q < l.length; q += 3) if (l[q] >= bb[0] && l[q] <= bb[2] && l[q + 1] >= bb[1] && l[q + 1] <= bb[3] && inRing([l[q], l[q + 1]], ring)) top = Math.max(top, l[q + 2]);
+    }
+    if (top === -Infinity) return 0;
+    let low = Infinity; const st = Math.max(1, Math.floor(ring.length / 12)); for (let v = 0; v < ring.length; v += st) low = Math.min(low, ground(ring[v][0], ring[v][1]));
+    return Math.max(0, top - low);
+  };
 }
 // the metres of ground-level centre line of the collector roads and bigger ones inside a ring (2 m samples, the keep zone's lines included: the caller's
 // `blocked` leaves those buildings out anyway). Returns a function of the ring.

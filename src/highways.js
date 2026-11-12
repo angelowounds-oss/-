@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { carriage } from './carriage.js';
+import { carriage, medianGap } from './carriage.js';
 import { net, groundH, HALF_W, CARVE_FADE, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
 import { rand, VIEW } from './util.js';
@@ -510,9 +510,11 @@ export class Highways {
       // a concrete barrier along each edge of a motorway or trunk carriageway (0.45 m wide, 0.85 m high, both faces and the top), solid on a bridge: a
       // flat strip 0.78 m up was all there was, and between the two decks of a viaduct a walker or a car went off the edge into the gap. Left open
       // where another road's surface reaches the edge (a ramp leaving or joining, a junction), so the way onto it stays free
+      // the median barrier stands halfway to the other carriageway where the two drawn halves overlap (carriage.js medianGap)
       if (big && !tunnel) for (const s of [-1, 1]) {
-        const o = s * (half + 0.25), w = 0.225; if (this.barrierGap(r, f0, f1, o)) continue;
-        const i0 = at(f0, o - s * w), i1 = at(f1, o - s * w), x0 = at(f0, o + s * w), x1 = at(f1, o + s * w), up = (q) => [q[0], q[1] + 0.85, q[2]];
+        const mo = (k) => { const g = medianGap(this.N, r, k); return g * s > 0 ? Math.min(half + 0.25, Math.abs(g) / 2) : half + 0.25; };
+        const oa = s * mo(i), ob = s * mo(i + 1), o = (oa + ob) / 2, w = 0.225; if (this.barrierGap(r, f0, f1, o, i)) continue;
+        const i0 = at(f0, oa - s * w), i1 = at(f1, ob - s * w), x0 = at(f0, oa + s * w), x1 = at(f1, ob + s * w), up = (q) => [q[0], q[1] + 0.85, q[2]];
         // front faces only (as the bridge fascias below): the top up, each side facing away from the barrier's middle
         if (s > 0) { S.quad(up(i0), up(i1), up(x1), up(x0), RAIL); S.quad(up(i1), up(i0), i0, i1, CONC); S.quad(up(x0), up(x1), x1, x0, CONC); }
         else { S.quad(up(x0), up(x1), up(i1), up(i0), RAIL); S.quad(up(i0), up(i1), i1, i0, CONC); S.quad(up(x1), up(x0), x0, x1, CONC); }
@@ -562,15 +564,20 @@ export class Highways {
   }
   // is (x, z) on another road than r (within its half width plus `pad`), leaving out roads of class `skip` (2: under the ground, 1: up on a bridge)?
   // is the barrier at offset o on segment f0-f1 of r to be left out? Another road's surface reaches its line at either end or the middle (the other
-  // carriageway of the same motorway does not count: the barrier stands between the two)
-  barrierGap(r, f0, f1, o) {
-    const N = this.N, CS = N.CS;
+  // carriageway of the same motorway does not count: the barrier stands between the two). Only the one running the other way: a branch of the same
+  // motorway that leaves or joins it the same way (a toll plaza's lanes splitting off, a collector lane) kept its edge barrier, which then lay across
+  // the lanes where the two meet, and the traffic in the outer lanes was wrecked on it (구리남양주TG, 서울외곽순환선)
+  // the line's own far samples count as another road: a compiled line can run back beside itself (the ring motorway's tail runs 10 m beside its start at 구리)
+  barrierGap(r, f0, f1, o, ia = -1) {
+    const N = this.N, CS = N.CS, ux = f1.x - f0.x, uz = f1.z - f0.z;
     for (const u of [0, 0.5, 1]) {
       const x = f0.x + (f1.x - f0.x) * u + (f0.rx + (f1.rx - f0.rx) * u) * o, z = f0.z + (f1.z - f0.z) * u + (f0.rz + (f1.rz - f0.rz) * u) * o, y = f0.y + (f1.y - f0.y) * u;
       const cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) continue;
       for (let q = 0; q < cell.length; q += 2) {
-        const o2 = N.roads[cell[q]], i = cell[q + 1]; if (o2 === r || o2.cls[i] === 2 || (o2.ref && o2.ref === r.ref && o2.hw === r.hw)) continue;
-        const n = o2.pts.length, A = o2.pts[i], B = o2.pts[(i + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2));
+        const o2 = N.roads[cell[q]], i = cell[q + 1]; if ((o2 === r && (ia < 0 || Math.min(Math.abs(i - ia), o2.pts.length - Math.abs(i - ia)) < 40)) || o2.cls[i] === 2) continue;
+        const n = o2.pts.length, A = o2.pts[i], B = o2.pts[(i + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1];
+        if (o2.ref && o2.ref === r.ref && o2.hw === r.hw && dx * ux + dz * uz < 0) continue;
+        const l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - A[0]) * dx + (z - A[1]) * dz) / l2));
         const w = o2.kind === 'arterial' ? this.artWidth(o2).half : o2.kind === 'ramp' ? 4.6 : HALF_W, yo = o2.y[i] + (o2.y[(i + 1) % n] - o2.y[i]) * t;
         if (Math.abs(yo - y) < 3 && Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < w + 0.6) return true;   // at about the same height: a road over or under it is no way off
       }

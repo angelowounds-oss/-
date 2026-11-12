@@ -31,6 +31,18 @@ if (metres('15') !== 15 || metres('15 m') !== 15 || metres('15.5m') !== 15.5 || 
   m.tmNorth = +hav(p0, pn).toFixed(2); m.tmEast = +hav(p0, pe).toFixed(2);
   if (!near(m.tmNorth, 1000, 3) || !near(m.tmEast, 1000, 3)) bad.push(['TM grid kilometre', m.tmNorth, m.tmEast]);
 }
+// ---- a canopy (a toll plaza's roof) over a road deck 6 m above the land: its slab stands its clearance over the deck, not over the land (구리남양주TG,
+// where the slab cut the motorway's deck and wrecked every car), and without a road it stays where it was
+{
+  const B = Object.fromEntries(['cx', 'cz', 'w', 'd', 'rot', 'fl', 'kind', 'notch'].map((k) => [k, new Float32Array(0)]));
+  const ring = [[-40, -8], [40, -8], [40, 8], [-40, 8]], roof = { id: 'w1', rings: [ring], h: NaN, base: 0, src: 0, levels: 1, tag: 'yes', part: false, name: '', roof: true, layer: 1 };
+  const road = { id: 'r', hw: 'motorway', x: Float32Array.from({ length: 11 }, () => 0), z: Float32Array.from({ length: 11 }, (_, i) => -40 + i * 8), y: new Float32Array(11).fill(6), cls: new Uint8Array(11).fill(1) };
+  const one = (roads) => mergeReal({ B }, { buildings: [roof] }, () => false, roads, () => 0).real[0];
+  const over = one([road]), bare = one([]);
+  m.canopy = { overDeck: +(over.base - 6).toFixed(2), bare: bare.base };
+  if (!(over.base - 6 >= 5) || !(over.h > over.base)) bad.push(['a canopy over a road deck must clear the deck by its clearance', over.base, over.h]);
+  if (!near(bare.base, 5.5, 1e-9)) bad.push(['a canopy with no road under it stays over the land', bare.base]);
+}
 
 const file = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital/region.bin');
 const R0 = readRegion(file), at = (lon, lat) => { const p = project(lon, lat); return { x: p.x - CAPITAL.x, z: p.z - CAPITAL.z }; };

@@ -272,11 +272,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
   // the real buildings of the map (WLD-24h) where the detail tiles were fetched (build/world/fetch-detail.mjs); the procedural ones stay in the gaps
   // a province reads the real buildings of its own box (the nationwide store, ADR-0044) and keeps those on its cells
   const P = R.own ? (await import('./pieces.mjs')).pieceOf(R.name) : null, box = P ? { w: P.box.w - 0.02, s: P.box.s - 0.02, e: P.box.e + 0.02, n: P.box.n + 0.02 } : undefined;
+  // the region's ground at a point (nearest cell), for the canopies lifted over a road deck (osmbuildings.mjs deckOver)
+  const groundAt = (x, z) => { const i = Math.min(R.nx - 1, Math.max(0, Math.round((x - R.x0) / R.g))), j = Math.min(R.nz - 1, Math.max(0, Math.round((z - R.z0) / R.g))); return R.h[j * R.nx + i] / 10; };
   const ownAt = (x, z) => { const i = Math.round((x - R.x0) / R.g), j = Math.round((z - R.z0) / R.g); return i >= 0 && j >= 0 && i < R.nx && j < R.nz && R.own[j * R.nx + i] === 255; };
   const { readDetail } = await import('./realdetail.mjs'), { mergeReal, addRealTiles } = await import('./osmbuildings.mjs'), detail = readDetail(box);
   let real = null;
   if (detail.buildings.length) {
-    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (R.own ? !ownAt(x, z) : Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r), R.roads); real = m.stats; real.missingTiles = detail.missing.length; real.underground = detail.underground; real.notBuilding = detail.notBuilding;
+    const keepR = KEEP + BAND, m = mergeReal(res, detail, (x, z) => (R.own ? !ownAt(x, z) : Math.abs(x) < keepR && Math.abs(z) < keepR) || exclude.some((e) => Math.hypot(x - e.x, z - e.z) < e.r), R.roads, groundAt); real = m.stats; real.missingTiles = detail.missing.length; real.underground = detail.underground; real.notBuilding = detail.notBuilding;
     for (const k of Object.keys(res.B)) res.B[k] = res.B[k].filter((v, i) => m.keep[i]);
     res.count = res.B.cx.length; res.real = m.real;
   }

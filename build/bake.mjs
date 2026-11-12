@@ -63,11 +63,12 @@ export function jobsFor({ pack = false, regions = null } = {}) {
   tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
   // where trees, grass and rocks grow (vegfn.js): one byte per 32 m cell, tiles of 4096 m
   for (let j = 0; j < 25; j++) for (let i = 0; i < 25; i++) out.push({ key: `veg/${i}_${j}`, gen: 'veg', tier: 'embed', i, j, region: chunkRegion(VEG_ORIGIN.x + (i + 0.5) * 4096, VEG_ORIGIN.z + (j + 0.5) * 4096), dep: D.place, src: [...TERRAIN_SRC, 'src/vegfn.js'] });
-  // the procedural buildings (WLD-24a): one chunk per 512 m tile that has any; a tile's content hash is its dependency, so a change elsewhere redoes nothing here
+  // the procedural and real buildings (WLD-24a, WLD-24h): one chunk per 512 m tile that has any; a tile's content hash (every array of it: the real
+  // outlines and heights too, which were left out and kept a stale tile after a change to the real buildings) is its dependency, so a change elsewhere redoes nothing here
   { const T = BUILDINGS;
     for (const [tile, t] of Object.entries(T?.tiles || {})) {
       const [ti, tj] = tile.split('_').map(Number), cx = (ti - T.off + 0.5) * T.tile, cz = (tj - T.off + 0.5) * T.tile;
-      out.push({ key: `bld/${tile}`, gen: 'bld', tier: 'embed', tile, region: chunkRegion(cx, cz), dep: sha(Buffer.concat(['cx', 'cz', 'w', 'd', 'rot', 'fl', 'kind', 'notch'].map((k) => Buffer.from(t[k].buffer, t[k].byteOffset, t[k].byteLength)))), src: ['build/jobs.mjs', 'src/bakefmt.js'] });
+      out.push({ key: `bld/${tile}`, gen: 'bld', tier: 'embed', tile, region: chunkRegion(cx, cz), dep: sha(Buffer.concat(Object.keys(t).filter((k) => ArrayBuffer.isView(t[k])).sort().map((k) => Buffer.concat([Buffer.from(k), Buffer.from(t[k].buffer, t[k].byteOffset, t[k].byteLength)])))), src: ['build/jobs.mjs', 'src/bakefmt.js'] });
     } }
   // the streets (WLD-24g): junctions and pavement runs, one chunk per 512 m tile that has any
   { const T = STREETS;
