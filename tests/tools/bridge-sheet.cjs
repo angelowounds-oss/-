@@ -17,11 +17,11 @@ const path = require('path');
     await freeze(page);
     for (const s of spots) {
       const views = await page.evaluate(async (s) => {
-        const g = window.__game, pl = g.player, L = window.__landfn; g.hurtPlayer = () => {};
+        const g = window.__game, pl = g.player; g.hurtPlayer = () => {};
         const sky = () => { g.clock.scale = 0; g.clock.t = Math.floor(g.clock.t / 1440) * 1440 + ((13 - (g.rules?.local?.hourOffset || 0) + 24) % 24) * 60; g.state.weather = { type: 'clear', until: g.clock.t + 1e9 }; g.daynight.wet = 0; };
         // the deck under the bridge's centre: the nearest compiled motorway sample (this build's own heights)
         let deck = 0, bd = Infinity;
-        for (const r of g.highways?.N?.roads || []) for (let i = 0; i < r.pts.length; i++) { const d = Math.hypot(r.pts[i][0] - s.x, r.pts[i][1] - s.z); if (d < bd) { bd = d; deck = r.y[i]; } }
+        for (const r of g.highways?.N?.roads || []) for (let i = 0; i < r.x.length; i++) { const d = Math.hypot(r.x[i] - s.x, r.z[i] - s.z); if (d < bd) { bd = d; deck = r.y[i]; } }
         const park = (x, z) => { const y = deck + 1.5; pl.body3.teleport(x, y, z); pl.x = x; pl.y = y; pl.z = z; pl.vx = pl.vz = pl.vy = 0; pl.dead = false; };
         const realRender = g.eng.render, frames = (n) => { g.eng.render = () => {}; for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 60 === 0) sky(); } g.eng.render = realRender; };
         const shot = () => { g.renderFrame(0, true); const cv = g.eng.renderer.domElement, k = document.createElement('canvas'); k.width = cv.width; k.height = cv.height; k.getContext('2d').drawImage(cv, 0, 0); return k.toDataURL('image/jpeg', 0.85); };
@@ -33,7 +33,7 @@ const path = require('path');
         g.viewCam = { x: s.x + s.rx * L0 * 0.6 - s.tx * L0 * 0.5, y: deck + L0 * 0.9, z: s.z + s.rz * L0 * 0.6 - s.tz * L0 * 0.5, tx: s.x, ty: deck, tz: s.z, fov: 55 }; frames(30); v.above = shot();
         // a car's eye on the deck, a main span back, looking along the road at the towers
         const bx = s.x - s.tx * s.span, bz = s.z - s.tz * s.span; let cy = deck; bd = Infinity;
-        for (const r of g.highways?.N?.roads || []) for (let i = 0; i < r.pts.length; i++) { const d = Math.hypot(r.pts[i][0] - bx, r.pts[i][1] - bz); if (d < bd) { bd = d; cy = r.y[i]; } }
+        for (const r of g.highways?.N?.roads || []) for (let i = 0; i < r.x.length; i++) { const d = Math.hypot(r.x[i] - bx, r.z[i] - bz); if (d < bd) { bd = d; cy = r.y[i]; } }
         g.viewCam = { x: bx, y: cy + 1.6, z: bz, tx: s.x, ty: cy + 8, tz: s.z, fov: 65 }; frames(30); v.car = shot();
         g.viewCam = null;
         return { deck: +deck.toFixed(1), towers: !!g.bridges, v };

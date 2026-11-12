@@ -1,6 +1,6 @@
 // The 100 km world design (src/worldmap.js): deterministic, the capital sits at the origin on flat ground, every city is on land and 15+ km
 // from the others, the highways join all cities into one network over land only, heights are finite and fine detail only appears when asked.
-import { world, cities, highways, rivers, farHeight, biomeAt, surfaceColor, WORLD_HALF, SEA, CITY_DEFS } from '../../src/worldmap.js';
+import { world, cities, highways, rivers, farHeight, surfaceColor, WORLD_HALF, SEA, CITY_DEFS } from '../../src/worldmap.js';
 import { CAPITAL } from '../../src/koreamap.js';   // the game reads the world in the local frame (ADR-0017): the map edge is at -CAPITAL +- WORLD_HALF
 const bad = [];
 const t0 = performance.now(); world(); const buildMs = performance.now() - t0;

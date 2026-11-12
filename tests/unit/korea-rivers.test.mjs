@@ -5,7 +5,6 @@ import { project, koreaMask, landAt, KOREA_SCALE } from '../../src/koreamap.js';
 
 const bad = [];
 const mask = koreaMask();
-const TOL = 2500 / KOREA_SCALE;   // 2.5 km real in map m
 const PLACES = [
   { river: '한강', name: '두물머리', lon: 127.31, lat: 37.52, km: 514 },
   { river: '한강', name: '여의도', lon: 126.93, lat: 37.52, km: 514 },

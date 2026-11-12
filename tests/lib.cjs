@@ -11,9 +11,11 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 let pw;
-try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright'); }
+try { pw = require('playwright'); } catch { try { pw = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright'); } catch { pw = null; } }   // null: the runner and the unit tests still load (CI without a browser)
 
 const ROOT = path.resolve(__dirname, '..');
+// one place for the harness's waits, so a slow container is tuned here and not per test
+const TIMEOUT = { boot: 240000, running: 30000, test: 15 * 60 * 1000 };
 const GAME = path.resolve(process.env.GAME_DIR || path.join(ROOT, 'dist', 'Korea', 'game'));
 
 // Serves a game folder on 127.0.0.1 the way launcher/main.go does (fixed MIME types, Range requests answered with 206, nothing compressed), so the
@@ -50,8 +52,8 @@ async function gameUrl(where = GAME) {
 // and the page with it ("Target crashed"), so the watchdog is off
 // --expose-gc: a frame of the 1:1 city takes seconds on the software GPU, so the page never idles and Blink's garbage collector falls behind (its heap
 // grew from 0.2 to 3.4 GB of collectable garbage in a few frames over Gangnam and the renderer was killed for memory); the stepped loop below collects
-// every GC_EVERY updates and shot() before each frame, which a real GPU's idle time does by itself
-const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--js-flags=--expose-gc'];
+// every GC_EVERY updates (or GC_GROW of growth) and shot() before each frame, which a real GPU's idle time does by itself
+const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--js-flags=--expose-gc' + (process.env.JS_FLAGS ? ' ' + process.env.JS_FLAGS : ''), '--enable-precise-memory-info'];
 
 // open the game at quality tier q, wait until it is ready, start it; returns { browser, page, errors }
 // `init`: a script run in the page before any of its own (e.g. a seeded Math.random)
@@ -66,9 +68,9 @@ async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = 
   await page.goto(href);
   // a boot that threw never gets ready: fail at once with the error instead of after the timeout
   let failT = null;
-  try { await Promise.race([page.waitForSelector('#go.rdy', { timeout: 240000 }), new Promise((_, rej) => { failT = setInterval(() => { if (errors.length) rej(new Error('boot failed: ' + errors[0])); }, 500); })]); } finally { clearInterval(failT); }
+  try { await Promise.race([page.waitForSelector('#go.rdy', { timeout: TIMEOUT.boot }), new Promise((_, rej) => { failT = setInterval(() => { if (errors.length) rej(new Error('boot failed: ' + errors[0])); }, 500); })]); } finally { clearInterval(failT); }
   await page.keyboard.press('KeyJ');
-  await page.waitForFunction(() => window.__game && window.__game.running, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__game && window.__game.running, null, { timeout: TIMEOUT.running });
   await page.waitForTimeout(800);
   return { browser, page, errors };
 }
@@ -92,9 +94,11 @@ const READ = `window.__readFrame = window.__readFrame || (async () => {
   for (let y = 0; y < h; y++) data.set(raw.subarray((h - 1 - y) * row, (h - y) * row), y * row);
   return { w, h, data };
 });`;
-// inside the page: stop the rAF-driven loop and keep the real update as window.__upd (with a full collection every GC_EVERY steps, see GL_ARGS)
-const GC_EVERY = 5;
-const FREEZE = `(() => { ${READ} const g = window.__game; if (!window.__upd) { const up = g.update.bind(g); let n = 0; window.__upd = (...a) => { up(...a); if (++n % ${GC_EVERY} === 0 && window.gc) window.gc(); }; g.update = () => {}; g.autoQuality = () => {}; } })()`;
+// inside the page: stop the rAF-driven loop and keep the real update as window.__upd. A full collection runs every GC_EVERY steps or as soon as the JS
+// heap grew GC_GROW bytes since the last one (see GL_ARGS). It used to run every 5 steps: on the 2 GB heap of the capital build each one took ~0.8 s,
+// so highway-drive spent hours collecting (docs/AAA-DIRECTIVE-2026-11-12.md, EV-91).
+const GC_EVERY = +(process.env.GC_EVERY || 30), GC_GROW = +(process.env.GC_GROW_MB || 256) * 1024 * 1024;   // 60 let garbage pile up to the V8 limit on the capital build (a 50 s stall, then the renderer was killed)
+const FREEZE = `(() => { ${READ} const g = window.__game; if (!window.__upd) { const up = g.update.bind(g); const mem = () => (performance.memory ? performance.memory.usedJSHeapSize : 0); let n = 0, base = mem(); window.__gcCount = 0; window.__upd = (...a) => { up(...a); if (!window.gc) return; if (++n % ${GC_EVERY} === 0 || mem() - base > ${GC_GROW}) { window.gc(); window.__gcCount++; base = mem(); n = 0; } }; g.update = () => {}; g.autoQuality = () => {}; } })()`;
 async function freeze(page) { await page.evaluate(FREEZE); }
 
 // read back the canvas as RGBA bytes after one frame was drawn by game.renderFrame (collecting first, like the stepped loop)
@@ -122,4 +126,4 @@ async function run(name, opts, body) {
   }
 }
 
-module.exports = { pw, ROOT, GAME, GL_ARGS, serve, gameUrl, openGame, freeze, shot, pixelDiff, result, run };
+module.exports = { pw, ROOT, TIMEOUT, GC_EVERY, GC_GROW, GAME, GL_ARGS, serve, gameUrl, openGame, freeze, shot, pixelDiff, result, run };

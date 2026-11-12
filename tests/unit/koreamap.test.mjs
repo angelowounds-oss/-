@@ -11,7 +11,7 @@ const hav = (a, b) => {   // great-circle distance in km between two [lon, lat]
 };
 const M = 2000;   // keep 2 km from the map edge
 let minX = 1e12, maxX = -1e12, minZ = 1e12, maxZ = -1e12;
-for (const [code, name, w, s, e, n] of REGIONS) {
+for (const [, , w, s, e, n] of REGIONS) {
   const a = project(w, n), b = project(e, s);   // north-west and south-east corners
   minX = Math.min(minX, a.x, b.x); maxX = Math.max(maxX, a.x, b.x); minZ = Math.min(minZ, a.z, b.z); maxZ = Math.max(maxZ, a.z, b.z);
 }

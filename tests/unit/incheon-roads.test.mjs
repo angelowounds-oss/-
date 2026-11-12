@@ -21,11 +21,11 @@ const conns = N.roads.filter((r) => r.kind === 'connector' && r.city === 'airfie
 m.connectors = conns.map((r) => r.id);
 for (const ref of ['110', '130']) if (!conns.some((r) => r.id === 'conn:airfield:' + ref)) bad.push(['no connector to', ref]);
 for (const r of conns) {
-  const j = byId.get(r.joinB?.road), n = r.pts.length; let off = 0, grade = 0;
+  const j = byId.get(r.joinB?.road), n = r.x.length; let off = 0, grade = 0;
   if (!j) { bad.push(['connector joins nothing', r.id]); continue; }
   if (Math.abs(r.y[0]) > 0.5) bad.push(['connector does not start on the plateau', r.id, r.y[0]]);
   if (Math.abs(r.y[n - 1] - j.y[r.joinB.i]) > 0.3) bad.push(['connector misses the motorway height', r.id, r.y[n - 1], j.y[r.joinB.i]]);
-  for (let i = 0; i < n; i++) { if (r.cls[i] === 0 && Math.abs(r.y[i] - groundH(r.pts[i][0], r.pts[i][1])) > 4) off++; if (i) grade = Math.max(grade, Math.abs(r.y[i] - r.y[i - 1]) / Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1])); }
+  for (let i = 0; i < n; i++) { if (r.cls[i] === 0 && Math.abs(r.y[i] - groundH(r.x[i], r.z[i])) > 4) off++; if (i) grade = Math.max(grade, Math.abs(r.y[i] - r.y[i - 1]) / Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1])); }
   m[r.id] = { pts: n, off, grade: +grade.toFixed(3) };
   if (off) bad.push(['connector off the ground', r.id, off]); if (grade > 0.07) bad.push(['connector grade', r.id, grade]);
 }

@@ -4,7 +4,7 @@
 import path from 'node:path';
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { readRegion, KEEP, BAND } from '../../build/world/emit.mjs';
-import { makeBuildings, toTiles, readTile, KIND, TILE_OFF } from '../../build/world/blocks.mjs';
+import { makeBuildings, toTiles, readTile, KIND } from '../../build/world/blocks.mjs';
 
 const file = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital/region.bin');
 const R0 = readRegion(file), bad = [], m = {};

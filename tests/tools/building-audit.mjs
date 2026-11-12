@@ -5,7 +5,7 @@
 import '../../build/jobs.mjs';
 import fs from 'node:fs';
 const { layouts } = await import('../../src/citylayout.js');
-const { cities, SEA } = await import('../../src/worldmap.js');
+const { cities } = await import('../../src/worldmap.js');
 const { settlements, layoutVillage } = await import('../../src/settlements.js');
 const { cityUid, landmarkUid, villageUid, farmUid } = await import('../../src/buildingid.js');
 const { landHeight } = await import('../../src/landfn.js');

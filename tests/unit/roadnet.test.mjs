@@ -11,7 +11,7 @@ for (const c of cs) if (!N.rings.get(c.id) || !N.rings.get(c.id).roads.length) b
 const kinds = { ring: 0, highway: 0, connector: 0, ramp: 0 }; let km = 0, bridge = 0, tunnel = 0, samples = 0, maxGrade = 0, nan = 0;
 for (const r of N.roads) {
   kinds[r.kind]++; if (r.kind === 'ramp') continue;   // ramps are short and steep, they are checked for existence only
-  for (let i = 0; i < r.pts.length; i++) { samples++; if (!Number.isFinite(r.y[i]) || !Number.isFinite(r.pts[i][0])) nan++; if (r.cls[i] === 1) bridge++; if (r.cls[i] === 2) tunnel++; if (i) { km += Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]); maxGrade = Math.max(maxGrade, Math.abs(r.y[i] - r.y[i - 1]) / Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1])); } }
+  for (let i = 0; i < r.x.length; i++) { samples++; if (!Number.isFinite(r.y[i]) || !Number.isFinite(r.x[i])) nan++; if (r.cls[i] === 1) bridge++; if (r.cls[i] === 2) tunnel++; if (i) { km += Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1]); maxGrade = Math.max(maxGrade, Math.abs(r.y[i] - r.y[i - 1]) / Math.hypot(r.x[i] - r.x[i - 1], r.z[i] - r.z[i - 1])); } }
 }
 if (nan) bad.push(['NaN', nan]);
 if (kinds.highway < highways().length - 1) bad.push(['highways lost', kinds.highway, highways().length]);
@@ -25,7 +25,7 @@ if (bridge / samples > 0.2 || tunnel / samples > 0.2) bad.push(['too many bridge
 if (kinds.ramp < N.junctions.length) bad.push(['ramps', kinds.ramp]);
 if (!N.tolls.length || !N.services.length || !N.gantries.length) bad.push(['facilities', N.tolls.length, N.services.length, N.gantries.length]);
 // index + grading (highways and pads only: the country roads are left out so the ground stays the flat 50 m the test feeds in)
-let miss = 0, off = 0; for (let k = 0; k < 400; k++) { const flat = N.roads.filter((q) => q.kind !== 'ramp'), r = flat[k % flat.length], i = (k * 37) % r.pts.length, p = r.pts[i], q = roadAt(p[0], p[1]); if (!q || q.d > 1) miss++; else if (r.cls[i] === 0 && Math.abs(gradeGround(p[0], p[1], 50, false, () => 50, false) - (r.y[i] - 0.25)) > 1.0) off++; }
+let miss = 0, off = 0; for (let k = 0; k < 400; k++) { const flat = N.roads.filter((q) => q.kind !== 'ramp'), r = flat[k % flat.length], i = (k * 37) % r.x.length, p = [r.x[i], r.z[i]], q = roadAt(p[0], p[1]); if (!q || q.d > 1) miss++; else if (r.cls[i] === 0 && Math.abs(gradeGround(p[0], p[1], 50, false, () => 50, false) - (r.y[i] - 0.25)) > 1.0) off++; }
 if (miss) bad.push(['roadAt missed', miss]); if (off > 12) bad.push(['grading off the surface', off]);
 if (roadAt(0, 0) !== null) bad.push(['road at the capital centre']);
 if (ms > 4000) bad.push(['slow', ms]);

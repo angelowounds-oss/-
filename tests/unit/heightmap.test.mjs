@@ -1,10 +1,9 @@
 // Baked height tiles: the tile a job makes must give back the ground of landfn.js at its nodes (to the 0.1 m of the Int16 step) and stay close between
 // nodes, the predictor coding must round-trip, rivers must be cut into the ground, and a missing tile must fall back to the computation.
-import zlib from 'node:zlib';
 import fs from 'node:fs';
 import '../../build/jobs.mjs';   // installs the compiled region (when there is one) as the bake does, so the tiles and landfn here agree
 import { bake } from '../../build/bake.mjs';
-import { openContainer, decodeChunk } from '../../src/bakefmt.js';
+import { openContainer } from '../../src/bakefmt.js';
 import { encodeTile, decodeTile, N1, TILE, CN, levels, sample, loadResident, colorAt, TILE_ORIGIN } from '../../src/heightmap.js';
 import { landProc, physProc, landHeight, riverAt, bedDepth } from '../../src/landfn.js';
 import { rivers, highways } from '../../src/worldmap.js';
@@ -26,13 +25,13 @@ if (n !== want.size) bad.push(['loaded', n, want.size]);
 { const h = new Float32Array(N1 * N1).map((_, k) => Math.sin(k * 0.013) * 400 + (k % 7)), e = decodeTile(encodeTile(h)); for (let k = 0; k < h.length; k++) if (Math.abs(e[k] * 0.1 - h[k]) > 0.051) { bad.push(['predictor', k]); break; } }
 
 // at the nodes: exact to the step; between the nodes: close
-let maxNode = 0, maxMid = 0, cnt = 0;
+let maxNode = 0, maxMid = 0;
 for (const [x, z] of spots) {
   const [i, j] = tileOf(x, z), x0 = TILE_ORIGIN.x + i * 4096, z0 = TILE_ORIGIN.z + j * 4096;
   for (let q = 0; q < 300; q++) {
     const a = (q * 37) % TILE, b = (q * 91) % TILE, nx = x0 + a * 16, nz = z0 + b * 16, mx = nx + 8, mz = nz + 8;
     maxNode = Math.max(maxNode, Math.abs(sample(nx, nz) - landProc(nx, nz, 16)));
-    maxMid = Math.max(maxMid, Math.abs(sample(mx, mz) - landProc(mx, mz, 16))); cnt++;
+    maxMid = Math.max(maxMid, Math.abs(sample(mx, mz) - landProc(mx, mz, 16)));
   }
 }
 if (maxNode > 0.06) bad.push(['node error', maxNode]);

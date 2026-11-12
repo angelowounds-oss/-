@@ -11,8 +11,8 @@ for (const r of net().roads) {
   const D = oldDeck(r, 0, 1e9); m.quads += D.n;
   // a quad exists for every segment where an edge of the asphalt or its centre is off; a centre line sample that is off must lie in one
   const half = oldHalf(r);
-  for (let i = 0; i + 1 < r.pts.length; i++) {
-    const [x, z] = r.pts[i]; if (r.kind !== 'connector' && regionWeight(x, z) >= 1) m.inRegion++;
+  for (let i = 0; i + 1 < r.x.length; i++) {
+    const x = r.x[i], z = r.z[i]; if (r.kind !== 'connector' && regionWeight(x, z) >= 1) m.inRegion++;
     m.samples++; const off = Math.abs(physHeight(x, z, 8) - (r.y[i] - 0.25)) > 0.3;
     if (off && !D.P.length) m.uncovered++;
   }

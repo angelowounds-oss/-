@@ -32,8 +32,10 @@ fs.writeFileSync(path.join(game, '.hidden'), 'no'); fs.writeFileSync(path.join(t
 const other = path.join(tmp, 'other'); fs.mkdirSync(other); fs.writeFileSync(path.join(other, 'index.html'), 'x');
 
 // starts the launcher; resolves with {p, url, port} once it printed its address
+// every launcher this test starts, so none outlives it: one left waiting for its idle time kept the runner's output pipe open for 600 s
+const started = [];
 const start = (args) => new Promise((res, rej) => {
-  const p = spawn(bin, args, { env }); let out = '', err = '';
+  const p = spawn(bin, args, { env }); started.push(p); let out = '', err = '';
   p.stdout.on('data', (d) => { out += d; const m = out.match(/KOREA_URL (http:\/\/127\.0\.0\.1:(\d+)\/)/); if (m) res({ p, url: m[1], port: +m[2] }); });
   p.stderr.on('data', (d) => { err += d; }); p.on('exit', (c) => rej(new Error('exited ' + c + ' ' + err.slice(-300))));
   setTimeout(() => rej(new Error('no address')), 10000);
@@ -74,7 +76,8 @@ try {
   // a goodbye beacon (POST, as sendBeacon sends) ends it 10 s later unless the page pings again
   const b = await start(['--dir', game, '--port', '0', '--no-browser', '--idle', '600']);
   await req(b.port, '/__korea/ping'); await req(b.port, '/__korea/bye', { method: 'POST' });
-  const t1 = Date.now(), code2 = await exited(b.p, 15000); metrics.byeExitS = +((Date.now() - t1) / 1000).toFixed(1);
+  // 10 s by design; a loaded machine (the full suite) took over 15
+  const t1 = Date.now(), code2 = await exited(b.p, 30000); metrics.byeExitS = +((Date.now() - t1) / 1000).toFixed(1);
   if (code2 !== 0) bad.push(['no exit after bye', code2]);
 
   // default ports: a second start for the same folder only opens a window; one for another folder is refused
@@ -89,5 +92,6 @@ try {
   const none = await run(['--dir', path.join(tmp, 'nothing'), '--port', '0', '--no-browser'], 8000);
   if (none.code !== 1 || !/압축을 모두 푼 뒤/.test(none.all)) bad.push(['missing folder', none.code]);
 } catch (e) { bad.push(['error', e.message]); }
+for (const p of started) if (p.exitCode === null) p.kill();
 fs.rmSync(tmp, { recursive: true, force: true });
 done();

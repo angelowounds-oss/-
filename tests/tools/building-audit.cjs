@@ -9,8 +9,8 @@ const { openGame, freeze } = require('../lib.cjs');
 const fs = require('fs');
 
 const AUDIT = () => {
-  const g = window.__game, B = g.buildings, col = g.world.colliders, THREE = window.__THREE;
-  const CS = 0.1, BODY = 0.36, BLOCK = new Set(['int', 'part', 'glass', 'furniture', 'building', 'decor']);
+  const g = window.__game, col = g.world.colliders, THREE = window.__THREE;
+  const CS = 0.1, BLOCK = new Set(['int', 'part', 'glass', 'furniture', 'building', 'decor']);
   const finite = (...a) => a.every(Number.isFinite);
 
   function floorCheck(bd, k, add) {
@@ -60,7 +60,7 @@ const AUDIT = () => {
     const obst = boxes.filter((b) => BLOCK.has(b.tag) && b.y0 < top + 1.7 && b.h > top + 0.43);
     const sb2 = bd.stairB, rooms = fl.rooms || [];
     const unreached = {};   // by body: the rooms that cannot be reached
-    let shareThin = 1, thin = null, mid = null;
+    let shareThin = 1, mid = null;
     for (const BODY of [0.2, 0.28, 0.36]) {
       const free = base.slice();
       for (const b of obst) for (let j = Math.max(0, Math.floor((b.z0 - BODY - gz0) / CS)); j <= Math.min(D - 1, Math.floor((b.z1 + BODY - gz0) / CS)); j++) for (let i = Math.max(0, Math.floor((b.x0 - BODY - gx0) / CS)); i <= Math.min(W - 1, Math.floor((b.x1 + BODY - gx0) / CS)); i++) {
@@ -84,7 +84,6 @@ const AUDIT = () => {
       unreached[BODY] = bad;
       if (BODY === 0.28) mid = { seen, par };
       if (BODY === 0.2) {
-        thin = { seen, par, free };
         shareThin = nSeen / Math.max(1, nFree);
         if (k === 0 && sb2) { const c = nearFree((sb2.x0 + sb2.x1) / 2, sb2.z1 + 1.2, 1.5); if (c < 0 || !seen[c]) S('stair-unreachable-from-door'); }
         if (window.__auditDump && window.__auditDump.k === k && window.__auditDump.uid === bd.lot.uid) {   // debugging aid: the walk grid as text (. free, o reached, # blocked, R room centre)

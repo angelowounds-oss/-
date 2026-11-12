@@ -18,7 +18,7 @@ const fs = require('fs');
     const cam = new THREE.PerspectiveCamera(40, 1, 1, 3000);
     let i = 0;
     for (const l of picks) {
-      const cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, dist = l.h * 1.6 + 60, ty = l.h * 0.75;
+      const cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, dist = l.h * 1.6 + 60;
       for (const sgn of [1]) {
         cam.position.set(cx + sgn * dist * 0.75, l.h * 0.9 + 20, cz + sgn * dist * 0.75); cam.lookAt(cx, l.h * 0.5, cz);
         g.scene.updateMatrixWorld(true); R.render(g.scene, cam);
