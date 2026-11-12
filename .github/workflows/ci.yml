@@ -1,0 +1,53 @@
+# CI (EV-90). Two jobs:
+#  - light: every push and pull request, on GitHub's runners. Lint of the changed lines and the unit tests that need no baked world
+#    (tests/run.cjs suite "ci"). About 5 minutes.
+#  - full: the build and the quick suite (unit + smoke + render identity), which need the baked world and the OSM cache (several GB,
+#    not in git). It runs only on a self-hosted runner that keeps build/baked and build/.osm-cache between runs, when the repository
+#    variable FULL_CI is 'true'. Which runner hosts it is the owner's decision (AAA directive, EV-90).
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  light:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: build/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm ci
+        working-directory: build
+      - name: lint (changed lines)
+        run: node build/lint.mjs --base ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+      - name: unit tests without baked data
+        run: node tests/run.cjs ci
+  full:
+    if: vars.FULL_CI == 'true'
+    runs-on: self-hosted
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+      - run: npm ci
+        working-directory: build
+      - name: build (incremental: the runner keeps build/baked and build/.osm-cache)
+        run: WORLD_PROVINCES= DIST=../dist-ci LAUNCHER=0 PACK=0 node build/build.mjs
+      - name: quick suite
+        run: GAME_DIR=$PWD/../dist-ci/game node tests/run.cjs quick
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: tests/results/
