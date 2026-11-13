@@ -142,6 +142,7 @@ function ground(R, gh, x, z) {
 // and lifted where it must stand higher (opt: V the height scale, spans the main spans of the sea bridges, nearY the surface of the lines done before)
 const WHY = { osm: 1, crossing: 2, fill: 3, cut: 4, bump: 5 }, WHY_NAME = ['', 'osm', 'crossing', 'fill', 'cut', 'bump'];
 const SEA_DECK = 6;   // game metres of a deck over the sea or wide water at the least (ADR-0037): bridging the shores straight left it about 3 m over the sea
+const DECK_CLEAR = 3;   // the ground under a deck of a line without ground of its own (grade.mjs CLEAR)
 function profile(L, R, gh, claimed, opt = {}) {
   const n = L.n, g = new Float64Array(n), fixed = new Uint8Array(n), floor = new Float64Array(n).fill(-Infinity), V = opt.V || 0.25;
   L.why = Uint8Array.from(L.cls, (c) => (c ? WHY.osm : 0));   // why a sample is a bridge or a tunnel, for the numbers
@@ -155,9 +156,18 @@ function profile(L, R, gh, claimed, opt = {}) {
     for (const s of opt.spans || []) if (s.ref === L.ref && s.deck > 0 && Math.hypot(L.X[i] - s.x, L.Z[i] - s.z) < s.half) floor[i] = Math.max(floor[i], s.deck);
     if (floor[i] > -Infinity) lift = true;
   }
-  // a line with no ground at all (a bridge that OpenStreetMap chains apart from its road) takes its ends from the lines laid before it; it used to
-  // lie on the water (0 here, y = -4 in the game)
-  if (!dry && opt.nearY) { const a = opt.nearY(L.X[0], L.Z[0]), b = opt.nearY(L.X[n - 1], L.Z[n - 1]); g[0] = a ?? b ?? 0; g[n - 1] = b ?? a ?? 0; }
+  // a line with no ground at all (a bridge or a tunnel that OpenStreetMap chains apart from its road) takes each end from a line laid before it at
+  // that very point (a shared node), else from the ground there. It took the nearest sample of any earlier line within 130 m, whatever its height,
+  // or 0 (y = -4 in the game): trunk 30 ran 90 m over the city for 10 km and met its ramp at the ground in a 91 m step (WLD-36)
+  if (!dry && opt.nearY) {
+    const endY = (x, z) => opt.nearY(x, z, 1) ?? ground(R, gh, x, z);
+    g[0] = endY(L.X[0], L.Z[0]); g[n - 1] = endY(L.X[n - 1], L.Z[n - 1]);
+    // its decks clear the ground (DECK_CLEAR, as grade.mjs keeps under a deck) away from their ends, the clearance growing at the class grade from each end
+    const s = [0]; for (let i = 1; i < n; i++) s.push(s[i - 1] + Math.hypot(L.X[i] - L.X[i - 1], L.Z[i] - L.Z[i - 1]));
+    for (let i = 1; i < n - 1; i++) if (L.cls[i] === 1 && R.water[Math.round((L.Z[i] - R.z0) / R.g) * R.nx + Math.round((L.X[i] - R.x0) / R.g)] !== 1) {
+      floor[i] = Math.max(floor[i], ground(R, gh, L.X[i], L.Z[i]) + Math.min(DECK_CLEAR, 0.9 * CLASS[L.hw].grade * Math.min(s[i], s[n - 1] - s[i]))); lift = true;
+    }
+  }
   // fill the gaps by straight lines between the ground on either side
   let last = -1;
   for (let i = 0; i <= n; i++) {
@@ -573,7 +583,7 @@ export function roadPass(R, gh, els, sites = [], opt = {}) {
   const claimed = new Uint8Array(R.nx * R.nz);
   lines.sort((a, b) => CLASS[a.hw].order - CLASS[b.hw].order || b.n - a.n);
   // the surface of the lines done so far nearest a point (within SNAP), for a line with no ground of its own
-  const done = [], nearY = (x, z) => { let best = null, bd = SNAP; for (const D of done) for (let q = 0; q < D.n; q++) { const d = Math.hypot(D.X[q] - x, D.Z[q] - z); if (d < bd) { bd = d; best = D.Y[q]; } } return best; };
+  const done = [], nearY = (x, z, within = SNAP) => { let best = null, bd = within; for (const D of done) for (let q = 0; q < D.n; q++) { const d = Math.hypot(D.X[q] - x, D.Z[q] - z); if (d < bd) { bd = d; best = D.Y[q]; } } return best; };
   for (const L of lines) { profile(L, R, gh, claimed, { ...opt, nearY }); done.push(L); if (CLASS[L.hw].lay !== false) layLine(R, gh, L, claimed); }
   const clearance = clearancePass(lines), weld = weldJunctions(lines), fuse = fuseOverlaps(lines, R, gh, claimed);
   // last, one rule for every road: the ground under a carriageway is never above its surface (it is only lowered), measured against the surface at

@@ -15,6 +15,7 @@
 //   6. the cells of the roads that 4b and 5 moved follow them (after each).
 //   7. the ground over a lining 5 could not lower enough is raised over it.
 //   8. roads whose carriageways overlap are made one surface again (roads.mjs fuseOverlaps; the snap of 4 parts them), the ground following them.
+//   9. the joins: line ends meet the road they join at its height, and a join leads only to a road at the end's height (joins.mjs).
 //   node build/world/grade.mjs [region.bin]   grades the region in place (a copy of the ungraded one is kept as region-raw.bin, graded again from it)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +23,7 @@ import zlib from 'node:zlib';
 import { encodeChunk } from '../../src/bakefmt.js';
 import { readRegion } from './emit.mjs';
 import { CLASS, fuseOverlaps } from './roads.mjs';
+import { joinPass } from './joins.mjs';
 
 const FOLLOW = new Set(['residential', 'living_street', 'unclassified', 'service']);
 // step 4b: the steepest grade a road on the ground keeps after the snap (a quarter over its design grade in roads.mjs: 7.5 % motorways, 10 % trunk and
@@ -32,7 +34,7 @@ const STEEP = Object.fromEntries(Object.entries(CLASS).map(([k, c]) => [k, c.gra
 // COVER: the tunnel lining of highways.js stands 7 m over the road (its portal 9 m); a metre of ground over the ceiling keeps the terrain off it
 // OPEN: with less ground than this over the road at a portal the hill is not there (the 16 m raster smooths hills down, so between OPEN and COVER the
 // ground is filled up instead of opening the tunnel into a cut)
-export const OPEN = 3, COVER = 8, CLEAR = 3, ABUT = 8, INNER = 12, SNAP = 2, APPROACH = 40, GRADE_VERSION = 4;
+export const OPEN = 3, COVER = 8, CLEAR = 3, ABUT = 8, INNER = 12, SNAP = 2, APPROACH = 40, GRADE_VERSION = 5;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // arc length along a line, sample by sample
@@ -83,22 +85,20 @@ export function gradeRegion(R) {
     if (e > INNER + W) continue;
     H[k] = tgt[k] + dh * sstep(INNER, INNER + W, e);
   }
-  // ---- 3. bridges: the clearance under the deck, the abutments meeting it
-  for (const r of R.roads) {
-    const s = arcOf(r);
-    for (const [a, b] of runsOf(r, 1)) {
-      const sa = s[a], sb = s[b];
-      for (let i = Math.max(0, a - 1); i < Math.min(r.x.length - 1, b + 1); i++) cells(r, i, r.half + 4 + 30, (k, d, t) => {
-        // under the deck itself the bridge decides (no street can pass there higher than the clearance allows); beside it a street keeps its height
-        if (wet(k) || (onRoad[k] && d > r.half)) return;
-        const y = r.y[i] + (r.y[i + 1] - r.y[i]) * t, si = s[i] + (s[i + 1] - s[i]) * t, end = Math.min(si - sa, sb - si);
-        // the clearance grows from 0.3 m at the abutment to CLEAR beyond ABUT; the cut slopes back over 1.5 x its depth
-        const clear = end <= 0 ? 0.3 : 0.3 + (CLEAR - 0.3) * sstep(0, ABUT, end), cap = y - clear; if (H[k] <= cap) return;
-        const reach = r.half + 4 + Math.min(30, 1.5 * (H[k] - cap)), w = 1 - sstep(r.half + 4, reach, d); if (w <= 0) return;
-        H[k] = H[k] + (cap - H[k]) * w; st.bridgeCells++; if (w > 0.99) st.bridgeCut++; own[k] = -1;   // the bridge's clearance is not graded again in 6
-      });
-    }
-  }
+  // ---- 3. bridges: the clearance under the deck, the abutments meeting it (bridgeClear: also for the runs step 9 lays again)
+  const bridgeClear = (r, a, b, s = arcOf(r)) => {
+    const sa = s[a], sb = s[b];
+    for (let i = Math.max(0, a - 1); i < Math.min(r.x.length - 1, b + 1); i++) cells(r, i, r.half + 4 + 30, (k, d, t) => {
+      // under the deck itself the bridge decides (no street can pass there higher than the clearance allows); beside it a street keeps its height
+      if (wet(k) || (onRoad[k] && d > r.half)) return;
+      const y = r.y[i] + (r.y[i + 1] - r.y[i]) * t, si = s[i] + (s[i + 1] - s[i]) * t, end = Math.min(si - sa, sb - si);
+      // the clearance grows from 0.3 m at the abutment to CLEAR beyond ABUT; the cut slopes back over 1.5 x its depth
+      const clear = end <= 0 ? 0.3 : 0.3 + (CLEAR - 0.3) * sstep(0, ABUT, end), cap = y - clear; if (H[k] <= cap) return;
+      const reach = r.half + 4 + Math.min(30, 1.5 * (H[k] - cap)), w = 1 - sstep(r.half + 4, reach, d); if (w <= 0) return;
+      H[k] = H[k] + (cap - H[k]) * w; st.bridgeCells++; if (w > 0.99) st.bridgeCut++; own[k] = -1;   // the bridge's clearance is not graded again in 6
+    });
+  };
+  for (const r of R.roads) { const s = arcOf(r); for (const [a, b] of runsOf(r, 1)) bridgeClear(r, a, b, s); }
   for (let k = 0; k < N; k++) R.h[k] = Math.max(-32768, Math.min(32767, Math.round(H[k] * 10)));
   // ---- 4. the roads on the ground take the graded ground's height where it is within SNAP of their own: all lines meeting at a junction then share one
   // surface (their profiles were smoothed apart), and the drawn road, the drawn ground and the physics ground are one. A larger difference is a retaining
@@ -180,12 +180,14 @@ export function gradeRegion(R) {
   // ground over the lining is raised to it and 0.7 m over it, across the lining and fading out 14 m past the road's edge, but not on the ground of a
   // road nearer than the tunnel (a street over it keeps its height) nor under a bridge
   st.covered = 0;
-  for (const r of R.roads) for (const [a, b] of runsOf(r, 2)) for (let i = a; i < b; i++) cells(r, i, r.half + 14, (k, d, t) => {
+  // (a function: step 9 covers the linings again after its ground moves)
+  const coverLinings = () => { for (const r of R.roads) for (const [a, b] of runsOf(r, 2)) for (let i = a; i < b; i++) cells(r, i, r.half + 14, (k, d, t) => {
     if (wet(k) || (best[k] < 1e8 && own[k] < 0) || (own[k] >= 0 && best[k] + R.roads[own[k]].half <= d)) return;
     const need = r.y[i] + (r.y[i + 1] - r.y[i]) * t + 5.4; if (H[k] >= need) return;
     const w = 1 - sstep(r.half + 3, r.half + 14, d); if (w <= 0) return;
     H[k] += (need - H[k]) * w; R.h[k] = Math.max(-32768, Math.min(32767, Math.round(H[k] * 10))); st.covered++;
-  });
+  }); };
+  coverLinings();
   // ---- 8. the snap (4) and the easing (4b) part again roads whose carriageways overlap and that the compile's fuse step had made one surface (1,800 of
   // the 200 m cells of road-overlap came back): the same step once more over the graded roads, moving the ground under a moved ground stretch with it
   // (the fade only over cells no road holds)
@@ -197,30 +199,49 @@ export function gradeRegion(R) {
   const y8 = R.roads.map((r) => Float32Array.from(r.y)), g8 = R.roads.map((r) => Float32Array.from(r.x, (x, i) => G(x, r.z[i])));
   st.fuse = fuseOverlaps(lines, { g, nx, nz, x0, z0, water: R.water }, H, onRoad, { mayRelay, still: (L) => FOLLOW.has(L.hw) });   // a street follows its ground (moved, it stood off the mixed raster at 10,000 samples)
   for (let k = 0; k < N; k++) R.h[k] = Math.max(-32768, Math.min(32767, Math.round(H[k] * 10)));
-  // a street (FOLLOW) this step left where it was, whose ground a moved road beside it took along, follows its ground again as in rule 4 (the main
-  // roads keep their height: snapped to the ground the moved road shares with them, they stepped over their grade at 1,100 places)
-  st.resnapped = 0;
-  R.roads.forEach((r, ri) => { for (let i = 0; i < r.x.length; i++) {
-    if (!FOLLOW.has(r.hw) || r.cls[i] || Math.abs(r.y[i] - y8[ri][i]) > 0.02) continue;
-    const gy = G(r.x[i], r.z[i]), d = r.y[i] - gy; if (Math.abs(gy - g8[ri][i]) < 0.02 || Math.abs(d) <= 0.02) continue;
-    r.y[i] = gy; st.resnapped++;
-  } });
-  // the resnapped streets eased back to their grade as in 4b (the raster mixes the heights of the roads it carries), and their cells follow them as in 6
-  const base8 = R.roads.map((r) => Float32Array.from(r.y));
-  R.roads.forEach((r, ri) => {
-    const lim = STEEP[r.hw]; if (!lim || !FOLLOW.has(r.hw)) return;
-    for (let pass = 0; pass < EASE_PASSES; pass++) {
-      let moved = false;
-      for (let i = 0; i + 1 < r.x.length; i++) {
-        const a = !r.cls[i], b = !r.cls[i + 1]; if (!a && !b) continue;
-        const sg = Math.hypot(r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]), dy = r.y[i + 1] - r.y[i], ex = Math.abs(dy) - lim * sg; if (sg < 1 || ex <= 0.005) continue;
-        const sd = Math.sign(dy) * ex; if (a && b) { r.y[i] += sd / 2; r.y[i + 1] -= sd / 2; } else if (a) r.y[i] += sd; else r.y[i + 1] -= sd;
-        moved = true; if (!pass) st.eased8 = (st.eased8 || 0) + 1;
+  // a street (FOLLOW) this step left where it was (y0: its heights before the step, g0: its ground then), whose ground a moved road beside it took
+  // along, follows its ground again as in rule 4 (the main roads keep their height: snapped to the ground the moved road shares with them, they
+  // stepped over their grade at 1,100 places); the resnapped streets are eased back to their grade as in 4b (the raster mixes the heights of the roads
+  // it carries), and their cells follow them as in 6. Again after step 9 (key: the count's name)
+  const resettle = (y0, g0, key, pin = null) => {   // pin: per road, the samples that keep their height (step 9's joins)
+    let n = 0;
+    R.roads.forEach((r, ri) => { for (let i = 0; i < r.x.length; i++) {
+      if (!FOLLOW.has(r.hw) || r.cls[i] || Math.abs(r.y[i] - y0[ri][i]) > 0.02 || (pin && pin[ri] && pin[ri][i])) continue;
+      const gy = G(r.x[i], r.z[i]), d = r.y[i] - gy; if (Math.abs(gy - g0[ri][i]) < 0.02 || Math.abs(d) <= 0.02) continue;
+      r.y[i] = gy; n++;
+    } });
+    st['resnapped' + key] = n; const ek = 'eased' + (key || '8');   // the counts of step 8 keep their names (resnapped, eased8)
+    const base = R.roads.map((r) => Float32Array.from(r.y));
+    R.roads.forEach((r, ri) => {
+      const lim = STEEP[r.hw], P = pin && pin[ri]; if (!lim || !FOLLOW.has(r.hw)) return;
+      for (let pass = 0; pass < EASE_PASSES; pass++) {
+        let moved = false;
+        for (let i = 0; i + 1 < r.x.length; i++) {
+          const a = !r.cls[i] && !(P && P[i]), b = !r.cls[i + 1] && !(P && P[i + 1]); if (!a && !b) continue;
+          const sg = Math.hypot(r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]), dy = r.y[i + 1] - r.y[i], ex = Math.abs(dy) - lim * sg; if (sg < 1 || ex <= 0.005) continue;
+          const sd = Math.sign(dy) * ex; if (a && b) { r.y[i] += sd / 2; r.y[i + 1] -= sd / 2; } else if (a) r.y[i] += sd; else r.y[i + 1] -= sd;
+          moved = true; if (!pass) st[ek] = (st[ek] || 0) + 1;
+        }
+        if (!moved) break;
       }
-      if (!moved) break;
-    }
-  });
-  follow(base8);
+    });
+    follow(base);
+  };
+  resettle(y8, g8, '');
+  // ---- 9. the joins (joins.mjs, WLD-36): a bridge run carried to a line end at the wrong height laid again to the road it joins there, the steps
+  // left at the joins welded within the class grade, and the joins themselves made again with heights; the ground follows the roads moved on it
+  // (as in 6) and is cleared under the bridges laid again (as in 3); the streets whose ground that moved follow it again and the linings are covered
+  // again (as in 8 and 7: left, 18,000 samples stood off the ground and 250 linings showed through it)
+  const base9 = R.roads.map((r) => Float32Array.from(r.y)), g9 = R.roads.map((r) => Float32Array.from(r.x, (x, i) => G(x, r.z[i])));
+  const J = joinPass(R, G); st.joins = J.st;
+  follow(base9);
+  for (const [r, a, b] of J.runs) for (const [p, q] of runsOf(r, 1)) if (q >= a && p <= b) bridgeClear(r, p, q);
+  for (let k = 0; k < N; k++) R.h[k] = Math.max(-32768, Math.min(32767, Math.round(H[k] * 10)));
+  // the samples step 9 moved itself keep their height, and so do both sides of every join (resnapped, the streets parted 1,800 joins again)
+  const pin9 = R.roads.map(() => null), pinAt = (ri, i) => { (pin9[ri] ||= new Uint8Array(R.roads[ri].x.length))[i] = 1; };
+  R.roads.forEach((r, ri) => { for (const [e, links] of [[0, r.prev], [r.x.length - 1, r.next]]) for (const [li, j] of links || []) { pinAt(ri, e); if (R.roads[li] && j < R.roads[li].x.length) pinAt(li, j); } });
+  resettle(base9, g9, '9', pin9);
+  coverLinings();
   R.graded = GRADE_VERSION;
   return st;
 }
