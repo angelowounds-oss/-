@@ -1,4 +1,4 @@
-import { el } from './util.js';
+import { el, hyp } from './util.js';
 import { keys as binds } from './keys.js';
 import { N, P, roadC, roadIdx, hasEdge } from './world.js';
 import { ZONES } from './society.js';
@@ -54,7 +54,7 @@ export class Phone {
     else if (this.tab === 'world') {
       const w = G.waypoint, f = G.focusPos(), city = G.citysites?.cityAt(f.x, f.z, 300) || null;
       this.row('세계 지도', '100 km 전체 · 4단계 확대 · 클릭으로 목적지 지정 (J)', [['열기', () => { this.close(); G.wmap.toggle(true); }]]);
-      this.row(w ? w.name : '목적지 없음', w ? `${(Math.hypot(w.x - f.x, w.z - f.z) / 1000).toFixed(1)} km` : '지도에서 지점을 눌러 지정', w ? [['자동 주행', () => { this.close(); G.wmap.auto(); }], ['빠른 이동', () => { this.close(); G.wmap.fast(); }], ['해제', () => { G.wmap.clear(); this.render(); }]] : []);
+      this.row(w ? w.name : '목적지 없음', w ? `${(hyp(w.x - f.x, w.z - f.z) / 1000).toFixed(1)} km` : '지도에서 지점을 눌러 지정', w ? [['자동 주행', () => { this.close(); G.wmap.auto(); }], ['빠른 이동', () => { this.close(); G.wmap.fast(); }], ['해제', () => { G.wmap.clear(); this.render(); }]] : []);
       this.row(city ? city.name : '도시 밖', city ? { metropolis: '수도', port: '항만 도시', airport: '공항 도시', town: '중소 도시' }[city.type] : '고속도로 · 들판', []);
     }
     else if (this.tab === 'people') this.renderPeople();
@@ -66,7 +66,7 @@ export class Phone {
     }
     else if (this.tab === 'contacts') {
       this.row('택시 호출', '현재 위치로 택시가 옵니다 · 탑승 후 지도 목적지로 이동', [['호출', () => { G.callTaxi(); this.close(); }]]);
-      this.row('정비사 호출', '가까운 내 차량 수리 $180', [['요청', () => { const v = G.lastVehicle; if (v && !v.dead && Math.hypot(v.x - G.player.x, v.z - G.player.z) < 40 && G.cash >= 180) { G.cash -= 180; v.hp = v.maxHp; v.burn = 0; G.toast('정비사', '수리 완료'); } else G.toast('수리 불가', '차량이 40m 안에 있어야 합니다'); }]]);
+      this.row('정비사 호출', '가까운 내 차량 수리 $180', [['요청', () => { const v = G.lastVehicle; if (v && !v.dead && hyp(v.x - G.player.x, v.z - G.player.z) < 40 && G.cash >= 180) { G.cash -= 180; v.hp = v.maxHp; v.burn = 0; G.toast('정비사', '수리 완료'); } else G.toast('수리 불가', '차량이 40m 안에 있어야 합니다'); }]]);
       this.row('병원 위치', G.hospital ? G.hospital.name : '', [['표시', () => { if (G.hospital) G.setWaypoint(G.hospital.x, G.hospital.z); }]]);
       this.row('병원 응급 처치', 'HP 전부 회복 $120', [['요청', () => { if (G.cash >= 120) { G.cash -= 120; G.player.hpv = 100; G.player.bleed = 0; G.toast('치료 완료'); } else G.toast('돈이 부족합니다'); }]]);
       this.row('경찰 자수', '수배 해제 · 벌금 $200×★', [['자수', () => { if (G.wanted > 0) { const f = Math.min(G.cash, 200 * G.wanted); G.cash -= f; G.clearWanted(); G.toast('자수', `벌금 $${f | 0}`); } else G.toast('수배 중이 아닙니다'); }]]);
@@ -101,7 +101,7 @@ export class Phone {
     this.body.appendChild(inp);
     const pl = G.player, alive = C.list.filter((c) => !C.st.dead[c.id]);
     const list = this.q ? alive.filter((c) => c.name.includes(this.q)).slice(0, 25)
-      : alive.map((c) => { const L = C.locate(c); return [c, Math.hypot(L.x - pl.x, L.z - pl.z)]; }).sort((a, b) => a[1] - b[1]).slice(0, 15).map((a) => a[0]);
+      : alive.map((c) => { const L = C.locate(c); return [c, hyp(L.x - pl.x, L.z - pl.z)]; }).sort((a, b) => a[1] - b[1]).slice(0, 15).map((a) => a[0]);
     this.row(`등록 주민 ${C.list.length}명`, `사망 ${Object.keys(C.st.dead).length}명`, []);
     for (const c of list) {
       this.row(`${c.name} <small>${c.age}세 · ${c.job} · ${C.status(c)}</small>`, `집: ${C.addr(c)}${c.work ? ` · 직장: ${c.work.b.name} ${c.work.k + 1}층` : ''}`, [['추적', () => {
@@ -120,7 +120,7 @@ export class Phone {
     if (G.markerPos) { g.fillStyle = '#ffc94d'; g.beginPath(); g.arc(tx(G.markerPos.x), tz(G.markerPos.z), 5, 0, 7); g.fill(); }
     const pl = G.player; g.fillStyle = '#4de3ff'; g.strokeStyle = '#000'; g.beginPath(); g.arc(tx(pl.x), tz(pl.z), 5, 0, 7); g.fill(); g.stroke();
     cv.onpointerdown = (e) => { const r = cv.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * 300 / S - half, z = ((e.clientY - r.top) / r.height) * 300 / S - half; G.setWaypoint(x, z); this.render(); };
-    this.row('지도를 눌러 목적지 설정', G.markerPos ? `거리 ${Math.hypot(G.markerPos.x - pl.x, G.markerPos.z - pl.z) | 0}m` : '목적지 없음', [['해제', () => { G.hideBeacon(); G.gpsPath = null; }]]);
+    this.row('지도를 눌러 목적지 설정', G.markerPos ? `거리 ${hyp(G.markerPos.x - pl.x, G.markerPos.z - pl.z) | 0}m` : '목적지 없음', [['해제', () => { G.hideBeacon(); G.gpsPath = null; }]]);
   }
   photo(on) {
     document.body.classList.toggle('photo', on);

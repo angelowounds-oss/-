@@ -1,8 +1,8 @@
 // The compiled provinces (ADR-0044, WLD-25c): in each compiled province of the built world, at its biggest real settlements, the ground under the
 // player is the province's raster, the player stands on it, its real buildings load; then the autopilot drives 2 km along one of its motorways or
 // trunk roads without leaving the road or falling through. PROVSHOTS=1 writes a picture of each place to tests/results/.
-// Not in tests/run.cjs yet: with a province loaded whole into the core chunk the renderer spikes past this container's 13 GB (ADR-0044); it
-// goes in with the raster streaming. The page is driven in short evaluates (a few hundred updates each): one long evaluate over a province grew the renderer until it was killed.
+// In the gameplay suite since the raster streaming (EV-01; loaded whole into the core chunk a province spiked the renderer past 13 GB, ADR-0044);
+// a build without a compiled province (WORLD_PROVINCES= ) passes it as skipped, as hiassets and pack do without their packs. The page is driven in short evaluates (a few hundred updates each): one long evaluate over a province grew the renderer until it was killed.
 const fs = require('node:fs'), path = require('node:path');
 const { run, freeze, result, ROOT } = require('../lib.cjs');
 run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.env.H || 300) }, async ({ page }) => {
@@ -15,7 +15,7 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
     window.__pp = {
       provs,
       step: async (n) => { const r = g.eng.render; g.eng.render = () => {}; for (let i = 0; i < n; i++) { window.__upd(1 / 60); if (i % 3 === 2) await new Promise((f) => setTimeout(f, 5)); } g.eng.render = r; },
-      owner: (x, z) => provs.find((P) => { const i = Math.round((x - P.x0) / P.g), j = Math.round((z - P.z0) / P.g); return i >= 0 && j >= 0 && i < P.nx && j < P.nz && P.own[j * P.nx + i] === 255; }),
+      owner: (x, z) => provs.find((P) => { const i = Math.round((x - P.x0) / P.g), j = Math.round((z - P.z0) / P.g); return i >= 0 && j >= 0 && i < P.nx && j < P.nz && RG.ownAt(P, i, j) === 255; }),   // ownAt: a streamed province keeps its owner bytes per tile (EV-01)
     };
     g.clock.scale = 0; g.clock.t = Math.floor(g.clock.t / 1440) * 1440 + 13 * 60; g.state.weather = { type: 'clear', until: g.clock.t + 1e9 };
     const RANK = { city: 4, town: 3, suburb: 2, village: 1 };
@@ -24,6 +24,7 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
   const o = { ...setup, places: [], drives: [] }, pics = {};
   for (const P of setup.provinces || []) {
     for (const q of P.places) {
+      await page.evaluate((q) => window.__region.regionLoad(q.x, q.z, 4000), q);   // the jump waits for the region's tiles there (EV-01)
       await page.evaluate((q) => { const g = window.__game, pl = g.player, L = window.__landfn, y = L.physHeight(q.x, q.z, 8) + 2; pl.body3.teleport(q.x, y, q.z); pl.x = q.x; pl.y = y; pl.z = q.z; pl.vx = pl.vy = pl.vz = 0; pl.dead = false; }, q);
       for (let k = 0; k < 12; k++) {
           const busy = await page.evaluate(async () => { await window.__pp.step(30); const RB = window.__game.realbuildings; return !!RB && (RB.jobs.length > 0 || [...RB.tiles.values()].some((r) => r.state !== 'ready')); });
@@ -54,11 +55,12 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
       return { region: name, line: line.id, hw: line.hw, started: g.autonav.start(ex, ez) };
     }, P.name);
     if (!d.noLine) {
-      for (let k = 0; k < 30; k++) {
+      // up to 100 s of driving (40 x 150 updates): 2 km at the autopilot's 90-108 km/h takes 70-80 s, so 75 s left the end to a few seconds of pace
+      for (let k = 0; k < 40; k++) {
         const on = await page.evaluate(async () => {
           const g = window.__game, L = window.__landfn, D = window.__pp.drive, v = D.v, line = D.line;
           for (let s = 0; s < 150 && g.autonav.active; s++) {
-            await window.__pp.step(1); D.top = Math.max(D.top, v.speed); const tr = v.pv.body.translation(), gy = L.physHeight(v.x, v.z, 8);
+            await window.__pp.step(1); D.steps = (D.steps || 0) + 1; D.top = Math.max(D.top, v.speed); const tr = v.pv.body.translation(), gy = L.physHeight(v.x, v.z, 8);
             let bd = Infinity; for (let q = Math.max(0, D.j - 20); q < Math.min(line.x.length, D.j + 40); q++) { const dd = Math.hypot(line.x[q] - v.x, line.z[q] - v.z); if (dd < bd) { bd = dd; D.j = q; } }
             D.minAbove = Math.min(D.minAbove, tr.y - gy); if (bd < 15) D.maxAbove = Math.max(D.maxAbove, tr.y - line.y[D.j]); D.offLine = Math.max(D.offLine, bd);
           }
@@ -68,7 +70,7 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
       }
       Object.assign(d, await page.evaluate(async () => {
         const g = window.__game, D = window.__pp.drive, v = D.v, r = { driven: Math.round(Math.hypot(v.x - D.x1, v.z - D.z1)), left: Math.round(Math.hypot(D.ex - v.x, D.ez - v.z)), topKmh: Math.round(D.top * 3.6), alive: !v.dead,
-          minAbove: +D.minAbove.toFixed(2), maxAbove: +D.maxAbove.toFixed(2), offLine: Math.round(D.offLine) };
+          minAbove: +D.minAbove.toFixed(2), maxAbove: +D.maxAbove.toFixed(2), offLine: Math.round(D.offLine), secs: Math.round((D.steps || 0) / 60), navActive: !!g.autonav.active };
         g.autonav.cancel && g.autonav.cancel(); g.exitVehicle(true); await window.__pp.step(30); return r;
       }));
     }
@@ -85,5 +87,7 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
   if (o.places.length && !o.places.some((p) => p.buildings > 0)) bad.push('no province buildings loaded');
   for (const d of o.drives) if (!d.noLine && (!d.alive || d.minAbove < -0.5 || d.offLine > 25 || d.left > 200)) bad.push('drive ' + JSON.stringify(d));
   delete o.provinces;
-  result('province-probe', bad.length === 0 && !o.noProvince, o, bad.join('; ') || (o.noProvince ? 'no compiled province in this build' : ''));
+  // a capital-only build has nothing to probe: skipped, not failed, so the gameplay suite runs on it
+  if (o.noProvince) o.skipped = 'no compiled province in this build';
+  result('province-probe', bad.length === 0, o, bad.join('; '));
 });

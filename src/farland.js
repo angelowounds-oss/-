@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { regionWeight } from './region.js';
+import { regionWeight, regionStream } from './region.js';
 import { surfaceColor, cities, SEA, WORLD_HALF } from './worldmap.js';
 import { EXTENT } from './terrain.js';
 import { landHeight, physHeight } from './landfn.js';
 import { stream, colorAt } from './heightmap.js';
+import { REG_REACH } from './regtile.js';
+import { VIEW, hyp, hyp3 } from './util.js';
 import { patchStandard, timeUniform } from './shaders.js';
 import { GR, grp } from './physics.js';
 import { LEVELS as SURF_LEVELS, lowestAround, surfVersion, changesSince } from './roadsurf.js';
@@ -47,12 +49,16 @@ export class Farland {
   constructor(scene, opts = {}) {
     this.scene = scene; this.group = new THREE.Group(); this.group.name = 'farland'; this.levels = []; this.levelCount = opts.levels || LEVELS;
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
-    patchStandard(this.mat, 'farland-v2', {
-      vertexDecl: 'varying vec2 vFW;varying float vFY;varying float vFS;', vertexMain: 'vec4 fwp=modelMatrix*vec4(transformed,1.);vFW=fwp.xz;vFY=fwp.y;vFS=objectNormal.y;',
-      fragDecl: `varying vec2 vFW;varying float vFY;varying float vFS;uniform float uTf;float fRough=.96,fMetal=0.,fBump=0.;vec3 fEmit=vec3(0.);
+    // the land's patterns are drawn in metres from uFO, a 64 km grid point near the camera (EV-04): in world metres the noise inputs reach 3.3 million
+    // at Jeju, where a 32-bit float has a step of 0.25 and the fine grain turns to blocks. A ring's own vertices are about its centre and its centre
+    // is a whole metre, so the ring's place less uFO is exact in 32 bits (the capital, within 32 km of 0, keeps its pattern)
+    this.FO = { value: new THREE.Vector2() };
+    patchStandard(this.mat, 'farland-v3', {
+      vertexDecl: 'varying vec2 vFW;varying float vFY;varying float vFS;uniform vec2 uFO;', vertexMain: 'vFW=(modelMatrix[3].xz-uFO)+transformed.xz;vFY=(modelMatrix*vec4(transformed,1.)).y;vFS=objectNormal.y;',
+      fragDecl: `varying vec2 vFW;varying float vFY;varying float vFS;uniform float uTf;uniform vec2 uFO;float fRough=.96,fMetal=0.,fBump=0.;vec3 fEmit=vec3(0.);
         float fh(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
         float fn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);return mix(mix(fh(i),fh(i+vec2(1,0)),f.x),mix(fh(i+vec2(0,1)),fh(i+vec2(1,1)),f.x),f.y);}`,
-      fragMain: `if(abs(vFW.x)<${EXTENT.toFixed(1)}&&abs(vFW.y)<${EXTENT.toFixed(1)})discard;
+      fragMain: `if(abs(vFW.x+uFO.x)<${EXTENT.toFixed(1)}&&abs(vFW.y+uFO.y)<${EXTENT.toFixed(1)})discard;
         float fe=${SEA.toFixed(1)};float fw=sin(vFW.x*.045+vFW.y*.031+uTf*1.3)*.5+sin(vFW.x*.021-vFW.y*.05-uTf*.9)*.5;
         float foam=smoothstep(fe+1.5+fw*.35,fe+.1,vFY)*smoothstep(fe-.6,fe-.05,vFY);   /* the wet strip along a shore: a band of foam that breathes with the waves */
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.86,.9),foam*.7);fRough=mix(.96,.35,foam);
@@ -71,7 +77,7 @@ export class Farland {
         fBump=(n2*.5*fnear+n3*.25*fnear+n4*.1*ffine)*(1.+rock*2.5)*fland;`,
       normalMain: `{vec3 q0=dFdx(-vViewPosition),q1=dFdy(-vViewPosition);float dx=dFdx(fBump),dy=dFdy(fBump);vec3 r1=cross(q1,normal),r2=cross(normal,q0);float det=dot(q0,r1);
         normal=normalize(abs(det)*normal-.55*sign(det)*(dx*r1+dy*r2));}`,
-      uniforms: { uTf: timeUniform },
+      uniforms: { uTf: timeUniform, uFO: this.FO },
     });
     const hole = ringIndex(true), full = ringIndex(false);
     for (let k = 0; k < this.levelCount; k++) {
@@ -120,7 +126,7 @@ export class Farland {
     L.h = h; L.h2 = oh; L.cg = cg; L.cg2 = ocg; L.cx = ncx; L.cz = ncz;
     col.set(cg, 0);
     this.shape(L, 0, 0, N, N);
-    L.mesh.updateMatrix(); this.stats.regen++;
+    L.mesh.position.set(ncx, 0, ncz); L.mesh.updateMatrix(); this.stats.regen++;
   }
   // the drawn heights and normals of ring L's vertices i0..i1 x j0..j1 (and the skirt): the land's height, but in the finest rings never above a
   // drawn road around the vertex less DROP (roadsurf.js: with every vertex of a triangle under the lowest road top in it, no part of the triangle
@@ -130,11 +136,11 @@ export class Farland {
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
       const k = j * M + i, x = x0 + i * cell, z = z0 + j * cell; let y = h[k];
       if (clamp) { const t = lowestAround(L.k, x, z); if (t === t && t - DROP[L.k] < y) { y = t - DROP[L.k]; this.stats.lowered++; } }
-      pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
+      pos[k * 3] = x - L.cx; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z - L.cz;   // about the ring's centre (EV-04)
     }
     const Y = (i, j) => pos[(j * M + i) * 3 + 1];
     for (let j = Math.max(0, j0 - 1); j <= Math.min(N, j1 + 1); j++) for (let i = Math.max(0, i0 - 1); i <= Math.min(N, i1 + 1); i++) {
-      const k = j * M + i, nx = Y(Math.max(0, i - 1), j) - Y(Math.min(N, i + 1), j), nz = Y(i, Math.max(0, j - 1)) - Y(i, Math.min(N, j + 1)), ny = 2 * cell, l = Math.hypot(nx, ny, nz);
+      const k = j * M + i, nx = Y(Math.max(0, i - 1), j) - Y(Math.min(N, i + 1), j), nz = Y(i, Math.max(0, j - 1)) - Y(i, Math.min(N, j + 1)), ny = 2 * cell, l = hyp3(nx, ny, nz);
       nor[k * 3] = nx / l; nor[k * 3 + 1] = ny / l; nor[k * 3 + 2] = nz / l;
     }
     // skirt: the outer boundary again, dropped by a few cells
@@ -168,7 +174,9 @@ export class Farland {
       this.regen(L, sx, sz);
     }
     this.roadsChanged(performance.now());
+    this.FO.value.set(Math.round(cx / 65536) * 65536, Math.round(cz / 65536) * 65536);
     if (globalThis.__WORLD) stream(globalThis.__WORLD, focus.x, focus.z);   // high-detail ground tiles around what the player controls
+    regionStream([focus, camera.position], REG_REACH * VIEW.b);   // the compiled regions' raster tiles around both (EV-01)
     this.sea.position.x = Math.round(cx / 5000) * 5000; this.sea.position.z = Math.round(cz / 5000) * 5000;
     this.ground.update(focus.x, focus.z, focus.by ?? focus.y ?? 0);   // physics follows what the player controls, not the (smoothed, late) camera
     this.stats.ms = performance.now() - t0; this.stats.last = this.stats.ms;
@@ -187,7 +195,7 @@ export class FarGround {
     if (this.suspend) { this.clear(); return; }   // a ride (transit.js) moves faster than the tile can be rebuilt, and needs no ground
     const near = Math.abs(x) < EXTENT - HFHALF && Math.abs(z) < EXTENT - HFHALF;   // the whole patch would lie under the city's own ground
     if (near || y - physHeight(x, z, 64) > 250) { this.clear(); return; }   // high above the ground nothing needs it
-    if (this.col && Math.hypot(x - this.cx, z - this.cz) < 160) return;
+    if (this.col && hyp(x - this.cx, z - this.cz) < 160) return;
     this.clear();
     const cx = Math.round(x / HFC) * HFC, cz = Math.round(z / HFC) * HFC, R = P.R, hs = this.heights;
     // Rapier heightfield: nrows x ncols samples, column-major along z then x; scale = full extent

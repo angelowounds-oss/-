@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { Vehicle } from './vehicle.js';
 import { Human } from './human.js';
-import { clamp, damp, rand, TAU, angDiff } from './util.js';
+import { clamp, damp, rand, TAU, angDiff, hyp, hyp3 } from './util.js';
 
 // War machines the player can drive or fly: main battle tank, attack helicopter (gunship) and a VTOL fighter. They come from the army base
 // (one block of the city, guarded) or from enemy units that were shot up until their crew bailed out (Military.abandon).
@@ -116,9 +116,9 @@ export class War {
       this.guardT -= dt;
       if (this.guardT <= 0) {
         this.guardT = 4;
-        const far = Math.hypot(pl.x - this.base.cx, pl.z - this.base.cz) > 130;
+        const far = hyp(pl.x - this.base.cx, pl.z - this.base.cz) > 130;
         for (const s of this.slots) {
-          if (s.v && (s.v.dead || !G.vehicles.includes(s.v) || Math.hypot(s.v.x - s.home.x, s.v.z - s.home.z) > 14)) { s.v = null; s.t = 0; }
+          if (s.v && (s.v.dead || !G.vehicles.includes(s.v) || hyp(s.v.x - s.home.x, s.v.z - s.home.z) > 14)) { s.v = null; s.t = 0; }
           if (!s.v) { s.t += 4; if (s.t > 240 && far) this.stock(s); }
         }
         if (far && this.crew.length < GUARDS.length) { this.crewT = (this.crewT || 0) + 4; if (this.crewT > 180) { this.crewT = 0; this.guards(false); } }
@@ -132,7 +132,7 @@ export class War {
   }
   supply(v, dt) {
     const G = this.G, b = this.base, dx = v.x - (b.cx + SUPPLY.x), dz = v.z - (b.cz + SUPPLY.z);
-    if (Math.hypot(dx, dz) > SUPPLY.r || v.speed > 3 || (v.by || 0) > 5) { this.supplyT = 0; return; }
+    if (hyp(dx, dz) > SUPPLY.r || v.speed > 3 || (v.by || 0) > 5) { this.supplyT = 0; return; }
     const kit = this.kit(v); let did = false;
     for (const w of kit.w) if (w.ammo < w.max) { w.ammo = Math.min(w.max, w.ammo + w.max * 0.25 * dt); did = true; }
     if (v.fuel < 100) { v.fuel = Math.min(100, v.fuel + 25 * dt); did = true; }
@@ -158,7 +158,7 @@ export class War {
     v.aimYaw = G.cam.yaw; v.aimPitch = clamp(G.cam.pitch, -1, 1);
     // turret / gun slew
     if (war === 'tank') {
-      const hull = v.h, dx = this.aim.x - v.x, dz = this.aim.z - v.z, dist = Math.max(8, Math.hypot(dx, dz));
+      const hull = v.h, dx = this.aim.x - v.x, dz = this.aim.z - v.z, dist = Math.max(8, hyp(dx, dz));
       const want = Math.atan2(dx, dz) - hull; v.turYaw = (v.turYaw || 0) + clamp(angDiff(v.turYaw || 0, want), -1.15 * dt, 1.15 * dt);
       const wp = clamp(Math.atan2(this.aim.y - (v.by + 1.0), dist), -0.14, 0.55); v.turPitch = (v.turPitch || 0) + clamp(wp - (v.turPitch || 0), -0.7 * dt, 0.7 * dt);
     }
@@ -249,8 +249,8 @@ export class War {
   }
   crush(v, dt) {
     const G = this.G;
-    for (const h of G.humans) { if (h.dead || h.rag) continue; if (Math.hypot(h.x - v.x, h.z - v.z) < 2.9 && Math.abs((h.y || 0) - (v.by - v.spec.cy)) < 2) h.hurt(999, G.player, false, G.player); }
-    for (const o of G.vehicles) { if (o === v || o.dead || !o.pv || o.spec.war) continue; const d = Math.hypot(o.x - v.x, o.z - v.z); if (d < 5.2) { o.damage(300 * dt, v); o.awake = true; o.pv.body.wakeUp(); o.addImpulse((o.x - v.x) / (d || 1) * 5, 1.2, (o.z - v.z) / (d || 1) * 5); } }
+    for (const h of G.humans) { if (h.dead || h.rag) continue; if (hyp(h.x - v.x, h.z - v.z) < 2.9 && Math.abs((h.y || 0) - (v.by - v.spec.cy)) < 2) h.hurt(999, G.player, false, G.player); }
+    for (const o of G.vehicles) { if (o === v || o.dead || !o.pv || o.spec.war) continue; const d = hyp(o.x - v.x, o.z - v.z); if (d < 5.2) { o.damage(300 * dt, v); o.awake = true; o.pv.body.wakeUp(); o.addImpulse((o.x - v.x) / (d || 1) * 5, 1.2, (o.z - v.z) / (d || 1) * 5); } }
   }
 
   // ------------------------------------------------------------------ projectiles
@@ -300,7 +300,7 @@ export class War {
     } else {
       const dist = (mode === 0 ? big : big * 1.6) + (war === 'jet' ? Math.min(34, v.speed * 0.05) : v.speed * 0.02);
       let tx = ax - L.x * dist, ty = ay0 - L.y * dist + (war === 'jet' ? 2.5 : 3.2), tz = az - L.z * dist;
-      const dx = tx - ax, dy = ty - ay0, dz = tz - az, d = Math.hypot(dx, dy, dz);
+      const dx = tx - ax, dy = ty - ay0, dz = tz - az, d = hyp3(dx, dy, dz);
       const hit = G.world.colliders.raycast(ax, ay0, az, dx / d, dy / d, dz / d, d);
       let k = 1; if (hit >= 0) k = Math.max(0.2, (hit - 0.5) / d);
       tx = ax + dx * k; ty = Math.max(0.6, ay0 + dy * k); tz = az + dz * k;

@@ -2,6 +2,7 @@
 // and break when they move (EV-95 splits Game). Nothing here runs unless a test calls it; the player never sees it.
 import { Vehicle } from './vehicle.js';
 import { signalState } from './streetgeo.js';
+import { regionLoad } from './region.js';
 
 // installs the API over one Game; returns it for tests that import it directly
 export function installTestApi(G) {
@@ -13,6 +14,8 @@ export function installTestApi(G) {
       const yy = y ?? G.groundY(x, z, 1e9); pl.body3.teleport(x, yy, z); pl.x = x; pl.y = yy; pl.z = z; pl.vx = pl.vy = pl.vz = 0; pl.dead = false;
       return { x, y: yy, z };
     },
+    // the same after the streamed region tiles around (x, z) are in (EV-01): a jump that then reads none of them at once (regionload.js sync)
+    async arrive(x, z, y, reach = 4000) { await regionLoad(x, z, reach); return api.teleport(x, z, y); },
     // the clock at an hour of today (0-24, fractions allowed)
     time(hour) { const c = G.clock; c.t = Math.floor(c.t / 1440) * 1440 + hour * 60; return c.hour; },
     // the weather held until changed: 'clear' | 'rain' | 'storm'; wet defaults to 0 / 1 / 1.4 as the daynight cycle sets it

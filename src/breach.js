@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { holeCU, holeHU, HOLES } from './gfx.js';
-import { rand } from './util.js';
+import { rand, hyp } from './util.js';
 
 // Breaching charges: stick one on an interior wall (G), it blows a doorway-sized hole after a short fuse.
 // The hole is real: the wall's colliders are split around it, the wall surface is not drawn inside it (shader, gfx.js),
@@ -120,7 +120,7 @@ export class Breach {
   // the shader draws the holes nearest to the camera
   updateUniforms() {
     this.uT = 1;
-    const cam = this.G.camera?.position, list = cam ? [...this.holes].sort((a, b) => Math.hypot((a.x0 + a.x1) / 2 - cam.x, (a.z0 + a.z1) / 2 - cam.z) - Math.hypot((b.x0 + b.x1) / 2 - cam.x, (b.z0 + b.z1) / 2 - cam.z)) : this.holes;
+    const cam = this.G.camera?.position, list = cam ? [...this.holes].sort((a, b) => hyp((a.x0 + a.x1) / 2 - cam.x, (a.z0 + a.z1) / 2 - cam.z) - hyp((b.x0 + b.x1) / 2 - cam.x, (b.z0 + b.z1) / 2 - cam.z)) : this.holes;
     for (let i = 0; i < HOLES; i++) {
       const h = list[i];
       if (!h) { holeCU.value[i].set(0, -999, 0, 0); continue; }

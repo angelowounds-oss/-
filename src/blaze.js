@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Particles } from './fx.js';
 import { instCull } from './instcull.js';
-import { clamp, rand, VIEW } from './util.js';
+import { clamp, rand, VIEW, hyp } from './util.js';
 
 // Building fires and collapse (GPL-08c). Any city building can burn: its height is split into 3.6 m bands with heat and fuel. Fire reaching
 // a wall (a burning car, a molotov against the facade, an explosion, a fire lit inside) heats the band it touches; a band above IGNITE
@@ -95,8 +95,8 @@ export class Blaze {
     const G = this.G, l = s.lot, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2; s.announced = true;
     if (s.src === G.player) { G.society.crime('arson', 30, cx, cz); G.addHeat(20); }
     G.memory?.log('blaze', cx, cz);
-    if (Math.hypot(cx - G.player.x, cz - G.player.z) < 160) G.toast('건물 화재!', s.b ? s.b.name : '불길이 번지고 있다');
-    for (const h of G.humans) if (!h.dead && h.team === 'civ' && !h.hidden && Math.hypot(h.x - cx, h.z - cz) < 40) { h.state = 'flee'; h.fleeT = rand(8, 14); h.threat = { x: cx, z: cz }; }
+    if (hyp(cx - G.player.x, cz - G.player.z) < 160) G.toast('건물 화재!', s.b ? s.b.name : '불길이 번지고 있다');
+    for (const h of G.humans) if (!h.dead && h.team === 'civ' && !h.hidden && hyp(h.x - cx, h.z - cz) < 40) { h.state = 'flee'; h.fleeT = rand(8, 14); h.threat = { x: cx, z: cz }; }
   }
   // a fire node (fire.js) touching a wall or burning inside
   exposure(n) {
@@ -165,7 +165,7 @@ export class Blaze {
     if (s.integ <= 0) { this.startCollapse(s); return; }
     if (burning) this.interior(s, d);
     // the last stage: groans, falling pieces
-    if (s.integ < 0.3 && burning && Math.random() < d * 0.5) { const l = s.lot, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, dc = Math.hypot(cx - G.player.x, cz - G.player.z); if (dc < 120) { G.shake(0.25 * (1 - dc / 120)); G.audio.impact?.(0.5, 0); } }
+    if (s.integ < 0.3 && burning && Math.random() < d * 0.5) { const l = s.lot, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2, dc = hyp(cx - G.player.x, cz - G.player.z); if (dc < 120) { G.shake(0.25 * (1 - dc / 120)); G.audio.impact?.(0.5, 0); } }
     if (!burning && s.peak === 0 && !H.some((h) => h > 0.01)) {
       s.done = true;   // burnt out without coming down: the charring stays on the facade
       if (spent && s.src === G.player) G.memory?.log('blaze', (s.lot.x0 + s.lot.x1) / 2, (s.lot.z0 + s.lot.z1) / 2);
@@ -180,7 +180,7 @@ export class Blaze {
   // a building that is open (interior floors built) burns inside too: fires on the floors near the player, the people there run
   interior(s, d) {
     const G = this.G, b = s.b; if (!b || !b.open) return;
-    const pl = G.player, near = Math.hypot(b.cx - pl.x, b.cz - pl.z) < 60;
+    const pl = G.player, near = hyp(b.cx - pl.x, b.cz - pl.z) < 60;
     for (const [k, fl] of b.floors) {
       const L = b.levels[k], i = clamp(Math.floor((L.y + 1) / BAND), 0, s.nb - 1), h = s.heat[i];
       if (h < 0.45 || s.fuel[i] <= 0) continue;
@@ -194,7 +194,7 @@ export class Blaze {
   // flames out of the windows of the burning bands, smoke rising off the fire and over the roof
   emit(s, dt) {
     const G = this.G, l = s.lot, cam = G.camera.position, cx = (l.x0 + l.x1) / 2, cz = (l.z0 + l.z1) / 2;
-    const dc = Math.hypot(cx - cam.x, cz - cam.z); if (dc > 900) return;
+    const dc = hyp(cx - cam.x, cz - cam.z); if (dc > 900) return;
     const span = Math.max(1, (s.hi - s.lo) / BAND), k = dc < 200 ? 1 : dc < 450 ? 0.45 : 0.2;
     s.fAcc = (s.fAcc || 0) + dt * Math.min(70, 10 + span * 7) * s.peak * k;
     s.sAcc = (s.sAcc || 0) + dt * Math.min(36, 6 + span * 2.5) * s.peak * k;
@@ -228,7 +228,7 @@ export class Blaze {
     if (b) { b.ruined = true; if (b.open) { G.buildings.active.delete(b); b.deactivate(); } }
     s.decor = this.hideDecor(l);
     G.memory?.log('collapse', cx, cz);
-    const dc = Math.hypot(cx - G.player.x, cz - G.player.z);
+    const dc = hyp(cx - G.player.x, cz - G.player.z);
     if (dc < 300) G.toast('<span style="color:#ff8a30">건물 붕괴!</span>', b ? b.name : '');
     if (s.src === G.player) G.addHeat(60);
     G.audio.explosion?.(Math.max(0.2, 1 - dc / 400), clamp((cx - G.camera.position.x) * 0.01, -1, 1));
@@ -250,7 +250,7 @@ export class Blaze {
     if (!l.remote) this.w.relief?.sink(l, e2, rubH * 0.6);   // ledges, piers and cornices sink with the facade
     // the top of what is still standing sheds dust; the base throws a dust wall outwards
     const topNow = l.topY * (1 - e2) + rubH * e2, perim = (l.x1 - l.x0 + l.z1 - l.z0) * 2;
-    const dcam = Math.hypot(cx - G.camera.position.x, cz - G.camera.position.z), k = dcam < 250 ? 1 : 0.4;
+    const dcam = hyp(cx - G.camera.position.x, cz - G.camera.position.z), k = dcam < 250 ? 1 : 0.4;
     s.dAcc = (s.dAcc || 0) + dt * (e < 1 ? 60 + perim * 0.25 : 0) * k;
     while (s.dAcc >= 1) {
       s.dAcc -= 1;

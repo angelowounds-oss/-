@@ -43,7 +43,11 @@ for (const r of REGIONS) for (const c of r.cities) {
 
 // ---- the bake: every job has a province, the region files are data (not sources), the rules are read by no job
 const jobs = jobsFor({ pack: true }), known = new Set([...IDS.map(([id]) => id), 'sea']), per = {};
-for (const j of jobs) { if (j.key === 'core' ? j.region !== null : !known.has(j.region)) bad.push(['job region', j.key, j.region]); per[j.region ?? 'core'] = (per[j.region ?? 'core'] || 0) + 1; }
+// the core and the raster tiles of a compiled region (EV-01, tier 'reg': a compiled region spans provinces) have no province; every other job one
+for (const j of jobs) {
+  const free = j.key === 'core' || j.tier === 'reg', k = j.region ?? (j.tier === 'reg' ? 'reg' : 'core');
+  if (free ? j.region !== null : !known.has(j.region)) bad.push(['job region', j.key, j.region]); per[k] = (per[k] || 0) + 1;
+}
 const air = jobs.filter((j) => j.id === 'airfield');
 if (air.some((j) => j.region !== 'incheon')) bad.push(['airport city chunks not in incheon']);
 const closure = new Set(jobs.flatMap((j) => sourcesOf(j.src)));
@@ -53,7 +57,7 @@ for (const f of ['src/koreadem.js', 'src/osmroads.js', 'src/korerivers.js']) if 
 
 // ---- a build of some provinces (REGIONS=, WLD-21d): their chunks and the core file's, under the same hashes (the cache serves both builds)
 const only = jobsFor({ pack: true, regions: ['incheon'] }), fullHash = new Map(jobs.map((j) => [j.tier + ':' + j.key, jobHash(j)]));
-if (only.some((j) => j.region && j.region !== 'sea' && j.region !== 'incheon') || only.length !== per.core + per.sea + per.incheon) bad.push(['REGIONS=incheon jobs', only.length]);
+if (only.some((j) => j.region && j.region !== 'sea' && j.region !== 'incheon') || only.length !== per.core + per.sea + per.incheon + (per.reg || 0))bad.push(['REGIONS=incheon jobs', only.length]);
 if (only.some((j) => jobHash(j) !== fullHash.get(j.tier + ':' + j.key))) bad.push(['REGIONS=incheon hashes differ from the full build']);
 
 // ---- a change to one region file redoes only what reads it

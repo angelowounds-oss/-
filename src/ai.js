@@ -1,4 +1,4 @@
-import { clamp, rand, TAU } from './util.js';
+import { clamp, rand, TAU, hyp } from './util.js';
 import { navPath } from './nav.js';
 
 // NPC brains (armed gang / guards / police, and civilian reactions). Human.update calls into here.
@@ -23,7 +23,7 @@ export function spendNav(G) {
 // ------------------------------------------------------------------ perception
 function bearing(h, x, z) { return Math.atan2(x - h.x, z - h.z); }
 function inCone(h, x, z) {
-  const dx = x - h.x, dz = z - h.z, d = Math.hypot(dx, dz) || 1;
+  const dx = x - h.x, dz = z - h.z, d = hyp(dx, dz) || 1;
   return (dx * Math.sin(h.ry) + dz * Math.cos(h.ry)) / d > FOV_COS;
 }
 // cached ray to the player (every ~0.15 s)
@@ -32,7 +32,7 @@ function sight(h, dt) {
   h.losT = (h.losT || 0) - dt;
   if (h.losT <= 0) {
     h.losT = 0.12 + Math.random() * 0.06;
-    const d = Math.hypot(pl.x - h.x, pl.z - h.z), alerted = h.state === 'attack' || h.state === 'cover' || h.state === 'search';
+    const d = hyp(pl.x - h.x, pl.z - h.z), alerted = h.state === 'attack' || h.state === 'cover' || h.state === 'search';
     const stealth = pl.prone ? 0.3 : pl.crouching ? 0.55 : 1, night = G.clock?.hour > 21 || G.clock?.hour < 5 ? 0.8 : 1;
     const range = (h.detect || 38) * stealth * night * (alerted ? 1.6 : 1);
     let seen = d < 90 && (d < range || (h.team === 'cop' && G.wanted > 0 && d < 70));
@@ -50,10 +50,10 @@ export function hear(h, x, z, r, kind) {
   if (h.dead || h.rag || h.team === 'civ') return;
   if (h.team === 'gang' && !(h.detect > 0) && !h.guard) return;
   if (h.state === 'attack' || h.state === 'cover' || h.state === 'retreat') return;
-  const d = Math.hypot(x - h.x, z - h.z); if (d > r) return;
+  const d = hyp(x - h.x, z - h.z); if (d > r) return;
   if (h.team === 'cop' && !h.G.wanted) { if (kind === 'shot' || kind === 'boom') { h.alert = 1; } else return; }
   // more noise from about the same place (a burst of fire) keeps the current walk there instead of re-planning the route every shot
-  const same = h.state === 'investigate' && h.tgt && Math.hypot(h.tgt.x - x, h.tgt.z - z) < 6;
+  const same = h.state === 'investigate' && h.tgt && hyp(h.tgt.x - x, h.tgt.z - z) < 6;
   h.state = 'investigate'; h.invT = rand(9, 14);
   if (same) return;
   h.invLook = 0;
@@ -64,22 +64,22 @@ export function hear(h, x, z, r, kind) {
 // ------------------------------------------------------------------ movement helpers
 // steer toward (tx,tz): straight when possible, along a nav path when sight is blocked, with a side-step when stuck
 function goTo(h, dt, tx, tz, speed, nav = true) {
-  const G = h.G, dx = tx - h.x, dz = tz - h.z, d = Math.hypot(dx, dz);
+  const G = h.G, dx = tx - h.x, dz = tz - h.z, d = hyp(dx, dz);
   if (d < 0.6) { h.cmdSpeed = 0; return true; }
   let wx = tx, wz = tz;
   if (nav && d > 4) {
     h.pathT = (h.pathT || 0) - dt;
     const hy = (h.y || 0) + 0.6, blocked = !G.hasLOS(h.x, hy, h.z, tx, hy, tz);
-    if (blocked && (!h.path || h.pathT <= 0 || h.pathGoalD > 3 && Math.hypot(h.pathGx - tx, h.pathGz - tz) > 3) && spendNav(G)) {
+    if (blocked && (!h.path || h.pathT <= 0 || h.pathGoalD > 3 && hyp(h.pathGx - tx, h.pathGz - tz) > 3) && spendNav(G)) {
       h.path = navPath(G, h.floorY || 0, h.x, h.z, tx, tz, 50); h.pathT = 1.6; h.pathGx = tx; h.pathGz = tz; h.pathGoalD = d;
     }
     if (!blocked) h.path = null;
     if (h.path && h.path.length) {
-      while (h.path.length > 1 && Math.hypot(h.path[0][0] - h.x, h.path[0][1] - h.z) < 0.9) h.path.shift();
+      while (h.path.length > 1 && hyp(h.path[0][0] - h.x, h.path[0][1] - h.z) < 0.9) h.path.shift();
       wx = h.path[0][0]; wz = h.path[0][1];
     }
   }
-  let ax = wx - h.x, az = wz - h.z; const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
+  let ax = wx - h.x, az = wz - h.z; const al = hyp(ax, az) || 1; ax /= al; az /= al;
   // stuck: slide along the obstacle in a persistent direction for a moment
   if (h.blocked && h.speed < 0.6) h.stuckT = (h.stuckT || 0) + dt; else h.stuckT = Math.max(0, (h.stuckT || 0) - dt * 2);
   if (h.stuckT > 0.45) { h.sideT = 0.9; h.sideDir = h.sideDir || (Math.random() < 0.5 ? 1 : -1); h.stuckT = 0; }
@@ -97,10 +97,10 @@ function findCover(h, px, pz) {
   for (let n = 0; n < 14; n++) {
     const a = (n / 14) * TAU + rand(-0.2, 0.2), r = rand(3, 9);
     const x = h.x + Math.sin(a) * r, z = h.z + Math.cos(a) * r;
-    const rr = G.world.colliders.resolve(x, z, 0.4, h.floorY || 0); if (Math.hypot(rr.x - x, rr.z - z) > 0.3) continue;
+    const rr = G.world.colliders.resolve(x, z, 0.4, h.floorY || 0); if (hyp(rr.x - x, rr.z - z) > 0.3) continue;
     if (G.hasLOS(x, (h.y || 0) + 1.3, z, px, (G.player.y || 0) + 1.4, pz)) continue;                         // still visible from the player
     if (!G.hasLOS(h.x, (h.y || 0) + 1.0, h.z, x, (h.y || 0) + 1.0, z)) continue;                      // the way there is blocked
-    const dPl = Math.hypot(x - px, z - pz); if (dPl < 5) continue;
+    const dPl = hyp(x - px, z - pz); if (dPl < 5) continue;
     const s = r + Math.abs(dPl - 14) * 0.4 + Math.random();
     if (s < bs) { bs = s; best = { x, z }; }
   }
@@ -108,7 +108,7 @@ function findCover(h, px, pz) {
 }
 function countAllies(h, r) {
   let n = 0;
-  for (const o of h.G.humans) if (o !== h && !o.dead && o.team === h.team && (o.state === 'attack' || o.state === 'cover') && Math.hypot(o.x - h.x, o.z - h.z) < r) n++;
+  for (const o of h.G.humans) if (o !== h && !o.dead && o.team === h.team && (o.state === 'attack' || o.state === 'cover') && hyp(o.x - h.x, o.z - h.z) < r) n++;
   return n;
 }
 
@@ -121,7 +121,7 @@ function raise(h, why) {
 // ------------------------------------------------------------------ armed brain
 export function combat(h, dt) {
   const G = h.G, pl = G.player;
-  const dxp = pl.x - h.x, dzp = pl.z - h.z, dp = Math.hypot(dxp, dzp) || 1;
+  const dxp = pl.x - h.x, dzp = pl.z - h.z, dp = hyp(dxp, dzp) || 1;
   h.cmdSpeed = 0; h.faceAngle = null; h.crouching = false; h.crouch = 0;
   if (!ENGAGED.has(h.state)) h.state = 'idle';
   const sees = sight(h, dt);
@@ -138,7 +138,7 @@ export function combat(h, dt) {
   // a dead ally in view raises suspicion
   if (h.state === 'idle' && !isCop && (h.deadSeenT = (h.deadSeenT || 0) - dt) <= 0) {
     h.deadSeenT = 1;
-    for (const o of G.humans) if (o.dead && o.team === 'gang' && o.deadT < 40 && Math.hypot(o.x - h.x, o.z - h.z) < 14 && inCone(h, o.x, o.z) && G.hasLOS(h.x, (h.y || 0) + 1.5, h.z, o.x, (o.y || 0) + 1, o.z)) { h.state = 'investigate'; h.invT = 12; h.tgt = { x: pl.x + rand(-8, 8), z: pl.z + rand(-8, 8) }; h.invLook = 0; h.path = null; break; }
+    for (const o of G.humans) if (o.dead && o.team === 'gang' && o.deadT < 40 && hyp(o.x - h.x, o.z - h.z) < 14 && inCone(h, o.x, o.z) && G.hasLOS(h.x, (h.y || 0) + 1.5, h.z, o.x, (o.y || 0) + 1, o.z)) { h.state = 'investigate'; h.invT = 12; h.tgt = { x: pl.x + rand(-8, 8), z: pl.z + rand(-8, 8) }; h.invLook = 0; h.path = null; break; }
   }
 
   switch (h.state) {
@@ -176,7 +176,7 @@ export function combat(h, dt) {
     }
     case 'retreat': {
       h.retreatT -= dt;
-      const fx = h.x - pl.x, fz = h.z - pl.z, l = Math.hypot(fx, fz) || 1;
+      const fx = h.x - pl.x, fz = h.z - pl.z, l = hyp(fx, fz) || 1;
       const hx = h.home ? h.home.x : h.x + fx / l * 30, hz = h.home ? h.home.z : h.z + fz / l * 30;
       goTo(h, dt, hx, hz, 5.8); h.aimT = 0;
       if (sees && dp < 18 && h.fireCd <= 0 && G.hasLOS(h.x, (h.y || 0) + 1.4, h.z, pl.x, pl.y + 1.4, pl.z)) { h.fireCd = rand(1.6, 2.6); G.enemyShoot(h, pl); }   // covering fire
@@ -287,7 +287,7 @@ export function civ(h, dt) {
   // fear spreads: a person who sees someone running away from something starts to run too
   for (const o of G.humans) {
     if (o === h || o.dead || o.team !== 'civ' || o.state !== 'flee' || !o.threat) continue;
-    const d = Math.hypot(o.x - h.x, o.z - h.z); if (d > 14) continue;
+    const d = hyp(o.x - h.x, o.z - h.z); if (d > 14) continue;
     if (!G.hasLOS(h.x, (h.y || 0) + 1.4, h.z, o.x, (o.y || 0) + 1.4, o.z)) continue;
     h.state = 'flee'; h.fleeT = rand(4, 8); h.threat = o.threat; h.cower = Math.random() < 0.35; G.voiceAt?.(h, 'scream');
     return true;
@@ -295,7 +295,7 @@ export function civ(h, dt) {
   // fast car coming straight at us: jump aside
   for (const v of G.vehicles) {
     if (!v.group.visible || v.speed < 7) continue;
-    const dx = h.x - v.x, dz = h.z - v.z, d = Math.hypot(dx, dz); if (d > 11 || d < 0.5) continue;
+    const dx = h.x - v.x, dz = h.z - v.z, d = hyp(dx, dz); if (d > 11 || d < 0.5) continue;
     const ahead = (dx * Math.sin(v.h) + dz * Math.cos(v.h)) / d;           // person in front of the car
     if (ahead < 0.7) continue;
     const side = (dx * Math.cos(v.h) - dz * Math.sin(v.h)) >= 0 ? 1 : -1;
@@ -307,7 +307,7 @@ export function civ(h, dt) {
   if (!h.gawk && !h.static && h.state === 'walk') {
     for (const o of G.humans) {
       if (!o.dead || o.deadT > 60 || o.team === 'cop') continue;
-      const d = Math.hypot(o.x - h.x, o.z - h.z); if (d > 9 || !G.hasLOS(h.x, (h.y || 0) + 1.5, h.z, o.x, (o.y || 0) + 0.4, o.z)) continue;
+      const d = hyp(o.x - h.x, o.z - h.z); if (d > 9 || !G.hasLOS(h.x, (h.y || 0) + 1.5, h.z, o.x, (o.y || 0) + 0.4, o.z)) continue;
       if (Math.random() < 0.5) { h.gawk = { x: o.x, z: o.z, t: rand(3, 7) }; return true; }
       h.gawkSeen = G.time;
     }
@@ -323,7 +323,7 @@ export function civMove(h, dt) {
   }
   if (h.gawk) {
     h.gawk.t -= dt;
-    if (h.gawk.t <= 0 || h.G.player.weaponDrawn && Math.hypot(h.G.player.x - h.x, h.G.player.z - h.z) < 10) { h.gawk = null; return null; }
+    if (h.gawk.t <= 0 || h.G.player.weaponDrawn && hyp(h.G.player.x - h.x, h.G.player.z - h.z) < 10) { h.gawk = null; return null; }
     return { x: 0, z: 0, s: 0, face: Math.atan2(h.gawk.x - h.x, h.gawk.z - h.z) };
   }
   return null;
@@ -332,10 +332,10 @@ export function civMove(h, dt) {
 export function flee(h, dt, threatX, threatZ) {
   if (h.cower && h.fleeT < 4) {
     h.crouching = true; h.crouch = 1;
-    if (Math.hypot(threatX - h.x, threatZ - h.z) < 6) { h.cower = false; h.crouch = 0; h.crouching = false; }
+    if (hyp(threatX - h.x, threatZ - h.z) < 6) { h.cower = false; h.crouch = 0; h.crouching = false; }
     else return { x: 0, z: 0, s: 0 };
   } else { h.crouching = false; h.crouch = 0; }
-  let ax = h.x - threatX, az = h.z - threatZ; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
+  let ax = h.x - threatX, az = h.z - threatZ; const l = hyp(ax, az) || 1; ax /= l; az /= l;
   // blocked by a wall: slide along it
   if (h.blocked) { const t = ax; ax = -az * (h.id % 2 ? 1 : -1); az = t * (h.id % 2 ? 1 : -1); }
   return { x: ax, z: az, s: 5.2 };

@@ -1,4 +1,4 @@
-import { rand } from './util.js';
+import { rand, hyp } from './util.js';
 
 // Fire (GPL-08): ground fires, burning vehicles and props, fuel pools. Fire spreads to vehicles, flammable props and people near it,
 // people on fire run and carry it on, witnesses of the player's arson are reported like any other crime. Everything draws with the
@@ -11,7 +11,7 @@ export class Fire {
 
   // start or feed a fire at (x, z); src is the player when it was them (arson is a crime), kind: ground | vehicle | prop | human
   ignite(x, z, { y = 0.15, fuel = 10, r = 1.6, src = null, kind = 'ground', ref = null } = {}) {
-    for (const n of this.nodes) if (Math.hypot(n.x - x, n.z - z) < MERGE) { n.life = Math.max(n.life, fuel); n.r = Math.max(n.r, r); if (ref && !n.ref) n.ref = ref; return n; }
+    for (const n of this.nodes) if (hyp(n.x - x, n.z - z) < MERGE) { n.life = Math.max(n.life, fuel); n.r = Math.max(n.r, r); if (ref && !n.ref) n.ref = ref; return n; }
     if (this.nodes.length >= MAX_NODES) { let k = 0; for (let i = 1; i < this.nodes.length; i++) if (this.nodes[i].life < this.nodes[k].life) k = i; this.nodes.splice(k, 1); }
     const n = { x, y, z, r, life: fuel, kind, ref, src, acc: 0, tick: this.t + Math.random() * TICK, alerted: false };
     this.nodes.push(n); this.started++;
@@ -28,7 +28,7 @@ export class Fire {
   splash(x, y, z, src) {
     const G = this.G;
     for (let i = 0; i < 5; i++) { const a = Math.random() * 6.28, d = i ? rand(0.6, 1.8) : 0; this.ignite(x + Math.cos(a) * d, z + Math.sin(a) * d, { y, fuel: rand(7, 12), r: 1.1, src }); }
-    G.audio.glass?.(Math.hypot(x - G.camera.position.x, z - G.camera.position.z));
+    G.audio.glass?.(hyp(x - G.camera.position.x, z - G.camera.position.z));
     G.noise?.(x, z, 22);
   }
 
@@ -45,7 +45,7 @@ export class Fire {
       }
       n.life -= dt * (wet ? 2.5 : 1) * (G.waterAt(n.x, n.z) ? 20 : 1);
       if (n.life <= 0) { this.out(i); continue; }
-      const dc = Math.hypot(n.x - cam.x, n.z - cam.z);
+      const dc = hyp(n.x - cam.x, n.z - cam.z);
       if (dc < 90) {
         n.acc += dt * (5 + n.r * 6) * (dc > 45 ? 0.5 : 1);
         while (n.acc >= 1) { n.acc -= 1; G.fx.fire(n.x + rand(-n.r, n.r) * 0.5, n.y + rand(0, 0.4), n.z + rand(-n.r, n.r) * 0.5); }
@@ -57,7 +57,7 @@ export class Fire {
     for (let i = this.pools.length - 1; i >= 0; i--) {
       const p = this.pools[i]; p.t -= dt;
       if (p.t <= 0) { this.pools.splice(i, 1); continue; }
-      for (const n of nodes) if (Math.hypot(n.x - p.x, n.z - p.z) < p.r + n.r * 0.6) { this.ignite(p.x, p.z, { fuel: 16, r: p.r, src: p.src || n.src }); this.pools.splice(i, 1); break; }
+      for (const n of nodes) if (hyp(n.x - p.x, n.z - p.z) < p.r + n.r * 0.6) { this.ignite(p.x, p.z, { fuel: 16, r: p.r, src: p.src || n.src }); this.pools.splice(i, 1); break; }
     }
   }
   out(i) {
@@ -71,7 +71,7 @@ export class Fire {
     const G = this.G;
     for (const h of G.humans) {
       if (h.dead || h.team !== 'civ' || h.hidden) continue;
-      if (Math.hypot(h.x - n.x, h.z - n.z) < ALERT_R && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(6, 10); h.threat = { x: n.x, z: n.z }; }
+      if (hyp(h.x - n.x, h.z - n.z) < ALERT_R && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(6, 10); h.threat = { x: n.x, z: n.z }; }
     }
   }
   // damage and spreading around one fire, every TICK seconds
@@ -80,23 +80,23 @@ export class Fire {
     G.blaze?.exposure(n);   // flames against a wall or inside heat the building (blaze.js)
     for (const v of G.vehicles) {
       if (v === n.ref) continue;
-      const d = Math.hypot(v.x - n.x, v.z - n.z);
+      const d = hyp(v.x - n.x, v.z - n.z);
       if (d < n.r + 2.4 && !v.dead) v.damage(11 * TICK, n.src);
     }
     for (const h of G.humans) {
       if (h.dead) continue;
-      const d = Math.hypot(h.x - n.x, h.z - n.z);
+      const d = hyp(h.x - n.x, h.z - n.z);
       if (d < reach) {
         h.burnT = 3.5; h.hurt(8 * TICK, { x: n.x, z: n.z }, false, n.src);
         if (!h.dead && h.team === 'civ') { h.state = 'flee'; h.fleeT = 6; h.threat = { x: n.x, z: n.z }; }
       } else if (h.burnT > 0 && d < 1.2) h.burnT = 3.5;
       if (h.burnT > 0) { h.burnT -= TICK; if (!h.dead) { h.hurt(5 * TICK, { x: n.x, z: n.z }, false, n.src); this.ignite(h.x, h.z, { y: 0.1, fuel: 2.5, r: 0.8, kind: 'human', src: n.src }); } }
     }
-    if (!pl.dead && !G.vehicle && Math.hypot(pl.x - n.x, pl.z - n.z) < reach && Math.abs(pl.y - n.y) < 2.5) G.hurtPlayer(7 * TICK, null, 'fire');
+    if (!pl.dead && !G.vehicle && hyp(pl.x - n.x, pl.z - n.z) < reach && Math.abs(pl.y - n.y) < 2.5) G.hurtPlayer(7 * TICK, null, 'fire');
     for (const p of G.items.props.values()) {
       if (!FLAMMABLE.has(p.id) || p.burning) continue;
       const t = p.body.translation();
-      if (Math.hypot(t.x - n.x, t.z - n.z) < n.r + 1.2 && Math.abs(t.y - n.y) < 2) { p.burning = true; this.ignite(t.x, t.z, { y: t.y, fuel: 7, r: 1, kind: 'prop', ref: p, src: n.src }); }
+      if (hyp(t.x - n.x, t.z - n.z) < n.r + 1.2 && Math.abs(t.y - n.y) < 2) { p.burning = true; this.ignite(t.x, t.z, { y: t.y, fuel: 7, r: 1, kind: 'prop', ref: p, src: n.src }); }
     }
   }
 }

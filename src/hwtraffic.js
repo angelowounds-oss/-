@@ -1,7 +1,7 @@
 import { net, HALF_W, BROKEN } from './roadnet.js';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human } from './human.js';
-import { clamp, rand } from './util.js';
+import { clamp, rand, hyp } from './util.js';
 import { carriage, innerEdge } from './carriage.js';
 
 // Life on the highways: AI traffic that follows the lanes (a pool around the player, recycled when it falls behind), attendants at toll plazas and
@@ -23,7 +23,7 @@ export class HighwayTraffic {
   // a point on a lane of road r at sample i: dir +1 = travelling toward increasing i. Right-hand traffic: the right of travel is -(rx, rz)
   lane(r, i, dir, laneNo) {
     const n = r.x.length, a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
-    let tx = r.x[b] - r.x[a], tz = r.z[b] - r.z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+    let tx = r.x[b] - r.x[a], tz = r.z[b] - r.z[a]; const l = hyp(tx, tz) || 1; tx /= l; tz /= l;
     // a highway: lanes from the median on the centre line; a compiled line (ADR-0019): a one-way carriageway's lanes from its inner (+right) edge, a
     // two-way road's from its centre line
     let off;
@@ -38,7 +38,7 @@ export class HighwayTraffic {
   nearestSample(x, z, max = 2500, local = false) {
     const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS);
     let best = null, bd = max * max;
-    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue; for (let q = 0; q < cell.length; q += 2) { const r = N.roads[cell[q]]; if (r.kind === 'ramp' || r.alley || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; /* no car is put in an alley */ const i = cell[q + 1], d = (r.x[i] - x) ** 2 + (r.z[i] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const G = N.grid, c = G.ix.get(cx * 100003 + cz); if (c === undefined) continue; for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) { const g = G.seg[q], ri = G.segRoad[g], r = N.roads[ri]; if (r.kind === 'ramp' || r.alley || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; /* no car is put in an alley */ const i = g - G.seg0[ri], d = (r.x[i] - x) ** 2 + (r.z[i] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
   }
 
@@ -49,6 +49,7 @@ export class HighwayTraffic {
     v.kind = 'traffic'; v.driver = 'ai'; v.hw = { r, i, dir, lane }; v.ai.speed = rand(sp[0], sp[1]) * (lane === 0 ? 1.06 : lane === 2 ? 0.92 : 1); if (type === 'truck') v.ai.speed = Math.min(v.ai.speed * 0.85, 25);   // a lorry's limiter holds it at 90 km/h (Korean law for over 3.5 t)
     v.x = P.x; v.z = P.z; v.h = P.h; v.vx = Math.sin(P.h) * 20; v.vz = Math.cos(P.h) * 20; v.startY = undefined;
     v.planAhead = () => this.plan(v);
+    G.highways?.ensurePiece?.(r, i, dir);   // the deck under the car before the step that drops it there (a compiled line's pieces come with time)
     G.addVehicle(v); v.pv.body.setTranslation({ x: P.x, y: P.y + 1.2, z: P.z }, true); v.pv.body.setLinvel({ x: v.vx, y: 0, z: v.vz }, true);
     this.cars.push(v); return v;
   }
@@ -71,6 +72,7 @@ export class HighwayTraffic {
       hops = 0;
       if (BROKEN.has(r.id + ':' + Math.min(i, h.i))) { v.hwDone = true; return; }   // a blown-up bridge: no cars across
       h.i = i; const P = this.lane(r, i, h.dir, h.lane); ai.wp.push({ x: P.x, z: P.z, speed: 1 });
+      if (r.kind === 'arterial') this.G.highways?.ensurePiece?.(r, i, h.dir);   // the piece ahead of a car driving past the built front (far from the player)
     }
   }
 
@@ -79,7 +81,7 @@ export class HighwayTraffic {
     const near = this.nearestSample(pl.x, pl.z, NEAR);
     // recycle: far from the player, or at the end of the road, or wrecked
     for (let k = this.cars.length - 1; k >= 0; k--) {
-      const v = this.cars[k]; const d = Math.hypot(v.x - pl.x, v.z - pl.z);
+      const v = this.cars[k]; const d = hyp(v.x - pl.x, v.z - pl.z);
       if (!G.vehicles.includes(v)) { this.cars.splice(k, 1); continue; }
       if (v === G.vehicle) { v.hw = null; this.cars.splice(k, 1); continue; }
       if (d > FAR || v.hwDone || (v.dead && v.age > 30)) { G.removeVehicle(v); this.cars.splice(k, 1); }
@@ -88,9 +90,9 @@ export class HighwayTraffic {
       // a few cars ahead of and behind the player on the nearest road, in both directions
       for (let tries = 0; tries < 3 && this.cars.length < CAP; tries++) {
         const r = near.r, art = r.kind === 'arterial', dir = art && r.oneway ? 1 : Math.random() < 0.5 ? 1 : -1, lane = Math.floor(Math.random() * (art ? lanesOf(r) : 3)), back = rand(-1, 1) * 24, i = clamp(near.i + Math.round(back * (Math.random() < 0.5 ? 1 : -1) * 3 + (Math.random() < 0.5 ? 1 : -1) * 12), 3, r.x.length - 4);
-        const P = this.lane(r, i, dir, lane), dd = Math.hypot(P.x - pl.x, P.z - pl.z);
+        const P = this.lane(r, i, dir, lane), dd = hyp(P.x - pl.x, P.z - pl.z);
         if (dd < 140 || dd > NEAR) continue;
-        if (this.cars.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 30)) continue;
+        if (this.cars.some((o) => hyp(o.x - P.x, o.z - P.z) < 30)) continue;
         this.spawnCar(r, i, dir, lane);
       }
     }
@@ -106,22 +108,22 @@ export class HighwayTraffic {
       for (let i = 40; i < r.x.length - 40; i += 80) {
         const p = [r.x[i], r.z[i]]; if (Math.abs(p[0] - pl.x) > 900 || Math.abs(p[1] - pl.z) > 900) continue;
         const key = r.id + ':' + i, hv = hash(r.id.length * 977 + i, r.id.charCodeAt(r.id.length - 1) * 31 + i);
-        if (hv > 0.5 || this.events.has(key) || r.cls[i] !== 0 || Math.hypot(p[0] - pl.x, p[1] - pl.z) > 800) continue;
+        if (hv > 0.5 || this.events.has(key) || r.cls[i] !== 0 || hyp(p[0] - pl.x, p[1] - pl.z) > 800) continue;
         this.events.set(key, this.makeEvent(r, i, hv < 0.2 ? 'accident' : hv < 0.35 ? 'roadwork' : 'checkpoint'));
       }
     }
     for (const [k, e] of this.events) {
-      const d = Math.hypot(e.x - pl.x, e.z - pl.z);
+      const d = hyp(e.x - pl.x, e.z - pl.z);
       if (d > 1600) { for (const v of e.vehicles) if (G.vehicles.includes(v)) G.removeVehicle(v); for (const h of e.humans) { h.remove = true; } for (const m of e.meshes) m.parent?.remove(m); this.events.delete(k); }
     }
     // attendants
     const want = [];
-    for (const t of N.tolls) { const r = this.roadIdx.get(t.road), ti = Math.max(0, Math.min(r.x.length - 1, t.idx)), p = [r.x[ti], r.z[ti]]; if (Math.hypot(p[0] - pl.x, p[1] - pl.z) < 400) want.push({ key: 'toll:' + t.road + ':' + t.idx, x: p[0] + 5.6, z: p[1], y: r.y[t.idx], look: { top: 0x2b4d7a, pants: 0x1c2a40, cap: 0x2b4d7a, trim: [0.9, 0.9, 0.9], hair: 0x111111 } }); }
-    for (const s of N.services) if (Math.hypot(s.x - pl.x, s.z - pl.z) < 400) { const tx = Math.sin(s.heading), tz = Math.cos(s.heading); for (const o of [-1, 1]) want.push({ key: 'svc:' + s.road + ':' + s.idx + ':' + o, x: s.x + tz * (s.side * 16) + tx * (22 + o * 6) , z: s.z - tx * (s.side * 16) + tz * (22 + o * 6), y: s.y + 0.3, look: { top: 0xd24b2a, pants: 0x222222, cap: 0xd24b2a, trim: [1, 0.8, 0.3], hair: 0x111111 } }); }
+    for (const t of N.tolls) { const r = this.roadIdx.get(t.road), ti = Math.max(0, Math.min(r.x.length - 1, t.idx)), p = [r.x[ti], r.z[ti]]; if (hyp(p[0] - pl.x, p[1] - pl.z) < 400) want.push({ key: 'toll:' + t.road + ':' + t.idx, x: p[0] + 5.6, z: p[1], y: r.y[t.idx], look: { top: 0x2b4d7a, pants: 0x1c2a40, cap: 0x2b4d7a, trim: [0.9, 0.9, 0.9], hair: 0x111111 } }); }
+    for (const s of N.services) if (hyp(s.x - pl.x, s.z - pl.z) < 400) { const tx = Math.sin(s.heading), tz = Math.cos(s.heading); for (const o of [-1, 1]) want.push({ key: 'svc:' + s.road + ':' + s.idx + ':' + o, x: s.x + tz * (s.side * 16) + tx * (22 + o * 6) , z: s.z - tx * (s.side * 16) + tz * (22 + o * 6), y: s.y + 0.3, look: { top: 0xd24b2a, pants: 0x222222, cap: 0xd24b2a, trim: [1, 0.8, 0.3], hair: 0x111111 } }); }
     // travellers walking about the service areas (they stretch their legs between the pumps and the cars)
-    for (const s of N.services) if (Math.hypot(s.x - pl.x, s.z - pl.z) < 400) for (let k = 0; k < 3; k++) { const key = 'trav:' + s.road + ':' + s.idx + ':' + k; if (!this.npcs.has(key) || this.npcs.get(key).remove) want.push({ key, x: s.x + (k - 1) * 9, z: s.z + 12, y: s.y + 0.3, walker: true, look: { top: [0x4a6a9a, 0x9a4a4a, 0x4a9a6a][k], pants: 0x23262e, cap: null, trim: null, hair: 0x222222 } }); }
+    for (const s of N.services) if (hyp(s.x - pl.x, s.z - pl.z) < 400) for (let k = 0; k < 3; k++) { const key = 'trav:' + s.road + ':' + s.idx + ':' + k; if (!this.npcs.has(key) || this.npcs.get(key).remove) want.push({ key, x: s.x + (k - 1) * 9, z: s.z + 12, y: s.y + 0.3, walker: true, look: { top: [0x4a6a9a, 0x9a4a4a, 0x4a9a6a][k], pants: 0x23262e, cap: null, trim: null, hair: 0x222222 } }); }
     for (const w of want) { const have = this.npcs.get(w.key); if (have && !have.remove && G.humans.includes(have)) continue; const h = new Human(G, 'civ', { hp: 40, weapon: undefined, look: w.look }); h.x = w.x; h.z = w.z; h.y = w.y; h.floorY = w.y; h.static = !w.walker; h.lookAtPlayer = !w.walker; h.state = w.walker ? 'walk' : 'stand'; h.home = { x: w.x, z: w.z }; h.hwNpc = w.key; h.ground = !!w.walker;   /* a walker at a service area keeps to the ground */ h.cash = 60; h.noVisit = true;
-      if (w.walker) h.steerFn = (hh, dt) => { hh.wt = (hh.wt || 0) - dt; if (hh.wt <= 0 || !hh.wp) { hh.wt = 3 + Math.random() * 5; hh.wp = { x: hh.home.x + (Math.random() - 0.5) * 24, z: hh.home.z + (Math.random() - 0.5) * 14 }; } const dx = hh.wp.x - hh.x, dz = hh.wp.z - hh.z, d = Math.hypot(dx, dz); return d < 1 ? { x: 0, z: 0, s: 0, face: null } : { x: dx / d, z: dz / d, s: 1.2, face: null }; }; G.humans.push(h); G.scene.add(h.group); this.npcs.set(w.key, h); }
+      if (w.walker) h.steerFn = (hh, dt) => { hh.wt = (hh.wt || 0) - dt; if (hh.wt <= 0 || !hh.wp) { hh.wt = 3 + Math.random() * 5; hh.wp = { x: hh.home.x + (Math.random() - 0.5) * 24, z: hh.home.z + (Math.random() - 0.5) * 14 }; } const dx = hh.wp.x - hh.x, dz = hh.wp.z - hh.z, d = hyp(dx, dz); return d < 1 ? { x: 0, z: 0, s: 0, face: null } : { x: dx / d, z: dz / d, s: 1.2, face: null }; }; G.humans.push(h); G.scene.add(h.group); this.npcs.set(w.key, h); }
     for (const [k, h] of this.npcs) if (h.dead || h.remove || !G.humans.includes(h)) this.npcs.delete(k);
   }
 

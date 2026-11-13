@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { R, SW } from './world.js';
 import { gpsRoute } from './phone.js';
 import { Human } from './human.js';
-import { mulberry32 } from './util.js';
+import { mulberry32, hyp } from './util.js';
 
 // "Real citizens": a fixed register of residents. Every one has a name, a home (building / floor / room), a workplace and a daily
 // plan built from the game clock. Where somebody is at a given minute is a pure function of that plan, so the whole city is
@@ -24,19 +24,19 @@ function sidewalk(pts) {
   for (let i = 0; i < pts.length; i++) {
     const a = pts[Math.max(0, i - 1)], b = pts[i], c = pts[Math.min(pts.length - 1, i + 1)];
     let n1x = 0, n1z = 0, n2x = 0, n2z = 0;
-    if (i > 0) { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; n1x = -dz / l; n1z = dx / l; }
-    if (i < pts.length - 1) { const dx = c[0] - b[0], dz = c[1] - b[1], l = Math.hypot(dx, dz) || 1; n2x = -dz / l; n2z = dx / l; }
+    if (i > 0) { const dx = b[0] - a[0], dz = b[1] - a[1], l = hyp(dx, dz) || 1; n1x = -dz / l; n1z = dx / l; }
+    if (i < pts.length - 1) { const dx = c[0] - b[0], dz = c[1] - b[1], l = hyp(dx, dz) || 1; n2x = -dz / l; n2z = dx / l; }
     if (i === 0) { n1x = n2x; n1z = n2z; } if (i === pts.length - 1) { n2x = n1x; n2z = n1z; }
-    let nx = n1x + n2x, nz = n1z + n2z; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+    let nx = n1x + n2x, nz = n1z + n2z; const l = hyp(nx, nz) || 1; nx /= l; nz /= l;
     const cos = Math.max(0.5, nx * n1x + nz * n1z);
     out.push([b[0] + (nx * SIDE) / cos, b[1] + (nz * SIDE) / cos]);
   }
   return out;
 }
-function polyLen(p) { let s = 0; for (let i = 1; i < p.length; i++) s += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return s; }
+function polyLen(p) { let s = 0; for (let i = 1; i < p.length; i++) s += hyp(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return s; }
 function along(p, d) {
   for (let i = 1; i < p.length; i++) {
-    const l = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    const l = hyp(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
     if (d <= l) { const t = l > 0 ? d / l : 0; return [p[i - 1][0] + (p[i][0] - p[i - 1][0]) * t, p[i - 1][1] + (p[i][1] - p[i - 1][1]) * t, Math.atan2(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])]; }
     d -= l;
   }
@@ -53,7 +53,7 @@ export class Citizens {
     const homes = blds.filter((b) => b.kind !== 'office' && !b.lot.far), offices = blds.filter((b) => b.kind === 'office' && !b.lot.far), hotels = blds.filter((b) => b.kind === 'hotel' && !b.lot.far);
     // transit stops: subway entrances and bus stops; people walk to the nearest one and ride the rest
     const stations = [...(G.world.metro || []).map((s) => ({ ...s, kind: 'metro' })), ...(G.world.busStops || []).map((s) => ({ ...s, kind: 'bus' }))];
-    const near = (p) => stations.reduce((a, s) => (Math.hypot(s.x - p.x, s.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? s : a), stations[0]);
+    const near = (p) => stations.reduce((a, s) => (hyp(s.x - p.x, s.z - p.z) < hyp(a.x - p.x, a.z - p.z) ? s : a), stations[0]);
     const rnd = mulberry32(20261005);
     const pick = (a) => a[Math.floor(rnd() * a.length)];
     for (let id = 0; id < count && homes.length; id++) {
@@ -86,10 +86,10 @@ export class Citizens {
   makePlan(c, doorOf, near, rnd) {
     const H = doorOf(c.home.b), segs = [];
     const trip = (from, to, t) => { // walk (+ subway when far) from -> to starting at t; returns arrival time
-      const far = Math.hypot(to.x - from.x, to.z - from.z) > 110 && near;
+      const far = hyp(to.x - from.x, to.z - from.z) > 110 && near;
       // short legs: step out to the pavement, then an L along the street (crossing where needed); long legs follow the road graph
       const leg = (a, b, t0) => {
-        const direct = Math.hypot(b.x - a.x, b.z - a.z) < 140;
+        const direct = hyp(b.x - a.x, b.z - a.z) < 140;
         const p = direct ? [[a.x, a.z], [a.x, b.z], [b.x, b.z]] : [[a.x, a.z], ...sidewalk(gpsRoute(a.x, a.z, b.x, b.z).slice(1, -1)), [b.x, b.z]];
         const d = polyLen(p); segs.push({ type: 'walk', t0, t1: t0 + d / WALK, path: p, len: d }); return t0 + d / WALK;
       };
@@ -149,7 +149,7 @@ export class Citizens {
     }
     for (const [id, h] of this.active) {
       const gone = h.dead || h.remove || !G.humans.includes(h);
-      const far = Math.hypot(h.x - pl.x, h.z - pl.z) > 170;
+      const far = hyp(h.x - pl.x, h.z - pl.z) > 170;
       if (gone || (far && h.state === 'route')) { if (!gone) { h.remove = true; } this.stats[gone ? (h.dead ? 'dead' : h.remove ? (h.state === 'gone' ? 'arrived' : 'removed') : 'lost') : 'far']++; this.active.delete(id); }
     }
   }
@@ -157,7 +157,7 @@ export class Citizens {
   steer(h) {
     const c = h.citizen, [s, m] = this.segAt(c, this.G.clock.t);
     if (s.type !== 'walk') { this.arrive(h, s); return { x: 0, z: 0, s: 0 }; }
-    const [x, z] = along(s.path, (m - s.t0) * WALK), dx = x - h.x, dz = z - h.z, d = Math.hypot(dx, dz);
+    const [x, z] = along(s.path, (m - s.t0) * WALK), dx = x - h.x, dz = z - h.z, d = hyp(dx, dz);
     if (d > 25) { h.x = x; h.z = z; return { x: 0, z: 0, s: 0 }; }
     if (d < 0.05) return { x: 0, z: 0, s: 0 };
     return { x: dx / d, z: dz / d, s: Math.min(3.2, WALK * (d > 1.5 ? 1.8 : 1)) };
@@ -168,7 +168,7 @@ export class Citizens {
     if (s.type === 'ride' || !(s.type === 'home' || s.type === 'work' || s.type === 'out')) { h.remove = true; h.state = 'gone'; return; }
     const b = s.type === 'work' ? c.work.b : s.type === 'out' ? s.b : c.home.b, k = s.type === 'work' ? c.work.k : s.type === 'home' ? c.home.k : 0;
     const e = G.world.enterables.find((q) => q.lot === b.lot);
-    if (e && b.open && b.elev && k > 0 && Math.hypot(b.cx - G.player.x, b.cz - G.player.z) < 70) {
+    if (e && b.open && b.elev && k > 0 && hyp(b.cx - G.player.x, b.cz - G.player.z) < 70) {
       G.society.enter(h, e);
       if (h.trip) { h.trip.fixedDest = k; h.trip.room = c.home.ri; h.state = 'trip'; c.indoor = h; return; }
     }
@@ -206,7 +206,7 @@ export class Citizens {
   provide(pl, out) {
     for (const h of this.G.humans) {
       const c = h.citizen; if (!c || h.dead || h.hidden || !h.group.visible) continue;
-      if (Math.abs((h.y || 0) - (pl.y || 0)) > 2 || Math.hypot(h.x - pl.x, h.z - pl.z) > 3.4) continue;
+      if (Math.abs((h.y || 0) - (pl.y || 0)) > 2 || hyp(h.x - pl.x, h.z - pl.z) > 3.4) continue;
       out.push({ x: h.x, z: h.z, r: 3.4, cy: (h.y || 0) + 1.0, name: `${c.name} · ${c.age}세 · ${c.job}`, verbs: [
         { key: 'F', label: () => (h.sleeping ? '깨우기' : '대화'), run: () => this.talk(h) },
       ] });

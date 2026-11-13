@@ -4,7 +4,7 @@ import { settlements } from './settlements.js';
 import { net } from './roadnet.js';
 import { landHeight } from './landfn.js';
 import { nightU, timeUniform } from './shaders.js';
-import { rand, VIEW } from './util.js';
+import { rand, VIEW, hyp } from './util.js';
 
 // The country's works (ADR-0013): wind farms (rotors turn), solar fields, mines, refineries with a flare, comms towers with beacons and the pylon lines
 // with their wires. Towers, pylons and turbines are instances of one mesh each so that they can be knocked over one at a time: a blast that hurts one
@@ -24,7 +24,7 @@ const STEEL = [0.34, 0.35, 0.38], WHITE = [0.72, 0.74, 0.76];
 // lattice mast: four legs that lean together, rungs every few metres, optional arms; h metres tall, base half width b
 function mast(h, b, arms, col = STEEL) {
   const g = [], top = Math.max(0.4, b * 0.18);
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const l = Math.hypot(h, b - top); g.push(part(new THREE.BoxGeometry(0.22, l, 0.22).translate(0, l / 2, 0), col, sx * b, 0, sz * b, 1, 1, 1, sz * Math.atan2(b - top, h) * -1, 0, sx * Math.atan2(b - top, h))); }
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const l = hyp(h, b - top); g.push(part(new THREE.BoxGeometry(0.22, l, 0.22).translate(0, l / 2, 0), col, sx * b, 0, sz * b, 1, 1, 1, sz * Math.atan2(b - top, h) * -1, 0, sx * Math.atan2(b - top, h))); }
   for (let y = h * 0.15; y < h; y += h * 0.17) { const w = b + (top - b) * (y / h); g.push(box(w * 2, 0.14, 0.14, col, 0, y, w), box(w * 2, 0.14, 0.14, col, 0, y, -w), box(0.14, 0.14, w * 2, col, w, y, 0), box(0.14, 0.14, w * 2, col, -w, y, 0)); }
   for (const a of arms || []) { g.push(box(a.len * 2, 0.3, 0.3, col, 0, a.y, 0)); for (const s of [-1, 1]) g.push(cyl(0.12, 0.12, 1.3, [0.8, 0.8, 0.82], s * a.len, a.y - 1.3, 0, 6)); }
   return mergeGeometries(g);
@@ -39,7 +39,7 @@ const TYPES = { pylon: { hp: 90, col: 3.4, hh: 34 }, comms: { hp: 140, col: 3.2,
 
 export class Industry {
   constructor(G) {
-    this.G = G; this.group = new THREE.Group(); this.group.name = 'industry'; G.scene.add(this.group); this.t = 0; this.time = 0;
+    this.G = G; this.group = new THREE.Group(); this.group.name = 'industry'; this.ax = 0; this.az = 0; G.scene.add(this.group); this.t = 0; this.time = 0;
     const S = settlements(), N = net(); this.S = S;
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.25 });
     this.glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -71,37 +71,39 @@ export class Industry {
 
   // the instance matrix of an item: standing, or tipped over about its foot away from (dx, dz) by the angle of its fall
   place(it) {
-    const m = this.inst[it.type], M = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(G0, it.rot), pos = new THREE.Vector3(it.x, it.y, it.z), sc = new THREE.Vector3(it.s, it.s, it.s);
+    const m = this.inst[it.type], M = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(G0, it.rot), pos = new THREE.Vector3(it.x - this.ax, it.y, it.z - this.az), sc = new THREE.Vector3(it.s, it.s, it.s);
     if (it.fall) { const a = Math.min(1.5, it.fall.ang ?? (it.fall.done ? 1.45 : 0)), ax = new THREE.Vector3(-it.fall.dz, 0, it.fall.dx); q.premultiply(new THREE.Quaternion().setFromAxisAngle(ax, a)); }
     M.compose(pos, q, sc); m.setMatrixAt(it.slot, M);
     if (it.type === 'tower' && it.rotor) this.rotor(it);
   }
   rotor(it) {   // the rotor sits at the nacelle: on top of the tower, turned about the tower's axis, spinning about the horizontal axis along the wind
     const h = 74 * it.s, wind = 0.6 + it.site.seed * 0.1, a = this.time * (0.9 + (it.k % 3) * 0.12) * (it.alive ? 1 : 0), m = it.rotor, yaw = wind;
-    if (it.fall) { const k = Math.min(1.5, it.fall.ang ?? (it.fall.done ? 1.45 : 0)), ax = new THREE.Vector3(-it.fall.dz, 0, it.fall.dx), q = new THREE.Quaternion().setFromAxisAngle(ax, k); const p = new THREE.Vector3(0, h, 0).applyQuaternion(q); m.position.set(it.x + p.x, it.y + p.y, it.z + p.z); m.quaternion.copy(q); m.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0))); m.rotateX(Math.PI / 2); return; }
-    m.position.set(it.x + Math.sin(yaw) * 5, it.y + h, it.z + Math.cos(yaw) * 5); m.rotation.set(0, yaw, a, 'YXZ'); m.scale.setScalar(1);
+    if (it.fall) { const k = Math.min(1.5, it.fall.ang ?? (it.fall.done ? 1.45 : 0)), ax = new THREE.Vector3(-it.fall.dz, 0, it.fall.dx), q = new THREE.Quaternion().setFromAxisAngle(ax, k); const p = new THREE.Vector3(0, h, 0).applyQuaternion(q); m.position.set(it.x - this.ax + p.x, it.y + p.y, it.z - this.az + p.z); m.quaternion.copy(q); m.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0))); m.rotateX(Math.PI / 2); return; }
+    m.position.set(it.x - this.ax + Math.sin(yaw) * 5, it.y + h, it.z - this.az + Math.cos(yaw) * 5); m.rotation.set(0, yaw, a, 'YXZ'); m.scale.setScalar(1);
   }
-  refreshBeacons() { const M = new THREE.Matrix4(); let n = 0; for (const it of this.items) if (it.type === 'comms') { if (it.alive) { M.makeTranslation(it.x, it.y + 66 * it.s, it.z); this.beacons.setMatrixAt(n++, M); } } this.beacons.count = n; this.beacons.instanceMatrix.needsUpdate = true; }
+  refreshBeacons() { const M = new THREE.Matrix4(); let n = 0; for (const it of this.items) if (it.type === 'comms') { if (it.alive) { M.makeTranslation(it.x - this.ax, it.y + 66 * it.s, it.z - this.az); this.beacons.setMatrixAt(n++, M); } } this.beacons.count = n; this.beacons.instanceMatrix.needsUpdate = true; }
 
   // the wires of a line: three per span with a sag; beside a fallen pylon they lie on the ground
   wire(l) {
     if (l.mesh) { this.group.remove(l.mesh); l.mesh.geometry.dispose(); }
     const pos = [], P = this.items.filter((it) => it.line === l).sort((a, b) => a.i - b.i);
+    // the wires about the line's first pylon (EV-04): world metres as 32-bit floats are 3 cm apart at Jeju
+    const wx = P.length ? Math.round(P[0].x) : 0, wz = P.length ? Math.round(P[0].z) : 0; l.wx = wx; l.wz = wz;
     for (let i = 0; i + 1 < P.length; i++) {
       const a = P[i], b = P[i + 1];
       for (const off of [-4.4, 0, 4.4]) for (let k = 0; k < 6; k++) {
-        const pt = (t) => { const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, ya = a.alive ? a.y + 31 : a.y + 0.6, yb = b.alive ? b.y + 31 : b.y + 0.6, sag = a.alive && b.alive ? 5 * 4 * t * (1 - t) : 0.4 * Math.sin(t * 3.14), dx = b.x - a.x, dz = b.z - a.z, l2 = Math.hypot(dx, dz) || 1; return [x + (-dz / l2) * off * (a.alive ? 1 : 0.4), ya + (yb - ya) * t - sag, z + (dx / l2) * off * (a.alive ? 1 : 0.4)]; };
-        pos.push(...pt(k / 6), ...pt((k + 1) / 6));
+        const pt = (t) => { const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, ya = a.alive ? a.y + 31 : a.y + 0.6, yb = b.alive ? b.y + 31 : b.y + 0.6, sag = a.alive && b.alive ? 5 * 4 * t * (1 - t) : 0.4 * Math.sin(t * 3.14), dx = b.x - a.x, dz = b.z - a.z, l2 = hyp(dx, dz) || 1; return [x + (-dz / l2) * off * (a.alive ? 1 : 0.4), ya + (yb - ya) * t - sag, z + (dx / l2) * off * (a.alive ? 1 : 0.4)]; };
+        const p0 = pt(k / 6), p1 = pt((k + 1) / 6); pos.push(p0[0] - wx, p0[1], p0[2] - wz, p1[0] - wx, p1[1], p1[2] - wz);
       }
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(pos), 3));
-    l.mesh = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x15171c })); l.mesh.frustumCulled = false; this.group.add(l.mesh);
+    l.mesh = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x15171c })); l.mesh.position.set(wx - this.ax, 0, wz - this.az); l.mesh.frustumCulled = false; this.group.add(l.mesh);
   }
 
   // ---------------------------------------------------------------- the sites
   buildSite(s, pad) {
     const y = pad?.y ?? s.y, g = new THREE.Group(), geo = [], glow = [], R = (k) => hash(s.seed, k);
-    g.position.set(s.x, y, s.z);
+    g.position.set(s.x - this.ax, y, s.z - this.az);
     if (s.type === 'solar') {   // rows of tilted panels on posts: 12 rows of 20 panels
       for (let r = 0; r < 14; r++) for (let c = 0; c < 18; c++) { const x = (c - 8.5) * 7.2, z = (r - 6.5) * 9; geo.push(part(new THREE.BoxGeometry(6.2, 0.12, 3.6).translate(0, 1.7, 0), [0.04, 0.09, 0.2], x, 0, z, 1, 1, 1, -0.5, 0, 0)); geo.push(box(0.15, 1.6, 0.15, STEEL, x, 0, z)); }
       geo.push(box(10, 3.4, 7, WHITE, 78, 0, 0), box(9, 0.3, 6, STEEL, 78, 3.4, 0));
@@ -124,11 +126,23 @@ export class Industry {
   }
 
   // ---------------------------------------------------------------- every frame
+  // the group kept at an 8 km grid point near the camera and everything in it placed about that point (EV-04): pylons, towers and sites across the
+  // country were instances and meshes in world metres, 3-6 cm apart as 32-bit floats from Busan on. A move puts every item, wire and site again
+  follow(x, z) {
+    const ax = Math.round(x / 8192) * 8192, az = Math.round(z / 8192) * 8192; if (ax === this.ax && az === this.az) return;
+    this.ax = ax; this.az = az; this.group.position.set(ax, 0, az);
+    for (const it of this.items) this.place(it);
+    for (const m of Object.values(this.inst)) m.instanceMatrix.needsUpdate = true;
+    this.refreshBeacons();
+    for (const l of this.S.pylons) if (l.mesh) l.mesh.position.set(l.wx - ax, 0, l.wz - az);
+    for (const st of this.sites) st.group.position.set(st.s.x - ax, st.y, st.s.z - az);
+  }
   update(dt, cam, focus) {
+    this.follow(cam.position.x, cam.position.z);
     this.time += dt; this.t -= dt; const bl = Math.sin(this.time * 4.4) > 0.55;
     this.beacons.visible = bl || nightU.value > 0.5; this.beacons.material.opacity = 1;
-    for (const it of this.rotors) if (Math.hypot(it.x - cam.position.x, it.z - cam.position.z) < 5000) this.rotor(it);
-    for (const st of this.sites) { const d = Math.hypot(st.s.x - cam.position.x, st.s.z - cam.position.z); st.group.visible = d < SITE_VIS * VIEW.b; if (st.s.flameMesh && st.group.visible) { const f = st.s.flameMesh; f.scale.set(0.8 + 0.4 * Math.sin(this.time * 17) * Math.sin(this.time * 5.3), 0.7 + 0.5 * Math.abs(Math.sin(this.time * 9.1 + 1)), 1); f.lookAt(cam.position.x - st.group.position.x, f.position.y, cam.position.z - st.group.position.z); f.rotation.x = 0; } for (const tk of st.tanks) if (tk.burning > 0) { tk.burning -= dt; if (Math.random() < dt * 8) this.G.smokeP.emit(tk.x + rand(-5, 5), st.y + 14, tk.z + rand(-5, 5), rand(-1, 1), rand(4, 9), rand(-1, 1), rand(4, 7), rand(5, 9), 0.05, 0.05, 0.06, 0.8, 0.2, 0.4); } }
+    for (const it of this.rotors) if (hyp(it.x - cam.position.x, it.z - cam.position.z) < 5000) this.rotor(it);
+    for (const st of this.sites) { const d = hyp(st.s.x - cam.position.x, st.s.z - cam.position.z); st.group.visible = d < SITE_VIS * VIEW.b; if (st.s.flameMesh && st.group.visible) { const f = st.s.flameMesh; f.scale.set(0.8 + 0.4 * Math.sin(this.time * 17) * Math.sin(this.time * 5.3), 0.7 + 0.5 * Math.abs(Math.sin(this.time * 9.1 + 1)), 1); f.lookAt(cam.position.x - st.group.position.x, f.position.y, cam.position.z - st.group.position.z); f.rotation.x = 0; } for (const tk of st.tanks) if (tk.burning > 0) { tk.burning -= dt; if (Math.random() < dt * 8) this.G.smokeP.emit(tk.x + rand(-5, 5), st.y + 14, tk.z + rand(-5, 5), rand(-1, 1), rand(4, 9), rand(-1, 1), rand(4, 7), rand(5, 9), 0.05, 0.05, 0.06, 0.8, 0.2, 0.4); } }
     // falls
     let moved = false;
     for (const it of this.items) { const f = it.fall; if (!f || f.done) continue; f.t += dt; const T = it.type === 'pylon' ? 1.8 : 2.8, k = Math.min(1, f.t / T); f.ang = 1.45 * (k * k * (1.4 - 0.4 * k)); if (k >= 1) { f.done = true; f.ang = 1.45; this.dust(it); if (it.line) this.wire(it.line); } this.place(it); moved = true; }
@@ -140,12 +154,12 @@ export class Industry {
   colliders(focus) {
     const col = this.G.world.colliders;
     for (const it of this.items) {
-      const near = it.alive && Math.hypot(it.x - focus.x, it.z - focus.z) < COLL, has = this.cb.get(it.id);
+      const near = it.alive && hyp(it.x - focus.x, it.z - focus.z) < COLL, has = this.cb.get(it.id);
       if (near && !has) { const w = TYPES[it.type].col * 0.6 * it.s; this.cb.set(it.id, col.addBox(it.x - w, it.z - w, it.x + w, it.z + w, it.y + 7, 'tower', it.y - 0.5)); }
       else if (!near && has) { col.removeBox(has); this.cb.delete(it.id); }
     }
     for (const st of this.sites) if (st.s.type === 'refinery' || st.s.type === 'mine') {
-      const near = Math.hypot(st.s.x - focus.x, st.s.z - focus.z) < COLL + 120, has = st.cb;
+      const near = hyp(st.s.x - focus.x, st.s.z - focus.z) < COLL + 120, has = st.cb;
       if (near && !has) { st.cb = st.tanks.map((tk) => col.addBox(tk.x - tk.r, tk.z - tk.r, tk.x + tk.r, tk.z + tk.r, st.y + 12, 'tower', st.y)); }
       else if (!near && has) { for (const b of has) col.removeBox(b); st.cb = null; }
     }
@@ -156,14 +170,14 @@ export class Industry {
   blast(x, y, z, radius, dmg, src) {
     const G = this.G;
     for (const it of this.items) {
-      if (!it.alive) continue; const d = Math.hypot(it.x - x, it.z - z); if (d > radius + 4) continue;
+      if (!it.alive) continue; const d = hyp(it.x - x, it.z - z); if (d > radius + 4) continue;
       it.hp -= dmg * (1 - Math.max(0, d - 2) / (radius + 4)) * 1.2; if (it.hp > 0) continue;
       it.alive = false; it.fall = { t: 0, dx: d > 0.5 ? (it.x - x) / d : 1, dz: d > 0.5 ? (it.z - z) / d : 0, ang: 0 }; this.P.fallen[it.id] = G.clock.t; this.stats.fallen++;
       if (it.type === 'comms') this.refreshBeacons(); const has = this.cb.get(it.id); if (has) { G.world.colliders.removeBox(has); this.cb.delete(it.id); }
       G.memory?.log('collapse', it.x, it.z, { city: '', text: it.type === 'pylon' ? '송전탑 붕괴' : it.type === 'comms' ? '통신탑 붕괴' : '풍력 터빈 붕괴' }); G.addHeat?.(8);
     }
     for (const st of this.sites) for (const tk of st.tanks) {
-      const d = Math.hypot(tk.x - x, tk.z - z); if (tk.hp <= 0 || d > radius + tk.r) continue; tk.hp -= dmg * (1 - Math.max(0, d - tk.r) / (radius + tk.r)); if (tk.hp > 0) continue;
+      const d = hyp(tk.x - x, tk.z - z); if (tk.hp <= 0 || d > radius + tk.r) continue; tk.hp -= dmg * (1 - Math.max(0, d - tk.r) / (radius + tk.r)); if (tk.hp > 0) continue;
       tk.burning = 60; G.fire?.ignite?.(tk.x, tk.z, { fuel: 30, r: 6, src: null }); G.explosion?.(tk.x, st.y + 6, tk.z, 16, 160, src);
     }
   }

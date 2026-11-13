@@ -1,4 +1,5 @@
-// Grid navmesh for building interiors and streets: rasterise collider boxes on a floor into 0.5m cells, A* with string-pulling.
+
+import { hyp } from './util.js';// Grid navmesh for building interiors and streets: rasterise collider boxes on a floor into 0.5m cells, A* with string-pulling.
 // The search runs often (NPCs re-path while chasing), so it allocates nothing per call: grid, costs and parents live in grow-only typed
 // arrays validated by a per-search stamp, and the open set is a binary heap (the old linear scan + splice was O(n^2) per search).
 const CS = 0.5;
@@ -48,7 +49,7 @@ export function navPath(G, y, x0, z0, x1, z1, maxR = 40) {
   const idx = (x, z) => Math.floor((z - minz) / CS) * W + Math.floor((x - minx) / CS);
   const s = idx(x0, z0), t = idx(x1, z1), tx = t % W, tz = (t / W) | 0;
   blocked[s] = 0; blocked[t] = 0;
-  const hz = (i) => Math.hypot((i % W) - tx, ((i / W) | 0) - tz);
+  const hz = (i) => hyp((i % W) - tx, ((i / W) | 0) - tz);
   hLen = 0; seen[s] = gen; gCost[s] = 0; from[s] = -1; push(hz(s), s);
   let guard = 0;
   while (hLen && guard++ < 60000) {
@@ -70,7 +71,7 @@ export function navPath(G, y, x0, z0, x1, z1, maxR = 40) {
   const pts = []; for (let c = t; c !== -1 && c !== s; c = from[c]) pts.push([minx + ((c % W) + 0.5) * CS, minz + (((c / W) | 0) + 0.5) * CS]);
   pts.reverse();
   // string pulling: drop waypoints while a straight corridor stays free
-  const free = (ax, az, bx, bz) => { const n = Math.ceil(Math.hypot(bx - ax, bz - az) / (CS * 0.5)); for (let k = 1; k < n; k++) { const f = k / n, c = idx(ax + (bx - ax) * f, az + (bz - az) * f); if (blocked[c]) return false; } return true; };
+  const free = (ax, az, bx, bz) => { const n = Math.ceil(hyp(bx - ax, bz - az) / (CS * 0.5)); for (let k = 1; k < n; k++) { const f = k / n, c = idx(ax + (bx - ax) * f, az + (bz - az) * f); if (blocked[c]) return false; } return true; };
   const out = []; let ax = x0, az = z0, i = 0;
   while (i < pts.length) { let j = pts.length - 1; while (j > i && !free(ax, az, pts[j][0], pts[j][1])) j--; out.push(pts[j]); ax = pts[j][0]; az = pts[j][1]; i = j + 1; }
   return out;

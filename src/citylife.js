@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human } from './human.js';
-import { rand } from './util.js';
+import { rand, hyp } from './util.js';
 
 // Street life in the other cities (the capital has its own, bound to its road grid): pedestrians that walk the pavements and cars that drive the
 // streets while the player is inside a city's disc. Both exist only near the player. The streets are the city plan's axis-aligned lines
@@ -30,7 +30,7 @@ export class CityLife {
     this.t -= dt; if (this.t > 0) return; this.t = 0.5;
     const G = this.G, S = G.citysites, f = G.focusPos(); if (!S) return;
     let C = null;
-    for (const c of S.cities) if (Math.hypot(f.x - c.c.x, f.z - c.c.z) < c.L.R * 1.02) { C = c; break; }
+    for (const c of S.cities) if (hyp(f.x - c.c.x, f.z - c.c.z) < c.L.R * 1.02) { C = c; break; }
     if (C !== this.city) { this.release(); this.city = C; }
     if (!C) return;
     this.tickWalkers(C, f); this.tickCars(C, f);
@@ -41,7 +41,7 @@ export class CityLife {
     const G = this.G;
     for (let k = this.walkers.length - 1; k >= 0; k--) {
       const h = this.walkers[k]; if (h.dead || !G.humans.includes(h)) { this.walkers.splice(k, 1); continue; }
-      if (Math.hypot(h.x - f.x, h.z - f.z) > FAR) this.place(C, h, f);
+      if (hyp(h.x - f.x, h.z - f.z) > FAR) this.place(C, h, f);
     }
     for (let n = 0; n < 2 && this.walkers.length < WALKERS; n++) {   // two a tick: making a skinned character costs a few ms
       const hue = () => new THREE.Color().setHSL(Math.random(), 0.5, 0.2).getHex();
@@ -56,7 +56,7 @@ export class CityLife {
     for (let tr = 0; tr < 12; tr++) {
       const vert = Math.random() < 0.5, set = (vert ? L.v : L.h).filter((q) => Math.abs(q.c - (vert ? f.x - c.x : f.z - c.z)) < NEAR); if (!set.length) continue;
       const ln = set[Math.floor(Math.random() * set.length)], side = Math.random() < 0.5 ? 1 : -1, pc = vert ? f.z - c.z : f.x - c.x, t = Math.max(ln.a + 10, Math.min(ln.b - 10, pc + rand(-NEAR, NEAR))), off = side * (ln.w / 2 + 2.2);
-      const x = c.x + (vert ? ln.c + off : t), z = c.z + (vert ? t : ln.c + off), d = Math.hypot(x - f.x, z - f.z);
+      const x = c.x + (vert ? ln.c + off : t), z = c.z + (vert ? t : ln.c + off), d = hyp(x - f.x, z - f.z);
       if (d < 35 || d > NEAR) continue;
       const gy = G.groundY(x, z); h.ground = true;   // on the city's pavement, wherever its ground is (the city pads are at 0 today), and following it
       h.x = x; h.z = z; h.y = gy; h.floorY = gy; h.vx = h.vz = 0; h.knock = 0; h.state = 'walk'; h.walk = { vert, ln, side, dir: Math.random() < 0.5 ? 1 : -1, cool: 0 };
@@ -78,7 +78,7 @@ export class CityLife {
     }
     const ln = w.ln; if (pos < ln.a + 6) w.dir = 1; else if (pos > ln.b - 6) w.dir = -1;
     const off = w.side * (ln.w / 2 + 2.2), ahead = pos + w.dir * 7, tx = vert ? c.x + ln.c + off : c.x + ahead, tz = vert ? c.z + ahead : c.z + ln.c + off;
-    const dx = tx - h.x, dz = tz - h.z, d = Math.hypot(dx, dz) || 1;
+    const dx = tx - h.x, dz = tz - h.z, d = hyp(dx, dz) || 1;
     return { x: dx / d, z: dz / d, s: h.stateT > 0 ? 0 : 1.45, face: null };
   }
 
@@ -89,15 +89,15 @@ export class CityLife {
       const v = this.cars[k];
       if (!G.vehicles.includes(v)) { this.cars.splice(k, 1); continue; }
       if (v === G.vehicle) { v.cl = null; v.planAhead = null; this.cars.splice(k, 1); continue; }
-      if (Math.hypot(v.x - f.x, v.z - f.z) > CAR_FAR || (v.dead && v.age > 30)) { G.removeVehicle(v); this.cars.splice(k, 1); }
+      if (hyp(v.x - f.x, v.z - f.z) > CAR_FAR || (v.dead && v.age > 30)) { G.removeVehicle(v); this.cars.splice(k, 1); }
     }
     if (this.cars.length >= CARS || (f.y || 0) > 60) return;
     for (let tr = 0; tr < 3 && this.cars.length < CARS; tr++) {
       const vert = Math.random() < 0.5, set = (vert ? L.v : L.h).filter((q) => Math.abs(q.c - (vert ? f.x - C.c.x : f.z - C.c.z)) < CAR_NEAR); if (!set.length) continue;
       const ln = set[Math.floor(Math.random() * set.length)], dir = Math.random() < 0.5 ? 1 : -1, pc = vert ? f.z - C.c.z : f.x - C.c.x, t = Math.max(ln.a + 20, Math.min(ln.b - 20, pc + rand(-CAR_NEAR, CAR_NEAR)));
-      const P = this.lanePoint(C, vert, ln, t, dir), d = Math.hypot(P.x - f.x, P.z - f.z);
+      const P = this.lanePoint(C, vert, ln, t, dir), d = hyp(P.x - f.x, P.z - f.z);
       if (d < 90 || d > CAR_NEAR) continue;
-      if (this.cars.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 25)) continue;
+      if (this.cars.some((o) => hyp(o.x - P.x, o.z - P.z) < 25)) continue;
       this.spawnCar(C, { vert, ln, t, dir });
     }
   }

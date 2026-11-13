@@ -21,8 +21,10 @@ for (const k of ['base', 'pack']) for (const [n, f] of a[k]) if (!b[k].get(n) ||
 const ix = JSON.parse(a.pack.get('index.json'));
 if (ix.files.map((f) => `${f.name}:${f.region}:${f.chunks}`).join(' ') !== 'core.pak:null:1 jeju.pak:jeju:1') bad.push(['pack index', JSON.stringify(ix.files)]);
 
-// the base loader over the files (a fetch stand-in): the same keys and chunk bytes as the one container
-const serve = (files) => async (n) => (files.has(n) ? { ok: true, json: async () => JSON.parse(files.get(n)), arrayBuffer: async () => new Uint8Array(files.get(n)).buffer } : { ok: false });
+// the base loader over the files (a folder stand-in, read a chunk at a time as over http): the same keys and chunk bytes as the one container
+const mkFile = (name, bytes) => ({ name, size: bytes.length, slice: (o, e) => ({ arrayBuffer: async () => new Uint8Array(bytes.subarray(o, e)).buffer }), text: async () => Buffer.from(bytes).toString('utf8') });
+const dir = (files) => ({ async get(n) { return files.get(n) ? mkFile(n, files.get(n)) : null; } });
+const serve = dir;
 const fresh = () => { delete globalThis.__BAKED; globalThis.__WORLD = new WorldData(); return globalThis.__WORLD; };
 let wd = fresh(); await loadBaked(serve(a.base));
 const one = await openContainer(memoryReader(a.embedded)), sum = (c) => Object.entries(c.chunks).map(([k, e]) => k + ':' + e.h).sort().join(' ');
@@ -33,8 +35,6 @@ for (const [what, files] of [['missing', new Map([...a.base].filter(([n]) => n !
 }
 
 wd = new WorldData(); wd.add('embedded', one);
-const mkFile = (name, bytes) => ({ name, size: bytes.length, slice: (o, e) => ({ arrayBuffer: async () => new Uint8Array(bytes.subarray(o, e)).buffer }), text: async () => Buffer.from(bytes).toString('utf8') });
-const dir = (files) => ({ async get(n) { return files.get(n) ? mkFile(n, files.get(n)) : null; } });
 if (wd.has('h/a')) bad.push(['pack chunk before the pack is mounted']);
 const r = await mountPack(dir(a.pack), wd);
 if (r.files !== 2 || !wd.has('h/a') || !wd.has('h/b') || !wd.has('selftest')) bad.push(['mount', JSON.stringify(r)]);

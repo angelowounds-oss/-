@@ -22,7 +22,10 @@ const { siteCheck } = await import('../../build/world/sites.mjs');
 const { measure } = await import('../../build/world/corridor.mjs');
 const { drawnGround } = await import('../../build/world/emit.mjs');
 
-const root = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world'), dir = path.join(root, 'capital');
+// WORLD_REGION=<piece> audits a compiled province piece instead of the capital (build/world/compile-all.mjs, EV-09); the sites part reads the capital's
+// villages and network, so it is the capital's only
+const ID = process.env.WORLD_REGION || 'capital';
+const root = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world'), dir = path.join(root, ID);
 const bad = [], m = {}, notes = [];
 const R = readRegion(path.join(dir, 'region.bin'));
 const RES_COVERED_KM = Number(process.env.RES_COVERED_KM || 100);   // regression bar: 1,535 km before the fit (build/world/fit.mjs), 87 km after it
@@ -50,10 +53,12 @@ else {
     m.deck = deck; if (deck.unsupported) bad.push(['deck records with no road under them', deck.unsupported]);
   }
   // ---- sites
-  const st = await siteCheck(root); m.sites = st.total;
-  if (st.total.onRoad) bad.push(['houses on a road', st.total.onRoad]);
-  if (st.total.onMapBuilding) bad.push(['houses on a map building', st.total.onMapBuilding]);
-  if (st.pads.length) bad.push(['industry pads on a road', st.pads.length]);
+  if (ID === 'capital') {
+    const st = await siteCheck(root); m.sites = st.total;
+    if (st.total.onRoad) bad.push(['houses on a road', st.total.onRoad]);
+    if (st.total.onMapBuilding) bad.push(['houses on a map building', st.total.onMapBuilding]);
+    if (st.pads.length) bad.push(['industry pads on a road', st.pads.length]);
+  } else notes.push('sites: the capital only');
   // ---- corridor
   const B = readBuildings(path.join(dir, 'buildings.bin'));
   if (!B) notes.push('no buildings.bin');
@@ -68,5 +73,5 @@ else {
     if (m.coveredResKm > RES_COVERED_KM) bad.push(['residential carriageway over walls (km)', m.coveredResKm, RES_COVERED_KM]);
   }
 }
-console.log('RESULT ' + JSON.stringify({ test: 'placement', pass: bad.length === 0, metrics: m, note: [...notes, ...(bad.length ? [JSON.stringify(bad.slice(0, 10))] : [])].join('; ') }));
+console.log('RESULT ' + JSON.stringify({ test: 'placement', region: ID, pass: bad.length === 0, metrics: m, note: [...notes, ...(bad.length ? [JSON.stringify(bad.slice(0, 10))] : [])].join('; ') }));
 process.exitCode = bad.length ? 1 : 0;

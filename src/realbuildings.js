@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { landHeight } from './landfn.js';
 import { nightU } from './shaders.js';
+import { hyp } from './util.js';
 
 // The procedural buildings of the capital region (WLD-24a, ADR-0039), drawn and made solid. The baked chunk `bld/<ti>_<tj>` holds one 512 m tile of
 // rotated rectangles (centre, width, depth, turn, floors, kind, an optional notched corner); this file turns the tiles around the player into one merged
@@ -112,7 +113,7 @@ class TileBuild {
       let a2 = 0; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a2 += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
       const s = (a2 > 0 ? 1 : -1) * (ri ? -1 : 1); let u = 0;
       for (let i = 0; i < ring.length; i++) {
-        const A = ring[i], B = ring[(i + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 0.05) continue;
+        const A = ring[i], B = ring[(i + 1) % ring.length], dx = B[0] - A[0], dz = B[1] - A[1], l = hyp(dx, dz); if (l < 0.05) continue;
         const nx = s * dz / l, nz = -s * dx / l, va = (y0 - base - b0) / fh, vb = (y1 - base - b0) / fh;
         this.quad([A[0], y0, A[1]], [B[0], y0, B[1]], [B[0], y1, B[1]], [A[0], y1, A[1]], nx, 0, nz, col, [u / cw, va], [(u + l) / cw, va], [(u + l) / cw, vb], [u / cw, vb], wk, seed);
         u += l;
@@ -183,7 +184,7 @@ export class RealBuildings {
         this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('realbuildings', e.key, err); });
       }
       for (const [id, rec] of this.tiles) {
-        const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2, d = Math.hypot(focus.x - cx, focus.z - cz);
+        const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2, d = hyp(focus.x - cx, focus.z - cz);
         if (!keep.has(id) && d > this.R + 450) this.drop(id, rec);
         else if (rec.mesh) rec.mesh.castShadow = d < 420;
       }
@@ -208,10 +209,10 @@ export class RealBuildings {
     const RC = this.RC, keepR = RC + 70, fx = focus.x, fz = focus.z, seen = new Set(); let made = 0;
     for (const [id, rec] of this.tiles) {
       if (rec.state !== 'ready') continue;
-      const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2; if (Math.hypot(fx - cx, fz - cz) > keepR + TILE * 0.72) continue;
+      const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2; if (hyp(fx - cx, fz - cz) > keepR + TILE * 0.72) continue;
       const T = rec.chunk;
       for (let q = 0; q < T.n; q++) {
-        const bx = cx + T.cx[q] / 10, bz = cz + T.cz[q] / 10, dx = bx - fx, dz = bz - fz, r = Math.hypot(T.w[q], T.d[q]) / 20, dd = Math.hypot(dx, dz) - r;
+        const bx = cx + T.cx[q] / 10, bz = cz + T.cz[q] / 10, dx = bx - fx, dz = bz - fz, r = hyp(T.w[q], T.d[q]) / 20, dd = hyp(dx, dz) - r;
         if (dd > keepR) continue;
         const key = id * 16384 + q; seen.add(key);
         if (dd > RC || this.cols.has(key) || made >= 300) continue;
@@ -220,7 +221,7 @@ export class RealBuildings {
       // the real outlines: keyed after the boxes (8192 up), near when any corner of the outline is
       for (let q = 0; q < (T.pn || 0); q++) {
         const R0 = rec.roofs[q]; if (!R0) continue;
-        let dd = Infinity; for (const p of R0.all) dd = Math.min(dd, Math.hypot(cx + p[0] - fx, cz + p[1] - fz));
+        let dd = Infinity; for (const p of R0.all) dd = Math.min(dd, hyp(cx + p[0] - fx, cz + p[1] - fz));
         if (dd > keepR) continue;
         const key = id * 16384 + 8192 + q; seen.add(key);
         if (dd > RC || this.cols.has(key) || made >= 300) continue;

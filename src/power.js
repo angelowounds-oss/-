@@ -1,5 +1,6 @@
 import { blackU } from './shaders.js';
 import { ZONES } from './society.js';
+import { hyp } from './util.js';
 
 // City power grid: each zone is fed by one substation. Hack it (quiet, 4 game hours) or wreck it with gunfire / explosives
 // (8 game hours) and the zone goes dark: building windows, street lamps, traffic signals, interior lights and elevators stop,
@@ -23,7 +24,7 @@ export class Power {
   offAt(x, z) { return this.isOff(this.w.zoneOf(x, z)); }
   provide(pl, out) {
     for (const s of this.subs) {
-      if (Math.hypot(s.x - pl.x, s.z - pl.z) > 5.5 || Math.abs(pl.y || 0) > 2) continue;
+      if (hyp(s.x - pl.x, s.z - pl.z) > 5.5 || Math.abs(pl.y || 0) > 2) continue;
       const off = this.isOff(s.zone);
       out.push({ x: s.x, z: s.z, r: 5.5, cy: 1.0, name: `${ZONES[s.zone].name} 변전소${off ? ' (정전 중)' : ''}`, verbs: [
         { key: 'F', label: () => (off ? '정전 상태' : '제어반 해킹'), enabled: () => !this.isOff(s.zone), run: () => this.G.beginTimed('변전소 제어반 해킹 중…', 6, () => this.cut(s, 'hack')) },
@@ -37,7 +38,7 @@ export class Power {
     // wrecked: cut the power first, then the blast (which would otherwise hit this same yard again)
     if (s.hp <= 0) { this.cut(s, 'wreck'); this.G.explosion(s.x, this.G.groundY(s.x, s.z) + 1.2, s.z, 6, 30, this.G.player); }   // the box blows where it stands (the 1:1 ground is not at 0)
   }
-  blast(x, z, r) { for (const s of this.subs) if (Math.hypot(s.x - x, s.z - z) < r + 3) this.damage(s, SUB_HP); }
+  blast(x, z, r) { for (const s of this.subs) if (hyp(s.x - x, s.z - z) < r + 3) this.damage(s, SUB_HP); }
   cut(s, cause) {
     const G = this.G, now = G.clock.t;
     this.st.off[s.zone] = { until: now + (cause === 'hack' ? HACK_MIN : WRECK_MIN), cause, t: now };
@@ -51,14 +52,14 @@ export class Power {
     const G = this.G; delete this.st.off[zone]; this.st.hp[zone] = SUB_HP; for (const s of this.subs) if (s.zone === zone) s.hp = SUB_HP;
     this.w.setZonePower(zone, true);
     const s = this.subs.find((q) => q.zone === zone); if (s) G.memory?.log('restored', s.x, s.z);
-    if (Math.hypot(G.player.x, G.player.z) < 2000) G.toast(`💡 ${ZONES[zone].name} 전력 복구`, '복구반이 작업을 마쳤다');
+    if (hyp(G.player.x, G.player.z) < 2000) G.toast(`💡 ${ZONES[zone].name} 전력 복구`, '복구반이 작업을 마쳤다');
   }
   update(dt) {
     const G = this.G, now = G.clock.t;
     for (const z of Object.keys(this.st.off)) {
       const o = this.st.off[z];
       if (now >= o.until) this.restore(+z);
-      else if (!o.crew && now > o.until - 60) { o.crew = true; if (Math.hypot(G.player.x, G.player.z) < 2000) G.toast('🔧 한전 복구반 출동', `${ZONES[+z].name} 변전소로 이동 중`); }
+      else if (!o.crew && now > o.until - 60) { o.crew = true; if (hyp(G.player.x, G.player.z) < 2000) G.toast('🔧 한전 복구반 출동', `${ZONES[+z].name} 변전소로 이동 중`); }
     }
     // fade the windows in/out, with a short flicker when the power drops
     if (this.flick > 0) this.flick -= dt;

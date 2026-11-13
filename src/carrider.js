@@ -1,4 +1,4 @@
-import { clamp, rand } from './util.js';
+import { clamp, rand, hyp } from './util.js';
 import { keys as binds } from './keys.js';
 
 // Vehicle <-> person physics on foot: bailing out of a moving car, and standing / riding on a car roof.
@@ -24,7 +24,7 @@ export class CarRider {
   bail(v, sp, outX, outZ, force = false) {
     const G = this.G, pl = G.player;
     if (sp < 3.5) return;
-    const l = Math.hypot(outX, outZ) || 1, dx = outX / l, dz = outZ / l;
+    const l = hyp(outX, outZ) || 1, dx = outX / l, dz = outZ / l;
     const roll = G.input.held('crouch');
     pl.vx = v.vx * 0.92 + dx * 2; pl.vz = v.vz * 0.92 + dz * 2; pl.momentum = true;
     let dmg = sp > 8 ? (sp - 8) * (sp - 8) * 0.5 : sp > 6 ? (sp - 6) * 1.2 : 0;
@@ -73,7 +73,7 @@ export class CarRider {
     // shaken off?
     const dvx = v.vx - r.pvx, dvz = v.vz - r.pvz; r.pvx = v.vx; r.pvz = v.vz;
     const k = Math.min(1, dt * 2.5); r.hx += (v.vx - r.hx) * k; r.hz += (v.vz - r.hz) * k;     // the rider's own momentum lags behind the car
-    this.accS += (Math.hypot(dvx, dvz) / Math.max(dt, 1e-3) - this.accS) * Math.min(1, dt * 8);
+    this.accS += (hyp(dvx, dvz) / Math.max(dt, 1e-3) - this.accS) * Math.min(1, dt * 8);
     const up = v.pv.body.rotation(), upY = 1 - 2 * (up.x * up.x + up.z * up.z);
     const limit = pl.prone ? THROW_ACC_LOW : THROW_ACC;
     if (this.accS > limit || upY < 0.55) this.throwOff(v, r.hx, r.hz);
@@ -120,12 +120,12 @@ export class CarRider {
     const G = this.G, pl = G.player, r = this.roof; if (!r) return;
     this.roof = null; pl.body3.rideHandle = null;
     pl.vx += r.v.vx; pl.vz += r.v.vz; pl.momentum = true;           // keeps the car's speed when stepping / jumping off
-    const sp = Math.hypot(r.v.vx, r.v.vz);
+    const sp = hyp(r.v.vx, r.v.vz);
     if (sp > 6 && !pl.body3.grounded) this.landing = true;
   }
   throwOff(v, hx, hz) {
     const G = this.G, pl = G.player; this.roof = null; pl.body3.rideHandle = null;
-    const sp = Math.hypot(hx, hz);
+    const sp = hyp(hx, hz);
     pl.vx = hx; pl.vz = hz; pl.momentum = true;
     G.toast('지붕에서 떨어졌다', `시속 ${(sp * 3.6) | 0} km`);
     this.prepareBones(pl);

@@ -1,14 +1,16 @@
 import * as THREE from 'three';
-import { carriage, medianGap } from './carriage.js';
+import { carriage, medianGap, barrierGap, roadBeneath } from './carriage.js';
 import { net, groundH, HALF_W, CARVE_FADE, BROKEN, breakSegment, roadAt } from './roadnet.js';
 import { cities } from './worldmap.js';
-import { rand, VIEW } from './util.js';
+import { rand, VIEW, hyp, hyp3 } from './util.js';
 import { landHeight } from './landfn.js';
 import { regionWeight, TUNNEL_FILL, carve } from './region.js';
 import { Deck, oldDeck, oldHalf } from './roaddeck.js';
 import { GR, grp } from './physics.js';
 import * as surf from './roadsurf.js';
 import { pullFar } from './shaders.js';
+import { cellKey } from './roadgrid.js';
+import { localPoints } from './physorigin.js';
 
 // The highway network drawn (roadnet.js has the data): asphalt ribbons with lane markings, median barrier and guard rails, bridges with pillars,
 // tunnels with lights, ramps, sign gantries, toll plazas and service areas; street lamps are an instanced pool that follows the camera.
@@ -18,6 +20,10 @@ const CHUNK = 100, LANE = 3.75, MED = 3.2, SHOULDER = 2.4;
 // compiled arterial lines (roadnet kind 'arterial', ADR-0019): pieces of ART samples built near the camera and dropped beyond; the big roads are seen
 // from further away
 const LOCAL_LAMPS = { secondary: 1, secondary_link: 1, tertiary: 1, tertiary_link: 1, residential: 1 };   // no lamp poles along the smaller roads
+const ART_CELL = 1024;   // the cells (m) the compiled pieces are indexed by for streaming
+// a piece's distance (edge, not centre) to the nearer of camera and focus, without Math.hypot (a builtin call that returns a boxed number)
+const artDist = (p, cx, cz, fx, fz) => { const ax = p.cx - cx, az = p.cz - cz, bx = p.cx - fx, bz = p.cz - fz; return Math.sqrt(Math.min(ax * ax + az * az, bx * bx + bz * bz)) - p.rad; };
+const byD = (a, b) => a.d - b.d;   // nearest first
 const ART = 60, ART_ON = { motorway: 8000, trunk: 8000, primary: 3000, secondary: 2200, motorway_link: 3000, trunk_link: 3000, primary_link: 2200, secondary_link: 1600, tertiary: 1600, tertiary_link: 1200, residential: 700 }, ART_OFF = 1.4, ART_BUDGET = 4, NEAR_NOW = 160;   // pieces within NEAR_NOW of the camera are built at once, over the time budget
 const lerp = (a, b, t) => a + (b - a) * t;
 // the ground over a tunnel (GPL-18): the physics ground along a tunnel is filled down to its road (so the cars inside have a floor and the old checks
@@ -31,18 +37,27 @@ class Acc {
   // flat-shaded quad a-b-c-d (counter-clockwise seen from the side the normal points to)
   quad(a, b, c, d, col, ua, ub, uc, ud) {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = hyp3(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
     for (const q of [a, b, c, d]) { this.p.push(q[0], q[1], q[2]); this.n.push(nx, ny, nz); this.c.push(col[0], col[1], col[2]); }
     if (ua) this.u.push(ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]); else this.u.push(0, 0, 0, 0, 0, 0, 0, 0);
     const k = this.k; this.i.push(k, k + 1, k + 2, k, k + 2, k + 3); this.k += 4;
   }
   get empty() { return this.k === 0; }
+  // the mesh about its first vertex, placed there (EV-04): world metres as 32-bit floats are 3 cm apart at Jeju, about the mesh's own point
+  // millimetres apart (this.p keeps the world positions for roadsurf)
   mesh(mat) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
+    const g = new THREE.BufferGeometry(), p = this.p, ox = Math.round(p[0]), oz = Math.round(p[2]), P = new Float32Array(p.length);
+    for (let i = 0; i < p.length; i += 3) { P[i] = p[i] - ox; P[i + 1] = p[i + 1]; P[i + 2] = p[i + 2] - oz; }
+    g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2)); g.setIndex(this.i);
-    g.computeBoundingSphere(); const m = new THREE.Mesh(g, mat); m.castShadow = false; m.receiveShadow = false; return m;
+    g.computeBoundingSphere(); const m = new THREE.Mesh(g, mat); m.position.set(ox, 0, oz); m.castShadow = false; m.receiveShadow = false; return m;
   }
+}
+// one Acc per 4 km cell (EV-04): the gantries, tolls and service areas of the whole country in one mesh were drawn 2-3 cm coarse at Busan and Jeju
+// (its vertices near the camera hundreds of km from its own point); a cell's mesh is about its own
+function cellAccs() {
+  const M = new Map();
+  return { at(x, z) { const k = Math.floor(x / 4096) + ',' + Math.floor(z / 4096); let a = M.get(k); if (!a) M.set(k, (a = new Acc())); return a; }, each(f) { for (const a of M.values()) if (!a.empty) f(a); } };
 }
 // an axis-aligned box in a road's local frame is awkward; boxes here are built from the frame (centre, tangent, right) directly
 function box(acc, c, tx, tz, w, h, d, y0, col) {   // centre c = [x, z], tangent (tx, tz), width w across, depth d along, from y0 up h
@@ -94,12 +109,20 @@ export class Highways {
     for (const m of [this.mats.asphalt, this.mats.ramp, this.mats.alley, ...this.mats.lanes]) pullFar(m);
     this.stats = { chunks: 0, tris: 0, artPieces: 0, artLive: 0, artVerts: 0, artLifted: 0 }; this.cm = new Map(); this.decks = new Map(); this.piers = new Map(); this.pcols = new Map();
     for (const r of this.N.roads) if (r.kind !== 'arterial') this.buildRoad(r);
-    this.art = []; for (const r of this.N.roads) if (r.kind === 'arterial') for (let a = 0; a < r.x.length - 1; a += ART) {
+    this.art = []; this.artFirst = new Map();   // artFirst: a line's first piece in `art` (ensurePiece finds a sample's piece without a search)
+    for (const r of this.N.roads) if (r.kind === 'arterial') { this.artFirst.set(r, this.art.length); for (let a = 0; a < r.x.length - 1; a += ART) {
       const b = Math.min(r.x.length - 1, a + ART); let cx = 0, cz = 0, rad = 0; for (let i = a; i <= b; i++) { cx += r.x[i]; cz += r.z[i]; } cx /= b - a + 1; cz /= b - a + 1;
-      for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.x[i] - cx, r.z[i] - cz));
+      for (let i = a; i <= b; i++) rad = Math.max(rad, hyp(r.x[i] - cx, r.z[i] - cz));
       this.art.push({ r, a, b, cx, cz, rad, on: ART_ON[r.hw] || 2200, meshes: null });
-    }
+    } }
     this.stats.artPieces = this.art.length;
+    // the pieces by how far they show (ART_ON) and where (ART_CELL cells), and the set of those built: the streaming pass looks at the cells in reach
+    // and the built pieces only (EV-03: a pass over all of them, every 300 ms, allocated 270 MB in 1,500 frames)
+    this.artLive = new Set(); this.artTiers = [];
+    { const tiers = new Map();
+      for (const p of this.art) { let t = tiers.get(p.on); if (!t) tiers.set(p.on, t = { on: p.on, rad: 0, cells: new Map() }); t.rad = Math.max(t.rad, p.rad); const k = cellKey(Math.floor(p.cx / ART_CELL), Math.floor(p.cz / ART_CELL)); let c = t.cells.get(k); if (!c) t.cells.set(k, c = []); c.push(p); }
+      this.artTiers = [...tiers.values()]; }
+    this.artStamp = 0;
     // the tunnel runs of every road (in pieces of at most ART segments), for the ground over them
     this.covers = []; this.tgrid = new Map(); this.stats.covers = 0; this.stats.coverTris = 0;
     for (const r of this.N.roads) {
@@ -118,7 +141,7 @@ export class Highways {
 
   frame(r, i) {   // centre, tangent, right of sample i
     const X = r.x, Z = r.z, n = X.length, a = r.closed ? (i + n - 1) % n : Math.max(0, i - 1), b = r.closed ? (i + 1) % n : Math.min(n - 1, i + 1);
-    let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+    let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = hyp(tx, tz) || 1; tx /= l; tz /= l;
     return { x: X[i], z: Z[i], y: r.y[i], tx, tz, rx: tz, rz: -tx, cls: r.cls[i] };
   }
 
@@ -134,7 +157,7 @@ export class Highways {
     {
       const A = new Acc(), S = new Acc(), E = new Acc(), c1 = Math.min(m, c0 + CHUNK), top = [], piers = [];
       for (let i = c0; i < c1; i++) {
-        const f0 = this.frame(r, i), f1 = this.frame(r, (i + 1) % n), seg = Math.hypot(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
+        const f0 = this.frame(r, i), f1 = this.frame(r, (i + 1) % n), seg = hyp(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
         const at = (f, off, dy = 0) => [f.x + f.rx * off, f.y + dy, f.z + f.rz * off];
         const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
         if (BROKEN.has(r.id + ':' + i)) continue;   // a blown-up span: no deck, rails or pillars
@@ -158,7 +181,7 @@ export class Highways {
         }
         for (let t = k0; t < A.i.length / 3; t++) top[t] = !tunnel;   // the drawn top (roadsurf.js), not a tunnel's floor
         if (!ramp && !tunnel) {   // furniture of the open road: sound barriers beside the towns, delineator posts, a kilometre post every kilometre
-          const urban = this.urban.some((u) => Math.hypot(f0.x - u.x, f0.z - u.z) < u.r * 2.1);
+          const urban = this.urban.some((u) => hyp(f0.x - u.x, f0.z - u.z) < u.r * 2.1);
           if (urban && !bridge) for (const s of [-1, 1]) { const o = s * (half + 1.5), p0 = at(f0, o, 0), p1 = at(f1, o, 0), up = (q, h) => [q[0], q[1] + h, q[2]]; S.quad(p0, p1, up(p1, 3.6), up(p0, 3.6), BARR); S.quad(up(p0, 3.6), up(p1, 3.6), p1, p0, BARR); S.quad(up(p0, 3.6), up(p1, 3.6), [p1[0] + f1.rx * s * 0.05, p1[1] + 3.75, p1[2] + f1.rz * s * 0.05], [p0[0] + f0.rx * s * 0.05, p0[1] + 3.75, p0[2] + f0.rz * s * 0.05], [0.2, 0.2, 0.22]); }
           for (const s of [-1, 1]) if (i % 2 === 0) box(S, [f0.x + f0.rx * s * (half + 0.9), f0.z + f0.rz * s * (half + 0.9)], f0.tx, f0.tz, 0.14, 1.1, 0.14, f0.y, [0.85, 0.85, 0.8]);
           if (i % 33 === 0 && !bridge) box(S, [f0.x + f0.rx * (half + 3), f0.z + f0.rz * (half + 3)], f0.tx, f0.tz, 0.2, 1.4, 0.9, f0.y, [0.05, 0.3, 0.12]);
@@ -166,7 +189,7 @@ export class Highways {
         if (bridge) {   // fascia and underside; pillars every fourth sample
           for (const s of [-1, 1]) { const o = s * (half + 0.5); S.quad(at(f0, o, 0), at(f1, o, 0), at(f1, o, -1.7), at(f0, o, -1.7), PIL); }
           S.quad(at(f0, -half - 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f0, half + 0.5, -1.7), PIL);
-          if (i % 4 === 0) { const gy = groundH(f0.x, f0.z, 30), h = f0.y - 1.7 - gy, w = ramp ? 3 : 6; if (h > 0.6 && ![-0.5, 0, 0.5].some((u) => this.roadNear(f0.x + f0.rx * w * u, f0.z + f0.rz * w * u, r, 1.5, 1))) { box(S, [f0.x, f0.z], f0.tx, f0.tz, w, h, 2.6, gy, PIL); piers.push([f0.x, f0.z, f0.tx, f0.tz, w, h, 2.6, gy]); } }   // not on a road beneath
+          if (i % 4 === 0) { const gy = groundH(f0.x, f0.z, 30), h = f0.y - 1.7 - gy, w = ramp ? 3 : 6; if (h > 0.6 && ![-0.5, 0, 0.5].some((u) => roadBeneath(this.N, f0.x + f0.rx * w * u, f0.z + f0.rz * w * u, r, 1.5, f0.y, 1, HALF_W))) { box(S, [f0.x, f0.z], f0.tx, f0.tz, w, h, 2.6, gy, PIL); piers.push([f0.x, f0.z, f0.tx, f0.tz, w, h, 2.6, gy]); } }   // not on a road beneath
         }
         if (tunnel) {   // lining: walls and ceiling seen from inside, a light strip along the ceiling
           const w = half + 1.4, hgt = 7.0, wall = [0.34, 0.35, 0.38];
@@ -196,7 +219,7 @@ export class Highways {
   // the ground there) the drawn asphalt also gets a thin triangle mesh to stand on; a chunk or piece that is dropped takes its deck with it
   makeDeck(D) {
     if (!D.P.length || !this.phys) return null;
-    const R = this.phys.R; return this.phys.world.createCollider(R.ColliderDesc.trimesh(new Float32Array(D.P), new Uint32Array(D.I)).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
+    const R = this.phys.R, L = localPoints(D.P); return this.phys.world.createCollider(R.ColliderDesc.trimesh(L.P, new Uint32Array(D.I)).setTranslation(L.x, 0, L.z).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
   }
   dropDeck(c) { if (c && this.phys) this.phys.world.removeCollider(c, true); }
   deckChunk(r, c0) {
@@ -219,7 +242,7 @@ export class Highways {
       // compiled lines keep their bridges (no span bookkeeping yet)
       if (r.cls[i] !== 1 || r.kind === 'arterial') continue;
       const p = i, dx = r.x[p] - x, dz = r.z[p] - z; if (Math.abs(dx) > radius + 16 || Math.abs(dz) > radius + 16) continue;
-      const d = Math.hypot(dx, dz); if (d > radius + 16 || Math.abs(r.y[i] - y) > radius + 30) continue;
+      const d = hyp(dx, dz); if (d > radius + 16 || Math.abs(r.y[i] - y) > radius + 30) continue;
       const span = i >> 1, key = r.id + ':' + span; if (BROKEN.has(r.id + ':' + span * 2)) continue;
       const hp = (this.hp.get(key) ?? 480) - dmg * (1 - d / (radius + 16)) * 1.4; this.hp.set(key, hp); if (hp <= 0) this.breakSpan(r, span, false);
     }
@@ -237,9 +260,9 @@ export class Highways {
 
   // ---- sign gantries
   buildGantries() {
-    const S = new Acc(), steel = [0.5, 0.52, 0.56]; const signs = [];
+    const SC = cellAccs(), steel = [0.5, 0.52, 0.56]; const signs = [];
     for (const g of this.N.gantries) {
-      const r = this.N.roads.find((q) => q.id === g.road), f = this.frame(r, g.idx), half = MED / 2 + 3 * LANE + SHOULDER + 1.2;
+      const r = this.N.roads.find((q) => q.id === g.road), f = this.frame(r, g.idx), half = MED / 2 + 3 * LANE + SHOULDER + 1.2, S = SC.at(f.x, f.z);
       for (const s of [-1, 1]) box(S, [f.x + f.rx * s * half, f.z + f.rz * s * half], f.tx, f.tz, 0.7, 8.2, 0.7, f.y, steel);
       box(S, [f.x, f.z], f.tx, f.tz, 2 * half, 0.6, 0.7, f.y + 7.6, steel);
       for (const s of [-1, 1]) {   // one panel over each carriageway; the one for traffic in the other direction faces the other way
@@ -247,7 +270,7 @@ export class Highways {
         signs.push({ x: cx, y: f.y + 5.4, z: cz, tx: f.tx, tz: f.tz, s, to: g.to, km: g.km });
       }
     }
-    if (!S.empty) { this.group.add(S.mesh(this.mats.struct)); }
+    SC.each((S) => this.group.add(S.mesh(this.mats.struct)));
     const geo = new THREE.PlaneGeometry(8.4, 2.1);
     for (const sg of signs) {
       const mat = new THREE.MeshStandardMaterial({ map: signTexture(sg.to, sg.km), emissive: 0xffffff, emissiveMap: null, roughness: 0.6, metalness: 0 });
@@ -258,9 +281,9 @@ export class Highways {
 
   // ---- toll plazas: a canopy across the road with a booth island per lane group
   buildTolls() {
-    const S = new Acc(), E = new Acc(), steel = [0.5, 0.52, 0.56], booth = [0.78, 0.78, 0.72], STRIP = [2.4, 1.5, 0.4];
+    const SC = cellAccs(), EC = cellAccs(), steel = [0.5, 0.52, 0.56], booth = [0.78, 0.78, 0.72], STRIP = [2.4, 1.5, 0.4];
     for (const t of this.N.tolls) {
-      const r = this.N.roads.find((q) => q.id === t.road), f = this.frame(r, Math.max(1, Math.min(r.x.length - 2, t.idx))), half = MED / 2 + 3 * LANE + SHOULDER + 1.5;
+      const r = this.N.roads.find((q) => q.id === t.road), f = this.frame(r, Math.max(1, Math.min(r.x.length - 2, t.idx))), half = MED / 2 + 3 * LANE + SHOULDER + 1.5, S = SC.at(f.x, f.z), E = EC.at(f.x, f.z);
       box(S, [f.x, f.z], f.tx, f.tz, 2 * half + 6, 0.9, 16, f.y + 6.2, [0.62, 0.64, 0.68]);
       E.quad([f.x - f.rx * half + f.tx * 8, f.y + 6.15, f.z - f.rz * half + f.tz * 8], [f.x + f.rx * half + f.tx * 8, f.y + 6.15, f.z + f.rz * half + f.tz * 8], [f.x + f.rx * half - f.tx * 8, f.y + 6.15, f.z + f.rz * half - f.tz * 8], [f.x - f.rx * half - f.tx * 8, f.y + 6.15, f.z - f.rz * half - f.tz * 8], [2.2, 2.0, 1.6]);
       for (const off of [-half - 1.2, -MED / 2 - 3 * LANE - 0.3, -MED / 2 - 1.5 * LANE, -MED / 2, MED / 2, MED / 2 + 1.5 * LANE, MED / 2 + 3 * LANE + 0.3, half + 1.2]) {
@@ -268,14 +291,14 @@ export class Highways {
         if (Math.abs(off) <= half) E.quad([f.x + f.rx * off - f.rx * 0.9, f.y + 2.4, f.z + f.rz * off - f.rz * 0.9], [f.x + f.rx * off + f.rx * 0.9, f.y + 2.4, f.z + f.rz * off + f.rz * 0.9], [f.x + f.rx * off + f.rx * 0.9, f.y + 2.9, f.z + f.rz * off + f.rz * 0.9], [f.x + f.rx * off - f.rx * 0.9, f.y + 2.9, f.z + f.rz * off - f.rz * 0.9], STRIP);
       }
     }
-    if (!S.empty) this.group.add(S.mesh(this.mats.struct)); if (!E.empty) this.group.add(E.mesh(this.mats.glow));
+    SC.each((S) => this.group.add(S.mesh(this.mats.struct))); EC.each((E) => this.group.add(E.mesh(this.mats.glow)));
   }
 
   // ---- service areas: a slab, a shop, a fuel canopy and a lit sign on the carved pad beside the road
   buildServices() {
-    const S = new Acc(), E = new Acc(); const slab = [0.3, 0.31, 0.33], wall = [0.74, 0.72, 0.66], roof = [0.28, 0.3, 0.34];
+    const SC = cellAccs(), EC = cellAccs(); const slab = [0.3, 0.31, 0.33], wall = [0.74, 0.72, 0.66], roof = [0.28, 0.3, 0.34];
     for (const sv of this.N.services) {
-      const tx = Math.sin(sv.heading), tz = Math.cos(sv.heading), rx = tz, rz = -tx, y = sv.y;   // the road lies toward -side from the pad's centre: the shop stands on the far side, the pumps and the sign near the road
+      const S = SC.at(sv.x, sv.z), E = EC.at(sv.x, sv.z), tx = Math.sin(sv.heading), tz = Math.cos(sv.heading), rx = tz, rz = -tx, y = sv.y;   // the road lies toward -side from the pad's centre: the shop stands on the far side, the pumps and the sign near the road
       const at = (a, b) => [sv.x + rx * a + tx * b, sv.z + rz * a + tz * b];
       box(S, at(0, 0), tx, tz, 70, 0.3, 80, y, slab);
       box(S, at(sv.side * 14, -6), tx, tz, 30, 5.6, 12, y + 0.3, wall); box(S, at(sv.side * 14, -6), tx, tz, 32, 0.7, 14, y + 5.9, roof);
@@ -290,7 +313,7 @@ export class Highways {
       box(S, at(-sv.side * 30, 4), tx, tz, 1.2, 14, 1.2, y + 0.3, [0.5, 0.52, 0.56]);
       const px = at(-sv.side * 30, 4); E.quad([px[0] - rx * 3 - tx * 0.7, y + 12.8, px[1] - rz * 3 - tz * 0.7], [px[0] + rx * 3 - tx * 0.7, y + 12.8, px[1] + rz * 3 - tz * 0.7], [px[0] + rx * 3 - tx * 0.7, y + 17, px[1] + rz * 3 - tz * 0.7], [px[0] - rx * 3 - tx * 0.7, y + 17, px[1] - rz * 3 - tz * 0.7], [0.4, 2.2, 1.2]);
     }
-    if (!S.empty) this.group.add(S.mesh(this.mats.struct)); if (!E.empty) this.group.add(E.mesh(this.mats.glow));
+    SC.each((S) => this.group.add(S.mesh(this.mats.struct))); EC.each((E) => this.group.add(E.mesh(this.mats.glow)));
   }
 
   // ---- street lamps: median posts with a double arm every 60 m, an instanced pool refilled when the camera has moved 300 m
@@ -310,23 +333,26 @@ export class Highways {
   cull(camera) {
     const now = performance.now(); if (now - (this.cullAt || 0) < 300) return; this.cullAt = now;
     const x = camera.position.x, z = camera.position.z, cy = camera.position.y, lim = cy > 450 ? 70000 : cy > 120 ? 20000 : 11000;
-    for (const m of this.group.children) { if (m.isInstancedMesh) continue; const bs = m.geometry.boundingSphere; if (bs) m.visible = Math.hypot(bs.center.x - x, bs.center.z - z) - bs.radius < lim; }
+    for (const m of this.group.children) { if (m.isInstancedMesh) continue; const bs = m.geometry.boundingSphere; if (bs) m.visible = hyp(bs.center.x + m.position.x - x, bs.center.z + m.position.z - z) - bs.radius < lim; }   // the sphere is about the mesh's own point (Acc.mesh)
   }
   update(camera, focus) {
     this.cull(camera); this.arterials(camera, false, focus);
     const L = this.lamps, x = camera.position.x, z = camera.position.z;
-    if (Math.hypot(x - L.cx, z - L.cz) < 300) return;
+    if (hyp(x - L.cx, z - L.cz) < 300) return;
     L.cx = x; L.cz = z; const N = this.N, CS = N.CS, seen = new Set(); let k = 0;
+    // the lamps about a point near the camera, the meshes placed there (EV-04): world metres as 32-bit floats are 3 cm apart at Jeju
+    const ax = Math.round(x / 256) * 256, az = Math.round(z / 256) * 256;
     const R = 2300, c0 = Math.floor((x - R) / CS), c1 = Math.floor((x + R) / CS), d0 = Math.floor((z - R) / CS), d1 = Math.floor((z + R) / CS);
     outer: for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) {
-      const cell = N.grid.get(cx * 100003 + cz); if (!cell) continue;
-      for (let q = 0; q < cell.length; q += 2) {
-        const ri = cell[q], i = cell[q + 1], r = N.roads[ri]; if (r.kind === 'ramp' || (r.kind === 'arterial' ? LOCAL_LAMPS[r.hw] || i % 5 : i % 2)) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
+      const G = N.grid, c = G.ix.get(cx * 100003 + cz); if (c === undefined) continue;
+      for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) {
+        const g = G.seg[q], ri = G.segRoad[g], i = g - G.seg0[ri], r = N.roads[ri]; if (r.kind === 'ramp' || (r.kind === 'arterial' ? LOCAL_LAMPS[r.hw] || i % 5 : i % 2)) continue; const key = ri * 1000003 + i; if (seen.has(key)) continue; seen.add(key);
         const px = r.x[i], pz = r.z[i]; if ((px - x) ** 2 + (pz - z) ** 2 > R * R || r.cls[i] === 2) continue;
-        const f = this.frame(r, i), side = r.kind === 'arterial' ? this.artWidth(r).half + 0.8 : 0; L.pos.set(f.x + f.rx * side, f.y, f.z + f.rz * side); L.q.setFromAxisAngle(L.up, Math.atan2(f.rx, f.rz)); L.mat.compose(L.pos, L.q, L.one);
+        const f = this.frame(r, i), side = r.kind === 'arterial' ? this.artWidth(r).half + 0.8 : 0; L.pos.set(f.x + f.rx * side - ax, f.y, f.z + f.rz * side - az); L.q.setFromAxisAngle(L.up, Math.atan2(f.rx, f.rz)); L.mat.compose(L.pos, L.q, L.one);
         L.poleMesh.setMatrixAt(k, L.mat); L.headMesh.setMatrixAt(k, L.mat); if (++k >= L.MAX) break outer;
       }
     }
+    L.poleMesh.position.set(ax, 0, az); L.headMesh.position.set(ax, 0, az);
     L.poleMesh.count = L.headMesh.count = k; L.poleMesh.instanceMatrix.needsUpdate = true; L.headMesh.instanceMatrix.needsUpdate = true;
   }
   // ---- compiled arterial lines: one carriageway (or a two-way road without median) per line, its own width and lanes
@@ -338,32 +364,58 @@ export class Highways {
   // driven) counts like the camera: right after a teleport the camera still hangs where it was, and must not drop the decks built under the player.
   arterials(camera, all = false, focus = null) {
     const now = performance.now(), cx = camera.position.x, cz = camera.position.z, fx = focus ? focus.x : cx, fz = focus ? focus.z : cz;
-    const jumped = Math.hypot(cx - (this.artX ?? cx), cz - (this.artZ ?? cz)) > 80 || Math.hypot(fx - (this.artFX ?? fx), fz - (this.artFZ ?? fz)) > 80;
+    const jumped = hyp(cx - (this.artX ?? cx), cz - (this.artZ ?? cz)) > 80 || hyp(fx - (this.artFX ?? fx), fz - (this.artFZ ?? fz)) > 80;
     if (!all && !jumped && now - (this.artAt || 0) < 300) return; this.artAt = now; this.artX = cx; this.artZ = cz; this.artFX = fx; this.artFZ = fz;
-    const t0 = performance.now(), want = [];
-    for (const p of this.art) {
-      const d = Math.min(Math.hypot(p.cx - cx, p.cz - cz), Math.hypot(p.cx - fx, p.cz - fz)) - p.rad;
-      if (!p.meshes) { if (d < p.on * VIEW.b) want.push({ p, d }); }
-      else if (d > p.on * VIEW.b * ART_OFF) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; surf.remove(p); this.stats.artLive--; this.dropDeck(p.col); p.col = null; this.dropPiers(p.pcol); p.pcol = null; }
+    const t0 = performance.now(), want = this.artWant || (this.artWant = []); want.length = 0;
+    // the built pieces now out of reach go
+    for (const p of this.artLive) { const d = artDist(p, cx, cz, fx, fz); if (d > p.on * VIEW.b * ART_OFF) this.dropArt(p); }
+    // the pieces not built in the cells within reach of the camera or the focus, each looked at once (a stamp)
+    const stamp = ++this.artStamp;
+    for (const T of this.artTiers) {
+      const R = T.on * VIEW.b + T.rad;
+      for (let q = 0; q < 2; q++) {
+        const x = q ? fx : cx, z = q ? fz : cz; if (q && x === cx && z === cz) break;
+        const i0 = Math.floor((x - R) / ART_CELL), i1 = Math.floor((x + R) / ART_CELL), j0 = Math.floor((z - R) / ART_CELL), j1 = Math.floor((z + R) / ART_CELL);
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+          const c = T.cells.get(cellKey(i, j)); if (!c) continue;
+          for (let k = 0; k < c.length; k++) { const p = c[k]; if (p.meshes || p.stamp === stamp) continue; p.stamp = stamp; const d = artDist(p, cx, cz, fx, fz); if (d < p.on * VIEW.b) { p.d = d; want.push(p); } }
+        }
+      }
     }
-    want.sort((a, b) => a.d - b.d);
-    for (const { p, d } of want) { if (!all && d > NEAR_NOW && performance.now() - t0 >= ART_BUDGET) break; p.meshes = this.artPiece(p); this.stats.artLive++; }
+    want.sort(byD);
+    for (const p of want) { if (!all && p.d > NEAR_NOW && performance.now() - t0 >= ART_BUDGET) break; this.buildArt(p); }
+    want.length = 0;
     for (const c of this.covers) {   // the ground over the tunnels nearby (COVER_ON)
-      const d = Math.min(Math.hypot(c.cx - cx, c.cz - cz), Math.hypot(c.cx - fx, c.cz - fz)) - c.rad;
+      const d = artDist(c, cx, cz, fx, fz);
       if (!c.built && d < COVER_ON && this.phys) this.buildCover(c); else if (c.built && d > COVER_OFF) this.dropCover(c);
     }
   }
+  // a piece of a compiled line made (its meshes, deck and piers) and counted among the built ones
+  buildArt(p) { p.meshes = this.artPiece(p); this.artLive.add(p); this.stats.artLive++; }
+  // a built piece dropped: its meshes, its surface records, its deck and piers
+  dropArt(p) { for (const m of p.meshes) { this.group.remove(m); m.geometry.dispose(); } p.meshes = null; this.artLive.delete(p); surf.remove(p); this.stats.artLive--; this.dropDeck(p.col); p.col = null; this.dropPiers(p.pcol); p.pcol = null; }
   // every piece within `r` of (x, z) now (a spawn, a boarding, a teleport): their decks are in the physics world when the next step runs
   ensureNear(x, z, r = NEAR_NOW + 60) {
-    let n = 0; for (const p of this.art) if (!p.meshes && Math.hypot(p.cx - x, p.cz - z) - p.rad < r) { p.meshes = this.artPiece(p); this.stats.artLive++; n++; }
-    if (this.phys) for (const c of this.covers) if (!c.built && Math.hypot(c.cx - x, c.cz - z) - c.rad < COVER_ON) this.buildCover(c);
+    let n = 0; for (const p of this.art) if (!p.meshes && hyp(p.cx - x, p.cz - z) - p.rad < r) { this.buildArt(p); n++; }
+    if (this.phys) for (const c of this.covers) if (!c.built && hyp(c.cx - x, c.cz - z) - c.rad < COVER_ON) this.buildCover(c);
     return n;
+  }
+  // the piece of compiled line r at sample i, built now if it is not (with `dir`, also the next piece when i is within 8 samples of the end of this
+  // one), so its deck is in the physics world when the next step runs. The highway traffic puts a car down up to 1.5 km from the player, far past
+  // NEAR_NOW: after a jump the piece there came seconds later, and a car that had fallen by then was left wedged in the new deck or wrecked on the
+  // ground 15 m under the viaduct, stopped in the lane (the Gyeonggi motorway: the autopilot behind it for half a minute, province-probe)
+  ensurePiece(r, i, dir = 0) {
+    const k = this.artFirst.get(r); if (k === undefined || r.x.length < 2) return null;
+    const last = Math.ceil((r.x.length - 1) / ART) - 1, j = Math.min(last, Math.max(0, Math.floor(i / ART))), p = this.art[k + j];
+    if (!p.meshes) this.buildArt(p);
+    if (dir > 0 && j < last && i >= p.b - 8) this.ensurePiece(r, p.b + 1); else if (dir < 0 && j > 0 && i <= p.a + 8) this.ensurePiece(r, p.a - 1);
+    return p;
   }
   // a run of tunnel segments a .. b-1 of road r, with its centre and radius
   coverRun(r, a, b) {
     const n = r.x.length; let cx = 0, cz = 0, rad = 0;
     for (let i = a; i <= b; i++) { cx += r.x[i % n]; cz += r.z[i % n]; } cx /= b - a + 1; cz /= b - a + 1;
-    for (let i = a; i <= b; i++) rad = Math.max(rad, Math.hypot(r.x[i % n] - cx, r.z[i % n] - cz));
+    for (let i = a; i <= b; i++) rad = Math.max(rad, hyp(r.x[i % n] - cx, r.z[i % n] - cz));
     return { r, a, b, cx, cz, rad, built: false, col: null };
   }
   // the ground over a run (see COVER_ROOF): cross-sections every 8 m or less along the road, each 4 m across, at the drawn ground; over the tunnel
@@ -375,7 +427,7 @@ export class Highways {
     // on along the open road past each end as far as the fill reaches round the last tunnel sample (and a height field cell), at the ground only; a road
     // that ends inside a tunnel (the next way is another road) goes on straight
     const ext = (art ? half + TUNNEL_FILL : HALF_W + CARVE_FADE) + 8, step = (i, d) => (r.closed ? (i + d + n) % n : Math.max(0, Math.min(n - 1, i + d)));
-    const gap = (i, j) => Math.hypot(r.x[i] - r.x[j], r.z[i] - r.z[j]);
+    const gap = (i, j) => hyp(r.x[i] - r.x[j], r.z[i] - r.z[j]);
     let a = c.a, b = c.b, La = 0, Lb = 0;
     for (; La < ext && a !== step(a, -1) && !(r.closed && step(a, -1) === c.b); a = step(a, -1)) La += gap(a, step(a, -1));
     for (; Lb < ext && b !== step(b, 1) && !(r.closed && step(b, 1) === c.a); b = step(b, 1)) Lb += gap(b, step(b, 1));
@@ -385,10 +437,10 @@ export class Highways {
     const cnt = r.closed ? (b - a + n) % n : b - a;
     for (let u = 0; u < cnt; u++) {
       const i = (a + u) % n, j = (i + 1) % n, tun = r.cls[i] === 2 || r.cls[j] === 2;
-      const f0 = this.frame(r, i), f1 = this.frame(r, j), ns = Math.max(1, Math.ceil(Math.hypot(f1.x - f0.x, f1.z - f0.z) / 8));
+      const f0 = this.frame(r, i), f1 = this.frame(r, j), ns = Math.max(1, Math.ceil(hyp(f1.x - f0.x, f1.z - f0.z) / 8));
       for (let s = u === 0 ? 0 : 1; s <= ns; s++) {
         const t = s / ns, y = lerp(f0.y, f1.y, t);
-        let rx = lerp(f0.rx, f1.rx, t), rz = lerp(f0.rz, f1.rz, t); const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+        let rx = lerp(f0.rx, f1.rx, t), rz = lerp(f0.rz, f1.rz, t); const rl = hyp(rx, rz) || 1; rx /= rl; rz /= rl;
         sec(lerp(f0.x, f1.x, t), lerp(f0.z, f1.z, t), y, rx, rz, tun ? y + lerp(this.tunCeil(r, f0), this.tunCeil(r, f1), t) + COVER_ROOF : -Infinity);
       }
     }
@@ -415,7 +467,7 @@ export class Highways {
         P.push(px, v, pz); oth.push(R.top > own); mouth.push(R.mouth); gone.push(drop);
       }
       // quads that would slope down in front of another road's portal are left out (that road's own cover has the seam there)
-      if (m > 0 && Math.hypot(S[m].x - S[m - 1].x, S[m].z - S[m - 1].z) > 0.01) {   // not between a seam's two copies
+      if (m > 0 && hyp(S[m].x - S[m - 1].x, S[m].z - S[m - 1].z) > 0.01) {   // not between a seam's two copies
         const p0 = v0 - NA - 1;
         for (let k = 0; k < NA; k++) {
           const a = p0 + k, b = p0 + k + 1, d = v0 + k, e = v0 + k + 1, V = [a, b, d, e];
@@ -442,7 +494,7 @@ export class Highways {
     for (let q = 0; q < l.length; q += 2) {
       const r = l[q], i = l[q + 1]; if (r === self) continue;
       const n = r.x.length, j = (i + 1) % n, A = i, B = j, dx = r.x[B] - r.x[A], dz = r.z[B] - r.z[A], tr = ((x - r.x[A]) * dx + (z - r.z[A]) * dz) / (dx * dx + dz * dz || 1), t = Math.max(0, Math.min(1, tr));
-      if (Math.hypot(x - r.x[A] - dx * t, z - r.z[A] - dz * t) > this.tunHalf(r) + 5.4) continue;
+      if (hyp(x - r.x[A] - dx * t, z - r.z[A] - dz * t) > this.tunHalf(r) + 5.4) continue;
       // past an end of the segment: on only where the tunnel goes on there (a joint inside it), not past a portal or a road's end
       const e = tr < 0 ? i : tr > 1 ? j : -1, inside = (k) => r.cls[k] === 2 && (r.closed || (k > 0 && k < n - 1));
       if (e >= 0 && !inside(e)) { out.mouth = true; continue; }
@@ -452,11 +504,11 @@ export class Highways {
   }
   // the lowest surface of the open (not tunnel) road segments, other than road self's, within their half width and 5 m at (x, z), or Infinity
   openTop(x, z, self) {
-    const N = this.N, cell = N.grid.get(Math.floor(x / N.CS) * 100003 + Math.floor(z / N.CS)); let top = Infinity; if (!cell) return top;
-    for (let q = 0; q < cell.length; q += 2) {
-      const r = N.roads[cell[q]], i = cell[q + 1], n = r.x.length, j = (i + 1) % n; if (r === self || r.cls[i] === 2 || r.cls[j] === 2) continue;
+    const N = this.N, G = N.grid, c = G.ix.get(Math.floor(x / N.CS) * 100003 + Math.floor(z / N.CS)); let top = Infinity; if (c === undefined) return top;
+    for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) {
+      const g = G.seg[q], ri = G.segRoad[g], r = N.roads[ri], i = g - G.seg0[ri], n = r.x.length, j = (i + 1) % n; if (r === self || r.cls[i] === 2 || r.cls[j] === 2) continue;
       const A = i, B = j, dx = r.x[B] - r.x[A], dz = r.z[B] - r.z[A], t = Math.max(0, Math.min(1, ((x - r.x[A]) * dx + (z - r.z[A]) * dz) / (dx * dx + dz * dz || 1)));
-      if (Math.hypot(x - r.x[A] - dx * t, z - r.z[A] - dz * t) <= this.tunHalf(r) + 5) top = Math.min(top, lerp(r.y[i], r.y[j], t));
+      if (hyp(x - r.x[A] - dx * t, z - r.z[A] - dz * t) <= this.tunHalf(r) + 5) top = Math.min(top, lerp(r.y[i], r.y[j], t));
     }
     return top;
   }
@@ -470,7 +522,7 @@ export class Highways {
   buildCover(c) {
     c.built = true; if (!this.phys) return;
     const { P, I } = this.coverMesh(c); if (!I.length) return;
-    const R = this.phys.R; c.col = this.phys.world.createCollider(R.ColliderDesc.trimesh(new Float32Array(P), new Uint32Array(I)).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
+    const R = this.phys.R, L = localPoints(P); c.col = this.phys.world.createCollider(R.ColliderDesc.trimesh(L.P, new Uint32Array(I)).setTranslation(L.x, 0, L.z).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
     c.tris = I.length / 3; this.stats.covers++; this.stats.coverTris += c.tris;
   }
   dropCover(c) {
@@ -490,7 +542,7 @@ export class Highways {
     const CONC = [0.46, 0.47, 0.5], RAIL = [0.55, 0.57, 0.6], PIL = [0.4, 0.41, 0.44], EARTH = [0.24, 0.21, 0.16], LIGHT = [3.2, 2.9, 2.2];
     let dist = 0; const D = new Deck(), top = [], piers = [];
     for (let i = p.a; i < p.b; i++) {
-      const f0 = this.frame(r, i), f1 = this.frame(r, i + 1), seg = Math.hypot(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
+      const f0 = this.frame(r, i), f1 = this.frame(r, i + 1), seg = hyp(f1.x - f0.x, f1.z - f0.z), v0 = dist / 12, v1 = (dist + seg) / 12; dist += seg;
       const bridge = f0.cls === 1 || f1.cls === 1, tunnel = f0.cls === 2 || f1.cls === 2;
       const at = (f, off, dy = 0) => {
         const x = f.x + f.rx * off, z = f.z + f.rz * off; let y = f.y;
@@ -533,7 +585,7 @@ export class Highways {
         S.quad(at(f0, half + 0.5, -1.7), at(f1, half + 0.5, -1.7), at(f1, -half - 0.5, -1.7), at(f0, -half - 0.5, -1.7), PIL);
         if (i % 4 === 0) {   // a pier every 32 m, but never standing on a road that passes beneath (the bridge spans it, as a real one does)
           const gy = landHeight(f0.x, f0.z, 16), h = f0.y - 1.7 - gy, w = Math.min(6, half);
-          if (h > 0.6 && [-0.5, 0, 0.5].some((u) => this.roadNear(f0.x + f0.rx * w * u, f0.z + f0.rz * w * u, r, 1.5, 1))) this.stats.pierSkip = (this.stats.pierSkip || 0) + 1;
+          if (h > 0.6 && [-0.5, 0, 0.5].some((u) => roadBeneath(this.N, f0.x + f0.rx * w * u, f0.z + f0.rz * w * u, r, 1.5, f0.y, 1, HALF_W))) this.stats.pierSkip = (this.stats.pierSkip || 0) + 1;
           else if (h > 0.6) { box(S, [f0.x, f0.z], f0.tx, f0.tz, w, h, 2.2, gy, PIL); piers.push([f0.x, f0.z, f0.tx, f0.tz, w, h, 2.2, gy]); }
         }
       }
@@ -568,29 +620,15 @@ export class Highways {
   // motorway that leaves or joins it the same way (a toll plaza's lanes splitting off, a collector lane) kept its edge barrier, which then lay across
   // the lanes where the two meet, and the traffic in the outer lanes was wrecked on it (구리남양주TG, 서울외곽순환선)
   // the line's own far samples count as another road: a compiled line can run back beside itself (the ring motorway's tail runs 10 m beside its start at 구리)
-  barrierGap(r, f0, f1, o, ia = -1) {
-    const N = this.N, CS = N.CS, ux = f1.x - f0.x, uz = f1.z - f0.z;
-    for (const u of [0, 0.5, 1]) {
-      const x = f0.x + (f1.x - f0.x) * u + (f0.rx + (f1.rx - f0.rx) * u) * o, z = f0.z + (f1.z - f0.z) * u + (f0.rz + (f1.rz - f0.rz) * u) * o, y = f0.y + (f1.y - f0.y) * u;
-      const cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) continue;
-      for (let q = 0; q < cell.length; q += 2) {
-        const o2 = N.roads[cell[q]], i = cell[q + 1]; if ((o2 === r && (ia < 0 || Math.min(Math.abs(i - ia), o2.x.length - Math.abs(i - ia)) < 40)) || o2.cls[i] === 2) continue;
-        const n = o2.x.length, A = i, B = (i + 1) % n, dx = o2.x[B] - o2.x[A], dz = o2.z[B] - o2.z[A];
-        if (o2.ref && o2.ref === r.ref && o2.hw === r.hw && dx * ux + dz * uz < 0) continue;
-        const l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o2.x[A]) * dx + (z - o2.z[A]) * dz) / l2));
-        const w = o2.kind === 'arterial' ? this.artWidth(o2).half : o2.kind === 'ramp' ? 4.6 : HALF_W, yo = o2.y[i] + (o2.y[(i + 1) % n] - o2.y[i]) * t;
-        if (Math.abs(yo - y) < 3 && Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < w + 0.6) return true;   // at about the same height: a road over or under it is no way off
-      }
-    }
-    return false;
-  }
+  // the work is in carriage.js (pure, unit-tested: tests/unit/carriage.test.mjs)
+  barrierGap(r, f0, f1, o, ia = -1) { return barrierGap(this.N, r, f0, f1, o, ia, HALF_W); }
   roadNear(x, z, r, pad, skip) {
-    const N = this.N, CS = N.CS, cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) return false;
-    for (let q = 0; q < cell.length; q += 2) {
-      const o2 = N.roads[cell[q]], i = cell[q + 1]; if (o2 === r || o2.cls[i] === 2 || o2.cls[i] === skip) continue;
+    const N = this.N, G = N.grid, CS = N.CS, c = G.ix.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (c === undefined) return false;
+    for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) {
+      const g = G.seg[q], ri = G.segRoad[g], o2 = N.roads[ri], i = g - G.seg0[ri]; if (o2 === r || o2.cls[i] === 2 || o2.cls[i] === skip) continue;
       const n = o2.x.length, A = i, B = (i + 1) % n, dx = o2.x[B] - o2.x[A], dz = o2.z[B] - o2.z[A], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - o2.x[A]) * dx + (z - o2.z[A]) * dz) / l2));
       const w = o2.kind === 'arterial' ? this.artWidth(o2).half : HALF_W;
-      if (Math.hypot(x - o2.x[A] - dx * t, z - o2.z[A] - dz * t) < w + pad) return true;
+      if (hyp(x - o2.x[A] - dx * t, z - o2.z[A] - dz * t) < w + pad) return true;
     }
     return false;
   }

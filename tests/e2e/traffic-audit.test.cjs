@@ -19,13 +19,19 @@ run('traffic-audit', { q: 1, width: 480, height: 270 }, async ({ page }) => {
   const t0 = Date.now();
   await page.evaluate(async (KM) => {
     const g = window.__game, RG = window.__region; g.hurtPlayer = () => {}; g.eng.render = () => {};
+    // the player's car is only the probe that carries the audit: no heat (a bump into a car made a wanted level, the police then wrecked the car and
+    // every later leg ended at once), and its own knocks are counted, not suffered
+    g.addHeat = () => {}; g.wanted = 0;
     const LIMIT = { motorway: 100, trunk: 80, primary: 60, secondary: 60, tertiary: 50, residential: 30, unclassified: 50, motorway_link: 60, trunk_link: 50, primary_link: 50, secondary_link: 40, tertiary_link: 40 };
     // leg targets: road samples well inside the capital, by class, in a fixed order (a seeded pick: the same course every run)
     let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
-    const pool = {}; for (const r of RG.regionRoads()) { if (!LIMIT[r.hw]) continue; for (let i = 10; i < r.x.length - 10; i += 25) if (RG.regionWeight(r.x[i], r.z[i]) >= 1) (pool[r.hw] = pool[r.hw] || []).push([r.x[i], r.z[i], r.y[i], r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]]); }
-    const A = { legs: [], km: 0, steps: 0, sig: { entries: 0, red: 0, yellow: 0, junctions: 0 }, overshoot: { n: 0, max: 0, sum: 0 }, impacts: { vehicle: 0, static: 0, samples: [] }, headway: { lt05: 0, lt1: 0, lt2: 0, lt3: 0, ge3: 0 }, speed: { n: 0, ratioSum: 0, over10: 0, over30: 0, byHw: {} }, wrongWay: 0, aiSamples: 0, ped: { onRoad: 0, inCrossing: 0, samples: 0 }, pool: Object.fromEntries(Object.entries(pool).map(([k, v]) => [k, v.length])) };
+    // the capital only: with provinces in the build the pool also held Gyeonggi and Jeju (a leg of 451 km in a straight line to the island)
+    const C = RG.regions()[0], inCap = (x, z) => x >= C.x0 && z >= C.z0 && x <= C.x0 + C.g * (C.nx - 1) && z <= C.z0 + C.g * (C.nz - 1);
+    const pool = {}; for (const r of RG.regionRoads()) { if (!LIMIT[r.hw]) continue; for (let i = 10; i < r.x.length - 10; i += 25) if (inCap(r.x[i], r.z[i]) && RG.regionWeight(r.x[i], r.z[i]) >= 1) (pool[r.hw] = pool[r.hw] || []).push([r.x[i], r.z[i], r.y[i], r.x[i + 1] - r.x[i], r.z[i + 1] - r.z[i]]); }
+    const A = { legs: [], km: 0, steps: 0, sig: { entries: 0, red: 0, yellow: 0, junctions: 0 }, overshoot: { n: 0, max: 0, sum: 0 }, impacts: { vehicle: 0, static: 0, samples: [] }, probeImpacts: 0, respawns: 0, headway: { lt05: 0, lt1: 0, lt2: 0, lt3: 0, ge3: 0 }, speed: { n: 0, ratioSum: 0, over10: 0, over30: 0, byHw: {} }, wrongWay: 0, aiSamples: 0, ped: { onRoad: 0, inCrossing: 0, samples: 0 }, pool: Object.fromEntries(Object.entries(pool).map(([k, v]) => [k, v.length])) };
     const V = g.vehicles[0].constructor, P0 = V.prototype.onImpact;
     V.prototype.onImpact = function (sp, x, z, other) {
+      if (this === g.vehicle && sp >= 2.2) A.probeImpacts++;
       if (this.driver === 'ai' && sp >= 2.2 && !(this.impactCd > 0) && g.vehicle && Math.hypot(this.x - g.vehicle.x, this.z - g.vehicle.z) < 150) {
         const veh = !!(other && (other.pv || other instanceof V)); A.impacts[veh ? 'vehicle' : 'static']++;
         if (A.impacts.samples.length < 12) A.impacts.samples.push({ t: this.type, sp: +sp.toFixed(1), x: Math.round(this.x), z: Math.round(this.z), hw: this.hw && this.hw.r.hw, veh });
@@ -46,10 +52,11 @@ run('traffic-audit', { q: 1, width: 480, height: 270 }, async ({ page }) => {
       const list = S.pool[hw] || S.pool.primary; let pick = null;
       for (let k = 0; k < 400 && !pick; k++) { const p = list[Math.floor(S.rnd() * list.length)]; const d = here ? Math.hypot(p[0] - here.x, p[1] - here.z) : 2000; if (d > 1500 && d < 3000) pick = p; }
       if (!pick) pick = list[Math.floor(S.rnd() * list.length)];
+      if (g.vehicle && g.vehicle.dead) { g.exitVehicle(true); A.respawns++; }   // a wrecked probe is replaced (it should not be: its damage is off)
       if (!g.vehicle) {   // the first leg starts on a road of the cycle's first class
         const p = (S.pool.motorway || list)[Math.floor(S.rnd() * (S.pool.motorway || list).length)], h = Math.atan2(p[3], p[4]);
         T.teleport(p[0], p[1], p[2] + 1); T.step(120);
-        const v = T.spawn('sport', p[0], p[1], h, 'drive', 0x333333, p[2]); T.step(30); g.enterVehicle(v); S.last = { x: v.x, z: v.z };
+        const v = T.spawn('sport', p[0], p[1], h, 'drive', 0x333333, p[2]); T.step(30); v.damage = () => {}; g.enterVehicle(v); S.last = { x: v.x, z: v.z };
       }
       const ok = g.autonav.start(pick[0], pick[1]); A.legs.push({ hw, to: [Math.round(pick[0]), Math.round(pick[1])], ok, km0: +A.km.toFixed(2) });
       return { ok, km: A.km };
@@ -112,7 +119,7 @@ run('traffic-audit', { q: 1, width: 480, height: 270 }, async ({ page }) => {
     km: +A.km.toFixed(2), toasts: A.toasts, minutes: +((Date.now() - t0) / 60000).toFixed(1), steps: A.steps, legs: A.legs, aiSamples: A.aiSamples,
     signals: { ...A.sig, redShare: A.sig.entries ? +(A.sig.red / A.sig.entries).toFixed(3) : null },
     overshoot: { n: A.overshoot.n, maxM: A.overshoot.max, meanM: A.overshoot.n ? +(A.overshoot.sum / A.overshoot.n).toFixed(2) : null },
-    impacts: { ...A.impacts, per10km: A.km ? +((A.impacts.vehicle + A.impacts.static) / A.km * 10).toFixed(2) : null },
+    probeImpacts: A.probeImpacts, respawns: A.respawns, impacts: { ...A.impacts, per10km: A.km ? +((A.impacts.vehicle + A.impacts.static) / A.km * 10).toFixed(2) : null },
     headwayShare: Object.fromEntries(Object.entries(H).map(([k, n]) => [k, +(n / hn).toFixed(3)])), headwayN: hn,
     speed: { meanOfLimit: A.speed.n ? +(A.speed.ratioSum / A.speed.n).toFixed(2) : null, over10Share: A.speed.n ? +(A.speed.over10 / A.speed.n).toFixed(3) : null, over30Share: A.speed.n ? +(A.speed.over30 / A.speed.n).toFixed(3) : null, byHw: A.speed.byHw },
     wrongWayShare: A.aiSamples ? +(A.wrongWay / A.aiSamples).toFixed(4) : null,

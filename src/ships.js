@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { cities, SEA } from './worldmap.js';
+import { hyp } from './util.js';
 
 // Ships in the harbour basin of the port city (ADR-0012): a freighter loaded with containers moored at the quay, and two that sail in from the open sea and
 // out again on a slow timetable. Not physics objects: positions are a function of the clock; drawn only within 14 km of the camera.
@@ -28,9 +29,9 @@ export class Ships {
   update(dt) {
     const cam = this.G.camera.position, t = this.G.time;
     for (const s of this.ships) {
-      if (s.moored) { s.g.visible = Math.hypot(s.g.position.x - cam.x, s.g.position.z - cam.z) < 14000; continue; }
+      if (s.moored) { s.g.visible = hyp(s.g.position.x - cam.x, s.g.position.z - cam.z) < 14000; continue; }
       const ph = ((t / s.P + s.off) % 1) * 2, u = ph < 1 ? ph : 2 - ph, k = 2.7 - 1.65 * u, p = s.at(k);   // out of the open sea toward the quay and back (stern first on the way out)
-      s.g.visible = Math.hypot(p.x - cam.x, p.z - cam.z) < 14000; s.g.position.set(p.x, SEA + 2, p.z); s.g.rotation.y = s.heading + (ph < 1 ? Math.PI : 0);
+      s.g.visible = hyp(p.x - cam.x, p.z - cam.z) < 14000; s.g.position.set(p.x, SEA + 2, p.z); s.g.rotation.y = s.heading + (ph < 1 ? Math.PI : 0);
     }
   }
 }

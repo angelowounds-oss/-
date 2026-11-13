@@ -45,3 +45,7 @@ export function setViewDistance(k) { VIEW.k = k; VIEW.b = Math.max(0.7, Math.min
 
 // active dynamic-light budget per quality tier (set by engine.setQuality); lights past the cap are hidden so they leave the shader loop
 export const LIGHT_CAP = { fx: 6, bld: 6 };
+// the length of (x, y) / (x, y, z): Math.hypot is a builtin V8 does not inline, so every call returns a boxed number (a heap allocation) and costs
+// 20 times a square root (EV-03: 155 MB of the 1,500-frame walk was Math.hypot). Not for the bake's modules, whose output is compared bit for bit
+export const hyp = (x, y) => Math.sqrt(x * x + y * y);
+export const hyp3 = (x, y, z) => Math.sqrt(x * x + y * y + z * z);

@@ -76,23 +76,25 @@ export class CountryRoads {
     const S = []; for (let s = pc.a; s <= pc.b; s++) { S.push([pts[s * 2], pts[s * 2 + 1]]); if (s < pc.b) S.push([(pts[s * 2] + pts[s * 2 + 2]) / 2, (pts[s * 2 + 1] + pts[s * 2 + 3]) / 2]); }
     const n = S.length, pos = new Float32Array(n * 2 * 3), nor = new Float32Array(n * 2 * 3), uv = new Float32Array(n * 2 * 2), idx = [];
     const vp = new Float32Array(n * 4 * 3), vn = new Float32Array(n * 4 * 3), vc = new Float32Array(n * 4 * 3), vidx = [];
+    // the vertices about the piece's first point (EV-04): written in world metres they are 3 cm apart as 32-bit floats at Jeju, about it millimetres
+    const ax = Math.round(S[0][0]), az = Math.round(S[0][1]);
     let run = 0;
     for (let i = 0; i < n; i++) {
       const p = S[i], a = S[Math.max(0, i - 1)], b = S[Math.min(n - 1, i + 1)]; let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
       const rx = tz, rz = -tx; if (i) run += Math.hypot(p[0] - S[i - 1][0], p[1] - S[i - 1][1]);
       const x0 = p[0] - rx * hw, z0 = p[1] - rz * hw, x1 = p[0] + rx * hw, z1 = p[1] + rz * hw, y0 = landHeight(x0, z0, 16) + LIFT, y1 = landHeight(x1, z1, 16) + LIFT;
-      pos.set([x0, y0, z0, x1, y1, z1], i * 6); nor.set([0, 1, 0, 0, 1, 0], i * 6); uv.set([0, run / 12, 1, run / 12], i * 4);
+      pos.set([x0 - ax, y0, z0 - az, x1 - ax, y1, z1 - az], i * 6); nor.set([0, 1, 0, 0, 1, 0], i * 6); uv.set([0, run / 12, 1, run / 12], i * 4);
       // banks: from each road edge out 2.4 m and down to the ground there
       const bo = 2.4, ox0 = p[0] - rx * (hw + bo), oz0 = p[1] - rz * (hw + bo), ox1 = p[0] + rx * (hw + bo), oz1 = p[1] + rz * (hw + bo), oy0 = landHeight(ox0, oz0, 16) - 0.04, oy1 = landHeight(ox1, oz1, 16) - 0.04;
-      vp.set([ox0, oy0, oz0, x0, y0 - 0.01, z0, x1, y1 - 0.01, z1, ox1, oy1, oz1], i * 12); vn.set([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], i * 12);
+      vp.set([ox0 - ax, oy0, oz0 - az, x0 - ax, y0 - 0.01, z0 - az, x1 - ax, y1 - 0.01, z1 - az, ox1 - ax, oy1, oz1 - az], i * 12); vn.set([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], i * 12);
       const dirt = cls ? [0.2, 0.2, 0.1] : [0.26, 0.23, 0.17], gr = [0.16, 0.24, 0.1]; vc.set([...gr, ...dirt, ...dirt, ...gr], i * 12);
       if (i < n - 1) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); const q = i * 4; vidx.push(q, q + 4, q + 1, q + 1, q + 4, q + 5, q + 2, q + 6, q + 3, q + 3, q + 6, q + 7); }
     }
     void hc;
     const g1 = new THREE.BufferGeometry(); g1.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g1.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g1.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g1.setIndex(idx); g1.computeBoundingSphere();
     const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.BufferAttribute(vp, 3)); g2.setAttribute('normal', new THREE.BufferAttribute(vn, 3)); g2.setAttribute('color', new THREE.BufferAttribute(vc, 3)); g2.setIndex(vidx); g2.computeBoundingSphere();
-    const m1 = new THREE.Mesh(g1, this.mats[cls]), m2 = new THREE.Mesh(g2, this.verge); for (const m of [m1, m2]) { m.receiveShadow = true; m.matrixAutoUpdate = false; this.group.add(m); }
-    pc.meshes = [m1, m2]; this.live.add(pc); this.stats.built++; surf.add(pc, pos, idx);   // the land keeps under the road (roadsurf.js)
+    const m1 = new THREE.Mesh(g1, this.mats[cls]), m2 = new THREE.Mesh(g2, this.verge); for (const m of [m1, m2]) { m.receiveShadow = true; m.position.set(ax, 0, az); m.matrixAutoUpdate = false; m.updateMatrix(); this.group.add(m); }
+    pc.meshes = [m1, m2]; this.live.add(pc); this.stats.built++; surf.add(pc, pos, idx, null, ax, az);   // the land keeps under the road (roadsurf.js)
   }
   drop(pc) { for (const m of pc.meshes) { this.group.remove(m); m.geometry.dispose(); } pc.meshes = null; this.live.delete(pc); surf.remove(pc); }
   update(dt, focus) {

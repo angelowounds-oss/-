@@ -5,8 +5,9 @@
 
 ## 메모리 (2026-11-02)
 - 이 컨테이너의 셸 프로세스는 합쳐서 14.3 GB(cgroup)를 넘으면 강제 종료된다. 브라우저 렌더러가 죽으면 테스트에는 `Target crashed`로 나온다(`dmesg`에 `Memory cgroup out of memory`).
-- 수도권 1:1 도시에서는 소프트웨어 GPU로 한 프레임에 수 초가 걸린다. 페이지가 쉬지 않으니 Blink의 GC가 따라오지 못한다. 강남에서 수거 가능한 쓰레기만으로 Blink 힙이 몇 프레임 만에 0.2 → 3.4 GB로 커졌다. GC를 강제하면 0.12–0.17 GB에 머문다.
-- 그래서 `GL_ARGS`에 `--js-flags=--expose-gc`를 넣었다. `freeze()`가 만드는 `window.__upd`는 5번 갱신마다 전체 GC를 부른다. 실제 GPU에서는 남는 시간에 브라우저가 스스로 GC한다.
+- **포인터 락(2026-11-12 확정).** 수도권 빌드에서 몇십 프레임 안에 30–70 s 프레임과 함께 렌더러가 +2–3 GB 늘어 죽던 것은 헤드리스 Chromium의 포인터 락이었다. 게임이 시작할 때 포인터를 잠그면(`src/input.js lock`) 브라우저가 커서를 되돌리는 mousemove를 끝없이 합성한다(한 dispatch에 콜백 160만 개, 브라우저 메인에 초당 입력 응답 12만 개, 늘어난 메모리는 그 대기 이벤트). `tests/lib.cjs`의 `NO_LOCK` 초기화 스크립트가 `openGame`이 여는 모든 페이지의 `requestPointerLock`을 거절한다. `pw.chromium.launch`를 직접 써서 게임을 시작하는 테스트·도구는 `page.addInitScript(NO_LOCK)`을 꼭 넣는다(`pack`, `loading-screen`, `tests/tools/memdump.cjs`). 자세한 추적은 `docs/backlog/EV.md` EV-91.
+- 수도권 1:1 도시에서는 소프트웨어 GPU로 한 프레임에 수 초가 걸린다(약 17프레임마다 렌더러가 GPU 프로세스의 명령 처리를 12–14 s 기다린다. JS도 메모리도 아니다). 페이지가 쉬지 않으니 V8이 스스로 수거할 틈이 없다. 강남에서 Blink 힙이 몇 프레임 만에 0.2 → 3.4 GB로 커지던 것은 위 입력 폭주가 만든 쓰레기였다. 포인터 락을 막으면 강제 GC 없이도 60프레임 동안 렌더러 RSS가 평탄하다.
+- 그래도 `GL_ARGS`에 `--js-flags=--expose-gc`를 두고, `freeze()`가 만드는 `window.__upd`는 30번 갱신마다(또는 힙 256 MB 증가마다) 전체 GC를 부른다(`GC_EVERY`, `GC_GROW_MB`). 한 실행의 힙 수치가 다음 실행과 비교되게 하기 위해서다. 실제 GPU에서는 남는 시간에 브라우저가 스스로 GC한다.
 - 화면 읽기(`shot()`)도 같은 문제였다. 화질 1의 도시 한 프레임은 소프트웨어 GPU에서 30 s 넘게 걸린다. 예전 `drawImage`/`getImageData` 읽기는 그동안 렌더러 메인 스레드를 막았다. 그 사이 렌더러의 익명 메모리가 초당 수백 MB씩 늘었다(6–8 GB까지). `light-skip-identity`는 네 번 중 두 번 종료됐다. 지금은 같은 작업 안에서 pixel-pack 버퍼로 복사하고 fence를 이벤트 루프 사이사이 기다린다. 바이트는 예전 방식과 같다(diff 0 확인). 렌더러 최고치는 3.7 GB다. 이 읽기는 페이지 안의 `window.__readFrame()`이다. 사진을 직접 찍는 테스트(`streetscape`)도 이 함수를 쓴다. 새 빌드(실제 건물 비율 0.669)에서 그 테스트도 같은 이유로 죽었다. 같은 방식으로 직접 읽는 다른 테스트(`realbuildings` 등)는 아직 통과하므로 그대로 둔다. 죽으면 같은 함수로 바꾼다.
 - 원인 찾는 법: CDP `Runtime.getHeapUsage`의 `embedderHeapUsedSize`(Blink 힙)를 본다. `performance.memory`는 거칠고 갱신이 드물다. 다음으로 `Tracing.requestMemoryDump`(memory-infra)로 할당기별 크기를 본다. 메인 스레드가 막혀 있으면 CDP가 답하지 않는다. 그럴 때는 `/proc/<renderer pid>/smaps`로 익명 메모리와 공유 메모리를 나눠 보고, `Profiler`로 어디서 막히는지 본다.
 - 페이지 안에서 그리는 프레임을 여러 개 쉬지 않고 이어 그리면(예전 `no-runtime-compile`의 사건 구간) 같은 이유로 렌더러가 30 s에 2 GB씩 커져 죽었다. 그린 프레임마다 `gc()`와 `setTimeout`으로 이벤트 루프에 차례를 준다(2026-11-05).

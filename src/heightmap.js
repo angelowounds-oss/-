@@ -27,7 +27,7 @@ export function decodeTile(o) {
 export const tileKey = (L, i, j) => `${L.key}/${i}_${j}`;
 
 class Level {
-  constructor(spec) { Object.assign(this, spec); this.n = count(spec.g); this.size = tileM(spec.g); this.tiles = new Map(); this.loading = new Set(); }
+  constructor(spec) { Object.assign(this, spec); this.n = count(spec.g); this.size = tileM(spec.g); this.tiles = new Map(); this.loading = new Set(); this.live = new Set(); this.stats = { sync: 0, async: 0, freed: 0 }; }
   tile(x, z) {
     const fx = (x - TILE_ORIGIN.x) / this.size, fz = (z - TILE_ORIGIN.z) / this.size, i = Math.min(this.n - 1, Math.max(0, Math.floor(fx))), j = Math.min(this.n - 1, Math.max(0, Math.floor(fz)));
     return { t: this.tiles.get(j * this.n + i), u: (fx - i) * TILE, v: (fz - j) * TILE };
@@ -47,6 +47,8 @@ export function sample(x, z, phys = false) {
   for (const L of lvl) {
     if (!L.tiles.size) continue;
     const { t, u, v } = L.tile(x, z); if (!t) continue;
+    if (!t.land) { if (!t.missing) heights(L, t); if (!t.land) continue; }
+    t.used = ++USE;
     return bilerp(phys && t.phys ? t.phys : t.land, u, v);
   }
   return NaN;
@@ -55,6 +57,21 @@ HM.land = (x, z) => sample(x, z, false); HM.phys = (x, z) => sample(x, z, true);
 
 // decode a chunk object {land, phys?, col?} (heights predictor-coded) into a tile ready for lookups
 const toTile = (c) => ({ land: decodeTile(c.land), phys: c.phys ? decodeTile(c.phys) : null, col: c.col || null });
+
+// The resident level's heights streamed (EV-01 follow-up): its 752 tiles' height arrays were 150 MB of the capital build's renderer, but only the
+// fine questions (landfn: cells <= 32 m, within about a kilometre of the camera, and the physics) read them; the far rings read only the colours.
+// With a synchronous reader (main.js: one Range request of the tile's chunk, regionload.js) every tile keeps its colours and its key, and its
+// heights come in around the player (stream) or at once when a question lands on a tile without them (the same numbers as a resident tile), and
+// go again when far and unread since the last pass, at most HM_CAP tiles' heights kept. Without a reader (node tests) every tile stays whole.
+let SYNC = null, USE = 0, LAST = 0;
+export const HM_CAP = 24;
+// how a tile's chunk is read at once (key -> decoded chunk or null); set before loadResident
+export function setTileReader(f) { SYNC = f; }
+// the heights of a resident tile that has only its colours, read at once
+function heights(L, t) {
+  const c = SYNC && SYNC(t.key); if (!c) { t.missing = true; return; }
+  t.land = decodeTile(c.land); t.phys = c.phys ? decodeTile(c.phys) : null; L.live.add(t.id); L.stats.sync++;
+}
 const LUT = new Float32Array(256).map((_, i) => (i / 255) ** 2);
 // the baked ground colour at (x, z) into out (linear rgb), false where no tile with colour is loaded
 export function colorAt(x, z, out) {
@@ -76,14 +93,36 @@ export async function loadResident(wd) {
     if (L.stream) continue;
     const keys = wd.keys(L.key + '/'); if (!keys.length) continue;
     for (let a = 0; a < keys.length; a += 24) {
-      await Promise.all(keys.slice(a, a + 24).map(async (k) => { const [i, j] = k.slice(L.key.length + 1).split('_').map(Number); L.tiles.set(j * L.n + i, toTile(await wd.get(k))); wd.drop(k); n++; }));
+      await Promise.all(keys.slice(a, a + 24).map(async (k) => {
+        const [i, j] = k.slice(L.key.length + 1).split('_').map(Number), id = j * L.n + i, c = await wd.get(k);
+        L.tiles.set(id, SYNC ? { id, key: k, land: null, phys: null, col: c.col || null } : toTile(c)); wd.drop(k); n++;   // streamed heights: colours only (above)
+      }));
     }
   }
   return n;
 }
+// the resident level's heights around (x, z): the tiles within one tile read in the background, those further out and unread since the last pass
+// let go (colours kept), and the oldest beyond HM_CAP. Walks only the tiles holding heights (a few dozen), so it runs every frame.
+function streamHeights(wd, L, x, z) {
+  const ci = Math.floor((x - TILE_ORIGIN.x) / L.size), cj = Math.floor((z - TILE_ORIGIN.z) / L.size), near = (id) => Math.abs(id % L.n - ci) <= 1 && Math.abs(((id / L.n) | 0) - cj) <= 1;
+  for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) {
+    const id = j * L.n + i, t = i >= 0 && j >= 0 && i < L.n && j < L.n ? L.tiles.get(id) : null;
+    if (!t || t.land || t.missing || L.loading.has(id)) continue;
+    L.loading.add(id);
+    wd.get(t.key).then((c) => { if (!t.land) { t.land = decodeTile(c.land); t.phys = c.phys ? decodeTile(c.phys) : null; t.used = ++USE; L.live.add(id); L.stats.async++; } wd.drop(t.key); }).catch(() => {}).finally(() => L.loading.delete(id));
+  }
+  const far = [];
+  for (const id of L.live) {
+    const t = L.tiles.get(id); if (near(id)) continue;
+    if ((t.used || 0) <= LAST) { t.land = t.phys = null; L.live.delete(id); L.stats.freed++; } else far.push(t);
+  }
+  if (L.live.size > HM_CAP) { far.sort((a, b) => a.used - b.used); for (const t of far.slice(0, L.live.size - HM_CAP)) { t.land = t.phys = null; L.live.delete(t.id); L.stats.freed++; } }
+  LAST = USE;
+}
 // keep the streamed levels around (x, z): tiles within `ring` tiles are requested, tiles beyond ring + 2 are let go. Cheap when the focus stays in its tile.
 export function stream(wd, x, z, ring = 1) {
   for (const L of lvl) {
+    if (!L.stream && SYNC && L.tiles.size) streamHeights(wd, L, x, z);
     if (!L.stream) continue; if (L.have === undefined) L.have = wd.keys(L.key + '/').length > 0; if (!L.have) continue;
     const ci = Math.floor((x - TILE_ORIGIN.x) / L.size), cj = Math.floor((z - TILE_ORIGIN.z) / L.size);
     if (L.ci === ci && L.cj === cj && !L.loading.size) continue; L.ci = ci; L.cj = cj;

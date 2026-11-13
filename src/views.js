@@ -22,6 +22,7 @@ function viaduct(g) {
 // the highest cell of the compiled region, away from its border
 function summit() {
   const R = region(); if (!R) return null;
+  if (!R.h) return R.summit || null;   // a streamed region (EV-01): found by the bake on the raster, the same way (build/regtiles.mjs)
   let b = -1, bi = 0, bj = 0; const m = 40;
   for (let j = m; j < R.nz - m; j += 2) for (let i = m; i < R.nx - m; i += 2) { const h = R.h[j * R.nx + i]; if (h > b) { b = h; bi = i; bj = j; } }
   return { x: R.x0 + bi * R.g, z: R.z0 + bj * R.g, y: b / 10 };

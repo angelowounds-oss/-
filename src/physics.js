@@ -1,3 +1,4 @@
+import { installOrigin, followOrigin, localPoints } from './physorigin.js';
 // Rapier-backed physics: fixed-step world, static city colliders, raycast-suspension rigid-body vehicles.
 // RAPIER is injected so the same module can be unit-tested under Node.
 export const PHYS = {
@@ -17,7 +18,7 @@ const ALL = 0xffff;
 
 export class Physics {
   constructor(R) {
-    this.R = R;
+    this.R = R; installOrigin(R);   // positions in and out of Rapier are world positions, the world itself kept near the player (EV-04)
     this.world = new R.World({ x: 0, y: PHYS.gravity, z: 0 });
     this.world.timestep = PHYS.dt;
     // rapier-compat's World.step() ends with mapNewSoftBodies(), which walks EVERY body and collider (thousands of JS callbacks, a fresh array
@@ -70,8 +71,8 @@ export class Physics {
   }
   // a static convex solid from its corner points (x, y, z flat): one piece of a real building's outline (WLD-24h); null when the points are degenerate
   addHull(pts, ref) {
-    const R = this.R, d = R.ColliderDesc.convexHull(pts); if (!d) return null;
-    const col = this.world.createCollider(d.setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(GR.STATIC, ALL)));
+    const R = this.R, L = localPoints(pts), d = R.ColliderDesc.convexHull(L.P); if (!d) return null;   // about the hull's own centre (EV-04)
+    const col = this.world.createCollider(d.setTranslation(L.x, 0, L.z).setFriction(0.4).setRestitution(0.15).setCollisionGroups(grp(GR.STATIC, ALL)));
     ref.col = col; this.colRef.set(col.handle, ref); return ref;
   }
   // static inclined slab (stairs). dz,dy: run/rise vector of the surface
@@ -141,6 +142,8 @@ export class Physics {
       w.createCollider(R.ColliderDesc.cylinder(hh, c.r).setTranslation(c.x, hh, c.z).setFriction(0.4).setRestitution(0.1).setCollisionGroups(grp(GR.STATIC, ALL)));
     }
   }
+  // the physics world's origin kept near (x, z), the player or what the player drives (physorigin.js): called before the steps of a frame
+  followOrigin(x, z) { return followOrigin(this.world, x, z); }
   // Fixed-step; calls pre(dt) before each step so callers can set wheel forces
   step(dt, pre, list = this.vehicles || []) {
     this.acc = Math.min(this.acc + dt, PHYS.dt * PHYS.maxSub);

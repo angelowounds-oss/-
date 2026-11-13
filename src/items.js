@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GR, grp } from './physics.js';
-import { clamp, rand } from './util.js';
+import { clamp, rand, hyp, hyp3 } from './util.js';
 import { A } from './assets.js';
 import { gesture } from './gesture.js';
 
@@ -193,7 +193,7 @@ export class ItemWorld {
       }
     }
     const mv = this.moving; mv.length = 0;   // awake items: their pose is kept before each physics step (keepPoses)
-    for (const p of this.props.values()) { if (!p.body.isSleeping() || p.carried) { p.sync(); mv.push(p); } if (p.molotovT !== undefined) { p.molotovT += dt; const v = p.body.linvel(), sp = Math.hypot(v.x, v.y, v.z); if (p.molotovT > 0.12 && ((p.sp0 > 5 && sp < p.sp0 * 0.5) || p.molotovT > 6)) { const t = p.body.translation(); this.remove(p, true); G.fire.splash(t.x, Math.max(0.15, t.y), t.z, G.player); continue; } p.sp0 = sp; } if (p.fuse !== undefined) { p.fuse -= dt; if (p.fuse <= 0) { const t = p.body.translation(); const pos = { x: t.x, y: t.y, z: t.z }; this.remove(p, true); G.explosion(pos.x, pos.y, pos.z, 11, 140, G.player); } } }
+    for (const p of this.props.values()) { if (!p.body.isSleeping() || p.carried) { p.sync(); mv.push(p); } if (p.molotovT !== undefined) { p.molotovT += dt; const v = p.body.linvel(), sp = hyp3(v.x, v.y, v.z); if (p.molotovT > 0.12 && ((p.sp0 > 5 && sp < p.sp0 * 0.5) || p.molotovT > 6)) { const t = p.body.translation(); this.remove(p, true); G.fire.splash(t.x, Math.max(0.15, t.y), t.z, G.player); continue; } p.sp0 = sp; } if (p.fuse !== undefined) { p.fuse -= dt; if (p.fuse <= 0) { const t = p.body.translation(); const pos = { x: t.x, y: t.y, z: t.z }; this.remove(p, true); G.explosion(pos.x, pos.y, pos.z, 11, 140, G.player); } } }
     this.updateCarry(dt);
   }
   keepPoses(no) { for (const p of this.moving) p.keepPose(no); }
@@ -225,7 +225,7 @@ export class ItemWorld {
     const c = p.body.translation();
     const k = 14 / Math.max(1, Math.sqrt(p.def.mass));
     p.body.setLinvel({ x: (t.x - c.x) * k, y: (t.y - c.y) * k, z: (t.z - c.z) * k }, true);
-    if (Math.hypot(t.x - c.x, t.z - c.z) > 3.2 || pl.dead) this.release(false);
+    if (hyp(t.x - c.x, t.z - c.z) > 3.2 || pl.dead) this.release(false);
   }
   // ---------- inventory ----------
   count(id) { return this.inv.items[id] || 0; }
@@ -245,7 +245,7 @@ export class ItemWorld {
     if (!d || !this.take(id)) return false;
     if (d.heal) { pl.hpv = Math.min(100, pl.hpv + d.heal); G.toast('치료', `+${d.heal} HP`); }
     if (d.eat) G.needs?.apply(d.eat);
-    if (d.fuelCan) { const v = G.lastVehicle; if (v && Math.hypot(v.x - pl.x, v.z - pl.z) < 8) { v.fuel = Math.min(100, v.fuel + 55); G.toast('주유', '+55%'); } else { const f = G.camera.getWorldDirection(G.tmpV); G.fire.pour(pl.x + f.x * 1.6, pl.z + f.z * 1.6, pl); G.toast('연료를 쏟았다', '불씨가 닿으면 번진다'); } }
+    if (d.fuelCan) { const v = G.lastVehicle; if (v && hyp(v.x - pl.x, v.z - pl.z) < 8) { v.fuel = Math.min(100, v.fuel + 55); G.toast('주유', '+55%'); } else { const f = G.camera.getWorldDirection(G.tmpV); G.fire.pour(pl.x + f.x * 1.6, pl.z + f.z * 1.6, pl); G.toast('연료를 쏟았다', '불씨가 닿으면 번진다'); } }
     if (d.cash) { G.cash += d.cash; G.toast(`+$${d.cash}`); G.audio.cash(); }
     if (d.ammo) { pl.ammo[d.ammo[0]].reserve += d.ammo[1]; G.toast('탄약 +' + d.ammo[1]); }
     if (d.gun !== undefined) { pl.owned[d.gun] = true; pl.ammo[d.gun].reserve += d.gun === 3 ? 12 : 30; G.toast('무기 획득', d.name); G.switchWeapon(d.gun); }
@@ -275,9 +275,9 @@ export class ItemWorld {
     const fx = Math.sin(this.G.cam.yaw), fz = Math.cos(this.G.cam.yaw);
     for (const p of this.props.values()) {
       const t = p.body.translation(), dx = t.x - pl.x, dz = t.z - pl.z, dy = t.y - (pl.y + 0.9);
-      const d = Math.hypot(dx, dz, dy * 0.8);
+      const d = hyp3(dx, dz, dy * 0.8);
       if (d > bd) continue;
-      const facing = (dx * fx + dz * fz) / (Math.hypot(dx, dz) + 1e-3);
+      const facing = (dx * fx + dz * fz) / (hyp(dx, dz) + 1e-3);
       if (facing < 0.25 && d > 1.0) continue;
       const score = d - facing * 0.8; if (!best || score < best.s) best = { p, s: score, d };
     }
@@ -290,7 +290,7 @@ export class ItemWorld {
     else if (d.sit) verbs.push({ key: 'G', label: () => '앉기', run: () => this.G.sitOn?.({ x: t.x, y: t.y - d.shape[2 === 2 ? 2 : 1] / 2, z: t.z }, p) });
     else if (d.container) verbs.push({ key: 'G', label: () => '뒤져보기', run: () => this.G.openContainer?.(this.containerFor(p)) });
     else if (d.melee) verbs.push({ key: 'G', label: () => '장비', run: () => { this.pickup(p); this.G.equipMelee?.(p.id); } });
-    verbs.push({ key: 'T', label: () => '발로 차기', run: () => { const dx = t.x - pl.x, dz = t.z - pl.z, l = Math.hypot(dx, dz) || 1; p.body.applyImpulse({ x: dx / l * d.mass * 5, y: d.mass * 1.5, z: dz / l * d.mass * 5 }, true); p.body.wakeUp(); this.G.audio.impact?.(0.4, 0); } });
+    verbs.push({ key: 'T', label: () => '발로 차기', run: () => { const dx = t.x - pl.x, dz = t.z - pl.z, l = hyp(dx, dz) || 1; p.body.applyImpulse({ x: dx / l * d.mass * 5, y: d.mass * 1.5, z: dz / l * d.mass * 5 }, true); p.body.wakeUp(); this.G.audio.impact?.(0.4, 0); } });
     out.push({ x: t.x, z: t.z, cy: t.y, r: 2.6, name: d.name + (p.sale ? ` $${p.sale}` : ''), verbs });
   }
   containerFor(p) {

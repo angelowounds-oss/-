@@ -33,7 +33,7 @@ import { Ships } from './ships.js';
 import { HighwayTraffic } from './hwtraffic.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
-import { clamp, lerp, damp, dampAngle, rand, el, TAU } from './util.js';
+import { clamp, lerp, damp, dampAngle, rand, el, TAU, hyp, hyp3 } from './util.js';
 import { Settings } from './settings.js';
 import { loadAssets, A } from './assets.js';
 import { buildDressing } from './dressing.js';
@@ -177,7 +177,7 @@ export class Game {
     this.buildings = new Buildings(this);
     this.phys.onGlassHit = (box, sp, body) => { if (sp > 5.5 && box.pane) box.pane.b.breakPane(box, this.phys.bodies.get(body.handle)?.owner?.driver === 'player' ? this.player : null); };
     this.interact.providers.push((pl, out) => this.vehicleProvider(pl, out));
-    { const sp = this.world.spawn; this.hospital = (this.world.enterables || []).slice().sort((a, b) => Math.hypot(a.x - sp.x, a.z - sp.z) - Math.hypot(b.x - sp.x, b.z - sp.z))[4]; if (this.hospital) this.hospital.lot.hospital = true; }
+    { const sp = this.world.spawn; this.hospital = (this.world.enterables || []).slice().sort((a, b) => hyp(a.x - sp.x, a.z - sp.z) - hyp(b.x - sp.x, b.z - sp.z))[4]; if (this.hospital) this.hospital.lot.hospital = true; }
     this.items = new ItemWorld(this); this.life = new Life(this); this.society = new Society(this); this.buildStations();
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
@@ -268,7 +268,7 @@ export class Game {
       const v = new Vehicle(this, type, CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)], 'parked');
       let x, z, h;
       if (ns) { x = roadC(i) + off; z = along; h = side > 0 ? Math.PI : 0; } else { x = along; z = roadC(i) + off; h = side > 0 ? -Math.PI / 2 : Math.PI / 2; }
-      if (this.vehicles.some((o) => Math.hypot(o.x - x, o.z - z) < 7) || (ns ? !hasEdge(i, j, 0, 1) : !hasEdge(j, i, 1, 0))) continue;
+      if (this.vehicles.some((o) => hyp(o.x - x, o.z - z) < 7) || (ns ? !hasEdge(i, j, 0, 1) : !hasEdge(j, i, 1, 0))) continue;
       v.x = x; v.z = z; v.h = h; v.awake = false;
       this.addVehicle(v);
     }
@@ -293,18 +293,18 @@ export class Game {
       // car on edge from (i-di..) to (i,j)->(i+di,...)
       const frac = rand(0.25, 0.7);
       const x = lerp(roadC(i), roadC(i + di), frac) + -dj * LANE, z = lerp(roadC(j), roadC(j + dj), frac) + di * LANE;
-      const d = Math.hypot(x - pl.x, z - pl.z);
+      const d = hyp(x - pl.x, z - pl.z);
       if (d < minD || d > maxD) continue;
       if (this.inView(x, z) && d < 170) continue;
-      if (this.vehicles.some((o) => Math.hypot(o.x - x, o.z - z) < 11)) continue;
+      if (this.vehicles.some((o) => hyp(o.x - x, o.z - z) < 11)) continue;
       return { i, j, di, dj, frac };
     }
     return null;
   }
   inView(x, z) {
     const c = this.camera; const f = this.tmpV.set(0, 0, -1).applyQuaternion(c.quaternion);
-    const dx = x - c.position.x, dz = z - c.position.z; const d = Math.hypot(dx, dz) || 1;
-    return (dx * f.x + dz * f.z) / (d * Math.hypot(f.x, f.z) + 1e-5) > 0.35;
+    const dx = x - c.position.x, dz = z - c.position.z; const d = hyp(dx, dz) || 1;
+    return (dx * f.x + dz * f.z) / (d * hyp(f.x, f.z) + 1e-5) > 0.35;
   }
   spawnTraffic(initial = false, existing = null) {
     const lane = this.randomLane(initial ? 40 : 90, initial ? 260 : 210);
@@ -322,7 +322,7 @@ export class Game {
     for (let tr = 0; tr < 12; tr++) {
       const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N + 1)), sx = Math.random() < 0.5 ? 1 : -1, sz = Math.random() < 0.5 ? 1 : -1;
       const x = roadC(i) + sx * (R / 2 + SW / 2), z = roadC(j) + sz * (R / 2 + SW / 2);
-      const d = Math.hypot(x - pl.x, z - pl.z);
+      const d = hyp(x - pl.x, z - pl.z);
       if (d < (initial ? 12 : 60) || d > (initial ? 220 : 160)) continue;
       const h = existing || new Human(this, 'civ', { hp: 40, look: { top: new THREE.Color().setHSL(Math.random(), 0.5, 0.2).getHex(), pants: new THREE.Color().setHSL(Math.random(), 0.2, 0.1).getHex(), trim: Math.random() < 0.35 ? [[1, 0.2, 0.8], [0.2, 0.9, 1], [1, 0.6, 0.2]][Math.floor(Math.random() * 3)] : null, cap: Math.random() < 0.2 ? 0x1b1d26 : null } });
       h.state = 'walk'; h.dead = false; h.hp = 40; h.knock = 0;
@@ -636,14 +636,14 @@ export class Game {
     // 12 s of walking or 8 s standing still (it ran on indefinitely, bounded only by the day's energy)
     if (pl.stam == null) pl.stam = 1;
     const sprint = inp.sprint && !aim && !inp.fire && inp.my > 0.3 && !pl.crouching && (!this.needs.on || this.needs.canSprint !== false) && !pl.winded;
-    { const running = sprint && !pl.swimming && !this.sandbox?.on, still = Math.hypot(inp.mx, inp.my) < 0.15;
+    { const running = sprint && !pl.swimming && !this.sandbox?.on, still = hyp(inp.mx, inp.my) < 0.15;
       pl.stam = clamp(pl.stam + dt * (running ? -1 / 18 : still ? 1 / 8 : 1 / 12), 0, 1);
       if (pl.stam <= 0) pl.winded = true; else if (pl.stam > 0.5) pl.winded = false;
       const sb = this.ui.sb || (this.ui.sb = el('stam')); if (sb) { sb.classList.toggle('on', pl.stam < 0.995); sb.classList.toggle('out', !!pl.winded); sb.firstElementChild.style.width = pl.stam * 100 + '%'; } }
     const fwdX = Math.sin(cam.yaw), fwdZ = Math.cos(cam.yaw), rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
-    let mx = inp.mx, my = inp.my; const mag = Math.min(1, Math.hypot(mx, my));
+    let mx = inp.mx, my = inp.my; const mag = Math.min(1, hyp(mx, my));
     let dx = fwdX * my + rX * mx, dz = fwdZ * my + rZ * mx;
-    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    const l = hyp(dx, dz) || 1; dx /= l; dz /= l;
     const base = (aim ? 2.6 : sprint ? 8.4 : 5.2) * (pl.prone ? 0.25 : pl.crouching ? 0.5 : 1) * this.needs.speedMul() * (carry ? 0.85 : 1) * (this.sandbox?.on ? this.sandbox.speed : 1);
     const spd = base * (mag < 0.15 ? 0 : clamp(mag * 1.1, 0.5, 1));
     const onGnd = pl.body3.grounded || pl.swimming;
@@ -667,7 +667,7 @@ export class Game {
       this._wasIn = !!inWater;
       if (inWater) {
         this._ripT = (this._ripT || 0) - dt;
-        const sp = Math.hypot(pl.vx, pl.vz);
+        const sp = hyp(pl.vx, pl.vz);
         if (this._ripT <= 0 && sp > 0.35) { addRipple(pl.x, pl.z, clamp(0.5 + sp * 0.16, 0.5, 1.7)); this._ripT = clamp(0.34 - sp * 0.025, 0.12, 0.34); if (swim && sp > 1) this.audio.splash?.(0.35); }
         else if (this._ripT <= 0 && swim) { addRipple(pl.x, pl.z, 0.3); this._ripT = 0.9; }   // treading water
       }
@@ -702,7 +702,7 @@ export class Game {
     if (c3.vy < -15 && c3.y < physHeight(c3.x, c3.z, 8) - 30) { const gy = this.groundY(c3.x, c3.z); c3.teleport(c3.x, gy + 1, c3.z); c3.vy = 0; noteError('플레이어', new Error(`fell through the ground at ${Math.round(c3.x)},${Math.round(c3.z)}`), this.time); }   // logged for a report, no toast
     // vehicles block player
     { const ox = pl.x, oz = pl.z; this.pushOutOfVehicles(pl, 0.38); if (pl.x !== ox || pl.z !== oz) c3.shift(pl.x - ox, 0, pl.z - oz); }
-    pl.speed = Math.hypot(pl.vx, pl.vz);
+    pl.speed = hyp(pl.vx, pl.vz);
     // footsteps: one per stride, quieter crouched / prone, harder indoors and on the road
     if (pl.speed > 0.6 && !pl.swimming) {
       this.stepD = (this.stepD || 0) + pl.speed * dt;
@@ -752,7 +752,7 @@ export class Game {
   distToVehicle(x, z, v) {
     const dx = x - v.x, dz = z - v.z, s = Math.sin(v.h), c = Math.cos(v.h);
     const lf = Math.abs(dx * s + dz * c) - v.L / 2, ll = Math.abs(dx * c - dz * s) - v.W / 2;
-    return Math.hypot(Math.max(lf, 0), Math.max(ll, 0));
+    return hyp(Math.max(lf, 0), Math.max(ll, 0));
   }
   pushOutOfVehicles(h, r) {
     if ((h.y || 0) > 0.9) return;   // standing on a roof
@@ -831,7 +831,7 @@ export class Game {
     pl.animate(dt, 2);
     if (k >= 1) { pl.mantle = null; }
   }
-  setWaypoint(x, z) { this.setBeacon(x, z, 0xffc94d); this.gpsT = 0; this.gpsPath = this.route(this.player.x, this.player.z, x, z); this.toast('목적지 설정', `${Math.hypot(x - this.player.x, z - this.player.z) | 0}m`); }
+  setWaypoint(x, z) { this.setBeacon(x, z, 0xffc94d); this.gpsT = 0; this.gpsPath = this.route(this.player.x, this.player.z, x, z); this.toast('목적지 설정', `${hyp(x - this.player.x, z - this.player.z) | 0}m`); }
   updateGPS(dt) {
     this.gpsT = (this.gpsT || 0) - dt; if (this.gpsT > 0) return; this.gpsT = 1;
     const j = this.jobs.cur; const el2 = this.ui.job || (this.ui.job = el('job'));
@@ -845,7 +845,7 @@ export class Game {
     const inGrid = (x, z) => Math.abs(x) < HALF + 40 && Math.abs(z) < HALF + 40;
     if (inGrid(x0, z0) && inGrid(x1, z1)) return gpsRoute(x0, z0, x1, z1);
     if (prev && prev.world && prev.to[0] === x1 && prev.to[1] === z1) {
-      let best = 1e9, bi = 0; for (let i = 0; i < Math.min(prev.length, 60); i++) { const d = Math.hypot(prev[i][0] - x0, prev[i][1] - z0); if (d < best) { best = d; bi = i; } }
+      let best = 1e9, bi = 0; for (let i = 0; i < Math.min(prev.length, 60); i++) { const d = hyp(prev[i][0] - x0, prev[i][1] - z0); if (d < best) { best = d; bi = i; } }
       if (best < 60) { const out = prev.slice(bi); out[0] = [x0, z0]; out.world = true; out.to = prev.to; return out; }
     }
     const r = this.autonav?.router?.route(x0, z0, x1, z1), out = r ? r.pts.map((p) => [p[0], p[1]]) : [[x0, z0], [x1, z1]];
@@ -867,7 +867,7 @@ export class Game {
   updateTimed(dt) {
     const T = this.timed; if (!T) return;
     const pl = this.player;
-    if (pl.dead || Math.hypot(pl.x - T.x, pl.z - T.z) > T.cd || this.input.edge('pause')) { this.timed = null; this.setProgress(null); this.toast('중단'); return; }
+    if (pl.dead || hyp(pl.x - T.x, pl.z - T.z) > T.cd || this.input.edge('pause')) { this.timed = null; this.setProgress(null); this.toast('중단'); return; }
     T.t += dt; this.setProgress(T.t / T.secs, T.label);
     if (T.t >= T.secs) { this.timed = null; this.setProgress(null); T.done(); }
   }
@@ -1057,13 +1057,13 @@ export class Game {
     let best = null, bd = 2.2;
     for (const h of this.humans) {
       if (h.dead || h.hidden || h.inside) continue;
-      const dx = h.x - pl.x, dz = h.z - pl.z, d = Math.hypot(dx, dz); if (d > bd || Math.abs((h.y || 0) - pl.y) > 1.6) continue;
+      const dx = h.x - pl.x, dz = h.z - pl.z, d = hyp(dx, dz); if (d > bd || Math.abs((h.y || 0) - pl.y) > 1.6) continue;
       if ((dx * fx + dz * fz) / (d + 1e-3) < 0.35) continue; bd = d; best = h;
     }
     if (best) {
       const unaware = best.state !== 'attack' && best.state !== 'flee', behind = Math.cos(best.ry - pl.ry) > 0.2;
       const silent = unaware && behind && pl.crouching, dmg = m.dmg * (silent ? 5 : 1);
-      best.hurt(dmg, pl, false, pl); const dx = best.x - pl.x, dz = best.z - pl.z, l = Math.hypot(dx, dz) || 1;
+      best.hurt(dmg, pl, false, pl); const dx = best.x - pl.x, dz = best.z - pl.z, l = hyp(dx, dz) || 1;
       if (!best.dead) best.ragdoll(dx / l * 3.5, dz / l * 3.5, 1.5);
       this.markHit(false); this.audio.impact(0.7, 0); this.fx.sparks(best.x, (best.y || 0) + 1.2, best.z, 3, [1, 0.3, 0.3], 4);   // at the struck body's height
       if (best.team === 'civ') this.society.crime('assault', silent ? 8 : 10, best.x, best.z);
@@ -1091,9 +1091,9 @@ export class Game {
     this.lastShotT = this.time; this.noise(pl.x, pl.z, 14);
   }
   blastWorld(x, y, z, r) {
-    for (const b of this.buildings.active) for (const [, fl] of b.floors) for (const gb of [...fl.glass]) { const e = gb.pane.ex; if (Math.hypot((e[0] + e[3]) / 2 - x, (e[2] + e[5]) / 2 - z, (e[1] + e[4]) / 2 - y) < r * 1.4) b.breakPane(gb, this.player); }
-    for (const p of this.items.props.values()) { const t = p.body.translation(), dx = t.x - x, dz = t.z - z, dy = t.y - y, d = Math.hypot(dx, dy, dz); if (d < r * 1.6) { const k = (1 - d / (r * 1.6)) * p.def.mass * 9; p.body.applyImpulse({ x: dx / (d || 1) * k, y: k * 0.8, z: dz / (d || 1) * k }, true); p.body.wakeUp(); } }
-    for (const d of this.buildings.active) for (const dr of d.doors) { if (Math.hypot(dr.x - x, dr.z - z) < r * 0.9 && !dr.broken) { dr.locked = false; dr.swing = 1; dr.target = 1.5; dr.vel = 8; } }
+    for (const b of this.buildings.active) for (const [, fl] of b.floors) for (const gb of [...fl.glass]) { const e = gb.pane.ex; if (hyp3((e[0] + e[3]) / 2 - x, (e[2] + e[5]) / 2 - z, (e[1] + e[4]) / 2 - y) < r * 1.4) b.breakPane(gb, this.player); }
+    for (const p of this.items.props.values()) { const t = p.body.translation(), dx = t.x - x, dz = t.z - z, dy = t.y - y, d = hyp3(dx, dy, dz); if (d < r * 1.6) { const k = (1 - d / (r * 1.6)) * p.def.mass * 9; p.body.applyImpulse({ x: dx / (d || 1) * k, y: k * 0.8, z: dz / (d || 1) * k }, true); p.body.wakeUp(); } }
+    for (const d of this.buildings.active) for (const dr of d.doors) { if (hyp(dr.x - x, dr.z - z) < r * 0.9 && !dr.broken) { dr.locked = false; dr.swing = 1; dr.target = 1.5; dr.vel = 8; } }
   }
   muzzleWorld(h) { const v = this.tmpV2; h.m.muzzle.getWorldPosition(v); return new V3().copy(v); }
   markHit(head) { this.hitMarker = 0.18; this.ui.cross.classList.add('hit'); setTimeout(() => this.ui.cross.classList.remove('hit'), 120); this.audio.hitMarker(); }
@@ -1122,7 +1122,7 @@ export class Game {
       const tc = (rx * dx + rz * dz) / A;
       if (tc < 0 || tc > best) continue;
       const cxp = ox + dx * tc - h.x, czp = oz + dz * tc - h.z;
-      const dd = Math.hypot(cxp, czp);
+      const dd = hyp(cxp, czp);
       if (dd > 0.5) continue;
       const t = tc - Math.sqrt(Math.max(0, 0.25 - dd * dd) / A);
       const y = oy + dy * t - h.y;
@@ -1165,7 +1165,7 @@ export class Game {
     return res;
   }
   hasLOS(x1, y1, z1, x2, y2, z2) {
-    const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = Math.hypot(dx, dy, dz) || 1;
+    const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, d = hyp3(dx, dy, dz) || 1;
     return this.world.colliders.raycastT(x1, y1, z1, dx / d, dy / d, dz / d, d) < 0;
   }
   // the ground under (x, z): the terrain or a road deck, the highest of them not more than 1.2 m above y (a hill or deck higher than that is a roof: a tunnel, a bridge overhead)
@@ -1204,7 +1204,7 @@ export class Game {
   rayHuman(h, ox, oy, oz, dx, dy, dz, maxT) {
     const A = dx * dx + dz * dz; if (A < 1e-8) return -1;
     const tc = ((h.x - ox) * dx + (h.z - oz) * dz) / A; if (tc < 0 || tc > maxT + 0.5) return -1;
-    const dd = Math.hypot(ox + dx * tc - h.x, oz + dz * tc - h.z); if (dd > 0.5) return -1;
+    const dd = hyp(ox + dx * tc - h.x, oz + dz * tc - h.z); if (dd > 0.5) return -1;
     const t = tc - Math.sqrt(Math.max(0, 0.25 - dd * dd) / A), y = oy + dy * t - (h.y || 0);
     return y < 0 || y > 1.85 || t < 0 || t > maxT ? -1 : t;
   }
@@ -1213,16 +1213,16 @@ export class Game {
   // how much of a blast reaches a point: all of it in the open, a quarter behind a wall or a hill (fragments are stopped, some pressure goes round);
   // the ray starts a little toward the target so a blast on a wall's face is not inside the wall
   blastCover(x, y, z, tx, ty, tz) {
-    const dx = tx - x, dy = ty - y - 0.4, dz = tz - z, d = Math.hypot(dx, dy, dz) || 1, s = Math.min(0.6, d * 0.5) / d;
+    const dx = tx - x, dy = ty - y - 0.4, dz = tz - z, d = hyp3(dx, dy, dz) || 1, s = Math.min(0.6, d * 0.5) / d;
     return this.hasLOS(x + dx * s, y + 0.4 + dy * s, z + dz * s, tx, ty, tz) ? 1 : 0.25;
   }
-  noise(x, z, r, kind = 'shot') { for (const h of this.humans) { if (h.dead) continue; if (h.team !== 'civ') { if (h.rag === undefined || !h.rag) AI.hear(h, x, z, r * 0.8, kind); continue; } if (h.team === 'civ' && Math.hypot(h.x - x, h.z - z) < r * 0.6 && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(5, 9); h.threat = { x, z }; } } }
+  noise(x, z, r, kind = 'shot') { for (const h of this.humans) { if (h.dead) continue; if (h.team !== 'civ') { if (h.rag === undefined || !h.rag) AI.hear(h, x, z, r * 0.8, kind); continue; } if (h.team === 'civ' && hyp(h.x - x, h.z - z) < r * 0.6 && h.state !== 'flee') { h.state = 'flee'; h.fleeT = rand(5, 9); h.threat = { x, z }; } } }
   alertCivs(x, z, r) { this.noise(x, z, r * 1.6); }
   enemyShoot(h, target) {
     const w = h.weapon, pl = this.player;
     const from = this.muzzleWorld(h); h.recoil = 1;
     const tx = pl.x, ty = this.playerOnFoot || !this.vehicle ? pl.y + 1.2 : this.bodyY(this.vehicle), tz = pl.z;
-    const dist = Math.hypot(tx - h.x, tz - h.z);
+    const dist = hyp(tx - h.x, tz - h.z);
     const moving = this.playerOnFoot ? pl.speed : (this.vehicle ? this.vehicle.speed : 0);
     const hitChance = clamp(0.62 - dist * 0.012 - moving * 0.025 - (this.playerOnFoot && pl.aiming ? 0.05 : 0), 0.08, 0.6) * (h.team === 'cop' ? 0.7 : 0.8);
     const cover = !this.hasLOS(from.x, from.y, from.z, tx, (this.playerOnFoot ? pl.y + (pl.prone ? 0.35 : pl.crouching ? 0.75 : 1.25) : ty), tz);
@@ -1255,8 +1255,8 @@ export class Game {
   // (a ~3.3 m drop), lethal around 17 m/s (~15 m). Water takes the energy; a roll (crouch just before landing while moving) takes
   // most of it; a hard landing without a roll knocks the player down for a moment.
   land(v, wat) {
-    const pl = this.player, hs = Math.hypot(pl.vx, pl.vz);
-    if (pl.momentum && !wat) v = Math.hypot(v, hs * 0.85);   // came off a moving car: the sideways speed counts too
+    const pl = this.player, hs = hyp(pl.vx, pl.vz);
+    if (pl.momentum && !wat) v = hyp(v, hs * 0.85);   // came off a moving car: the sideways speed counts too
     this.landKick = Math.max(this.landKick || 0, clamp(v / 16, 0, 1));
     if (wat && pl.y < wat.y + 0.4) { addRipple(pl.x, pl.z, clamp(v / 4, 1, 3)); this.audio.splash?.(clamp(v / 10, 0.4, 1.4)); this.fx.sparks?.(pl.x, wat.y + 0.2, pl.z, Math.round(clamp(v, 6, 30)), [0.7, 0.9, 1], 2 + v * 0.3); return; }
     const roll = v > 5 && v < 15 && hs > 2.2 && this.time - (pl.rollReq || -9) < 0.45;
@@ -1278,7 +1278,7 @@ export class Game {
   }
   // a human's voice, panned/attenuated relative to the camera
   voiceAt(h, kind = 'scream') {
-    const c = this.camera.position, dx = h.x - c.x, dz = h.z - c.z, dist = Math.hypot(dx, dz), y = this.cam.yaw;
+    const c = this.camera.position, dx = h.x - c.x, dz = h.z - c.z, dist = hyp(dx, dz), y = this.cam.yaw;
     if (dist > 60) return;
     if (!h.pitch) h.pitch = 0.75 + Math.random() * 0.65;
     const pan = clamp((-dx * Math.cos(y) + dz * Math.sin(y)) / Math.max(4, dist), -1, 1) * 0.8;
@@ -1359,19 +1359,19 @@ export class Game {
     this.fx.sparks(x, y, z, 18, [1, 0.6, 0.2], 24);
     this.lights.flash(x, y + 2, z, 0xff8a30, 160, 60, 0.9); this.blastWorld(x, y, z, radius); this.power?.blast(x, z, radius);
     const gy = this.groundY(x, z, y), low = y - gy < 3;   // a blast near the ground (which is not at 0) scorches it and can start a fire
-    if (this.memory && low) { this.memory.addScorch(x, z, Math.min(5, radius * 0.45), gy); if (src === this.player || src?.driver === 'player' || Math.hypot(x - this.player.x, z - this.player.z) < 60) this.memory.log('explosion', x, z); }
-    const d = Math.hypot(x - this.camera.position.x, z - this.camera.position.z);
+    if (this.memory && low) { this.memory.addScorch(x, z, Math.min(5, radius * 0.45), gy); if (src === this.player || src?.driver === 'player' || hyp(x - this.player.x, z - this.player.z) < 60) this.memory.log('explosion', x, z); }
+    const d = hyp(x - this.camera.position.x, z - this.camera.position.z);
     this.shake(clamp(1.4 - d / 50, 0, 1.5));
     this.flashT = 0.15;
     for (const h of this.humans) {
-      if (h.dead) continue; const dd = Math.hypot(h.x - x, (h.y || 0) + 0.9 - y, h.z - z); if (dd > radius * 1.4) continue;
+      if (h.dead) continue; const dd = hyp3(h.x - x, (h.y || 0) + 0.9 - y, h.z - z); if (dd > radius * 1.4) continue;
       const k = (1 - dd / (radius * 1.4)) * this.blastCover(x, y, z, h.x, (h.y || 0) + 1, h.z); h.hurt(dmg * k * 1.2, src, false, src);
       const nx = (h.x - x) / (dd || 1), nz = (h.z - z) / (dd || 1); h.ragdoll(nx * 10 * k, nz * 10 * k, 7 * k);
     }
-    const pl = this.player; const dp = Math.hypot(pl.x - x, pl.y + 0.9 - y, pl.z - z);
+    const pl = this.player; const dp = hyp3(pl.x - x, pl.y + 0.9 - y, pl.z - z);
     if (dp < radius * 1.3 && !pl.dead && !(src && src === this.vehicle)) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6 * this.blastCover(x, y, z, pl.x, pl.y + 1, pl.z), null, 'explosion'); }
     for (const v of this.vehicles) {
-      if (v === src) continue; const dd = Math.hypot(v.x - x, (v.by ?? y) - y, v.z - z); if (dd > radius * 1.5) continue;
+      if (v === src) continue; const dd = hyp3(v.x - x, (v.by ?? y) - y, v.z - z); if (dd > radius * 1.5) continue;
       const k = (1 - dd / (radius * 1.5)) * this.blastCover(x, y, z, v.x, v.by ?? y, v.z); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
       const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); { const mk = Math.min(2, Math.pow(1.15 / Math.max(0.2, v.spec.mass), 0.8)); v.addImpulse(nx * 14 * k * mk, 5 * k * mk, nz * 14 * k * mk); }   // the same blast moves a bus or a tank far less than a car (an impulse over the cross section, shared by the mass)
     }
@@ -1390,8 +1390,8 @@ export class Game {
     // heat decay when not being seen
     if (this.wanted > 0) {
       let seen = false;
-      for (const c of cars) { const d = Math.hypot(c.x - real.x, c.z - real.z); if (d < 55 && this.hasLOS(c.x, this.bodyY(c) + 0.3, c.z, real.x, this.bodyY(real), real.z)) { seen = true; break; } }
-      for (const h of this.humans) if (h.team === 'cop' && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) < 45) { seen = true; break; }
+      for (const c of cars) { const d = hyp(c.x - real.x, c.z - real.z); if (d < 55 && this.hasLOS(c.x, this.bodyY(c) + 0.3, c.z, real.x, this.bodyY(real), real.z)) { seen = true; break; } }
+      for (const h of this.humans) if (h.team === 'cop' && !h.dead && hyp(h.x - pl.x, h.z - pl.z) < 45) { seen = true; break; }
       if (seen) this.evade = 0; else this.evade += dt;
       if (this.evade > 8) { this.heat = Math.max(0, this.heat - dt * (1.5 + (this.evade - 8) * 0.25)); const prev = this.wanted; this.recalcStars(); if (prev > 0 && this.wanted === 0) { this.toast('<span style="color:#47ffa8">WANTED LEVEL LOST</span>', '추적에서 벗어났습니다'); this.clearWanted(); } }
     }
@@ -1402,7 +1402,7 @@ export class Game {
     }
     for (const c of cars) {
       c.chaseTarget = this.wanted > 0 ? target : null;
-      const d = Math.hypot(c.x - target.x, c.z - target.z);
+      const d = hyp(c.x - target.x, c.z - target.z);
       // on a real road (outside the capital's grid) roads are far apart, so a car with the target in sight leaves the road for it from 120 m, and one
       // at the end of its road goes straight for it
       c.direct = this.wanted > 0 && (d < (c.hw ? 120 : 40) && this.hasLOS(c.x, this.bodyY(c), c.z, target.x, this.bodyY(target), target.z) || (c.hwDone && d < 400));
@@ -1417,14 +1417,14 @@ export class Game {
       if (c.despawn) { this.removeVehicle(c); }
     }
     // remove cop officers when no wanted & far
-    for (const h of this.humans) if (h.team === 'cop' && this.wanted === 0 && !h.dead && Math.hypot(h.x - pl.x, h.z - pl.z) > 50) h.hidden = h.remove = true;
+    for (const h of this.humans) if (h.team === 'cop' && this.wanted === 0 && !h.dead && hyp(h.x - pl.x, h.z - pl.z) > 50) h.hidden = h.remove = true;
     // police siren loudness
-    let nearest = 999; for (const c of cars) nearest = Math.min(nearest, Math.hypot(c.x - this.camera.position.x, c.z - this.camera.position.z));
+    let nearest = 999; for (const c of cars) nearest = Math.min(nearest, hyp(c.x - this.camera.position.x, c.z - this.camera.position.z));
     this.sirenLevel = this.wanted > 0 ? clamp(1 - nearest / 120, 0, 1) : 0;
     // flashing police lights
     if (cars.length) {
       const ph = Math.floor(this.time * 6) % 2;
-      const c = cars.reduce((a, b) => (Math.hypot(a.x - this.camera.position.x, a.z - this.camera.position.z) < Math.hypot(b.x - this.camera.position.x, b.z - this.camera.position.z) ? a : b));
+      const c = cars.reduce((a, b) => (hyp(a.x - this.camera.position.x, a.z - this.camera.position.z) < hyp(b.x - this.camera.position.x, b.z - this.camera.position.z) ? a : b));
       this.lights.flash(c.x, this.bodyY(c) + 1.4, c.z, ph ? 0xff2020 : 0x2050ff, 14, 28, 0.2);   // over the car's roof bar (it was 3 m over 0)
     }
   }
@@ -1450,10 +1450,10 @@ export class Game {
     const r = near.r, n = r.x.length, oneway = r.kind === 'arterial' && r.oneway;
     for (let tr = 0; tr < 8; tr++) {
       const dir = oneway || Math.random() < 0.5 ? 1 : -1, want = rand(110, 250); let i = near.i;
-      for (let s = 0; s < 600; s++) { const ni = i - dir; if (ni < 3 || ni > n - 4) break; i = ni; if (Math.hypot(r.x[i] - t.x, r.z[i] - t.z) >= want) break; }
-      const P = hw.lane(r, i, dir, 0), d = Math.hypot(P.x - t.x, P.z - t.z);
+      for (let s = 0; s < 600; s++) { const ni = i - dir; if (ni < 3 || ni > n - 4) break; i = ni; if (hyp(r.x[i] - t.x, r.z[i] - t.z) >= want) break; }
+      const P = hw.lane(r, i, dir, 0), d = hyp(P.x - t.x, P.z - t.z);
       if (d < 90 || d > 320 || (this.inView(P.x, P.z) && d < 170)) continue;
-      if (this.vehicles.some((o) => Math.hypot(o.x - P.x, o.z - P.z) < 11)) continue;
+      if (this.vehicles.some((o) => hyp(o.x - P.x, o.z - P.z) < 11)) continue;
       return { x: P.x, y: P.y, z: P.z, h: P.h, hw: { r, i, dir, lane: 0 } };
     }
     return null;
@@ -1463,7 +1463,7 @@ export class Game {
     const h = v.hw, r = h.r, n = r.x.length, t = v.chaseTarget;
     if (t && !(r.kind === 'arterial' && r.oneway)) {
       const a = Math.min(n - 1, h.i + 4), b = Math.max(0, h.i - 4);
-      const dir = Math.hypot(r.x[a] - t.x, r.z[a] - t.z) <= Math.hypot(r.x[b] - t.x, r.z[b] - t.z) ? 1 : -1;
+      const dir = hyp(r.x[a] - t.x, r.z[a] - t.z) <= hyp(r.x[b] - t.x, r.z[b] - t.z) ? 1 : -1;
       if (dir !== h.dir) {
         let bi = h.i, bd = 1e18; for (let i = Math.max(0, h.i - 12); i <= Math.min(n - 1, h.i + 12); i++) { const d = (r.x[i] - v.x) ** 2 + (r.z[i] - v.z) ** 2; if (d < bd) { bd = d; bi = i; } }
         h.dir = dir; h.i = bi; v.ai.wp.length = 0;
@@ -1485,11 +1485,11 @@ export class Game {
     const active = [];
     for (let i = list.length - 1; i >= 0; i--) {
       const v = list[i];
-      const d = Math.hypot(v.x - cam.x, v.z - cam.z);
+      const d = hyp(v.x - cam.x, v.z - cam.z);
       const vis = d < (v.kind === 'parked' ? 170 : 230);
       v.group.visible = vis;
       if (v.kind === 'traffic' && !v.hw && !v.dead && v.driver === 'ai' && v !== this.vehicle && !v.callTaxi && v !== this.passenger) {
-        const dd = Math.hypot(v.x - focus.x, v.z - focus.z);
+        const dd = hyp(v.x - focus.x, v.z - focus.z);
         if (dd > 260) { this.recycleTraffic(v); }
       }
       if (v.broken && v !== this.vehicle) { this.removeVehicle(v); continue; }   // its update threw last frame (entityFailed)
@@ -1499,6 +1499,7 @@ export class Game {
       active.push(v);
     }
     for (const v of active) { try { v.control(dt); } catch (e) { this.entityFailed(v, e); } }
+    { const f = this.vehicle || this.player; if (f) this.phys.followOrigin(f.x, f.z); }   // the physics world stays near the player (EV-04)
     this.phys.step(dt, (sdt) => { for (const v of active) v.applyDrive(); this.ragdolls.preStep(sdt); this.items.keepPoses(this.phys.stepNo + 1); }, active.map((v) => v.pv));
     this.ragdolls.postStep(dt); this.ragdolls.syncBones();
     for (const v of active) { try { v.post(dt); } catch (e) { this.entityFailed(v, e); } }
@@ -1517,9 +1518,9 @@ export class Game {
       const civs = this.humans.filter((h) => h.team === 'civ' && !h.dead && !h.static && !h.inside && !h.remoteCiv);
       const want = Math.round(this.eng.q.npc * (this.opt?.npc ?? 1) * pf);
       if (civs.length < want) { const n = want - civs.length > 8 ? 3 : 1; for (let i = 0; i < n; i++) this.spawnCivilian(false); }
-      else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && Math.hypot(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
+      else if (civs.length > want + 2) { const far = civs.find((h) => !h.citizen && hyp(h.x - pl.x, h.z - pl.z) > 50); if (far) far.remove = true; }
       for (let i = this.humans.length - 1; i >= 0; i--) {
-        const h = this.humans[i]; const d = Math.hypot(h.x - pl.x, h.z - pl.z);
+        const h = this.humans[i]; const d = hyp(h.x - pl.x, h.z - pl.z);
         if ((h.dead && h.deadT > 24) || h.remove || (h.team === 'civ' && d > 240)) { this.ragdolls.destroy(h); this.scene.remove(h.group); this.humans.splice(i, 1); h.dispose?.(); }
       }
     }
@@ -1574,10 +1575,10 @@ export class Game {
     const cam = this.camera.position;
     for (const h of this.humans) {
       if (h.inside && !h.trip) { if (this.time >= h.inside.until) this.society.leave(h); continue; }
-      const d = Math.hypot(h.x - cam.x, h.z - cam.z);
+      const d = hyp(h.x - cam.x, h.z - cam.z);
       const vis = d < 130; h.group.visible = vis && !h.hidden;
       if (!vis && h.team === 'civ' && !h.dead) { // cheap
-        if (h.node && !h.knock) { const [tx, tz] = h.nodePos(h.node); const dx = tx - h.x, dz = tz - h.z, dd = Math.hypot(dx, dz); if (dd < 1.4) h.chooseNext(); else { h.x += dx / dd * 1.5 * dt; h.z += dz / dd * 1.5 * dt; } }
+        if (h.node && !h.knock) { const [tx, tz] = h.nodePos(h.node); const dx = tx - h.x, dz = tz - h.z, dd = hyp(dx, dz); if (dd < 1.4) h.chooseNext(); else { h.x += dx / dd * 1.5 * dt; h.z += dz / dd * 1.5 * dt; } }
         continue;
       }
       // calm civilians beyond the body draw distance (75 m, see Human.animateSkinned) think at a third of the rate (dt accumulated), staggered
@@ -1591,14 +1592,14 @@ export class Game {
     }
   }
   // a gang member spotted / was hit: nearby friends come running to where the trouble is (they do not magically see the player)
-  alertGang(h) { for (const o of this.humans) if (o.team === 'gang' && !o.dead && o !== h && o.state !== 'attack' && o.state !== 'cover' && Math.hypot(o.x - h.x, o.z - h.z) < 30) { if (h.mem) o.mem = { ...h.mem }; o.state = 'search'; o.searchT = 12; o.path = null; o.alert = 1; } }
+  alertGang(h) { for (const o of this.humans) if (o.team === 'gang' && !o.dead && o !== h && o.state !== 'attack' && o.state !== 'cover' && hyp(o.x - h.x, o.z - h.z) < 30) { if (h.mem) o.mem = { ...h.mem }; o.state = 'search'; o.searchT = 12; o.path = null; o.alert = 1; } }
 
   updatePickups(dt) {
     const pl = this.player, t = this.time;
     for (const p of this.pickups) {
       if (!p.active) { p.respawn -= dt; if (p.respawn <= 0 && p.type !== 'cash') { p.active = true; p.mesh.visible = true; } continue; }
       p.mesh.rotation.y = t * 2 + p.ph; p.mesh.position.y = 1 + Math.sin(t * 2.4 + p.ph) * 0.15;
-      const d = Math.hypot(p.x - pl.x, p.z - pl.z);
+      const d = hyp(p.x - pl.x, p.z - pl.z);
       if (d < 1.6 && !pl.dead) {
         if (p.type === 'health' && pl.hpv >= 100) continue;
         p.active = false; p.mesh.visible = false; p.respawn = 60;
@@ -1642,7 +1643,7 @@ export class Game {
     for (let t = 0; t < 40; t++) {
       const i = Math.floor(rand(1, N)), j = Math.floor(rand(1, N));
       const x = roadC(i) + (Math.random() < 0.5 ? 1 : -1) * 12.5, z = roadC(j) + (Math.random() < 0.5 ? 1 : -1) * 12.5;
-      const d = Math.hypot(x - pl.x, z - pl.z);
+      const d = hyp(x - pl.x, z - pl.z);
       if (d > minD && d < maxD) return { x, z, i, j };
     }
     return { x: roadC(5) + 12.5, z: roadC(3) + 12.5, i: 5, j: 3 };
@@ -1653,10 +1654,10 @@ export class Game {
     for (let t = 0; t < 30; t++) {
       const a = rand(0, TAU), r = rand(minD, maxD), id = RG.nearest(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, 400); if (id < 0) continue;
       const road = RG.roads[RG.rd[id]], i = RG.ix[id], n = road.x.length, q0 = Math.max(0, i - 1), q1 = Math.min(n - 1, i + 1);
-      let tx = road.x[q1] - road.x[q0], tz = road.z[q1] - road.z[q0]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      let tx = road.x[q1] - road.x[q0], tz = road.z[q1] - road.z[q0]; const l = hyp(tx, tz) || 1; tx /= l; tz /= l;
       // just off the drawn carriageway: a fitted street (src/carriage.js) is narrower than its lanes say, and its walls stand close
       const lanes = road.kind === 'arterial' ? Math.max(1, Math.min(4, road.lanes || 1)) : 4, side = Math.random() < 0.5 ? 1 : -1, off = side * (road.fit ? carriage(road).half + 1.2 : lanes * 3.75 + (road.kind === 'arterial' ? 2.5 : 5));
-      const x = RG.x[id] + tz * off, z = RG.z[id] - tx * off, d = Math.hypot(x - p.x, z - p.z);
+      const x = RG.x[id] + tz * off, z = RG.z[id] - tx * off, d = hyp(x - p.x, z - p.z);
       if (d < minD * 0.8 || d > maxD * 1.25 || this.waterAt(x, z)) continue;
       return { x, z, y: this.groundY(x, z, (road.y ? road.y[i] : physHeight(x, z, 8)) + 1.5), road: true };
     }
@@ -1696,7 +1697,7 @@ export class Game {
     const G = this;
     return [
       // 1. tutorial: go to marker
-      (i) => { const spot = G.pickSpot(120, 260); return { title: '첫 만남', text: '의뢰인이 기다리고 있다. 표시된 장소로 이동하라. (차량 탑승: ' + binds.label('use') + ')', reward: 300, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4) G.completeMission(); } }; },
+      (i) => { const spot = G.pickSpot(120, 260); return { title: '첫 만남', text: '의뢰인이 기다리고 있다. 표시된 장소로 이동하라. (차량 탑승: ' + binds.label('use') + ')', reward: 300, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (hyp(G.player.x - spot.x, G.player.z - spot.z) < 4) G.completeMission(); } }; },
       // 2. steal car
       (i) => {
         const spot = G.pickSpot(140, 260), dest = G.pickSpot(260, 420);
@@ -1709,7 +1710,7 @@ export class Game {
             if (phase === 1) {
               timer -= dt; this.hud = `남은 시간 ${Math.max(0, timer | 0)}s`;
               if (G.vehicle !== car) { G.setMissionText('차량 탈취', '차량에 다시 탑승하라!'); G.setBeacon(car.x, car.z, 0xff3050); phase = 2; }
-              else if (Math.hypot(car.x - dest.x, car.z - dest.z) < 6 && car.speed < 12) { G.clearWanted(); G.completeMission(); }
+              else if (hyp(car.x - dest.x, car.z - dest.z) < 6 && car.speed < 12) { G.clearWanted(); G.completeMission(); }
               else if (timer <= 0 || car.dead) G.failMission(car.dead ? '차량이 파괴되었다' : '시간 초과');
             } else if (phase === 2) { if (G.vehicle === car) { phase = 1; G.setBeacon(dest.x, dest.z); G.setMissionText('차량 탈취', '차를 목적지 차고로 가져가라.'); } else if (car.dead) G.failMission('차량이 파괴되었다'); }
           },
@@ -1747,7 +1748,7 @@ export class Game {
           title: '현금 가방', text: '가방을 회수하라. 경찰이 곧 출동한다!', reward: 2000,
           start() { G.setBeacon(spot.x, spot.z); },
           update() {
-            if (phase === 0 && Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 3.5) {
+            if (phase === 0 && hyp(G.player.x - spot.x, G.player.z - spot.z) < 3.5) {
               phase = 1; G.hideBeacon(); G.addHeat(75); G.setMissionText('현금 가방', '경찰을 따돌려라! (시야에서 벗어나 숨어라)'); G.toast('가방 확보', '경찰 출동!');
             }
             if (phase === 1) { this.hud = `수배 ${'★'.repeat(G.wanted) || '—'}`; if (G.wanted === 0 && G.time - (this.started) > 8) G.completeMission(); }
@@ -1757,8 +1758,8 @@ export class Game {
       // 5. rooftop: walk into a tower, ride its elevator to the roof
       (i) => {
         // the towers with a lift are the capital's: away from it this is a trip to a road-side place instead (it sent the player to the capital)
-        if (Math.abs(G.player.x) > HALF + 40 || Math.abs(G.player.z) > HALF + 40) { const spot = G.pickSpot(150, 320); return { title: '현장 확인', text: '표시된 장소로 이동해 상황을 확인하라.', reward: 900, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; }
-        const cands = (G.world.enterables || []).filter((e) => Math.hypot(e.x - G.player.x, e.z - G.player.z) > 90).sort((p, q) => Math.hypot(p.x - G.player.x, p.z - G.player.z) - Math.hypot(q.x - G.player.x, q.z - G.player.z));
+        if (Math.abs(G.player.x) > HALF + 40 || Math.abs(G.player.z) > HALF + 40) { const spot = G.pickSpot(150, 320); return { title: '현장 확인', text: '표시된 장소로 이동해 상황을 확인하라.', reward: 900, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (hyp(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; }
+        const cands = (G.world.enterables || []).filter((e) => hyp(e.x - G.player.x, e.z - G.player.z) > 90).sort((p, q) => hyp(p.x - G.player.x, p.z - G.player.z) - hyp(q.x - G.player.x, q.z - G.player.z));
         const e = cands[Math.min(2, cands.length - 1)] || G.world.enterables[0];
         const b = G.buildings.byLot.get(e.lot); b.plan();
         return {
@@ -1772,7 +1773,7 @@ export class Game {
         };
       },
       // procedural contracts
-      (i) => { const spot = G.pickSpot(120, 300); const reward = 400 + (i % 5) * 150; return { title: '배달 계약', text: '물건을 목적지까지 배달하라.', reward, start() { G.setBeacon(spot.x, spot.z); }, update() { if (Math.hypot(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; },
+      (i) => { const spot = G.pickSpot(120, 300); const reward = 400 + (i % 5) * 150; return { title: '배달 계약', text: '물건을 목적지까지 배달하라.', reward, start() { G.setBeacon(spot.x, spot.z); }, update() { if (hyp(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; },
       (i) => {
         const spot = G.pickSpot(140, 300); let gang = [];
         return {
@@ -1798,7 +1799,7 @@ export class Game {
       const b = this.beacon, t = this.time;
       b.ring.rotation.z = t; b.ring2.rotation.z = -t * 1.4; b.ring.scale.setScalar(1 + Math.sin(t * 3) * 0.06);
     }
-    const d = this.markerPos ? Math.hypot(this.player.x - this.markerPos.x, this.player.z - this.markerPos.z) : 0;
+    const d = this.markerPos ? hyp(this.player.x - this.markerPos.x, this.player.z - this.markerPos.z) : 0;
     this.setText('mD', this.ui.mDist, m.hud != null ? m.hud : (this.markerPos && !this.indoor ? `거리 ${d | 0} m` : ''));
   }
 
@@ -1880,7 +1881,7 @@ export class Game {
       const rX = -Math.cos(cam.yaw), rZ = Math.sin(cam.yaw);
       let tx = ax - L.x * cam.dist + rX * cam.shoulder, ty = ay - L.y * cam.dist + 0.25, tz = az - L.z * cam.dist + rZ * cam.shoulder;
       // collision
-      const dx = tx - ax, dy = ty - ay, dz = tz - az, d = Math.hypot(dx, dy, dz);
+      const dx = tx - ax, dy = ty - ay, dz = tz - az, d = hyp3(dx, dy, dz);
       const cab = this.buildings.cabOf(pl);
       const hit = cab ? -1 : this.world.colliders.raycast(ax, ay, az, dx / d, dy / d, dz / d, d);
       let k = 1; if (hit >= 0) k = Math.max(0.12, (hit - 0.4) / d);
@@ -1913,7 +1914,7 @@ export class Game {
         c.position.set(tx, ty, tz); c.lookAt(tx + Math.sin(cam.yaw) * 10, vgy + 1.1 + Math.sin(cam.pitch) * 10, tz + Math.cos(cam.yaw) * 10);
       } else {
         tx = ax - L.x * dist; ty = ay - L.y * dist + 1.0; tz = az - L.z * dist;
-        const dx = tx - ax, dy = ty - ay, dz = tz - az, d = Math.hypot(dx, dy, dz);
+        const dx = tx - ax, dy = ty - ay, dz = tz - az, d = hyp3(dx, dy, dz);
         const hit = this.world.colliders.raycast(ax, ay, az, dx / d, dy / d, dz / d, d);
         let k = 1; if (hit >= 0) k = Math.max(0.2, (hit - 0.5) / d);
         tx = ax + dx * k; ty = Math.max(vgy + 0.5, ay + dy * k); tz = az + dz * k;
@@ -2003,7 +2004,7 @@ export class Game {
     const night = nightU.value;
     for (const v of this.vehicles) {
       const m = v.model; if (!v.group.visible || !m || v.dead) continue;
-      const d = Math.hypot(v.x - cp.x, v.z - cp.z), lit = night > 0.1, near = d < 80;
+      const d = hyp(v.x - cp.x, v.z - cp.z), lit = night > 0.1, near = d < 80;
       m.beams.visible = v.lightsOn && d < 45 && night > 0.2;
       m.ug.visible = v.lightsOn && v.kind !== 'parked' && d < 45 && lit;
       for (const sp of m.headSprites) sp.visible = v.lightsOn && near && lit;
@@ -2076,7 +2077,7 @@ export class Game {
     g.save(); g.translate(W / 2, W / 2); g.rotate(this.cam.yaw + Math.PI); g.scale(zoom, zoom); g.translate(-p.x, -p.z);
     // map drawImage: map pixel (tx(x), tz(z)) -> world via S
     g.drawImage(this.mapCanvas, -this.mapSize / S / 2, -this.mapSize / S / 2, this.mapSize / S, this.mapSize / S);
-    if (Math.hypot(p.x, p.z) > 800) { // mountain roads outside the city grid
+    if (hyp(p.x, p.z) > 800) { // mountain roads outside the city grid
       g.strokeStyle = '#3c4b73'; g.lineWidth = 11; g.lineJoin = 'round';
       for (const rd of roadsData()) { g.beginPath(); rd.pts.forEach((q, i) => (i ? g.lineTo(q.x, q.z) : g.moveTo(q.x, q.z))); if (rd.closed) g.closePath(); g.stroke(); }
     }
@@ -2086,7 +2087,7 @@ export class Game {
     if (this.gpsPath) { g.strokeStyle = '#4de3ff'; g.lineWidth = 3 / zoom; g.beginPath(); this.gpsPath.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.stroke(); }
     for (const pk of this.pickups) if (pk.active && pk.type !== 'cash') dot(pk.x, pk.z, 2.2, pk.type === 'health' ? '#47ffa8' : pk.type === 'armor' ? '#4de3ff' : '#ffc94d');
     if (this.markerPos) {
-      let mx = this.markerPos.x, mz = this.markerPos.z; const dx = mx - p.x, dz = mz - p.z, d = Math.hypot(dx, dz), lim = (W / 2 - 14) / zoom;
+      let mx = this.markerPos.x, mz = this.markerPos.z; const dx = mx - p.x, dz = mz - p.z, d = hyp(dx, dz), lim = (W / 2 - 14) / zoom;
       if (d > lim) { mx = p.x + dx / d * lim; mz = p.z + dz / d * lim; }
       dot(mx, mz, 5.2, '#ffc94d', true);
     }

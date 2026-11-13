@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { WEAPONS } from './human.js';
 import { Vehicle, CAR_COLORS, floorBelow } from './vehicle.js';
 import { ATT } from './attachments.js';
-import { el } from './util.js';
+import { el, hyp } from './util.js';
 import { cities } from './worldmap.js';
 import { landHeight } from './farland.js';
 
@@ -122,7 +122,7 @@ export class Sandbox {
     const G = this.G, pl = G.player; let n = 0;
     for (const h of G.humans) {
       if (h.dead || h.team === 'cop' && false) continue;
-      const dx = h.x - pl.x, dz = h.z - pl.z, d = Math.hypot(dx, dz); if (d > 25 || d < 0.5) continue;
+      const dx = h.x - pl.x, dz = h.z - pl.z, d = hyp(dx, dz); if (d > 25 || d < 0.5) continue;
       if (kill) { h.lastHit = { t: G.time, seg: 'chest', dir: { x: dx / d, y: 0.1, z: dz / d }, point: { x: h.x, y: h.y + 1.3, z: h.z }, j: 45 }; h.hurt(999, pl, false, pl); }
       else h.ragdoll(dx / d * 5, dz / d * 5, 4);
       n++;
@@ -131,7 +131,7 @@ export class Sandbox {
   }
   toCity(c) {
     const G = this.G, pl = G.player, y = landHeight(c.x, c.z, 8) + 1;
-    pl.body3.teleport(c.x, y, c.z); pl.x = c.x; pl.y = y; pl.z = c.z; pl.vx = pl.vz = 0; G.farland?.ground.update(c.x, c.z, y); G.toast(c.name, `${c.type} · ${Math.round(Math.hypot(c.x, c.z) / 1000)} km`);
+    pl.body3.teleport(c.x, y, c.z); pl.x = c.x; pl.y = y; pl.z = c.z; pl.vx = pl.vz = 0; G.farland?.ground.update(c.x, c.z, y); G.toast(c.name, `${c.type} · ${Math.round(hyp(c.x, c.z) / 1000)} km`);
   }
   toBase() {
     const G = this.G, b = G.war.base, pl = G.player; if (!b) return G.toast('군 기지 없음');

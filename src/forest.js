@@ -103,8 +103,8 @@ export class Forest {
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uNight: nightU }]), fog: true, transparent: false, side: THREE.DoubleSide,
       vertexShader: `attribute float aT;varying vec2 vUv;varying float vT;varying vec3 vC;
         #include <fog_pars_vertex>
-        void main(){vec3 ip=instanceMatrix[3].xyz;vec3 to=cameraPosition-ip;vec3 right=normalize(vec3(to.z,0.,-to.x));float sx=length(instanceMatrix[0].xyz),sy=length(instanceMatrix[1].xyz);
-          vec3 wp=ip+right*position.x*sx+vec3(0.,position.y*sy,0.);vec4 mvPosition=viewMatrix*vec4(wp,1.);gl_Position=projectionMatrix*mvPosition;vUv=uv;vT=aT;vC=instanceColor;
+        void main(){vec3 ip=instanceMatrix[3].xyz;vec3 to=cameraPosition-(modelMatrix*vec4(ip,1.)).xyz;vec3 right=normalize(vec3(to.z,0.,-to.x));float sx=length(instanceMatrix[0].xyz),sy=length(instanceMatrix[1].xyz);
+          vec3 wp=ip+right*position.x*sx+vec3(0.,position.y*sy,0.);vec4 mvPosition=modelViewMatrix*vec4(wp,1.);gl_Position=projectionMatrix*mvPosition;vUv=uv;vT=aT;vC=instanceColor;
           #include <fog_vertex>
         }`,
       fragmentShader: `varying vec2 vUv;varying float vT;varying vec3 vC;uniform float uNight;
@@ -160,8 +160,10 @@ export class Forest {
       const ex = OX + (i + 0.5) * CELL - cx, ez = OZ + (j + 0.5) * CELL - cz, d2 = ex * ex + ez * ez; if (d2 > (R + 24) * (R + 24)) continue; list.push([d2, i, j, b]);
     }
     list.sort((a, b) => a[0] - b[0]);
+    // the instances about a point near the camera, the group placed there (EV-04): world metres as 32-bit floats are 3 cm apart at Jeju
+    const ax = Math.round(cx / 256) * 256, az = Math.round(cz / 256) * 256; this.group.position.set(ax, 0, az); this.group.updateMatrixWorld(true);
     const cnt = {}; for (const t of [...TYPES, 'grass']) cnt[t] = 0; let nb = 0, mc = 0; this.stats.offRoad = 0;
-    const set = (m, k, x, y, z, rot, s, tint) => { const a = m.instanceMatrix.array, o = k * 16, c = Math.cos(rot) * s, sn = Math.sin(rot) * s; a[o] = c; a[o + 1] = 0; a[o + 2] = -sn; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0; a[o + 8] = sn; a[o + 9] = 0; a[o + 10] = c; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1; const ic = m.instanceColor.array; ic[k * 3] = tint[0]; ic[k * 3 + 1] = tint[1]; ic[k * 3 + 2] = tint[2]; };
+    const set = (m, k, x, y, z, rot, s, tint) => { const a = m.instanceMatrix.array, o = k * 16, c = Math.cos(rot) * s, sn = Math.sin(rot) * s; a[o] = c; a[o + 1] = 0; a[o + 2] = -sn; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0; a[o + 8] = sn; a[o + 9] = 0; a[o + 10] = c; a[o + 11] = 0; a[o + 12] = x - ax; a[o + 13] = y; a[o + 14] = z - az; a[o + 15] = 1; const ic = m.instanceColor.array; ic[k * 3] = tint[0]; ic[k * 3 + 1] = tint[1]; ic[k * 3 + 2] = tint[2]; };
     const bm = this.bill, bt = bm.geometry.attributes.aT.array, bc = bm.instanceColor.array, bmat = bm.instanceMatrix.array;
     const BC = [[0.1, 0.27, 0.08], [0.04, 0.16, 0.08], [0.08, 0.3, 0.1], [0.1, 0.3, 0.12], [0.2, 0.18, 0.15]];
     const grassKinds = [0, 0.9, 0.6, 0, 0.12, 0, 1.0, 0];
@@ -176,7 +178,7 @@ export class Forest {
         else if (type < 5 && nb < this.bbCap && d < R) {
           const keep = Math.min(1, 1.15 - 0.7 * (d - Rn) / Math.max(1, R - Rn)); if (hash(q, i + 7, j) > keep) continue;
           const sz = rec[q + 4], h = (type === 1 ? 8.8 : type === 2 ? 8.4 : type === 3 ? 3.2 : type === 4 ? 4.4 : 6.2) * sz, w = (type === 1 ? 4 : type === 2 ? 2.4 : type === 3 ? 1.6 : type === 4 ? 2.0 : 5) * sz, o = nb * 16;
-          bmat[o] = w; bmat[o + 1] = 0; bmat[o + 2] = 0; bmat[o + 3] = 0; bmat[o + 4] = 0; bmat[o + 5] = h; bmat[o + 6] = 0; bmat[o + 7] = 0; bmat[o + 8] = 0; bmat[o + 9] = 0; bmat[o + 10] = 1; bmat[o + 11] = 0; bmat[o + 12] = rec[q]; bmat[o + 13] = rec[q + 1]; bmat[o + 14] = rec[q + 2]; bmat[o + 15] = 1;
+          bmat[o] = w; bmat[o + 1] = 0; bmat[o + 2] = 0; bmat[o + 3] = 0; bmat[o + 4] = 0; bmat[o + 5] = h; bmat[o + 6] = 0; bmat[o + 7] = 0; bmat[o + 8] = 0; bmat[o + 9] = 0; bmat[o + 10] = 1; bmat[o + 11] = 0; bmat[o + 12] = rec[q] - ax; bmat[o + 13] = rec[q + 1]; bmat[o + 14] = rec[q + 2] - az; bmat[o + 15] = 1;
           const t = 0.85 + 0.3 * hash(q, i, j), c = BC[type]; bc[nb * 3] = c[0] * t; bc[nb * 3 + 1] = c[1] * t; bc[nb * 3 + 2] = c[2] * t; bt[nb] = BILL[name]; nb++;
         }
       }

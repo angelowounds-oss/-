@@ -3,6 +3,7 @@
 // and sign gantries. Every road gets an elevation profile (smoothed terrain, grade-limited) and a class per sample: 0 on the ground, 1 bridge
 // (the terrain falls away), 2 tunnel (the terrain rises over the road). A spatial index answers "how far is the nearest road, and what is its
 // surface height" for carving the terrain (farland.js) and for the physics ground.
+import { buildRoadGrid } from './roadgrid.js';
 import { cities, highways, farHeight, SEA, WORLD_HALF, nearFade } from './worldmap.js';
 import { baseHeight, heightAt, roadsData, EXTENT } from './terrainfn.js';
 import { settlements } from './settlements.js';
@@ -273,21 +274,17 @@ function build() {
   { const S = settlements(), pad = (id, x, z, r) => N.pads.push({ id, x, z, y: Math.round(groundH(x, z, 100) * 10) / 10, r });
     for (const v of S.villages) pad(v.id, v.x, v.z, v.r); for (const f of S.farms) pad(f.id, f.x, f.z, 70);
     for (const s of S.industry) pad(s.id, s.x, s.z, s.type === 'wind' ? 60 : s.type === 'refinery' ? 210 : s.type === 'mine' ? 190 : 150); for (const t of S.towers) pad(t.id, t.x, t.z, 24); }
-  // ---- spatial index for carving: cell 240 m, every segment of every road
-  const CS = 240, grid = new Map();
-  N.roads.forEach((r, ri) => { const X = r.x, Z = r.z, n = X.length, m = r.closed ? n : n - 1; for (let i = 0; i < m; i++) { const j = (i + 1) % n; const x0 = Math.floor((Math.min(X[i], X[j]) - 70) / CS), x1 = Math.floor((Math.max(X[i], X[j]) + 70) / CS), z0 = Math.floor((Math.min(Z[i], Z[j]) - 70) / CS), z1 = Math.floor((Math.max(Z[i], Z[j]) + 70) / CS); for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) { const key = cx * 100003 + cz; (grid.get(key) || grid.set(key, []).get(key)).push(ri, i); } } });
-  // each cell's [road, sample] pairs as one Int32Array: same indexing for the readers, no GC-scanned array per cell (226 MB of the boot heap, EV-02)
-  for (const [k, a] of grid) grid.set(k, Int32Array.from(a));
-  N.grid = grid; N.CS = CS;
+  // ---- spatial index for carving: cell 240 m, every segment of every road (roadgrid.js: one CSR index, not a typed array per cell, EV-02 stage 3)
+  N.grid = buildRoadGrid(N.roads); N.CS = N.grid.CS;
   return N;
 }
 
 // the nearest road within `max` metres of (x, z): { d, y (surface height there), cls, road, i, t }, or null
 export function roadAt(x, z, max = CARVE_FADE + HALF_W) {
-  const N = net(), CS = N.CS, cell = N.grid.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (!cell) return null;
+  const N = net(), G = N.grid, CS = N.CS, c = G.ix.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (c === undefined) return null;
   let best = null, bd = max * max;
-  for (let q = 0; q < cell.length; q += 2) {
-    const r = N.roads[cell[q]], i = cell[q + 1], n = r.x.length, j = (i + 1) % n, ax = r.x[i], az = r.z[i];
+  for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) {
+    const g = G.seg[q], ri = G.segRoad[g], r = N.roads[ri], i = g - G.seg0[ri], n = r.x.length, j = (i + 1) % n, ax = r.x[i], az = r.z[i];
     const dx = r.x[j] - ax, dz = r.z[j] - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), px = ax + dx * t, pz = az + dz * t, d2 = (x - px) ** 2 + (z - pz) ** 2;
     if (d2 < bd) { bd = d2; best = { d: Math.sqrt(d2), road: r, i, t, y: r.y[i] + (r.y[(i + 1) % n] - r.y[i]) * t, cls: r.cls[i] }; }
   }

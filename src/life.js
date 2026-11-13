@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Human } from './human.js';
 import { ITEMS } from './items.js';
 import { gesture } from './gesture.js';
-import { mulberry32, rand, clamp } from './util.js';
+import { mulberry32, rand, clamp, hyp3 } from './util.js';
 
 export const SHOPS = {
   convenience: { name: '편의점', stock: [['burger', 6], ['noodles', 4], ['sandwich', 5], ['soda', 2], ['water', 2], ['coffee', 3], ['energy', 4], ['cigarette', 8], ['newspaper', 2], ['bandage', 8]] },
@@ -42,7 +42,7 @@ export class Life {
     const pre = `f${b.id}:${fl.k}:`;
     for (const [k, r] of [...G.items.recs]) if (k.startsWith(pre)) {
       const p = G.items.props.get(k);
-      if (p) { p.record(); const m = Math.hypot(r.x - r.ox, r.y - r.oy, r.z - r.oz); if (m > 0.35) G.state.moved[k] = { x: r.x, y: r.y, z: r.z, q: r.q }; G.items.props.delete(k); p.dispose(); }
+      if (p) { p.record(); const m = hyp3(r.x - r.ox, r.y - r.oy, r.z - r.oz); if (m > 0.35) G.state.moved[k] = { x: r.x, y: r.y, z: r.z, q: r.q }; G.items.props.delete(k); p.dispose(); }
       G.items.recs.delete(k);
     }
   }

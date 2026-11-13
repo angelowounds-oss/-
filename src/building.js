@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Builder, mats, disposeGroup, SURF } from './gfx.js';
 import { GR, grp } from './physics.js';
 import { accentColor, BAY } from './world.js';
-import { mulberry32, clamp, TAU, LIGHT_CAP } from './util.js';
+import { mulberry32, clamp, TAU, LIGHT_CAP, hyp } from './util.js';
 import { livingSet, LIVING_COLLIDERS } from './livingset.js';
 import { Frame, FloorDecor, furnitureReady, decorateRoom } from './rooms.js';
 import { roomWalkable } from './walkgrid.js';
@@ -238,7 +238,7 @@ export class Building {
     G.state.glass[pn.key] = 1;
     const e = pn.ex, cx = (e[0] + e[3]) / 2, cy = (e[1] + e[4]) / 2, cz = (e[2] + e[5]) / 2;
     for (let n = 0; n < 26; n++) G.sparksP.emit(cx + (Math.random() - 0.5) * (e[3] - e[0]), cy + (Math.random() - 0.5) * (e[4] - e[1]), cz + (Math.random() - 0.5) * (e[5] - e[2]), (Math.random() - 0.5) * 5, Math.random() * 3 - 1, (Math.random() - 0.5) * 5, 0.5 + Math.random() * 0.8, 0.07 + Math.random() * 0.08, 1.4, 1.9, 2.4, 1, -14, 0.3);
-    G.audio.glass?.(Math.hypot(cx - G.camera.position.x, cz - G.camera.position.z));
+    G.audio.glass?.(hyp(cx - G.camera.position.x, cz - G.camera.position.z));
     G.noise?.(cx, cz, 40);
     if (by === G.player) G.noteCrime?.(by, 'vandal', 2);
     return true;
@@ -1187,7 +1187,7 @@ export class Buildings {
     this.t -= dt;
     if (this.t <= 0) {
       this.t = 0.2;
-      const dist = (b) => Math.hypot(b.cx - fx, b.cz - fz) - Math.max(b.lot.x1 - b.lot.x0, b.lot.z1 - b.lot.z0) * 0.5;
+      const dist = (b) => hyp(b.cx - fx, b.cz - fz) - Math.max(b.lot.x1 - b.lot.x0, b.lot.z1 - b.lot.z0) * 0.5;
       const near = [];
       for (const b of this.list) {
         const d = dist(b);
@@ -1210,7 +1210,7 @@ export class Buildings {
     for (const b of this.active) {
       // floors above the ground are built only for someone who is actually in the building or at its door; walking past along the pavement
       // used to build four floors (~25 ms each) of every building passed
-      const at = fx >= b.lot.x0 && fx <= b.lot.x1 && fz >= b.lot.z0 && fz <= b.lot.z1, atDoor = Math.hypot(fx - b.door.px, fz - b.door.pz) < 9;
+      const at = fx >= b.lot.x0 && fx <= b.lot.x1 && fz >= b.lot.z0 && fz <= b.lot.z1, atDoor = hyp(fx - b.door.px, fz - b.door.pz) < 9;
       const inside = at || atDoor;
       if (inside) b.full = true;
       if (inside && !(b.elev && b.elev.state === 'moving')) { const k = b.levelAt(py); b.ensureRange(k - 2, k + 3); b.curLevel = k; if (at && !b.floors.has(k)) b.buildFloor(k); }   // never leave the floor someone stands on unbuilt

@@ -6,11 +6,13 @@ const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)
 
 import { REGIONS } from './regions/index.js';
 import { CAPITAL, KOREA_SCALE, LEGACY_SCALE } from './koreamap.js';
+import { REG_SH, REG_M, REG_S, REG_T, REG_CG } from './regtile.js';
 
 // A region compiled at another map scale is in other metres and heights (WLD-23b): it is left out, with a warning, until it is compiled again.
 let CUR = undefined, LIST = null;
 const usable = (R) => {
   if (!R) return null;
+  if (R.tiled && !R.tiles) R.tiles = new Map();   // a streamed region (EV-01): its loaded tiles by id
   if ((R.scale ?? LEGACY_SCALE) === KOREA_SCALE) return R;
   console.warn(`compiled region "${R.name}" is at scale 1:${R.scale ?? LEGACY_SCALE}, the map is 1:${KOREA_SCALE}: ignored (compile it again: node build/world/compile.mjs)`);
   return null;
@@ -35,7 +37,7 @@ function weightOf(R, x, z) {
   const x1 = R.x0 + (R.nx - 1) * R.g, z1 = R.z0 + (R.nz - 1) * R.g, edge = Math.min(x - R.x0, x1 - x, z - R.z0, z1 - z);
   if (edge <= 0) return 0;
   let w;
-  if (R.own) { const o = R.own[Math.round((z - R.z0) / R.g) * R.nx + Math.round((x - R.x0) / R.g)]; w = Math.min(o === 255 ? 1 : 1 - sstep(0, R.edge, o * R.g), sstep(0, R.g, edge)); }
+  if (R.own || R.ownTiles) { const o = ownAt(R, Math.round((x - R.x0) / R.g), Math.round((z - R.z0) / R.g)); w = Math.min(o === 255 ? 1 : 1 - sstep(0, R.edge, o * R.g), sstep(0, R.g, edge)); }
   else w = Math.min(sstep(0, R.edge, edge), sstep(R.keep, R.keep + R.band, Math.max(Math.abs(x), Math.abs(z))));
   for (const h of holes()) if (w > 0) w = Math.min(w, sstep(h.r, h.r + HOLE_BAND, Math.hypot(x - h.x, z - h.z)));
   return w;
@@ -65,24 +67,122 @@ const HOLE_BAND = 220;
 let HOLES = null;
 const holes = () => HOLES || (HOLES = REGIONS.flatMap((r) => r.cities).filter((c) => c.def.viaRegion).map((c) => ({ x: c.def.x - CAPITAL.x, z: c.def.z - CAPITAL.z, r: c.def.r * 1.15 })));
 
-// one region's ground (game metres, bilinear), NaN outside its raster
-function heightOf(R, x, z) {
+// ---- streamed rasters (EV-01). In the page a region holds no raster of its own (R.tiled): its cells come in tiles (regtile.js) read from world/reg/
+// around the player (regionStream), and a coarse raster (R.coarse, in the core chunk) answers where no tile is loaded and a coarse answer is asked
+// for (the far rings of the land, at 128 m and more: the coarse nodes lie on those multiples and hold the fine raster's own value there). A fine
+// question about a cell whose tile is missing has the loader read that tile at once (LOADER.sync), so no answer depends on what has streamed in
+// yet. Ownership stays exact everywhere: per tile all owned, all beyond the edge band, or that tile's bytes (R.ownTiles, in the core chunk).
+// The bake and the node tests install whole rasters (R.h) and never reach any of this.
+let LOADER = null;
+export const regionTileStats = { loaded: 0, sync: 0, async: 0, dropped: 0, coarse: 0, syncMs: 0 };
+// the page's reader of world/reg/ (regionload.js): { sync(R, ti, tj) -> tile | null, request(R, ti, tj) -> Promise<tile> }
+export function setRegionLoader(l) { LOADER = l; }
+const tileId = (R, i, j) => (j >> REG_SH) * R.tiled.ni + (i >> REG_SH);
+// the use clock of the tile cache: every fine read stamps its tile, and the stream lets go of the least recently used past the cap (REG_CAP)
+let USE = 0;
+// at most this many tiles a region beyond those in reach (about 6 MB): the tiles read at once by a far question (a route, a spawn 1.5 km out)
+export const REG_CAP = 72;
+function putTile(R, id, t) { if (!R.tiles.has(id)) { R.tiles.set(id, t); regionTileStats.loaded++; R.grown = true; } const u = R.tiles.get(id); u.used = ++USE; return u; }
+// the tile holding cell (i, j), read now when it is missing and `fine` (a coarse question takes what is loaded)
+function tileAt(R, i, j, fine) {
+  const id = tileId(R, i, j), t = R.tiles.get(id); if (t) { t.used = ++USE; return t; } if (!fine || !LOADER) return null;
+  const t0 = performance.now(), n = LOADER.sync(R, i >> REG_SH, j >> REG_SH); regionTileStats.syncMs += performance.now() - t0;
+  if (!n) return null;
+  regionTileStats.sync++; return putTile(R, id, n);
+}
+// the coarse raster at (x, z), bilinear (game metres)
+function coarseHeight(R, x, z) {
+  const C = R.coarse, fx = Math.min(C.nx - 1, Math.max(0, (x - C.x0) / REG_CG)), fz = Math.min(C.nz - 1, Math.max(0, (z - C.z0) / REG_CG));
+  const i = Math.min(C.nx - 2, Math.floor(fx)), j = Math.min(C.nz - 2, Math.floor(fz)), u = fx - i, v = fz - j, k = j * C.nx + i, h = C.h;
+  regionTileStats.coarse++;
+  return (h[k] * (1 - u) + h[k + 1] * u) * (1 - v) + (h[k + C.nx] * (1 - u) + h[k + C.nx + 1] * u) * v;
+}
+// the owner byte of cell (i, j) (emit.mjs ownership): 255 owned, else the distance to the owned cells in cells. A tile all beyond the edge band
+// answers 254, which weighs 0 as its own values do (the bake keeps such a tile only where 254 cells reach past the band)
+export function ownAt(R, i, j) {
+  if (R.own) return R.own[j * R.nx + i];
+  const O = R.ownTiles, t = tileId(R, i, j), c = O.cls[t];
+  return c === 1 ? 255 : c === 0 ? 254 : O.data[O.at[t] + (j & REG_M) * REG_T + (i & REG_M)];
+}
+
+// one region's ground (game metres, bilinear), NaN outside its raster. `coarse`: the coarse raster may answer where no tile is loaded
+function heightOf(R, x, z, coarse = false) {
   const fx = (x - R.x0) / R.g, fz = (z - R.z0) / R.g;
   if (!(fx >= 0 && fz >= 0 && fx <= R.nx - 1 && fz <= R.nz - 1)) return NaN;
-  const i = Math.min(R.nx - 2, Math.floor(fx)), j = Math.min(R.nz - 2, Math.floor(fz)), u = fx - i, v = fz - j, k = j * R.nx + i, h = R.h;
-  return ((h[k] * (1 - u) + h[k + 1] * u) * (1 - v) + (h[k + R.nx] * (1 - u) + h[k + R.nx + 1] * u) * v) / 10;
+  const i = Math.min(R.nx - 2, Math.floor(fx)), j = Math.min(R.nz - 2, Math.floor(fz)), u = fx - i, v = fz - j;
+  let h = R.h, k = j * R.nx + i, w = R.nx;
+  if (!h) { const t = tileAt(R, i, j, !coarse); if (!t) return coarseHeight(R, x, z); h = t.h; k = (j & REG_M) * REG_S + (i & REG_M); w = REG_S; }
+  return ((h[k] * (1 - u) + h[k + 1] * u) * (1 - v) + (h[k + w] * (1 - u) + h[k + w + 1] * u) * v) / 10;
 }
+export const rasterHeight = heightOf;   // one region's own ground, for the bake's coarse raster (build/regtiles.mjs)
 // the compiled ground (game metres), NaN outside every region's raster: the regions that speak there, by their weights; where none does (the keep
-// zone, past the edge bands) the first raster that holds the point
-export function regionHeight(x, z) {
+// zone, past the edge bands) the first raster that holds the point. `coarse`: a streamed raster may answer from its coarse nodes where no tile is
+// loaded (landfn.js asks so for cells of REG_CG metres and more)
+export function regionHeight(x, z, coarse = false) {
   const L = regions(); if (!L.length) return NaN;
-  if (L.length === 1) return heightOf(L[0], x, z);
+  if (L.length === 1) return heightOf(L[0], x, z, coarse);
   const W = weights(x, z); let s = 0, ws = 0;
-  for (let k = 0; k < W.length; k += 2) { const h = heightOf(W[k], x, z); if (h === h) { s += h * W[k + 1]; ws += W[k + 1]; } }
+  for (let k = 0; k < W.length; k += 2) { const h = heightOf(W[k], x, z, coarse); if (h === h) { s += h * W[k + 1]; ws += W[k + 1]; } }
   if (ws > 0) return s / ws;
-  for (const R of L) { const h = heightOf(R, x, z); if (h === h) return h; }
+  for (const R of L) { const h = heightOf(R, x, z, coarse); if (h === h) return h; }
   return NaN;
 }
+
+// keeps the tiles of every streamed region loaded within `reach` metres (a square) of the points ({x, z}: the camera and what the player
+// controls), asks for the missing ones nearest first, and lets go of those beyond reach * 1.3 plus a tile, then of the least recently used of
+// those out of reach past REG_CAP. Cheap while the points stay in their tiles and no tile came in: a tile read at once by a far question was
+// kept while the player stood still (the pass was skipped), and nothing bounded how many
+export function regionStream(pts, reach) {
+  if (!LOADER) return;
+  for (const R of regions()) {
+    if (!R.tiled) continue;
+    const S = REG_T * R.g, T = R.tiled, at = pts.map((p) => Math.floor((p.x - R.x0) / S) + ',' + Math.floor((p.z - R.z0) / S)).join(';') + ':' + reach;
+    if (R.streamAt === at && !(R.pending && R.pending.size) && !R.grown && !R.farLeft) continue;   // farLeft: tiles past keep still read, looked at again
+    R.streamAt = at; R.pending ||= new Set(); R.grown = false;
+    const want = [];
+    for (const p of pts) {
+      const i0 = Math.max(0, Math.floor((p.x - reach - R.x0) / S)), i1 = Math.min(T.ni - 1, Math.floor((p.x + reach - R.x0) / S));
+      const j0 = Math.max(0, Math.floor((p.z - reach - R.z0) / S)), j1 = Math.min(T.nj - 1, Math.floor((p.z + reach - R.z0) / S));
+      for (let tj = j0; tj <= j1; tj++) for (let ti = i0; ti <= i1; ti++) {
+        const id = tj * T.ni + ti; if (R.tiles.has(id) || R.pending.has(id)) continue;
+        want.push({ id, ti, tj, d: Math.hypot(R.x0 + (ti + 0.5) * S - p.x, R.z0 + (tj + 0.5) * S - p.z) });
+      }
+    }
+    want.sort((a, b) => a.d - b.d);
+    for (const w of want) {
+      if (R.pending.has(w.id)) continue; R.pending.add(w.id);
+      LOADER.request(R, w.ti, w.tj).then((t) => { if (t) { regionTileStats.async++; putTile(R, w.id, t); } }).catch(() => {}).finally(() => R.pending.delete(w.id));
+    }
+    const keep = reach * 1.3 + S, near = reach + S, out = []; R.farLeft = 0;
+    for (const [id, t] of R.tiles) {
+      const cx = R.x0 + ((id % T.ni) + 0.5) * S, cz = R.z0 + (Math.floor(id / T.ni) + 0.5) * S, within = (r) => pts.some((p) => Math.abs(cx - p.x) < r && Math.abs(cz - p.z) < r);
+      // past keep and not read since the last pass: gone (one a far question keeps reading stays, under the cap, and is not read again each frame)
+      if (!within(keep) && (t.used || 0) <= (R.lastPass || 0)) { R.tiles.delete(id); regionTileStats.dropped++; } else if (!within(near)) { out.push([t.used || 0, id]); if (!within(keep)) R.farLeft++; }
+    }
+    if (out.length > REG_CAP) { out.sort((a, b) => a[0] - b[0]); for (let k = 0; k < out.length - REG_CAP; k++) { R.tiles.delete(out[k][1]); regionTileStats.dropped++; } }
+    R.lastPass = USE;
+  }
+}
+// loads every tile within `reach` of (x, z) and resolves when they are in (the boot and a jump wait on it); the number of tiles read
+export async function regionLoad(x, z, reach) {
+  if (!LOADER) return 0;
+  const jobs = [];
+  for (const R of regions()) {
+    if (!R.tiled) continue;
+    const S = REG_T * R.g, T = R.tiled;
+    const i0 = Math.max(0, Math.floor((x - reach - R.x0) / S)), i1 = Math.min(T.ni - 1, Math.floor((x + reach - R.x0) / S));
+    const j0 = Math.max(0, Math.floor((z - reach - R.z0) / S)), j1 = Math.min(T.nj - 1, Math.floor((z + reach - R.z0) / S));
+    for (let tj = j0; tj <= j1; tj++) for (let ti = i0; ti <= i1; ti++) {
+      const id = tj * T.ni + ti; if (R.tiles.has(id)) continue;
+      jobs.push(LOADER.request(R, ti, tj).then((t) => { if (t) { regionTileStats.async++; putTile(R, id, t); } }));
+    }
+  }
+  await Promise.all(jobs);
+  for (const R of regions()) if (R.tiled) { R.lastPass = USE; R.grown = true; }   // a jump: the tiles read before it go at the next pass unless read again
+  return jobs.length;
+}
+// how many tiles the streamed regions hold now
+export const regionTilesLoaded = () => regions().reduce((n, R) => n + (R.tiles ? R.tiles.size : 0), 0);
 
 // the real settlements the compiler found: { id, name, kind, pop, x, z, y, r } (y in game metres, r the flat pad), of every region
 let PLACES = null;
@@ -93,8 +193,12 @@ export const regionPlaces = () => { const L = regions(); return L.length <= 1 ? 
 function waterOf(R, x, z) {
   const i = Math.round((x - R.x0) / R.g), j = Math.round((z - R.z0) / R.g);
   if (i < 0 || j < 0 || i >= R.nx || j >= R.nz) return null;
-  const k = j * R.nx + i;
-  return { cls: R.water[k], level: R.level[k] / 10 };
+  if (R.water) { const k = j * R.nx + i; return { cls: R.water[k], level: R.level[k] / 10 }; }
+  // a streamed region (EV-01): the cell's tile (read now when missing), else the nearest coarse node
+  const t = tileAt(R, i, j, true);
+  if (t) { const k = (j & REG_M) * REG_S + (i & REG_M); return { cls: t.water[k], level: t.level[k] / 10 }; }
+  const C = R.coarse, k = Math.min(C.nz - 1, Math.max(0, Math.round((z - C.z0) / REG_CG))) * C.nx + Math.min(C.nx - 1, Math.max(0, Math.round((x - C.x0) / REG_CG)));
+  return { cls: C.water[k], level: C.level[k] / 10 };
 }
 export function regionWater(x, z) {
   const L = regions(); if (!L.length) return null;
@@ -139,8 +243,8 @@ function structures() {
   }
   return (STRUCT = { grid, key });
 }
-export function regionPhysHeight(x, z) {
-  const h0 = regionHeight(x, z); if (h0 !== h0) return h0;
+export function regionPhysHeight(x, z, coarse = false) {
+  const h0 = regionHeight(x, z, coarse); if (h0 !== h0) return h0;
   const h = carve(x, z, h0), S = structures(), l = S.grid.get(S.key(x, z)); if (!l) return h;
   // each tunnel in reach fills to its nearest segment, and the lowest tunnel wins: where a shallow one passes over a deep one, the deep one stays open
   // and the shallow one stands on its own deck (highways.js makes one where the ground is not at the road)
@@ -212,4 +316,4 @@ export function carve(x, z, h) {   // exported for the ground over tunnels (high
   return Math.min(h, e <= CARVE_IN ? y : cut);
 }
 
-if (typeof window !== 'undefined') window.__region = { regions, regionPlaces, regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight };   // test hook
+if (typeof window !== 'undefined') window.__region = { regions, regionPlaces, regionWeight, regionHeight, regionWater, regionRoads, regionPhysHeight, ownAt, regionLoad, regionTilesLoaded, regionTileStats };   // test hook

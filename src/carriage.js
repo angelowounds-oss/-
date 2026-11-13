@@ -45,3 +45,45 @@ export function medianGap(N, r, i) {
 // the inner (median) edge of a one-way carriageway at sample i, on its +right side: its drawn half, or halfway to the other carriageway less the
 // median barrier's half width and a hand's breadth where the two are closer than that
 export function innerEdge(N, r, i) { const half = carriage(r).half, g = medianGap(N, r, i); return g > 0 ? Math.min(half, g / 2 - 0.45) : half; }
+
+// Is the edge barrier at offset o (along +right) on segment f0-f1 of compiled line r to be left out? Another road's surface reaches its line, at about
+// the same height, at either end or the middle (the other carriageway of the same motorway does not count: the barrier stands between the two). A
+// branch of the same motorway leaving or joining it the same way does count, and so do the line's own samples 40 or more away: the ring motorway's
+// tail (서울외곽순환선 100:0, samples 16,200-16,271) runs into its own start south of 구리, 0.45 m under it, and its barriers stood 0.4-0.6 m out of
+// the lanes there: the traffic stopped on them and region-drive's autopilot with it. f0, f1: { x, z, y, rx, rz }; ia: f0's sample; N: the road
+// network (roadnet.js net(): roads, grid (roadgrid.js), CS); halfW: the half width of a road that is neither arterial nor ramp
+export function barrierGap(N, r, f0, f1, o, ia = -1, halfW = 17.5) {
+  const CS = N.CS, ux = f1.x - f0.x, uz = f1.z - f0.z;
+  for (const u of [0, 0.5, 1]) {
+    const x = f0.x + (f1.x - f0.x) * u + (f0.rx + (f1.rx - f0.rx) * u) * o, z = f0.z + (f1.z - f0.z) * u + (f0.rz + (f1.rz - f0.rz) * u) * o, y = f0.y + (f1.y - f0.y) * u;
+    const G = N.grid, c = G.ix.get(Math.floor(x / CS) * 100003 + Math.floor(z / CS)); if (c === undefined) continue;
+    for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) {
+      const g = G.seg[q], ri = G.segRoad[g], o2 = N.roads[ri], i = g - G.seg0[ri], di = Math.abs(i - ia);   // samples apart along r (around the loop of a closed line only)
+      if ((o2 === r && (ia < 0 || (o2.closed ? Math.min(di, o2.x.length - di) : di) < 40)) || o2.cls[i] === 2) continue;
+      const n = o2.x.length, B = (i + 1) % n, ax = o2.x[i], az = o2.z[i], dx = o2.x[B] - ax, dz = o2.z[B] - az;
+      if (o2.ref && o2.ref === r.ref && o2.hw === r.hw && dx * ux + dz * uz < 0) continue;
+      const l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const w = o2.kind === 'arterial' ? carriage(o2).half : o2.kind === 'ramp' ? 4.6 : halfW, yo = o2.y[i] + (o2.y[B] - o2.y[i]) * t;
+      // at about the same height (a road over or under it is no way off). Until 2026-11 the foot of the perpendicular was read off the sample index
+      // as if it were a point (A[0], A[1]): the distance was NaN and no barrier was ever left open
+      if (Math.abs(yo - y) < 3 && Math.hypot(x - ax - dx * t, z - az - dz * t) < w + 0.6) return true;
+    }
+  }
+  return false;
+}
+
+// Whether a road other than r passes under a bridge's pier at (x, z): its open surface (a tunnel runs deeper) within its half width + pad there,
+// and more than `below` under the deck top `top` (a road about level with the deck is a neighbour or a merge, not beneath). Every class counts:
+// the check skipped bridge samples (cls 1), so where the road beneath is itself a viaduct (서울외곽순환선 100:1 under the links near 구리 and
+// 100:9) the links' piers stood in its lanes, and the motorway traffic piled into them (traffic-audit, 2026-11-13). N as barrierGap.
+export function roadBeneath(N, x, z, r, pad, top, below = 1, halfW = 17.5) {
+  const G = N.grid, c = G.ix.get(Math.floor(x / N.CS) * 100003 + Math.floor(z / N.CS)); if (c === undefined) return false;
+  for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) {
+    const g = G.seg[q], ri = G.segRoad[g], o2 = N.roads[ri], i = g - G.seg0[ri]; if (o2 === r || o2.cls[i] === 2) continue;
+    const n = o2.x.length, B = (i + 1) % n, ax = o2.x[i], az = o2.z[i], dx = o2.x[B] - ax, dz = o2.z[B] - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+    if (o2.y[i] + (o2.y[B] - o2.y[i]) * t > top - below) continue;
+    const w = o2.kind === 'arterial' ? carriage(o2).half : halfW;
+    if (Math.hypot(x - ax - dx * t, z - az - dz * t) < w + pad) return true;
+  }
+  return false;
+}

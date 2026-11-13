@@ -22,7 +22,7 @@ const { run, freeze, result } = require('../lib.cjs');
       const shot = async () => { if (window.gc) window.gc(); g.renderFrame(0, true); const f = await window.__readFrame(), k = document.createElement('canvas'); k.width = f.w; k.height = f.h; k.getContext('2d').putImageData(new ImageData(f.data, f.w, f.h), 0, 0); return k.toDataURL('image/jpeg', 0.85); };
       // the drawn land of the finest ring at (x, z): its triangles (a, c, b) and (b, c, d) split along b - c
       const land0 = (x, z) => {
-        const Lv = F.levels[0], P = Lv.pos, M = 65, X0 = P[0], Z0 = P[2], c = Lv.cell, fi = (x - X0) / c, fj = (z - Z0) / c, i = Math.floor(fi), j = Math.floor(fj);
+        const Lv = F.levels[0], P = Lv.pos, M = 65, X0 = P[0] + Lv.cx, Z0 = P[2] + Lv.cz, c = Lv.cell, fi = (x - X0) / c, fj = (z - Z0) / c, i = Math.floor(fi), j = Math.floor(fj);
         if (i < 0 || j < 0 || i >= 64 || j >= 64) return NaN;
         const u = fi - i, v = fj - j, Y = (a, b) => P[((j + b) * M + i + a) * 3 + 1];
         return u + v <= 1 ? Y(0, 0) + u * (Y(1, 0) - Y(0, 0)) + v * (Y(0, 1) - Y(0, 0)) : Y(1, 1) + (1 - u) * (Y(0, 1) - Y(1, 1)) + (1 - v) * (Y(1, 0) - Y(1, 1));

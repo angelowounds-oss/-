@@ -1,4 +1,4 @@
-import { VIEW } from './util.js';
+import { VIEW, hyp } from './util.js';
 import { cityUid } from './buildingid.js';
 import * as THREE from 'three';
 import { cities, farHeight, SEA } from './worldmap.js';
@@ -17,6 +17,8 @@ import { tileDetail, kOf } from './citydetail.js';
 // every position is stored relative to the tile so Float32 stays exact 40 km from the origin.
 const TILE = 600, NEAR = 650, NEAR_OFF = 850, MID = 6500, TALL = 30;
 const DET_B = 1100, DET_F = 600, DET_REQ = 1500, DET_KEEP = 2600;   // the small things (citydetail.js): solids (roofs, furniture) shown within DET_B m of a tile, ground marks within DET_F, asked for within DET_REQ, dropped beyond DET_KEEP
+const NEAR_MS = 3;   // the time a frame gives to a near tile's boxes and lots (EV-05; the buildings manager's budget, ADR-0004)
+const NEAR_ENTER = new Set([KIND.normal, KIND.hospital, KIND.school, KIND.terminal, KIND.station]);   // the kinds of building a door is made for
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Acc {
@@ -42,10 +44,10 @@ export class Acc {
   // a gable roof over [x0,x1]x[z0,z1] from y0, h high, ridge along x (rx = 1) or z; the gables are quads with a repeated corner
   prism(x0, z0, x1, z1, y0, h, rx, col, kk = 0) {
     const c2 = [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8];
-    if (rx) { const zm = (z0 + z1) / 2, hd = (z1 - z0) / 2, l = Math.hypot(hd, h);
+    if (rx) { const zm = (z0 + z1) / 2, hd = (z1 - z0) / 2, l = hyp(hd, h);
       this.quad([x0, y0, z1], [x1, y0, z1], [x1, y0 + h, zm], [x0, y0 + h, zm], 0, h / l, hd / l, col, kk); this.quad([x1, y0, z0], [x0, y0, z0], [x0, y0 + h, zm], [x1, y0 + h, zm], 0, h / l, -hd / l, col, kk);
       this.quad([x1, y0, z1], [x1, y0, z0], [x1, y0 + h, zm], [x1, y0 + h, zm], 1, 0, 0, c2, kk); this.quad([x0, y0, z0], [x0, y0, z1], [x0, y0 + h, zm], [x0, y0 + h, zm], -1, 0, 0, c2, kk);
-    } else { const xm = (x0 + x1) / 2, hd = (x1 - x0) / 2, l = Math.hypot(hd, h);
+    } else { const xm = (x0 + x1) / 2, hd = (x1 - x0) / 2, l = hyp(hd, h);
       this.quad([x1, y0, z1], [x1, y0, z0], [xm, y0 + h, z0], [xm, y0 + h, z1], h / l, hd / l, 0, col, kk); this.quad([x0, y0, z0], [x0, y0, z1], [xm, y0 + h, z1], [xm, y0 + h, z0], -h / l, hd / l, 0, col, kk);
       this.quad([x0, y0, z1], [x1, y0, z1], [xm, y0 + h, z1], [xm, y0 + h, z1], 0, 0, 1, c2, kk); this.quad([x1, y0, z0], [x0, y0, z0], [xm, y0 + h, z0], [xm, y0 + h, z0], 0, 0, -1, c2, kk);
     }
@@ -92,7 +94,7 @@ export class CitySites {
     defs.forEach((c, k) => { const L = lay.get(c.id); if (L) this.cities.push(this.buildCity(c, L, k)); });
     this.stats.tiles = this.cities.reduce((s, c) => s + c.tiles.size, 0);
     scene.add(this.group);
-    this.t = 0; this.nearQueue = []; this.detQueue = [];
+    this.t = 0; this.nearQueue = []; this.detQueue = []; this.nearJobs = [];
   }
 
   makeMaterial() {
@@ -128,12 +130,12 @@ export class CitySites {
     for (let i = 0; i < nb; i++) tile(L.bld[i * 12], L.bld[i * 12 + 1]).bld.push(i);
     // roads: dark asphalt with a lighter kerb; a segment is cut at tile borders so each tile owns its pieces
     for (let r = 0; r < L.roads.length; r += 5) {
-      const x0 = L.roads[r], z0 = L.roads[r + 1], x1 = L.roads[r + 2], z1 = L.roads[r + 3], w = L.roads[r + 4], len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(len / 120));
+      const x0 = L.roads[r], z0 = L.roads[r + 1], x1 = L.roads[r + 2], z1 = L.roads[r + 3], w = L.roads[r + 4], len = hyp(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(len / 120));
       for (let s = 0; s < n; s++) {
         const ax = lerp(x0, x1, s / n), az = lerp(z0, z1, s / n), bx = lerp(x0, x1, (s + 1) / n), bz = lerp(z0, z1, (s + 1) / n);
         if (farHeight(c.x + (ax + bx) / 2, c.z + (az + bz) / 2, 64) < SEA + 2) continue;   // no street across the harbour basin
         const t = tile((ax + bx) / 2, (az + bz) / 2);
-        const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2, kx = -dz / l * (w / 2 + 4), kz = dx / l * (w / 2 + 4), A = t.gndAcc, ox = t.ox, oz = t.oz;
+        const dx = bx - ax, dz = bz - az, l = hyp(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2, kx = -dz / l * (w / 2 + 4), kz = dx / l * (w / 2 + 4), A = t.gndAcc, ox = t.ox, oz = t.oz;
         A.quad([ax - kx - ox, 0.06, az - kz - oz], [ax + kx - ox, 0.06, az + kz - oz], [bx + kx - ox, 0.06, bz + kz - oz], [bx - kx - ox, 0.06, bz - kz - oz], 0, 1, 0, [0.16, 0.16, 0.18], -1);   // sidewalk
         A.quad([ax - nx - ox, 0.1, az - nz - oz], [ax + nx - ox, 0.1, az + nz - oz], [bx + nx - ox, 0.1, bz + nz - oz], [bx - nx - ox, 0.1, bz - nz - oz], 0, 1, 0, [0.045, 0.045, 0.055], -1);   // asphalt
         if (w > 14) { const cl = 0.35; const px = -dz / l * cl, pz = dx / l * cl; A.quad([ax - px - ox, 0.12, az - pz - oz], [ax + px - ox, 0.12, az + pz - oz], [bx + px - ox, 0.12, bz + pz - oz], [bx - px - ox, 0.12, bz - pz - oz], 0, 1, 0, [0.7, 0.55, 0.15], 0); }   // centre line
@@ -188,6 +190,7 @@ export class CitySites {
       if (!t.gndAcc.empty) { t.gnd = t.gndAcc.mesh(this.roadMat); t.gnd.position.set(t.ox, 0, t.oz); t.gnd.visible = false; city.group.add(t.gnd); this.stats.tris += t.gndAcc.ni / 3; }
       t.bldAcc = t.gndAcc = null;
     }
+    city.tileList = [...tiles.values()];   // the tiles as an array: the per-frame pass walks it without an iterator (EV-03)
     if (!sky.empty) { city.sky = sky.mesh(this.mat); city.sky.frustumCulled = true; city.group.add(city.sky); }
     // neon signs in the city's language: one atlas, one instanced mesh per city
     this.buildSigns(city);
@@ -234,15 +237,17 @@ export class CitySites {
     const cx = camera.position.x, cz = camera.position.z; let near = 0, mid = 0;
     // predictive load: the tile the player will be at in LOOK seconds counts as near too (up to 900 m ahead), so a fast car or a plane finds the buildings made
     let lx = cx, lz = cz;
-    if (this.prev && dt > 0 && dt < 0.2) { const vx = (cx - this.prev[0]) / dt, vz = (cz - this.prev[1]) / dt, sp = Math.hypot(vx, vz), k = sp > 1 ? Math.min(3, 900 / sp) : 0; lx = cx + vx * k; lz = cz + vz * k; }
+    if (this.prev && dt > 0 && dt < 0.2) { const vx = (cx - this.prev[0]) / dt, vz = (cz - this.prev[1]) / dt, sp = hyp(vx, vz), k = sp > 1 ? Math.min(3, 900 / sp) : 0; lx = cx + vx * k; lz = cz + vz * k; }
     this.prev = [cx, cz];
     for (const C of this.cities) {
-      const dxc = cx - C.c.x, dzc = cz - C.c.z, dc = Math.hypot(dxc, dzc), inReach = dc < C.L.R * 1.2 + MID * VIEW.m;
+      const dxc = cx - C.c.x, dzc = cz - C.c.z, dc = hyp(dxc, dzc), inReach = dc < C.L.R * 1.2 + MID * VIEW.m;
       C.group.visible = dc < 170000;
       if (C.sky) C.sky.visible = dc > C.L.R * 0.6;
       if (C.signs) C.signs.visible = dc < C.L.R + 900;
-      for (const t of C.tiles.values()) {
-        const d = inReach ? Math.min(Math.hypot(cx - t.wx, cz - t.wz), Math.hypot(lx - t.wx, lz - t.wz)) - TILE * 0.7 : 1e9, wantNear = d < NEAR * VIEW.n, keepNear = d < NEAR_OFF * VIEW.n;
+      const TL = C.tileList;
+      for (let q = 0; q < TL.length; q++) {
+        const t = TL[q];
+        const d = inReach ? Math.min(hyp(cx - t.wx, cz - t.wz), hyp(lx - t.wx, lz - t.wz)) - TILE * 0.7 : 1e9, wantNear = d < NEAR * VIEW.n, keepNear = d < NEAR_OFF * VIEW.n;
         if (t.near && t.near.stale) {   // only the facade of a tile with ruins is kept (the merged mid mesh does not know about ruins): back near, make it whole again; far away, let it go
           if (wantNear && !this.madeThisFrame) { this.dropNear(t, false); this.makeNear(C, t); this.madeThisFrame = true; } else if (d > MID * VIEW.m) this.dropNear(t, false);
         } else if (t.near && !keepNear) this.dropNear(t, t.near.lots.some((l) => this.G.state.rruins[l.id] != null));
@@ -256,10 +261,11 @@ export class CitySites {
         if (t.near && !t.near.stale) near++; if (vis) mid++;
       }
     }
+    this.nearStep(NEAR_MS);   // the boxes and lots of the tiles made, a few ms a frame
     this.madeThisFrame = false; this.detMade = false; this.stats.near = near;
     const q = this.detQueue.shift(); if (q && q[1].detS === 1) this.attachDetail(q[0], q[1], q[2]);   // the meshes of arrived chunks are built one per frame
     this.stats.mid = mid;
-    let nl = 0, nc = 0; for (const C of this.cities) for (const t of C.tiles.values()) if (t.near) { nl += t.near.lots.length; nc += t.near.boxes.length + t.near.lots.length; } this.stats.lots = nl; this.stats.coll = nc;
+    let nl = 0, nc = 0; for (const C of this.cities) for (let q = 0; q < C.tileList.length; q++) { const t = C.tileList[q]; if (!t.near) continue; nl += t.near.lots.length; nc += t.near.boxes.length + t.near.lots.length; } this.stats.lots = nl; this.stats.coll = nc;
   }
 
   // the small things of a tile (lane marks, furniture, roof clutter): from the baked chunk when the world data has it (a pack's denser one first),
@@ -282,35 +288,48 @@ export class CitySites {
   dropDetail(t) { for (const m of t.det || []) { m.parent?.remove(m); m.geometry.dispose(); } t.det = null; t.detS = undefined; }
 
   // L0 for one tile: the instanced facade, the collision boxes, and for every building big enough (as in the capital: 17 m wide, 20 m tall) a
-  // lot record with a door, handed to the Buildings manager so it can be entered; the entrance markers are one small merged mesh
+  // lot record with a door, handed to the Buildings manager so it can be entered; the entrance markers are one small merged mesh.
+  // The facade is made at once (the tile shows whole); the boxes and lots follow in nearStep, a few ms a frame (EV-05: a tile of a few hundred
+  // buildings made in one frame; the cities test saw a 1,273 ms update on arriving)
   makeNear(C, t) {
-    const G = this.G, f = this.world.facadeApi, col = this.world.colliders; if (!f || !G) return;
-    const list = [], recs = [], ax = C.c.x + t.ox, az = C.c.z + t.oz;
+    const G = this.G, f = this.world.facadeApi; if (!f || !G) return;
+    const list = [], recs = [];
     for (const i of t.bld) { const T = tiersOf(C.L, C.S, i, t.ox, t.oz, 0), at = list.length; for (const x of T) list.push({ ...x, color: new THREE.Color(x.col[0], x.col[1], x.col[2]) }); recs.push({ i, T, at }); }
     const mesh = f.make(list, true, false); mesh.castShadow = false; mesh.receiveShadow = false; mesh.position.set(t.ox, 0, t.oz); C.group.add(mesh);
-    const near = { mesh, ent: null, lots: [], boxes: [] }, ent = new Acc(), aDoor = mesh.geometry.attributes.aDoor, ENTER = new Set([KIND.normal, KIND.hospital, KIND.school, KIND.terminal, KIND.station]);
-    for (const { i, T, at } of recs) {
-      const pod = T[0], top = T[T.length - 1], x0 = ax + pod.x - pod.w / 2, x1 = ax + pod.x + pod.w / 2, z0 = az + pod.z - pod.d / 2, z1 = az + pod.z + pod.d / 2, H = T.length > 1 ? T[1].y + T[1].h : pod.h;
-      if (T.length < 2 || !ENTER.has(T.kind) || Math.min(pod.w, pod.d) < 17 || H < 20) { for (const x of T) near.boxes.push(col.addBox(ax + x.x - x.w / 2, az + x.z - x.d / 2, ax + x.x + x.w / 2, az + x.z + x.d / 2, x.y + x.h, 'building', x.y)); continue; }
-      const st = (k, x, inst) => ({ kind: k, inst, x0: ax + x.x - x.w / 2, z0: az + x.z - x.d / 2, x1: ax + x.x + x.w / 2, z1: az + x.z + x.d / 2, y0: x.y, y1: x.y + x.h });
-      const stages = [st('podium', pod, at), st('tower', T[1], at + 1)]; if (T.length > 2) stages.push(st('crown', T[2], at + 2));
-      const lot = {
-        x0, z0, x1, z1, h: H, accent: T.accent, edges: { w: !!(T.edges & 1), e: !!(T.edges & 2), n: !!(T.edges & 4), s: !!(T.edges & 8) }, podium: pod.h, style: T.style, ring: false, seed: T.seed,
-        tiers: { podium: stages[0], tower: stages[1], crown: stages[2] || null }, stages, topY: top.y + top.h, tierIdx: at, remote: C.c.id,
-      };
-      const d = doorSpec(lot);
-      if (!d) { near.boxes.push(col.addBox(x0, z0, x1, z1, H + 5, 'building')); continue; }
-      lot.door = d; lot.name = C.S.words[(i + Math.floor(T.seed)) % C.S.words.length] + ' ' + ['TOWER', 'PLAZA', 'COURT', 'HOUSE', 'POINT', 'GATE'][(i * 3) % 6]; lot.id = C.c.id + ':' + i; lot.uid = cityUid(C.c.id, i);
-      lot.solid = col.addBox(x0, z0, x1, z1, H + 5, 'building');
-      aDoor.setXYZW(at, d.nx !== 0 ? z0 : x0, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 0); lot.doorRefs = [{ attr: aDoor, start: at, count: 1 }];
-      this.entrance(ent, d, accentColor(lot.accent), ax, az);
-      lot.fac = { mesh, burn: mesh.geometry.attributes.aBurn, door: aDoor, mat0: mesh.instanceMatrix.array.slice(), ent: null, ox: ax, oz: az };
-      near.lots.push(lot); G.buildings.addLot(lot);
+    t.near = { mesh, ent: null, lots: [], boxes: [], job: { C, recs, k: 0, ent: new Acc(), ax: C.c.x + t.ox, az: C.c.z + t.oz } };
+    this.nearJobs.push(t);
+  }
+  // the boxes and lots of the tiles whose facade is made, in order, until `ms` have gone; the tile is done when its last building is
+  nearStep(ms) {
+    const t0 = performance.now(), G = this.G, col = this.world.colliders, ENTER = NEAR_ENTER;
+    while (this.nearJobs.length) {
+      const t = this.nearJobs[0], near = t.near, J = near?.job;
+      if (!J) { this.nearJobs.shift(); continue; }   // dropped before it was done
+      const { C, recs, ent, ax, az } = J, aDoor = near.mesh.geometry.attributes.aDoor;
+      for (; J.k < recs.length; J.k++) {
+        if ((J.k & 7) === 7 && performance.now() - t0 > ms) { aDoor.needsUpdate = true; return; }
+        const { i, T, at } = recs[J.k], pod = T[0], top = T[T.length - 1], x0 = ax + pod.x - pod.w / 2, x1 = ax + pod.x + pod.w / 2, z0 = az + pod.z - pod.d / 2, z1 = az + pod.z + pod.d / 2, H = T.length > 1 ? T[1].y + T[1].h : pod.h;
+        if (T.length < 2 || !ENTER.has(T.kind) || Math.min(pod.w, pod.d) < 17 || H < 20) { for (const x of T) near.boxes.push(col.addBox(ax + x.x - x.w / 2, az + x.z - x.d / 2, ax + x.x + x.w / 2, az + x.z + x.d / 2, x.y + x.h, 'building', x.y)); continue; }
+        const st = (k, x, inst) => ({ kind: k, inst, x0: ax + x.x - x.w / 2, z0: az + x.z - x.d / 2, x1: ax + x.x + x.w / 2, z1: az + x.z + x.d / 2, y0: x.y, y1: x.y + x.h });
+        const stages = [st('podium', pod, at), st('tower', T[1], at + 1)]; if (T.length > 2) stages.push(st('crown', T[2], at + 2));
+        const lot = {
+          x0, z0, x1, z1, h: H, accent: T.accent, edges: { w: !!(T.edges & 1), e: !!(T.edges & 2), n: !!(T.edges & 4), s: !!(T.edges & 8) }, podium: pod.h, style: T.style, ring: false, seed: T.seed,
+          tiers: { podium: stages[0], tower: stages[1], crown: stages[2] || null }, stages, topY: top.y + top.h, tierIdx: at, remote: C.c.id,
+        };
+        const d = doorSpec(lot);
+        if (!d) { near.boxes.push(col.addBox(x0, z0, x1, z1, H + 5, 'building')); continue; }
+        lot.door = d; lot.name = C.S.words[(i + Math.floor(T.seed)) % C.S.words.length] + ' ' + ['TOWER', 'PLAZA', 'COURT', 'HOUSE', 'POINT', 'GATE'][(i * 3) % 6]; lot.id = C.c.id + ':' + i; lot.uid = cityUid(C.c.id, i);
+        lot.solid = col.addBox(x0, z0, x1, z1, H + 5, 'building');
+        aDoor.setXYZW(at, d.nx !== 0 ? z0 : x0, d.bay, { w: 0, e: 1, n: 2, s: 3 }[d.side], 0); lot.doorRefs = [{ attr: aDoor, start: at, count: 1 }];
+        this.entrance(ent, d, accentColor(lot.accent), ax, az);
+        lot.fac = { mesh: near.mesh, burn: near.mesh.geometry.attributes.aBurn, door: aDoor, mat0: near.mesh.instanceMatrix.array.slice(), ent: null, ox: ax, oz: az };
+        near.lots.push(lot); G.buildings.addLot(lot);
+      }
+      aDoor.needsUpdate = true;
+      if (!ent.empty) { near.ent = ent.mesh(this.mat); near.ent.position.set(t.ox, 0, t.oz); C.group.add(near.ent); }
+      for (const lot of near.lots) { lot.fac.ent = near.ent; G.blaze?.addLot(lot); }
+      near.job = null; this.nearJobs.shift();
     }
-    aDoor.needsUpdate = true;
-    if (!ent.empty) { near.ent = ent.mesh(this.mat); near.ent.position.set(t.ox, 0, t.oz); C.group.add(near.ent); }
-    for (const lot of near.lots) { lot.fac.ent = near.ent; G.blaze?.addLot(lot); }
-    t.near = near;
   }
   // the door frame, canopy and a lit path (the capital's entrance markers): lx along the wall, lz out of it; ax, az = origin of the tile mesh
   entrance(A, d, acc, ax, az) {
@@ -321,8 +340,8 @@ export class CitySites {
   }
   // keepVisual: the tile holds ruins, so its facade mesh stays (hiding the merged mesh, which shows the building whole) while the lots and boxes go
   dropNear(t, keepVisual) {
-    const n = t.near; if (!n) return; const G = this.G, col = this.world.colliders;
-    for (const lot of n.lots) { G.blaze?.removeLot(lot); G.buildings.removeLot(lot); if (lot.solid) col.removeBox(lot.solid); }
+    const n = t.near; if (!n) return; const G = this.G, col = this.world.colliders, done = !n.job; n.job = null;   // a tile dropped part way: its lots never reached blaze, nearStep skips it
+    for (const lot of n.lots) { if (done) G.blaze?.removeLot(lot); G.buildings.removeLot(lot); if (lot.solid) col.removeBox(lot.solid); }
     for (const b of n.boxes) col.removeBox(b);
     n.lots = []; n.boxes = [];
     if (keepVisual) { n.stale = true; return; }
@@ -331,6 +350,6 @@ export class CitySites {
   }
 
   // the city whose disc contains (x, z), or null
-  cityAt(x, z, margin = 0) { for (const C of this.cities) if (Math.hypot(x - C.c.x, z - C.c.z) < C.L.R + margin) return C.c; return null; }
+  cityAt(x, z, margin = 0) { for (const C of this.cities) if (hyp(x - C.c.x, z - C.c.z) < C.L.R + margin) return C.c; return null; }
   dispose() { this.scene.remove(this.group); this.group.traverse((o) => { o.geometry?.dispose?.(); }); for (const C of this.cities) for (const t of C.tiles.values()) { this.dropNear(t, false); this.dropDetail(t); } }
 }

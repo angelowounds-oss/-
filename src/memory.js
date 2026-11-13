@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ZONES } from './society.js';
 import { buildCar, idMark, disposeOwned } from './models.js';
 import { physHeight } from './landfn.js';
+import { hyp, hyp3 } from './util.js';
 
 // "The city remembers": what the player does leaves marks and stories.
 //  - bullet holes and blast scorches stay where they hit (saved), wrecks stay where cars burned out
@@ -52,15 +53,15 @@ export class Memory {
   // a world hit: find the face of the box that was struck so the hole lies on it
   // a hit on the world with the surface normal from the physics ray
   markHit(x, y, z, n) {
-    if (Math.hypot(x - this.G.player.x, z - this.G.player.z) > 140) return;
+    if (hyp(x - this.G.player.x, z - this.G.player.z) > 140) return;
     if (!n) { this.addHole(x, y + 0.012, z, 0, 1, 0); return; }   // the ground the shot hit (it is not at 0)
-    const l = Math.hypot(n.nx, n.ny, n.nz) || 1; this.addHole(x, y, z, +(n.nx / l).toFixed(3), +(n.ny / l).toFixed(3), +(n.nz / l).toFixed(3));
+    const l = hyp3(n.nx, n.ny, n.nz) || 1; this.addHole(x, y, z, +(n.nx / l).toFixed(3), +(n.ny / l).toFixed(3), +(n.nz / l).toFixed(3));
   }
   worldHit(x, y, z, ref, ground) {
-    if (Math.hypot(x - this.G.player.x, z - this.G.player.z) > 140) return;
+    if (hyp(x - this.G.player.x, z - this.G.player.z) > 140) return;
     if (ground || !ref) { this.addHole(x, y + 0.012, z, 0, 1, 0); return; }
     const c = [[Math.abs(x - ref.x0), -1, 0, 0], [Math.abs(x - ref.x1), 1, 0, 0], [Math.abs(z - ref.z0), 0, 0, -1], [Math.abs(z - ref.z1), 0, 0, 1], [Math.abs(y - (ref.h ?? 99)), 0, 1, 0]];
-    if (ref.r != null) { const dx = x - ref.x, dz = z - ref.z, l = Math.hypot(dx, dz) || 1; this.addHole(x, y, z, dx / l, 0, dz / l); return; }
+    if (ref.r != null) { const dx = x - ref.x, dz = z - ref.z, l = hyp(dx, dz) || 1; this.addHole(x, y, z, dx / l, 0, dz / l); return; }
     c.sort((a, b) => a[0] - b[0]); this.addHole(x, y, z, c[0][1], c[0][2], c[0][3]);
   }
   // a burn mark on the ground at height y (the ground is not at 0; a mark saved before the height was kept takes the terrain's)
@@ -156,7 +157,7 @@ export class Memory {
     this.seenT -= dt; if (this.seenT > 0) return; this.seenT = 1.0;
     for (const h of G.humans) {
       const c = h.citizen; if (!c || h.dead || h.static || h.state === 'flee' || !this.st.knowers[c.id]) continue;
-      if (Math.hypot(h.x - pl.x, h.z - pl.z) > 12 || Math.abs((h.y || 0) - (pl.y || 0)) > 3) continue;
+      if (hyp(h.x - pl.x, h.z - pl.z) > 12 || Math.abs((h.y || 0) - (pl.y || 0)) > 3) continue;
       const r = this.st.knowers[c.id];
       h.state = 'flee'; h.fleeT = 7; h.threat = pl;
       if (Math.random() < 0.5) { h.report = { t: 3, heat: 4, kind: 'recognized' }; }

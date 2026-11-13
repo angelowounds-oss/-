@@ -13,7 +13,10 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { AIM } from './assets.js';
 import { loadBaked } from './bakedload.js';
 import { initDetail, initDetailUI, detail } from './detail.js';
-import { loadResident } from './heightmap.js';
+import { loadResident, setTileReader } from './heightmap.js';
+import { mountRegionTiles, syncChunk } from './regionload.js';
+import { regionLoad } from './region.js';
+import { REG_REACH } from './regtile.js';
 import { loadVeg } from './forest.js';
 import { loadHiAssets } from './hiassets.js';
 import { applyView } from './views.js';
@@ -64,10 +67,13 @@ function reportPlace() { try { return window.__game?.reportPlace() || {}; } catc
     await RAPIER.init(); mark('engine');
     await loadBaked(); mark('baked');   // the baked world must be in place before the first terrain/road query
     await initDetail();   // mounts the high pack next to the page (world/high/) when the high detail is chosen
+    // the compiled regions' raster tiles (EV-01): mounted, and those around the start (the plaza by the origin) read before the world is built
+    if (globalThis.__WORLD && await mountRegionTiles()) { await regionLoad(0, 0, REG_REACH); mark('region'); }
     // the high world detail starts at the 'high' graphics level (shadows, post-processing, textures) unless the player or the URL chose one
     { let stored = null; try { stored = sessionStorage.getItem('neon_q'); } catch (e) { /* ignore */ } if (detail.tier === 'high' && !params.has('q') && stored === null && !mobile) eng.setQuality(Math.max(q, 2)); }
     if (detail.tier === 'high') await loadHiAssets(eng.renderer);   // the pack's compressed textures, before the world that uses them is built
-    if (globalThis.__WORLD) globalThis.__HM_TILES = await loadResident(globalThis.__WORLD);   // the baked ground tiles of the embedded world
+    // the baked ground tiles of the embedded world: their colours resident, their heights streamed and read at once when missing (heightmap.js)
+    if (globalThis.__WORLD) { const wd = globalThis.__WORLD; setTileReader((k) => syncChunk(wd, k)); globalThis.__HM_TILES = await loadResident(wd); }
     if (globalThis.__WORLD) await loadVeg(globalThis.__WORLD);   // and where things grow
     mark('world-data');
     game = new Game(eng); game.RAPIER = RAPIER; initKeyUI();

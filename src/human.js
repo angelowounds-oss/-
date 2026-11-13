@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildHuman, rifleLook, idMark, disposeOwned } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
-import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU } from './util.js';
+import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU, hyp } from './util.js';
 import * as AI from './ai.js';
 import { updateGesture, updateProc, gesture, procGesture, PROPS, PROC } from './gesture.js';
 
@@ -126,7 +126,7 @@ function stepFeet(h, dt, cd, on) {
   // a roll or a landing run out of lets the feet go where the clip puts them (held, they would drag the body back)
   const lk = h.landK, w = h.ikW, base = h.y + m.body.position.y + rest.sole, lock = on && cd < LOCK_NEAR && !(lk && (lk.kind === 'roll' || h.speed > 1)), B = m.bones;
   // a jump in place (teleport, a ride's seat) lets go of everything held
-  const jump = Math.hypot(h.x - (h._fx ?? h.x), h.z - (h._fz ?? h.z)) > 1; h._fx = h.x; h._fz = h.z;
+  const jump = hyp(h.x - (h._fx ?? h.x), h.z - (h._fz ?? h.z)) > 1; h._fx = h.x; h._fz = h.z;
   const still = h.speed < 0.1 && !h.turnClip;
   let low = 0, any = false; m.legsWorld();
   for (let i = 0; i < 2; i++) {
@@ -137,7 +137,7 @@ function stepFeet(h, dt, cd, on) {
     const la = _fA.y - rest.ankle - base, lt = _fT.y - rest.toe - base, lift = Math.min(la, lt), c = lt < LIFT ? 1 : 0;
     const tx = _fT.x - _fA.x, tz = _fT.z - _fA.z, yaw = Math.atan2(tx, tz);
     if (jump) { f.lx = NaN; f.ox = f.oz = f.oy = 0; f.cc = -1; f.st = -1; f.arc = 0; }
-    const cpx = c ? _fT.x : _fA.x, cpz = c ? _fT.z : _fA.z, cv = dt > 0 && f.cc === c ? Math.hypot(cpx - f.cx, cpz - f.cz) / dt : 99; f.cx = cpx; f.cz = cpz; f.cc = c;
+    const cpx = c ? _fT.x : _fA.x, cpz = c ? _fT.z : _fA.z, cv = dt > 0 && f.cc === c ? hyp(cpx - f.cx, cpz - f.cz) / dt : 99; f.cx = cpx; f.cz = cpz; f.cc = c;
     if (f.st >= 0) {
       // the step: up and over to where the clip has the foot
       f.st = Math.min(1, f.st + dt / STEP_T); const e = 1 - f.st * f.st * (3 - 2 * f.st);
@@ -153,7 +153,7 @@ function stepFeet(h, dt, cd, on) {
         f.oy = wrapA(f.ly - yaw); if (Math.abs(f.oy) > LOCK_YAW) { f.oy = Math.sign(f.oy) * LOCK_YAW; f.ly = yaw + f.oy; }
         const c2 = Math.cos(f.oy), s2 = Math.sin(f.oy);
         f.ox = f.lx - _fA.x - (c ? tx * c2 + tz * s2 : 0); f.oz = f.lz - _fA.z - (c ? -tx * s2 + tz * c2 : 0);
-        const far = Math.hypot(f.ox, f.oz); f.off = still && (far > 0.05 || Math.abs(f.oy) > 0.25) ? f.off + dt : 0;
+        const far = hyp(f.ox, f.oz); f.off = still && (far > 0.05 || Math.abs(f.oy) > 0.25) ? f.off + dt : 0;
         if ((far > LOCK_OFF || f.off > 0.35) && other.st < 0) { f.st = 0; f.s0x = f.ox; f.s0z = f.oz; f.s0y = f.oy; f.lx = NaN; f.off = 0; }
       } else {
         f.lx = NaN;
@@ -295,7 +295,7 @@ function lookAt(h, aiming) {
   const G = h.G, pl = G && G.player; if (!pl) return null;
   if (h === pl) return G.playerOnFoot && !aiming && G.cam ? [G.cam.yaw, G.cam.pitch] : null;
   if (pl.dead || (h.team === 'civ' && (h.state === 'flee' || h.scared))) return null;
-  const alert = h.team !== 'civ' && LOOK_ALERT.has(h.state), dx = pl.x - h.x, dz = pl.z - h.z, d = Math.hypot(dx, dz);
+  const alert = h.team !== 'civ' && LOOK_ALERT.has(h.state), dx = pl.x - h.x, dz = pl.z - h.z, d = hyp(dx, dz);
   if (d < 0.3 || d > (alert ? 30 : h.static ? 9 : 6)) return null;
   return [Math.atan2(dx, dz), Math.atan2(pl.y + 1.5 - 0.5 * (pl.crouch || 0) - (h.y + 1.6), d)];
 }
@@ -384,7 +384,7 @@ export class Human {
   landAnim(v, roll) {
     if (!this.m.skinned || this.dead || (!roll && v < 3)) return;
     endLand(this);
-    const kind = roll ? 'roll' : v < 10 ? 'land' : 'hard', hs = Math.hypot(this.vx || 0, this.vz || 0);
+    const kind = roll ? 'roll' : v < 10 ? 'land' : 'hard', hs = hyp(this.vx || 0, this.vz || 0);
     const peak = kind === 'land' ? clamp((v - 2.2) / 6.5, 0, 1) * clamp(1 - (hs - 2) / 4, 0.35, 1) : 1;
     this.landK = { kind, t: 0, cut: -1, peak, in: kind === 'land' ? 0.08 : 0.12, rate: kind === 'land' ? clamp(1 + (9 - v) / 8, 1, 1.6) : 1, w: [0, 0] };
   }
@@ -435,7 +435,7 @@ export class Human {
     this.knockClip = this.m.skinned && !this.dead && LANDS.knock.every((s) => this.m.clip(s[0]));
     if (this.knockClip) {
       endLand(this); if (this.reactT > 0) { this.reactT = 0; this.m.stopOnce(); }
-      this.knockRy = Math.hypot(vx, vz) > 0.5 ? Math.atan2(-vx, -vz) : this.ry;
+      this.knockRy = hyp(vx, vz) > 0.5 ? Math.atan2(-vx, -vz) : this.ry;
       this.landK = { kind: 'knock', t: 0, cut: -1, peak: 1, in: 0.12, rate: 1, w: [0, 0], until: KNOCK_AIR }; this.ikW = 0;
     }
   }
@@ -451,7 +451,7 @@ export class Human {
     if (this.dead) {
       this.deadT += dt;
       if (this.clipDeath) {
-        const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
+        const cd = hyp(this.x - Human.camX, this.z - Human.camZ);
         if (cd < 75) { if (this.m.unturnHips) this.m.unturnHips(); this.m.mixer.update(dt); this.m.applyPose(0, 0); }
         if (this.knock) { this.stepKnock(dt); }
         if (this.deadT > 22) this.group.scale.setScalar(Math.max(0.001, 1 - (this.deadT - 22) * 0.8));
@@ -467,7 +467,7 @@ export class Human {
     }
     if (this.knock) { this.stepKnock(dt); if (this.knock) return; }
     const px = G.player.x, pz = G.player.z;
-    const dxp = px - this.x, dzp = pz - this.z, dp = Math.hypot(dxp, dzp);
+    const dxp = px - this.x, dzp = pz - this.z, dp = hyp(dxp, dzp);
     let wantX = 0, wantZ = 0, spd = 0, face = null, faceK = 12;
     if (this.team === 'civ' && this.static && this.state !== 'flee') {
       // CHR-06g: the head turns to the player first (stepLook); the body comes round once the player has stood past 60 deg of where it
@@ -499,7 +499,7 @@ export class Human {
         else if (this.node) {
           const [tx, tz] = this.nodePos(this.node);
           const dx = tx + (this.node.sx ? this.offset * (this.node.along ? 0 : 0) : 0) - this.x, dz = tz - this.z;
-          const d = Math.hypot(dx, dz);
+          const d = hyp(dx, dz);
           if (d < 1.4) this.chooseNext(); else { wantX = dx / d; wantZ = dz / d; spd = this.stateT > 0 ? 0 : 1.5; }
         }
         if (!this.static) G.society.maybeVisit(this, dt);
@@ -525,10 +525,10 @@ export class Human {
     this.x = r.x; this.z = r.z; this.blocked = !!r.hit;
     // one put on the open ground (a city pavement, a road side, out of a patrol car) walks on it as it rises and falls; it kept the height it was
     // placed at, so a cop chasing up a slope walked into the hill. A drop of more than 4 m (a wall, a bridge edge) is not followed
-    if (this.ground && this.speed > 0.05) { const gy = G.groundY(this.x, this.z, this.y + 0.8), run = Math.hypot(this.x - ox, this.z - oz); if (Math.abs(gy - this.y) < 4) { if (run > 1e-3) this.grade = damp(this.grade || 0, Math.max(-1, Math.min(1, (gy - this.y) / run)), 4, dt); this.y = this.floorY = gy; } }   // the grade walked feeds the pace above
+    if (this.ground && this.speed > 0.05) { const gy = G.groundY(this.x, this.z, this.y + 0.8), run = hyp(this.x - ox, this.z - oz); if (Math.abs(gy - this.y) < 4) { if (run > 1e-3) this.grade = damp(this.grade || 0, Math.max(-1, Math.min(1, (gy - this.y) / run)), 4, dt); this.y = this.floorY = gy; } }   // the grade walked feeds the pace above
     // slide blocked sidewalk walkers: if blocked, pick another node
     if (r.hit && this.team === 'civ' && this.state !== 'flee') { if (Math.random() < 0.05) this.chooseNext(); }
-    this.speed = Math.hypot(this.vx, this.vz);
+    this.speed = hyp(this.vx, this.vz);
     // vehicles block
     const vls = G.vehicles;
     for (let vi = 0; vi < vls.length; vi++) {
@@ -555,7 +555,7 @@ export class Human {
     let best = null, bd = 1e9;
     const i0 = roadIdx(this.x), j0 = roadIdx(this.z);
     for (let i = Math.max(0, i0 - 1); i <= Math.min(N, i0 + 1); i++) for (let j = Math.max(0, j0 - 1); j <= Math.min(N, j0 + 1); j++) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const n = { i, j, sx, sz }; const [x, z] = this.nodePos(n); const d = Math.hypot(x - this.x, z - this.z); if (d < bd) { bd = d; best = n; }
+      const n = { i, j, sx, sz }; const [x, z] = this.nodePos(n); const d = hyp(x - this.x, z - this.z); if (d < bd) { bd = d; best = n; }
     }
     this.node = best; this.prevNode = null;
   }
@@ -564,7 +564,7 @@ export class Human {
     this.x += this.vx * dt; this.z += this.vz * dt; this.y += this.vy * dt;
     const r = this.G.world.colliders.resolve(this.x, this.z, this.radius, this.y); this.x = r.x; this.z = r.z;
     const K = this.landK && this.landK.kind === 'knock' ? this.landK : null;
-    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (K) K.until = Infinity; if (this.vy < -9 && !this.dead) this.hurt((-this.vy - 9) * (-this.vy - 9) * 1.5, null, false, null); if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (Math.hypot(this.vx, this.vz) < 0.3) { if (K) this.vx = this.vz = 0; else this.knock = 0; } } }
+    const fy = this.floorY || 0; if (this.y <= fy) { this.y = fy; if (K) K.until = Infinity; if (this.vy < -9 && !this.dead) this.hurt((-this.vy - 9) * (-this.vy - 9) * 1.5, null, false, null); if (Math.abs(this.vy) > 3) this.vy *= -0.3; else { this.vy = 0; this.vx *= Math.exp(-6 * dt); this.vz *= Math.exp(-6 * dt); if (hyp(this.vx, this.vz) < 0.3) { if (K) this.vx = this.vz = 0; else this.knock = 0; } } }
     this.group.position.set(this.x, this.y, this.z);
     if (this.knockClip && !K) this.knock = 0;   // up on its feet (or the clip cut short): done, slid to a stop or not
     if (this.dead) this.group.rotation.y = this.ry;
@@ -580,7 +580,7 @@ export class Human {
     if (this.patrolT <= 0) { this.patrolT = rand(2, 5); const a = rand(0, TAU); this.pdx = Math.sin(a); this.pdz = Math.cos(a); this.pmove = Math.random() < 0.6; }
     if (this.pmove) { this.cmdX = this.pdx; this.cmdZ = this.pdz; this.cmdSpeed = 1.2; this.faceAngle = Math.atan2(this.pdx, this.pdz); }
     // keep near home
-    if (this.home) { const dx = this.home.x - this.x, dz = this.home.z - this.z, d = Math.hypot(dx, dz); if (d > 12) { this.cmdX = dx / d; this.cmdZ = dz / d; this.cmdSpeed = 1.6; } }
+    if (this.home) { const dx = this.home.x - this.x, dz = this.home.z - this.z, d = hyp(dx, dz); if (d > 12) { this.cmdX = dx / d; this.cmdZ = dz / d; this.cmdSpeed = 1.6; } }
   }
 
   animateSkinned(dt) {
@@ -589,7 +589,7 @@ export class Human {
     // quarters of a run, and stops at a wall), never faster than it is pushed; a jump of 0.5 m in a frame is a teleport, not a pace
     let sp = this.speed;
     if (this.body3 && dt > 0) {
-      const real = Math.hypot(this.x - (this._gx ?? this.x), this.z - (this._gz ?? this.z)) / dt; this._gx = this.x; this._gz = this.z;
+      const real = hyp(this.x - (this._gx ?? this.x), this.z - (this._gz ?? this.z)) / dt; this._gx = this.x; this._gz = this.z;
       this.gSp = real * dt > 0.5 ? sp : damp(this.gSp ?? sp, Math.min(sp, real), 16, dt); sp = Math.min(sp, this.gSp);
     }
     if (this.reactT > 0) {
@@ -639,7 +639,7 @@ export class Human {
     const hipTurn = (this.hipTurn = syncGait(this) + this.legOff - this.turnYaw), backTurn = hipTurn + this.turnChest;
     this.pose = damp(this.pose, aiming ? 1 : 0, 12, dt);
     // distance LOD: fog hides far actors anyway, so skip their skinning and animation
-    const cd = Math.hypot(this.x - Human.camX, this.z - Human.camZ);
+    const cd = hyp(this.x - Human.camX, this.z - Human.camZ);
     m.body.visible = cd < 75;
     const sh = cd < 38; if (sh !== m.shadowOn) { m.shadowOn = sh; for (const o of m.skinMeshes) o.castShadow = sh; }
     if (cd > 75) return;
@@ -680,7 +680,7 @@ export class Human {
       if (this._ambT <= 0) {
         this._ambT = 12 + Math.random() * 25;
         const G = this.G, pl = G && G.player;
-        if (pl && Math.hypot(this.x - pl.x, this.z - pl.z) < 45) {
+        if (pl && hyp(this.x - pl.x, this.z - pl.z) < 45) {
           const list = STAFF[this.role] || AMBIENT, pick = list[(Math.random() * list.length) | 0];
           if (!(idleStaff && procGesture(this, pick))) gesture(this, pick, { upper: true, moving: idleStaff });
         }

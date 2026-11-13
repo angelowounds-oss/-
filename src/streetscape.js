@@ -7,6 +7,7 @@ import { nightU } from './shaders.js';
 import { GR, grp } from './physics.js';
 import { SignAtlas, PLATE } from './signatlas.js';
 import { decodeTile, trims, radiusOf, signalGroups, signalState, crossingSpan, signalFoot, hasSignal, TILE, TILE_OFF as OFF } from './streetgeo.js';
+import { localPoints } from './physorigin.js';
 
 // The street furniture of the capital region (WLD-24g): pavements with kerbs, rounded kerb corners at junctions, zebra crossings and stop lines, signal poles whose
 // lamps follow a timed cycle, street lamps and trees. The baked chunk `str/<ti>_<tj>` (build/world/streets.mjs) says only where: junctions with their arms and
@@ -540,13 +541,15 @@ export class Streetscape {
     this.stats.solid = solid; this.stats.walk = walk;
   }
   mesh(rec) {
-    const R = this.phys.R;   // the pavement tops are kept in world coordinates
-    return this.phys.world.createCollider(R.ColliderDesc.trimesh(rec.topP, rec.topI).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
+    const R = this.phys.R, L = localPoints(rec.topP);   // the pavement tops are kept in world coordinates; the collider holds them about their own centre (EV-04)
+    return this.phys.world.createCollider(R.ColliderDesc.trimesh(L.P, rec.topI).setTranslation(L.x, 0, L.z).setFriction(1).setCollisionGroups(grp(GR.STATIC, 0xffff)));
   }
   // the lamps of the signal heads near the focus: the colour that the group shows now
   signals(focus) {
     const t = this.t;   // real seconds: the cycle is a walking-pace thing, not scaled with the world clock
     const cnt = [0, 0, 0], M = this.m4, lim = 600;
+    // the lamps about a point near the focus, the meshes placed there (EV-04): world metres as 32-bit floats are 3 cm apart at Jeju
+    const ax = Math.round(focus.x / 256) * 256, az = Math.round(focus.z / 256) * 256;
     for (const rec of this.tiles.values()) {
       if (rec.state !== 'ready' || !rec.heads.length) continue;
       if (Math.max(Math.abs(focus.x - rec.tile.ox), Math.abs(focus.z - rec.tile.oz)) - TILE / 2 > 260) continue;
@@ -556,9 +559,9 @@ export class Streetscape {
         const s = signalState(H[q + 5], t, H[q + 6]), m = this.lamps[s]; if (cnt[s] >= lim) continue;
         // lamp order top to bottom: red, yellow, green
         const hx = H[q + 3], hz = H[q + 4], y = H[q + 1] + (s === 0 ? 0.3 : s === 1 ? 0 : -0.3), ang = Math.atan2(hx, hz);
-        M.makeRotationY(ang); M.setPosition(H[q], y, H[q + 2]); m.setMatrixAt(cnt[s]++, M);
+        M.makeRotationY(ang); M.setPosition(H[q] - ax, y, H[q + 2] - az); m.setMatrixAt(cnt[s]++, M);
       }
     }
-    this.lamps.forEach((m, s) => { m.count = cnt[s]; m.instanceMatrix.needsUpdate = true; });
+    this.lamps.forEach((m, s) => { m.count = cnt[s]; m.position.set(ax, 0, az); m.instanceMatrix.needsUpdate = true; });
   }
 }

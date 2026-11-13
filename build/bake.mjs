@@ -28,8 +28,10 @@ const CITY_IDS = ['harbor', 'airfield', 'mid1', 'mid2', 'mid3', 'mid4'];
 const CITY_TILES = await (async () => { const { CITY_DEFS } = await imp('src/worldmap.js'), { tilesOf } = await imp('src/citydetail.js'), o = {}; for (const id of CITY_IDS) { const d = CITY_DEFS.find((c) => c.id === id); o[id] = tilesOf({ R: d.r }); } return o; })();
 // the buildings (WLD-24a) and streets (WLD-24g) of every compiled region, joined as the workers join them (build/jobs.mjs); the road counts that move a
 // province's street indices are read from the region files here and let go, so the main thread does not keep the rasters (null before the first run)
+// REG_DIMS: each region's name, raster size and file, for its raster tiles (EV-01)
+const REG_DIMS = [];
 const { B: BUILDINGS, S: STREETS } = await (async () => {
-  const { readRegion } = await imp('build/world/emit.mjs'), { joinedSets } = await imp('build/world/mergetiles.mjs'), rd = (f) => { const R = readRegion(path.join(root, f)); return R && { name: R.name, roads: R.roads.length }; };
+  const { readRegion } = await imp('build/world/emit.mjs'), { joinedSets } = await imp('build/world/mergetiles.mjs'), rd = (f) => { const R = readRegion(path.join(root, f)); if (R) REG_DIMS.push({ name: R.name, nx: R.nx, nz: R.nz, file: f }); return R && { name: R.name, roads: R.roads.length }; };
   return joinedSets(root, rd('build/baked/world/capital/region.bin'), REGION_SRC.slice(1).filter((f) => f.endsWith('.bin')).map(rd).filter(Boolean));
 })();
 // The region files (src/regions/<id>.js, ADR-0036) enter the hash as data, not as files, so that a change to one province redoes only what
@@ -40,6 +42,7 @@ const { B: BUILDINGS, S: STREETS } = await (async () => {
 const CITY_OWN = new Set(['style', 'pitched', 'treeRows']), RUNTIME = new Set(['rules']);
 const { REGIONS: PROVINCES, regionOf, regionCity } = await imp('src/regions/index.js');
 const { cities, CITY_DEFS } = await imp('src/worldmap.js'), { CAPITAL, inDetail } = await imp('src/koreamap.js'), { TILE_ORIGIN, HALF } = await imp('src/heightmap.js'), { VEG_ORIGIN } = await imp('src/vegfn.js');
+const { regTiles, regKey } = await imp('src/regtile.js');
 const without = (f, drop) => f && { ...f, cities: f.cities.map((c) => Object.fromEntries(Object.entries(c).filter(([k]) => !drop.has(k)))) };
 const regionDeps = () => {
   const place = sha(JSON.stringify(PROVINCES.map((r) => without(r.data, new Set([...CITY_OWN, ...RUNTIME]))))), of = (r) => JSON.stringify(without(r?.data, RUNTIME));
@@ -61,6 +64,9 @@ export function jobsFor({ pack = false, regions = null } = {}) {
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (wanted(TILE_ORIGIN.x + (i + 0.5) * size, TILE_ORIGIN.z + (j + 0.5) * size)) out.push({ key: `${key}/${i}_${j}`, gen: 'tile', tier, g, i, j, region: chunkRegion(TILE_ORIGIN.x + (i + 0.5) * size, TILE_ORIGIN.z + (j + 0.5) * size), dep: D.place, src: TERRAIN_SRC });
   };
   tiles(16, 't16', 'embed'); if (pack) tiles(8, 't8', 'pack');
+  // the raster tiles of every compiled region (EV-01, src/regtile.js), one file per region (world/reg/<name>.pak); never left out by `regions`:
+  // the core chunk lists every compiled region, and the page reads the tiles of each
+  for (const d of REG_DIMS) { const { ni, nj } = regTiles(d); for (let tj = 0; tj < nj; tj++) for (let ti = 0; ti < ni; ti++) out.push({ key: regKey(d.name, ti, tj), gen: 'reg', tier: 'reg', name: d.name, ti, tj, region: null, file: d.name, dep: '', src: ['build/jobs.mjs', 'src/bakefmt.js', 'src/regtile.js', d.file] }); }
   // where trees, grass and rocks grow (vegfn.js): one byte per 32 m cell, tiles of 4096 m
   for (let j = 0; j < 25; j++) for (let i = 0; i < 25; i++) out.push({ key: `veg/${i}_${j}`, gen: 'veg', tier: 'embed', i, j, region: chunkRegion(VEG_ORIGIN.x + (i + 0.5) * 4096, VEG_ORIGIN.z + (j + 0.5) * 4096), dep: D.place, src: [...TERRAIN_SRC, 'src/vegfn.js'] });
   // the procedural and real buildings (WLD-24a, WLD-24h): one chunk per 512 m tile that has any; a tile's content hash (every array of it: the real
@@ -125,7 +131,7 @@ if (!isMainThread && workerData?.bakeWorker) {
 const THREADS = +process.env.BAKE_THREADS || Math.max(1, Math.min(os.cpus().length, 4, REGION_SRC.length > 2 ? Math.floor(os.totalmem() / 2 ** 30 / 6) : 4));
 export async function bake({ pack = false, regions = null, jobs: given = null, cache = true, threads = THREADS } = {}) {
   const jobs = given || jobsFor({ pack, regions }), t0 = performance.now(), dir = path.join(root, 'build/baked/cache'); if (cache) fs.mkdirSync(dir, { recursive: true });
-  const todo = jobs.filter((j) => pack || j.tier === 'embed'), results = new Map(), miss = [];
+  const todo = jobs.filter((j) => pack || j.tier === 'embed' || j.tier === 'reg'), results = new Map(), miss = [];
   for (const j of todo) {
     const f = path.join(dir, j.key.replace(/[^\w.-]/g, '_') + '-' + jobHash(j) + '.json');
     if (cache && fs.existsSync(f)) { const c = JSON.parse(fs.readFileSync(f, 'utf8')); results.set(rid(j), { z: Buffer.from(c.z, 'base64'), r: c.r }); } else miss.push({ j, f });
@@ -153,7 +159,7 @@ export async function bake({ pack = false, regions = null, jobs: given = null, c
     for (const f of fs.readdirSync(dir)) if (!keep.has(f)) fs.unlinkSync(path.join(dir, f));
   }
   const { buildContainer } = await imp('src/bakefmt.js');
-  const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, region: j.region, ...results.get(rid(j)) }));
+  const entries = (tier) => todo.filter((j) => j.tier === tier).sort((a, b) => (a.key < b.key ? -1 : 1)).map((j) => ({ key: j.key, region: j.file || j.region, ...results.get(rid(j)) }));   // a raster tile goes to its region's file
   // the base world's id (from its chunks) goes into every world file: the page refuses a pack made for another world (detail.js), as the high
   // detail's 8 m ground from an older bake stood up to 1.4 km off the base ground (BLD-07)
   const emb = entries('embed'), world = sha(emb.map((e) => e.key + ':' + sha(e.z)).join('\n')).slice(0, 16);
@@ -172,7 +178,7 @@ export async function bake({ pack = false, regions = null, jobs: given = null, c
     return files;
   };
   const embedded = buildContainer(emb, { tier: 'embed', world });
-  const out = { embedded, base: split(emb, 'embed'), pack: null };
+  const out = { embedded, base: split(emb, 'embed'), reg: split(entries('reg'), 'reg'), pack: null };
   if (pack) { const e = entries('pack'); out.pack = e.length ? split(e, 'high') : new Map(); }
   out.manifest = {
     format: FORMAT, world, jobs: todo.map((j) => ({ key: j.key, tier: j.tier, bytes: results.get(rid(j)).z.length, raw: results.get(rid(j)).r })),
@@ -191,10 +197,11 @@ export function writePack(r, dir = path.join(root, 'build/baked/pack')) {
   for (const [n, b] of r.pack) if (n !== 'index.json') fs.writeFileSync(path.join(dir, n), b);
   const ix = JSON.parse(r.pack.get('index.json')); ix.files = ix.files.concat(prev.filter((f) => !isWorld(f))); fs.writeFileSync(ixf, JSON.stringify(ix, null, 1));
 }
-// writes a bake's base world files into a folder (the game's world/base/, bakedload.js)
-export function writeBase(r, dir) {
+// writes a bake's base world files into a folder (the game's world/base/, bakedload.js); `which` 'reg' writes the region raster tiles instead
+// (world/reg/, regionload.js)
+export function writeBase(r, dir, which = 'base') {
   fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-  for (const [n, b] of r.base) fs.writeFileSync(path.join(dir, n), b);
+  for (const [n, b] of r[which]) fs.writeFileSync(path.join(dir, n), b);
 }
 
 if (isMainThread && import.meta.url === pathToFileURL(process.argv[1]).href) {

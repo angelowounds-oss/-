@@ -1,4 +1,5 @@
 import { Vehicle } from './vehicle.js';
+import { hyp } from './util.js';
 
 // Side jobs: delivery, taxi fare, building patrol, roadside repair, hacking contract
 export class Jobs {
@@ -11,7 +12,7 @@ export class Jobs {
   start(type) {
     const G = this.G, pl = G.player;
     if (this.cur) { G.toast('이미 진행 중인 일이 있습니다', this.cur.title); return; }
-    const ents = G.world.enterables, far = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    const ents = G.world.enterables, far = (a, b) => hyp(a.x - b.x, a.z - b.z);
     const pickE = (min, max, from = pl) => { const l = ents.filter((e) => { const d = far(e, from); return d > min && d < max; }); return l[Math.floor(Math.random() * l.length)] || ents[0]; };
     let job = null;
     if (type === 'delivery') {
@@ -22,7 +23,7 @@ export class Jobs {
       // a long-distance delivery: a parcel from the city the player is in to the central station of another one (the map waypoint is set for him)
       const T = G.transit, f = G.focusPos(), from = G.rules?.cityAt(f.x, f.z, 1.6), opts = T ? T.stations.filter((s) => s.kind === 1 && s.city !== (from ? from.id : 'neon')) : [];
       if (!opts.length) { G.toast('장거리 배달 없음'); return; }
-      const e = opts[Math.floor(Math.random() * opts.length)], d = Math.hypot(e.x - f.x, e.z - f.z), city = T.cityOf.get(e.city); G.items.add('parcel');
+      const e = opts[Math.floor(Math.random() * opts.length)], d = hyp(e.x - f.x, e.z - f.z), city = T.cityOf.get(e.city); G.items.add('parcel');
       job = { type, title: '장거리 배달', text: `소포를 ${city.name} 중앙역 앞까지 (${(d / 1000).toFixed(0)} km)`, e: { x: e.x, z: e.z, name: e.name }, t: 1500 + d / 12, reward: Math.floor((300 + d * 0.06) * (G.rules?.local?.econ ?? 1)) };
       G.wmap?.setWaypoint(e.x, e.z, e.name); G.setBeacon(e.x, e.z, 0xffb040);
     } else if (type === 'taxi') {
@@ -61,12 +62,12 @@ export class Jobs {
   update(dt) {
     const G = this.G, j = this.cur; if (!j) return; const pl = G.player;
     j.t -= dt; if (j.t <= 0) { this.finish(false); return; }
-    const d = (x, z) => Math.hypot(pl.x - x, pl.z - z);
+    const d = (x, z) => hyp(pl.x - x, pl.z - z);
     const v = G.vehicle;
     if (j.type === 'taxi') {
       if (j.phase === 0 && v && v.speed < 4 && d(j.e.x + j.e.nx * 2, j.e.z + j.e.nz * 2) < 9) {
         j.phase = 1; j.npc.hidden = true; j.npc.group.visible = false; const to = G.world.enterables[Math.floor(Math.random() * G.world.enterables.length)];
-        j.dest = to; j.reward = Math.floor(25 + Math.hypot(to.x - pl.x, to.z - pl.z) * 0.14); j.t = 420; G.setBeacon(to.x + to.nx * 2, to.z + to.nz * 2, 0xffc94d); G.setMissionText?.('택시', '승객을 목적지로'); G.toast('승객 탑승', `${to.name}`);
+        j.dest = to; j.reward = Math.floor(25 + hyp(to.x - pl.x, to.z - pl.z) * 0.14); j.t = 420; G.setBeacon(to.x + to.nx * 2, to.z + to.nz * 2, 0xffc94d); G.setMissionText?.('택시', '승객을 목적지로'); G.toast('승객 탑승', `${to.name}`);
       } else if (j.phase === 1 && v && v.speed < 4 && d(j.dest.x + j.dest.nx * 2, j.dest.z + j.dest.nz * 2) < 9) this.finish(true);
       j.hud = j.phase ? `남은 시간 ${Math.max(0, j.t | 0)}s · $${j.reward}` : '승객에게 접근';
     } else if (j.type === 'patrol') {
@@ -80,6 +81,6 @@ export class Jobs {
       j.hud = `수리 · ${Math.max(0, j.t | 0)}s`;
     } else j.hud = `${Math.max(0, j.t | 0)}s`;
     if (j.type === 'delivery') j.hud = `배달 · ${Math.max(0, j.t | 0)}s · $${j.reward}`;
-    else if (j.type === 'courier') j.hud = `${j.e.name} · ${(Math.hypot(j.e.x - pl.x, j.e.z - pl.z) / 1000).toFixed(1)} km · ${Math.max(0, (j.t / 60) | 0)}분 · $${j.reward}`;
+    else if (j.type === 'courier') j.hud = `${j.e.name} · ${(hyp(j.e.x - pl.x, j.e.z - pl.z) / 1000).toFixed(1)} km · ${Math.max(0, (j.t / 60) | 0)}분 · $${j.reward}`;
   }
 }

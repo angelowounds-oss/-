@@ -1,8 +1,10 @@
 // Procedural WebAudio: rain, engine, weapons, impacts, sirens and a synthwave score.
+export const ONESHOT_MAX = 24;   // one-shot chains (noise bursts, tones, voices) that may start within 50 ms
 export class Audio {
   constructor() {
     this.ctx = null; this.vol = 0.7; this.musicOn = true; this.intensity = 0;
     this.nextNote = 0; this.step = 0; this.started = false;
+    this.shotT = -Infinity; this.shots = 0;   // the one-shot window (budget): counted from the first sound, whenever the page clock starts
   }
   init() {
     if (this.ctx) { this.ctx.resume?.(); return; }
@@ -64,8 +66,11 @@ export class Audio {
   }
   setVolume(v) { this.vol = v; if (this.master) this.master.gain.value = v; }
   setMusic(on) { this.musicOn = on; if (this.music) this.music.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.2); }
+  // one-shot sounds are rationed: at most ONESHOT_MAX chains start in any 50 ms window, the rest are dropped (a burst of hundreds of chains in one
+  // frame piled up as Web Audio nodes until the next collection and the renderer ran out of memory; eight gunshots a frame still fit)
+  budget() { const now = performance.now(); if (now - this.shotT > 50) { this.shotT = now; this.shots = 0; } return ++this.shots <= ONESHOT_MAX; }
   noiseShot(dur, type, f, gain, q = 1, dest, delay = 0, fEnd = 0) {
-    const ctx = this.ctx; if (!ctx) return;
+    const ctx = this.ctx; if (!ctx || !this.budget()) return;
     const s = ctx.createBufferSource(); s.buffer = this.noiseBuf; s.loop = true;
     const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
     const t0 = ctx.currentTime + delay;
@@ -75,7 +80,7 @@ export class Audio {
     s.onended = () => g.disconnect();   // drop the finished chain from the graph (some browsers keep connected nodes alive)
   }
   tone(freq, dur, type, gain, endFreq, dest, delay = 0) {
-    const ctx = this.ctx; if (!ctx) return;
+    const ctx = this.ctx; if (!ctx || !this.budget()) return;
     const o = ctx.createOscillator(); o.type = type; const t0 = ctx.currentTime + delay; o.frequency.setValueAtTime(freq, t0);
     if (endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t0 + dur);
     const g = ctx.createGain(); g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
@@ -153,7 +158,7 @@ export class Audio {
   complete() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.25, 'triangle', 0.14, 0, null, i * 0.1)); }
   // human voices: pitch per person (0.75..1.4), distance fade, panning; vibrato sawtooth through a vowel-ish bandpass
   voice(kind = 'scream', pan = 0, vol = 1, pitch = 1) {
-    if (!this.ctx || vol < 0.03) return; const ctx = this.ctx, d = this.pan(pan), t0 = ctx.currentTime;
+    if (!this.ctx || vol < 0.03 || !this.budget()) return; const ctx = this.ctx, d = this.pan(pan), t0 = ctx.currentTime;
     const dur = kind === 'scream' ? 0.7 : kind === 'death' ? 0.9 : 0.35, f0 = (kind === 'death' ? 380 : 520) * pitch;
     const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t0);
     o.frequency.linearRampToValueAtTime(kind === 'death' ? f0 * 0.5 : f0 * 1.35, t0 + dur * 0.4); o.frequency.linearRampToValueAtTime(f0 * (kind === 'scream' ? 0.8 : 0.5), t0 + dur);
@@ -188,8 +193,12 @@ export class Audio {
     if (this.musicOn) { this.music.gain.setTargetAtTime(0.5 * (1 - 0.6 * Math.min(1, this.duckT * 2)), t, 0.08); this.schedule(t); }
   }
 
+  // the score is scheduled a quarter second ahead of the audio clock, one sixteenth at a time; a note is never scheduled into the past: after a
+  // stall (a background tab, a long frame, the audio clock jumping ahead, as it does under a headless browser) the missed notes are skipped and the
+  // bar keeps its place. Starting them all at once made 58 s of music into 1,900 nodes in one frame, which held 2.6 GB until the next collection
   schedule(t) {
     const ctx = this.ctx, bpm = 104 + this.intensity * 14, sp = 60 / bpm / 4;
+    if (this.nextNote < t - 0.05) { const k = Math.ceil((t - this.nextNote) / sp); this.nextNote += k * sp; this.step += k; }
     while (this.nextNote < t + 0.25) {
       const n = this.nextNote, st = this.step;
       const bar = Math.floor(st / 16) % 8, s16 = st % 16;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { cities } from './worldmap.js';
 import { buildCustom } from './craft.js';
+import { hyp, hyp3 } from './util.js';
 
 // Aircraft that are part of the world (ADR-0012 phase 5): airliners and cargo planes flying out of Skyport on timetables, helicopters circling the
 // capital. They are not physics objects: the position of each is a function of the clock (so the sky is the same wherever and whenever you look),
@@ -38,7 +39,7 @@ export function buildAirliner(opts = {}) {
 // the flight path of a timetable aircraft: [x, y, z, speed] waypoints out of and back to Skyport's runway
 function flightPlan(air, dest) {
   const rw = { x: air.x - air.r * 0.9, z: air.z + air.r * 0.28 + 30 }, ex = rw.x + air.r * 1.8;   // west end of the runway to its east end: take off to the east
-  const dx = dest.x - ex, dz = dest.z - rw.z, d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
+  const dx = dest.x - ex, dz = dest.z - rw.z, d = hyp(dx, dz), ux = dx / d, uz = dz / d;
   const P = [], at = (t, y, sp) => P.push([ex + ux * t, y, rw.z + uz * t, sp]);
   P.push([rw.x, 0, rw.z, 12], [rw.x + air.r * 1.2, 0, rw.z, 75], [ex, 20, rw.z, 85]);
   at(3000, 500, 120); at(9000, 1800, 190); at(Math.max(12000, d * 0.5), 3000, 230); at(Math.max(14000, d - 9000), 3000, 230); at(Math.max(16000, d - 4000), 900, 160);
@@ -48,12 +49,12 @@ function flightPlan(air, dest) {
   P.push(...back, [rw.x + air.r * 0.3, 60, rw.z, 80], [rw.x + air.r * 0.9, 0, rw.z, 60], [rw.x + air.r * 1.8, 0, rw.z, 8]);
   return P;
 }
-function polyLen(P) { const s = [0]; for (let i = 1; i < P.length; i++) s.push(s[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1], P[i][2] - P[i - 1][2])); return s; }
+function polyLen(P) { const s = [0]; for (let i = 1; i < P.length; i++) s.push(s[i - 1] + hyp3(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1], P[i][2] - P[i - 1][2])); return s; }
 // position at path distance s: { x, y, z, h (heading), p (pitch) }
 export function pathAt(P, S, s) {
   let i = 1; while (i < S.length - 1 && S[i] < s) i++;
   const t = (s - S[i - 1]) / ((S[i] - S[i - 1]) || 1), a = P[i - 1], b = P[i], u = Math.max(0, Math.min(1, t));
-  return { x: lerp(a[0], b[0], u), y: lerp(a[1], b[1], u), z: lerp(a[2], b[2], u), h: Math.atan2(b[0] - a[0], b[2] - a[2]), p: Math.atan2(b[1] - a[1], Math.hypot(b[0] - a[0], b[2] - a[2])), sp: lerp(a[3], b[3], u) };
+  return { x: lerp(a[0], b[0], u), y: lerp(a[1], b[1], u), z: lerp(a[2], b[2], u), h: Math.atan2(b[0] - a[0], b[2] - a[2]), p: Math.atan2(b[1] - a[1], hyp(b[0] - a[0], b[2] - a[2])), sp: lerp(a[3], b[3], u) };
 }
 
 export class Aviation {
@@ -91,14 +92,14 @@ export class Aviation {
     const G = this.G, cam = G.camera.position, t = G.time; this.t0 += dt;
     for (const f of this.flights) {
       const p = this.flightPos(f, t);
-      if (!p || Math.hypot(p.x - cam.x, p.z - cam.z) > VIS) { f.mesh.visible = false; continue; }
+      if (!p || hyp(p.x - cam.x, p.z - cam.z) > VIS) { f.mesh.visible = false; continue; }
       f.mesh.visible = true; f.mesh.position.set(p.x, p.y + 3.2, p.z); f.mesh.rotation.set(-p.p, p.h, 0, 'YXZ');
       const bl = (Math.sin(this.t0 * 5) > 0.2 ? 1 : 0), st = (Math.sin(this.t0 * 9) > 0.85 ? 1 : 0);
       for (const n of f.mesh.userData.nav) n.visible = !!bl; for (const s of f.mesh.userData.strobe) s.visible = !!st;
     }
     for (const h of this.helis) {
       const a = h.ph + this.t0 * h.w, x = Math.cos(a) * h.R, z = Math.sin(a) * h.R, g = h.m.group;
-      if (Math.hypot(x - cam.x, z - cam.z) > 5000) { g.visible = false; continue; }
+      if (hyp(x - cam.x, z - cam.z) > 5000) { g.visible = false; continue; }
       g.visible = true; g.position.set(x, h.y + Math.sin(this.t0 * 0.6 + h.ph) * 4, z); g.rotation.set(0, -a, 0); g.rotation.z = -0.08;
       h.m.rotor.rotation.y += dt * 38; if (h.m.tailRotor) h.m.tailRotor.rotation.x += dt * 50;
     }

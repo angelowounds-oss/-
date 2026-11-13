@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { A } from './assets.js';
 import { GR, grp } from './physics.js';
-import { clamp } from './util.js';
+import { clamp, hyp, hyp3 } from './util.js';
 import { addRipple } from './world.js';
 
 // Ragdolls (see docs/ragdoll-design.md): 12 capsule/ball bodies joined by impulse joints, driven back onto the Mixamo skeleton.
@@ -185,7 +185,7 @@ export class Ragdoll {
     body.applyImpulseAtPoint({ x: J.x, y: J.y, z: J.z }, point ? { x: point.x, y: point.y, z: point.z } : t, true);
     this.clampSpeeds();
   }
-  clampSpeeds() { for (const b of this.bodies) { const l = b.linvel(), s = Math.hypot(l.x, l.y, l.z); if (s > RAG_TUNE.maxSegV) { const k = RAG_TUNE.maxSegV / s; b.setLinvel({ x: l.x * k, y: l.y * k, z: l.z * k }, true); } } }
+  clampSpeeds() { for (const b of this.bodies) { const l = b.linvel(), s = hyp3(l.x, l.y, l.z); if (s > RAG_TUNE.maxSegV) { const k = RAG_TUNE.maxSegV / s; b.setLinvel({ x: l.x * k, y: l.y * k, z: l.z * k }, true); } } }
 
   // before every physics step: joint limits, muscles, buoyancy
   preStep(dt) {
@@ -230,7 +230,7 @@ export class Ragdoll {
     const sAng = 2 * Math.acos(clamp(sw.w, -1, 1)), sn = Math.sqrt(Math.max(1e-12, 1 - sw.w * sw.w));
     v1.set(sw.x / sn * sAng, sw.y / sn * sAng, sw.z / sn * sAng);   // swing rotation vector (parent frame)
     const cF = v1.dot(J.flex), cA = v1.dot(J.sideAx);
-    const u = Math.abs(cF) / (cF >= 0 ? J.fF : J.fB), w = Math.abs(cA) / (cA >= 0 ? J.sP : J.sN), n = Math.hypot(u, w);
+    const u = Math.abs(cF) / (cF >= 0 ? J.fF : J.fB), w = Math.abs(cA) / (cA >= 0 ? J.sP : J.sN), n = hyp(u, w);
     let ex = 0; v2.set(0, 0, 0);
     if (n > 1 && sAng > 1e-4) { ex = (1 - 1 / n) * sAng; v2.copy(v1).normalize(); }
     let exT = 0, twDir = 0;
@@ -287,7 +287,7 @@ export class Ragdoll {
     let vmax = 0, wmax = 0;
     for (const b of this.bodies) {
       const l = b.linvel(), w = b.angvel();
-      vmax = Math.max(vmax, Math.hypot(l.x, l.y, l.z)); wmax = Math.max(wmax, Math.hypot(w.x, w.y, w.z));
+      vmax = Math.max(vmax, hyp3(l.x, l.y, l.z)); wmax = Math.max(wmax, hyp3(w.x, w.y, w.z));
     }
     const limit = this.inWater ? RAG_TUNE.maxSimTWater : (this.alive ? RAG_TUNE.maxSimTLive : RAG_TUNE.maxSimT);
     if (this.t > 1 && !this.damped) { this.damped = true; for (const b of this.bodies) { b.setLinearDamping(RAG_TUNE.linDampGround); b.setAngularDamping(RAG_TUNE.angDampGround); } }
@@ -408,7 +408,7 @@ export class Ragdoll {
     const hd = this.m.bones.Head.getWorldPosition(new THREE.Vector3()), hp = this.m.bones.Hips.getWorldPosition(new THREE.Vector3());
     this.chestDown = fwd.y < -0.2;                       // on the belly: push up facing where the head points; on the back: sit up facing where the feet point
     const dx = hd.x - hp.x, dz = hd.z - hp.z;
-    if (Math.hypot(dx, dz) > 0.35) return Math.atan2(dx, dz) + (this.chestDown ? 0 : Math.PI);
+    if (hyp(dx, dz) > 0.35) return Math.atan2(dx, dz) + (this.chestDown ? 0 : Math.PI);
     return Math.atan2(fwd.x, fwd.z);
   }
   // returns true while the blend is running
@@ -486,7 +486,7 @@ export class RagdollSystem {
     if (h.rag) { this.apply(h.rag, opt); return h.rag; }
     if (!this.usable(h) || !this.G.phys) { this.stats.legacy++; return null; }
     if (this.nearSkyTower(h.x, h.z)) { this.stats.legacy++; return null; }   // no physics bodies around the 1000 m tower (bodies thrown off it, or baked in mid-air, would hang in the sky)
-    const cd = Math.hypot(h.x - G.camera.position.x, h.z - G.camera.position.z);
+    const cd = hyp(h.x - G.camera.position.x, h.z - G.camera.position.z);
     if (cd > this.dist || !h.group.visible) { this.stats.legacy++; return null; }
     if (!this.makeRoom()) { this.stats.legacy++; return null; }
     // current velocity from the walking speed

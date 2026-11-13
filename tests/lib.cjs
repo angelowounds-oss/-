@@ -50,10 +50,15 @@ async function gameUrl(where = GAME) {
 }
 // the software GPU takes over half a minute for the first frame of a full street view (every program compiled at once): the GPU watchdog killed it,
 // and the page with it ("Target crashed"), so the watchdog is off
-// --expose-gc: a frame of the 1:1 city takes seconds on the software GPU, so the page never idles and Blink's garbage collector falls behind (its heap
-// grew from 0.2 to 3.4 GB of collectable garbage in a few frames over Gangnam and the renderer was killed for memory); the stepped loop below collects
-// every GC_EVERY updates (or GC_GROW of growth) and shot() before each frame, which a real GPU's idle time does by itself
+// --expose-gc: a frame of the 1:1 city takes seconds on the software GPU, so the page never idles and V8 gets no idle time to collect; the stepped
+// loop below collects every GC_EVERY updates (or GC_GROW of growth) and shot() before each frame, which keeps the heap readings of one run
+// comparable with the next. (The gigabytes that once piled up in a few frames over Gangnam were the pointer-lock input flood below, not garbage.)
 const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--js-flags=--expose-gc' + (process.env.JS_FLAGS ? ' ' + process.env.JS_FLAGS : ''), '--enable-precise-memory-info'];
+// The game locks the pointer when it starts (src/input.js lock). Under headless Chromium the lock makes the browser synthesize mouse moves to
+// re-centre a cursor that is not there, in a loop: one coalesced mousemove with 1.6 M callbacks per dispatch, 120 k input replies a second on the
+// browser's main thread, the renderer growing by 2 GB of queued events, a 30-55 s frame and then the kernel's memory kill (EV-91, traced
+// 2026-11-12). So no page the harness opens locks the pointer: tests drive the camera through window.__game, never with a real mouse.
+const NO_LOCK = `Element.prototype.requestPointerLock = function () { return Promise.reject(new DOMException('no pointer lock in the test harness', 'NotSupportedError')); };`;
 
 // open the game at quality tier q, wait until it is ready, start it; returns { browser, page, errors }
 // `init`: a script run in the page before any of its own (e.g. a seeded Math.random)
@@ -61,6 +66,7 @@ async function openGame({ q = 1, width = 480, height = 360, url = GAME, extra = 
   const browser = await pw.chromium.launch({ args: GL_ARGS });
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
+  await page.addInitScript(NO_LOCK);
   if (init) await page.addInitScript(init);
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 300)));
   page.on('console', (m) => { const t = m.text(); if (/GLSL|shader error|ERROR/i.test(t)) errors.push('console: ' + t.slice(0, 300)); else if (t.startsWith('##')) console.log(t.slice(2)); });
@@ -126,4 +132,4 @@ async function run(name, opts, body) {
   }
 }
 
-module.exports = { pw, ROOT, TIMEOUT, GC_EVERY, GC_GROW, GAME, GL_ARGS, serve, gameUrl, openGame, freeze, shot, pixelDiff, result, run };
+module.exports = { pw, ROOT, TIMEOUT, GC_EVERY, GC_GROW, GAME, GL_ARGS, NO_LOCK, serve, gameUrl, openGame, freeze, shot, pixelDiff, result, run };

@@ -1,4 +1,5 @@
-// Property-based interactions: anything registered here exposes verbs (F / G / T) that the HUD offers.
+
+import { hyp } from './util.js';// Property-based interactions: anything registered here exposes verbs (F / G / T) that the HUD offers.
 export class Interact {
   constructor(G) { this.G = G; this.set = new Set(); this.providers = []; }
   add(o) { this.set.add(o); return o; }
@@ -8,7 +9,7 @@ export class Interact {
     let best = null, bs = 1e9;
     const eye = pl.y + 1.0;
     const test = (o) => {
-      const dx = pl.x - o.x, dz = pl.z - o.z, d = Math.hypot(dx, dz);
+      const dx = pl.x - o.x, dz = pl.z - o.z, d = hyp(dx, dz);
       if (d > o.r) return;
       if (o.cy != null && Math.abs(o.cy - eye) > 1.9) return;
       const vs = o.verbs.filter((v) => !v.enabled || v.enabled());

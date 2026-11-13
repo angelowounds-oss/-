@@ -3,11 +3,12 @@
 // Usage: GAME_DIR=... NP=4 MIN_MB=30 node tests/tools/memdump.cjs   (writes tests/results/memdump.json too)
 const fs = require('fs');
 const path = require('path');
-const { pw, GL_ARGS, gameUrl, GAME, freeze } = require('../lib.cjs');
+const { pw, GL_ARGS, NO_LOCK, gameUrl, GAME, freeze } = require('../lib.cjs');
 const NP = +(process.env.NP || 2), MIN = +(process.env.MIN_MB || 30) * 1048576;
 (async () => {
   const browser = await pw.chromium.launch({ args: GL_ARGS });
   const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
+  await page.addInitScript(NO_LOCK);   // the game starts below: no pointer lock in headless (tests/lib.cjs)
   await page.goto((await gameUrl(GAME)) + '?q=1');
   await page.waitForSelector('#go.rdy', { timeout: 600000 }); await page.keyboard.press('KeyJ');
   await page.waitForFunction(() => window.__game && window.__game.running, null, { timeout: 60000 });

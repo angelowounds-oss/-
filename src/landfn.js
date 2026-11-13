@@ -3,6 +3,7 @@ import { baseHeight } from './terrainfn.js';
 import { brokenAt } from './roadnet.js';
 import { gradeGround } from './roadgrade.js';
 import { regionWeight, regionHeight, regionPhysHeight } from './region.js';
+import { REG_CG } from './regtile.js';
 
 // The ground height of the land outside the city as one function, pure (no three.js) so the bake can sample it into height tiles (build/jobs.mjs)
 // and the page can read those tiles back (heightmap.js): `landHeight` is the ground as drawn, `physHeight` the ground the physics uses (bridges and
@@ -64,7 +65,8 @@ const graded = (x, z, cell, physics) => gradeGround(x, z, groundBase(x, z, cell)
 function withRegion(x, z, cell, physics) {
   const w = regionWeight(x, z);
   if (w <= 0) return graded(x, z, cell, physics);
-  const r = physics ? regionPhysHeight(x, z) : regionHeight(x, z);
+  // a cell of REG_CG metres or more may take a streamed region's coarse raster where no tile is loaded (EV-01: exact on its nodes)
+  const c = cell >= REG_CG, r = physics ? regionPhysHeight(x, z, c) : regionHeight(x, z, c);
   if (w >= 1) return r;
   const old = graded(x, z, cell, physics);
   return old + (r - old) * w;

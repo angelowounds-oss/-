@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { N, HALF, roadC, roadIdx } from './world.js';
-import { clamp, rand, TAU, dampAngle, angDiff } from './util.js';
+import { clamp, rand, TAU, dampAngle, angDiff, hyp, hyp3 } from './util.js';
 import { Vehicle } from './vehicle.js';
 import { keys as binds } from './keys.js';
 
@@ -101,7 +101,7 @@ export class Military {
     let at = null;
     if (onGrid) {
       let best = null;
-      for (let t = 0; t < 16; t++) { const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N + 1)), d = Math.hypot(roadC(i) - pl.x, roadC(j) - pl.z); if (d > 130 && d < 320 && (!best || Math.abs(d - 190) < Math.abs(best.d - 190))) best = { i, j, d }; }
+      for (let t = 0; t < 16; t++) { const i = Math.floor(rand(0, N + 1)), j = Math.floor(rand(0, N + 1)), d = hyp(roadC(i) - pl.x, roadC(j) - pl.z); if (d > 130 && d < 320 && (!best || Math.abs(d - 190) < Math.abs(best.d - 190))) best = { i, j, d }; }
       if (best) at = { x: roadC(best.i), z: roadC(best.j), i: best.i, j: best.j };
     } else for (let t = 0; t < 30 && !at; t++) { const a = rand(0, TAU), d = rand(150, 230), x = real.x + Math.sin(a) * d, z = real.z + Math.cos(a) * d; if (this.openGround(x, z)) at = { x, z }; }
     if (!at) return;
@@ -130,7 +130,7 @@ export class Military {
     if (e.dead) return this.crashStep(e, dt);
     // goal: orbit the player at 38 m height; leave when the heat is off
     let gx, gz, gy, sp = 28;
-    const dx = real.x - e.x, dz = real.z - e.z, dist = Math.hypot(dx, dz);
+    const dx = real.x - e.x, dz = real.z - e.z, dist = hyp(dx, dz);
     if (e.leaving) { gx = e.x - dx * 4; gz = e.z - dz * 4; gy = e.y + 40; sp = 36; if (dist > 330) { G.scene.remove(e.g); G.scene.remove(U.beam); e.gone = true; return; } }
     else {
       e.ang += e.dir * dt * (0.32 + (e.rocket ? 0.05 : 0));
@@ -141,7 +141,7 @@ export class Military {
       gy = Math.max(gy, this.groundTop(e.x, e.z) + 14);
     }
     if (e.landing) { gx = e.x; gz = e.z; gy = this.groundTop(e.x, e.z) + 1.3; sp = 0; }
-    const ax = gx - e.x, az = gz - e.z, al = Math.hypot(ax, az) || 1, want = Math.min(sp, al * 0.9);
+    const ax = gx - e.x, az = gz - e.z, al = hyp(ax, az) || 1, want = Math.min(sp, al * 0.9);
     const k = 1 - Math.exp(-1.6 * dt);
     const nvx = ax / al * want, nvz = az / al * want;
     const accx = (nvx - e.vx) * k, accz = (nvz - e.vz) * k; e.vx += accx; e.vz += accz;
@@ -154,7 +154,7 @@ export class Military {
     U.rotor.rotation.y += dt * 38; U.tr.rotation.z += dt * 55;
     U.nav.visible = Math.floor(G.time * 2) % 2 === 0;
     // rotor thump, louder when near
-    const cd = Math.hypot(e.x - G.camera.position.x, e.z - G.camera.position.z);
+    const cd = hyp(e.x - G.camera.position.x, e.z - G.camera.position.z);
     if (cd < 220) { this.thump -= dt; if (this.thump <= 0) { this.thump = 0.09; G.audio.tone?.(58 + Math.random() * 6, 0.07, 'sine', clamp(1 - cd / 220, 0, 1) * 0.22, 40); } }
     // sight to the target
     e.sightT = (e.sightT || 0) - dt;
@@ -215,7 +215,7 @@ export class Military {
   stepTank(e, dt, real) {
     const G = this.G, pl = G.player, U = e.g.userData;
     if (e.dead) return;
-    const dx = real.x - e.x, dz = real.z - e.z, dist = Math.hypot(dx, dz);
+    const dx = real.x - e.x, dz = real.z - e.z, dist = hyp(dx, dz);
     let tx, tz;
     if (e.free) {
       // across country: toward the player (away when leaving), turning to the first clear bearing when the way ahead is a wall, a cliff or water
@@ -228,7 +228,7 @@ export class Military {
     }
     // road routing: head for the intersection that brings us closer to the player along the grid
     const px = roadIdx(real.x), pz = roadIdx(real.z);
-    if (!e.free && Math.hypot(roadC(e.ti) - e.x, roadC(e.tj) - e.z) < 2.2) {
+    if (!e.free && hyp(roadC(e.ti) - e.x, roadC(e.tj) - e.z) < 2.2) {
       e.ci = e.ti; e.cj = e.tj;
       const di = px - e.ci, dj = pz - e.cj;
       let ni = e.ci, nj = e.cj;
@@ -258,11 +258,11 @@ export class Military {
     e.sightT = (e.sightT || 0) - dt;
     if (e.sightT <= 0) { e.sightT = 0.25; e.sees = !e.leaving && dist < 110 && G.hasLOS(e.x, e.y + 2.4, e.z, real.x, G.bodyY(real), real.z); }
     // crush what is in the way
-    for (const v of G.vehicles) { if (v.dead || !v.pv) continue; const d = Math.hypot(v.x - e.x, v.z - e.z); if (d < 4.6 && e.speed > 1 && Math.abs(v.baseY() - e.y) < 2.5) { v.damage(260 * dt, e); v.awake = true; v.pv.body.wakeUp(); v.addImpulse((v.x - e.x) / (d || 1) * 6, 1.5, (v.z - e.z) / (d || 1) * 6); } }
-    for (const h of G.humans) { if (h.dead || h.rag) continue; if (Math.hypot(h.x - e.x, h.z - e.z) < 2.6 && e.speed > 1.5 && Math.abs((h.y || 0) - e.y) < 2) { h.hurt(999, e, false, null); } }
-    if (!pl.dead && !G.vehicle && Math.hypot(pl.x - e.x, pl.z - e.z) < 2.6 && e.speed > 1.5 && Math.abs(pl.y - e.y) < 2) G.hurtPlayer(35 * dt * 10, e, 'crush');
+    for (const v of G.vehicles) { if (v.dead || !v.pv) continue; const d = hyp(v.x - e.x, v.z - e.z); if (d < 4.6 && e.speed > 1 && Math.abs(v.baseY() - e.y) < 2.5) { v.damage(260 * dt, e); v.awake = true; v.pv.body.wakeUp(); v.addImpulse((v.x - e.x) / (d || 1) * 6, 1.5, (v.z - e.z) / (d || 1) * 6); } }
+    for (const h of G.humans) { if (h.dead || h.rag) continue; if (hyp(h.x - e.x, h.z - e.z) < 2.6 && e.speed > 1.5 && Math.abs((h.y || 0) - e.y) < 2) { h.hurt(999, e, false, null); } }
+    if (!pl.dead && !G.vehicle && hyp(pl.x - e.x, pl.z - e.z) < 2.6 && e.speed > 1.5 && Math.abs(pl.y - e.y) < 2) G.hurtPlayer(35 * dt * 10, e, 'crush');
     // dust and engine noise
-    const cd = Math.hypot(e.x - G.camera.position.x, e.z - G.camera.position.z);
+    const cd = hyp(e.x - G.camera.position.x, e.z - G.camera.position.z);
     if (e.speed > 2 && cd < 160) { e.dustT = (e.dustT || 0) - dt; if (e.dustT <= 0) { e.dustT = 0.15; G.smokeP.emit(e.x - Math.sin(e.h) * 3.5, e.y + 0.4, e.z - Math.cos(e.h) * 3.5, rand(-1, 1), rand(0.3, 1), rand(-1, 1), rand(1.2, 2.2), rand(1.5, 2.5), 0.3, 0.28, 0.24, 0.35, 0.1, 0.3); } }
     if (cd < 150) { e.rumT = (e.rumT || 0) - dt; if (e.rumT <= 0) { e.rumT = 0.16; G.audio.tone?.(38 + e.speed * 2 + Math.random() * 4, 0.12, 'sawtooth', clamp(1 - cd / 150, 0, 1) * 0.10, 30); } }
     if (!e.sees || e.leaving) return;
@@ -285,7 +285,7 @@ export class Military {
     const tx = real.x, ty = G.bodyY(real), tz = real.z, hit = Math.random() < hitChance && G.hasLOS(from.x, from.y, from.z, tx, ty, tz);
     const end = new THREE.Vector3(tx + (hit ? 0 : rand(-3, 3)), ty + (hit ? 0 : rand(-1.5, 0.5)), tz + (hit ? 0 : rand(-3, 3)));
     G.tracers.add(from, end, [1, 0.75, 0.3]);
-    const cd = Math.hypot(e.x - G.camera.position.x, e.z - G.camera.position.z);
+    const cd = hyp(e.x - G.camera.position.x, e.z - G.camera.position.z);
     G.audio.gun('rifle', 0.5 * clamp(1 - cd / 200, 0.15, 1), clamp((e.x - G.camera.position.x) * 0.01, -1, 1));
     if (hit) {
       if (G.vehicle) { G.vehicle.damage(dmg * 0.7, e); G.fx.sparks(end.x, end.y, end.z, 4, [1, 0.8, 0.4], 4); }
@@ -299,8 +299,8 @@ export class Military {
     const G = this.G, tgt = G.vehicle || G.player, ty = G.bodyY(tgt), vx = tgt.vx || 0, vz = tgt.vz || 0, shell = kind === 'shell';
     const v0 = shell ? 1100 : 40, acc = shell ? 0 : 500, vmax = shell ? 1100 : 600;
     const tof = (d) => { if (!acc) return d / v0; const tb = (vmax - v0) / acc, db = v0 * tb + acc * tb * tb / 2; return d <= db ? (Math.sqrt(v0 * v0 + 2 * acc * d) - v0) / acc : tb + (d - db) / vmax; };
-    let t = tof(Math.hypot(real.x - x, ty - y, real.z - z));
-    for (let k = 0; k < 2; k++) t = tof(Math.hypot(real.x + vx * t - x, ty - y, real.z + vz * t - z));
+    let t = tof(hyp3(real.x - x, ty - y, real.z - z));
+    for (let k = 0; k < 2; k++) t = tof(hyp3(real.x + vx * t - x, ty - y, real.z + vz * t - z));
     const tx = real.x + vx * t, tz = real.z + vz * t, err = shell ? 0.0015 : 0.006;
     const dir = new THREE.Vector3(tx - x, ty + 4.9 * t * t - y, tz - z).normalize();
     dir.x += rand(-err, err); dir.y += rand(-err, err); dir.z += rand(-err, err); dir.normalize();
@@ -321,7 +321,7 @@ export class Military {
       let hit = G.world.colliders.raycastT(prev.x, prev.y, prev.z, dx, dy, dz, len), at = hit >= 0 ? hit : len;
       const tg = G.groundHit(prev.x, prev.y, prev.z, dx, dy, dz, at); if (tg >= 0) { hit = tg; at = tg; }
       // the target: the path's closest approach to its chest, within 1.5 m
-      { const tc = clamp((tgt.x - prev.x) * dx + (ty - prev.y) * dy + (tgt.z - prev.z) * dz, 0, at); if (Math.hypot(prev.x + dx * tc - tgt.x, prev.y + dy * tc - ty, prev.z + dz * tc - tgt.z) < 1.5) { hit = tc; at = tc; } }
+      { const tc = clamp((tgt.x - prev.x) * dx + (ty - prev.y) * dy + (tgt.z - prev.z) * dz, 0, at); if (hyp3(prev.x + dx * tc - tgt.x, prev.y + dy * tc - ty, prev.z + dz * tc - tgt.z) < 1.5) { hit = tc; at = tc; } }
       for (const v of G.vehicles) { if (v.dead || !v.group.visible || Math.abs(v.x - prev.x) > len + 8 || Math.abs(v.z - prev.z) > len + 8) continue; const t = G.rayVehicle(v, prev.x, prev.y, prev.z, dx, dy, dz, at); if (t >= 0) { hit = t; at = t; } }
       if (hit >= 0 || s.life <= 0) {
         const px = hit >= 0 ? prev.x + dx * hit : s.p.x, py = hit >= 0 ? prev.y + dy * hit : s.p.y, pz = hit >= 0 ? prev.z + dz * hit : s.p.z;
@@ -354,7 +354,7 @@ export class Military {
   blast(x, y, z, radius, dmg, src) {
     for (const e of [...this.heli, ...this.tank]) {
       if (e.dead || e === src) continue;
-      const d = Math.hypot(e.x - x, (e.kind === 'heli' ? e.y : e.y + 1.5) - y, e.z - z); if (d > radius * 1.5) continue;
+      const d = hyp3(e.x - x, (e.kind === 'heli' ? e.y : e.y + 1.5) - y, e.z - z); if (d > radius * 1.5) continue;
       this.damage(e, dmg * (1 - d / (radius * 1.5)) * 1.4, src, false);
     }
   }

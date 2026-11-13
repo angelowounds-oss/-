@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildCar, CAR_SPECS, idMark, disposeOwned } from './models.js';
 import { N, R, LANE, roadC, roadIdx, hasEdge } from './world.js';
-import { clamp, lerp, damp, angDiff, rand, stopSpeed } from './util.js';
+import { clamp, lerp, damp, angDiff, rand, stopSpeed, hyp, hyp3 } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { physHeight } from './landfn.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
@@ -80,13 +80,13 @@ export class Vehicle {
       const back = new THREE.Matrix4().copy(inv).invert(); let ch = false;
       for (let i = 0; i < pos.count; i++) {
         v.fromBufferAttribute(pos, i).applyMatrix4(inv);
-        const dx = v.x - lp.x, dz = v.z - lp.z, d = Math.hypot(dx, dz); if (d > r || v.y < 0.25) continue;
+        const dx = v.x - lp.x, dz = v.z - lp.z, d = hyp(dx, dz); if (d > r || v.y < 0.25) continue;
         const f = (1 - d / r) * amt;   // by where the vertex is, never by its number: vertices that share a place (the body is not indexed) moved by different amounts and tore it into shards
-        const l = Math.hypot(v.x, v.z) || 1; v.x -= v.x / l * f; v.z -= v.z / l * f; v.y -= f * 0.15;
+        const l = hyp(v.x, v.z) || 1; v.x -= v.x / l * f; v.z -= v.z / l * f; v.y -= f * 0.15;
         v.applyMatrix4(back);
         // the crumple has a depth: a vertex is never more than 0.5 m from where it was drawn (an 878 km/h crash dented it 25 times and the vertices went through the
         // axis and onto each other: triangles of no area, vertex normals of length 0, and a NaN pixel for each in the lighting)
-        const o0 = m.userData.dentPos, ox = o0[i * 3], oy = o0[i * 3 + 1], oz = o0[i * 3 + 2], ex = v.x - ox, ey = v.y - oy, ez = v.z - oz, el = Math.hypot(ex, ey, ez);
+        const o0 = m.userData.dentPos, ox = o0[i * 3], oy = o0[i * 3 + 1], oz = o0[i * 3 + 2], ex = v.x - ox, ey = v.y - oy, ez = v.z - oz, el = hyp3(ex, ey, ez);
         if (el > 0.5) { const k = 0.5 / el; v.x = ox + ex * k; v.y = oy + ey * k; v.z = oz + ez * k; }
         if (pos.normalized) { v.x = Math.max(-1, Math.min(1, v.x)); v.y = Math.max(-1, Math.min(1, v.y)); v.z = Math.max(-1, Math.min(1, v.z)); }   // a 16-bit position past its range wraps to the other side of the part
         pos.setXYZ(i, v.x, v.y, v.z); ch = true;
@@ -102,7 +102,7 @@ export class Vehicle {
   doorFx() { if (this.spec.craft || this.type === 'moto' || this.type === 'bus') return; this.doorT = 1.3; this.model.group.updateMatrixWorld(); if (!this.doorMesh) { const pv = new THREE.Group(); pv.position.set(this.W / 2, 0.8, 0.55); const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 1.1), new THREE.MeshStandardMaterial({ color: 0x2c3448, roughness: 0.3, metalness: 0.7 })); m.position.set(0.02, 0, -0.55); pv.add(m); this.group.add(pv); this.doorMesh = pv; } this.G.audio.door?.(); }
   animDoor(dt) { if (!this.doorMesh) return; if (this.doorT > 0) { this.doorT -= dt; const k = Math.sin(Math.min(1, (1.3 - this.doorT) / 0.35) * Math.PI / 2) * (this.doorT > 0.35 ? 1 : this.doorT / 0.35); this.doorMesh.rotation.y = k * 1.15; this.doorMesh.visible = true; } else this.doorMesh.visible = false; }
   place(x, z, h) { this.x = x; this.z = z; this.h = h; this.vx = this.vz = 0; this.yaw = 0; if (this.pv) { this.syncToBody(); this.readBody(0); } this.syncMesh(); }
-  get speed() { return this.spec.craft === 'jet' && this.jetS != null ? this.jetS : Math.hypot(this.vx, this.vz); }
+  get speed() { return this.spec.craft === 'jet' && this.jetS != null ? this.jetS : hyp(this.vx, this.vz); }
   get fwdSpeed() { return this.vx * Math.sin(this.h) + this.vz * Math.cos(this.h); }
   circles(out) {
     const s = Math.sin(this.h), c = Math.cos(this.h), r = this.W * 0.5 * 0.95, o = this.L * 0.3;
@@ -258,7 +258,7 @@ export class Vehicle {
     const sH = Math.sin(this.h), cH = Math.cos(this.h);
     const vf = this.vx * sH + this.vz * cH, vl = this.vx * -cH + this.vz * sH;
     // impact = sudden planar velocity loss that engines/brakes cannot explain
-    const isJet = this.spec.craft === 'jet', jet = isJet && this.cmdV, dv = jet ? Math.hypot(this.vx - this.cmdV.x, this.vz - this.cmdV.z, (this.vy || 0) - this.cmdV.y) : isJet ? 0 : Math.hypot(this.vx - pvx, this.vz - pvz);   // aircraft: an impact is what the world took from the commanded velocity (hypersonic ones are swept by ray in stepJet)
+    const isJet = this.spec.craft === 'jet', jet = isJet && this.cmdV, dv = jet ? hyp3(this.vx - this.cmdV.x, this.vz - this.cmdV.z, (this.vy || 0) - this.cmdV.y) : isJet ? 0 : hyp(this.vx - pvx, this.vz - pvz);   // aircraft: an impact is what the world took from the commanded velocity (hypersonic ones are swept by ray in stepJet)
     // a teleport (recovery, a test's reset) sets the velocity outright: that speed change is no crash for the next two frames (noImpact)
     if (this.noImpact > 0) this.noImpact--;
     else if (dt > 0 && dv > (jet ? 8 : 2.6 + this.spec.accel * dt * 0.6)) {
@@ -325,7 +325,7 @@ export class Vehicle {
     if (!w || sub < 0.15 || this.by == null) { this.inWater = 0; this.floatT = Math.max(0, (this.floatT || 0) - dt * 0.5); this.floodT = Math.max(0, (this.floodT || 0) - dt * 0.2); this.drownT = 0; return; }
     if (this.phys.rayT(this.x, this.by + 1, this.z, 0, 1, 0, 12, 1) >= 0) { this.inWater = 0; return; }   // covered: not open water
     this.inWater = sub;
-    const b = this.pv.body, lv = b.linvel(), m = this.pv.mass, sp = Math.hypot(lv.x, lv.z);
+    const b = this.pv.body, lv = b.linvel(), m = this.pv.mass, sp = hyp(lv.x, lv.z);
     // the bow wave of a vehicle driven through water: 0.5 rho Cd A v^2 on the immersed front (water 1000 kg/m^3)
     if (sp > 0.3) { const F = 0.5 * 1000 * 0.35 * this.W * Math.min(sub, 0.9) * sp * sp, k = Math.min(F * dt / m, sp * 0.8) / sp; b.applyImpulse({ x: -lv.x * k * m, y: 0, z: -lv.z * k * m }, true); }
     if (sub > 0.55) this.floodT = (this.floodT || 0) + dt; else this.floodT = Math.max(0, (this.floodT || 0) - dt * 0.2);
@@ -391,7 +391,7 @@ export class Vehicle {
       const goal = this.police ? this.chaseTarget : this.dest;
       if (goal) {
         const tx = goal.x, tz = goal.z; let best = 1e9;
-        for (const o of opts) { const d = Math.hypot(roadC(ni + o[0]) - tx, roadC(nj + o[1]) - tz) + (o[0] === -di && o[1] === -dj ? 200 : 0) - (o[0] === di && o[1] === dj ? 3 : 0); if (d < best) { best = d; pick = o; } }
+        for (const o of opts) { const d = hyp(roadC(ni + o[0]) - tx, roadC(nj + o[1]) - tz) + (o[0] === -di && o[1] === -dj ? 200 : 0) - (o[0] === di && o[1] === dj ? 3 : 0); if (d < best) { best = d; pick = o; } }
       } else {
         let t = Math.random() * opts.reduce((s, o) => s + o[2], 0);
         for (const o of opts) { t -= o[2]; if (t <= 0) { pick = o; break; } }
@@ -430,7 +430,7 @@ export class Vehicle {
     // direct chase for police near target
     let tx, tz;
     if (this.dest && !this.police) {
-      const dd = Math.hypot(this.dest.x - this.x, this.dest.z - this.z);
+      const dd = hyp(this.dest.x - this.x, this.dest.z - this.z);
       if (dd < 22 && G.hasLOS(this.x, this.by ?? 1.2, this.z, this.dest.x, (this.by ?? 1.2) + 0.2, this.dest.z)) this.directDest = true;
       if (this.directDest) { tx = this.dest.x; tz = this.dest.z; target = Math.min(ai.speed, stopSpeed(dd - 6, 3.5)); if (dd < 8) { this.arrived = true; target = 0; } }
     }
@@ -441,12 +441,12 @@ export class Vehicle {
       if (!ai.wp.length) this.planAhead();
       let wp = ai.wp[0];
       // passed waypoints are dropped, at most 64 a frame (a planner that keeps handing out points next to the car must not hang the frame)
-      for (let g = 0; wp && g < 64 && Math.hypot(wp.x - this.x, wp.z - this.z) < 5.5; g++) { ai.wp.shift(); wp = ai.wp[0]; if (ai.wp.length < 3) this.planAhead(); }
+      for (let g = 0; wp && g < 64 && hyp(wp.x - this.x, wp.z - this.z) < 5.5; g++) { ai.wp.shift(); wp = ai.wp[0]; if (ai.wp.length < 3) this.planAhead(); }
       if (!wp) { this.planAhead(); wp = ai.wp[0]; }
       if (!wp) wp = { x: this.x + sH * 20, z: this.z + cH * 20, speed: 0 };   // a planner with nothing to give (the end of a highway): stand still until it is recycled
       // look ahead further for smoother lane following
       const wp2 = ai.wp[1] || wp;
-      const d1 = Math.hypot(wp.x - this.x, wp.z - this.z);
+      const d1 = hyp(wp.x - this.x, wp.z - this.z);
       const k = clamp(1 - d1 / 14, 0, 0.6);
       tx = lerp(wp.x, wp2.x, k); tz = lerp(wp.z, wp2.z, k);
       target *= wp.speed;

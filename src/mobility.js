@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { keys as binds } from './keys.js';
-import { dampAngle } from './util.js';
+import { dampAngle, hyp3 } from './util.js';
 
 // Movement gear: grappling hook (fire at any wall / roof edge, the winch reels you in, swing on the rope, jump off) and
 // a ram-air parachute (deploy while falling, steer with the camera, W/S to dive/flare, Z to cut away).
@@ -48,7 +48,7 @@ export class Mobility {
     const hit = G.phys.ray(o.x, o.y, o.z, d.x, d.y, d.z, RANGE + 8, WORLD);
     G.audio.tone?.(1300, 0.06, 'square', 0.06, 500); G.audio.noiseShot?.(0.18, 'highpass', 2500, 0.18, 1);
     const ax = o.x + d.x * (hit ? hit.t : RANGE), ay = o.y + d.y * (hit ? hit.t : RANGE), az = o.z + d.z * (hit ? hit.t : RANGE);
-    const dist = Math.hypot(ax - pl.x, ay - (pl.y + 1.3), az - pl.z);
+    const dist = hyp3(ax - pl.x, ay - (pl.y + 1.3), az - pl.z);
     if (!hit || dist > RANGE || dist < 2.5 || (hit.ref && hit.ref.tag === 'glass')) { this.miss = { x: ax, y: ay, z: az, t: 0 }; return; }
     this.grap = { x: ax, y: ay, z: az, nx: hit.nx, ny: hit.ny, nz: hit.nz, L: dist, t: 0, stuck: 0 };
     G.noise?.(pl.x, pl.z, 8);
@@ -67,19 +67,19 @@ export class Mobility {
     vy -= 9.81 * dt;
     vx += dx * mag * 6 * dt; vz += dz * mag * 6 * dt;                     // pump the swing
     const px = pl.x, py = pl.y + 1.25, pz = pl.z;
-    let rx = px - g.x, ry = py - g.y, rz = pz - g.z; const d = Math.hypot(rx, ry, rz) || 1; rx /= d; ry /= d; rz /= d;
+    let rx = px - g.x, ry = py - g.y, rz = pz - g.z; const d = hyp3(rx, ry, rz) || 1; rx /= d; ry /= d; rz /= d;
     if (d > g.L - 0.05) {
       // taut rope: no outward speed, and the winch pulls in at up to REEL m/s
       const vr = vx * rx + vy * ry + vz * rz, want = -Math.min(REEL, (d - g.L) * 6 + (g.hold ? 0 : 3));
       if (vr > want) { vx += rx * (want - vr); vy += ry * (want - vr); vz += rz * (want - vr); }
     }
     if (c3.grounded && g.y > pl.y + 1.5) vy = Math.max(vy, 3.5);           // lift off the ground
-    const s = Math.hypot(vx, vy, vz); if (s > MAXV) { vx *= MAXV / s; vy *= MAXV / s; vz *= MAXV / s; }
+    const s = hyp3(vx, vy, vz); if (s > MAXV) { vx *= MAXV / s; vy *= MAXV / s; vz *= MAXV / s; }
     const m = c3.moveVel(dt, vx, vy, vz);
     pl.vx = m.x; pl.vz = m.z; pl.vy = c3.vy;
     // stuck behind something: let go after a moment
-    const nd = Math.hypot(pl.x - g.x, pl.y + 1.25 - g.y, pl.z - g.z);
-    g.stuck = Math.hypot(m.x, m.y, m.z) < 1 && !g.hold ? g.stuck + dt : 0;
+    const nd = hyp3(pl.x - g.x, pl.y + 1.25 - g.y, pl.z - g.z);
+    g.stuck = hyp3(m.x, m.y, m.z) < 1 && !g.hold ? g.stuck + dt : 0;
     if (g.stuck > 0.9 || (g.t > 10 && !g.hold)) { this.release(); return; }
     if (nd < 1.8 && !g.hold) this.arrive();
   }
@@ -156,7 +156,7 @@ export class Mobility {
     if (tip && !pl.dead) {
       pl.m.hand.getWorldPosition(this.hand);
       const ex = this.hand.x + (tip.x - this.hand.x) * k, ey = this.hand.y + (tip.y - this.hand.y) * k, ez = this.hand.z + (tip.z - this.hand.z) * k;
-      const len = Math.hypot(ex - this.hand.x, ey - this.hand.y, ez - this.hand.z);
+      const len = hyp3(ex - this.hand.x, ey - this.hand.y, ez - this.hand.z);
       const sag = this.grap ? Math.max(0, (this.grap.L - len) * 0.3) + (k < 1 ? 0 : 0) : slack;
       for (let i = 0; i < ROPE_PTS; i++) {
         const s = i / (ROPE_PTS - 1);

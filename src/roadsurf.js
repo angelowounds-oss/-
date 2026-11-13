@@ -44,13 +44,14 @@ function lowIn(T, o, x0, z0, x1, z1) {
 }
 
 // register the top triangles of road piece `id` (replacing what it had): P flat x, y, z in world metres, I triangle indices into it (or null: P is
-// a plain list of triangles); `filter(t)` may leave triangle t out (a tunnel's floor is under the ground on purpose)
-export function add(id, P, I = null, filter = null) {
+// a plain list of triangles); `filter(t)` may leave triangle t out (a tunnel's floor is under the ground on purpose); (ox, oz) is added to P's x and z
+// when P is about a point of its own (a mesh built about its first point, EV-04)
+export function add(id, P, I = null, filter = null, ox = 0, oz = 0) {
   if (ids.has(id)) remove(id);
   const nt = I ? I.length / 3 : P.length / 9, T = []; let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (let t = 0; t < nt; t++) {
     if (filter && !filter(t)) continue;
-    for (let v = 0; v < 3; v++) { const p = I ? I[t * 3 + v] * 3 : t * 9 + v * 3; T.push(P[p], P[p + 1], P[p + 2]); }
+    for (let v = 0; v < 3; v++) { const p = I ? I[t * 3 + v] * 3 : t * 9 + v * 3; T.push(P[p] + ox, P[p + 1], P[p + 2] + oz); }
   }
   if (!T.length) return;
   const TT = new Float32Array(T), cells = [], n = TT.length / 9;

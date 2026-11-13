@@ -164,7 +164,10 @@ export class Router {
       // the right-hand lane: on a highway 7.2 m right of the median line; on a compiled one-way line its outer lane, on a two-way line the first lane right of the centre
       // a fitted street (src/carriage.js) keeps its narrower lanes: the car runs in the middle of the lane that is drawn
       const C = art ? carriage(r) : null, off = !art ? 7.2 : r.fit ? (C.two ? 0.12 + C.lane / 2 : C.half - C.edge - C.lane / 2) : r.oneway ? C.half - 2.4 - LANE_W / 2 : 0.12 + LANE_W / 2;
-      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1, r.y ? r.y[G.ix[id]] : undefined, !!(r.cls && r.cls[G.ix[id]] === 2)]);   // [3]: the road's surface height (a ride follows it over viaducts and through cuttings); [4]: in a tunnel
+      // [5]: the room for lanes outside the route's lane (an overtake to the outer side stays on the carriageway): a compiled one-way line's route
+      // runs in its outer lane, and the outer overtake put the car on the 2.4 m shoulder, into the edge barrier at 107 km/h (서울외곽순환선, region-drive)
+      const outer = !art ? LANE_W : C.two ? (C.n - 1) * (r.fit ? C.lane : LANE_W) : 0;
+      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1, r.y ? r.y[G.ix[id]] : undefined, !!(r.cls && r.cls[G.ix[id]] === 2), outer]);   // [3]: the road's surface height (a ride follows it over viaducts and through cuttings); [4]: in a tunnel
     }
     const last = nodes[nodes.length - 1]; pts.push([x1, z1, 0]);
     // the way in: street leg from the graph end to the destination (reversed use of the same helper)
@@ -176,10 +179,10 @@ export class Router {
     for (let i = 0; i < pts.length - 1; i++) {
       const A = pts[i], B = pts[i + 1], d = Math.hypot(B[0] - A[0], B[1] - A[1]), n = Math.max(1, Math.ceil(d / 25));
       const yAB = A[3] != null && B[3] != null;   // a height only between two road samples (a street leg has none: the ground there)
-      for (let k = 0; k < n; k++) out.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n, A[2], yAB ? A[3] + (B[3] - A[3]) * k / n : k === 0 ? A[3] : undefined, !!A[4] && (k === 0 || !!B[4])]);
+      for (let k = 0; k < n; k++) out.push([A[0] + (B[0] - A[0]) * k / n, A[1] + (B[1] - A[1]) * k / n, A[2], yAB ? A[3] + (B[3] - A[3]) * k / n : k === 0 ? A[3] : undefined, !!A[4] && (k === 0 || !!B[4]), Math.min(A[5] ?? 0, B[5] ?? 0)]);   // [5]: the narrower room of the two ends
       len += d;
     }
-    out.push(pts[pts.length - 1]);
+    const e = pts[pts.length - 1]; out.push([e[0], e[1], e[2], e[3], !!e[4], e[5] ?? 0]);   // the end as the others: [5] set (no room: a street end)
     return { pts: out, length: len, straight: false };
   }
 }
@@ -205,7 +208,9 @@ export class AutoNav {
     let want = this.latT || 0;
     if (!cls || exitAhead) want = 0;
     else if (this.laneT <= 0) {
-      const opts = blocked ? [want + LANE_W, want - LANE_W].filter((q) => Math.abs(q) <= LANE_W + 0.01) : want ? [0] : [];
+      // the outer side only as far as there are lanes there (route point [5]): beyond them lie the shoulder and the barrier
+      const room = Math.min(P[this.i][5] ?? 0, P[Math.min(P.length - 1, this.i + 6)][5] ?? 0);
+      const opts = blocked ? [want + LANE_W, want - LANE_W].filter((q) => Math.abs(q) <= LANE_W + 0.01 && q >= -room - 0.01) : want ? [0] : [];
       for (const q of opts) if (this.laneClear(v, q - (this.lat || 0), lookO)) { want = q; this.laneT = 3; break; }
     }
     this.latT = want;

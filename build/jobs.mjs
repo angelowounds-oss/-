@@ -17,7 +17,14 @@ export const RUN = {
   // the coarse world, the road network and the city layouts: what the page used to generate at start-up
   async core() {
     const [{ world }, { net }, { layouts }] = await Promise.all([imp('src/worldmap.js'), imp('src/roadnet.js'), imp('src/citylayout.js')]);
-    return { world: world(), net: net(), layouts: layouts(), region: globalThis.__REGION, regions: globalThis.__REGIONS };
+    // the regions without their rasters (EV-01, build/regtiles.mjs): those are the 'reg' tiles the page streams
+    const { regionMeta } = await imp('build/regtiles.mjs');
+    return { world: world(), net: net(), layouts: layouts(), region: regionMeta(globalThis.__REGION), regions: globalThis.__REGIONS.map(regionMeta) };
+  },
+  // one raster tile of one region (EV-01, src/regtile.js): heights, water class and level of its 129 x 129 samples
+  async reg(j) {
+    const { cutTile } = await imp('src/regtile.js'), R = [globalThis.__REGION, ...globalThis.__REGIONS].find((q) => q && q.name === j.name);
+    return cutTile(R, j.ti, j.tj);
   },
   // one tile of baked ground (heightmap.js): the ground of landfn.js on the tile's grid; the physics layer only when it differs (bridges, tunnels)
   async tile(j) {
