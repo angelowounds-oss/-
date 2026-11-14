@@ -460,6 +460,9 @@ export class Vehicle {
         if (G.power && G.power.offAt(roadC(wp.stopFor[0]), roadC(wp.stopFor[1]))) { if (dist < 26) target = Math.min(target, 5.5); }
         else if (st !== 'G' && dist < 12 + vf * vf / 6 && !(st === 'Y' && dist < vf * 1.4)) target = Math.min(target, stopSpeed(dist - 3, 3.5));   // stopping at the line at a driver's 3.5 m/s^2
       }
+      // a signal on a compiled street (hwtraffic.js signals, EV-21): brake to stand 2 m short of the stop line, planned at 2.8 m/s^2 so the
+      // car's lag behind its target speed (it overran the line by half a metre planned at 3.5) still leaves it short; one over it stays put
+      if (ai.hold && !this.police) { const dist = (ai.hold.x - this.x) * sH + (ai.hold.z - this.z) * cH; target = Math.min(target, dist > 2 ? stopSpeed(dist - 2, 2.8) : 0); }
       if (this.police) target = Math.max(target, 18 * wp.speed);
     }
     // obstacle ahead
@@ -472,7 +475,7 @@ export class Vehicle {
       const along = dx * sH + dz * cH;
       if (along < 1 || along > look + o.L * 0.5) continue;
       const lat = Math.abs(dx * cH - dz * sH);
-      if (lat < (this.W + o.W) * 0.5 + 0.5) { const gap = along - o.L * 0.5 - this.L * 0.5 - 2.5; target = Math.min(target, gap > 0 ? stopSpeed(gap, 5, o.speed) : Math.min(o.speed * 0.5, 1)); /* slows to the car ahead's speed within the gap */ if (along < 6 && ai.honk <= 0 && Math.random() < 0.01) { ai.honk = 4; G.audio.horn?.(); } }
+      if (lat < (this.W + o.W) * 0.5 + 0.5) { const gap = along - o.L * 0.5 - this.L * 0.5 - 2.5, os = Math.max(0, o.speed), keep = gap - os * 1.3; target = Math.min(target, gap <= 0 ? Math.min(os * 0.5, 1) : keep > 0 ? stopSpeed(keep, 5, os) : Math.max(0, os + keep * 0.4)); /* EV-22: keeps 1.3 s behind the car ahead (it kept 2.5 m at any speed: half the headways were under 0.5 s), easing back when closer */ if (along < 6 && ai.honk <= 0 && Math.random() < 0.01) { ai.honk = 4; G.audio.horn?.(); } }
     }
     const hl = G.humans;
     for (let hi = 0; hi < hl.length; hi++) {
@@ -496,7 +499,10 @@ export class Vehicle {
     this.steer = clamp(-err * 1.8, -1, 1);
     // speed control
     const dv = target - vf;
-    if (dv > 0.5) { this.throttle = clamp(dv * 0.35, 0, 1); this.brake = 0; }
+    // told to stand (a red light, a stopped car ahead): brake down to a standstill, then let go of both pedals so the engine's standstill drag
+    // holds it (the brake held at a standstill is reverse, physics.js driveVehicle); the dead band's 0.12 throttle crept it on past the stop line
+    if (target < 0.3) { this.throttle = 0; this.brake = vf > 0.3 ? clamp(0.3 + vf * 0.3, 0, 1) : 0; }
+    else if (dv > 0.5) { this.throttle = clamp(dv * 0.35, 0, 1); this.brake = 0; }
     else if (dv < -0.5) { this.throttle = 0; this.brake = clamp(-dv * 0.3, 0, 1); }
     else { this.throttle = 0.12; this.brake = 0; }
     this.hand = this.police && this.direct && Math.abs(err) > 0.9 && vf > 12;

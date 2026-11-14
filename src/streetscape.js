@@ -8,6 +8,7 @@ import { GR, grp } from './physics.js';
 import { SignAtlas, PLATE } from './signatlas.js';
 import { decodeTile, trims, radiusOf, signalGroups, signalState, crossingSpan, signalFoot, hasSignal, TILE, TILE_OFF as OFF } from './streetgeo.js';
 import { localPoints } from './physorigin.js';
+import { carriage } from './carriage.js';
 
 // The street furniture of the capital region (WLD-24g): pavements with kerbs, rounded kerb corners at junctions, zebra crossings and stop lines, signal poles whose
 // lamps follow a timed cycle, street lamps and trees. The baked chunk `str/<ti>_<tj>` (build/world/streets.mjs) says only where: junctions with their arms and
@@ -84,8 +85,8 @@ class Geo {
 
 // ---- one tile built a slice at a time
 class TileBuild {
-  constructor(key, ti, tj, chunk, lines, atlas = null) {
-    this.key = key; this.ti = ti; this.tj = tj; this.chunk = chunk; this.lines = lines; this.atlas = atlas;
+  constructor(key, ti, tj, chunk, lines, atlas = null, nearRoad = null) {
+    this.key = key; this.ti = ti; this.tj = tj; this.chunk = chunk; this.lines = lines; this.atlas = atlas; this.nearRoad = nearRoad;   // nearRoad(x, z, fn): fn(r, i) for each street sample near (hwtraffic samplesNear)
     this.T = { p: [], n: [], uv: [], i: [] }; this.names = [];   // the road name plates (textured from the shared atlas) and the names they hold
     this.ox = (ti - OFF) * TILE + TILE / 2; this.oz = (tj - OFF) * TILE + TILE / 2;
     this.S = new Geo(this.ox, this.oz); this.M = new Geo(this.ox, this.oz); this.G = new Geo(this.ox, this.oz);   // solid things, markings, glow
@@ -138,6 +139,28 @@ class TileBuild {
     const T = this.top, k = T.p.length / 3; for (const q of [a, b, c]) T.p.push(q[0], q[1], q[2]); T.i.push(k, k + 1, k + 2);
   }
 
+  // a pole's foot off every carriageway: an arm's axis can run beside its street's own centre line (a junction centre off the road's line), and the foot put
+  // half a carriageway out from the axis then stood in a lane (AI cars ran into it at the stop line). Each street segment near the foot whose kerb +0.5 m it is
+  // inside pushes it out to 0.9 m past that kerb, straight away from the centre line (along (fx, fz), the side the foot was put on, when it is on the line)
+  offLane(x, z, fx, fz) {
+    const near = this.nearRoad; if (!near) return [x, z];
+    for (let pass = 0; pass < 4; pass++) {
+      let worst = null;
+      near(x, z, (r, i) => {
+        for (const k of [i - 1, i]) {
+          if (k < 0 || k + 1 >= r.x.length) continue;
+          const ax = r.x[k], az = r.z[k], ex = r.x[k + 1] - ax, ez = r.z[k + 1] - az, l2 = ex * ex + ez * ez || 1, t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2));
+          const px = ax + ex * t, pz = az + ez * t, d = Math.hypot(x - px, z - pz), half = carriage(r).half, need = half + 0.5 - d;
+          if (need > 0 && (!worst || need > worst.need)) worst = { need, px, pz, d, half };
+        }
+      });
+      if (!worst) break;
+      let ux = x - worst.px, uz = z - worst.pz; if (worst.d < 0.05) { ux = fx; uz = fz; } const ul = Math.hypot(ux, uz) || 1;
+      x = worst.px + (ux / ul) * (worst.half + 0.9); z = worst.pz + (uz / ul) * (worst.half + 0.9);
+    }
+    return [x, z];
+  }
+
   // ---- a junction: rounded kerb corners (asphalt filling the corner, pavement outside the arc), crossings, stop lines, signals
   junction(j) {
     const arms = j.arms, n = arms.length, R = radiusOf(arms), { corners } = trims(arms, R), gr = j.signal ? signalGroups(arms) : null, phase = hash(Math.round(j.x), Math.round(j.z));
@@ -180,7 +203,7 @@ class TileBuild {
       if (a.mark) this.approach(j, a, s0 + len + 0.5);
       // a signal pole on the pavement at the arrival side, with an arm over the lanes and a head facing the traffic
       if (hasSignal(j, a)) {
-        const sp = s0 + len * 0.5, foot = signalFoot(a), px = j.x + foot[0], pz = j.z + foot[1], y0 = this.roadY(px, pz, j.y) + KERB;
+        const sp = s0 + len * 0.5, foot = signalFoot(a), [px, pz] = this.offLane(j.x + foot[0], j.z + foot[1], dz, -dx), y0 = this.roadY(px, pz, j.y) + KERB;
         this.S.box(px, y0 + 3.1, pz, dx, dz, 0.07, 0.07, 3.2, POLE);
         const tipLat = -(half * 0.45), tx = j.x + dx * sp + nx * tipLat, tz = j.z + dz * sp + nz * tipLat, ax = (px + tx) / 2, az = (pz + tz) / 2, al = Math.hypot(tx - px, tz - pz) / 2, ux = (tx - px) / (2 * al || 1), uz = (tz - pz) / (2 * al || 1);
         this.S.box(ax, y0 + 5.9, az, ux, uz, al, 0.05, 0.05, POLE);
@@ -423,6 +446,7 @@ export class Streetscape {
   constructor(scene, phys, G, wd = globalThis.__WORLD) {
     this.scene = scene; this.phys = phys; this.G = G; this.wd = wd; this.tiles = new Map(); this.index = new Map(); this.jobs = []; this.t = 0; this.last = -9; this.lastCol = -9;
     this.lines = regionRoads();
+    this.nearRoad = (x, z, fn) => G?.hwtraffic?.samplesNear(x, z, 30, fn);   // street samples around a pole's foot (TileBuild.offLane; the traffic is made after this)
     const high = globalThis.__DETAIL === 'high', simple = !!G?.eng?.q?.simple;
     this.R = simple ? 400 : high ? 1000 : 700;   // how far tiles are drawn (a lamp or a kerb beyond this is only a speck in the fog)
     this.RC = 70;                                  // how close poles, trunks and the pavement are solid
@@ -470,7 +494,7 @@ export class Streetscape {
       for (const { e } of want) {
         const id = e.ti * 4096 + e.tj; keep.add(id); if (this.tiles.has(id)) continue;
         const rec = { e, state: 'loading', meshes: null, col: null, solid: new Map() }; this.tiles.set(id, rec);
-        this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk, this.lines, this.atlas); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('streetscape', e.key, err); });
+        this.wd.get(e.key).then((chunk) => { if (this.tiles.get(id) !== rec) return; rec.chunk = chunk; rec.state = 'building'; const b = new TileBuild(e.key, e.ti, e.tj, chunk, this.lines, this.atlas, this.nearRoad); rec.build = b; this.jobs.push(b); }, (err) => { rec.state = 'failed'; console.warn('streetscape', e.key, err); });
       }
       for (const [id, rec] of this.tiles) {
         const cx = (rec.e.ti - OFF) * TILE + TILE / 2, cz = (rec.e.tj - OFF) * TILE + TILE / 2, d = Math.hypot(focus.x - cx, focus.z - cz);

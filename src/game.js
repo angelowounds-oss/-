@@ -31,6 +31,7 @@ import { Aviation } from './aviation.js';
 import { CityRules } from './cityrules.js';
 import { Ships } from './ships.js';
 import { HighwayTraffic } from './hwtraffic.js';
+import { StreetWalk } from './streetwalk.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
 import { clamp, lerp, damp, dampAngle, rand, el, TAU, hyp, hyp3 } from './util.js';
@@ -184,7 +185,7 @@ export class Game {
     this.citizens = new Citizens(this);
     this.memory = new Memory(this);
     this.power = new Power(this);
-    this.breach = new Breach(this); this.military = new Military(this); this.war = new War(this); this.hwtraffic = this.highways ? new HighwayTraffic(this) : null; this.fire = new Fire(this); this.blaze = new Blaze(this);
+    this.breach = new Breach(this); this.military = new Military(this); this.war = new War(this); this.hwtraffic = this.highways ? new HighwayTraffic(this) : null; this.streetwalk = this.hwtraffic ? new StreetWalk(this) : null; this.fire = new Fire(this); this.blaze = new Blaze(this);
     this.eng.onTier = (q) => this.world.setSimple?.(!!q.simple); this.eng.onTier(this.eng.q);   // the tier's detail switches (LOW: simple facades)
     this.carRider = new CarRider(this);
     this.sandbox = new Sandbox(this);
@@ -490,7 +491,7 @@ export class Game {
   stageWorld(sdt, dt) {
     this.autosave = (this.autosave || 0) + sdt; if (this.autosave > 30) { this.autosave = 0; this.save(); }
     if (!this.riding) { const f = this.vehicle || this.player; this.buildings.update(sdt, f.x, f.z, f.y || 0); this.updateIndoor(); }   // (not while riding: opening buildings along the way is wasted work)
-    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); if (!this.riding) this.hwtraffic?.update(sdt); this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
+    this.citizens.update(sdt); this.memory.update(sdt); this.power.update(sdt); this.mobility.update(dt); this.breach.update(dt); this.military.update(sdt); this.war.update(sdt); if (!this.riding) { this.hwtraffic?.update(sdt); this.streetwalk?.update(sdt); } this.fire.update(sdt); this.blaze.update(sdt); this.sandbox.update(dt);
     this.updatePickups(sdt);
     this.updateAmbient(sdt);
   }
@@ -1581,6 +1582,8 @@ export class Game {
       const vis = d < 130; h.group.visible = vis && !h.hidden;
       if (!vis && h.team === 'civ' && !h.dead) { // cheap
         if (h.node && !h.knock) { const [tx, tz] = h.nodePos(h.node); const dx = tx - h.x, dz = tz - h.z, dd = hyp(dx, dz); if (dd < 1.4) h.chooseNext(); else { h.x += dx / dd * 1.5 * dt; h.z += dz / dd * 1.5 * dt; } }
+        // walkers with their own steering (street walkers, other cities' street life) have no node: they stood frozen out of sight before
+        else if (h.steerFn && !h.knock) { const r = h.steerFn(h, dt); if (r && r.s) { h.x += r.x * r.s * dt; h.z += r.z * r.s * dt; } }
         continue;
       }
       // calm civilians beyond the body draw distance (75 m, see Human.animateSkinned) think at a third of the rate (dt accumulated), staggered

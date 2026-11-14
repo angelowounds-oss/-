@@ -3,6 +3,7 @@ import { Vehicle, CAR_COLORS } from './vehicle.js';
 import { Human } from './human.js';
 import { clamp, rand, hyp } from './util.js';
 import { carriage, innerEdge } from './carriage.js';
+import { signalState } from './streetgeo.js';
 
 // Life on the highways: AI traffic that follows the lanes (a pool around the player, recycled when it falls behind), attendants at toll plazas and
 // service areas, and road-side events (an accident, road works, a police checkpoint) at fixed places along the roads (a hash of road and
@@ -40,6 +41,13 @@ export class HighwayTraffic {
     let best = null, bd = max * max;
     for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const G = N.grid, c = G.ix.get(cx * 100003 + cz); if (c === undefined) continue; for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) { const g = G.seg[q], ri = G.segRoad[g], r = N.roads[ri]; if (r.kind === 'ramp' || r.alley || (r.kind === 'arterial' && !local && LOCAL[r.hw])) continue; /* no car is put in an alley */ const i = g - G.seg0[ri], d = (r.x[i] - x) ** 2 + (r.z[i] - z) ** 2; if (d < bd) { bd = d; best = { r, i, d: Math.sqrt(d) }; } } }
     return best;
+  }
+
+  // every street sample within max of (x, z), alleys and ramps included: things that must stand off every carriageway (streetscape offLane) check them all,
+  // since the one nearest sample can be a crossing street while the thing stands in another's lane
+  samplesNear(x, z, max, fn) {
+    const N = this.N, CS = N.CS, c0 = Math.floor((x - max) / CS), c1 = Math.floor((x + max) / CS), d0 = Math.floor((z - max) / CS), d1 = Math.floor((z + max) / CS), m2 = max * max;
+    for (let cx = c0; cx <= c1; cx++) for (let cz = d0; cz <= d1; cz++) { const G = N.grid, c = G.ix.get(cx * 100003 + cz); if (c === undefined) continue; for (let q = G.off[c], e = G.off[c + 1]; q < e; q++) { const g = G.seg[q], ri = G.segRoad[g], r = N.roads[ri], i = g - G.seg0[ri]; if ((r.x[i] - x) ** 2 + (r.z[i] - z) ** 2 < m2) fn(r, i); } }
   }
 
   spawnCar(r, i, dir, lane) {
@@ -96,7 +104,67 @@ export class HighwayTraffic {
         this.spawnCar(r, i, dir, lane);
       }
     }
+    this.signals(pl);
+    this.overtake();
     this.sync(pl);
+  }
+
+  // EV-21: the cars on the compiled streets obey the signals the street tiles show (streetscape.js auditOf, the same lights the signal heads
+  // draw). For each car the junction ahead within 130 m, the arm it comes in on (the arm it stands on, by its side distance to the arm's line),
+  // and that arm's light: on red, or on yellow while it can still stop at 3.5 m/s^2, it gets a stop point at the arm's stop line, which
+  // Vehicle.driveAI brakes to; on green, or once past the line, the point goes
+  signals(pl) {
+    const S = this.G.streetscape; if (!S) return;
+    // the signalled junctions within 1.8 km of the player, gathered again every 2 s (the street tiles come and go with him)
+    if (!this.sig || (this.sigT = (this.sigT || 0) - 1) <= 0) {
+      this.sigT = 4; const L = this.sig = [];
+      for (const rec of S.tiles.values()) { const A = rec.tile && rec.tile.audit; if (!A) continue; for (const j of A.sig) if (Math.abs(j.x - pl.x) < 1800 && Math.abs(j.z - pl.z) < 1800) L.push(j); }
+    }
+    for (const v of this.cars) { v.ai.hold = v.dead || !v.hw || v.hw.r.kind !== 'arterial' ? null : this.holdFor(v, S.t); }
+  }
+  // EV-22: a car held up by a slower one ahead in its lane moves to the lane beside it when that lane is clear from 15 m behind to 35 m ahead
+  // (the faster lane first, the slower one if that is taken), at most once in 6 s; a car with a free lane to its right and nobody close behind
+  // there drifts back to it after 12 s (keep right except to pass). The new lane's points start where the old plan ended, a few samples
+  // ahead, so the car eases across
+  overtake() {
+    for (const v of this.cars) {
+      const h = v.hw; if (!h || v.dead || v.ai.hold) continue;
+      const n = h.r.kind === 'arterial' ? lanesOf(h.r) : 3; if (n < 2) continue;
+      v.laneT = (v.laneT || 0) - 0.5; if (v.laneT > 0) continue;
+      const sH = Math.sin(v.h), cH = Math.cos(v.h), vf = v.vx * sH + v.vz * cH;
+      // the cars in lane l of this carriageway between `back` m behind and `ahead` m in front (along the heading)
+      const inLane = (l, back, ahead) => this.cars.filter((o) => o !== v && o.hw && o.hw.r === h.r && o.hw.dir === h.dir && o.hw.lane === l).map((o) => ({ o, d: (o.x - v.x) * sH + (o.z - v.z) * cH })).filter((q) => q.d > -back && q.d < ahead);
+      const lead = inLane(h.lane, 0, 40).sort((a, b) => a.d - b.d)[0];
+      if (lead && lead.o.speed < v.ai.speed - 3 && vf > lead.o.speed - 1) {
+        for (const l of [h.lane - 1, h.lane + 1]) if (l >= 0 && l < n && !inLane(l, 15, 35).length) { h.lane = l; v.ai.wp.length = 0; v.laneT = 6; break; }
+      } else if (!lead && h.lane < n - 1 && (v.laneT || 0) < -12 && !inLane(h.lane + 1, 25, 50).length) { h.lane++; v.ai.wp.length = 0; v.laneT = 6; }
+    }
+  }
+  // the stop point for a car before the next signalled junction, or null (see signals)
+  holdFor(v, t) {
+    const sH = Math.sin(v.h), cH = Math.cos(v.h), vf = v.vx * sH + v.vz * cH;
+    let best = null, bd = 130; const prev = v.ai.hold;
+    for (const j of this.sig) {
+      const dx = v.x - j.x, dz = v.z - j.z, d = Math.hypot(dx, dz); if (d > bd || dx * sH + dz * cH > 0) continue;   // ahead of the car only
+      for (let k = 0; k < j.arms.length; k++) {
+        const a = j.arms[k], ax = Math.cos(a.ang), az = Math.sin(a.ang), along = dx * ax + dz * az, side = Math.abs(dx * az - dz * ax);
+        // on this arm, short of its line (a car already held here may have crept up to 5 m over it: it still waits), heading in
+        if (along < a.stop - (prev && prev.j === j ? 5 : 1) || side > a.half + 6 || ax * sH + az * cH > -0.5) continue;
+        // a junction's centre can lie off its street's line, so the arm's axis runs beside the lanes: a car further out than the arm's half still is on it when its own street meets the junction
+        if (side > a.half + 1.5 && !this.meets(v.hw.r, j)) continue;
+        const st = signalState(a.g, t, j.phase), gap = along - a.stop;
+        if (st === 2 || (st === 1 && gap < vf * vf / 7 + 2)) { bd = d; best = null; break; }   // green, or yellow too close to stop: go on through
+        bd = d; best = { x: j.x + ax * a.stop, z: j.z + az * a.stop, j }; break;
+      }
+    }
+    return best;
+  }
+
+  // does street r pass within 12 m of junction j (cached per street and junction place): tells the street's own arm from a parallel street beside it
+  meets(r, j) {
+    const m = (r.meets ||= new Map()), key = Math.round(j.x) * 1e6 + Math.round(j.z); let hit = m.get(key); if (hit !== undefined) return hit;   // keyed by place: tiles rebuild their junction objects
+    hit = false; for (let q = 0; q < r.x.length; q++) if ((r.x[q] - j.x) ** 2 + (r.z[q] - j.z) ** 2 < 144) { hit = true; break; }
+    m.set(key, hit); return hit;
   }
 
   // events and attendants appear when the player comes within 900 m of their place and go when he is 1.6 km away

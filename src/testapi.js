@@ -3,6 +3,7 @@
 import { Vehicle } from './vehicle.js';
 import { signalState } from './streetgeo.js';
 import { regionLoad } from './region.js';
+import { carriage } from './carriage.js';
 
 // installs the API over one Game; returns it for tests that import it directly
 export function installTestApi(G) {
@@ -35,6 +36,8 @@ export function installTestApi(G) {
       for (const rec of S.tiles.values()) { const A = rec.tile && rec.tile.audit; if (!A) continue; for (const j of A.sig) if (Math.hypot(j.x - x, j.z - z) < r) sig.push(j); for (const c of A.xing) if (Math.hypot(c.x - x, c.z - z) < r) xing.push(c); }
       return { sig, xing };
     },
+    // the half width of a compiled street's carriageway (carriage.js), for tests that check what stands on it (EV-25)
+    carriageHalf(r) { return carriage(r).half; },
     // the light an arm of a signalled junction shows now: 0 red, 1 yellow, 2 green (the clock the signal heads use)
     signal(j, arm) { return signalState(j.arms[arm].g, G.streetscape ? G.streetscape.t : 0, j.phase); },
     // one snapshot of what tests watch: time, place, counts, memory and errors
