@@ -251,10 +251,12 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
   const aF = Math.abs(speedFwd), P = (spec.power ?? 120) * 1000 * PHYS.eta * hk;
   // the engine: the launch limit up to the speed where the power takes over, then power over speed; nothing past the governor
   const pull = (lim) => Math.min(mass * Math.min(spec.accel * hk, spec.grip * wg * g), P / Math.max(aF, 1)) * (aF < lim * hk ? 1 : 0) / 4;   // the tyres carry no more than their grip: a wet road limits the launch
-  const brakeImp = mass * g * spec.grip * PHYS.longK * wg * PHYS.absK * dt / 4;   // per wheel: the tyre's grip, which the brakes reach with ABS
+  // per wheel: the tyre's grip, which the brakes reach with ABS, on the wet or dry road; each wheel's surface scales its own share below (one wheel
+  // on mud took the brakes of all four down to mud's grip when this used the worst wheel's surface)
+  const brakeImp = mass * g * spec.grip * PHYS.longK * wg0 * PHYS.absK * dt / 4;
   let engine = 0, brk = 0;
   const D = drivetrain(spec, PHYS.radius), grip4 = mass * spec.grip * wg * g * 0.96 / 4;   // grip4: what one tyre carries forward (a quarter of the weight, a little short of the peak: a launch spins the tyres past it)
-  if (D) gearbox(v, D, speedFwd, dead ? 0 : throttle, dt);
+  if (D) gearbox(v, D, speedFwd, dead ? 0 : throttle, dt, dead ? 0 : brake);
   const ax = D ? (D.drive === 'A' ? 1 : 2) : 1;   // the driven wheels share the engine: two of them take twice a quarter each
   if (!dead) {
     if (throttle > 0) {
@@ -268,7 +270,7 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
     }
   } else brk = brakeImp * (parked ? 1 : 0.25);
   // throttle shut: the engine drags the car down (and holds it at a standstill)
-  if (!throttle && !brake && !dead) brk += mass * PHYS.engineBrake * dt / 4 * (aF > 0.2 ? 1 : 12);
+  const drag = !throttle && !brake && !dead ? mass * PHYS.engineBrake * dt / 4 * (aF > 0.2 ? 1 : 12) : 0;   // (not a grip share: the surface does not scale it)
   // the air and the tyres' rolling resistance, against the motion
   if (body) {
     const lv = body.linvel(), sp = Math.hypot(lv.x, lv.z);
@@ -281,12 +283,13 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
   for (let i = 0; i < 4; i++) {
     const driven = !D || D.drive === 'A' || (D.drive === 'F') === (i < 2);   // front-, rear- or all-wheel drive (EV-12)
     ctrl.setWheelEngineForce(i, driven ? engine : 0);
-    ctrl.setWheelBrake(i, i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk);
+    const wb = (i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk) * sf[i] + drag;   // this wheel's brake: its own surface's share of the grip
+    ctrl.setWheelBrake(i, wb);
     ctrl.setWheelSteering(i, i < 2 ? -steerAng : 0);
     // handbrake lets the rear break traction -> drift
     ctrl.setWheelFrictionSlip(i, spec.grip * PHYS.longK * wg0 * sf[i] * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
     MU[i] = spec.grip * wg0 * sf[i] * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1);
-    FX[i] = (driven ? Math.abs(engine) : 0) + (i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk) / dt;   // what the drive and the brakes take of the tyre's grip
+    FX[i] = (driven ? Math.abs(engine) : 0) + wb / dt;   // what the drive and the brakes take of the tyre's grip
   }
   if (PHYS.tyres && spec.peakDeg && body) tyreForces(v, dt, MU, FX, -0.42);
 }
@@ -312,9 +315,12 @@ function surfaces(v) {
 
 // The automatic gearbox (EV-12): picks the gear from the revs and the throttle (up near the redline at full throttle, early when cruising; down
 // when the revs sag or the driver floors it), cuts the drive for the shift time, and keeps the engine's revs (v.rpm, for the sound and the HUD)
-function gearbox(v, D, vf, throttle, dt) {
-  if (v.gear == null || v.gear < 1) { v.gear = 1; v.shiftT = 0; v.held = 1; v.rpm = v.rpm || D.idle; }
+function gearbox(v, D, vf, throttle, dt, brake = 0) {
   const n = D.gears.length, w = Math.abs(vf) / D.r, k = D.final * 30 / Math.PI, at = (gi) => w * D.gears[gi - 1] * k;
+  // reverse (driveVehicle puts it in while the brake is held at a standstill or rolling back): the revs of reverse (first gear's ratio) and the
+  // brake pedal as its throttle; it stayed in first before, so the revs read a forward first gear and the engine note ran wrong
+  if (v.gear === -1 && brake > 0 && vf <= 0.8) { v.rpmT = Math.max(at(1), D.idle + (D.launch * D.redline - D.idle) * brake); v.rpm += (v.rpmT - v.rpm) * Math.min(1, dt * 14); v.rpmN = v.rpm / D.redline; return; }
+  if (v.gear == null || v.gear < 1) { v.gear = 1; v.shiftT = 0; v.held = 1; v.rpm = v.rpm || D.idle; }
   v.held += dt; if (v.shiftT > 0) v.shiftT -= dt;
   else if (v.held > 0.45) {
     if (v.gear < n && at(v.gear) > D.redline * (0.42 + 0.53 * throttle)) { v.gear++; v.shiftT = D.shift; v.held = 0; }

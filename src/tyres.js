@@ -63,7 +63,9 @@ export function tyreForces(v, dt, mu, fx, cgY) {
     const vLat = vx * A.x + vy * A.y + vz * A.z, vLong = vx * F.x + vy * F.y + vz * F.z;
     // the slip angle, its rolling speed floored so a crawling car does not see huge angles; below walking pace the tyre simply holds (static
     // friction): the force that stops the sideways creep in one step, within the grip
-    const muI = mu[i] * Math.min(1.08, Math.max(0.75, (Fz / 4000) ** -0.1)), alpha = Math.atan2(vLat, Math.max(Math.abs(vLong), 3)), cap = Math.sqrt(Math.max(0, (muI * Fz) ** 2 - fx[i] * fx[i]));
+    // ABS and traction control keep a tyre short of its peak slip, so at most 90 % of its grip goes along it and some 44 % is left across (a full
+    // brake asked more than the tyre had, above all at the unloaded rear, and left the car no grip to steer with)
+    const muI = mu[i] * Math.min(1.08, Math.max(0.75, (Fz / 4000) ** -0.1)), alpha = Math.atan2(vLat, Math.max(Math.abs(vLong), 3)), fxi = Math.min(fx[i], muI * Fz * 0.9), cap = Math.sqrt(Math.max(0, (muI * Fz) ** 2 - fxi * fxi));
     let fy = -cap * sideShare(alpha, B);
     const hold = Math.max(0, 1 - sp / 2.5);
     if (hold > 0) { const st0 = Math.max(-cap, Math.min(cap, -vLat * m4 / dt * 0.5)); fy = fy * (1 - hold) + st0 * hold; }
