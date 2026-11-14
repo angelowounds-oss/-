@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { glowSpriteMat } from './models.js';
 import { GR, grp } from './physics.js';
+import { DT } from './carspecs.js';
 import { clamp, lerp, damp, TAU, rand } from './util.js';
 import { WORLD_HALF } from './worldmap.js';
 import { CAPITAL } from './koreamap.js';
@@ -10,8 +11,8 @@ import { landHeight } from './farland.js';
 // moto (a 600 cc bike with its rider, 280 kg, 80 kW) and bus (a 13 t city bus, 210 kW) drive on physics.js driveVehicle with the cars' real figures
 // (carspecs.js); the craft below have their own force models (driveCraft)
 export const CRAFT_SPECS = {
-  moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, hp: 55, track: 0.3, cy: 0.5, custom: 'moto' },
-  bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, hp: 320, track: 0.95, custom: 'bus' },
+  moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, hp: 55, track: 0.3, cy: 0.5, custom: 'moto', dt: DT.moto },
+  bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, hp: 320, track: 0.95, custom: 'bus', dt: DT.bus, peakDeg: 6.5 },
   // real figures: a 6 m speedboat 0.4 g and 94 km/h, a light helicopter about 0.45 g and 170 km/h (an attack one 270 km/h), a main battle tank 0.2 g and 68 km/h
   boat: { L: 6.2, W: 2.4, mass: 0.9, maxSpeed: 26, accel: 4, grip: 3, hp: 120, cy: 0.5, custom: 'boat', craft: 'boat' },
   heli: { L: 8.5, W: 2.6, mass: 0.9, maxSpeed: 60, accel: 4.5, grip: 3, hp: 130, cy: 0.9, custom: 'heli', craft: 'heli' },

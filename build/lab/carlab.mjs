@@ -2,8 +2,8 @@
 // Prints the measurements of tests/e2e/physics-reality for each car type: node build/lab/carlab.mjs [type...]
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Physics, driveVehicle, PHYS } from '../../src/physics.js';
-import { CAR_SPECS } from '../../src/carspecs.js';
-const SPECS = { ...CAR_SPECS, moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015 }, bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007 } };
+import { CAR_SPECS, DT } from '../../src/carspecs.js';
+const SPECS = { ...CAR_SPECS, moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, dt: DT.moto }, bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, dt: DT.bus, peakDeg: 6.5 } };
 await RAPIER.init();
 const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function lab(type) {

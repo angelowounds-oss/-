@@ -56,6 +56,44 @@ Values in **bold** are outside the band above.
 - **Bikes do not lean in the game.** The game's motorbike is a craft held upright by `motoAssist`; the lab's moto spec is carlab's and falls over on the skid pad. A real bike model is EV-14.
 - **Surfaces.** Only wet asphalt exists (`wetGrip`). Gravel, grass, snow and ice need EV-13's surface model before the lab can add them.
 
+## Phase 1 values (Node lab, 2026-11-13: EV-11 tyres, EV-12 gearbox, EV-13 surfaces)
+
+What changed:
+
+- **Tyres (EV-11, `src/tyres.js`).** Rapier's side friction is off. Each wheel on the ground gets a side force from its slip angle through a Pacejka curve (C 1.15, E 0, B from the peak slip angle: sedan 4.5°, sport 4°, SUV 5°, truck 6°, bus 6.5°). The force is applied at the contact patch, so the body now rolls on its springs and loads its outer wheels. The load is the suspension force. The friction circle takes off what the drive and the brakes use, and grip falls a little as the load grows (load^-0.1). The bike keeps Rapier's friction until it has its own model (EV-14).
+- **Steering assist (`PHYS.assist`, settings 소리·조작 > 운전 보조, on by default).** At speed the front wheels turn only as far as the tyres' peak slip angle. Past that, more lock just scrubs the front tyres.
+- **Gearbox (EV-12, `carspecs.js DT`, `physics.js gearbox`).** Each engine has a five-point torque curve, a redline, 6–8 gear ratios, a shift time and a launch clutch. The peak torque comes from the spec's power and the final drive from its top speed. Each car drives the front, the rear or all four wheels. `v.rpm` / `v.rpmN` drive the engine sound. The roadster stays electric (no gears).
+- **Surfaces (EV-13, `surface.js`, `tyres.js SURF_*`).** Each wheel looks up its surface four times a second: a drawn road is asphalt, a city or compiled region is pavement, the country follows its biome (grass, dirt, gravel, sand, snow), and anything clear of the ground is concrete. Each surface has a share of grip and a rolling-resistance multiple. `v.testSurface` forces one for tests.
+
+| Scenario | Sedan | Sport | SUV | Truck | Bus | Moto (lab spec) |
+|---|---|---|---|---|---|---|
+| Skid pad g | 0.87 | 1.09 | 0.82 | 0.59 | 0.47 | 0.64 (rolls 67°) |
+| Side slip, deg | **1.5** | **1.6** | **1.6** | **2.4** | 5.7 | 0.5 |
+| Roll on the skid pad, deg | 2.3 | 2.5 | 1.7 | 1.0 | 0.5 | — |
+| Slalom km/h | 63 | 74 | 58 | 48 | 43 | 74 |
+| ISO 3888-1 km/h | 124 | 129 | 116 | 98 | 102 | 106 |
+| Lift-off yaw gain | **0.99** | 0.99 | 0.99 | 1.01 | 1.02 | 1.01 |
+| Brake dry m | **42.4** | 33.8 | **44.5** | 52.7 | 57.1 | 35.9 |
+| 20 % climb 10 m, s | 2.87 | 1.47 | 1.85 | 4.30 | 3.95 | 2.55 |
+| 100–0 on gravel / dirt / grass / snow / ice (× dry) | 1.37 / 1.43 / 1.63 / 2.55 / 7.06 | 1.38 / 1.44 / 1.65 / 2.58 / 7.18 | 1.37 / 1.42 / 1.61 / 2.51 / 6.93 | 1.37 / 1.43 / 1.63 / 2.51 / 6.56 | 1.38 / 1.44 / 1.65 / 2.56 / 6.92 | 1.36 / 1.41 / 1.59 / 2.44 / 6.28 |
+
+carlab.mjs (the physics-reality scenarios): 0–100 km/h in 8.9 / 2.8 / 8.0 / 32.3 s, with top speeds of 209 / 324 / 205 / 110 km/h. Its full-lock steady circle gives lateral g of 0.79 / 0.96 / 0.74 / 0.56. All of these are inside the physics-reality bands.
+
+What this fixed against Phase 0:
+
+- The truck and bus now climb 20 %.
+- Heavy vehicles are no longer agile. The truck's skid pad g fell from 0.74 to 0.59 and the bus's from 0.58 to 0.47. Their ISO lane changes are now 98 and 102 km/h against the sedan's 124.
+- Every slalom is in its band.
+- The body rolls 1–2.5°.
+- The gearbox shifts. The drive is cut for the shift time, so acceleration dips at each shift.
+
+Still open:
+
+- **Side slip at the limit is still 1.5–2.4°** (real cars: 3–6°). The front tyres saturate first: every car is an understeerer. A rear-biased balance needs EV-14's roll stiffness split (anti-roll bars).
+- **No lift-off tuck-in** (yaw gain about 1.0). The engine braking is a fixed 0.35 m/s², so lifting the throttle hardly moves load forward. Gear-dependent engine braking would change the coast-down figures of physics-reality, so it waits for that test's bands to be reviewed.
+- **Braking is 5–15 % long** for the sedan and SUV (unchanged).
+- **The bump** is unchanged (EV-14).
+
 ## Notes on the lab itself
 
 - **Hill hold.** The game's brake pedal is reverse at a standstill. The hill test therefore holds the car with no input (the idle brake) and with the handbrake, not the pedal.

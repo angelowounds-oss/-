@@ -60,7 +60,8 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
         const on = await page.evaluate(async () => {
           const g = window.__game, L = window.__landfn, D = window.__pp.drive, v = D.v, line = D.line;
           for (let s = 0; s < 150 && g.autonav.active; s++) {
-            await window.__pp.step(1); D.steps = (D.steps || 0) + 1; D.top = Math.max(D.top, v.speed); const tr = v.pv.body.translation(), gy = L.physHeight(v.x, v.z, 8);
+            await window.__pp.step(1); if (!v.pv || !v.pv.body) { D.gone = true; return false; }   // the car was removed (wrecked and cleared): the drive ends there
+            D.steps = (D.steps || 0) + 1; D.top = Math.max(D.top, v.speed); const tr = v.pv.body.translation(), gy = L.physHeight(v.x, v.z, 8);
             let bd = Infinity; for (let q = Math.max(0, D.j - 20); q < Math.min(line.x.length, D.j + 40); q++) { const dd = Math.hypot(line.x[q] - v.x, line.z[q] - v.z); if (dd < bd) { bd = dd; D.j = q; } }
             D.minAbove = Math.min(D.minAbove, tr.y - gy); if (bd < 15) D.maxAbove = Math.max(D.maxAbove, tr.y - line.y[D.j]); D.offLine = Math.max(D.offLine, bd);
           }
@@ -69,9 +70,9 @@ run('province-probe', { q: 1, width: +(process.env.W || 480), height: +(process.
         if (!on) break;
       }
       Object.assign(d, await page.evaluate(async () => {
-        const g = window.__game, D = window.__pp.drive, v = D.v, r = { driven: Math.round(Math.hypot(v.x - D.x1, v.z - D.z1)), left: Math.round(Math.hypot(D.ex - v.x, D.ez - v.z)), topKmh: Math.round(D.top * 3.6), alive: !v.dead,
+        const g = window.__game, D = window.__pp.drive, v = D.v, r = { driven: Math.round(Math.hypot(v.x - D.x1, v.z - D.z1)), left: Math.round(Math.hypot(D.ex - v.x, D.ez - v.z)), topKmh: Math.round(D.top * 3.6), alive: !v.dead && !D.gone,
           minAbove: +D.minAbove.toFixed(2), maxAbove: +D.maxAbove.toFixed(2), offLine: Math.round(D.offLine), secs: Math.round((D.steps || 0) / 60), navActive: !!g.autonav.active };
-        g.autonav.cancel && g.autonav.cancel(); g.exitVehicle(true); await window.__pp.step(30); return r;
+        g.autonav.cancel && g.autonav.cancel(); if (!D.gone) g.exitVehicle(true); await window.__pp.step(30); return r;
       }));
     }
     o.drives.push(d);

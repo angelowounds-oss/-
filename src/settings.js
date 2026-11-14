@@ -4,8 +4,10 @@
 //  - engine values (engine.js eng.ov): render resolution, shadow size / reach / rate, anti-aliasing, AO, bloom, film effects, fog, brightness, post-processing
 //  - the view distance (util.js VIEW): the fog's reach and how far the streamed things (forest, city tiles, road pieces, country roads, sites) are built
 //  - the game's own (game.opt): field of view, screen shake, population, the frame cap, the automatic resolution
+//  - the driving aid (physics.js PHYS.assist, EV-11)
 import { setViewDistance } from './util.js';
 import { FXQ } from './fx.js';
+import { PHYS } from './physics.js';
 
 const KEY = 'neon_gfx';
 const el = (id) => document.getElementById(id);
@@ -71,6 +73,7 @@ export const TABS = [
     { id: 'vol', label: '마스터 볼륨', kind: 'mirror', el: 'vol', cost: '', tip: '모든 소리의 크기.' },
     { id: 'music', label: '음악', kind: 'mirror', el: 'musicOn', cost: '', tip: '배경 음악.' },
     { id: 'sens', label: '시점 감도', kind: 'mirror', el: 'sens', cost: '', tip: '마우스와 터치로 시점을 돌리는 속도.' },
+    { id: 'assist', label: '운전 보조', kind: 'toggle', def: true, cost: '', tip: '빠를 때 핸들을 타이어가 버티는 각도까지만 꺾습니다. 끄면 끝까지 꺾여 앞바퀴가 밀립니다.' },
   ] },
 ];
 const ITEMS = TABS.flatMap((t) => t.items).filter((o) => o.kind !== 'mirror'), BYID = Object.fromEntries(ITEMS.map((o) => [o.id, o]));
@@ -102,7 +105,7 @@ export class Settings {
     const before = { res: ov.res, shadow: ov.shadow, ao: ov.ao, aa: ov.aa, post: ov.post };
     ov.res = v('res'); ov.shadow = v('shadow'); ov.shadowDist = v('shadowDist'); ov.shadowEvery = v('shadowEvery'); ov.ao = v('ao'); ov.aa = v('aa'); ov.post = v('post');
     ov.bloom = v('bloom'); ov.aber = v('aber'); ov.vig = v('vig'); ov.grain = v('grain'); ov.speedBlur = v('speedBlur'); ov.fog = v('fog'); ov.exposure = v('bright');
-    setViewDistance(v('view')); FXQ.k = v('particles');
+    setViewDistance(v('view')); FXQ.k = v('particles'); PHYS.assist = v('assist');   // the driving aid (EV-11)
     G.opt = { dynRes: v('dynRes'), fov: v('fov'), shake: v('shake'), traffic: v('traffic'), npc: v('npc'), parked: v('parked'), rain: v('rain'), fpsCap: v('fpsCap') };
     if (t !== eng.qIndex) eng.setQuality(t);   // the tier first: it re-applies the targets with the values above
     else if (Object.keys(before).some((k) => before[k] !== ov[k])) eng.applyTargets();

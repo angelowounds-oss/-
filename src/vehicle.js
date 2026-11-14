@@ -266,6 +266,8 @@ export class Vehicle {
       this.onImpact(dv, ix, iz, null); this.vyW = null;
     } else if (dt > 0) this.fallImpact();
     this.slip = clamp((Math.abs(vl) - 2.2) / 6, 0, 1) * clamp(Math.abs(vf) / 8, 0, 1);
+    // the tyres squeal as their slip angle nears its peak (EV-11 tyres.js), before the body visibly slides
+    const pk = this.spec.peakDeg; if (pk && this.pv?.tyreSlip) this.slip = Math.max(this.slip, clamp((this.pv.tyreSlip * 57.3 - pk * 0.7) / (pk * 0.8), 0, 1));
     // flipped & stuck -> right the car
     if (this.q) {
       const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);

@@ -54,7 +54,8 @@ import { Citizens } from './citizens.js';
 import { Memory } from './memory.js';
 import { Power } from './power.js';
 import resWall from '../assets/res/res_wall.jpg';
-import { Physics } from './physics.js';
+import { Physics, PHYS } from './physics.js';
+import { surfaceAt } from './surface.js';
 import { Buildings } from './building.js';
 import { Interact } from './interact.js';
 import { Fire } from './fire.js';
@@ -171,6 +172,7 @@ export class Game {
     this.dressing = buildDressing(this.scene, this.world);
     this.skyline = buildSkyline(this.scene, this.world, resWall);
     this.signs = buildSigns(this.scene, this.world);
+    PHYS.surfaceAt = surfaceAt;   // the tyres' grip from the surface under them (EV-13)
     this.phys = new Physics(this.RAPIER); this.phys.initGround(this.world.waters); this.phys.addStatic(this.world.colliders); addTerrainPhysics(this.phys); this.terrain = buildTerrain(this.scene); this.heightAt = heightAt; this.farland = this.eng.q.simple ? null : this.timed_('farland', () => new Farland(this.scene, { phys: this.phys, markers: false })); this.rivers = this.eng.q.simple ? null : buildRivers(this.scene); this.forest = this.eng.q.simple ? null : this.timed_('forest', () => new Forest(this.scene, this.world, this)); this.realbuildings = globalThis.__WORLD ? this.timed_('realbuildings', () => new RealBuildings(this.scene, this.phys, this)) : null; this.villages = this.eng.q.simple ? null : this.timed_('villages', () => new Villages(this)); this.industry = this.eng.q.simple ? null : this.timed_('industry', () => new Industry(this)); this.landmarks = this.eng.q.simple ? null : this.timed_('landmarks', () => new Landmarks(this)); this.highways = this.eng.q.simple ? null : this.timed_('highways', () => new Highways(this.scene)); this.countryroads = this.eng.q.simple ? null : this.timed_('countryroads', () => new CountryRoads(this.scene)); this.highways?.attach(this); this.streetscape = this.highways && globalThis.__WORLD ? this.timed_('streetscape', () => new Streetscape(this.scene, this.phys, this)) : null; this.bridges = this.highways ? this.timed_('bridges', () => new Bridges(this.scene, this.highways.mats.struct, this.phys)) : null; this.citysites = this.eng.q.simple ? null : this.timed_('citysites', () => new CitySites(this.scene, this.world, this.phys, this)); this.citylife = this.citysites ? new CityLife(this) : null;
     this.ragdolls = new RagdollSystem(this);
     this.mobility = new Mobility(this);
@@ -2043,7 +2045,8 @@ export class Game {
   }
   audioUpdate(dt) {
     const v = this.vehicle;
-    const rpm = v ? clamp(Math.abs(v.fwdSpeed) / v.spec.maxSpeed * 1.4 + v.throttle * 0.15, 0, 1) : 0;
+    // the gearbox's revs (EV-12: they fall at each shift and rise through the gear); crafts and electric cars keep the speed-based sound
+    const rpm = v ? (v.pv?.rpmN != null && !v.dead ? clamp(v.pv.rpmN, 0, 1) : clamp(Math.abs(v.fwdSpeed) / v.spec.maxSpeed * 1.4 + v.throttle * 0.15, 0, 1)) : 0;
     this.audio.intensity = clamp(this.wanted / 4 + (this.nearCombat ? 0.3 : 0), 0, 1);
     this.audio.update(dt, { inCar: !!v, rpm, throttle: v ? v.throttle : 0, slip: v ? v.slip : 0, siren: this.sirenLevel || 0 });
   }

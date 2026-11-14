@@ -25,7 +25,7 @@ export class Villages {
   constructor(G) {
     this.G = G; this.group = new THREE.Group(); this.group.name = 'villages'; G.scene.add(this.group);
     const S = settlements(), N = net();
-    this.list = [...S.villages, ...S.farms].map((v) => ({ v, pad: N.pads.find((p) => p.id === v.id), built: false, houses: [], objs: [], res: new Map(), coll: false }));
+    this.list = [...S.villages, ...S.farms].map((v) => ({ v, pad: N.pads.find((p) => p.id === v.id), built: false, houses: [], objs: [], res: new Map(), coll: false })).filter((L) => L.pad);   // a place the bake left without a pad (34 of 82 in the 2026-11-14 build) is not built: build() stands it on pad.y and threw
     this.struct = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
     this.glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide });
     this.rubble = new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 1 });

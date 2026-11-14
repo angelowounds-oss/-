@@ -92,6 +92,16 @@ async function vehicleLab(A, only) {
     }
     A.wet(0);
   }
+  // ---- 100-0 km/h braking on each surface (EV-13: the adapter forces the surface under every wheel), and the distance ratio to dry asphalt
+  if (want('surfaces') && A.surface) {
+    out.surfaces = {}; let dry = null;
+    for (const [k, i] of [['asphalt', 0], ['gravel', 4], ['dirt', 3], ['grass', 2], ['snow', 6], ['ice', 7]]) {
+      A.surface(i); A.place(-600, 0, Math.PI / 2, 100 / 3.6); await step({ t: 0.3, b: 0, s: 0 }, 2);
+      const x0 = A.state().x; let n = 0; while (A.state().fwd > 0.3 && n++ < 60 * 40) await step({ t: 0, b: 1, s: 0 });
+      const d = A.state().x - x0; if (dry === null) dry = d; out.surfaces[k] = [+d.toFixed(1), +(d / dry).toFixed(2)];
+    }
+    A.surface(null);
+  }
   // ---- hill start: a 20 % ramp (11.3 deg). Held for 3 s with no input and with the handbrake (how far it slides back), then full throttle from rest: the time to climb 10 m
   if (want('hill')) {
     const th = Math.atan(0.2), cx = 1500, cy = A.Y - 40, hx = 200, s2 = Math.sin(th / 2), c2 = Math.cos(th / 2);

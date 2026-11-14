@@ -1,3 +1,5 @@
+import { drivetrain, torqueShare } from './carspecs.js';
+import { tyreForces, SURF_MU, SURF_CRR } from './tyres.js';
 import { installOrigin, followOrigin, localPoints } from './physorigin.js';
 // Rapier-backed physics: fixed-step world, static city colliders, raycast-suspension rigid-body vehicles.
 // RAPIER is injected so the same module can be unit-tested under Node.
@@ -7,8 +9,18 @@ export const PHYS = {
   // the drive train and the air (driveVehicle): wheel power over engine power, air density (kg/m^3), what the brakes reach of the tyres' grip
   // (ABS keeps a wheel just short of locking), the engine's drag with the throttle shut (m/s^2)
   eta: 0.85, rho: 1.2, absK: 0.97, engineBrake: 0.35,
+  // a tyre's grip along its rolling direction peaks about 8 % above its side grip (the braking and traction curves of road tests: 1.0-1.1 g
+  // under ABS where the same tyre corners at 0.9-1.0 g)
+  longK: 1.08,
   // the springs per unit of the car's mass (createVehicle)
   springK: 15.1,
+  // the tyres' side forces from their slip angles (tyres.js, EV-11); false gives back Rapier's own side friction
+  tyres: true,
+  // the driving aids (EV-11): steering held at the tyres' peak (see driveVehicle); the settings can turn them off
+  assist: true,
+  // the surface under a point (EV-13): set by the game to surface.js surfaceAt (x, z, y) -> index into surfMu / surfCrr; unset (the Node labs)
+  // everything is asphalt unless a vehicle has testSurface
+  surfaceAt: null, surfMu: SURF_MU, surfCrr: SURF_CRR,
 };
 
 export const GR = { STATIC: 1, VEH: 2, CHAR: 4, PROP: 8, OBJ: 16, GLASS: 32, RAG: 64, RAGL: 128 };
@@ -210,7 +222,7 @@ export class Physics {
       ctrl.setWheelMaxSuspensionTravel(i, 0.3);
       ctrl.setWheelMaxSuspensionForce(i, mass * 14);
       ctrl.setWheelFrictionSlip(i, spec.grip);
-      ctrl.setWheelSideFrictionStiffness(i, 1.0);
+      ctrl.setWheelSideFrictionStiffness(i, PHYS.tyres && spec.peakDeg ? 0 : 1.0);   // the side force is tyres.js's (EV-11): Rapier's would hold the wheels on rails
     }
     const v = { body, col, ctrl, mass, spec };
     (this.vehicles || (this.vehicles = [])).push(v);
@@ -233,21 +245,26 @@ export function wetGrip(wet, v) { const w = Math.max(0, Math.min(1.4, wet || 0))
 // governor m/s, grip = the tyres' friction coefficient, cda = drag area m^2, crr = rolling resistance). Rapier's engine force is a force (N) and its
 // brake the largest rolling-friction impulse a wheel takes in one step (N s), so the brakes are written as impulses
 export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSteer, dead, parked, wet = 0, health = 1 }) {
-  const { ctrl, mass, spec, body } = v, dt = PHYS.dt, g = -PHYS.gravity, wg = wet > 0 ? wetGrip(wet, Math.abs(speedFwd)) : 1;   // wg: the wet road's share of the tyres' grip
+  const { ctrl, mass, spec, body } = v, dt = PHYS.dt, g = -PHYS.gravity, wg0 = wet > 0 ? wetGrip(wet, Math.abs(speedFwd)) : 1;   // wg0: the wet road's share of the tyres' grip
+  const sf = surfaces(v), wg = wg0 * Math.min(sf[0], sf[1], sf[2], sf[3]);   // the surface under the worst wheel limits the launch, the brakes' ABS and the steering assist
   const hk = health < 0.5 ? 0.5 + health : 1;   // a wreck limps: under half its strength the engine gives up to half its power and speed (a hit engine, a bent frame)
   const aF = Math.abs(speedFwd), P = (spec.power ?? 120) * 1000 * PHYS.eta * hk;
   // the engine: the launch limit up to the speed where the power takes over, then power over speed; nothing past the governor
   const pull = (lim) => Math.min(mass * Math.min(spec.accel * hk, spec.grip * wg * g), P / Math.max(aF, 1)) * (aF < lim * hk ? 1 : 0) / 4;   // the tyres carry no more than their grip: a wet road limits the launch
-  const brakeImp = mass * g * spec.grip * wg * PHYS.absK * dt / 4;   // per wheel: the tyre's grip, which the brakes reach with ABS
+  const brakeImp = mass * g * spec.grip * PHYS.longK * wg * PHYS.absK * dt / 4;   // per wheel: the tyre's grip, which the brakes reach with ABS
   let engine = 0, brk = 0;
+  const D = drivetrain(spec, PHYS.radius), grip4 = mass * spec.grip * wg * g * 0.96 / 4;   // grip4: what one tyre carries forward (a quarter of the weight, a little short of the peak: a launch spins the tyres past it)
+  if (D) gearbox(v, D, speedFwd, dead ? 0 : throttle, dt);
+  const ax = D ? (D.drive === 'A' ? 1 : 2) : 1;   // the driven wheels share the engine: two of them take twice a quarter each
   if (!dead) {
     if (throttle > 0) {
       if (speedFwd < -1.5) brk = brakeImp * throttle;
-      else engine = pull(spec.maxSpeed) * throttle;
+      else engine = (D ? Math.min(grip4, wheelForce(v, D, throttle) * ax * hk) * (aF < spec.maxSpeed * hk ? 1 : 0) : pull(spec.maxSpeed)) * (D ? 1 : throttle);
     }
     if (brake > 0) {
       if (speedFwd > 0.8) brk += brakeImp * brake;
-      else engine = -pull(9) * 0.5 * brake;   // reverse: first gear, up to 32 km/h
+      else engine = D ? -Math.min(grip4, D.peak * torqueShare(D.curve, D.launch) * D.gears[0] * D.final * PHYS.eta / D.r / 4 * ax) * 0.5 * brake * (aF < 9 ? 1 : 0) : -pull(9) * 0.5 * brake;   // reverse: first gear's ratio, up to 32 km/h
+      if (D && speedFwd <= 0.8) v.gear = -1;
     }
   } else brk = brakeImp * (parked ? 1 : 0.25);
   // throttle shut: the engine drags the car down (and holds it at a standstill)
@@ -255,16 +272,63 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
   // the air and the tyres' rolling resistance, against the motion
   if (body) {
     const lv = body.linvel(), sp = Math.hypot(lv.x, lv.z);
-    if (sp > 0.05) { const F = 0.5 * PHYS.rho * (spec.cda ?? 0.7) * sp * sp + (spec.crr ?? 0.011) * mass * g, k = Math.min(F * dt, mass * sp * 0.5) / sp; body.applyImpulse({ x: -lv.x * k, y: 0, z: -lv.z * k }, true); }
+    if (sp > 0.05) { const F = 0.5 * PHYS.rho * (spec.cda ?? 0.7) * sp * sp + (spec.crr ?? 0.011) * (v.crrK || 1) * mass * g, k = Math.min(F * dt, mass * sp * 0.5) / sp; body.applyImpulse({ x: -lv.x * k, y: 0, z: -lv.z * k }, true); }
   }
-  const steerAng = steer * maxSteer;
+  // the steering assist (EV-11, PHYS.assist): past the angle that turns the car at its grip with the front tyres at their peak slip, more lock only
+  // scrubs the front tyres (the plough of an understeering car), so the wheel stops there; off, the driver has the whole rack
+  const lim = PHYS.assist && PHYS.tyres && spec.peakDeg ? (spec.wb * 2) * spec.grip * wg * g / Math.max(aF * aF, 1) + (spec.peakDeg || 7) * 0.0175 * 1.15 : Infinity;
+  const steerAng = Math.max(-lim, Math.min(lim, steer * maxSteer));
   for (let i = 0; i < 4; i++) {
-    ctrl.setWheelEngineForce(i, engine);
+    const driven = !D || D.drive === 'A' || (D.drive === 'F') === (i < 2);   // front-, rear- or all-wheel drive (EV-12)
+    ctrl.setWheelEngineForce(i, driven ? engine : 0);
     ctrl.setWheelBrake(i, i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk);
     ctrl.setWheelSteering(i, i < 2 ? -steerAng : 0);
     // handbrake lets the rear break traction -> drift
-    ctrl.setWheelFrictionSlip(i, spec.grip * wg * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
+    ctrl.setWheelFrictionSlip(i, spec.grip * PHYS.longK * wg0 * sf[i] * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1));
+    MU[i] = spec.grip * wg0 * sf[i] * (i >= 2 && hand ? (PHYS.handSlip ?? 0.5) : 1);
+    FX[i] = (driven ? Math.abs(engine) : 0) + (i >= 2 && hand ? brakeImp * 1.4 + brk * 0.3 : brk) / dt;   // what the drive and the brakes take of the tyre's grip
   }
+  if (PHYS.tyres && spec.peakDeg && body) tyreForces(v, dt, MU, FX, -0.42);
+}
+const MU = new Float64Array(4), FX = new Float64Array(4), ONE = new Float64Array([1, 1, 1, 1]);
+// each wheel's share of dry asphalt's grip from the surface under it (EV-13), looked up four times a second (or at once when testSurface is set);
+// sets v.surf (the surface indices) and v.crrK (the mean rolling resistance multiple)
+function surfaces(v) {
+  const S = PHYS.surfaceAt, ts = v.testSurface ?? v.spec.testSurface;
+  if (ts == null && !S) return ONE;
+  const f = v.surfK || (v.surfK = new Float64Array([1, 1, 1, 1])), su = v.surf || (v.surf = new Int8Array(4));
+  if (ts != null) { su.fill(ts); f.fill(PHYS.surfMu[ts] ?? 1); v.crrK = PHYS.surfCrr[ts] ?? 1; return f; }
+  if ((v.surfT = (v.surfT || 0) - PHYS.dt) > 0) return f;
+  v.surfT = 0.25;
+  const t = v.body.translation(), q = v.body.rotation(), fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y), l = Math.hypot(fx, fz) || 1, hx = fx / l, hz = fz / l;
+  const wb = v.spec.wb ?? 1.4, tr = (v.spec.W ?? 1.8) / 2 - 0.2, y = t.y - 0.6;
+  let crr = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = i < 2 ? wb : -wb, s = i % 2 ? tr : -tr, x = t.x + hx * a - hz * s, z = t.z + hz * a + hx * s;
+    su[i] = S(x, z, y); f[i] = PHYS.surfMu[su[i]] ?? 1; crr += (PHYS.surfCrr[su[i]] ?? 1) / 4;
+  }
+  v.crrK = crr; return f;
+}
+
+// The automatic gearbox (EV-12): picks the gear from the revs and the throttle (up near the redline at full throttle, early when cruising; down
+// when the revs sag or the driver floors it), cuts the drive for the shift time, and keeps the engine's revs (v.rpm, for the sound and the HUD)
+function gearbox(v, D, vf, throttle, dt) {
+  if (v.gear == null || v.gear < 1) { v.gear = 1; v.shiftT = 0; v.held = 1; v.rpm = v.rpm || D.idle; }
+  const n = D.gears.length, w = Math.abs(vf) / D.r, k = D.final * 30 / Math.PI, at = (gi) => w * D.gears[gi - 1] * k;
+  v.held += dt; if (v.shiftT > 0) v.shiftT -= dt;
+  else if (v.held > 0.45) {
+    if (v.gear < n && at(v.gear) > D.redline * (0.42 + 0.53 * throttle)) { v.gear++; v.shiftT = D.shift; v.held = 0; }
+    else if (v.gear > 1 && at(v.gear) < D.redline * (0.22 + 0.3 * throttle) && at(v.gear - 1) < D.redline * 0.9) { v.gear--; v.shiftT = D.shift * 0.6; v.held = 0; }
+  }
+  // the clutch slips in first gear: the engine holds its launch revs until the wheels catch up
+  const wheel = at(v.gear), launch = v.gear === 1 ? D.idle + (D.launch * D.redline - D.idle) * throttle : D.idle;
+  v.rpmT = Math.max(wheel, launch); v.rpm += (v.rpmT - v.rpm) * Math.min(1, dt * (v.shiftT > 0 ? 9 : 14)); v.rpmN = v.rpm / D.redline;
+}
+// the force at one wheel (N) from the engine's torque at its revs through the gear, the final drive and the drive train's losses; nothing while
+// the gearbox shifts or past the rev limiter
+function wheelForce(v, D, throttle) {
+  if (v.shiftT > 0 || v.rpmT >= D.redline) return 0;
+  return D.peak * torqueShare(D.curve, v.rpmT / D.redline) * throttle * D.gears[v.gear - 1] * D.final * PHYS.eta / D.r / 4;
 }
 
 // Arcade stabiliser: bleed roll/pitch angular velocity so cars tip over only after violent hits

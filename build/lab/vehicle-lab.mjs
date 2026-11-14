@@ -3,10 +3,10 @@
 import { createRequire } from 'node:module';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Physics, driveVehicle, PHYS } from '../../src/physics.js';
-import { CAR_SPECS } from '../../src/carspecs.js';
+import { CAR_SPECS, DT } from '../../src/carspecs.js';
 const { vehicleLab } = createRequire(import.meta.url)('../../tests/lib/vlab.js');
 // the lab's bike and bus as carlab.mjs has them (in the game they are crafts with their own models)
-export const SPECS = { ...CAR_SPECS, moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015 }, bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007 } };
+export const SPECS = { ...CAR_SPECS, moto: { L: 2.1, W: 0.8, wb: 0.85, mass: 0.215, maxSpeed: 72, accel: 8.5, grip: 1.1, power: 80, cda: 0.4, crr: 0.015, dt: DT.moto }, bus: { L: 11, W: 2.55, wb: 3.8, mass: 10, maxSpeed: 25, accel: 1.4, grip: 0.7, power: 210, cda: 6.5, crr: 0.007, dt: DT.bus, peakDeg: 6.5 } };
 await RAPIER.init();
 const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const GROUP = ((1 << 16) | 0xffff) >>> 0;
@@ -21,9 +21,11 @@ export function nodeAdapter(type) {
   const axes = () => { const q = b.rotation(); return { f: [2 * (q.x * q.z + q.w * q.y), 2 * (q.y * q.z - q.w * q.x), 1 - 2 * (q.x * q.x + q.y * q.y)], r: [1 - 2 * (q.y * q.y + q.z * q.z), 2 * (q.x * q.y + q.w * q.z), 2 * (q.x * q.z - q.w * q.y)], u: [2 * (q.x * q.y - q.w * q.z), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.w * q.x)] }; };
   const fwd = () => { const { f } = axes(), lv = b.linvel(), l = Math.hypot(f[0], f[2]) || 1; return (lv.x * f[0] + lv.z * f[2]) / l; };
   return {
+    pv: v,   // the physics handle (its gearbox state: gear, rpm)
     Y: 0, wb: spec.wb * 2, W: spec.W,
     maxSteer,
     wet(x) { wet = x; },
+    surface(k) { v.testSurface = k; v.surfT = 0; },   // force the surface under every wheel (EV-13; null: asphalt)
     place(x, z, h, speed, y = PHYS.bodyY + 0.05, quat = null) {
       const q = quat || { x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) };
       b.setTranslation({ x, y, z }, true); b.setRotation(q, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true); b.setLinvel({ x: Math.sin(h) * speed, y: 0, z: Math.cos(h) * speed }, true); steerA = 0;
@@ -34,7 +36,7 @@ export function nodeAdapter(type) {
     },
     state() {
       const t = b.translation(), lv = b.linvel(), av = b.angvel(), { f, r, u } = axes();
-      return { x: t.x, y: t.y, z: t.z, vx: lv.x, vy: lv.y, vz: lv.z, fwd: fwd(), h: Math.atan2(f[0], f[2]), yaw: av.y, roll: Math.asin(clamp(r[1], -1, 1)), pitch: Math.asin(clamp(f[1], -1, 1)), up: u[1] };
+      return { x: t.x, y: t.y, z: t.z, vx: lv.x, vy: lv.y, vz: lv.z, fwd: fwd(), h: Math.atan2(f[0], f[2]), yaw: av.y, roll: Math.asin(clamp(r[1], -1, 1)), pitch: Math.asin(clamp(f[1], -1, 1)), up: u[1], gear: v.gear ?? 0, rpm: v.rpm ?? 0 };
     },
     box(cx, cy, cz, hx, hy, hz, q) { const d = R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy, cz).setFriction(1).setCollisionGroups(GROUP); if (q) d.setRotation(q); w.createCollider(d); },
   };
