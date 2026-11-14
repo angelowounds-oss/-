@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import '../../build/jobs.mjs';   // installs the compiled region (when there is one) as the bake does, so the tiles and landfn here agree
 import { bake } from '../../build/bake.mjs';
 import { openContainer } from '../../src/bakefmt.js';
-import { encodeTile, decodeTile, N1, TILE, CN, levels, sample, loadResident, colorAt, TILE_ORIGIN, setTileReader, stream } from '../../src/heightmap.js';
+import { encodeTile, decodeTile, N1, TILE, CN, CMN, levels, sample, loadResident, colorAt, TILE_ORIGIN, setTileReader, stream } from '../../src/heightmap.js';
 import { landProc, physProc, landHeight, riverAt, bedDepth } from '../../src/landfn.js';
 import { rivers, highways } from '../../src/worldmap.js';
 import { WorldData, memoryReader } from '../../src/chunkstore.js';
@@ -53,8 +53,8 @@ const streamed = {}, far = [-44000, 44000];   // far: a point in a tile that is 
   stream(wd, far[0], far[1]); stream(wd, far[0], far[1]);   // two passes: the second lets go what the first saw unread since
   streamed.liveAfterFar = L.live.size; streamed.landsAfterFar = [...L.tiles.values()].filter((t) => t.land).length;
   const col1 = [0, 0, 0]; streamed.colourKept = colorAt(rp[0] + 40, rp[1] + 40, col1) && col1.every((v, q) => v === col0[q]);
-  stream(wd, hp[0], hp[1]); for (let k = 0; k < 50 && !L.live.size; k++) await new Promise((f) => setTimeout(f, 20));
-  const [hi, hj] = tileOf(hp[0], hp[1]); streamed.nearLoaded = !!L.tiles.get(hj * L.n + hi).land; streamed.async = L.stats.async;
+  const [hi, hj] = tileOf(hp[0], hp[1]);
+  stream(wd, hp[0], hp[1]); for (let k = 0; k < 50 && !L.tiles.get(hj * L.n + hi).land; k++) await new Promise((f) => setTimeout(f, 20)); streamed.nearLoaded = !!L.tiles.get(hj * L.n + hi).land; streamed.async = L.stats.async;
   if (streamed.heightsAtLoad) bad.push(['streamed tiles came with their heights', streamed.heightsAtLoad]);
   if (!(diff === 0)) bad.push(['streamed heights differ', diff]);
   if (!streamed.sync) bad.push(['no synchronous read']);
@@ -71,7 +71,10 @@ const streamed = {}, far = [-44000, 44000];   // far: a point in a tile that is 
 if (sample(far[0], far[1]) === sample(far[0], far[1])) bad.push(['unloaded tile gave a value']);
 if (Math.abs(landHeight(far[0], far[1], 16) - landProc(far[0], far[1], 16)) > 1e-6) bad.push(['fallback']);
 // the ground colour: present, in range, and the same where the tile and the computation both give it (to the byte steps)
-{ const o = [0, 0, 0]; if (!colorAt(rp[0] + 40, rp[1] + 40, o) || o.some((v) => !(v >= 0 && v <= 1))) bad.push(['colour', o]); const t = levels[1].tiles.values().next().value; if (!t.col || t.col.length !== CN * CN * 3) bad.push(['colour size']); if (colorAt(far[0], far[1], o)) bad.push(['colour from unloaded tile']); }
+{ const o = [0, 0, 0]; if (!colorAt(rp[0] + 40, rp[1] + 40, o) || o.some((v) => !(v >= 0 && v <= 1))) bad.push(['colour', o]); const t = levels[1].tiles.values().next().value; if ((t.col && t.col.length !== CN * CN * 3) || !t.cm || t.cm.length !== CMN * CMN * 3) bad.push(['colour size']);
+  // the coarse colours a far ring reads: near the full colours (a 5 x 5 mean of them), within what a 128 m cell can hold
+  const f = [0, 0, 0], c = [0, 0, 0]; let dc = 0; for (let q = 0; q < 50; q++) { const x = rp[0] + (q * 97) % 3000 - 1500, z = rp[1] + (q * 61) % 3000 - 1500; if (colorAt(x, z, f, 16) && colorAt(x, z, c, 512)) dc = Math.max(dc, ...f.map((v, k) => Math.abs(Math.sqrt(v) - Math.sqrt(c[k])))); }
+  if (!(dc < 0.25)) bad.push(['coarse colour far from the full one', dc]); if (colorAt(far[0], far[1], o)) bad.push(['colour from unloaded tile']); }
 // size
 const sizes = Object.values(C.chunks).map((c) => c.z), kb = sizes.reduce((s, v) => s + v, 0) / sizes.length / 1024;
 console.log('RESULT ' + JSON.stringify({ test: 'heightmap', pass: bad.length === 0, metrics: { tiles: n, KBperTile: +kb.toFixed(1), maxNode: +maxNode.toFixed(3), maxMid: +maxMid.toFixed(2), streamed }, note: bad.slice(0, 5).map((b) => b.join(' ')).join(' | ') }));

@@ -1653,7 +1653,7 @@ export class Game {
     const RG = this.autonav?.router?.G; if (!RG) return null;
     for (let t = 0; t < 30; t++) {
       const a = rand(0, TAU), r = rand(minD, maxD), id = RG.nearest(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, 400); if (id < 0) continue;
-      const road = RG.roads[RG.rd[id]], i = RG.ix[id], n = road.x.length, q0 = Math.max(0, i - 1), q1 = Math.min(n - 1, i + 1);
+      const road = RG.roads[RG.rd[id]], i = RG.ixOf(id), n = road.x.length, q0 = Math.max(0, i - 1), q1 = Math.min(n - 1, i + 1);
       let tx = road.x[q1] - road.x[q0], tz = road.z[q1] - road.z[q0]; const l = hyp(tx, tz) || 1; tx /= l; tz /= l;
       // just off the drawn carriageway: a fitted street (src/carriage.js) is narrower than its lanes say, and its walls stand close
       const lanes = road.kind === 'arterial' ? Math.max(1, Math.min(4, road.lanes || 1)) : 4, side = Math.random() < 0.5 ? 1 : -1, off = side * (road.fit ? carriage(road).half + 1.2 : lanes * 3.75 + (road.kind === 'arterial' ? 2.5 : 5));

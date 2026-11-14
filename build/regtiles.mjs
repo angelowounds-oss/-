@@ -13,6 +13,8 @@ export function regionMeta(R) {
   if (!R) return R;
   const { h, water, level, own, ...meta } = R, T = regTiles(R);
   meta.tiled = { ...T, T: REG_T };
+  // the page never reads why a sample is a bridge or a tunnel (build/world/streets.mjs does, from the whole region): 10 M bytes and a view per line
+  if (meta.roads) meta.roads = meta.roads.map(({ why, ...r }) => r);
   // the coarse raster: nodes from the multiple at or below the first cell to the one at or above the last; a node outside the raster takes the
   // nearest point inside it
   const x1 = R.x0 + (R.nx - 1) * R.g, z1 = R.z0 + (R.nz - 1) * R.g, cx0 = Math.floor(R.x0 / REG_CG) * REG_CG, cz0 = Math.floor(R.z0 / REG_CG) * REG_CG;

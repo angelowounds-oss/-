@@ -10,20 +10,22 @@ const LANE_W = 3.75;   // highway lane width (hwtraffic.js LANE)
 // that lie within LINK m of each other are joined too (an interchange). A route is: street leg out of the start, A* over the graph, street leg into
 // the destination. Street legs inside a city follow its street lines (Manhattan), elsewhere they are straight. Pure (no three.js).
 const LINK = 90;
+const NB = new Int32Array(4096);   // the neighbours of the sample A* expands (reused)
 
 export class RoadGraph {
+  // The graph is kept small (AAA-1 heap): a sample's links to the samples before and after it on its road are implied by the road (not stored),
+  // only the other links (compiled joins, interchanges, region seams) are stored, for the few samples that have them; the 120 m grid is a CSR over
+  // an open-addressed cell table; the connected part is per road (a road's samples are always joined). 243 MB on the capital build before.
   constructor() {
     const N = net(), roads = N.roads.filter((r) => r.kind !== 'ramp' && !r.alley);   // an alley (build/world/fit.mjs) is paved for walkers only
-    this.roads = roads; this.off = []; let n = 0;
-    for (const r of roads) { this.off.push(n); n += r.x.length; }
-    this.n = n; this.x = new Float32Array(n); this.z = new Float32Array(n); this.rd = new Int32Array(n); this.ix = new Int32Array(n);
-    roads.forEach((r, k) => { for (let i = 0; i < r.x.length; i++) { const id = this.off[k] + i; this.x[id] = r.x[i]; this.z[id] = r.z[i]; this.rd[id] = k; this.ix[id] = i; } });
-    // edges are gathered as (from, to) pairs and packed into CSR arrays below (one JS array per sample was 290 MB of heap on the 1:1 region)
+    const nr = roads.length; this.roads = roads; this.off = new Int32Array(nr + 1); let n = 0;
+    for (let k = 0; k < nr; k++) { this.off[k] = n; n += roads[k].x.length; } this.off[nr] = n;
+    this.n = n; this.x = new Float32Array(n); this.z = new Float32Array(n); this.rd = new Int32Array(n);
+    // per road: 1 one-way (links only forward), 2 closed (the last sample links to the first)
+    this.rf = Uint8Array.from(roads, (r) => (r.kind === 'arterial' && r.oneway ? 1 : 0) | (r.closed ? 2 : 0));
+    roads.forEach((r, k) => { const o = this.off[k]; for (let i = 0; i < r.x.length; i++) { this.x[o + i] = r.x[i]; this.z[o + i] = r.z[i]; this.rd[o + i] = k; } });
+    // the stored links as (from, to) pairs, packed into a sparse CSR below
     let E = new Int32Array(1 << 16), ne = 0; const link = (a, b) => { if (ne * 2 === E.length) { const F = new Int32Array(E.length * 2); F.set(E); E = F; } E[ne * 2] = a; E[ne * 2 + 1] = b; ne++; };
-    roads.forEach((r, k) => {   // consecutive samples; a one-way line only in its direction
-      const m = r.x.length, one = r.kind === 'arterial' && r.oneway;
-      for (let i = 0; i < m - 1 + (r.closed ? 1 : 0); i++) { const a = this.off[k] + i, b = this.off[k] + (i + 1) % m; link(a, b); if (!one) link(b, a); }
-    });
     // compiled lines meet where the compiler joined them (a line's end to the point of the next line, a line's start from the point before it), and a
     // highway that stops at the region meets the line it was joined to
     const idx = new Map(roads.map((r, k) => [r.id, k])), node = (id, i) => (idx.has(id) ? this.off[idx.get(id)] + Math.min(i, roads[idx.get(id)].x.length - 1) : -1);
@@ -34,15 +36,13 @@ export class RoadGraph {
       for (const [j, at] of [[r.joinA, start], [r.joinB, end]]) if (j) { const b = node(j.road, j.i); if (b >= 0) { link(at, b); link(b, at); } }
     });
     this.art = Uint8Array.from(roads, (r) => (r.kind === 'arterial' ? 1 : 0));
-    // interchange links: nearest sample of another road within LINK m (grid hash of 120 m)
-    const CS = 120, grid = new Map(), key = (x, z) => Math.floor(x / CS) * 100003 + Math.floor(z / CS);
-    for (let i = 0; i < n; i++) { const k = key(this.x[i], this.z[i]); let a = grid.get(k); if (!a) grid.set(k, (a = [])); a.push(i); }
-    this.grid = grid; this.CS = CS;
+    // interchange links: nearest sample of another road within LINK m (grid of 120 m)
+    const CS = 120; this.CS = CS; this.buildGrid(); const cell = (cx, cz) => this.cell(cx, cz), gi = this.gi;
     for (let i = 0; i < n; i += 2) {
       if (this.art[this.rd[i]]) continue;   // compiled lines have their own junctions
       const cx = Math.floor(this.x[i] / CS), cz = Math.floor(this.z[i] / CS);
       let best = -1, bd = LINK * LINK;
-      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { if (this.rd[j] === this.rd[i] || this.art[this.rd[j]]) continue; const d = (this.x[i] - this.x[j]) ** 2 + (this.z[i] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const c = cell(cx + dx, cz + dz); if (c < 0) continue; for (let q = this.go[c]; q < this.go[c + 1]; q++) { const j = gi[q]; if (this.rd[j] === this.rd[i] || this.art[this.rd[j]]) continue; const d = (this.x[i] - this.x[j]) ** 2 + (this.z[i] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
       if (best >= 0) { link(i, best); link(best, i); }
     }
     // region seams (ADR-0044): each region's compiler joined only its own lines, so a line that ends where the next region begins is joined to nothing
@@ -55,31 +55,64 @@ export class RoadGraph {
       for (const [open, at, out] of [[!(r.prev && r.prev.length), this.off[k], false], [!(r.next && r.next.length), this.off[k] + r.x.length - 1, true]]) {
         if (!open) continue;
         const cx = Math.floor(this.x[at] / CS), cz = Math.floor(this.z[at] / CS); let best = -1, bd = SEAM * SEAM;
-        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue; for (const j of a) { const rj = reg[this.rd[j]]; if (rj === null || rj === reg[k]) continue; const d = (this.x[at] - this.x[j]) ** 2 + (this.z[at] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const c = cell(cx + dx, cz + dz); if (c < 0) continue; for (let q = this.go[c]; q < this.go[c + 1]; q++) { const j = gi[q], rj = reg[this.rd[j]]; if (rj === null || rj === reg[k]) continue; const d = (this.x[at] - this.x[j]) ** 2 + (this.z[at] - this.z[j]) ** 2; if (d < bd) { bd = d; best = j; } } }
         if (best < 0) continue;
         if (!r.oneway) { link(at, best); link(best, at); } else if (out) link(at, best); else link(best, at);
       }
     });
-    // CSR: the neighbours of u are nb[at[u]] .. nb[at[u + 1] - 1], in the order they were linked (a counting sort keeps it, so routes are unchanged)
-    this.at = new Int32Array(n + 1); for (let e = 0; e < ne; e++) this.at[E[e * 2] + 1]++; for (let u = 0; u < n; u++) this.at[u + 1] += this.at[u];
-    this.nb = new Int32Array(ne); const fill = this.at.slice(0, n); for (let e = 0; e < ne; e++) this.nb[fill[E[e * 2]]++] = E[e * 2 + 1];
-    // connected parts (union-find over every link, direction ignored): the region's OSM extract has pieces joined to nothing, and a route that began
-    // on one found no path and was drawn as a straight line across the country
-    const par = new Int32Array(n); for (let i = 0; i < n; i++) par[i] = i;
+    // sparse CSR of the stored links: xu = the samples that have any (ascending), their links xn[xa[q]] .. xn[xa[q + 1] - 1] in the order they were
+    // linked (after the implied road links, as when every link was stored: routes are unchanged); has = a bit per sample for a quick no
+    const cnt = new Map(); for (let e = 0; e < ne; e++) cnt.set(E[e * 2], (cnt.get(E[e * 2]) || 0) + 1);
+    this.xu = Int32Array.from([...cnt.keys()].sort((a, b) => a - b)); this.xa = new Int32Array(this.xu.length + 1); this.has = new Uint8Array((n >> 3) + 1);
+    const slot = new Map(); this.xu.forEach((u, q) => { slot.set(u, q); this.xa[q + 1] = this.xa[q] + cnt.get(u); this.has[u >> 3] |= 1 << (u & 7); });
+    this.xn = new Int32Array(ne); const fill = this.xa.slice(0, this.xu.length); for (let e = 0; e < ne; e++) this.xn[fill[slot.get(E[e * 2])]++] = E[e * 2 + 1];
+    // connected parts (union-find over roads: a road's samples are joined by its own links, so the stored links decide it), direction ignored: the
+    // region's OSM extract has pieces joined to nothing, and a route that began on one found no path and was drawn as a straight line across the country
+    const par = new Int32Array(nr); for (let k = 0; k < nr; k++) par[k] = k;
     const find = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
-    for (let e = 0; e < ne; e++) { const a = find(E[e * 2]), b = find(E[e * 2 + 1]); if (a !== b) par[a] = b; }
-    const size = new Int32Array(n); for (let i = 0; i < n; i++) { par[i] = find(i); size[par[i]]++; }
-    let main = 0; for (let i = 0; i < n; i++) if (size[i] > size[main]) main = i;
-    this.comp = par; this.mainComp = main; this.mainShare = n ? size[main] / n : 0;
+    for (let e = 0; e < ne; e++) { const a = find(this.rd[E[e * 2]]), b = find(this.rd[E[e * 2 + 1]]); if (a !== b) par[a] = b; }
+    const size = new Float64Array(nr); for (let k = 0; k < nr; k++) { par[k] = find(k); size[par[k]] += this.off[k + 1] - this.off[k]; }
+    let main = 0; for (let k = 0; k < nr; k++) if (size[k] > size[main]) main = k;
+    this.rcomp = par; this.mainComp = main; this.mainShare = n ? size[main] / n : 0;
   }
+  // the 120 m grid: gi holds the samples cell by cell (ascending within a cell), cell c's are gi[go[c]] .. gi[go[c + 1] - 1]; cells are found
+  // through an open-addressed table of their keys (gk) to their numbers (gv)
+  buildGrid() {
+    const n = this.n, CS = this.CS, key = new Float64Array(n);
+    for (let i = 0; i < n; i++) key[i] = Math.floor(this.x[i] / CS) * 100003 + Math.floor(this.z[i] / CS);
+    let cap = 1 << 16; const cells = new Set(key).size; while (cap < cells * 2) cap <<= 1;
+    this.gm = cap - 1; this.gk = new Float64Array(cap).fill(NaN); this.gv = new Int32Array(cap); let nc = 0;
+    const cid = new Int32Array(n);
+    for (let i = 0; i < n; i++) { const k = key[i]; let h = this.hash(k); while (this.gk[h] === this.gk[h] && this.gk[h] !== k) h = (h + 1) & this.gm; if (this.gk[h] !== k) { this.gk[h] = k; this.gv[h] = nc++; } cid[i] = this.gv[h]; }
+    this.go = new Int32Array(nc + 1); for (let i = 0; i < n; i++) this.go[cid[i] + 1]++; for (let c = 0; c < nc; c++) this.go[c + 1] += this.go[c];
+    this.gi = new Int32Array(n); const fill = this.go.slice(0, nc); for (let i = 0; i < n; i++) this.gi[fill[cid[i]]++] = i;
+  }
+  hash(k) { const a = Math.imul(k | 0, 0x9e3779b1) ^ Math.imul((k / 4294967296) | 0, 0x85ebca6b); return (a ^ (a >>> 15)) & this.gm; }
+  // the number of grid cell (cx, cz), -1 when it holds no sample
+  cell(cx, cz) { const k = cx * 100003 + cz; let h = this.hash(k); for (;;) { const v = this.gk[h]; if (v !== v) return -1; if (v === k) return this.gv[h]; h = (h + 1) & this.gm; } }
+  // the index of sample u along its road
+  ixOf(u) { return u - this.off[this.rd[u]]; }
+  // the connected part of sample u (a road's number: the root of its part)
+  compOf(u) { return this.rcomp[this.rd[u]]; }
+  // the neighbours of u into out (a reused array), in the order they were linked: the road's own (before, after; the first sample of a closed road
+  // after, then before; the last of a closed road wraps to the first), then the stored ones; returns the count
+  nbInto(u, out) {
+    const k = this.rd[u], o = this.off[k], m = this.off[k + 1] - o, i = u - o, f = this.rf[k], one = f & 1, closed = f & 2; let c = 0;
+    if (closed && i === 0) { out[c++] = o + (m > 1 ? 1 : 0); if (!one) out[c++] = o + m - 1; }
+    else { if (i > 0 && !one) out[c++] = u - 1; if (i < m - 1) out[c++] = u + 1; if (closed && i === m - 1) out[c++] = o; }
+    if (this.has[u >> 3] & (1 << (u & 7))) { let lo = 0, hi = this.xu.length - 1; while (lo < hi) { const mid = (lo + hi) >> 1; if (this.xu[mid] < u) lo = mid + 1; else hi = mid; } for (let q = this.xa[lo]; q < this.xa[lo + 1]; q++) out[c++] = this.xn[q]; }
+    return c;
+  }
+  // the neighbours of u as a new array (tests, tools)
+  nbOf(u) { const a = new Int32Array(64), c = this.nbInto(u, a); return Array.from(a.subarray(0, c)); }
   // the nearest sample to (x, z) within max m; with comp, only one in that connected part
   nearest(x, z, max = 8000, comp = -1) {
     const CS = this.CS, R = Math.ceil(max / CS); let best = -1, bd = max * max; const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
     for (let r = 0; r <= R && best < 0; r++) {
       for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
         if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-        const a = this.grid.get((cx + dx) * 100003 + cz + dz); if (!a) continue;
-        for (const j of a) { if (comp >= 0 && this.comp[j] !== comp) continue; const d = (this.x[j] - x) ** 2 + (this.z[j] - z) ** 2; if (d < bd) { bd = d; best = j; } }
+        const c = this.cell(cx + dx, cz + dz); if (c < 0) continue;
+        for (let q = this.go[c]; q < this.go[c + 1]; q++) { const j = this.gi[q]; if (comp >= 0 && this.compOf(j) !== comp) continue; const d = (this.x[j] - x) ** 2 + (this.z[j] - z) ** 2; if (d < bd) { bd = d; best = j; } }
       }
     }
     return best;
@@ -107,9 +140,9 @@ export class RoadGraph {
     while (hn) {
       const u = pop(); if (stamp[u] === done) continue; stamp[u] = done;
       if (u === t) { const out = []; for (let c = u; c >= 0; c = from[c]) out.push(c); return out.reverse(); }
-      const gu = g[u], xu = X[u], zu = Z[u], ru = this.rd[u];
-      for (let q = this.at[u]; q < this.at[u + 1]; q++) {
-        const v = this.nb[q]; if (stamp[v] === done) continue;
+      const gu = g[u], xu = X[u], zu = Z[u], ru = this.rd[u], nn = this.nbInto(u, NB);
+      for (let q = 0; q < nn; q++) {
+        const v = NB[q]; if (stamp[v] === done) continue;
         const ng = gu + Math.hypot(xu - X[v], zu - Z[v]) * (ru === this.rd[v] ? 1 : 1.4);
         if (stamp[v] !== run || ng < g[v]) { stamp[v] = run; g[v] = ng; from[v] = u; push(ng + W * Math.hypot(X[v] - tx, Z[v] - tz), v); }
       }
@@ -145,7 +178,7 @@ export class Router {
   route(x0, z0, x1, z1) {
     const G = this.G; let a = G.nearest(x0, z0), b = G.nearest(x1, z1);
     // ends on two unjoined pieces (a stub of the OSM extract): both ends go onto the main network instead, the street legs bridge the gap
-    if (a >= 0 && b >= 0 && G.comp[a] !== G.comp[b]) { const m = G.mainComp; if (G.comp[a] !== m) a = G.nearest(x0, z0, 8000, m); if (G.comp[b] !== m) b = G.nearest(x1, z1, 8000, m); }
+    if (a >= 0 && b >= 0 && G.compOf(a) !== G.compOf(b)) { const m = G.mainComp; if (G.compOf(a) !== m) a = G.nearest(x0, z0, 8000, m); if (G.compOf(b) !== m) b = G.nearest(x1, z1, 8000, m); }
     if (a < 0 || b < 0) return { pts: [[x0, z0, 0], [x1, z1, 0]], length: Math.hypot(x1 - x0, z1 - z0), straight: true };
     const nodes = a === b ? [a] : G.path(a, b);
     if (!nodes) return { pts: [[x0, z0, 0], [x1, z1, 0]], length: Math.hypot(x1 - x0, z1 - z0), straight: true };
@@ -167,7 +200,7 @@ export class Router {
       // [5]: the room for lanes outside the route's lane (an overtake to the outer side stays on the carriageway): a compiled one-way line's route
       // runs in its outer lane, and the outer overtake put the car on the 2.4 m shoulder, into the edge barrier at 107 km/h (서울외곽순환선, region-drive)
       const outer = !art ? LANE_W : C.two ? (C.n - 1) * (r.fit ? C.lane : LANE_W) : 0;
-      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1, r.y ? r.y[G.ix[id]] : undefined, !!(r.cls && r.cls[G.ix[id]] === 2), outer]);   // [3]: the road's surface height (a ride follows it over viaducts and through cuttings); [4]: in a tunnel
+      pts.push([G.x[id] - tz * off, G.z[id] + tx * off, art && r.hw !== 'motorway' && r.hw !== 'trunk' ? 0 : 1, r.y ? r.y[G.ixOf(id)] : undefined, !!(r.cls && r.cls[G.ixOf(id)] === 2), outer]);   // [3]: the road's surface height (a ride follows it over viaducts and through cuttings); [4]: in a tunnel
     }
     const last = nodes[nodes.length - 1]; pts.push([x1, z1, 0]);
     // the way in: street leg from the graph end to the destination (reversed use of the same helper)

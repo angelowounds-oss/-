@@ -59,6 +59,12 @@
 
 - 3단계 일부(2026-11-13, 격자 CSR): 공간 색인 `net.grid`는 칸마다 `[도로, 표본]` 쌍의 Int32Array 하나씩 든 Map이었다(수도권 빌드 1,580만 쌍, 121 MB, 칸 12만 8천 개마다 따로 버퍼). `src/roadgrid.js buildRoadGrid`가 같은 칸·같은 순서를 CSR 세 배열(`ix` 칸 번호 Map, `off` Int32Array, `seg` 전역 선분 번호 Int32Array)과 `segRoad`·`seg0`로 만든다. 읽는 곳(`roadnet.roadAt`, `carriage.barrierGap`·`roadBeneath`, `highways` 가로등·지붕·`roadNear`, `hwtraffic`)을 옮겼다. 바이트는 절반이고 버퍼는 셋이다.
 - 남은 것(3단계): 2,048 m 타일 질의(`regionRoads(range)`)와 LRU, 전국 거친 그래프. 힙 목표(≤ 900 MB)는 EV-01과 함께 가야 한다.
+- 힙 줄이기(2026-11-13, AAA-GAPS 1순위, 개발 빌드 + 추가 지역 기준):
+  - 먼 땅 색: `heightmap.js`가 33×33 거친 색(`cm`)만 늘 두고, 고운 색은 스트리밍 타일과 함께 읽고 버린다.
+  - 경로 그래프(`worldnav.js RoadGraph`): 표본마다 이웃 배열을 두던 것을 도로 순서에서 계산한다. 따로 남는 이음만 CSR로 두고, 격자는 열린 주소 해시로 바꿨다. 이웃 순서·경로·최근접 결과가 같은지 검증했다(Node 힙 710 → 565 MB).
+  - 도로 기록(`roadslim.js`): id·종류·이름 문자열을 인턴하고, 빈 next/prev를 공유한다. 페이지 지역 도로의 `why`를 뺐다. `regionRoads`가 부팅 지역을 복사하지 않는다.
+  - heap-gate: 1,751 MB(색·그래프 뒤) → 1,664 MB(gc 489–542 ms). 같은 데이터의 이전 값은 다시 재지 않았다.
+  - 남은 큰 덩어리(zz-heapwalk): core 청크 타입 배열 약 380 MB(`net.grid` seg·segRoad 136 MB 포함), 굽힌 건물 캐시 216 MB, 경로 그래프 x·z·rd·gi 각 38 MB, `highways.art` 40 MB. 다음은 격자 런 길이 부호화와 2,048 m 도로 타일 스트리밍이다.
 
 ### EV-03 할당·GC 다이어트 — P1 · M · In progress (EV-02 3단계 뒤)
 - AC: 걷기·주행 1,500프레임에서 할당 ≤ 200 KB/프레임, 승격 ≤ 10 KB/프레임, 메이저 GC 최종 정지 ≤ 8 ms. 측정 도구는 EV-93의 `alloc-gate`.

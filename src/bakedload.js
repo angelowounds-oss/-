@@ -1,5 +1,6 @@
 import { openContainer } from './bakefmt.js';
 import { WorldData, fileReader, httpFile } from './chunkstore.js';
+import { slimCore } from './roadslim.js';
 
 // Reads the baked base world (world/base/ next to the page: index.json and the chunk containers it lists, core.pak and one per province,
 // ADR-0036, bakefmt.js) and publishes it: globalThis.__WORLD is the chunk store (the high-detail pack is added in front by detail.js), and the
@@ -24,7 +25,7 @@ export async function loadBaked(dir = fromHttp(BASE_DIR)) {
   }));
   const wd = (globalThis.__WORLD = globalThis.__WORLD || new WorldData());
   for (const [n, c] of files) { const s = wd.add('base:' + n, c); if (dir.base) s.url = dir.base + n; }
-  globalThis.__BAKED = await wd.get('core');
+  globalThis.__BAKED = slimCore(await wd.get('core'));   // repeated strings and empty lists made one (roadslim.js)
   globalThis.__BAKED_MS = Math.round(performance.now() - t0);
   return globalThis.__BAKED;
 }

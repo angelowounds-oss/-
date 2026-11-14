@@ -4,6 +4,7 @@
 // capital's keep zone (the hand-made city keeps its own ground). All coordinates are the local frame.
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+import { EMPTY } from './roadslim.js';
 import { REGIONS } from './regions/index.js';
 import { CAPITAL, KOREA_SCALE, LEGACY_SCALE } from './koreamap.js';
 import { REG_SH, REG_M, REG_S, REG_T, REG_CG } from './regtile.js';
@@ -213,13 +214,18 @@ export function regionWater(x, z) {
 // the arterial road lines of every region: { id, hw, oneway, lanes, half, ref, name, ds, x, z, y, cls, next, prev } (next and prev: [line, sample]
 // pairs, renumbered into the joined list)
 let ROADS = null;
+const DONE = new WeakSet();   // baked regions whose lines were renumbered in place
 export const regionRoads = () => {
   const L = regions(); if (L.length <= 1) return L[0]?.roads || [];
   if (ROADS) return ROADS;
   ROADS = [];
+  // the page's baked regions are renumbered in place (it reads their lines only through this list): a copy of each line of the later regions was
+  // 130 k more records. The bake and the node tests keep copies: their regions are written out again afterwards with their own numbers
+  const baked = new Set(globalThis.__BAKED?.regions || []);
   for (const R of L) {
-    const off = ROADS.length, re = (a) => a.map(([ri, i]) => [ri + off, i]);
-    for (const r of R.roads || []) ROADS.push(off ? { ...r, next: re(r.next || []), prev: re(r.prev || []) } : r);
+    const off = ROADS.length, re = (a) => (a && a.length ? (off ? a.map(([ri, i]) => [ri + off, i]) : a) : EMPTY), own = baked.has(R) && !DONE.has(R);
+    for (const r of R.roads || []) { if (own) { r.next = re(r.next); r.prev = re(r.prev); ROADS.push(r); } else ROADS.push(off && !DONE.has(R) ? { ...r, next: re(r.next || []), prev: re(r.prev || []) } : r); }   // a region done before: already in its place
+    if (own) DONE.add(R);
   }
   return ROADS;
 };
