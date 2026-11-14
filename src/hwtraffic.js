@@ -120,7 +120,7 @@ export class HighwayTraffic {
       this.sigT = 4; const L = this.sig = [];
       for (const rec of S.tiles.values()) { const A = rec.tile && rec.tile.audit; if (!A) continue; for (const j of A.sig) if (Math.abs(j.x - pl.x) < 1800 && Math.abs(j.z - pl.z) < 1800) L.push(j); }
     }
-    for (const v of this.cars) { v.ai.hold = v.dead || !v.hw || v.hw.r.kind !== 'arterial' ? null : this.holdFor(v, S.t); }
+    for (const v of this.cars) { v.ai.hold = v.dead || v.fleeing || !v.hw || v.hw.r.kind !== 'arterial' ? null : this.holdFor(v, S.t); }
   }
   // EV-22: a car held up by a slower one ahead in its lane moves to the lane beside it when that lane is clear from 15 m behind to 35 m ahead
   // (the faster lane first, the slower one if that is taken), at most once in 6 s; a car with a free lane to its right and nobody close behind

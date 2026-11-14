@@ -77,6 +77,7 @@ import { Military } from './military.js';
 import { instCull } from './instcull.js';
 import { idLabel } from './buildingdev.js';
 import { keys as binds } from './keys.js';
+import { missionFor } from './missions/runner.js';
 import { errors, noteError, copyReport } from './errors.js';
 import { SAVE_V, readSave, writeSave, encode, importText } from './savefile.js';
 
@@ -1671,8 +1672,7 @@ export class Game {
 
   startMission(idx) {
     this.missionIndex = idx;
-    const defs = this.missionDefs();
-    const m = (this.mission = defs[idx % defs.length](idx));
+    const m = (this.mission = missionFor(this, idx));   // a mission of src/missions/defs.js, played by src/missions/runner.js (EV-70)
     this.mission.started = this.time;
     this.setMissionText(m.title, m.text);
     this.toast(m.title, 'NEW MISSION');
@@ -1697,105 +1697,6 @@ export class Game {
     const idx = this.missionIndex;
     setTimeout(() => this.startMission(idx), 3500);
     this.mission = { idle: true, title: '실패', text: reason, update() {} };
-  }
-  missionDefs() {
-    const G = this;
-    return [
-      // 1. tutorial: go to marker
-      (i) => { const spot = G.pickSpot(120, 260); return { title: '첫 만남', text: '의뢰인이 기다리고 있다. 표시된 장소로 이동하라. (차량 탑승: ' + binds.label('use') + ')', reward: 300, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (hyp(G.player.x - spot.x, G.player.z - spot.z) < 4) G.completeMission(); } }; },
-      // 2. steal car
-      (i) => {
-        const spot = G.pickSpot(140, 260), dest = G.pickSpot(260, 420);
-        let car = null, phase = 0, timer = 0;
-        return {
-          title: '차량 탈취', text: '붉은 스포츠카를 찾아 탈취하라.', reward: 800,
-          start() { car = new Vehicle(G, 'sport', 0xd01030, 'parked', { glow: [1, 0.1, 0.3] }); car.x = spot.x + 0; car.z = spot.z + 4; car.h = 0; car.awake = false; G.addVehicle(car); G.setBeacon(car.x, car.z, 0xff3050); this.car = car; },
-          update(dt) {
-            if (phase === 0 && G.vehicle === car) { phase = 1; timer = 150; G.setBeacon(dest.x, dest.z); G.setMissionText('차량 탈취', '차를 목적지 차고로 가져가라. 경찰을 조심!'); G.addHeat(12); }
-            if (phase === 1) {
-              timer -= dt; this.hud = `남은 시간 ${Math.max(0, timer | 0)}s`;
-              if (G.vehicle !== car) { G.setMissionText('차량 탈취', '차량에 다시 탑승하라!'); G.setBeacon(car.x, car.z, 0xff3050); phase = 2; }
-              else if (hyp(car.x - dest.x, car.z - dest.z) < 6 && car.speed < 12) { G.clearWanted(); G.completeMission(); }
-              else if (timer <= 0 || car.dead) G.failMission(car.dead ? '차량이 파괴되었다' : '시간 초과');
-            } else if (phase === 2) { if (G.vehicle === car) { phase = 1; G.setBeacon(dest.x, dest.z); G.setMissionText('차량 탈취', '차를 목적지 차고로 가져가라.'); } else if (car.dead) G.failMission('차량이 파괴되었다'); }
-          },
-          cleanup() { },
-        };
-      },
-      // 3. clear gang
-      (i) => {
-        const spot = G.pickSpot(140, 260); let gang = []; 
-        return {
-          title: '갱단 소탕', text: '표시된 구역의 갱단원을 모두 제거하라.', reward: 1200,
-          start() {
-            G.setBeacon(spot.x, spot.z, 0xff3050);
-            const n = 7;
-            for (let k = 0; k < n; k++) {
-              const a = (k / n) * TAU, r = rand(4, 11);
-              const h = new Human(G, 'gang', { hp: 75, weapon: k % 3 === 0 ? 2 : 1, look: { top: 0x3a0c18, pants: 0x151015, trim: [1, 0.2, 0.25], hair: 0x111111, cap: k % 2 ? 0x201018 : null } });
-              h.x = spot.x + Math.cos(a) * r; h.z = spot.z + Math.sin(a) * r; h.home = { x: spot.x, z: spot.z }; h.patrol = true; h.state = 'idle'; h.detect = 45; h.cash = Math.floor(rand(60, 180));
-              const rr = G.world.colliders.resolve(h.x, h.z, 0.4, spot.y || 0); h.x = rr.x; h.z = rr.z; h.y = h.floorY = G.groundY(h.x, h.z, (spot.y || 0) + 1.5); h.ground = true;   // on the ground there (it was 0)
-              G.humans.push(h); G.scene.add(h.group); gang.push(h);
-            }
-            G.missionKill = () => { };
-          },
-          update() {
-            const left = gang.filter((h) => !h.dead).length; this.hud = `남은 적 ${left}`;
-            if (left === 0) G.completeMission();
-          },
-          cleanup() { G.missionKill = null; },
-        };
-      },
-      // 4. heist
-      (i) => {
-        const spot = G.pickSpot(150, 280); let phase = 0; 
-        return {
-          title: '현금 가방', text: '가방을 회수하라. 경찰이 곧 출동한다!', reward: 2000,
-          start() { G.setBeacon(spot.x, spot.z); },
-          update() {
-            if (phase === 0 && hyp(G.player.x - spot.x, G.player.z - spot.z) < 3.5) {
-              phase = 1; G.hideBeacon(); G.addHeat(75); G.setMissionText('현금 가방', '경찰을 따돌려라! (시야에서 벗어나 숨어라)'); G.toast('가방 확보', '경찰 출동!');
-            }
-            if (phase === 1) { this.hud = `수배 ${'★'.repeat(G.wanted) || '—'}`; if (G.wanted === 0 && G.time - (this.started) > 8) G.completeMission(); }
-          },
-        };
-      },
-      // 5. rooftop: walk into a tower, ride its elevator to the roof
-      (i) => {
-        // the towers with a lift are the capital's: away from it this is a trip to a road-side place instead (it sent the player to the capital)
-        if (Math.abs(G.player.x) > HALF + 40 || Math.abs(G.player.z) > HALF + 40) { const spot = G.pickSpot(150, 320); return { title: '현장 확인', text: '표시된 장소로 이동해 상황을 확인하라.', reward: 900, goal: spot, start() { G.setBeacon(spot.x, spot.z); }, update() { if (hyp(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; }
-        const cands = (G.world.enterables || []).filter((e) => hyp(e.x - G.player.x, e.z - G.player.z) > 90).sort((p, q) => hyp(p.x - G.player.x, p.z - G.player.z) - hyp(q.x - G.player.x, q.z - G.player.z));
-        const e = cands[Math.min(2, cands.length - 1)] || G.world.enterables[0];
-        const b = G.buildings.byLot.get(e.lot); b.plan();
-        return {
-          title: '옥상으로', text: `${b.name} 옥상에 올라가라. 정문으로 들어가 엘리베이터나 계단을 이용.`, reward: 1800,
-          start() { G.setBeacon(e.x, e.z); },
-          update() {
-            const pl = G.player, at = G.buildings.at(pl.x, pl.z);
-            this.hud = at === b ? `높이 ${Math.max(0, pl.y) | 0}m / ${b.roofY | 0}m` : null;
-            if (at === b && pl.y > b.roofY - 0.6) G.completeMission();
-          },
-        };
-      },
-      // procedural contracts
-      (i) => { const spot = G.pickSpot(120, 300); const reward = 400 + (i % 5) * 150; return { title: '배달 계약', text: '물건을 목적지까지 배달하라.', reward, start() { G.setBeacon(spot.x, spot.z); }, update() { if (hyp(G.player.x - spot.x, G.player.z - spot.z) < 4.5) G.completeMission(); } }; },
-      (i) => {
-        const spot = G.pickSpot(140, 300); let gang = [];
-        return {
-          title: '현상금 사냥', text: '갱단 두목과 부하들을 제거하라.', reward: 1000 + (i % 4) * 250,
-          start() {
-            G.setBeacon(spot.x, spot.z, 0xff3050);
-            const n = 5 + (i % 3);
-            for (let k = 0; k < n; k++) {
-              const h = new Human(G, 'gang', { hp: k === 0 ? 150 : 80, weapon: k % 2 ? 2 : 1, look: { top: k === 0 ? 0x4a2a05 : 0x2a0f2a, pants: 0x111111, trim: [1, 0.3, 0.9], hair: 0x111111 } });
-              const a = (k / n) * TAU; h.x = spot.x + Math.cos(a) * rand(3, 9); h.z = spot.z + Math.sin(a) * rand(3, 9); h.home = { x: spot.x, z: spot.z }; h.patrol = true; h.state = 'idle'; h.detect = 48; h.cash = Math.floor(rand(80, 250));
-              const rr = G.world.colliders.resolve(h.x, h.z, 0.4, spot.y || 0); h.x = rr.x; h.z = rr.z; h.y = h.floorY = G.groundY(h.x, h.z, (spot.y || 0) + 1.5); h.ground = true; G.humans.push(h); G.scene.add(h.group); gang.push(h);
-            }
-          },
-          update() { const left = gang.filter((h) => !h.dead).length; this.hud = `남은 적 ${left}`; if (left === 0) G.completeMission(); },
-        };
-      },
-    ];
   }
   updateMission(dt) {
     const m = this.mission; if (!m) return;
