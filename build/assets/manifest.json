@@ -239,17 +239,6 @@
    "status": "ok"
   },
   {
-   "id": "water-caustic",
-   "title": "Water caustics texture",
-   "files": {
-    "assets/tex/water_caustic.jpg": "6848fc28abc1cedf3daea722095970d0101150ab89c0398c53b9ced157b1f830"
-   },
-   "source": "user-supplied \"Water Shader Addon Free\" (chuck cg)",
-   "licence": "GPL-2.0-or-later",
-   "status": "replace",
-   "note": "Q0-4 replaces the shader and this texture"
-  },
-  {
    "id": "facade-sets",
    "title": "Building facade texture sets (4)",
    "files": {
@@ -486,30 +475,10 @@
    "status": "ok"
   },
   {
-   "id": "patch-cc0-car-engine",
-   "title": "Car engine loop (0.86 s, too short for a seamless loop)",
-   "files": {
-    "assets/patch-cc0/audio/carEngineLoop.wav": "69d74b106509037ce547429e4c3f9ae906b0fffe88d0bb8b3b5a8b0cfc239048"
-   },
-   "source": "single file without credits (WAV INFO: \"start up car with seat belt warning beep\", 2007)",
-   "licence": "unknown",
-   "status": "confirm"
-  },
-  {
-   "id": "patch-cc0-police-siren",
-   "title": "Police siren (41 s)",
-   "files": {
-    "assets/patch-cc0/audio/policeSiren.mp3": "fabe96ad2116d310b38acc143780e1c47c3cb27227deda13f84ce8e3cfb2248b"
-   },
-   "source": "single file without credits",
-   "licence": "unknown",
-   "status": "confirm"
-  },
-  {
    "id": "patch-cc0-docs",
    "title": "patch-cc0 credits and the CC0 licence text",
    "files": {
-    "assets/patch-cc0/CREDITS.md": "41dea4654c47810e035b7960686b977e1e5bdfca76e962861644107891b7ef2f",
+    "assets/patch-cc0/CREDITS.md": "932136a95ea82c9d2a786a004623dee339794df2bb92a2af25ac92d96e48d07c",
     "assets/patch-cc0/LICENSES/CC0-1.0.txt": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
    },
    "source": "this project",

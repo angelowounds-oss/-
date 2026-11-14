@@ -65,7 +65,7 @@
 - **Long guns** use two-bone IK for both arms (shouldered / low-ready, shotgun pump, sniper bolt, magazine reload); pistols use retargeted UAL upper-body clips; drivers are visible behind tinted car glass.
 
 ## Water
-`buildWaters` in `src/world.js` is a port of the node setup in the supplied *Water Shader Addon Free 2.1.2* by chuck cg (GPL-2.0-or-later): noise-bump normals, Fresnel (IOR 1.3) sky reflection, teal absorption/emission body, shoreline foam driven by edge proximity, and the add-on's caustic texture (`assets/tex/water_caustic.jpg`, 512 px greyscale of `caustic anim_001.bmp`). The add-on is GPL, so this part of the code and the texture carry the same licence.
+`buildWaters` in `src/world.js` is written for this game: directional waves, Schlick Fresnel, depth absorption and procedural Voronoi caustics, no third-party shader or texture.
 - `assets/env/interior_suite.rgbe`: Poly Haven CC0 HDRI *relax_inn_seaview_suite* (supplied as 4K EXR), reduced to 512x256 RGBE with `build/hdrpack.mjs`; it is the environment map used while the player is inside a building.
 - `assets/env/day_street.rgbe`: Poly Haven CC0 HDRI *german_town_street* (supplied as 4K HDR) reduced to 512x256 RGBE; it is the daytime environment map outdoors (the night plaza HDRI stays for night).
 

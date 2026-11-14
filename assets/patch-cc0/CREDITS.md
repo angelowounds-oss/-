@@ -11,7 +11,7 @@
 | `models/` | `carTaxi.glb`, `carPolice.glb`, `buildingA.glb`, `streetlight.glb`, `characterHuman.glb` (모두 glTF 2.0 바이너리, 텍스처 내장) |
 | `tex/clean_asphalt/` | `clean_asphalt_{baseColor,normal,roughness,ao,arm,displacement}.jpg` (1024×1024 JPG) |
 | `tex/paving_stones/` | `PavingStones003_1K-JPG_{Color,NormalGL,NormalDX,Roughness,Displacement}.jpg` (1024×1024 JPG) |
-| `audio/` | `footstepOnConcrete1Short.ogg` (Opus/Vorbis, 약 0.10초), `carEngineLoop.wav` (모노 44.1 kHz 16-bit, 0.86초), `policeSiren.mp3` (모노 44.1 kHz 128 kbps CBR, 약 41초) |
+| `audio/` | `footstepOnConcrete1Short.ogg` (Opus/Vorbis, 약 0.10초) |
 
 ## 모델 (KayKit City Builder Bits · Kay Lousberg)
 
@@ -43,5 +43,4 @@
 ## 소리
 
 - "Footstep on concrete 1 (short, soft)" by Kenney (Kenney, https://kenney.nl/assets/impact-sounds), licensed CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/). Changed by Patch: credit added to the Ogg comments (not re-encoded). 원본: impact-sounds/footstep_concrete_000.ogg.
-- `carEngineLoop.wav`, `policeSiren.mp3` — **출처·라이선스 미확인.** 둘은 다른 8종처럼 크레딧 파일과 함께 온 묶음이 아니라 낱개 파일로 전달됐다(압축 안에 CREDITS/LICENSES 없음). WAV 의 INFO 태그에는 `INAM: start up car with seat belt warning beep`, `ICRD: 2007` 만 있고 라이선스 표시가 없다. 배포 전에 출처를 확인해야 한다 — `build/assets/manifest.json` 에는 `"status": "confirm"` 으로 올려 경고로 남긴다.
-- `carEngineLoop.wav` 길이 0.86초는 이음매 없는 루프로 쓰기엔 짧다(그대로 반복하면 1초에 한 번 꼬리가 들린다). 원본을 더 길게 받거나 크로스페이드가 필요하다.
+- `carEngineLoop.wav`, `policeSiren.mp3`는 출처·라이선스를 확인할 수 없어 공개 저장소에서 뺐다(2026-11-14). CC0 대체음이 생기면 다시 넣는다.

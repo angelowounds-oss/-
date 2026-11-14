@@ -55,7 +55,6 @@
 | Poly Haven Service Pistol | `assets/props/pistol.glb` | Poly Haven | CC0-1.0 | 표기 불필요 |
 | Poly Haven furniture atlas (interiors) | `assets/interior/furniture.glb`, `assets/interior/defs.json` | [Poly Haven](https://polyhaven.com/models) | CC0-1.0 | 표기 불필요 |
 | HDRIs hansaplatz, day street, interior suite (512x256 RGBE) | `assets/env/hansaplatz.rgbe`, `assets/env/day_street.rgbe`, `assets/env/interior_suite.rgbe` | [Poly Haven](https://polyhaven.com/hdris) | CC0-1.0 | 표기 불필요 |
-| Water caustics texture | `assets/tex/water_caustic.jpg` | user-supplied "Water Shader Addon Free" (chuck cg) | GPL-2.0-or-later | **교체 예정** Q0-4 replaces the shader and this texture |
 | Building facade texture sets (4) | `assets/facade/facade_color.jpg`, `assets/facade/facade_emis.jpg`, `assets/facade/facade_nr.jpg` | user-supplied | USER-PERMITTED | 표기 불필요 |
 | Residential Buildings Set (Unity FBX/OBJ) | `assets/res/res_01.glb`, `assets/res/res_02.glb`, `assets/res/res_03.glb`, `assets/res/res_04.glb`, `assets/res/res_05.glb`, `assets/res/res_06.glb`, `assets/res/res_07.glb`, `assets/res/res_08.glb`, `assets/res/res_09.glb`, `assets/res/res_10.glb`, `assets/res/res_wall.jpg`, `assets/blocks/blocks.bin`, `assets/blocks/ao.jpg` | user-supplied | USER-PERMITTED | 표기 불필요 |
 | Manhattan / Camellia City tower shapes | `assets/landmarks/landmarks.bin` | user-supplied | USER-PERMITTED | 표기 불필요 |
@@ -71,7 +70,5 @@
 | KayKit City Builder Bits: building A, streetlight (not used yet) | `assets/patch-cc0/models/buildingA.glb`, `assets/patch-cc0/models/streetlight.glb` | [KayKit City Builder Bits 1.0](https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0) · Kay Lousberg | CC0-1.0 | 표기 불필요 |
 | Kenney mini-dungeon character human (7-joint rig; reviewed for the crowd, not used yet) | `assets/patch-cc0/models/characterHuman.glb` | [Kenney](https://kenney.nl/assets/mini-dungeon) · Kenney | CC0-1.0 | 표기 불필요 |
 | Footstep on concrete 1 (short, soft) | `assets/patch-cc0/audio/footstepOnConcrete1Short.ogg` | [Kenney impact-sounds](https://kenney.nl/assets/impact-sounds) · Kenney | CC0-1.0 | 표기 불필요 |
-| Car engine loop (0.86 s, too short for a seamless loop) | `assets/patch-cc0/audio/carEngineLoop.wav` | single file without credits (WAV INFO: "start up car with seat belt warning beep", 2007) | unknown | **확인 필요** |
-| Police siren (41 s) | `assets/patch-cc0/audio/policeSiren.mp3` | single file without credits | unknown | **확인 필요** |
 | patch-cc0 credits and the CC0 licence text | `assets/patch-cc0/CREDITS.md`, `assets/patch-cc0/LICENSES/CC0-1.0.txt` | this project | own | 표기 불필요 |
 <!-- /AUTO:manifest -->

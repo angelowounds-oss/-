@@ -14,7 +14,6 @@ import asphA from '../assets/patch-cc0/tex/clean_asphalt/clean_asphalt_baseColor
 import asphN from '../assets/tex/clean_asphalt_n.jpg';
 import paveA from '../assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Color.jpg';
 import paveN from '../assets/tex/paving_stones_n.jpg';
-import causticUrl from '../assets/tex/water_caustic.jpg';
 import { instCull } from './instcull.js';
 
 // ---------- City layout constants ----------
@@ -1635,72 +1634,78 @@ export function uploadSigns(world, renderer) {
   m.userData.uploaded = true;
 }
 
-// Water: layered noise-bump surface, Fresnel sky reflection (glass IOR 1.3), teal absorption/emission body, shoreline foam and
-// scrolling caustics. Ported from the node setup of the supplied "Water Shader Addon Free" (chuck cg, GPL-2.0-or-later).
-let causticTex = null;
+// Water (Q0-4, written for this game): four directional waves plus drifting noise and the swimmers' ripples for the normal, Schlick
+// Fresnel with water's F0 0.02 over the sky gradient, sun and moon glints, a body coloured by depth absorption (red goes first, as in
+// real water), procedural caustics from animated Voronoi cell edges (no texture) and foam where the basin meets the shore.
+const WATER_GLSL = /* glsl */ `
+// distance to the nearest Voronoi cell edge, cells drifting with time: bright thin lines like the light focused through a wavy surface
+float cell(vec2 p,float t){vec2 i=floor(p),f=fract(p);float d1=8.,d2=8.;
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 g=vec2(x,y),o=h22(i+g);o=.5+.45*sin(t+6.2831*o);float d=length(g+o-f);if(d<d1){d2=d1;d1=d;}else if(d<d2)d2=d;}
+  return d2-d1;}
+// two layers of cells at different scales and drifts; their thin edges multiply into the caustic net
+float caustic(vec2 p,float t){p+=vec2(fbm(p*.15+t*.03),fbm(p*.15-t*.03+5.))*3.;   // bent by a slow noise so the net is not a regular tiling
+  float a=cell(p*.32+vec2(t*.11,t*.05),t*.9),b=cell(p*.47-vec2(t*.07,-t*.09),t*1.2+1.7);
+  return (1.-smoothstep(0.,.2,a))*(1.-smoothstep(0.,.2,b))*1.6+pow(1.-smoothstep(0.,.12,a),2.)*.15;}
+// shore distance inside the basin's rectangle
+float edgeD(vec2 p,vec4 r){return min(min(p.x-r.x,r.z-p.x),min(p.y-r.y,r.w-p.y));}
+`;
 function buildWaters(world, scene) {
-  if (!causticTex) causticTex = groundTex(causticUrl, false);
   world.waters.slice(0, 4).forEach((w, i) => world.ground.userData.uniforms.uLake.value[i].set(w.x0, w.z0, w.x1, w.z1));
   for (const w of world.waters) {
     const W = w.x1 - w.x0, D = w.z1 - w.z0;
     const mat = new THREE.ShaderMaterial({
       fog: true, transparent: true, depthWrite: false,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, tCaus: { value: causticTex }, uSun: skyU.uSun, uMoon: skyU.uMoon, uRip: { value: ripU.value } }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, uSun: skyU.uSun, uMoon: skyU.uMoon, uRip: { value: ripU.value } }]),
       vertexShader: 'varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vP=(modelMatrix*vec4(position,1.)).xyz;vec4 mvPosition=viewMatrix*vec4(vP,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
-      fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;uniform vec4 uRect;uniform sampler2D tCaus;uniform vec3 uSun,uMoon;varying vec3 vP;
+      fragmentShader: `${GLSL_NOISE}${WATER_GLSL}uniform float uTime,uNight;uniform vec4 uRect;uniform vec3 uSun,uMoon;varying vec3 vP;
         #include <fog_pars_fragment>
-        // wave height: two drifting noise layers (the add-on animates a 4D noise; the W axis becomes this slow drift)
         uniform vec4 uRip[12];
-        // moving swimmers / boats: each slot is an expanding ring packet that fades out (spreads at ~2 m/s, ~3 s life)
+        // swimmers and boats: each slot is a ring packet spreading at about 2 m/s that fades over 3 s
         float rip(vec2 p){float s=0.;for(int i=0;i<12;i++){vec4 q=uRip[i];float age=uTime-q.z;if(age<0.||age>3.2)continue;float r=length(p-q.xy),f=age*2.1,d=r-f;
-          s+=q.w*sin(d*8.5)*exp(-d*d*1.1)*exp(-age*.9)/(1.+r*0.0+ (f*.55));}return s*.1;}
-        float hgt(vec2 p){float t=uTime*.05;return fbm(p*.42+vec2(t*5.,t*2.))*.6+fbm(p*.95-vec2(t*3.,-t*4.))*.4+rip(p);}
+          s+=q.w*sin(d*8.5)*exp(-d*d*1.1)*exp(-age*.9)/(1.+f*.55);}return s*.1;}
+        // the slope of the surface: four wind waves (wavelength 1.3-6 m, deep-water speed sqrt(g/k)) plus noise chop and ripples
+        vec2 slope(vec2 p,float far){vec2 g=vec2(0.);
+          vec4 L=vec4(6.,3.7,2.1,1.3),A=vec4(.045,.03,.018,.01);vec4 ang=vec4(.3,.9,-.4,1.6);
+          for(int i=0;i<4;i++){float k=6.2831/L[i],c=sqrt(9.81/k);vec2 d=vec2(cos(ang[i]),sin(ang[i]));g+=d*k*A[i]*cos(k*(dot(d,p)-c*uTime));}
+          float e=.12,t=uTime*.06,n0=fbm(p*.8+vec2(t*3.,t*1.5)),nx=fbm((p+vec2(e,0.))*.8+vec2(t*3.,t*1.5)),nz=fbm((p+vec2(0.,e))*.8+vec2(t*3.,t*1.5));
+          g+=vec2(nx-n0,nz-n0)/e*.12;
+          float r0=rip(p);g+=vec2(rip(p+vec2(e,0.))-r0,rip(p+vec2(0.,e))-r0)/e;
+          return g*mix(1.,.3,far);}
         void main(){
-          vec2 p=vP.xz;float t=uTime*.05;
-          float e=.1,h=hgt(p),hx=hgt(p+vec2(e,0.)),hz=hgt(p+vec2(0.,e));
-          float farK=smoothstep(3.,45.,length(cameraPosition-vP));   // far water: calmer normals so the sky reflection does not shimmer into speckle
-          vec3 N=normalize(vec3(-(hx-h)/e*mix(.5,.15,farK),1.,-(hz-h)/e*mix(.5,.15,farK)));
+          vec2 p=vP.xz;float far=smoothstep(4.,60.,length(cameraPosition-vP));   // far water calmer, so the reflection does not sparkle into noise
+          vec3 N=normalize(vec3(-slope(p,far),1.).xzy);
           vec3 V=normalize(cameraPosition-vP);float ndv=max(dot(N,V),0.);
-          float F=.017+.983*pow(1.-ndv,5.);                       // Fresnel for IOR 1.3
+          float F=.02+.98*pow(1.-ndv,5.);
           vec3 R=reflect(-V,N);float ry=clamp(R.y,0.,1.);
-          vec3 sky=mix(mix(vec3(.60,.72,.84),vec3(.18,.36,.66),ry),
-                       mix(vec3(.06,.09,.16),vec3(.02,.03,.09),ry)+vec3(.9,.25,.8)*smoothstep(0.,.2,R.y)*(1.-smoothstep(.2,.45,R.y))*.05+vec3(.2,.7,1.)*smoothstep(.1,.35,R.y)*(1.-smoothstep(.35,.6,R.y))*.16,uNight);
-          float glint=pow(max(dot(R,normalize(uSun)),0.),160.)*(1.-uNight)*3.5+pow(max(dot(R,normalize(uMoon)),0.),120.)*uNight*1.6;
-          // body: absorption colour (.28,.74,.74) and a faint teal emission (.21,.36,.32 x .12), darker at night
-          float depthN=.5+.5*h;
-          vec3 body=mix(vec3(.05,.13,.15),vec3(.12,.30,.30),depthN)*mix(1.,.28,uNight)+vec3(.21,.36,.32)*.12;
-          // caustics: two scrolled copies of the texture, ramp 0.018 -> 1, tinted like the add-on's caustics colour
-          float c1=texture2D(tCaus,p*.06+vec2(t*1.9,t*.7)).r,c2=texture2D(tCaus,p*.045-vec2(t*1.2,-t*1.6)+1.3).r;
-          float caus=smoothstep(.018,1.,min(c1,c2)*1.7);
-          body+=caus*vec3(1.09,1.78,2.0)*.07*mix(1.,.55,uNight);
+          vec3 day=mix(vec3(.66,.76,.86),vec3(.24,.42,.70),sqrt(ry)),night=mix(vec3(.05,.07,.12),vec3(.01,.02,.06),ry);
+          vec3 sky=mix(day,night,uNight);
+          float glint=pow(max(dot(R,normalize(uSun)),0.),220.)*(1.-uNight)*4.+pow(max(dot(R,normalize(uMoon)),0.),150.)*uNight*1.4;
+          // body: light that went down and came back through d metres of water, absorbed per channel (m^-1, red most)
+          float dE=edgeD(p,uRect),d=clamp(dE*.35,.3,6.);
+          vec3 body=vec3(.55,.75,.70)*exp(-vec3(.45,.09,.06)*d*2.)*.35*mix(1.,.15,uNight);
+          body+=caustic(p,uTime)*exp(-vec3(.45,.09,.06)*d)*.05*(1.-uNight)*(1.-far);
           vec3 c=mix(body,sky,F)+glint;
-          // foam along the shore: proximity to the rectangle's edge drives a noise ramp (0.214 -> 0.718), gamma-shaped
-          float dEdge=min(min(p.x-uRect.x,uRect.z-p.x),min(p.y-uRect.y,uRect.w-p.y));
-          float prox=1.-smoothstep(.2,3.4,dEdge);
-          float nz=fbm(p*1.15+vec2(t*4.,t*2.))*.7+fbm(p*3.1-vec2(t*6.,0.))*.3;
-          float foam=pow(smoothstep(.214,.718,nz+prox*.45-.15),1.6)*prox;
-          c=mix(c,vec3(.92,.96,1.)*mix(1.,.5,uNight),clamp(foam,0.,1.)*.9);
-          float a=clamp(.62+.33*F+foam*.5+glint*.3,0.,1.);
-          gl_FragColor=vec4(c,a);
+          // foam where the water meets the edge, broken up by noise
+          float n=fbm(p*1.3+vec2(uTime*.12,uTime*.05));
+          float foam=smoothstep(.55,.85,n+(1.-smoothstep(.1,2.5,dE))*.7)*(1.-smoothstep(.1,2.5,dE));
+          c=mix(c,vec3(.90,.94,.97)*mix(1.,.45,uNight),foam*.85);
+          gl_FragColor=vec4(c,clamp(.6+.35*F+foam*.5+glint*.3,0.,1.));
           #include <fog_fragment>
         }`,
     });
-    // basin floor under the transparent surface: shallow teal at the shore, deep dark in the middle, lit by caustics
+    // basin floor under the transparent surface: lit by the caustics, darker with depth
     const floorMat = new THREE.ShaderMaterial({
       fog: true,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) }, tCaus: { value: causticTex } }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: timeUniform, uNight: nightU, uRect: { value: new THREE.Vector4(w.x0, w.z0, w.x1, w.z1) } }]),
       vertexShader: 'varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vP=(modelMatrix*vec4(position,1.)).xyz;vec4 mvPosition=viewMatrix*vec4(vP,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
-      fragmentShader: `${GLSL_NOISE}uniform float uTime,uNight;uniform vec4 uRect;uniform sampler2D tCaus;varying vec3 vP;
+      fragmentShader: `${GLSL_NOISE}${WATER_GLSL}uniform float uTime,uNight;uniform vec4 uRect;varying vec3 vP;
         #include <fog_pars_fragment>
         void main(){
-          vec2 p=vP.xz;float t=uTime*.05;
-          float dE=min(min(p.x-uRect.x,uRect.z-p.x),min(p.y-uRect.y,uRect.w-p.y));
-          float depth=smoothstep(0.,14.,dE);
-          vec3 shallow=vec3(.12,.30,.30),deep=vec3(.01,.05,.08);
-          vec3 c=mix(shallow,deep,depth)*(.8+.4*fbm(p*.5));
-          float c1=texture2D(tCaus,p*.06+vec2(t*1.9,t*.7)).r,c2=texture2D(tCaus,p*.045-vec2(t*1.2,-t*1.6)+1.3).r;
-          c+=smoothstep(.018,1.,min(c1,c2)*1.7)*vec3(1.09,1.78,2.0)*.22*(1.-.6*depth);
-          c*=mix(1.,.3,uNight);
+          vec2 p=vP.xz;float d=clamp(edgeD(p,uRect)*.35,.3,6.);
+          vec3 sand=vec3(.42,.40,.32)*(.8+.4*fbm(p*.5));
+          vec3 c=sand*exp(-vec3(.45,.09,.06)*d*2.);
+          c+=caustic(p,uTime)*exp(-vec3(.45,.09,.06)*d)*.35;
+          c*=mix(1.,.2,uNight);
           gl_FragColor=vec4(c,1.);
           #include <fog_fragment>
         }`,

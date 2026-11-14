@@ -37,8 +37,10 @@
 - AC: 만들어지지 않은 층은 열리지 않음(e2e `window-interiors`), 플레이 중 셰이더 컴파일 0, LOW에서 꺼짐, 전후 대조 승인.
 - 검증: 사용자 실행 quick, `--only window-interiors`, `--only no-runtime-compile`, `--only entrance-holes`, `--only low-tier`, `--only facade-relief`, `--only golden-views`, 실기기 프레임(PERF-01).
 
-### Q0-4 물 셰이더 교체(GPL 제거) — P0 · M · Q0 · Backlog
+### Q0-4 물 셰이더 교체(GPL 제거) — P0 · M · Q0 · Review (2026-11-14)
 - 범위: three.js `Water`(MIT)를 바탕으로 다시 쓴다. Q2-4와 합친다.
+- 한 것: `world.js buildWaters`를 이 게임용으로 새로 썼다. 방향파 4개(파장 1.3–6 m, 심해 위상 속도)·노이즈·사람 물결로 법선을 만들고, 쉴릭 프레넬(F0 0.02)로 하늘을 반사한다. 물색은 깊이에 따른 채널별 흡수(빨강이 먼저 빠짐)이고, 커스틱은 움직이는 보로노이 경계로 그린다(텍스처 없음). GPL 텍스처 `water_caustic.jpg`와 manifest 항목을 지웠다.
+- 남은 것: Q2-4(바다 거스트너·거품·깊이색, 강 흐름).
 
 ### Q0-5 품질 등급 확장 — P1 · S · Q0 · Backlog
 - 범위: `engine.js` `QUALITY`에 효과 스위치(CSM 단계, SSR, TAA, 볼류메트릭, 팩 유무).

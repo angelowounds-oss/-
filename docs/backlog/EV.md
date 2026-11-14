@@ -257,8 +257,8 @@
 - 효과: 주 성분 비율 0.569 → 0.839, 21쌍 모두 경로가 생겼다(직선거리 대비 1.16–1.51배, 3.5 s).
 
 ### AAA-patch-cc0 CC0 에셋 연결 — Review (2026-11-14)
-- `origin/feat/AAA-patch-cc0-assets`의 `assets/patch-cc0/` 21개 파일을 가져와 `build/assets/manifest.json`에 9개 항목으로 올렸다. `fetch.mjs --docs` 결과는 오류 0, 경고 3이다.
-  - 경고: `carEngineLoop.wav`·`policeSiren.mp3`는 출처·라이선스를 확인해야 한다(`status: confirm`), 물 셰이더 텍스처(Q0-4)는 GPL이다.
+- `origin/feat/AAA-patch-cc0-assets`의 `assets/patch-cc0/` 21개 파일을 가져와 `build/assets/manifest.json`에 항목으로 올렸다. `fetch.mjs --docs` 결과는 오류 0, 경고 0이다.
+  - 공개 저장소 정리(2026-11-14): 출처·라이선스를 모르는 `carEngineLoop.wav`·`policeSiren.mp3`는 쓰는 곳이 없어 뺐다. GPL 물 셰이더와 `water_caustic.jpg`는 Q0-4로 새로 써서 지웠다.
   - 소리는 `kind: "audio"` 없이 일반 파일로 올렸다. esbuild 로더에 `.ogg`/`.wav`/`.mp3`를 넣었지만 아직 import하는 곳은 없다.
 - 택시·경찰 세단(`carTaxi.glb`, `carPolice.glb`):
   - `assets.js loadAssets`가 `A.kit`에 읽는다. 실패하면 기존 절차 모델을 쓴다.
