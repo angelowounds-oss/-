@@ -35,7 +35,7 @@ function auditOf(J, C) {
   for (const j of J) {
     const gr = j.signal ? signalGroups(j.arms) : null;
     for (const a of j.arms) { if (!a.cross) continue; const { s0, len } = crossingSpan(a), dx = Math.cos(a.ang), dz = Math.sin(a.ang), m = s0 + len / 2; xing.push({ x: j.x + dx * m, z: j.z + dz * m, ax: dx, az: dz, hl: len / 2, hw: a.half }); }
-    if (gr) sig.push({ x: j.x, z: j.z, R: radiusOf(j.arms), phase: hash(Math.round(j.x), Math.round(j.z)), arms: j.arms.map((a, k) => { const c = crossingSpan(a); return { ang: a.ang, g: gr[k], stop: c.s0 + c.len, half: a.half, flow: a.flow }; }) });
+    if (gr) sig.push({ x: j.x, z: j.z, R: radiusOf(j.arms), phase: hash(Math.round(j.x), Math.round(j.z)), arms: j.arms.map((a, k) => { const c = crossingSpan(a); return { ang: a.ang, g: gr[k], stop: c.s0 + c.len, s0: c.s0, len: c.len, cross: a.cross, half: a.half, flow: a.flow }; }) });   // s0, len, cross: where its crossing is (street walkers)
   }
   for (const c of C) xing.push({ x: c.x, z: c.z, ax: c.tx, az: c.tz, hl: c.wid / 2, hw: c.half, signal: c.signal });
   return { sig, xing };
