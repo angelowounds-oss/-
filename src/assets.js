@@ -5,6 +5,8 @@ import { fetchBytes } from './files.js';
 import characterUrl from '../assets/character_game.glb';
 import playerUrl from '../assets/player_female.glb';
 import ferrariUrl from '../assets/ferrari.glb';
+import carTaxiUrl from '../assets/patch-cc0/models/carTaxi.glb';
+import carPoliceUrl from '../assets/patch-cc0/models/carPolice.glb';
 import hydrantUrl from '../assets/props/fire_hydrant.glb';
 import trashUrl from '../assets/props/metal_trash_can.glb';
 import boxUrl from '../assets/props/utility_box_01.glb';
@@ -232,7 +234,7 @@ function measureFeet(S, scale) {
   return out;
 }
 
-export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, ok: false };
+export const A = { soldier: null, player: null, ferrari: null, props: null, res: null, kit: null, ok: false };
 
 export async function loadAssets() {
   const loader = new GLTFLoader();
@@ -255,6 +257,8 @@ export async function loadAssets() {
       await Promise.all(rs.map(async (b, k) => { out[k + 1] = (await load(b)).scene; }));
       A.res = out;
     } catch (e) { console.warn('skyline load failed', e); }
+    // CC0 KayKit taxi and police sedans (assets/patch-cc0): a failure keeps the procedural taxi and police cars
+    try { const [t, p] = await Promise.all([load(carTaxiUrl), load(carPoliceUrl)]); A.kit = { taxi: t.scene, police: p.scene }; } catch (e) { console.warn('kit car load failed', e); }
     const box = new THREE.Box3().setFromObject(A.soldier.scene);
     A.soldierScale = 1.82 / (box.max.y - box.min.y);
     if (A.player) { const pb = new THREE.Box3().setFromObject(A.player.scene); A.playerScale = 1.82 / (pb.max.y - pb.min.y); }
@@ -550,12 +554,31 @@ export function buildFerrariModel(color) {
   // hide interior sound-alike clutter? keep; steering wheel visible through glass
   return { wrap, wheels, bodyMesh };
 }
-export function setFerrariWheels(w, spin, steer) {
+// spin and steer the four wheel nodes from their rest pose; dir is the spin's sign in the model's own frame (-1 for the Ferrari, turned around
+// to face +Z, +1 for a model that already faces +Z such as the KayKit cars)
+export function setFerrariWheels(w, spin, steer, dir = -1) {
   for (const k of ['fl', 'fr', 'rl', 'rr']) {
     const e = w[k]; if (!e) continue;
     q.copy(e.base);
-    qa.setFromAxisAngle(X, -spin); q.multiply(qa);
+    qa.setFromAxisAngle(X, dir * spin); q.multiply(qa);
     if (k[0] === 'f') { qb.setFromAxisAngle(Y, steer); q.premultiply(qb); }
     e.node.quaternion.copy(q);
   }
+}
+
+// ---- KayKit taxi / police (CC0) ----
+// a KayKit car (A.kit[kind]) fitted to a game car's length and width: it faces +Z with its pivot at the ground already, so it is only scaled
+// (length and height alike, so the round wheels stay round as they spin); its four wheel nodes are found by name as the Ferrari's are
+export function buildKitCarModel(kind, L, W) {
+  const root = A.kit[kind].clone(true), wrap = new THREE.Group(); wrap.add(root);
+  const box = new THREE.Box3().setFromObject(root), sz = box.getSize(new THREE.Vector3()), k = L / sz.z;
+  root.scale.set(W / sz.x, k, k);
+  const wheels = {}; let bodyMesh = null, wr = 0;
+  root.traverse((o) => {
+    const m = /wheel_(front|rear)_(left|right)$/.exec(o.name);
+    if (m) { wheels[m[1][0] + (m[2] === 'left' ? 'l' : 'r')] = { node: o, base: o.quaternion.clone() }; if (!wr) wr = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()).y / 2 * k; }
+    else if (o.isMesh) bodyMesh = bodyMesh || o;
+    if (o.isMesh) o.castShadow = true;
+  });
+  return { wrap, wheels, bodyMesh, wheelR: wr || 0.36, height: sz.y * k };
 }

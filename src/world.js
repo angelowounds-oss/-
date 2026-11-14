@@ -10,10 +10,10 @@ import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelin
 import { nearestRoad, ROAD_W } from './terrainfn.js';
 import { hiSlot } from './hiassets.js';
 import { assignNeonIds } from './buildingid.js';
-import asphA from '../assets/tex/asphalt_04_a.jpg';
-import asphN from '../assets/tex/asphalt_04_n.jpg';
-import paveA from '../assets/tex/concrete_pavers_a.jpg';
-import paveN from '../assets/tex/concrete_pavers_n.jpg';
+import asphA from '../assets/patch-cc0/tex/clean_asphalt/clean_asphalt_baseColor.jpg';
+import asphN from '../assets/tex/clean_asphalt_n.jpg';
+import paveA from '../assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Color.jpg';
+import paveN from '../assets/tex/paving_stones_n.jpg';
 import causticUrl from '../assets/tex/water_caustic.jpg';
 import { instCull } from './instcull.js';
 
@@ -212,8 +212,9 @@ export class Colliders {
   }
 }
 
-// CC0 Poly Haven asphalt_04 / concrete_pavers (512px): real grain, roughness and normal detail layered over the procedural ground
-// (the high-detail pack swaps in 2048 px KTX2 versions of the same scans, hiassets.js)
+// CC0 patch-cc0 scans, Poly Haven clean_asphalt / ambientCG PavingStones003 (1024 px; normal RG + roughness B combined by build/assets/groundtex.mjs):
+// real grain, roughness and normal detail layered over the procedural ground (the high-detail pack swaps in KTX2 versions of the same scans, hiassets.js).
+// The shader divides each colour scan by about its mean brightness over the old scan's ratio (0.273 / 0.509, 0.378 / 0.366), keeping the old look's average
 const groundTex = (url, srgb) => {
   const t = new THREE.TextureLoader().load(url); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; return t;
@@ -232,8 +233,8 @@ function createGround(fakeLights) {
     uLake: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, 0, 0)) },   // lake rectangles: the ground is cut out there so it cannot z-fight the water
     uRC: { value: Array.from({ length: N + 1 }, (_, i) => roadC(i)) },
     uCut: { value: CUTS.map((c) => new THREE.Vector4(...cutRect(c))) },
-    tAsph: hiSlot('asphalt_04_a', { value: groundTex(asphA, true) }), tAsphN: hiSlot('asphalt_04_n', { value: groundTex(asphN, false) }),
-    tPave: hiSlot('concrete_pavers_a', { value: groundTex(paveA, true) }), tPaveN: hiSlot('concrete_pavers_n', { value: groundTex(paveN, false) }),
+    tAsph: hiSlot('clean_asphalt_a', { value: groundTex(asphA, true) }), tAsphN: hiSlot('clean_asphalt_n', { value: groundTex(asphN, false) }),
+    tPave: hiSlot('paving_stones_a', { value: groundTex(paveA, true) }), tPaveN: hiSlot('paving_stones_n', { value: groundTex(paveN, false) }),
   };
   patchStandard(mat, 'ground-v9', {
     uniforms,
@@ -263,7 +264,7 @@ function createGround(fakeLights) {
         // promenade around the city: paver tiles in front of the outer-ring towers
         vec2 t=floor(p/1.6);float tv=h21(t);vec2 f=fract(p/1.6);float seam=smoothstep(.0,.03,min(min(f.x,1.-f.x),min(f.y,1.-f.y)));
         alb=vec3(.12+tv*.05,.12+tv*.05,.13+tv*.05)*(.75+.5*n2)*mix(.35,1.,seam);fRough=mix(.55,.8,tv)-.1;
-        vec2 u1=p*.55;vec3 tc=texture2D(tPave,u1).rgb;vec4 tn=texture2D(tPaveN,u1);alb*=clamp(dot(tc,vec3(.333))/.32,.5,1.6);fN=(tn.xy*2.-1.)*.55;pud*=.45;
+        vec2 u1=p*.55;vec3 tc=texture2D(tPave,u1).rgb;vec4 tn=texture2D(tPaveN,u1);alb*=clamp(dot(tc,vec3(.333))/.33,.5,1.6);fN=(tn.xy*2.-1.)*.55;pud*=.45;
       }
       else if(!inC){alb=vec3(.03,.032,.04)*(.7+n1);fRough=.8;pud*=.0;}
       else if(road){
@@ -277,7 +278,7 @@ function createGround(fakeLights) {
           vec2 u1=p*.21,u2=p*.047+.37;
           vec3 ta=mix(texture2D(tAsph,u1).rgb,texture2D(tAsph,u2).rgb,.45);
           vec4 tn=mix(texture2D(tAsphN,u1),texture2D(tAsphN,u2),.45);
-          alb*=clamp(dot(ta,vec3(.333))/.26,.45,1.7);
+          alb*=clamp(dot(ta,vec3(.333))/.14,.45,1.7);
           fRough=mix(fRough,clamp(tn.z*.9+.1,.3,.95),.55);
           fN=(tn.xy*2.-1.)*.7;
         }
@@ -319,7 +320,7 @@ function createGround(fakeLights) {
         alb=vec3(.12+tv*.05,.12+tv*.05,.13+tv*.05)*(.75+.5*n2)*mix(.35,1.,seam);
         {
           vec2 u1=p*.55;vec3 tc=texture2D(tPave,u1).rgb;vec4 tn=texture2D(tPaveN,u1);
-          alb*=clamp(dot(tc,vec3(.333))/.32,.5,1.6);
+          alb*=clamp(dot(tc,vec3(.333))/.33,.5,1.6);
           fN=(tn.xy*2.-1.)*.55;
         }
         fRough=mix(.55,.8,tv)-.1;

@@ -13,7 +13,7 @@ const dir = path.join(GAME, 'world', 'high');
   await page.addInitScript(() => { try { localStorage.setItem('neon_detail', 'laptop'); } catch (e) { /* ignore */ } });   // start without the pack
   await page.goto((await gameUrl()) + '?q=1');
   await page.waitForSelector('#go.rdy', { timeout: 300000 });
-  const ground = () => page.evaluate(() => { const u = window.__hi.slot('asphalt_04_a'); const t = u ? u.value : null; return t ? { w: t.image?.width, compressed: !!t.isCompressedTexture, mips: t.mipmaps?.length || 0 } : null; });
+  const ground = () => page.evaluate(() => { const u = window.__hi.slot('clean_asphalt_a'); const t = u ? u.value : null; return t ? { w: t.image?.width, compressed: !!t.isCompressedTexture, mips: t.mipmaps?.length || 0 } : null; });
   const before = await ground();
   const ok = await page.evaluate(() => window.__detail.mount());   // what the boot does when the high detail is chosen
   // a frame drawn the game's way (eng.render: through the composer at q=1) before and after the swap; drawing the scene straight to the screen

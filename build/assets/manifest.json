@@ -239,20 +239,6 @@
    "status": "ok"
   },
   {
-   "id": "ph-ground",
-   "title": "Poly Haven asphalt_04, concrete_pavers (512 px)",
-   "files": {
-    "assets/tex/asphalt_04_a.jpg": "65e2b30ea707b8f90bd48de6abb56ccfb3933178aacaacc57aa4af410e3eac29",
-    "assets/tex/asphalt_04_n.jpg": "a2f3634c9c17706f22a03e81cb65605f56ec229a08a204a14aacaa24a34675ce",
-    "assets/tex/concrete_pavers_a.jpg": "774c38f1d44a7024db2a2d574e4094c43d1ac54ec12f9ccef760ee0a85253e4b",
-    "assets/tex/concrete_pavers_n.jpg": "96e1229864ece02ba0102edda8d41fa5aa140c732c06a7d655e0e8b2c10b3db7"
-   },
-   "source": "Poly Haven",
-   "licence": "CC0-1.0",
-   "url": "https://polyhaven.com/a/asphalt_04",
-   "status": "ok"
-  },
-  {
    "id": "water-caustic",
    "title": "Water caustics texture",
    "files": {
@@ -367,81 +353,6 @@
    "status": "ok"
   },
   {
-   "id": "ph-ground-2k",
-   "title": "Poly Haven asphalt_04, concrete_pavers (2K, high-detail pack)",
-   "files": {},
-   "source": "Poly Haven",
-   "licence": "CC0-1.0",
-   "url": "https://polyhaven.com/a/asphalt_04",
-   "status": "ok",
-   "fetch": [
-    {
-     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_04/asphalt_04_diff_2k.jpg",
-     "to": "asphalt_04_diff_2k.jpg",
-     "sha256": "e02ac16d23ea97008c2507cf58bfad7c18a3b5933b5bdea14f7f90f33a784976"
-    },
-    {
-     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_04/asphalt_04_nor_gl_2k.jpg",
-     "to": "asphalt_04_nor_gl_2k.jpg",
-     "sha256": "16ab393a8e9135ff1f30545bc0bc46b7b7f79da8db881bcb0da22cd12d528257"
-    },
-    {
-     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_04/asphalt_04_rough_2k.jpg",
-     "to": "asphalt_04_rough_2k.jpg",
-     "sha256": "4a5090564b400e481af564f97e2f8ba0db820a61f6b2d50d0cfe92160a7161ab"
-    },
-    {
-     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavers/concrete_pavers_diff_2k.jpg",
-     "to": "concrete_pavers_diff_2k.jpg",
-     "sha256": "ac772172824543ce53a9ad60e0b7a00c02fcaf875ec6a65ae49806f6ae25539a"
-    },
-    {
-     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavers/concrete_pavers_nor_gl_2k.jpg",
-     "to": "concrete_pavers_nor_gl_2k.jpg",
-     "sha256": "e2c582e8cfbd1fd05a344fecba7d8cade8590ab2ebf24088118618a721c66149"
-    },
-    {
-     "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavers/concrete_pavers_rough_2k.jpg",
-     "to": "concrete_pavers_rough_2k.jpg",
-     "sha256": "b885c369528efb5c999577a49f60aeaa4c48b57f4a727c47d22fe3253f828f8d"
-    }
-   ],
-   "pack": [
-    {
-     "name": "asphalt_04_a",
-     "from": "asphalt_04_diff_2k.jpg",
-     "srgb": true,
-     "mode": "etc1s"
-    },
-    {
-     "name": "asphalt_04_n",
-     "combine": {
-      "rg": "asphalt_04_nor_gl_2k.jpg",
-      "b": "asphalt_04_rough_2k.jpg"
-     },
-     "size": 2048,
-     "srgb": false,
-     "mode": "uastc"
-    },
-    {
-     "name": "concrete_pavers_a",
-     "from": "concrete_pavers_diff_2k.jpg",
-     "srgb": true,
-     "mode": "etc1s"
-    },
-    {
-     "name": "concrete_pavers_n",
-     "combine": {
-      "rg": "concrete_pavers_nor_gl_2k.jpg",
-      "b": "concrete_pavers_rough_2k.jpg"
-     },
-     "size": 2048,
-     "srgb": false,
-     "mode": "uastc"
-    }
-   ]
-  },
-  {
    "id": "basis-transcoder",
    "title": "Basis Universal transcoder (in the high-detail pack) and encoder (build tool)",
    "files": {},
@@ -449,6 +360,160 @@
    "licence": "Apache-2.0",
    "author": "Binomial LLC",
    "url": "https://github.com/BinomialLLC/basis_universal",
+   "status": "ok"
+  },
+  {
+   "id": "patch-cc0-clean-asphalt",
+   "title": "Clean Asphalt (1K scan; the road surface)",
+   "files": {
+    "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_baseColor.jpg": "74b7ceb9cb401533c09608df389932744d316e47abf507cbf2f5a2c8f6e08bcc",
+    "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_normal.jpg": "ed0dca925cff99383cbd52ea9820d8757a344e9c14fb040f85934e3723336bcf",
+    "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_roughness.jpg": "fed0d6db6d45f9155a48d1849cd67b1ff51592dc804f16207b9975e2980b548e",
+    "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_ao.jpg": "62448fd604e16734a636b8ba9c657ee9b9e25516d7abab81713486df425098e6",
+    "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_arm.jpg": "cf6b3e76514f84000e464da43deee9580ff9a2e56e0d0f64ebb8ed2e225ae396",
+    "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_displacement.jpg": "da6373e1cec073ff713bc8b60d07e8963ff9be7d7ed83381497c26ba568ec77b",
+    "assets/tex/clean_asphalt_n.jpg": "b325edfbf466a603a62b7b3ef9c7111183269c43fda5f3ef4eab382b28eb46cf"
+   },
+   "source": "Poly Haven",
+   "licence": "CC0-1.0",
+   "author": "Dimitrios Savva",
+   "url": "https://polyhaven.com/a/clean_asphalt",
+   "status": "ok",
+   "note": "assets/tex/clean_asphalt_n.jpg is the normal (RG) and roughness (B) combined by build/assets/groundtex.mjs",
+   "pack": [
+    {
+     "name": "clean_asphalt_a",
+     "from": "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_baseColor.jpg",
+     "srgb": true,
+     "mode": "etc1s"
+    },
+    {
+     "name": "clean_asphalt_n",
+     "combine": {
+      "rg": "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_normal.jpg",
+      "b": "assets/patch-cc0/tex/clean_asphalt/clean_asphalt_roughness.jpg"
+     },
+     "size": 1024,
+     "srgb": false,
+     "mode": "uastc"
+    }
+   ]
+  },
+  {
+   "id": "patch-cc0-paving-stones",
+   "title": "Paving Stones 003 (1K scan; the promenade pavers)",
+   "files": {
+    "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Color.jpg": "3ec7e2040d9094669451425914cc51e533839612204d2491071dcf03aa68caef",
+    "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_NormalGL.jpg": "2c79f8d3f81daf30cad60c20715ab067d129eba4c66d7b95917d5c0448d0a5a2",
+    "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_NormalDX.jpg": "855a75a34741a6f0b83f9df269935ad6acf18c904a3554c4108de6ceb876d768",
+    "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Roughness.jpg": "f6777a7b745bb2aee20f7c0d91ea08bceb69094b7b9b212ecfc9dde3705d4d8f",
+    "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Displacement.jpg": "e8d27fcae648e16c52bf4dad8c5d69da34bef6be2a90fcd6fde6733362f9227d",
+    "assets/tex/paving_stones_n.jpg": "9d348193a8613a23e45c12aaa8903997a060f830d6194f716a1e404e65870000"
+   },
+   "source": "ambientCG",
+   "licence": "CC0-1.0",
+   "author": "Lennart Demes",
+   "url": "https://ambientcg.com/a/PavingStones003",
+   "status": "ok",
+   "note": "assets/tex/paving_stones_n.jpg is the normal (RG) and roughness (B) combined by build/assets/groundtex.mjs",
+   "pack": [
+    {
+     "name": "paving_stones_a",
+     "from": "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Color.jpg",
+     "srgb": true,
+     "mode": "etc1s"
+    },
+    {
+     "name": "paving_stones_n",
+     "combine": {
+      "rg": "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_NormalGL.jpg",
+      "b": "assets/patch-cc0/tex/paving_stones/PavingStones003_1K-JPG_Roughness.jpg"
+     },
+     "size": 1024,
+     "srgb": false,
+     "mode": "uastc"
+    }
+   ]
+  },
+  {
+   "id": "patch-cc0-kaykit-cars",
+   "title": "KayKit City Builder Bits: car taxi, car police (traffic taxis and police sedans)",
+   "files": {
+    "assets/patch-cc0/models/carTaxi.glb": "e81aa56b758a3467d93ec84625cdddb7de1b1c99e7f9a68b075bb618abc0e3a4",
+    "assets/patch-cc0/models/carPolice.glb": "366e46832018ab60d5b21ab0b11cc50433d06a8261f0c9ae10052ebf015fb5d7"
+   },
+   "source": "KayKit City Builder Bits 1.0",
+   "licence": "CC0-1.0",
+   "author": "Kay Lousberg",
+   "url": "https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0",
+   "status": "ok"
+  },
+  {
+   "id": "patch-cc0-kaykit-street",
+   "title": "KayKit City Builder Bits: building A, streetlight (not used yet)",
+   "files": {
+    "assets/patch-cc0/models/buildingA.glb": "eb350673a7c6cc5ad95b6be2d5ee1067a90b634594272ed164094462c5d26a57",
+    "assets/patch-cc0/models/streetlight.glb": "af7973b3707ffd2aad47606eb2affc89c297d1d8f13ea9f5ef6a2266442972c7"
+   },
+   "source": "KayKit City Builder Bits 1.0",
+   "licence": "CC0-1.0",
+   "author": "Kay Lousberg",
+   "url": "https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0",
+   "status": "ok"
+  },
+  {
+   "id": "patch-cc0-kenney-human",
+   "title": "Kenney mini-dungeon character human (7-joint rig; reviewed for the crowd, not used yet)",
+   "files": {
+    "assets/patch-cc0/models/characterHuman.glb": "482be9e085a45052b8f31c47946f5b54591445f06329cf9175ea857351b5b03c"
+   },
+   "source": "Kenney",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "url": "https://kenney.nl/assets/mini-dungeon",
+   "status": "ok"
+  },
+  {
+   "id": "patch-cc0-footstep",
+   "title": "Footstep on concrete 1 (short, soft)",
+   "files": {
+    "assets/patch-cc0/audio/footstepOnConcrete1Short.ogg": "2b50a1a4687b5c1f90f0fc5ad5590633ee0f2c7218550de48939733854be75f8"
+   },
+   "source": "Kenney impact-sounds",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "url": "https://kenney.nl/assets/impact-sounds",
+   "status": "ok"
+  },
+  {
+   "id": "patch-cc0-car-engine",
+   "title": "Car engine loop (0.86 s, too short for a seamless loop)",
+   "files": {
+    "assets/patch-cc0/audio/carEngineLoop.wav": "69d74b106509037ce547429e4c3f9ae906b0fffe88d0bb8b3b5a8b0cfc239048"
+   },
+   "source": "single file without credits (WAV INFO: \"start up car with seat belt warning beep\", 2007)",
+   "licence": "unknown",
+   "status": "confirm"
+  },
+  {
+   "id": "patch-cc0-police-siren",
+   "title": "Police siren (41 s)",
+   "files": {
+    "assets/patch-cc0/audio/policeSiren.mp3": "fabe96ad2116d310b38acc143780e1c47c3cb27227deda13f84ce8e3cfb2248b"
+   },
+   "source": "single file without credits",
+   "licence": "unknown",
+   "status": "confirm"
+  },
+  {
+   "id": "patch-cc0-docs",
+   "title": "patch-cc0 credits and the CC0 licence text",
+   "files": {
+    "assets/patch-cc0/CREDITS.md": "41dea4654c47810e035b7960686b977e1e5bdfca76e962861644107891b7ef2f",
+    "assets/patch-cc0/LICENSES/CC0-1.0.txt": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+   },
+   "source": "this project",
+   "licence": "own",
    "status": "ok"
   }
  ]

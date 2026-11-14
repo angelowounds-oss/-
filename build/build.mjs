@@ -32,7 +32,7 @@ for (const d of ['fonts', 'world']) fs.mkdirSync(path.join(GAME, d), { recursive
 // code to main.js; every imported model, texture and data file is copied to assets/ under a hashed name, and the import gives its URL (files.js)
 await build({
   entryPoints: ['src/main.js'], bundle: true, minify: !process.env.DEV, format: 'iife', outdir: GAME, entryNames: 'main', assetNames: 'assets/[name]-[hash]',
-  loader: { '.glb': 'file', '.jpg': 'file', '.bin': 'file', '.rgbe': 'file' }, target: 'es2020', legalComments: 'none',
+  loader: { '.glb': 'file', '.jpg': 'file', '.bin': 'file', '.rgbe': 'file', '.ogg': 'file', '.wav': 'file', '.mp3': 'file' }, target: 'es2020', legalComments: 'none',
   nodePaths: ['build/node_modules'], logLevel: 'warning',
 });
 // the loading screen's fonts (Anton, Space Mono; both SIL OFL) ship as files: the game must look the same offline

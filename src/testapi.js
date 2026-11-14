@@ -22,9 +22,10 @@ export function installTestApi(G) {
     // the weather held until changed: 'clear' | 'rain' | 'storm'; wet defaults to 0 / 1 / 1.4 as the daynight cycle sets it
     weather(type, wet) { G.state.weather = { type, until: G.clock.t + 1e9 }; G.daynight.wet = wet ?? ({ clear: 0, rain: 1, storm: 1.4 }[type] ?? 1); return type; },
     // a car of a type at (x, z) heading h (forward = (sin h, cos h)), standing on the surface at y when given (a deck); kind 'parked' sleeps,
-    // 'drive' is awake for the player to take, 'lab' is stepped by the test itself
-    spawn(type, x, z, h = 0, kind = 'parked', color = 0x777777, y) {
-      const v = new Vehicle(G, type, color, 'parked', {}); v.x = x; v.z = z; v.h = h; v.awake = kind !== 'parked'; if (y !== undefined) v.spawnY = y;
+    // 'drive' is awake for the player to take, 'lab' is stepped by the test itself; `as` builds it as another vehicle kind ('police', 'traffic')
+    // with that kind's options ({ taxi: true }), for tests of a model
+    spawn(type, x, z, h = 0, kind = 'parked', color = 0x777777, y, as = 'parked', opts = {}) {
+      const v = new Vehicle(G, type, color, as, opts); v.x = x; v.z = z; v.h = h; v.awake = kind !== 'parked'; if (y !== undefined) v.spawnY = y;
       G.addVehicle(v); if (kind === 'lab') { v.kind = 'lab'; v.driver = 'lab'; }
       return v;
     },

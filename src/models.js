@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CAR_SPECS } from './carspecs.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TAU } from './util.js';
-import { A, buildSoldier, buildFerrariModel, setFerrariWheels } from './assets.js';
+import { A, buildSoldier, buildFerrariModel, setFerrariWheels, buildKitCarModel } from './assets.js';
 
 const shapeGeo = (pts, depth, bevel = 0.06, curve = 6) => {
   const s = new THREE.Shape();
@@ -96,6 +96,38 @@ function buildFerrari(color, opts) {
   };
 }
 
+// the KayKit taxi or police sedan (CC0, assets/patch-cc0) behind buildCar's usual return: the same fields as a procedural car (dummies where
+// the model carries the part itself: glass, lamps, the taxi sign and light bar), its wheels spun and steered as the Ferrari's (setFerrariWheels)
+function buildKitCar(kind, sp, opts) {
+  const { L, W } = sp, hl = L / 2;
+  const group = new THREE.Group(), km = buildKitCarModel(kind, L, W);
+  group.add(km.wrap);
+  const dummy = () => new THREE.Object3D();
+  const ug = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.7, L * 1.35), underMat.clone());
+  ug.rotation.x = -Math.PI / 2; ug.position.y = 0.06; ug.material.uniforms.uColor.value = new THREE.Color(...(opts.glow || [0.2, 0.9, 1])); ug.renderOrder = 1; group.add(ug);
+  const beams = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.35, 17), beamMat);
+  beams.rotation.x = -Math.PI / 2; beams.position.set(0, 0.07, hl + 8.5); beams.renderOrder = 1; group.add(beams);
+  const headSprMat = glowSpriteMat(0xfff0cc, 1.4), tailSprMat = glowSpriteMat(0xff1a10, 1.1);
+  const spr = (x, y, z, mat, s) => { const t = new THREE.Sprite(mat); t.position.set(x, y, z); t.scale.setScalar(s); group.add(t); return t; };
+  const hs = [spr(-(W / 2 - 0.3), 0.72, hl + 0.05, headSprMat, 0.9), spr(W / 2 - 0.3, 0.72, hl + 0.05, headSprMat, 0.9)];
+  const ts = [spr(-(W / 2 - 0.28), 0.8, -hl - 0.05, tailSprMat, 0.5), spr(W / 2 - 0.28, 0.8, -hl - 0.05, tailSprMat, 0.5)];
+  const brake = new THREE.Group();
+  for (const s of [-1, 1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.04), brakeMat); m.position.set(s * (W / 2 - 0.28), 0.8, -hl - 0.02); brake.add(m); }
+  brake.visible = false; group.add(brake);
+  // police: the model's light bar is painted; the flashing glow sprites ride on top of it (vehicle.js toggles rs / bs)
+  let siren = null;
+  if (kind === 'police') {
+    const y = km.height + 0.1, rs = new THREE.Sprite(glowSpriteMat(0xff2020, 3)), bs = new THREE.Sprite(glowSpriteMat(0x2060ff, 3));
+    rs.position.set(-0.4, y, 0); bs.position.set(0.4, y, 0); rs.scale.setScalar(3); bs.scale.setScalar(3); group.add(rs, bs);
+    siren = { r: dummy(), b: dummy(), rs, bs };
+  }
+  return {
+    group, spec: sp, paint: km.bodyMesh, dark: dummy(), head: dummy(), tail: dummy(), brake, front: dummy(), rear: dummy(), fa: dummy(), ra: dummy(), ug, beams,
+    headSprites: hs, tailSprites: ts, siren, wheelR: km.wheelR, steerPivot: null,
+    syncWheels(spin, steer) { setFerrariWheels(km.wheels, spin, steer, 1); },
+  };
+}
+
 // the ids THREE hands out next: a geometry or material with a higher id was made after this call, so it belongs to the model built after it
 // (and to the copies a dent or a wreck makes later) and can be freed with it; shared module materials and geometries all have lower ids
 export function idMark() { return { g: new THREE.BufferGeometry().id, m: new THREE.Material().id }; }
@@ -110,6 +142,8 @@ export function disposeOwned(root, mark) {
 export function buildCar(type, color, opts = {}) {
   // the 190k-triangle glTF is reserved for the player's own car; ambient traffic uses the procedural model
   if ((type === 'sport' || type === 'roadster') && A.ok && !opts.police && opts.hero) return buildFerrari(color, opts);
+  // taxi and police sedans are the KayKit models when they loaded (assets.js loadAssets)
+  if (type === 'sedan' && A.kit && (opts.police || opts.taxi)) return buildKitCar(opts.police ? 'police' : 'taxi', CAR_SPECS.sedan, opts);
   const sp = CAR_SPECS[type];
   const { L, W, belt, roof, hood } = sp;
   const hl = L / 2;

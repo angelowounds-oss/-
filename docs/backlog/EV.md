@@ -256,6 +256,32 @@
 - 수정: 간선의 열린 끝마다 다른 지역 간선의 60 m 안 가장 가까운 표본에 잇는다(일방통행은 방향대로).
 - 효과: 주 성분 비율 0.569 → 0.839, 21쌍 모두 경로가 생겼다(직선거리 대비 1.16–1.51배, 3.5 s).
 
+### AAA-patch-cc0 CC0 에셋 연결 — Review (2026-11-14)
+- `origin/feat/AAA-patch-cc0-assets`의 `assets/patch-cc0/` 21개 파일을 가져와 `build/assets/manifest.json`에 9개 항목으로 올렸다. `fetch.mjs --docs` 결과는 오류 0, 경고 3이다.
+  - 경고: `carEngineLoop.wav`·`policeSiren.mp3`는 출처·라이선스를 확인해야 한다(`status: confirm`), 물 셰이더 텍스처(Q0-4)는 GPL이다.
+  - 소리는 `kind: "audio"` 없이 일반 파일로 올렸다. esbuild 로더에 `.ogg`/`.wav`/`.mp3`를 넣었지만 아직 import하는 곳은 없다.
+- 택시·경찰 세단(`carTaxi.glb`, `carPolice.glb`):
+  - `assets.js loadAssets`가 `A.kit`에 읽는다. 실패하면 기존 절차 모델을 쓴다.
+  - `buildKitCarModel`은 세단 길이·폭(4.7 × 1.88 m)에 맞춘다. 길이와 높이 배율이 같아 바퀴가 돌 때 찌그러지지 않는다.
+  - `models.js buildKitCar`는 `buildCar` 반환 계약을 그대로 지킨다. 모델에 이미 있는 부품(유리, 등화, 택시 표지, 경광등 몸체)은 더미로 둔다. 경찰은 깜빡이는 빛 스프라이트를 위에 얹는다.
+  - 바퀴 노드(`*_wheel_{front,rear}_{left,right}`)는 Ferrari처럼 `setFerrariWheels`로 굴리고 꺾는다. 회전 부호 인자(`dir`)를 더했는데, KayKit 모델은 이미 +Z를 보기 때문이다.
+  - 교통 택시, 경찰차, 대중교통 택시(`transit.js`), 셰이더 예열이 모두 이 모델을 쓴다.
+  - 테스트 `e2e/kit-cars`: 반환 필드, 바퀴 4개, 길이, 접지 높이, 주행 중 바퀴 회전, 앞바퀴만 조향.
+- 노면: `clean_asphalt`(Poly Haven)가 차도, `PavingStones003`(ambientCG)가 보도다. 둘 다 1024 px다.
+  - `build/assets/groundtex.mjs`가 노멀 RG와 거칠기 B를 합친 `assets/tex/{clean_asphalt,paving_stones}_n.jpg`를 만든다. 셰이더가 쓰는 배치 그대로다.
+  - 셰이더 밝기 나눗수는 새 스캔의 평균 밝기 비로 바꿔 예전 평균 톤을 지켰다. 아스팔트 0.26→0.14, 보도 0.32→0.33.
+  - 고해상 팩(`hiassets.js` 슬롯 `clean_asphalt_a/_n`, `paving_stones_a/_n`)은 `pack.mjs`가 저장소 파일(`assets/...`)을 원본으로 읽는다(KTX2).
+  - 예전 `asphalt_04`/`concrete_pavers` 512 px와 2K 팩 항목은 지웠다.
+- `characterHuman.glb` 검토(연결하지 않음):
+  - 465 tris, 조인트 7개, 클립 32개(idle/walk/sprint/die 포함), 512 텍스처다. 지금 사람은 13,757 tris에 조인트 66개다.
+  - `adaptCharacter`/`SOLDIER_REST` 규약(Mixamo 이름 21본 기준)과 맞지 않는다. 그래서 몸 교체나 같은 클립 재생에는 못 쓴다.
+  - 쓸 자리는 둘이다.
+    - 지금 75 m 밖에서 아예 안 보이는 시민(`human.js` `m.body.visible = cd < 75`)을 75–150 m에서 이 모델로 대신 그리는 것. 스키닝 비용은 약 1/30이다.
+    - `A.ok`가 거짓일 때 쓰는 캡슐 폴백을 대신하는 것.
+  - 막는 것: 미니던전 화풍이 사실적인 가까운 몸과 달라 75 m 경계에서 튄다. 옷 색을 맞추려면 512 아틀라스를 바꿔 칠해야 한다.
+  - 하려면 렌더러 결정(EV-40) 뒤 군중 LOD 작업으로 잡는다.
+- `buildingA.glb`, `streetlight.glb`: 목록에만 올렸고 쓰지 않는다. 지금 건물·가로등은 절차 생성이다.
+
 ### EV-40 렌더러 방향 스파이크 — P0 · M · Blocked(사용자 결정)
 - `build/lab/renderer-spike.mjs` + `build/lab/renderer-spike/index.html`: 같은 장면을 `WebGLRenderer`(현재)와 `WebGPURenderer`(WebGPU, WebGL2 대체 경로)로 그려 비교.
 - 결과와 권고: `docs/adr/0045-renderer-direction.md`(초안).

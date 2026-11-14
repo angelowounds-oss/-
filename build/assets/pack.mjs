@@ -20,7 +20,8 @@ const chunk = (key, obj) => { const raw = encodeChunk(obj); return { key, z: zli
 
 // one recipe -> the bytes of its KTX2 file; `combine` packs a normal map's RG and a roughness map into one RGB image first (as build/packtex.mjs)
 async function encode(id, rc, tmp) {
-  const src = (f) => path.join(CACHE, id, f);
+  // a recipe reads its downloaded sources from the cache, or a committed file by its repository path (assets/...)
+  const src = (f) => (f.startsWith('assets/') ? path.join(ROOT, f) : path.join(CACHE, id, f));
   let input = src(rc.from || '');
   if (rc.combine) {
     const S = rc.size || 2048, nor = await sharp(src(rc.combine.rg)).resize(S, S).removeAlpha().raw().toBuffer(), b = await sharp(src(rc.combine.b)).resize(S, S).greyscale().raw().toBuffer();
