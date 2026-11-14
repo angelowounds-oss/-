@@ -62,6 +62,8 @@ if (process.env.LAUNCHER !== '0') {
   if (go) execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', path.resolve(DIST, 'Korea.exe'), '.'], { cwd: 'launcher', stdio: 'inherit', env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
   else console.warn('Go not found: no Korea.exe (https://go.dev/dl/)');
 }
+// the place index (EV-72, src/placeindex.js) from the extracted points of interest, when build/.osm-cache/poi.json is there (poi-extract.py)
+if (!small) { const { writePlaces } = await import('./world/placeindex.mjs'), n = writePlaces(GAME); if (!n) console.warn('no build/.osm-cache/poi.json (build/world/poi-extract.py): no place index, the jobs keep the capital grid'); }
 const info = { ...buildInfo(), regions };
 writeReadme(DIST, info); writeLicences(GAME);
 

@@ -12,6 +12,7 @@ import * as V from './vehicle.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { AIM } from './assets.js';
 import { loadBaked } from './bakedload.js';
+import { loadPlaces } from './placeindex.js';
 import { initDetail, initDetailUI, detail } from './detail.js';
 import { loadResident, setTileReader } from './heightmap.js';
 import { mountRegionTiles, syncChunk } from './regionload.js';
@@ -65,7 +66,7 @@ function reportPlace() { try { return window.__game?.reportPlace() || {}; } catc
     await preloadFiles(); mark('preload');   // files that synchronous set-up code decodes (engine HDRIs, block and landmark shapes, country roads)
     eng = createEngine(el('game'), q);
     await RAPIER.init(); mark('engine');
-    await loadBaked(); mark('baked');   // the baked world must be in place before the first terrain/road query
+    await loadBaked(); mark('baked'); loadPlaces();   // the baked world must be in place before the first terrain/road query; the place index (EV-72) comes in behind it (only the jobs use it)
     await initDetail();   // mounts the high pack next to the page (world/high/) when the high detail is chosen
     // the compiled regions' raster tiles (EV-01): mounted, and those around the start (the plaza by the origin) read before the world is built
     if (globalThis.__WORLD && await mountRegionTiles()) { await regionLoad(0, 0, REG_REACH); mark('region'); }

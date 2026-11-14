@@ -1,5 +1,8 @@
 import { Vehicle } from './vehicle.js';
 import { hyp } from './util.js';
+import { places } from './placeindex.js';
+import { regionWeight } from './region.js';
+import { carriage } from './carriage.js';
 
 // Side jobs: delivery, taxi fare, building patrol, roadside repair, hacking contract
 export class Jobs {
@@ -9,6 +12,21 @@ export class Jobs {
     const J = this, G = this.G;
     return { get x() { return J.cur?.type === 'delivery' || J.cur?.type === 'courier' ? J.cur.e.x : 1e9; }, get z() { return J.cur?.type === 'delivery' || J.cur?.type === 'courier' ? J.cur.e.z : 1e9; }, cy: 1, r: 3.4, name: '배달 도착지', verbs: [{ key: 'F', label: () => '배달 완료', enabled: () => (J.cur?.type === 'delivery' || J.cur?.type === 'courier') && G.items.count('parcel') > 0, run: () => J.finish(true) }] };
   }
+  // a real place for a job in a compiled region (EV-72): one of the kinds between min and max m from (x, z), standing in the region, moved out to
+  // the pavement of the street nearest it (the record is often the middle of its building) and facing the street; null outside the regions, before
+  // the index has loaded or when nothing fits
+  placeTarget(from, kinds, min, max) {
+    const I = places(), H = this.G.hwtraffic; if (!I || !H || regionWeight(from.x, from.z) < 0.5) return null;
+    for (let t = 0; t < 8; t++) {
+      const p = I.pick(from.x, from.z, kinds, min, max); if (!p || regionWeight(p.x, p.z) < 0.5) continue;
+      const s = H.nearestSample(p.x, p.z, 80, true); if (!s) continue;
+      const r = s.r, i = s.i, ox = p.x - r.x[i], oz = p.z - r.z[i], d = hyp(ox, oz) || 1, off = Math.min(d, carriage(r).half + 2.6);   // nx, nz face the street: 2 m out (where a job waits for a car) is just off the kerb
+      const x = r.x[i] + ox / d * off, z = r.z[i] + oz / d * off;
+      if (!(Math.abs(this.G.groundY(x, z, r.y[i] + 3) - r.y[i]) < 1.5)) continue;   // a street on a viaduct or in a cutting: its kerb is not where the ground is
+      return { x, z, nx: -ox / d, nz: -oz / d, name: p.name, place: p };
+    }
+    return null;
+  }
   start(type) {
     const G = this.G, pl = G.player;
     if (this.cur) { G.toast('이미 진행 중인 일이 있습니다', this.cur.title); return; }
@@ -16,7 +34,7 @@ export class Jobs {
     const pickE = (min, max, from = pl) => { const l = ents.filter((e) => { const d = far(e, from); return d > min && d < max; }); return l[Math.floor(Math.random() * l.length)] || ents[0]; };
     let job = null;
     if (type === 'delivery') {
-      const e = pickE(120, 400); G.items.add('parcel');
+      const e = this.placeTarget(pl, new Set(['convenience', 'supermarket', 'food', 'cafe', 'pharmacy', 'bank', 'hotel']), 200, 900) || pickE(120, 400); G.items.add('parcel');
       job = { type, title: '배달', text: `소포를 ${e.name}에 전달`, e, t: 420, reward: Math.floor(120 + far(e, pl) * 0.45) };
       G.setBeacon(e.x, e.z, 0x47ffa8);
     } else if (type === 'courier') {
@@ -27,7 +45,7 @@ export class Jobs {
       job = { type, title: '장거리 배달', text: `소포를 ${city.name} 중앙역 앞까지 (${(d / 1000).toFixed(0)} km)`, e: { x: e.x, z: e.z, name: e.name }, t: 1500 + d / 12, reward: Math.floor((300 + d * 0.06) * (G.rules?.local?.econ ?? 1)) };
       G.wmap?.setWaypoint(e.x, e.z, e.name); G.setBeacon(e.x, e.z, 0xffb040);
     } else if (type === 'taxi') {
-      const e = pickE(60, 200), npc = G.life.npc(null, { npcs: [], interact: [] }, e.x + e.nx * 2, 0, e.z + e.nz * 2, { role: 'passenger' });
+      const e = this.placeTarget(pl, new Set(['convenience', 'food', 'cafe', 'hotel', 'bus_station', 'hospital']), 60, 300) || pickE(60, 200), npc = G.life.npc(null, { npcs: [], interact: [] }, e.x + e.nx * 2, e.place ? G.groundY(e.x + e.nx * 2, e.z + e.nz * 2) : 0, e.z + e.nz * 2, { role: 'passenger' });   // a real place stands on the region's ground, the capital's grid at 0
       G.humans.includes(npc) || 0;
       job = { type, title: '택시 승객', text: '승객을 태우세요 (차량으로 접근)', e, npc, phase: 0, t: 600 };
       G.setBeacon(e.x + e.nx * 2, e.z + e.nz * 2, 0xffc94d);
@@ -66,7 +84,7 @@ export class Jobs {
     const v = G.vehicle;
     if (j.type === 'taxi') {
       if (j.phase === 0 && v && v.speed < 4 && d(j.e.x + j.e.nx * 2, j.e.z + j.e.nz * 2) < 9) {
-        j.phase = 1; j.npc.hidden = true; j.npc.group.visible = false; const to = G.world.enterables[Math.floor(Math.random() * G.world.enterables.length)];
+        j.phase = 1; j.npc.hidden = true; j.npc.group.visible = false; const to = this.placeTarget(pl, new Set(['hotel', 'hospital', 'bus_station', 'supermarket', 'food', 'school']), 600, 3500) || G.world.enterables[Math.floor(Math.random() * G.world.enterables.length)];
         j.dest = to; j.reward = Math.floor(25 + hyp(to.x - pl.x, to.z - pl.z) * 0.14); j.t = 420; G.setBeacon(to.x + to.nx * 2, to.z + to.nz * 2, 0xffc94d); G.setMissionText?.('택시', '승객을 목적지로'); G.toast('승객 탑승', `${to.name}`);
       } else if (j.phase === 1 && v && v.speed < 4 && d(j.dest.x + j.dest.nx * 2, j.dest.z + j.dest.nz * 2) < 9) this.finish(true);
       j.hud = j.phase ? `남은 시간 ${Math.max(0, j.t | 0)}s · $${j.reward}` : '승객에게 접근';
