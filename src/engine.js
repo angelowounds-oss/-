@@ -6,6 +6,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { LIGHT_CAP, VIEW } from './util.js';
+import { Cascades } from './csm.js';
 import { need, bytes } from './files.js';
 import hdriPlazaUrl from '../assets/env/hansaplatz.rgbe';
 import hdriSuiteUrl from '../assets/env/interior_suite.rgbe';
@@ -26,10 +27,10 @@ export const QUALITY = [
   // LOW is the extreme tier for weak devices: 45 % render resolution (the HUD is DOM and stays sharp), no post-processing at all (the scene is drawn
   // straight to the screen), simplified facades (no photo textures / weathering / relief), short view distance with a little more fog.
   // Neon look kept: window lights, signs, lamps and glare sprites are untouched; shadows, lights and population as before.
-  { name: 'LOW', ragdolls: 3, ragDist: 35, shadowEvery: 1, lights: [2, 2], dpr: 0.45, shadow: 1024, bloom: 0, ao: false, smaa: false, post: false, simple: true, camFar: 520, fogK: 1.4, noScale: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
-  { name: 'MEDIUM', ragdolls: 5, ragDist: 50, shadowEvery: 1, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 80, parked: 28, rain: 3000, far: 1 },
-  { name: 'HIGH', ragdolls: 8, ragDist: 60, shadowEvery: 1, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 120, parked: 40, rain: 4500, far: 1 },
-  { name: 'ULTRA', ragdolls: 10, ragDist: 70, shadowEvery: 1, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 160, parked: 52, rain: 6000, far: 1 },
+  { name: 'LOW', ragdolls: 3, ragDist: 35, shadowEvery: 1, cascades: 2, lights: [2, 2], dpr: 0.45, shadow: 1024, bloom: 0, ao: false, smaa: false, post: false, simple: true, camFar: 520, fogK: 1.4, noScale: true, traffic: 12, npc: 52, parked: 18, rain: 1800, far: 1 },
+  { name: 'MEDIUM', ragdolls: 5, ragDist: 50, shadowEvery: 1, cascades: 3, lights: [3, 3], dpr: 1.0, shadow: 2048, bloom: 0.34, ao: false, smaa: true, traffic: 18, npc: 80, parked: 28, rain: 3000, far: 1 },
+  { name: 'HIGH', ragdolls: 8, ragDist: 60, shadowEvery: 1, cascades: 4, lights: [4, 4], dpr: 1.4, shadow: 2048, bloom: 0.4, ao: false, smaa: true, traffic: 24, npc: 120, parked: 40, rain: 4500, far: 1 },
+  { name: 'ULTRA', ragdolls: 10, ragDist: 70, shadowEvery: 1, cascades: 4, lights: [6, 6], dpr: 2.0, shadow: 4096, bloom: 0.45, ao: true, smaa: true, traffic: 30, npc: 160, parked: 52, rain: 6000, far: 1 },
 ];
 
 // Final color grade: chromatic aberration, vignette, film grain, speed/radial blur, damage tint
@@ -95,11 +96,10 @@ export function createEngine(parent, qIndex) {
   scene.add(hemi);
   const moon = new THREE.DirectionalLight(0x8ea4ff, 0.85);
   moon.castShadow = true;
-  moon.shadow.bias = -0.0004;
-  moon.shadow.normalBias = 0.06;
-  const SH = 85;
-  Object.assign(moon.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 420 });
   scene.add(moon, moon.target);
+  const csm = new Cascades(scene, moon);   // the key light is cascade 0; the other cascades only cast (csm.js)
+  // every caster a cascade left out is back in the scene before anything else is drawn
+  { const sm = renderer.shadowMap, real = sm.render.bind(sm); sm.render = (...a) => { try { real(...a); } finally { csm.restore(); } }; }
 
   // real night-plaza HDRI by default; ?env=0 falls back to the procedural neon sky
   const env = new URLSearchParams(location.search).get('env') === '0' ? buildEnvironment(renderer) : hdriEnv(renderer, hdriPlaza);
@@ -144,7 +144,7 @@ export function createEngine(parent, qIndex) {
   const GRADE0 = { uAber: GradeShader.uniforms.uAber.value, uVig: GradeShader.uniforms.uVig.value, uGrain: GradeShader.uniforms.uGrain.value };
 
   const eng = {
-    renderer, scene, camera, composer, moon, hemi, bloom, grade, env, envIndoor, envDay, q: QUALITY[qIndex], qIndex, ov,
+    renderer, scene, camera, composer, moon, csm, hemi, bloom, grade, env, envIndoor, envDay, q: QUALITY[qIndex], qIndex, ov,
     time: 0, scale: 1, frame: 0,
     // the pixel ratio before dynamic resolution: the player's own share of the screen's pixels, or what the tier allows
     baseRatio() { const d = devicePixelRatio || 1; return ov.res != null ? Math.max(0.3, Math.min(3, d * ov.res)) : Math.min(d, eng.q.dpr); },
@@ -154,16 +154,15 @@ export function createEngine(parent, qIndex) {
       const q = eng.q;
       bloom.strength = q.bloom * ov.bloom; bloom.enabled = q.bloom * ov.bloom > 0.001;
       grade.uniforms.uAber.value = GRADE0.uAber * ov.aber; grade.uniforms.uVig.value = GRADE0.uVig * ov.vig; grade.uniforms.uGrain.value = GRADE0.uGrain * ov.grain;
-      const SHD = ov.shadowDist; Object.assign(moon.shadow.camera, { left: -SHD, right: SHD, top: SHD, bottom: -SHD }); moon.shadow.camera.updateProjectionMatrix();
-      moon.castShadow = eng.shadowSize() > 0;
+      // the shadow reach setting stretches every cascade past the first (85 m = the 25-80-250-800 m split); the tier sets how many there are
+      csm.configure(Math.min(q.cascades ?? 4, ov.shadowDist <= 60 ? 2 : 4), ov.shadowDist / 85, Math.max(256, eng.shadowSize() || 256));
+      if (csm.on !== eng.shadowSize() > 0) csm.setEnabled(eng.shadowSize() > 0);
       const far = (ov.camFar ?? (q.camFar ? q.camFar * VIEW.b : 170000)); if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
     },
     // the render target size, the shadow map, the AO and the anti-aliasing pass follow the tier and the settings (made and dropped as asked)
     applyTargets() {
       const q = eng.q, ratio = eng.baseRatio() * eng.scale;
       renderer.setPixelRatio(ratio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
-      const S = Math.max(256, eng.shadowSize() || 256);
-      if (moon.shadow.mapSize.x !== S) { moon.shadow.mapSize.set(S, S); if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; } }
       const wantAO = ov.ao ?? q.ao;
       if (!!gtao !== !!wantAO) {
         if (gtao) { composer.removePass(gtao); gtao.dispose?.(); gtao = null; }
@@ -214,9 +213,10 @@ export function createEngine(parent, qIndex) {
     render(dt) {
       eng.time += dt;
       grade.uniforms.uTime.value = eng.time;
-      // shadow map is the biggest fixed cost on integrated GPUs: refresh it less often on low tiers
+      // shadow map is the biggest fixed cost on integrated GPUs: refresh it less often on low tiers; each cascade also keeps its own
+      // rate (csm.update marks the ones due), so a frame redraws only those
       renderer.shadowMap.autoUpdate = false;
-      if (eng.frame++ % (ov.shadowEvery ?? eng.q.shadowEvery) === 0 && eng.shadowSize() > 0) renderer.shadowMap.needsUpdate = true;
+      if (eng.frame++ % (ov.shadowEvery ?? eng.q.shadowEvery) === 0 && eng.shadowSize() > 0 && csm.due) { renderer.shadowMap.needsUpdate = true; csm.due = false; }
       if (ov.post === false || (ov.post == null && eng.q.post === false)) { renderer.render(scene, camera); return; }   // LOW: no post-processing, straight to the screen (ACES tone mapping from the renderer)
       composer.render(dt);
     },

@@ -556,7 +556,7 @@ export class Game {
     const prev = R.getRenderTarget();
     const direct = eng.q.post === false;   // LOW draws to the screen: programs for the screen target (tone mapping in the shader) are the ones to compile
     R.setRenderTarget(direct ? null : eng.composer.readBuffer); R.compile(this.scene, cam); R.setRenderTarget(prev);   // otherwise the scene is drawn into the composer's target
-    R.shadowMap.needsUpdate = true; if (direct) R.render(this.scene, cam); else eng.composer.render(0);
+    eng.csm?.warm(cam); R.shadowMap.needsUpdate = true; if (direct) R.render(this.scene, cam); else eng.composer.render(0);
     // and upload every texture the scene uses: a texture is otherwise sent to the GPU the first time something with it is drawn
     // (the 2048 furniture atlas, facade arrays, model skins... tens of ms each, mid-game)
     const texs = new Set(), take = (v) => { if (v && v.isTexture && !v.isRenderTargetTexture) texs.add(v); };

@@ -10,7 +10,7 @@ const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t
 
 // 24h cycle: sky dome, sun/moon light, fog, city lighting uniforms, exposure
 export class DayNight {
-  constructor(G) { this.G = G; this.k = 0; this.tmp = new THREE.Color(); this.sun = new THREE.Vector3(); this.moon = new THREE.Vector3(); }
+  constructor(G) { this.G = G; this.k = 0; this.tmp = new THREE.Color(); this.sun = new THREE.Vector3(); this.moon = new THREE.Vector3(); this.keyDir = new THREE.Vector3(); }
   weather(dt) {
     const G = this.G, st = G.state.weather || (G.state.weather = { type: 'rain', until: G.clock.t + 180 });
     if (G.clock.t > st.until) {
@@ -37,10 +37,9 @@ export class DayNight {
     skyU.uSun.value.copy(this.sun); skyU.uMoon.value.copy(this.moon);
     const useSun = D > 0.35;
     const dir = useSun ? this.sun : this.moon;
-    const fx = focus.x, fz = focus.z, snap = (2 * (e.ov?.shadowDist ?? 85) / ((e.shadowSize ? e.shadowSize() : e.q?.shadow) || 2048)) * 24, sx = Math.round(fx / snap) * snap, sz = Math.round(fz / snap) * snap;
     const moon = e.moon;
-    moon.target.position.set(sx, 0, sz);
-    moon.position.set(sx + dir.x * 120, Math.max(30, dir.y * 130), sz + dir.z * 120);
+    // the shadow cascades follow the view camera (what is seen gets the shadows), sun or moon direction kept above the horizon
+    if (e.csm) e.csm.update(this.keyDir.set(dir.x, Math.max(0.23, dir.y), dir.z).normalize(), G.camera);
     const sunI = D * (0.55 + 0.9 * clamp(sinE, 0, 1)) * 1.25, moonI = 0.85 * (1 - D);
     moon.intensity = this.flashBase = Math.max(sunI, moonI) * (G.indoor ? 0.0 : 1);
     moon.color.copy(NIGHT.key).lerp(DAY.key, D).lerp(DUSK, twi * D * 0.7);

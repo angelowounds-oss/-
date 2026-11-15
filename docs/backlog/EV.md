@@ -291,7 +291,7 @@
   - 하려면 렌더러 결정(EV-40) 뒤 군중 LOD 작업으로 잡는다.
 - `buildingA.glb`, `streetlight.glb`: 목록에만 올렸고 쓰지 않는다. 지금 건물·가로등은 절차 생성이다.
 
-### EV-40 렌더러 방향 스파이크 — P0 · M · Blocked(사용자 결정)
+### EV-40 렌더러 방향 스파이크 — P0 · M · Done(2026-11-14 사용자 결정: WebGL2 유지)
 - `build/lab/renderer-spike.mjs` + `build/lab/renderer-spike/index.html`: 같은 장면을 `WebGLRenderer`(현재)와 `WebGPURenderer`(WebGPU, WebGL2 대체 경로)로 그려 비교.
 - 결과와 권고: `docs/adr/0045-renderer-direction.md`(초안).
 - 요약(SwiftShader, 960 × 540):
@@ -355,7 +355,7 @@
 - `window.__test`(`src/testapi.js`): `teleport`, `time`, `weather`, `spawn`, `step`, `streets`, `signal`, `measure`, `perf`. 새 테스트(heap-gate, vehicle-lab, traffic-audit, perf-overlay, memdump)는 이것만 쓴다.
 
 ## 사용자 결정이 필요한 것
-1. EV-40 렌더러 방향(ADR-0045 초안의 권고 참고).
+1. ~~EV-40 렌더러 방향~~ — 2026-11-14 결정: WebGL2 유지(ADR-0045 채택). 조명 작업(EV-41~47)은 WebGL2 위에서 한다.
 2. EV-90 CI 방침: 굽기 캐시를 Actions 캐시·아티팩트로 둘지, 자체 러너로 전체 스위트를 돌릴지.
 3. EV-91 `world-small`: 테스트 전용 소형 월드를 유지하고 기대값을 갱신할지, 지우고 수도권 빌드로만 볼지.
 4. EV-92 실기기 측정: 기기 3종에서 F3 → Shift+F3 기록을 보내 주면 기준선 표를 채운다.
