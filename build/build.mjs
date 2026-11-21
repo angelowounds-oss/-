@@ -72,4 +72,4 @@ const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e
 const parts = {}; for (const f of walk(DIST)) { const r = path.relative(DIST, f).split(path.sep), k = r[0] === 'game' && r.length > 2 ? r[1] : r[r.length - 1]; parts[k] = (parts[k] || 0) + fs.statSync(f).size; }
 const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
 console.log('built', DIST, mb(Object.values(parts).reduce((a, b) => a + b, 0)), '·', Object.entries(parts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${mb(v)}`).join(', '));
-if (process.argv.includes('--zip')) { const z = zipDist(DIST, info); console.log('zip', z, mb(fs.statSync(z).size)); }
+if (process.argv.includes('--zip')) for (const z of zipDist(DIST, info)) console.log('zip', z, mb(fs.statSync(z).size));
