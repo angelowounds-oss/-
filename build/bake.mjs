@@ -11,8 +11,9 @@ import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FORMAT = 2;
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const imp = (f) => import(pathToFileURL(path.join(root, f)).href);

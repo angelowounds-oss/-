@@ -19,6 +19,7 @@ import { placeFurniture } from './streetfurn.mjs';
 import { PTYPE } from './streetpoints.mjs';
 import { readDetail } from './realdetail.mjs';
 import { readSeoul } from './seouldata.mjs';
+import { fileURLToPath } from 'node:url';
 
 export { TILE, TILE_OFF };
 // rank: 0 trunk / primary, 1 secondary, 2 tertiary, 3 street; 8 ramps and 9 motorways have no pavement and no crossing
@@ -338,8 +339,8 @@ export function realShare(res) {
 }
 
 // ---- command line
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), dir = path.join(root, 'build/baked/world/capital');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), dir = path.join(root, 'build/baked/world/capital');
   const file = process.argv[2] || path.join(dir, 'region.bin'), bfile = process.argv[3] || path.join(path.dirname(file), 'buildings.bin'), out = process.argv[4] || path.dirname(file);
   const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
   // the map's points and, inside Seoul, the city's own crossing and signal records (seouldata.mjs); a province reads its own box (ADR-0044)

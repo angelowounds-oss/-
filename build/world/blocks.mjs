@@ -13,6 +13,7 @@ import path from 'node:path';
 import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
 import { districtAt } from '../../src/districts.js';
 import { readRegion, KEEP, BAND } from './emit.mjs';
+import { fileURLToPath } from 'node:url';
 
 export const TILE = 512, TILE_OFF = 256;   // tile index = floor(x / TILE) + TILE_OFF: the capital's tiles keep their keys; beyond 131 km (the provinces, ADR-0044) an index goes negative, and the game keys a tile i * 4096 + j
 export const KIND = { house: 0, villa: 1, shop: 2, office: 3, apartment: 4, industrial: 5, tower: 6 };
@@ -261,8 +262,8 @@ export function readBuildings(file) {
 }
 
 // ---- command line: node build/world/blocks.mjs [region.bin] [out dir]
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), dir = path.join(root, 'build/baked/world/capital');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), dir = path.join(root, 'build/baked/world/capital');
   const file = process.argv[2] || path.join(dir, 'region.bin'), out = process.argv[3] || path.dirname(file);
   const R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
   const { REGIONS } = await import('../../src/regions/index.js'), { CAPITAL } = await import('../../src/koreamap.js');

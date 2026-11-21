@@ -17,6 +17,7 @@ import { readRegion } from './emit.mjs';
 import { readBuildings } from './blocks.mjs';
 import { wallIndex, REACH } from './corridor.mjs';
 import { encodeChunk } from '../../src/bakefmt.js';
+import { fileURLToPath } from 'node:url';
 
 export const WANT = { two: 3.25, one: 1.75 }, CLEAR = 0.3, MIN = 1.5, PASS = 3, ALLEY = 1.25, SHIFT = 3, WINDOW = 10, TAPER = 15, STEP = 4;
 export const FIT_VERSION = 1;
@@ -101,8 +102,8 @@ export function recheckPinches(R, W) {
 }
 
 // ---- command line
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const dir = process.argv[2] || path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'baked', 'world', 'capital');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const dir = process.argv[2] || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'baked', 'world', 'capital');
   const raw = path.join(dir, 'region-raw.bin'), pre = path.join(dir, 'region-prefit.bin'), bfile = path.join(dir, 'buildings.bin');
   // always from the compiler's output: a fitted region fitted again would drift. A raw copy with no fitted line is a new compile's (grade.mjs copied it)
   if (!fs.existsSync(raw)) { console.error('no region-raw.bin in ' + dir + ' (run grade.mjs once after compiling)'); process.exit(1); }

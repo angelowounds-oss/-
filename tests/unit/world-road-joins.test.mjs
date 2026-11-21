@@ -6,6 +6,7 @@
 import path from 'node:path';
 import { joinPass, joinSteps, JOIN_DY } from '../../build/world/joins.mjs';
 import { readRegion } from '../../build/world/emit.mjs';
+import { fileURLToPath } from 'node:url';
 
 const bad = [], m = {};
 // a flat 2 km square at 10 m, roads along x
@@ -35,7 +36,7 @@ if (T.next.some(([li]) => R.roads[li] === V)) bad.push(['the street under the vi
 if (Math.abs(T.y[T.x.length - 1] - 10) > 0.05) bad.push(['the street under the viaduct was moved toward it']);
 
 // the graded capital region
-const file = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital/region.bin');
+const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world/capital/region.bin');
 const Rg = readRegion(file);
 if (!Rg || !Rg.graded) m.region = 'no graded region';
 else {

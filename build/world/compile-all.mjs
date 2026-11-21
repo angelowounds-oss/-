@@ -16,8 +16,9 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { PIECES, piecesFor } from './pieces.mjs';
 import { regionChain, heapOf } from './chain.mjs';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), WORLD = path.join(ROOT, 'build/baked/world');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), WORLD = path.join(ROOT, 'build/baked/world');
 const argv = process.argv.slice(2), flag = (k) => argv.includes('--' + k), opt = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const { V_SCALE } = await import('../../src/koreamap.js');
 
@@ -77,7 +78,7 @@ const runPiece = async (p) => {
   const log = fs.openSync(path.join(dir, 'chain.log'), 'a'), s0 = Date.now(); let code = -1, tries = 0;
   while (tries <= retries) {
     tries++; fs.writeSync(log, `\n== ${new Date().toISOString()} try ${tries}\n`);
-    code = await new Promise((done) => spawn(process.execPath, [new URL(import.meta.url).pathname, '--one', id, ...(flag('no-audit') ? ['--no-audit'] : [])], { cwd: ROOT, stdio: ['ignore', log, log] }).on('close', (c) => done(c)));
+    code = await new Promise((done) => spawn(process.execPath, [fileURLToPath(import.meta.url), '--one', id, ...(flag('no-audit') ? ['--no-audit'] : [])], { cwd: ROOT, stdio: ['ignore', log, log] }).on('close', (c) => done(c)));
     if (code === 0 || code === 3) break;   // 3: the chain ran but its output failed the check; running it again would not change that
     console.log(`  ${id}: try ${tries} failed (exit ${code})`);
   }

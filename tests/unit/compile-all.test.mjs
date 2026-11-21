@@ -8,8 +8,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { PIECES } from '../../build/world/pieces.mjs';
 import { NOT_COMPILER, heapOf } from '../../build/world/chain.mjs';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '../..'), bad = [], m = {};
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..'), bad = [], m = {};
 const node = (...a) => spawnSync(process.execPath, a, { cwd: ROOT, encoding: 'utf8' });
 // the plan
 const all = node('build/world/compile-all.mjs', '--dry'), lines = all.stdout.split('\n').filter((l) => /^ {2}\S/.test(l));

@@ -5,10 +5,11 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mercPx } from './geo.mjs';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const sharp = require('../node_modules/sharp');
-const CACHE = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '.dem-cache');
+const CACHE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.dem-cache');
 
 // a cached tile: curl (it goes through the proxy like every other fetch here), retried a few times
 function tileFile(kind, z, x, y, url) {

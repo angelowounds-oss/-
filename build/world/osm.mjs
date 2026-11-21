@@ -4,10 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync, execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // mail.ru first: on 2026-11-01 kumi timed out and overpass-api.de reset every connection from the build container
 const MIRRORS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
-const CACHE = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '.osm-cache', 'world');
+const CACHE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.osm-cache', 'world');
 
 // ---- the country's records from one pbf (build/world/pbf-store.py, WLD-25a): a tile store that answers the compiler's queries without the network
 export const PBF_STORE = path.join(CACHE, '..', 'pbf');

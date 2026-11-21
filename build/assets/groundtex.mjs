@@ -5,8 +5,9 @@
 // usage: node build/assets/groundtex.mjs   (then node build/assets/fetch.mjs --update to record the hashes)
 import path from 'node:path';
 import sharp from 'sharp';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const T = (f) => path.join(ROOT, 'assets/patch-cc0/tex', f);
 const SETS = [
   { name: 'clean_asphalt', color: T('clean_asphalt/clean_asphalt_baseColor.jpg'), normal: T('clean_asphalt/clean_asphalt_normal.jpg'), rough: T('clean_asphalt/clean_asphalt_roughness.jpg') },

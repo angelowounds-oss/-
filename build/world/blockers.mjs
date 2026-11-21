@@ -18,7 +18,8 @@ import { siteCheck } from './sites.mjs';
 import { CAPITAL } from '../../src/koreamap.js';   // local = map - CAPITAL (src/frame.js): the lon/lat needs the offset back
 
 const mode = process.argv[2] || 'capital';
-const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'baked', 'world');
+import { fileURLToPath } from 'node:url';
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'baked', 'world');
 const MIN_AREA = 4;        // m2 of footprint on the carriageway before a building counts as blocking (a corner touching a kerb does not)
 const STRICT = 0.25;       // a share of the footprint on the carriageway from which the building is listed as strongly blocking
 const CELL = 50, MARGIN = 9, K = (a, b) => a * 100003 + b;

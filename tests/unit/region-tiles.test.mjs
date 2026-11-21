@@ -8,8 +8,9 @@ import { readRegion } from '../../build/world/emit.mjs';
 import { regionMeta } from '../../build/regtiles.mjs';
 import { cutTile, readTile, regTiles, REG_CG, REG_T, REG_S } from '../../src/regtile.js';
 import { encodeChunk, decodeChunk } from '../../src/bakefmt.js';
+import { fileURLToPath } from 'node:url';
 
-const DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world');
+const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world');
 const names = ['capital', ...fs.readdirSync(DIR).filter((n) => n !== 'capital' && fs.existsSync(path.join(DIR, n, 'region.bin')))];
 const full = names.map((n) => readRegion(path.join(DIR, n, 'region.bin'))).filter(Boolean);
 const bad = [], m = {};

@@ -24,6 +24,7 @@ import { encodeChunk } from '../../src/bakefmt.js';
 import { readRegion } from './emit.mjs';
 import { CLASS, fuseOverlaps } from './roads.mjs';
 import { joinPass } from './joins.mjs';
+import { fileURLToPath } from 'node:url';
 
 const FOLLOW = new Set(['residential', 'living_street', 'unclassified', 'service']);
 // step 4b: the steepest grade a road on the ground keeps after the snap (a quarter over its design grade in roads.mjs: 7.5 % motorways, 10 % trunk and
@@ -267,8 +268,8 @@ export function contractOf(R) {
 }
 
 // ---- command line: grade region.bin in place (from region-raw.bin when an earlier grade made it)
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..'), file = process.argv[2] || path.join(root, 'build/baked/world/capital/region.bin'), raw = file.replace(/\.bin$/, '-raw.bin');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), file = process.argv[2] || path.join(root, 'build/baked/world/capital/region.bin'), raw = file.replace(/\.bin$/, '-raw.bin');
   let R = readRegion(file); if (!R) { console.error('no region at ' + file); process.exit(1); }
   if (R.graded) { if (!fs.existsSync(raw)) { console.error('region is graded and has no raw copy: compile it again'); process.exit(1); } R = readRegion(raw); }
   else fs.copyFileSync(file, raw);

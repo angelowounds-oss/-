@@ -10,8 +10,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { project, CAPITAL } from '../../src/koreamap.js';
+import { fileURLToPath } from 'node:url';
 
-const DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.osm-cache/seoul');
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.osm-cache/seoul');
 export const SEOUL_FILES = ['crossings.zip', 'signals.csv'].map((f) => path.join(DIR, f));
 
 // EPSG:5186 grid metres to longitude and latitude (Snyder's inverse transverse Mercator, ellipsoidal; well under a centimetre over Seoul)

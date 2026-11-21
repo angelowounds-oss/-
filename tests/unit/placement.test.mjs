@@ -8,9 +8,10 @@
 // Skips with a note when the compiled region is missing. The corridor needs a big heap: the test runs itself again with one.
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 if (!process.execArgv.some((a) => a.startsWith('--max-old-space-size'))) {
-  const r = spawnSync(process.execPath, ['--max-old-space-size=12000', new URL(import.meta.url).pathname], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync(process.execPath, ['--max-old-space-size=12000', fileURLToPath(import.meta.url)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   process.stdout.write(r.stdout || ''); process.stderr.write(r.stderr || ''); process.exit(r.status ?? 1);
 }
 
@@ -25,7 +26,7 @@ const { drawnGround } = await import('../../build/world/emit.mjs');
 // WORLD_REGION=<piece> audits a compiled province piece instead of the capital (build/world/compile-all.mjs, EV-09); the sites part reads the capital's
 // villages and network, so it is the capital's only
 const ID = process.env.WORLD_REGION || 'capital';
-const root = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world'), dir = path.join(root, ID);
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world'), dir = path.join(root, ID);
 const bad = [], m = {}, notes = [];
 const R = readRegion(path.join(dir, 'region.bin'));
 const RES_COVERED_KM = Number(process.env.RES_COVERED_KM || 100);   // regression bar: 1,535 km before the fit (build/world/fit.mjs), 87 km after it

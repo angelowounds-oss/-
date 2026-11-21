@@ -5,8 +5,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const crlf = (s) => s.replace(/\r?\n/g, '\r\n');   // Notepad on older Windows shows LF-only text as one line
 
 // README.txt at the top of the folder: what to double-click, the first-run warning, where saves live, what to do when it does not start.
@@ -81,7 +82,7 @@ export function buildInfo() {
   return { date: new Date().toISOString().slice(0, 10), commit };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const dist = process.argv[2] || 'dist/Korea', out = zipDist(dist, buildInfo());
   console.log('zip', out, (fs.statSync(out).size / 1048576).toFixed(1) + ' MB');
 }

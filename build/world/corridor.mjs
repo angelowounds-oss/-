@@ -11,6 +11,7 @@ import { readRegion, KEEP, BAND } from './emit.mjs';
 import { unproject } from './geo.mjs';
 import { namer } from './names.mjs';
 import { CAPITAL } from '../../src/koreamap.js';
+import { fileURLToPath } from 'node:url';
 
 export const REACH = 16, STEP = 4;   // metres a ray looks for a wall; metres between the samples along a line
 const C = 16, K = (a, b) => a * 100003 + b;
@@ -102,8 +103,8 @@ export function fit(lines, { two = 3.0, one = 1.75, min = 1.5, centred = false, 
 }
 
 // ---- command line
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'baked', 'world', process.argv[2] || 'capital');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'baked', 'world', process.argv[2] || 'capital');
   const R = readRegion(path.join(dir, 'region.bin')), B = readBuildings(path.join(dir, 'buildings.bin'));
   if (!R || !B) { console.error('no region.bin or buildings.bin in ' + dir); process.exit(1); }
   const t0 = Date.now(), W = wallIndex(B), { lines, blocked, crossed } = measure(R, B, W), name = namer(R);

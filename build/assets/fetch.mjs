@@ -7,8 +7,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAN = path.join(ROOT, 'build/assets/manifest.json'), CACHE = path.join(ROOT, 'build/.asset-cache');
 const ATTRIB = /^(CC-BY|OFL|ODbL|KOSTAT|KOGL|PD)/;   // licences whose terms ask for (or the project chose to give) a credit line
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
@@ -29,7 +30,7 @@ export function check(man = JSON.parse(fs.readFileSync(MAN, 'utf8'))) {
     if (a.status === 'ok' && ATTRIB.test(a.licence) && !a.credit) errors.push(`${a.id}: ${a.licence} needs a credit line`);
     if (a.credit && !credit.includes(a.credit)) errors.push(`${a.id}: the title-screen credit misses "${a.credit}"`);
   }
-  for (const f of walk(path.join(ROOT, 'assets')).map((p) => path.relative(ROOT, p))) if (!listed.has(f)) errors.push(`unlisted file ${f}`);
+  for (const f of walk(path.join(ROOT, 'assets')).map((p) => path.relative(ROOT, p).split(path.sep).join('/'))) if (!listed.has(f)) errors.push(`unlisted file ${f}`);
   return { errors, warnings, entries: man.assets.length };
 }
 
@@ -53,7 +54,7 @@ function docs(man) {
   fs.writeFileSync(p, out);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   const args = new Set(process.argv.slice(2)), man = JSON.parse(fs.readFileSync(MAN, 'utf8'));
   if (args.has('--update')) for (const a of man.assets) for (const f of Object.keys(a.files || {})) if (fs.existsSync(path.join(ROOT, f))) a.files[f] = sha(path.join(ROOT, f));
   if (args.has('--fetch')) await fetchAll(man);

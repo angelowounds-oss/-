@@ -3,7 +3,8 @@
 // Needs the sources downloaded (node build/assets/fetch.mjs --fetch); without them the test says so and fails.
 import fs from 'node:fs';
 import path from 'node:path';
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+import { fileURLToPath } from 'node:url';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { packAssets } = await import('../../build/assets/pack.mjs');
 const { openContainer, decodeChunk } = await import('../../src/bakefmt.js');
 const zlib = await import('node:zlib');

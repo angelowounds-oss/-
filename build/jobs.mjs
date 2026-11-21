@@ -1,7 +1,8 @@
 // What each bake job computes (see JOBS in bake.mjs). Pure functions of the sources; run inside worker threads.
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const imp = (f) => import(pathToFileURL(path.join(root, f)).href);
 // the compiled region (ADR-0019): installed before any generator runs, so the ground, the roads and the water of every job see it
 export const REGION_FILE = 'build/baked/world/capital/region.bin';

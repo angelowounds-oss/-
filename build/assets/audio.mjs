@@ -7,8 +7,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const TARGET = { I: -18, TP: -1.5, LRA: 11 };
 
 // ffmpeg with its report (it writes it to stderr); a failure throws with the report's end

@@ -12,8 +12,9 @@ import path from 'node:path';
 import { readRegion } from '../../build/world/emit.mjs';
 import { gradeRegion, contractOf, GRADE_VERSION } from '../../build/world/grade.mjs';
 import { CLASS } from '../../build/world/roads.mjs';
+import { fileURLToPath } from 'node:url';
 
-const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital');
+const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world/capital');
 const R = readRegion(path.join(dir, 'region.bin')), bad = [], m = {};
 if (!R || !R.graded) {
   console.log('RESULT ' + JSON.stringify({ test: 'ground-contract', pass: true, metrics: m, note: 'no graded region (node build/build.mjs grades it)' }));

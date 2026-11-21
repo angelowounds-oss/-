@@ -3,8 +3,9 @@
 import path from 'node:path';
 import { project, CAPITAL } from '../../src/koreamap.js';
 import { readRegion } from '../../build/world/emit.mjs';
+import { fileURLToPath } from 'node:url';
 
-const file = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital/region.bin');
+const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world/capital/region.bin');
 globalThis.__REGION = readRegion(file);
 const bad = [], m = {};
 if (!globalThis.__REGION) {

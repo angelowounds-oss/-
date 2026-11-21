@@ -7,8 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const bad = [], metrics = {};
 const done = () => { console.log('RESULT ' + JSON.stringify({ test: 'launcher', pass: bad.length === 0, metrics, note: bad.map((b) => b.join(' ')).join(' | ') })); process.exitCode = bad.length ? 1 : 0; };
 const findGo = () => { for (const g of [process.env.GO, 'go', '/usr/local/go/bin/go']) { if (!g) continue; try { execFileSync(g, ['version'], { stdio: 'ignore' }); return g; } catch { /* next */ } } return null; };

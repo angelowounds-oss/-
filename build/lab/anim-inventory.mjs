@@ -2,6 +2,7 @@
 // motion), the game names that play it (src/assets.js CLIPS / MOTIONS, upper-body masks UB_*), and the interactions the directive asks for
 // checked against them. Writes docs/design/anim-inventory.md. Usage: node build/lab/anim-inventory.mjs
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 
@@ -15,7 +16,7 @@ const UPPER = new Set(Function('return [' + block(/const UPPER = new Set\(\[([\s
 for (const n of MOTIONS) CLIPS['U_' + n] = n;
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-const doc = await io.read(new URL('assets/character_game.glb', ROOT).pathname);
+const doc = await io.read(fileURLToPath(new URL('assets/character_game.glb', ROOT)));
 const rows = [];
 for (const a of doc.getRoot().listAnimations()) {
   let dur = 0, keys = 0, root = 0;

@@ -10,6 +10,7 @@ import { metres, heightOf, readDetail, inside } from '../../build/world/realdeta
 import { mergeReal, addRealTiles, readRealTile } from '../../build/world/osmbuildings.mjs';
 import { tmToLonLat, readSeoul } from '../../build/world/seouldata.mjs';
 import { makeStreets, realShare, toTiles, readTile } from '../../build/world/streets.mjs';
+import { fileURLToPath } from 'node:url';
 
 const bad = [], m = {}, notes = [];
 const near = (a, b, e) => Math.abs(a - b) <= e;
@@ -44,7 +45,7 @@ if (metres('15') !== 15 || metres('15 m') !== 15 || metres('15.5m') !== 15.5 || 
   if (!near(bare.base, 5.5, 1e-9)) bad.push(['a canopy with no road under it stays over the land', bare.base]);
 }
 
-const file = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital/region.bin');
+const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world/capital/region.bin');
 const R0 = readRegion(file), at = (lon, lat) => { const p = project(lon, lat); return { x: p.x - CAPITAL.x, z: p.z - CAPITAL.z }; };
 // Gangnam station and the six detail tiles around it (37.45 - 37.55 N, 126.95 - 127.1 E)
 const BOX = { w: 126.95, s: 37.45, e: 127.1, n: 37.55 }, detail = readDetail(BOX);

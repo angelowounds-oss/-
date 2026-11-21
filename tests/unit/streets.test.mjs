@@ -10,8 +10,9 @@ import { makeStreets, toTiles, readTile, flyovers, RANK, TURN } from '../../buil
 import { readTile as readBld } from '../../build/world/blocks.mjs';
 import { SPECIES, TREE_MIN_WALK } from '../../build/world/streetfurn.mjs';
 import { corner, trims, radiusOf, signalGroups, signalState } from '../../src/streetgeo.js';
+import { fileURLToPath } from 'node:url';
 
-const file = path.join(path.dirname(new URL(import.meta.url).pathname), '../../build/baked/world/capital/region.bin');
+const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../build/baked/world/capital/region.bin');
 const R0 = readRegion(file), bad = [], m = {};
 const near = (a, b, e) => Math.abs(a - b) <= e;
 // ---- the corner maths on a plain crossroads: edges at +-6 m, pavement 3 m, kerb radius 5 m

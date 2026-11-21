@@ -10,8 +10,9 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import { encodeChunk, buildContainer } from '../../src/bakefmt.js';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CACHE = path.join(ROOT, 'build/.asset-cache'), OUT = path.join(ROOT, 'build/baked/pack');
 const BASISU = path.join(ROOT, 'build/node_modules/basisu/bin/linux/x64/basisu');
 const BASIS_LIB = path.join(ROOT, 'build/node_modules/three/examples/jsm/libs/basis');
@@ -53,7 +54,7 @@ export async function packAssets(man = JSON.parse(fs.readFileSync(path.join(ROOT
   return { bytes: c.length, textures: list };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   const r = await packAssets();
   console.log(r ? `assets.pak ${(r.bytes / 1048576).toFixed(1)} MB, ${r.textures.length} textures` : 'no pack recipes');
 }

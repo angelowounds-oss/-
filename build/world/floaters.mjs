@@ -14,6 +14,7 @@ import { namer } from './names.mjs';
 import { decodeTile } from '../../src/streetgeo.js';
 import { CAPITAL } from '../../src/koreamap.js';
 import { REGIONS } from '../../src/regions/index.js';
+import { fileURLToPath } from 'node:url';
 
 const TYPE = { 0: 'lamp', 1: 'tree', 2: 'bus', 3: 'subway', 4: 'bench', 5: 'bin', 6: 'hydrant', 7: 'vending' };
 export const FLOAT = 2, HOLE_BAND = 220;   // metres over the drawn ground from which an item counts as hanging; the band round a city's hole (src/region.js)
@@ -46,8 +47,8 @@ export async function floaters(R, S) {
 }
 
 // ---- command line
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'baked', 'world', process.argv[2] || 'capital');
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'baked', 'world', process.argv[2] || 'capital');
   const R = readRegion(path.join(dir, 'region.bin')), S = readStreets(path.join(dir, 'streets.bin'));
   if (!R || !S) { console.error('no region.bin or streets.bin in ' + dir); process.exit(1); }
   const t0 = Date.now(), { zones, list, deck } = await floaters(R, S), name = namer(R);

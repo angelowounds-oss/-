@@ -4,8 +4,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
-const [report, script, ...args] = process.argv.slice(2), t0 = Date.now(), file = path.join(path.dirname(new URL(import.meta.url).pathname), script);
+const [report, script, ...args] = process.argv.slice(2), t0 = Date.now(), file = path.join(path.dirname(fileURLToPath(import.meta.url)), script);
 // the step's line in the report, written once however it ends
 let done = false;
 const note = (code) => { if (done) return; done = true; fs.appendFileSync(report, JSON.stringify({ script, args, sec: Math.round((Date.now() - t0) / 1000), rssMB: Math.round(process.resourceUsage().maxRSS / 1024), code }) + '\n'); };
