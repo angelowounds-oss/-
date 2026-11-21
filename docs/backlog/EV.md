@@ -66,7 +66,7 @@
   - heap-gate: 1,751 MB(색·그래프 뒤) → 1,664 MB(gc 489–542 ms). 같은 데이터의 이전 값은 다시 재지 않았다.
   - 남은 큰 덩어리(zz-heapwalk): core 청크 타입 배열 약 380 MB(`net.grid` seg·segRoad 136 MB 포함), 굽힌 건물 캐시 216 MB, 경로 그래프 x·z·rd·gi 각 38 MB, `highways.art` 40 MB. 다음은 격자 런 길이 부호화와 2,048 m 도로 타일 스트리밍이다.
 
-### EV-03 할당·GC 다이어트 — P1 · M · In progress (EV-02 3단계 뒤)
+### EV-03 할당·GC 다이어트 — P1 · M · Review (2026-11-21, AC 미달: 할당 걷기 534·주행 463 KB/프레임, 플레이 중 메이저 GC 45~135 ms — 남은 일은 `docs/HANDOFF.md` PF-3~PF-5)
 - AC: 걷기·주행 1,500프레임에서 할당 ≤ 200 KB/프레임, 승격 ≤ 10 KB/프레임, 메이저 GC 최종 정지 ≤ 8 ms. 측정 도구는 EV-93의 `alloc-gate`.
 - 기준값(`alloc-gate`, CSR 격자·t16 빌드, 2026-11-13):
 
@@ -213,7 +213,7 @@
 - `surface.js surfaceAt`: 그려진 도로는 아스팔트, 도시·컴파일 지역은 포장, 시골은 생물군(풀·흙·자갈·모래·눈), 지면에서 떨어진 곳은 콘크리트다.
 - 바퀴마다 0.25 s에 한 번 찾는다. μ 배율과 구름 저항 배율은 `tyres.js SURF_MU/SURF_CRR`에 있다. `v.testSurface`로 노면을 강제한다.
 - 실험실 `surfaces` 시나리오(100→0, 건조 대비): 자갈 1.37, 흙 1.43, 풀 1.63, 눈 2.55, 얼음 7.1배.
-- 남은 것: 흙먼지 FX(EV-44), 눈 날씨와 μ 연동(EV-45).
+- 남은 것: 흙먼지 FX(EV-44), 눈 날씨와 μ 연동(EV-44). 제동 거리 비가 지침서 §3 목표보다 짧다(자갈 1.37/1.6, 흙 1.43/1.8, 풀 1.63/2.0, 눈 2.55/3.5, 얼음 7.1/7, 콘크리트는 측정 없음).
 
 ### EV-20 교통 감사 — P0 · S · Done(기록)
 - `tests/e2e/traffic-audit.test.cjs`: 도로 등급을 돌아가며 자동 주행(기본 10 km), 150 m 안 AI 차의 신호 진입·적신호 진입·정지선 넘음·충돌·차간 시간·제한속도 대비·역주행, 보행자의 차도 위(횡단보도 안/밖).
@@ -314,7 +314,7 @@
   - 하려면 렌더러 결정(EV-40) 뒤 군중 LOD 작업으로 잡는다.
 - `buildingA.glb`, `streetlight.glb`: 목록에만 올렸고 쓰지 않는다. 지금 건물·가로등은 절차 생성이다.
 
-### EV-40 렌더러 방향 스파이크 — P0 · M · Blocked(사용자 결정)
+### EV-40 렌더러 방향 스파이크 — P0 · M · Done(2026-11-14 사용자 결정: WebGL2 유지)
 - `build/lab/renderer-spike.mjs` + `build/lab/renderer-spike/index.html`: 같은 장면을 `WebGLRenderer`(현재)와 `WebGPURenderer`(WebGPU, WebGL2 대체 경로)로 그려 비교.
 - 결과와 권고: `docs/adr/0045-renderer-direction.md`(초안).
 - 요약(SwiftShader, 960 × 540):
@@ -378,7 +378,7 @@
 - `window.__test`(`src/testapi.js`): `teleport`, `time`, `weather`, `spawn`, `step`, `streets`, `signal`, `measure`, `perf`. 새 테스트(heap-gate, vehicle-lab, traffic-audit, perf-overlay, memdump)는 이것만 쓴다.
 
 ## 사용자 결정이 필요한 것
-1. EV-40 렌더러 방향(ADR-0045 초안의 권고 참고).
+1. ~~EV-40 렌더러 방향~~ — 2026-11-14 결정: WebGL2 유지(ADR-0045 채택). 조명 작업(EV-41~47)은 WebGL2 위에서 한다.
 2. EV-90 CI 방침: 굽기 캐시를 Actions 캐시·아티팩트로 둘지, 자체 러너로 전체 스위트를 돌릴지.
 3. EV-91 `world-small`: 테스트 전용 소형 월드를 유지하고 기대값을 갱신할지, 지우고 수도권 빌드로만 볼지.
 4. EV-92 실기기 측정: 기기 3종에서 F3 → Shift+F3 기록을 보내 주면 기준선 표를 채운다.

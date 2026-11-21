@@ -1,6 +1,6 @@
 # ADR-0045 렌더러 방향: WebGLRenderer 유지 vs WebGPURenderer 이전 (EV-40)
 
-상태: 제안 (2026-11-12, EV-40 스파이크). 결정은 사용자 몫이다.
+상태: 채택 (2026-11-14 사용자 결정: WebGL2 유지, 권고 C). 제안 2026-11-12, EV-40 스파이크.
 
 ## 배경
 - 게임은 three의 `WebGLRenderer`(WebGL2)와 `EffectComposer`로 그린다.
