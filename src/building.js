@@ -1182,7 +1182,8 @@ export class Buildings {
       l.position.set(f[0], f[1], f[2]); l.color.setRGB(f[3][0], f[3][1], f[3][2]); l.intensity = 28; 
     });
   }
-  at(x, z) { for (const b of this.list) { const l = b.lot; if (x >= l.x0 && x <= l.x1 && z >= l.z0 && z <= l.z1) return b; } return null; }
+  // an indexed loop: the for-of's iterator was not optimised away here and was one of a walking frame's larger sources of garbage (EV-03)
+  at(x, z) { const L = this.list; for (let i = 0; i < L.length; i++) { const b = L[i], l = b.lot; if (x >= l.x0 && x <= l.x1 && z >= l.z0 && z <= l.z1) return b; } return null; }
   update(dt, fx, fz, py) {
     this.t -= dt;
     if (this.t <= 0) {

@@ -82,7 +82,30 @@
   - `highways.arterials`: 300 ms마다 모든 간선 조각(수만 개)을 돌았다. 조각을 표시 거리(`ART_ON`)별·1 km 칸별로 색인했다. 이제 카메라와 초점 근처 칸, 그리고 만들어진 조각(`artLive`)만 본다.
   - 도시 타일 순회(`citysites.update`, 매 프레임 6개 도시 전 타일): Map 반복자 대신 배열(`tileList`)을 쓴다.
   - `alloc-gate`: 내장 함수(`hypot`, `next`)의 할당을 부른 스크립트 함수 이름과 함께 집계한다(다음 수정 대상을 찾으려고).
-- 재측정 결과: (WLD-36 체인의 alloc-gate 기록 예정).
+- 2차 수정(2026-11-21, `feat/EV-03-frame-alloc`):
+  - 객체 모양 통일: 차·사람의 키를 각 시스템이 나중에, 객체마다 다른 순서로 붙여서 차는 숨은 클래스 12개, 사람은 30개였다. 루프가 megamorphic이 되어 거듭 deopt되었고, deopt된 코드는 쓰는 숫자를 모두 힙에 상자로 만들었다. 생성자에서 모든 키를 같은 순서로 선언한다(숫자는 NaN, 나머지는 undefined). 결과 1개·1개. `driveAI` deopt 30 → 18번(같은 탐침).
+    - NaN은 `<`·`+`·`!`에서 undefined처럼 굴어서 "아직 없음" 검사만 `util.known`/`knownOr`로 바꿨다(`by`, `rx`, `rz`, `rby`, `rh`, `goodY` 등).
+    - 회귀 테스트 `object-shapes`(quick): 걷기 600 + 주행 600프레임 뒤 차·사람 모양이 각각 1개인지, 아니면 처음 갈라지는 키를 보고한다.
+  - `{x,y,z}` 객체 리터럴은 프로그램 전체가 숨은 클래스 하나를 나눠 쓴다. 한 곳이라도 숫자가 아닌 값을 넣으면 모든 리터럴의 double 저장이 새 HeapNumber가 된다(Node: 스캐빈지 1,369번 대 2번). 핫패스의 스크래치 벡터는 `util.Vec3`/`Quat` 클래스로 바꿨다.
+  - Rapier 0.21 getter에 대상 객체를 넘긴다(`translation`/`rotation`/`linvel`/`angvel`/`worldCom`/`wheelChassisConnectionPointCs`). 넘기면 할당이 없다.
+  - 타이어 힘: 바퀴마다 `applyImpulseAtPoint`(호출마다 RawVector 2개 + FinalizationRegistry 등록) 대신, 충격량과 `(P − 무게중심) × J` 토크를 모아 한 번씩 `applyImpulse`·`applyTorqueImpulse`로 넣는다. 수학적으로 같다. physorigin 단위 테스트 수치는 변경 전 코드와 같다(driveCapital 174.027 m, 측편 0.036).
+  - 버그 수정: `physorigin`이 `worldCom`을 감싸지 않았다. 원점이 옮겨진 곳(수도권 밖)에서는 무게중심이 물리 좌표 그대로 나와 토크 팔이 원점 거리만큼 틀릴 수 있었다. 감쌌고 단위 테스트(`comErr` 0)를 넣었다.
+  - `world._key`: 칸 키가 31비트 Smi 범위를 넘어 Map 조회마다 HeapNumber를 만들었다. 범위 안으로 줄였다. 정적 상자·원은 클래스(`StaticBox`/`StaticCircle`)로 만든다.
+  - `carriage(r)`: 매 프레임 새로 만들던 결과를 Symbol 키로 메모한다. 사람 애니메이션 가중치 객체(`WT`, `TW`, `STANCE`)는 모듈 상수를 재사용한다.
+- 재측정(`alloc-gate`, 같은 컨테이너, 2026-11-21):
+
+  | 측정 | 걷기 | 주행 |
+  |---|---|---|
+  | 할당, 수정 전(같은 날 2회) | 886~945 KB/프레임 | 984~1,106 KB/프레임 |
+  | 할당, 수정 뒤 | 534 KB/프레임 | 463 KB/프레임 |
+  | 남는 양, 수정 뒤 | −0.8 KB/프레임 | 36.9 KB/프레임 |
+  | 측정 구간 안 메이저 GC | 0번 | 0번 |
+  | 최대 스캐빈지 | 17.2 ms | |
+
+  - 주행 남는 양 36.9 KB/프레임은 1회 측정이고 원인을 아직 보지 않았다(수정 전 4.3). 다음 측정에서 확인한다.
+  - 측정 구간 밖(설정·프로파일러)의 메이저 GC는 907 ms·786 ms였다. 플레이 정지가 아니다.
+  - 상한을 750 KB/프레임 · 100 KB/프레임 · 메이저 최종 정지 150 ms로 내렸다. AC(200 KB)는 아직 멀다. 남은 상위 할당처: `world.resolve`, three.js 믹서(`evaluate`·`slerpFlat`·`_update`), `animateSkinned`, `ensureNear` 반복자, `coverMesh`, `tyreForces`(34~42 → 16~20 MB).
+- GC 정지 측정 바로잡기: 이전 기록(최대 498 ms, 보고서의 0.47 s)은 하네스가 강제로 부른 수거와 프로파일러 수거였다. 플레이 중 실제 메이저 GC는 `--trace-gc`로 45~135 ms다(걷기 2,400 + 주행 2,400프레임, 프로파일러 없음). `alloc-gate`는 이제 자기 수거를 표시해 빼고 측정 구간 안의 `V8.GCCompactor` 최종 정지만 센다. 정지 길이는 살아 있는 힙(400~500 MB)에 비례하므로 다음 수단은 힙 줄이기다(EV-01·AAA-1).
 
 ### EV-04 부동 원점 — P0 · M · In progress (물리 끝, 렌더 측정 중)
 - AC: 부산 시가지에서 정지 카메라 떨림 ≤ 1 mm, 차량 1 km 직진 횡편차 ≤ 1 cm.

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildHuman, rifleLook, idMark, disposeOwned } from './models.js';
 import { N, R, SW, roadC, roadIdx } from './world.js';
-import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU, hyp } from './util.js';
+import { clamp, lerp, damp, dampAngle, angDiff, rand, TAU, hyp, known, knownOr } from './util.js';
 import * as AI from './ai.js';
 import { updateGesture, updateProc, gesture, procGesture, PROPS, PROC } from './gesture.js';
 
@@ -42,7 +42,7 @@ function stepGait(h, dt, sp, move, wt) {
   const share = cur === 'Walk' ? { Walk: 1 - r, Run: r * (1 - s), U_Sprint: r * s } : { [cur]: 1 };
   // the phase moves on by what carries the body sp*dt at this point of the mix's step table; the cadence limits (each active clip's
   // playback range) scale the whole cycle, so a clip past its range slides evenly rather than in one part of the step
-  const ph = h.gaitPh ?? Math.random();
+  const ph = knownOr(h.gaitPh, Math.random());
   let stride = 0, slope = 0, lo = 0, hi = 1e9;
   for (const n in share) {
     const w = share[n]; if (w <= 0) continue; const g = G[n]; wt[n] = move * w;
@@ -72,8 +72,8 @@ const TURN_AT = 0.87, TURN_MAX = 2, TURN_RATE = 1.8;
 const yawAt = (t, arr, time) => { const u = clamp(time / t.dur, 0, 1) * (arr.length - 1), i = Math.min(arr.length - 2, u | 0); return arr[i] + (arr[i + 1] - arr[i]) * (u - i); };
 function stepTurn(h, dt, still, wt) {
   const T = h.m.turn;
-  if (h.legYaw === undefined) h.legYaw = h.ry;
-  const dry = wrapA(h.ry - (h.ryPrev ?? h.ry)); h.ryPrev = h.ry;
+  if (!known(h.legYaw)) h.legYaw = h.ry;
+  const dry = wrapA(h.ry - knownOr(h.ryPrev, h.ry)); h.ryPrev = h.ry;
   h.ryStill = Math.abs(dry) < 0.2 * dt ? (h.ryStill || 0) + dt : 0;
   let off = wrapA(h.legYaw - h.ry);
   if (!still) { h.turnClip = null; off *= Math.exp(-12 * dt); }
@@ -126,7 +126,7 @@ function stepFeet(h, dt, cd, on) {
   // a roll or a landing run out of lets the feet go where the clip puts them (held, they would drag the body back)
   const lk = h.landK, w = h.ikW, base = h.y + m.body.position.y + rest.sole, lock = on && cd < LOCK_NEAR && !(lk && (lk.kind === 'roll' || h.speed > 1)), B = m.bones;
   // a jump in place (teleport, a ride's seat) lets go of everything held
-  const jump = hyp(h.x - (h._fx ?? h.x), h.z - (h._fz ?? h.z)) > 1; h._fx = h.x; h._fz = h.z;
+  const jump = hyp(h.x - knownOr(h._fx, h.x), h.z - knownOr(h._fz, h.z)) > 1; h._fx = h.x; h._fz = h.z;
   const still = h.speed < 0.1 && !h.turnClip;
   let low = 0, any = false; m.legsWorld();
   for (let i = 0; i < 2; i++) {
@@ -226,6 +226,14 @@ const LANDS = {
 const LAND_X = 0.2, LAND_OUT = 0.3, LAND_CLIPS = new Set(Object.values(LANDS).flatMap((s) => s.map((g) => g[0])));
 // getting up and knocked down: the feet go where the clip puts them (no lock, no ground IK) and the body does not turn in place
 const UPS = new Set(['upBack', 'upFront', 'knock']);
+// animateSkinned's stance clip pairs (still, moving) and its per-frame clip weights: shared, not rebuilt per person per frame (EV-03: the
+// weight objects were a sixth of a walking frame's garbage). The pairs are frozen because stanceSet keeps one; the weights are only read
+// inside the call that filled them
+const STANCE = { hang: Object.freeze(['U_Ledge_Hang', 'U_Ledge_Hang']), ladder: Object.freeze(['U_Ladder_Idle', 'U_Climb_Ladder']), sit: Object.freeze(['U_Sitting_Idle', 'U_Sitting_Idle']),
+  lie: Object.freeze(['U_Sleeping', 'U_Sleeping']), air: Object.freeze(['U_Jump', 'U_Jump']), swim: Object.freeze(['U_Swim_Idle', 'U_Swim_Fwd']), crawl: Object.freeze(['U_Crawl', 'U_Crawl']),
+  crouch: Object.freeze(['U_Crouch_Idle', 'U_Crouch_Fwd']) };
+const WT = { Idle: 0.5, Walk: 0.5, Run: 0.5, U_Sprint: 0.5, U_Walk_Backwards: 0.5, U_Strafe_left: 0.5, U_Strafe_right: 0.5, U_Turn_Left_90: 0.5, U_Turn_Right_90: 0.5, U_Turn_Left_180: 0.5, U_Turn_Right_180: 0.5, U_Swim_Idle: 0.5, U_Swim_Fwd: 0.5, U_Crouch_Idle: 0.5, U_Crouch_Fwd: 0.5, U_Sitting_Idle: 0.5, U_Sleeping: 0.5, U_Jump: 0.5, U_Jump_Start: 0.5, U_Crawl: 0.5, U_Ledge_Hang: 0.5, U_Ladder_Idle: 0.5, U_Climb_Ladder: 0.5 };
+const TW = { UB_Pistol_Idle: 0.5, UB_Pistol_Aim_Up: 0.5, UB_Pistol_Aim_Neutral: 0.5, UB_Pistol_Aim_Down: 0.5, UB_Pistol_Shoot: 0.5, UB_Pistol_Reload: 0.5 };
 // Hit_Knockback flies back with the feet up until 0.2 s and is down at 0.31 s: a knock-down holds the flight until the body comes down
 const KNOCK_AIR = 0.2;
 const ss01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -303,7 +311,7 @@ function lookAt(h, aiming) {
 const lookStep = (x, to, dt) => { const s = LOOK_SPEED * dt; return x + clamp((to - x) * (1 - Math.exp(-6 * dt)), -s, s); };
 function stepLook(h, dt, on, aiming) {
   const t = on ? lookAt(h, aiming) : null, off = t ? angDiff(h.ry, t[0]) : 0, see = !!t && Math.abs(off) < LOOK_DROP;
-  if (h.lookW === undefined) { h.lookRel = 0; h.lookYw = h.ry; h.lookP = 0; h.lookW = 0; }
+  if (!known(h.lookW)) { h.lookRel = 0; h.lookYw = h.ry; h.lookP = 0; h.lookW = 0; }
   h.lookW = damp(h.lookW, on ? 1 : 0, 5, dt);
   // in the body's frame, across the front (the short way round in the world may be through the back), never further round than LOOK_DROP
   // however fast the body turns; on a target, from where the head looked in the world (it stays on it), else from where it looked in the
@@ -329,6 +337,29 @@ export class Human {
   // free the materials this body cloned for itself (soldier models clone theirs per person) once it has left the world for good
   dispose() { disposeOwned(this.group, this.idMark); }
   constructor(G, team, o = {}) {
+    // Every key a person gets later is declared here first, in one order, so all of them share one hidden class: keys added later in a
+    // different order gave each its own (12 for cars, 30 for people), the hot loops over them went megamorphic and kept deoptimising, and
+    // the deoptimised code boxed every number it wrote (EV-03). Numbers start as NaN, which compares, adds, ORs and negates like the
+    // undefined they replace but keeps the field an unboxed double; the rest start undefined.
+    this.knock = this.lodAcc = this.detect = this.floorY = this.hitFlash = this.reactT = this.aiT = this.lookOffT = NaN;
+    this.knockRy = this.ikW = this.cmdSpeed = this.gaitDir = this.gaitPh = this.losT = this.legYaw = this.ryPrev = NaN;
+    this.lostT = this.ryStill = this.legOff = this.accF = this.accL = this._pvx = this._pvz = this.turnYaw = NaN;
+    this.turnChest = this.hipTurn = this.lodT = this.visitSince = this._rl = this.ffK = this.chK = this.ffTip = NaN;
+    this.lookRel = this.lookYw = this.lookP = this.lookW = this.pelvis = this._fx = this._fz = this.gestT = NaN;
+    this.gestSpeed = this.turnT = this.hurtT = this.patrolT = this.pdx = this.pdz = this.cmdX = this.cmdZ = NaN;
+    this.jumpT = this.jump0 = this.shootT = this.pumpT = this.boltT = this.recoil = this.windT = this.burnT = NaN;
+    this.pitch = this.invT = this.pathT = this.pathGx = this.pathGz = this.pathGoalD = this.stuckT = this.sideT = NaN;
+    this.sideDir = this.deadSeenT = this.suspT = this.searchT = this.scanT = this.retreatT = this.radioT = this.coverT = NaN;
+    this.coverCd = this.peekDir = this.strafeT = this.strafeDir = this.burstLeft = NaN;
+    this.home = this.static = this.prevNode = this.patrol = this.lookAtPlayer = this.visitT = this.guard = this.role = undefined;
+    this.knockClip = this.blocked = this.dodge = this.citizen = this.landK = this.sleepC = this.base = this.onDrop = undefined;
+    this.crawling = this.lookTurn = this.stanceSet = this.faceAngle = this.gaitCard = this.crouching = this.sees = this.turnClip = undefined;
+    this._rc = this.lodF = this.inside = this.gestName = this._ambT = this.feet = this.gestUB = this.gestStart = undefined;
+    this.trip = this.turnLast = this.mem = this.fallDir = this.clipDeath = this.report = this.grade = this.pmove = undefined;
+    this._gx = this._gz = this.gSp = this._air = this.lastHit = this.remove = this.hwNpc = this.ground = undefined;
+    this.noVisit = this.steerFn = this.facility = this.scared = this.lying = this.sleeping = this.rag = this.stunT = undefined;
+    this.remoteCiv = this.walk = this.proc = this.streetWalk = this.invLook = this.tgt = this.path = this.coverPhase = undefined;
+    this.retreatDecided = this.cover = this.flankSide = this.cower = this.gawk = this.gawkSeen = this.bed = this.villager = undefined;
     this.G = G; this.team = team; this.id = ++uid;
     const look = o.look || {};
     this.idMark = idMark(); this.m = buildHuman(look);
@@ -613,11 +644,11 @@ export class Human {
     const crawlC = !swimC && !sitC && this.prone && !!m.clip('U_Crawl');
     this.crawling = crawlC;
     const hangC = !!this.hang && !!m.clip('U_Ledge_Hang'), ladC = !hangC && !!(this.mantle && this.mantle.ladder) && !!m.clip('U_Climb_Ladder');
-    const set = hangC ? ['U_Ledge_Hang', 'U_Ledge_Hang'] : ladC ? ['U_Ladder_Idle', 'U_Climb_Ladder'] : sitC ? ['U_Sitting_Idle', 'U_Sitting_Idle'] : lieC ? ['U_Sleeping', 'U_Sleeping'] : airC ? ['U_Jump', 'U_Jump'] : swimC ? ['U_Swim_Idle', 'U_Swim_Fwd'] : crawlC ? ['U_Crawl', 'U_Crawl'] : crouchC ? ['U_Crouch_Idle', 'U_Crouch_Fwd'] : null;
+    const set = hangC ? STANCE.hang : ladC ? STANCE.ladder : sitC ? STANCE.sit : lieC ? STANCE.lie : airC ? STANCE.air : swimC ? STANCE.swim : crawlC ? STANCE.crawl : crouchC ? STANCE.crouch : null;
     m.sitClip = sitC && !!m.clip('U_Sitting_Idle');
     this.stanceSet = set;
     const moving = ladC ? 1 : clamp(sp / 1.5, 0, 1);
-    const wt = { Idle: set ? 0 : idle, Walk: 0, Run: 0, U_Sprint: 0, U_Walk_Backwards: 0, U_Strafe_left: 0, U_Strafe_right: 0, U_Turn_Left_90: 0, U_Turn_Right_90: 0, U_Turn_Left_180: 0, U_Turn_Right_180: 0, U_Swim_Idle: 0, U_Swim_Fwd: 0, U_Crouch_Idle: 0, U_Crouch_Fwd: 0, U_Sitting_Idle: 0, U_Sleeping: 0, U_Jump: 0, U_Jump_Start: 0, U_Crawl: 0, U_Ledge_Hang: 0, U_Ladder_Idle: 0, U_Climb_Ladder: 0 };
+    const wt = WT; for (const key in wt) wt[key] = 0; wt.Idle = set ? 0 : idle;
     if (set) { if (set[0] === set[1]) wt[set[0]] = 1; else { wt[set[0]] = 1 - moving; wt[set[1]] = moving; } }
     else stepGait(this, dt, sp, 1 - idle, wt);
     if (airC && this.jumpT >= 0) { const js = 1 - ss01((this.jumpT - 0.8) / 0.6); wt.U_Jump_Start = js; wt.U_Jump = 1 - js; }
@@ -625,7 +656,7 @@ export class Human {
     stepTurn(this, dt, !set && sp < 0.15 && !m.rideOn && !this.dead && !upL, wt);
     // CHR-06b: the push on the ground that curves or changes the pace, in the body's frame (smoothed: the player's velocity comes from physics steps)
     if (dt > 0) {
-      const ax = (this.vx - (this._pvx ?? this.vx)) / dt, az = (this.vz - (this._pvz ?? this.vz)) / dt, s = Math.sin(this.ry), c = Math.cos(this.ry);
+      const ax = (this.vx - knownOr(this._pvx, this.vx)) / dt, az = (this.vz - knownOr(this._pvz, this.vz)) / dt, s = Math.sin(this.ry), c = Math.cos(this.ry);
       this.accF = damp(this.accF || 0, ax * s + az * c, 6, dt); this.accL = damp(this.accL || 0, ax * c - az * s, 6, dt);
     }
     this._pvx = this.vx; this._pvz = this.vz;
@@ -664,7 +695,7 @@ export class Human {
       const pitch = this.aimPitch || 0, up = clamp(pitch / 0.5, 0, 1), dn = clamp(-pitch / 0.5, 0, 1), neu = 1 - Math.max(up, dn);
       const act = pistolish || riflish ? 1 : 0, shoot = this.shootT > 0 ? 1 : 0, rel = this.reloadT > 0 ? 1 : 0;
       const base = act * (rel ? 0 : 1) * (shoot ? 0 : 1), aimK = aiming ? 1 : 0;
-      const tw = { UB_Pistol_Idle: base * (1 - aimK), UB_Pistol_Aim_Up: base * aimK * up, UB_Pistol_Aim_Neutral: base * aimK * neu, UB_Pistol_Aim_Down: base * aimK * dn, UB_Pistol_Shoot: act * shoot, UB_Pistol_Reload: act * rel * (1 - shoot) };
+      const tw = TW; tw.UB_Pistol_Idle = base * (1 - aimK); tw.UB_Pistol_Aim_Up = base * aimK * up; tw.UB_Pistol_Aim_Neutral = base * aimK * neu; tw.UB_Pistol_Aim_Down = base * aimK * dn; tw.UB_Pistol_Shoot = act * shoot; tw.UB_Pistol_Reload = act * rel * (1 - shoot);
       for (const key in tw) {
         let ac = m.act[key]; if (!ac && tw[key] > 0) ac = m.clip(key); if (!ac) continue;
         if (key === 'UB_Pistol_Shoot' && shoot && this.shootT > 0.36) { ac.reset(); ac.play(); }

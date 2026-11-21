@@ -1,3 +1,4 @@
+import { hyp, Vec3, Quat } from './util.js';
 // The tyres' side forces (EV-11). Rapier's ray-cast vehicle resolves each wheel's sideways speed to zero up to its friction limit: the car runs on
 // rails, then lets go at once. Here its side friction is off (physics.js createVehicle) and each wheel in contact gets a side force from its slip
 // angle through a simple Pacejka curve (B, C, E per vehicle; D = the tyre's grip x its load), applied at the contact patch, so the body slips,
@@ -29,29 +30,34 @@ export const SURF_NAME = ['asphalt', 'pavement', 'grass', 'dirt', 'gravel', 'san
 export const SURF_MU = [1, 1, 0.55, 0.65, 0.7, 0.55, 0.35, 0.12, 0.4];
 export const SURF_CRR = [1, 1.1, 5, 4, 2.5, 9, 3, 1, 10];
 
-const Q = { x: 0, y: 0, z: 0, w: 1 };
+const Q = new Quat();
 // rotate the chassis-space vector (x, y, z) by the body's rotation q into out
 function rot(q, x, y, z, out) {
   const ix = q.w * x + q.y * z - q.z * y, iy = q.w * y + q.z * x - q.x * z, iz = q.w * z + q.x * y - q.y * x, iw = -q.x * x - q.y * y - q.z * z;
   out.x = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y; out.y = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z; out.z = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x;
   return out;
 }
-const P = { x: 0, y: 0, z: 0 }, A = { x: 0, y: 0, z: 0 }, F = { x: 0, y: 0, z: 0 }, CM = { x: 0, y: 0, z: 0 }, J = { x: 0, y: 0, z: 0 };
+const P = new Vec3(), A = new Vec3(), F = new Vec3(), CM = new Vec3(), J = new Vec3();
+// Rapier's reads go into these (its getters take a target and then allocate nothing), and the four tyres' pushes are summed into one impulse
+// and one turning impulse about the body's own centre of mass, which is what Rapier does with an impulse at a point; one call each instead of
+// four, each of which built two wasm vectors for the collector (EV-03)
+const QT = new Quat(), TT = new Vec3(), LV = new Vec3(), WV = new Vec3(), CP = new Vec3(), COM = new Vec3(), JT = new Vec3(), TQ = new Vec3();
 
 // Push each wheel in contact sideways by its tyre's force for one step (dt s). mu: the tyres' friction (grip x the wet road's share) per wheel
 // as mu[i]; fx[i]: the force (N) the drive or the brakes take of that tyre's grip; cg: the centre of mass in chassis space (y)
 export function tyreForces(v, dt, mu, fx, cgY) {
   const { ctrl, body, spec } = v; if (!ctrl) return;
-  const B = stiffness(spec.peakDeg || 7), q = body.rotation(); Q.x = q.x; Q.y = q.y; Q.z = q.z; Q.w = q.w;
-  const t = body.translation(), lv = body.linvel(), w = body.angvel(), m4 = v.mass / 4;
+  const B = stiffness(spec.peakDeg || 7), q = body.rotation(QT); Q.x = q.x; Q.y = q.y; Q.z = q.z; Q.w = q.w;
+  const t = body.translation(TT), lv = body.linvel(LV), w = body.angvel(WV), m4 = v.mass / 4, com = body.worldCom(COM);
+  JT.x = JT.y = JT.z = TQ.x = TQ.y = TQ.z = 0;
   rot(Q, 0, cgY, 0, CM); CM.x += t.x; CM.y += t.y; CM.z += t.z;
-  const sp = Math.hypot(lv.x, lv.z);
-  let slipSum = 0, nOn = 0;
+  const sp = hyp(lv.x, lv.z);
+  let slipSum = 0, nOn = 0, pushed = false;
   for (let i = 0; i < 4; i++) {
     if (!ctrl.wheelIsInContact(i)) continue;
     const Fz = ctrl.wheelSuspensionForce(i) || 0; if (Fz <= 0) continue;
     // the contact patch: the hard point, down the suspension and the wheel's radius
-    const cp = ctrl.wheelChassisConnectionPointCs(i), len = (ctrl.wheelSuspensionLength(i) ?? 0) + (ctrl.wheelRadius(i) ?? 0.35);
+    const cp = ctrl.wheelChassisConnectionPointCs(i, CP), len = (ctrl.wheelSuspensionLength(i) ?? 0) + (ctrl.wheelRadius(i) ?? 0.35);
     rot(Q, cp.x, cp.y - len, cp.z, P); P.x += t.x; P.y += t.y; P.z += t.z;
     // the wheel's axle: chassis -x turned by its steering about the chassis up (Rapier turns the axle the same way)
     const st = ctrl.wheelSteering(i) || 0, cs = Math.cos(st), sn = Math.sin(st);
@@ -70,8 +76,10 @@ export function tyreForces(v, dt, mu, fx, cgY) {
     const hold = Math.max(0, 1 - sp / 2.5);
     if (hold > 0) { const st0 = Math.max(-cap, Math.min(cap, -vLat * m4 / dt * 0.5)); fy = fy * (1 - hold) + st0 * hold; }
     J.x = A.x * fy * dt; J.y = A.y * fy * dt; J.z = A.z * fy * dt;
-    body.applyImpulseAtPoint(J, P, true);
+    const ox = P.x - com.x, oy = P.y - com.y, oz = P.z - com.z;
+    JT.x += J.x; JT.y += J.y; JT.z += J.z; TQ.x += oy * J.z - oz * J.y; TQ.y += oz * J.x - ox * J.z; TQ.z += ox * J.y - oy * J.x; pushed = true;
     if (sp > 3) { slipSum += Math.abs(alpha); nOn++; }
   }
+  if (pushed) { body.applyImpulse(JT, true); body.applyTorqueImpulse(TQ, true); }
   v.tyreSlip = nOn ? slipSum / nOn : 0;   // mean slip angle of the wheels on the ground (rad), for the sound and the smoke
 }

@@ -1,3 +1,4 @@
+import { hyp, Vec3 } from './util.js';
 import { drivetrain, torqueShare } from './carspecs.js';
 import { tyreForces, SURF_MU, SURF_CRR } from './tyres.js';
 import { installOrigin, followOrigin, localPoints } from './physorigin.js';
@@ -109,7 +110,7 @@ export class Physics {
   // left in this.footN (straight up on a stair's tread). The stair's steps, not its ramp; people, ragdolls and loose props are not ground
   footY(x, y, z, reach) {
     const h = this.world.castRayAndGetNormal(this._rayOf(x, y, z, 0, -1, 0), reach, true, undefined, grp(0xffff, GR.STATIC | GR.VEH | GR.OBJ | GR.GLASS));
-    const n = this.footN || (this.footN = { x: 0, y: 1, z: 0 });
+    const n = this.footN || (this.footN = new Vec3(0, 1, 0));
     if (!h) return NaN;
     const s = h.collider.steps;
     if (s) { const i = Math.min(s.n - 1, Math.max(0, Math.floor(((z - s.za) / (s.zb - s.za)) * s.n))); n.x = 0; n.y = 1; n.z = 0; return s.ya + ((s.yb - s.ya) * (i + 1)) / s.n; }
@@ -273,7 +274,7 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
   const drag = !throttle && !brake && !dead ? mass * PHYS.engineBrake * dt / 4 * (aF > 0.2 ? 1 : 12) : 0;   // (not a grip share: the surface does not scale it)
   // the air and the tyres' rolling resistance, against the motion
   if (body) {
-    const lv = body.linvel(), sp = Math.hypot(lv.x, lv.z);
+    const lv = body.linvel(LV0), sp = hyp(lv.x, lv.z);
     if (sp > 0.05) { const F = 0.5 * PHYS.rho * (spec.cda ?? 0.7) * sp * sp + (spec.crr ?? 0.011) * (v.crrK || 1) * mass * g, k = Math.min(F * dt, mass * sp * 0.5) / sp; body.applyImpulse({ x: -lv.x * k, y: 0, z: -lv.z * k }, true); }
   }
   // the steering assist (EV-11, PHYS.assist): past the angle that turns the car at its grip with the front tyres at their peak slip, more lock only
@@ -294,6 +295,7 @@ export function driveVehicle(v, { throttle, brake, steer, hand, speedFwd, maxSte
   if (PHYS.tyres && spec.peakDeg && body) tyreForces(v, dt, MU, FX, -0.42);
 }
 const MU = new Float64Array(4), FX = new Float64Array(4), ONE = new Float64Array([1, 1, 1, 1]);
+const LV0 = new Vec3();   // driveVehicle's read of the body's speed: Rapier writes it here instead of a new vector each step
 // each wheel's share of dry asphalt's grip from the surface under it (EV-13), looked up four times a second (or at once when testSurface is set);
 // sets v.surf (the surface indices) and v.crrK (the mean rolling resistance multiple)
 function surfaces(v) {
@@ -303,7 +305,7 @@ function surfaces(v) {
   if (ts != null) { su.fill(ts); f.fill(PHYS.surfMu[ts] ?? 1); v.crrK = PHYS.surfCrr[ts] ?? 1; return f; }
   if ((v.surfT = (v.surfT || 0) - PHYS.dt) > 0) return f;
   v.surfT = 0.25;
-  const t = v.body.translation(), q = v.body.rotation(), fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y), l = Math.hypot(fx, fz) || 1, hx = fx / l, hz = fz / l;
+  const t = v.body.translation(), q = v.body.rotation(), fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y), l = hyp(fx, fz) || 1, hx = fx / l, hz = fz / l;
   const wb = v.spec.wb ?? 1.4, tr = (v.spec.W ?? 1.8) / 2 - 0.2, y = t.y - 0.6;
   let crr = 0;
   for (let i = 0; i < 4; i++) {

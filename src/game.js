@@ -34,7 +34,7 @@ import { HighwayTraffic } from './hwtraffic.js';
 import { StreetWalk } from './streetwalk.js';
 const WAR_BOARD = { tank: '전차 탑승', gunship: '공격헬기 탑승', jet: '전투기 탑승' };
 import { timeUniform, flashUniform, nightU, doorCamU, skyU } from './shaders.js';
-import { clamp, lerp, damp, dampAngle, rand, el, TAU, hyp, hyp3 } from './util.js';
+import { clamp, lerp, damp, dampAngle, rand, el, TAU, hyp, hyp3, known, knownOr } from './util.js';
 import { Settings } from './settings.js';
 import { loadAssets, A } from './assets.js';
 import { buildDressing } from './dressing.js';
@@ -971,7 +971,7 @@ export class Game {
     if (this.rider) { this.scene.add(pl.group); pl.group.scale.setScalar(1); pl.group.rotation.set(0, 0, 0); pl.m.applySit(0); if (pl.m.rideOn) { pl.m.rideOn = false; const dc = pl.m.act.U_Driving; if (dc) dc.weight = 0; pl.m.act.Idle.weight = 1; } this.rider = null; this.riderCar = false; pl.m.pistol.visible = pl.armed && pl.weapon.short === 'pistol'; pl.m.rifle.visible = pl.armed && pl.weapon.short === 'rifle'; }
     // the floor where the driver steps out: a ray down from the car's height (the road deck, a pavement, the graded ground of the capital region), never the old
     // procedural terrain, which lies far below the region's ground and let the player fall through it
-    const fl = this.sandbox?.floorAt({ x: pl.x, z: pl.z }), air = v.spec.craft === 'heli' || v.spec.craft === 'jet', vg = (v.by ?? 0) - (v.spec.cy || 0);
+    const fl = this.sandbox?.floorAt({ x: pl.x, z: pl.z }), air = v.spec.craft === 'heli' || v.spec.craft === 'jet', vg = knownOr(v.by, 0) - (v.spec.cy || 0);
     const gnd = fl != null && fl === fl && Math.abs(fl - vg) < 8 ? fl : air ? physHeight(pl.x, pl.z, 8) : Math.max(vg, physHeight(pl.x, pl.z, 8) - 0.1);
     v.doorFx?.(); this.vehicle = null; this.playerOnFoot = true; pl.group.visible = true;
     { const gy = gnd, alt = air ? (v.by || 0) - v.spec.cy - gy : 0;
@@ -993,7 +993,7 @@ export class Game {
     v.throttle = inp.gas; v.brake = inp.brake; v.steer = inp.steer; v.hand = inp.hand; v.down = inp.sprint;
     if (this.autonav?.active) this.autonav.control(v, inp, dt);   // the autopilot sets throttle / brake / steer; the driver's own input takes it back
     if (v.spec.craft === 'heli') { v.throttle = inp.gas; v.hand = this.input.held('jump'); }
-    if (this.input.edge('alt') && v.spec.craft === 'jet') { v.altHold = v.altHold != null ? null : v.by ?? v.pv.body.translation().y; this.toast(v.altHold != null ? '고도 유지 ON' : '고도 유지 OFF', v.altHold != null ? `${Math.round(v.altHold)} m · 마우스 위아래로 목표 고도 조절` : ''); }
+    if (this.input.edge('alt') && v.spec.craft === 'jet') { v.altHold = v.altHold != null ? null : knownOr(v.by, v.pv.body.translation().y); this.toast(v.altHold != null ? '고도 유지 ON' : '고도 유지 OFF', v.altHold != null ? `${Math.round(v.altHold)} m · 마우스 위아래로 목표 고도 조절` : ''); }
     if (v.pullUp && !this._pullT) { this._pullT = 0.9; this.toast('<span style="color:#ff4560">PULL UP</span>', '저고도 경고 · 자동으로 기수를 든다'); this.audio.tone?.(1100, 0.15, 'square', 0.12); } else if (this._pullT) this._pullT -= dt, this._pullT <= 0 && (this._pullT = 0);
     if (this.input.edge('verb3') && v.speed < 4 && this.nearStation(v.x, v.z)) this.refuel(v);
     // gamepad/keys give both throttle & brake semantic via my; if reversing handled by physics
@@ -1375,8 +1375,8 @@ export class Game {
     const pl = this.player; const dp = hyp3(pl.x - x, pl.y + 0.9 - y, pl.z - z);
     if (dp < radius * 1.3 && !pl.dead && !(src && src === this.vehicle)) { this.hurtPlayer(dmg * (1 - dp / (radius * 1.3)) * 0.6 * this.blastCover(x, y, z, pl.x, pl.y + 1, pl.z), null, 'explosion'); }
     for (const v of this.vehicles) {
-      if (v === src) continue; const dd = hyp3(v.x - x, (v.by ?? y) - y, v.z - z); if (dd > radius * 1.5) continue;
-      const k = (1 - dd / (radius * 1.5)) * this.blastCover(x, y, z, v.x, v.by ?? y, v.z); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
+      if (v === src) continue; const dd = hyp3(v.x - x, knownOr(v.by, y) - y, v.z - z); if (dd > radius * 1.5) continue;
+      const k = (1 - dd / (radius * 1.5)) * this.blastCover(x, y, z, v.x, knownOr(v.by, y), v.z); v.damage(dmg * k * 1.2, src); v.awake = true; v.pv.body.wakeUp();
       const nx = (v.x - x) / (dd || 1), nz = (v.z - z) / (dd || 1); { const mk = Math.min(2, Math.pow(1.15 / Math.max(0.2, v.spec.mass), 0.8)); v.addImpulse(nx * 14 * k * mk, 5 * k * mk, nz * 14 * k * mk); }   // the same blast moves a bus or a tank far less than a car (an impulse over the cross section, shared by the mass)
     }
     this.military?.blast(x, y, z, radius, dmg, src); this.villages?.blast(x, y, z, radius, dmg, src); this.landmarks?.blast(x, y, z, radius, dmg, src); this.industry?.blast(x, y, z, radius, dmg, src); this.highways?.blast(x, y, z, radius, dmg, src);
@@ -1811,12 +1811,12 @@ export class Game {
       const dist = (cam.mode === 0 ? 6.4 + big : cam.mode === 1 ? 9.5 + big : 0.1) + sp * 0.03;
       cam.fov = damp(cam.fov, 66 + clamp(sp * 0.55, 0, 22), 4, dt);
       // the car as drawn this frame (between physics steps); heights are relative to the car's own ground (the capital region lies far above the sea, not at y = 0 like the hand-made city)
-      const vgy = (v.rby ?? v.by ?? 0) - (v.spec.cy || 0);
-      ax = v.rx ?? v.x; ay = vgy + 1.5 + (cam.mode === 2 ? 0.1 : 0); az = v.rz ?? v.z;
+      const vgy = knownOr(v.rby, knownOr(v.by, 0)) - (v.spec.cy || 0);
+      ax = knownOr(v.rx, v.x); ay = vgy + 1.5 + (cam.mode === 2 ? 0.1 : 0); az = knownOr(v.rz, v.z);
       const cp = Math.cos(cam.pitch), L = this.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
       let tx, ty, tz;
       if (cam.mode === 2) { // hood cam
-        const vh = v.rh ?? v.h, s = Math.sin(vh), cc = Math.cos(vh), lat = this.passenger ? 0.5 : 0; tx = ax + s * 0.7 + cc * lat; ty = vgy + 1.35; tz = az + cc * 0.7 - s * lat;
+        const vh = knownOr(v.rh, v.h), s = Math.sin(vh), cc = Math.cos(vh), lat = this.passenger ? 0.5 : 0; tx = ax + s * 0.7 + cc * lat; ty = vgy + 1.35; tz = az + cc * 0.7 - s * lat;
         c.position.set(tx, ty, tz); c.lookAt(tx + Math.sin(cam.yaw) * 10, vgy + 1.1 + Math.sin(cam.pitch) * 10, tz + Math.cos(cam.yaw) * 10);
       } else {
         tx = ax - L.x * dist; ty = ay - L.y * dist + 1.0; tz = az - L.z * dist;
@@ -1868,8 +1868,8 @@ export class Game {
   }
   updateHeadlight() {
     if (!this.head) { this.head = new THREE.SpotLight(0xfff0d0, 0, 80, 0.5, 0.6, 1.6); this.scene.add(this.head, this.head.target); }
-    const v = this.vehicle, h = v.rh ?? v.h, x = v.rx ?? v.x, z = v.rz ?? v.z, s = Math.sin(h), c = Math.cos(h);
-    const b = (v.rby ?? v.by ?? 0) - (v.spec.cy ?? 0.78);   // the lamps sit 0.9 m over the road the car is on and light the road 30 m ahead (the road is not at 0)
+    const v = this.vehicle, h = knownOr(v.rh, v.h), x = knownOr(v.rx, v.x), z = knownOr(v.rz, v.z), s = Math.sin(h), c = Math.cos(h);
+    const b = knownOr(v.rby, knownOr(v.by, 0)) - (v.spec.cy ?? 0.78);   // the lamps sit 0.9 m over the road the car is on and light the road 30 m ahead (the road is not at 0)
     this.head.position.set(x + s * v.L * 0.4, b + 0.9, z + c * v.L * 0.4);
     this.head.target.position.set(x + s * 30, this.groundY(x + s * 30, z + c * 30, b + 3), z + c * 30);
     this.head.intensity = 520; this.head.angle = 0.5; this.head.penumbra = 0.7;

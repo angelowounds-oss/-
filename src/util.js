@@ -1,5 +1,14 @@
 // Small shared helpers: seeded RNG, math, noise
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+// Scratch vectors for per-frame maths. A class, not a { x, y, z } literal: V8 gives every such literal in the program one shared hidden class,
+// and once any of them held something other than a number (many do), a number stored into one became a new heap object on every store; a
+// class's fields have their own, and stay plain doubles (EV-03: this was most of the tyre and collision code's garbage)
+export class Vec3 { constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; } }
+export class Quat { constructor(x = 0, y = 0, z = 0, w = 1) { this.x = x; this.y = y; this.z = z; this.w = w; } }
+// A value that was set: neither null/undefined nor the NaN that vehicle and person fields start as (EV-03), so the absence checks
+// that used ?? or != null keep working on them
+export const known = (a) => a != null && a === a;
+export const knownOr = (a, b) => (a != null && a === a ? a : b);
 export const lerp = (a, b, t) => a + (b - a) * t;
 // the speed (m/s) from which a car stops within d metres braking at a (m/s^2), or slows to `to` m/s: drivers' speeds before an obstacle, a light, a corner
 export const stopSpeed = (d, a = 5, to = 0) => Math.sqrt(to * to + 2 * a * Math.max(0, d));

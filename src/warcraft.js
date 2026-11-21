@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder } from './gfx.js';
 import { Vehicle } from './vehicle.js';
 import { Human } from './human.js';
-import { clamp, damp, rand, TAU, angDiff, hyp, hyp3 } from './util.js';
+import { clamp, damp, rand, TAU, angDiff, hyp, hyp3, known, knownOr } from './util.js';
 
 // War machines the player can drive or fly: main battle tank, attack helicopter (gunship) and a VTOL fighter. They come from the army base
 // (one block of the city, guarded) or from enemy units that were shot up until their crew bailed out (Military.abandon).
@@ -262,7 +262,7 @@ export class War {
       const prev = tmpA.copy(s.p);
       // missiles steer toward their target, at most ~30 g of turn: the rate a missile can turn falls with its speed
       if (s.w.homing && s.target && !(s.target.o.dead)) {
-        const o = s.target.o, ty = o.kind === 'heli' ? o.y : o.kind === 'tank' ? o.y + 1.7 : (o.by ?? 1) + 0.6;
+        const o = s.target.o, ty = o.kind === 'heli' ? o.y : o.kind === 'tank' ? o.y + 1.7 : knownOr(o.by, 1) + 0.6;
         tmpB.set(o.x - s.p.x, ty - s.p.y, o.z - s.p.z).normalize(); const sp = s.v.length(); const cur = tmpC.copy(s.v).normalize();
         const a = cur.angleTo(tmpB), k = Math.min(1, Math.min(1.9, 300 / Math.max(sp, 1)) * dt / Math.max(a, 0.001)); cur.lerp(tmpB, k).normalize(); s.v.copy(cur).multiplyScalar(sp);
       }
@@ -289,12 +289,12 @@ export class War {
     const G = this.G, cam = G.cam, c = G.camera, war = v.spec.war;
     cam.pitch = clamp(cam.pitch, war === 'tank' ? -0.3 : -1.25, war === 'tank' ? 0.65 : 1.2);
     const mode = cam.mode, big = war === 'jet' ? 21 : war === 'gunship' ? 17 : 13;
-    const ax = v.rx ?? v.x, az = v.rz ?? v.z, ay0 = (v.rby ?? v.by ?? 1) + (war === 'tank' ? 1.2 : 1.0);
+    const ax = knownOr(v.rx, v.x), az = knownOr(v.rz, v.z), ay0 = knownOr(v.rby, knownOr(v.by, 1)) + (war === 'tank' ? 1.2 : 1.0);
     const cp = Math.cos(cam.pitch), L = G.tmpV.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
     if (mode === 2) {
       // gunner sight / cockpit: from the muzzle (tank) or the nose (aircraft)
       this.muzzle(v, tmpB, tmpC);
-      const base = war === 'tank' ? tmpB.set(ax, ay0 + 1.4, az).addScaledVector(L, 1.5) : tmpB.set(ax, ay0 + 0.9, az).addScaledVector(tmpC.set(Math.sin(v.rh ?? v.h), 0, Math.cos(v.rh ?? v.h)), war === 'jet' ? 2.6 : 2.2);
+      const base = war === 'tank' ? tmpB.set(ax, ay0 + 1.4, az).addScaledVector(L, 1.5) : tmpB.set(ax, ay0 + 0.9, az).addScaledVector(tmpC.set(Math.sin(knownOr(v.rh, v.h)), 0, Math.cos(knownOr(v.rh, v.h))), war === 'jet' ? 2.6 : 2.2);
       c.position.copy(base); c.lookAt(base.x + L.x * 30, base.y + L.y * 30, base.z + L.z * 30);
       cam.fov = damp(cam.fov, war === 'tank' ? 34 : 70, 6, dt);
     } else {
@@ -319,7 +319,7 @@ export class War {
     if (!on) { if (ui.machFx && ui.machFx.style.opacity !== '0') ui.machFx.style.opacity = 0; return; }
     const kit = this.kit(v), war = v.spec.war, nm = v.spec.title || NAMES[war];
     const rows = kit.w.map((w, i) => `<div class="wr"><b>${i ? 'RMB' : 'LMB'}</b> ${w.name}<span>${w.id === 'cannon' && w.cd > 0 ? '장전 중' : Math.floor(w.ammo)}</span></div>`).join('');
-    const alt = Math.max(0, Math.round((v.by ?? 0) - v.spec.cy));
+    const alt = Math.max(0, Math.round(knownOr(v.by, 0) - v.spec.cy));
     const info = `${nm} · HP ${Math.max(0, Math.round(v.hp / v.maxHp * 100))}% · 연료 ${Math.round(v.fuel)}%` + (war === 'tank' ? '' : ` · 고도 ${alt}m`) + (war === 'jet' ? ` · 스로틀 ${Math.round((v.thrLvl || 0) * 100)}%` + (v.speed > 100 ? ` · MACH ${(v.speed / 343).toFixed(1)}` : '') + (v.returning ? ' · 경계 이탈: 자동 선회' : '') : '');
     const key = rows + info; if (key !== this._key) { this._key = key; ui.warRows.innerHTML = rows; ui.warInfo.textContent = info; }
     // pipper

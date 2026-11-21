@@ -1,3 +1,4 @@
+import { Vec3 } from './util.js';
 // The physics world's floating origin (EV-04). Rapier works in 32-bit floats: 450 km from the capital (Jeju) a position has a step of 3 cm, so a body
 // moving under 1.9 m/s (a walk) loses whole steps of its motion and everything at rest shakes by centimetres. The physics world is therefore kept
 // around ORIGIN, a point of a CELL grid near the player, and moved under the game when the player leaves it (rebase: every body and every collider
@@ -6,7 +7,7 @@
 // so the game, its 17 physics modules and the tests keep world coordinates. Only y is never shifted (heights stay near the ground's own).
 export const CELL = 4096, KEEP = 3072;   // the grid of origins; the player may go KEEP metres from the origin (per axis) before it moves
 export const ORIGIN = { x: 0, z: 0, moves: 0 };
-const V = { x: 0, y: 0, z: 0 };   // the shifted vector handed to Rapier (it reads x, y, z at once and keeps nothing)
+const V = new Vec3();   // the shifted vector handed to Rapier (it reads x, y, z at once and keeps nothing)
 const at = (t) => { V.x = t.x - ORIGIN.x; V.y = t.y; V.z = t.z - ORIGIN.z; return V; };
 let raw = null;
 
@@ -14,10 +15,13 @@ let raw = null;
 export function installOrigin(R) {
   if (raw) return raw;
   const B = R.RigidBody.prototype, C = R.Collider.prototype, W = R.World.prototype;
-  raw = { bTr: B.translation, bSet: B.setTranslation, bNext: B.setNextKinematicTranslation, cTr: C.translation, cSet: C.setTranslation, mkBody: W.createRigidBody, mkCol: W.createCollider, ray: W.castRay, rayN: W.castRayAndGetNormal, imp: B.applyImpulseAtPoint, frc: B.addForceAtPoint };
+  raw = { bTr: B.translation, bCom: B.worldCom, bSet: B.setTranslation, bNext: B.setNextKinematicTranslation, cTr: C.translation, cSet: C.setTranslation, mkBody: W.createRigidBody, mkCol: W.createCollider, ray: W.castRay, rayN: W.castRayAndGetNormal, imp: B.applyImpulseAtPoint, frc: B.addForceAtPoint };
   // a translation read back: the world position
-  B.translation = function () { const t = raw.bTr.call(this); t.x += ORIGIN.x; t.z += ORIGIN.z; return t; };
-  C.translation = function () { const t = raw.cTr.call(this); t.x += ORIGIN.x; t.z += ORIGIN.z; return t; };
+  // (a target, when given, is filled instead of a new vector: Rapier's getters take one, EV-03)
+  B.translation = function (target) { const t = raw.bTr.call(this, target); t.x += ORIGIN.x; t.z += ORIGIN.z; return t; };
+  C.translation = function (target) { const t = raw.cTr.call(this, target); t.x += ORIGIN.x; t.z += ORIGIN.z; return t; };
+  // the centre of mass is a position too (tyres.js turns the wheels' pushes about it)
+  B.worldCom = function (target) { const t = raw.bCom.call(this, target); t.x += ORIGIN.x; t.z += ORIGIN.z; return t; };
   // a translation set: from the world position
   B.setTranslation = function (t, wake) { return raw.bSet.call(this, at(t), wake); };
   B.setNextKinematicTranslation = function (t) { return raw.bNext.call(this, at(t)); };

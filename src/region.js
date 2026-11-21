@@ -1,3 +1,4 @@
+import { hyp } from './util.js';
 // A compiled region of the world (ADR-0019, KOREA-PLAN v2 M3b): real terrain, water and arterial roads made by build/world/compile.mjs. Pure (no
 // three.js). The page finds it in the baked core chunk (globalThis.__BAKED.region); the bake and the node tests install it as globalThis.__REGION.
 // Inside the region it is the only source of the ground; the old layers of landfn.js only blend in across the bands at its border and around the
@@ -257,7 +258,7 @@ export function regionPhysHeight(x, z, coarse = false) {
   const near = new Map();
   for (let q = 0; q < l.length; q += 2) {
     const r = l[q], i = l[q + 1], ax = r.x[i], az = r.z[i], dx = r.x[i + 1] - ax, dz = r.z[i + 1] - az, l2 = dx * dx + dz * dz || 1;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), d = hyp(x - ax - dx * t, z - az - dz * t);
     if (d > r.half + TUNNEL_FILL) continue;
     const b = near.get(r); if (!b || d < b.d) near.set(r, { d, y: r.y[i] + (r.y[i + 1] - r.y[i]) * t - 0.25 });
   }
@@ -290,7 +291,7 @@ function openRoads() {
 // what one segment says at (x, z), into out = [the nearest edge distance, that road's surface there, the lowest bank]
 function bounds(O, ri, i, x, z, out) {
   const r = O.roads[ri], ax = r.x[i], az = r.z[i], dx = r.x[i + 1] - ax, dz = r.z[i + 1] - az, l2 = dx * dx + dz * dz || 1;
-  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), e = Math.hypot(x - ax - dx * t, z - az - dz * t) - r.half;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), e = hyp(x - ax - dx * t, z - az - dz * t) - r.half;
   if (e > CARVE_IN + CARVE_BANK) return;
   const y = r.y[i] + (r.y[i + 1] - r.y[i]) * t - 0.05, c = y + Math.max(0, e - CARVE_IN);
   if (e < out[0]) { out[0] = e; out[1] = y; } if (c < out[2]) out[2] = c;

@@ -82,7 +82,11 @@ if (m.driveJeju.side > m.driveCapital.side + 0.05) bad.push(['drive strays sidew
   if (!h2 || Math.abs(h2.timeOfImpact - 8) > 0.002 || h2.normal.y < 0.99) bad.push(['ray onto the lone collider', m.rayT2]);
   if (ray.origin.x !== X + 5 || ray.origin.z !== Z + 5) bad.push(['the ray was left shifted']);
   // an impulse at the body's own centre of mass turns nothing (a point left in world coordinates would be 450 km off and spin it)
-  const c = A.worldCom(); A.applyImpulseAtPoint({ x: 0, y: 0, z: 10 }, { x: c.x + ORIGIN.x, y: c.y, z: c.z + ORIGIN.z }, true);
+  // the centre of mass reads back in world coordinates like a translation (the box on A sits 1 m along z from the body), so tyres.js can turn
+  // the wheels' pushes about it
+  const c = A.worldCom(), ta = A.translation(); m.comErr = r3(Math.hypot(c.x - ta.x, c.y - ta.y, c.z - 1 - ta.z));
+  if (m.comErr > 0.002) bad.push(['worldCom is not a world position', m.comErr]);
+  A.applyImpulseAtPoint({ x: 0, y: 0, z: 10 }, { x: c.x, y: c.y, z: c.z }, true);
   const av = A.angvel(); m.spin = r3(Math.hypot(av.x, av.y, av.z));
   if (m.spin > 0.01) bad.push(['impulse at the centre spins the body', m.spin]);
 }

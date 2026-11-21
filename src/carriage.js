@@ -1,10 +1,16 @@
+import { hyp } from './util.js';
 // The carriageway of a compiled road line, shared by the drawing (highways.js), the routes (worldnav.js), the traffic (hwtraffic.js) and the spots
 // beside the road (game.js) so a car keeps to the lane that is drawn. A line fitted to the map's walls (build/world/fit.mjs, WLD-33) carries its own half
 // width: its lanes shrink to fit (never under 2.75 m, the narrowest Korean urban lane) and drop to one a way where two do not fit. An alley carries no cars.
 export const LANE = 3.75, SHOULDER = 2.4, EDGE = 0.25, MIN_LANE = 2.75;
 
-// { n lanes a way, half width, two-way?, lane width, the outer edge strip, alley? }
-export function carriage(r) {
+// { n lanes a way, half width, two-way?, lane width, the outer edge strip, alley? }. Kept per road: the open-top and road-near checks ask it for
+// every nearby road every frame, and a fresh object each time was 15 % of the walking frame's garbage (alloc-gate, EV-03). A road's lanes, width,
+// way and fit never change after it is compiled, and the result is frozen so no caller can change it for the others. Kept under a symbol (not a
+// WeakMap, whose entries the collector marks in its pause; and not a plain key, which JSON and a structured clone of a road would carry along).
+const CARRIAGE = Symbol('carriage');
+export function carriage(r) { return r[CARRIAGE] || (r[CARRIAGE] = Object.freeze(carriageOf(r))); }
+function carriageOf(r) {
   const n0 = Math.max(1, Math.min(4, r.oneway ? r.lanes || 1 : Math.ceil((r.lanes || 2) / 2)));
   if (!r.fit || !(r.half > 0)) return r.oneway ? { n: n0, half: (n0 * LANE + SHOULDER) / 2, two: false, lane: LANE, edge: SHOULDER / 2, alley: false } : { n: n0, half: n0 * LANE + SHOULDER, two: true, lane: LANE, edge: SHOULDER, alley: false };
   const two = !r.oneway, half = r.half, way = two ? half - 0.12 : 2 * half, n = Math.max(1, Math.min(n0, Math.floor((way - EDGE) / MIN_LANE)));
@@ -66,7 +72,7 @@ export function barrierGap(N, r, f0, f1, o, ia = -1, halfW = 17.5) {
       const w = o2.kind === 'arterial' ? carriage(o2).half : o2.kind === 'ramp' ? 4.6 : halfW, yo = o2.y[i] + (o2.y[B] - o2.y[i]) * t;
       // at about the same height (a road over or under it is no way off). Until 2026-11 the foot of the perpendicular was read off the sample index
       // as if it were a point (A[0], A[1]): the distance was NaN and no barrier was ever left open
-      if (Math.abs(yo - y) < 3 && Math.hypot(x - ax - dx * t, z - az - dz * t) < w + 0.6) return true;
+      if (Math.abs(yo - y) < 3 && hyp(x - ax - dx * t, z - az - dz * t) < w + 0.6) return true;
     }
   }
   return false;
@@ -83,7 +89,7 @@ export function roadBeneath(N, x, z, r, pad, top, below = 1, halfW = 17.5) {
     const n = o2.x.length, B = (i + 1) % n, ax = o2.x[i], az = o2.z[i], dx = o2.x[B] - ax, dz = o2.z[B] - az, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
     if (o2.y[i] + (o2.y[B] - o2.y[i]) * t > top - below) continue;
     const w = o2.kind === 'arterial' ? carriage(o2).half : halfW;
-    if (Math.hypot(x - ax - dx * t, z - az - dz * t) < w + pad) return true;
+    if (hyp(x - ax - dx * t, z - az - dz * t) < w + pad) return true;
   }
   return false;
 }

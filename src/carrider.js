@@ -1,4 +1,4 @@
-import { clamp, rand, hyp } from './util.js';
+import { clamp, rand, hyp, known, knownOr, Vec3 } from './util.js';
 import { keys as binds } from './keys.js';
 
 // Vehicle <-> person physics on foot: bailing out of a moving car, and standing / riding on a car roof.
@@ -110,8 +110,8 @@ export class CarRider {
   draw() {
     const r = this.roof, pl = this.G.player;
     this.drawn = null;
-    if (!r || pl.rag || r.v.rh === undefined) return;
-    const v = r.v, s = Math.sin(v.rh), c = Math.cos(v.rh), d = this.drawnP || (this.drawnP = { x: 0, y: 0, z: 0 });
+    if (!r || pl.rag || !known(r.v.rh)) return;
+    const v = r.v, s = Math.sin(v.rh), c = Math.cos(v.rh), d = this.drawnP || (this.drawnP = new Vec3());
     d.x = v.rx + c * r.lx + s * r.lz; d.z = v.rz - s * r.lx + c * r.lz; d.y = v.rby + 0.54;
     pl.group.position.set(d.x, pl.group.position.y + d.y - pl.y, d.z);
     this.drawn = d;

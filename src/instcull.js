@@ -1,3 +1,4 @@
+import { hyp3 } from './util.js';
 // Distance packing for static instanced meshes (street furniture, trees, the pine forests around the city).
 // three.js draws an InstancedMesh as one call with one bounding sphere around all of its instances, so every lamp post and pine of the map
 // went down the pipeline each frame - most of them hundreds of metres into the fog, where FogExp2 leaves nothing of them on screen.
@@ -103,7 +104,7 @@ export const instCull = {
     const cut = inside ? SAFE_FOG / Math.max(fog.density, 1e-4) * Math.sqrt(1 + th * th + tw * tw) + MARGIN : 1e6;
     if (!inside) { if (this.cut < 1e6) this.start(p, 1e6); return; }
     // re-pack after a quarter of the margin: the job finishes within a few frames, well before the camera uses up the rest
-    const moved = Math.hypot(p.x - this.x, p.y - this.y, p.z - this.z);
+    const moved = hyp3(p.x - this.x, p.y - this.y, p.z - this.z);
     if (moved + Math.max(0, cut - this.cut) < MARGIN / 4 && cut > this.cut - MARGIN) return;
     this.start(p, cut);
   },

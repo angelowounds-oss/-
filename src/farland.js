@@ -5,7 +5,7 @@ import { EXTENT } from './terrain.js';
 import { landHeight, physHeight } from './landfn.js';
 import { stream, colorAt } from './heightmap.js';
 import { REG_REACH } from './regtile.js';
-import { VIEW, hyp, hyp3 } from './util.js';
+import { VIEW, hyp, hyp3, known, knownOr } from './util.js';
 import { patchStandard, timeUniform } from './shaders.js';
 import { GR, grp } from './physics.js';
 import { LEVELS as SURF_LEVELS, lowestAround, surfVersion, changesSince } from './roadsurf.js';
@@ -178,7 +178,7 @@ export class Farland {
     if (globalThis.__WORLD) stream(globalThis.__WORLD, focus.x, focus.z);   // high-detail ground tiles around what the player controls
     regionStream([focus, camera.position], REG_REACH * VIEW.b);   // the compiled regions' raster tiles around both (EV-01)
     this.sea.position.x = Math.round(cx / 5000) * 5000; this.sea.position.z = Math.round(cz / 5000) * 5000;
-    this.ground.update(focus.x, focus.z, focus.by ?? focus.y ?? 0);   // physics follows what the player controls, not the (smoothed, late) camera
+    this.ground.update(focus.x, focus.z, knownOr(focus.by, focus.y ?? 0));   // physics follows what the player controls, not the (smoothed, late) camera
     this.stats.ms = performance.now() - t0; this.stats.last = this.stats.ms;
   }
   dispose() { this.scene.remove(this.group); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); this.ground.dispose(); }

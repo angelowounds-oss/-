@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Builder , holeCU, holeHU } from './gfx.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLSL_NOISE, FAKE_ROOM_GLSL, patchStandard, timeUniform, doorCamU, blackU, ZONE_GLSL, skyU, nightU, createGlareMaterial, createSky, setTowerFog } from './shaders.js';
-import { mulberry32, clamp, TAU } from './util.js';
+import { mulberry32, clamp, TAU, hyp } from './util.js';
 import { facadeUniforms } from './facade.js';
 import { buildRelief } from './relief.js';
 import { MODEL_H, MODEL_W, MODEL_D, MODEL_PROM, MODEL_VARIANTS } from './modelinfo.js';
@@ -57,7 +57,13 @@ const ACCENTS = [
 export const accentColor = (i) => ACCENTS[((i % 6) + 6) % 6];
 
 // ---------- Collision world ----------
-const RESOLVE_TMP = [], RESOLVE_OUT = { x: 0, z: 0, nx: 0, nz: 0, hit: false, depth: 0 };   // scratch list for resolve(): it used to allocate a new array on every call (per person, per frame)
+// resolve()'s answer, a class of its own so its numbers stay unboxed (see util.js Vec3)
+class Resolved { constructor() { this.x = 0; this.z = 0; this.nx = 0; this.nz = 0; this.hit = false; this.depth = 0; } }
+const RESOLVE_TMP = [], RESOLVE_OUT = new Resolved();
+// the static solids, classes of their own so the collision loops see two hidden classes with plain double fields (a circle as a { x, z, .. }
+// literal shared its fields' kind with every other such literal in the program; EV-03)
+class StaticBox { constructor(x0, z0, x1, z1, h, y0, tag) { this.x0 = x0; this.z0 = z0; this.x1 = x1; this.z1 = z1; this.h = h; this.y0 = y0; this.tag = tag; this.kind = 0; this._s = 0; } }
+class StaticCircle { constructor(x, z, r, h, tag) { this.x = x; this.z = z; this.r = r; this.h = h; this.tag = tag; this.kind = 1; this._s = 0; } }   // scratch list for resolve(): it used to allocate a new array on every call (per person, per frame)
 export class Colliders {
   constructor() {
     this.boxes = [];
@@ -65,7 +71,9 @@ export class Colliders {
     this.cell = 24;
     this.grid = new Map();
   }
-  _key(cx, cz) { return cx * 73856093 ^ cz * 19349663; }
+  // shifted into 31 bits: V8 keeps such a number as a small integer, while a full 32-bit hash is a heap number, and every grid lookup (resolve, nearN,
+  // raycast: per person, per frame) allocated one to pass to the Map (EV-03)
+  _key(cx, cz) { return (cx * 73856093 ^ cz * 19349663) >> 1; }
   _add(item, x0, z0, x1, z1) {
     const c = this.cell;
     for (let cx = Math.floor(x0 / c); cx <= Math.floor(x1 / c); cx++)
@@ -77,7 +85,7 @@ export class Colliders {
       }
   }
   addBox(x0, z0, x1, z1, h, tag, y0 = 0) {
-    const b = { x0, z0, x1, z1, h, y0, tag, kind: 0, _s: 0 };
+    const b = new StaticBox(x0, z0, x1, z1, h, y0, tag);
     this.boxes.push(b);
     this._add(b, x0, z0, x1, z1);
     if (this.sink) this.sink.addBox(b);
@@ -95,7 +103,7 @@ export class Colliders {
     if (this.sink) this.sink.removeBox(b);
   }
   addCircle(x, z, r, h, tag) {
-    const c = { x, z, r, h, tag, kind: 1, _s: 0 };
+    const c = new StaticCircle(x, z, r, h, tag);
     this.circles.push(c);
     this._add(c, x - r, z - r, x + r, z + r);
     return c;
@@ -152,7 +160,7 @@ export class Colliders {
         nxs += dx; nzs += dz; depth = Math.max(depth, pen); hit = true;
       }
     }
-    const l = Math.hypot(nxs, nzs) || 1, o = RESOLVE_OUT;
+    const l = hyp(nxs, nzs) || 1, o = RESOLVE_OUT;
     o.x = x; o.z = z; o.nx = nxs / l; o.nz = nzs / l; o.hit = hit; o.depth = depth;
     return o;   // shared: read it before the next resolve() call (every caller does)
   }

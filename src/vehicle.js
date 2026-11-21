@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildCar, CAR_SPECS, idMark, disposeOwned } from './models.js';
 import { N, R, LANE, roadC, roadIdx, hasEdge } from './world.js';
-import { clamp, lerp, damp, angDiff, rand, stopSpeed, hyp, hyp3 } from './util.js';
+import { clamp, lerp, damp, angDiff, rand, stopSpeed, hyp, hyp3, known, knownOr } from './util.js';
 import { driveVehicle, PHYS } from './physics.js';
 import { physHeight } from './landfn.js';
 import { buildCustom, CRAFT_SPECS, createCraftBody, driveCraft, motoAssist } from './craft.js';
@@ -26,6 +26,22 @@ const FUEL = { sedan: { km: 650 }, sport: { km: 480 }, suv: { km: 600 }, truck: 
 
 export class Vehicle {
   constructor(G, type, color, kind = 'parked', opts = {}) {
+    // Every key a vehicle gets later is declared here first, in one order, so all of them share one hidden class: keys added later in a
+    // different order gave each its own (12 for cars, 30 for people), the hot loops over them went megamorphic and kept deoptimising, and
+    // the deoptimised code boxed every number it wrote (EV-03). Numbers start as NaN, which compares, adds, ORs and negates like the
+    // undefined they replace but keeps the field an unboxed double; the rest start undefined.
+    this.flipT = this.by = this.vy = this.rx = this.rz = this.rby = this.rh = this.maxSteerNow = NaN;
+    this.stuckT = this.wT = this.goodY = this.idleT = this.spool = this.laneT = this.inWater = this.tiltFwd = NaN;
+    this.floatT = this.tiltRoll = this.floodT = this.lostT = this.drownT = this.dentTotal = this.noImpact = this.reverse = NaN;
+    this.doorT = this.turYaw = this.turPitch = this.vapT = this.trainT = this.fareStart = this.trackSpeed = this.pitchA = NaN;
+    this.bank = NaN;
+    this.awake = this.phys = this.startY = this.hw = this.pv = this.base = this.spawnY = this.q = undefined;
+    this.down = this.vyW = this.war = this.autoRot = this.hwDone = this.doorMesh = this.exploded = this.b0 = undefined;
+    this.boostFuel = this.boosting = this.flooded = this.directDest = this.arrived = this.aimYaw = this.aimPitch = this.pm = undefined;
+    this.pPrev = this._fxo = this.dest = this.callTaxi = this.captured = this.fireNode = this.altHold = this.chaseTarget = undefined;
+    this.direct = this.cl = this.pullUp = this.thrLvl = this.cmdV = this.fast = this.hv = this.jetS = undefined;
+    this.agl = this.returning = this.edgeR = this.airborne = this.landed = undefined;
+    this.planAhead = this.planAhead;   // an own copy of the method, which some systems replace with their own planner
     this.G = G; this.id = ++uid;
     this.type = type; this.kind = kind; // parked | traffic | police | player
     const police = kind === 'police', taxi = opts.taxi;
@@ -168,7 +184,7 @@ export class Vehicle {
   // A spawner that knows the floor (a bridge deck: physHeight is the ground under it, GPL-15) sets spawnY.
   groundRise() { if (this.spawnY != null) return this.spawnY; const h = physHeight(this.x, this.z, 8); return h > 0 ? h : 0; }
   // the height the car stands at (its body centre less the body's height over the ground); before the body was read: the ground under it
-  baseY() { return this.by != null && this.by === this.by ? this.by - (this.spec.cy ?? PHYS.bodyY) : this.groundRise(); }
+  baseY() { return known(this.by) ? this.by - (this.spec.cy ?? PHYS.bodyY) : this.groundRise(); }
   // where a craft's body starts when the spawner gave no height: its own height over the ground (or road deck) under it (the ground is not at 0 in the 1:1 world)
   craftStartY() { return (this.G.groundY ? this.G.groundY(this.x, this.z) : 0) + this.spec.cy + 0.25; }
   // Teleport body to current x,z,h and velocity fields
@@ -271,13 +287,13 @@ export class Vehicle {
     // flipped & stuck -> right the car
     if (this.q) {
       const q = this.q, up = 1 - 2 * (q.x * q.x + q.z * q.z);
-      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); const f = floorBelow(this.phys, this.x, this.by ?? 0, this.z); this.pv.body.setTranslation({ x: this.x, y: (f === f ? f : this.groundRise()) + 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; this.noImpact = 2; } } else this.flipT = 0;
+      if (up < 0.35 && this.speed < 2.5) { this.flipT = (this.flipT || 0) + dt; if (this.flipT > 2.2) { this.pv.body.setRotation({ x: 0, y: Math.sin(this.h / 2), z: 0, w: Math.cos(this.h / 2) }, true); const f = floorBelow(this.phys, this.x, knownOr(this.by, 0), this.z); this.pv.body.setTranslation({ x: this.x, y: (f === f ? f : this.groundRise()) + 1.4, z: this.z }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.flipT = 0; this.pv.prevNo = -1; this.noImpact = 2; } } else this.flipT = 0;
     }
     // fell through the ground (a deck that was not built yet, a hole): back to the last height it stood at once it has been under the ground for half a second
-    if (!this.spec.craft && this.by != null) {
+    if (!this.spec.craft && known(this.by)) {
       const gh = physHeight(this.x, this.z, 8);
       if (this.by >= gh - 1) this.goodY = this.by;
-      else if (this.by < gh - 5 && this.goodY != null) {
+      else if (this.by < gh - 5 && known(this.goodY)) {
         this.lostT = (this.lostT || 0) + dt;
         if (this.lostT > 0.5) { this.G?.highways?.ensureNear?.(this.x, this.z); this.pv.body.setTranslation({ x: this.x, y: this.goodY + 1.4, z: this.z }, true); this.pv.body.setLinvel({ x: 0, y: 0, z: 0 }, true); this.pv.body.setAngvel({ x: 0, y: 0, z: 0 }, true); this.lostT = 0; this.pv.prevNo = -1; this.noImpact = 2; }
       } else this.lostT = 0;
@@ -323,8 +339,8 @@ export class Vehicle {
   waterStep(dt) {
     if (this.spec.craft || !this.pv) return;
     this.wT = (this.wT || 0) + dt; if (this.wT < 0.1) return; dt = this.wT; this.wT = 0;
-    const G = this.G, w = this.by != null ? G.waterAt(this.x, this.z) : null, base = this.baseY(), sub = w ? w.y - base : 0;
-    if (!w || sub < 0.15 || this.by == null) { this.inWater = 0; this.floatT = Math.max(0, (this.floatT || 0) - dt * 0.5); this.floodT = Math.max(0, (this.floodT || 0) - dt * 0.2); this.drownT = 0; return; }
+    const G = this.G, w = known(this.by) ? G.waterAt(this.x, this.z) : null, base = this.baseY(), sub = w ? w.y - base : 0;
+    if (!w || sub < 0.15 || !known(this.by)) { this.inWater = 0; this.floatT = Math.max(0, (this.floatT || 0) - dt * 0.5); this.floodT = Math.max(0, (this.floodT || 0) - dt * 0.2); this.drownT = 0; return; }
     if (this.phys.rayT(this.x, this.by + 1, this.z, 0, 1, 0, 12, 1) >= 0) { this.inWater = 0; return; }   // covered: not open water
     this.inWater = sub;
     const b = this.pv.body, lv = b.linvel(), m = this.pv.mass, sp = hyp(lv.x, lv.z);
@@ -433,7 +449,7 @@ export class Vehicle {
     let tx, tz;
     if (this.dest && !this.police) {
       const dd = hyp(this.dest.x - this.x, this.dest.z - this.z);
-      if (dd < 22 && G.hasLOS(this.x, this.by ?? 1.2, this.z, this.dest.x, (this.by ?? 1.2) + 0.2, this.dest.z)) this.directDest = true;
+      if (dd < 22 && G.hasLOS(this.x, knownOr(this.by, 1.2), this.z, this.dest.x, (knownOr(this.by, 1.2)) + 0.2, this.dest.z)) this.directDest = true;
       if (this.directDest) { tx = this.dest.x; tz = this.dest.z; target = Math.min(ai.speed, stopSpeed(dd - 6, 3.5)); if (dd < 8) { this.arrived = true; target = 0; } }
     }
     if (tx === undefined && this.police && this.chaseTarget && this.direct) {

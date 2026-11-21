@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { WEAPONS } from './human.js';
 import { Vehicle, CAR_COLORS, floorBelow } from './vehicle.js';
 import { ATT } from './attachments.js';
-import { el, hyp } from './util.js';
+import { el, hyp, known, knownOr } from './util.js';
 import { cities } from './worldmap.js';
 import { landHeight } from './farland.js';
 
@@ -81,7 +81,7 @@ export class Sandbox {
   // A compiled road's deck is made on demand and a ray sees a new collider only after the next step, so the drawn surface counts too when it is within
   // reach of the player's own level (a road above or below on a stacked interchange is not the floor of this spot).
   floorAt(a) {
-    const G = this.G, base = G.vehicle ? G.vehicle.by ?? 0 : G.player.y || 0, HW = G.highways; HW?.ensureNear(a.x, a.z);
+    const G = this.G, base = G.vehicle ? knownOr(G.vehicle.by, 0) : G.player.y || 0, HW = G.highways; HW?.ensureNear(a.x, a.z);
     const f = floorBelow(G.phys, a.x, base, a.z), d = HW ? HW.deckY(a.x, a.z) : NaN;
     return d === d && Math.abs(d - base) < 4 && !(f >= d - 0.3) ? d : f;
   }
