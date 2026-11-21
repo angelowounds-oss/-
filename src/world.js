@@ -59,11 +59,11 @@ export const accentColor = (i) => ACCENTS[((i % 6) + 6) % 6];
 // ---------- Collision world ----------
 // resolve()'s answer, a class of its own so its numbers stay unboxed (see util.js Vec3)
 class Resolved { constructor() { this.x = 0; this.z = 0; this.nx = 0; this.nz = 0; this.hit = false; this.depth = 0; } }
-const RESOLVE_TMP = [], RESOLVE_OUT = new Resolved();
+const RESOLVE_TMP = [], RESOLVE_OUT = new Resolved();   // RESOLVE_TMP: scratch list for resolve(), which used to allocate a new array on every call (per person, per frame)
 // the static solids, classes of their own so the collision loops see two hidden classes with plain double fields (a circle as a { x, z, .. }
 // literal shared its fields' kind with every other such literal in the program; EV-03)
 class StaticBox { constructor(x0, z0, x1, z1, h, y0, tag) { this.x0 = x0; this.z0 = z0; this.x1 = x1; this.z1 = z1; this.h = h; this.y0 = y0; this.tag = tag; this.kind = 0; this._s = 0; } }
-class StaticCircle { constructor(x, z, r, h, tag) { this.x = x; this.z = z; this.r = r; this.h = h; this.tag = tag; this.kind = 1; this._s = 0; } }   // scratch list for resolve(): it used to allocate a new array on every call (per person, per frame)
+class StaticCircle { constructor(x, z, r, h, tag) { this.x = x; this.z = z; this.r = r; this.h = h; this.tag = tag; this.kind = 1; this._s = 0; } }
 export class Colliders {
   constructor() {
     this.boxes = [];
