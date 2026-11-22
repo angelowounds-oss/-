@@ -295,6 +295,40 @@ case("bmr", {"sex": "f", "age": "30", "h": "160", "w": "55", "act": "1.2"}, "기
 case("bmr", {"sex": "f", "age": "30", "h": "160", "w": "55", "act": "1.375"}, "하루 소비 1,704 kcal", name="guide-bmr-f1375")
 case("bmr", {"sex": "f", "age": "30", "h": "160", "w": "55", "act": "1.55"}, "하루 소비 1,920 kcal", name="guide-bmr-f155")
 
+# ---- batch 3 guide examples ----
+case("overtime", {"h": "12000", "ot": "10", "nt": "5", "h1": "8", "h2": "2"}, "연장 180,000원", "야간 가산 30,000원", "휴일 192,000원", "합계 402,000원", name="guide3-overtime")
+case("overtime", {"h": "10320", "ot": "10", "nt": "0", "h1": "0", "h2": "0"}, "연장 154,800원", name="guide3-overtime-min")
+case("jeonse", {"mode": "fwd", "j": "300000000", "dep": "50000000", "mo": "0", "rate": "5"}, "월세 1,041,667원", name="guide3-jeonse-5")
+case("jeonse", {"mode": "fwd", "j": "300000000", "dep": "50000000", "mo": "0", "rate": "2.5"}, "월세 520,833원", name="guide3-jeonse-25")
+case("jeonse", {"mode": "fwd", "j": "100000000", "dep": "0", "mo": "0", "rate": "2.5"}, "월세 208,333원", name="guide3-jeonse-1eok")
+case("jeonse", {"mode": "rev", "j": "0", "dep": "50000000", "mo": "800000", "rate": "4"}, "전세금 290,000,000원", name="guide3-jeonse-rev4")
+case("jeonse", {"mode": "rev", "j": "0", "dep": "50000000", "mo": "800000", "rate": "2.5"}, "전세금 434,000,000원", name="guide3-jeonse-rev25")
+case("splitbill", {"t": "187000", "n": "6", "tip": "0"}, "1인당 31,167원", "100원 단위 올림 31,200원 (총 187,200원)", name="guide3-split")
+case("splitbill", {"t": "100000", "n": "3", "tip": "0"}, "100원 단위 올림 33,400원 (총 100,200원)", name="guide3-split3")
+case("splitbill", {"t": "187000", "n": "6", "tip": "10"}, "1인당 34,283원", "100원 단위 올림 34,300원 (총 205,800원)", name="guide3-split-tip")
+for _k, _n, _u, _r in [("30", "30", "d", "2026.11.8 (일요일)"), ("90", "90", "d", "2027.1.7 (목요일)"), ("180", "180", "d", "2027.4.7 (수요일)"), ("100", "100", "d", "2027.1.17 (일요일)")]:
+    case("dateadd", {"b": "2026-10-09", "dir": "1", "n": _n, "u": _u}, _r, name=f"guide3-dateadd-{_k}")
+case("dateadd", {"b": "2026-10-09", "dir": "1", "n": "6", "u": "m"}, "2027.4.9", name="guide3-dateadd-6m")
+case("dateadd", {"b": "2026-10-09", "dir": "-1", "n": "3", "u": "m"}, "2026.7.9", name="guide3-dateadd-minus3m")
+case("dateadd", {"b": "2026-01-31", "dir": "1", "n": "1", "u": "m"}, "2026.2.28", name="guide3-dateadd-eom")
+case("dateadd", {"b": "2028-02-29", "dir": "1", "n": "1", "u": "y"}, "2029.2.28", name="guide3-dateadd-leap")
+case("bizdays", {"a": "2026-10-09", "b": "2026-11-08"}, "영업일 21일", "전체 31일 · 주말 10일", name="guide3-biz")
+case("bizdays", {"a": "2026-10-01", "b": "2026-10-31"}, "영업일 22일", "주말 9일", name="guide3-biz-oct")
+case("bizdays", {"a": "2026-01-01", "b": "2026-12-31"}, "영업일 261일", "전체 365일 · 주말 104일", name="guide3-biz-year")
+case("bizdays", {"a": "2026-10-09", "b": "2026-10-09"}, "영업일 1일", "전체 1일", name="guide3-biz-one")
+for _a, _b, _y, _t, _c in [("10000000", "15000000", "5", "+50%", "8.45"), ("10000000", "20000000", "3", "+100%", "26"), ("10000000", "20000000", "10", "+100%", "7.18"), ("10000000", "8000000", "2", "-20%", "-10.56")]:
+    _cg = ((int(_b) / int(_a)) ** (1 / int(_y)) - 1) * 100
+    case("cagr", {"a": _a, "b": _b, "y": _y}, "총 수익률 " + _t.replace("+", "") if _t.startswith("+") else "총 수익률 " + _t, f"CAGR) {_cg:.2f}%".replace(".00%", "%") if False else "연평균 수익률(CAGR) " + (f"{_cg:.2f}".rstrip("0").rstrip(".")) + "%", name=f"guide3-cagr-{_y}-{_b}")
+for _t, _c, _m, _r, _n in [("100000000", "10000000", "1000000", "3", 80), ("100000000", "10000000", "1000000", "0", 90), ("50000000", "0", "500000", "3", 90), ("30000000", "0", "1000000", "4", 29)]:
+    case("savegoal", {"t": _t, "c": _c, "m": _m, "rate": _r}, f"약 {_n}개월 ({_n // 12}년 {_n % 12}개월)", name=f"guide3-savegoal-{_t}-{_r}")
+_d = (TODAY - dt.date(2026, 3, 1)).days  # page uses the frozen clock; the guide text quotes 2026-10-09 (222 days = 31w5d)
+case("duedate", {"l": "2026-03-01"}, "출산예정일 2026.12.6 (일요일)", f"현재 {_d // 7}주 {_d % 7}일", name="guide3-due")
+assert (dt.date(2026, 10, 9) - dt.date(2026, 3, 1)).days == 222
+case("duedate", {"l": "2026-01-10"}, "출산예정일 2026.10.17", name="guide3-due2")
+for _a, _r, _i, _l in [("1000000", "3.3", 30000, 3000), ("1000000", "8.8", 80000, 8000), ("1000000", "15.4", 140000, 14000), ("5000000", "15.4", 700000, 70000)]:
+    case("withholding", {"k": _r, "a": _a}, f"소득세 {_i:,}원 + 지방소득세 {_l:,}원", f"실수령 {int(_a) - _i - _l:,}원", name=f"guide3-wh-{_r}-{_a}")
+case("stock", {"b": "50000", "s": "56000", "q": "100", "fee": "0.015", "tx": "0.15"}, "실현 손익 590,010원", "(11.8%)", "수수료 1,590원 · 거래세 8,400원", "매수금액 5,000,000원 · 매도금액 5,600,000원", name="guide3-stock")
+
 if __name__ == "__main__":
     json.dump(cases, open("tests/cases.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(len(cases), "cases")

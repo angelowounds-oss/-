@@ -5,7 +5,22 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>더치페이 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="t">총 금액 (원)</label><input type="number" id="t" value="187000" step="any" min="0"><label for="n">인원수</label><input type="number" id="n" value="6" step="any" min="0"><label for="tip">추가 팁·서비스료 (%)</label><input type="number" id="tip" value="0" step="0.1" min="0"><div class="result" id="res"></div></div><h2>활용 팁</h2><p>올림 금액으로 걷으면 남는 몇 백 원은 총무가 가져갈 수 있으니 정산 방식을 미리 정하세요. 술을 마신 사람과 안 마신 사람처럼 차등이 필요하면 항목별로 나눠 각각 계산하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>나누어떨어지지 않으면?</h3><p>원 단위로 반올림해 표시하고 100원 단위 올림 금액도 함께 보여줍니다.</p><h3>차등 정산은 어떻게 하나요?</h3><p>공통 금액과 개인 금액을 따로 계산해 합산하세요.</p></div><!--fb--><div class="fb" data-slug="splitbill"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="discount.html">중복 할인 계산기</a></div>
+<div class="card"><label for="t">총 금액 (원)</label><input type="number" id="t" value="187000" step="any" min="0"><label for="n">인원수</label><input type="number" id="n" value="6" step="any" min="0"><label for="tip">추가 팁·서비스료 (%)</label><input type="number" id="tip" value="0" step="0.1" min="0"><div class="result" id="res"></div></div><h2>활용 팁</h2><p>올림 금액으로 걷으면 남는 몇 백 원은 총무가 가져갈 수 있으니 정산 방식을 미리 정하세요. 술을 마신 사람과 안 마신 사람처럼 차등이 필요하면 항목별로 나눠 각각 계산하세요.</p><!--guide--><section class="guide">
+<h2>N분의 1 계산</h2>
+<p>1인당 금액 = 총 금액 × (1 + 서비스료%) ÷ 인원수예요. 나누어떨어지지 않으면 <b>100원 단위로 올림</b>한 금액도 함께 보여줘요. 올림하면 총액이 조금 늘어 남는 돈으로 거스름돈 걱정 없이 정산할 수 있어요.</p>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>총 금액</th><th>인원</th><th>1인당</th><th>100원 단위 올림</th><th>올림 총액</th></tr></thead><tbody><tr><td>187,000원</td><td>6명</td><td>31,167원</td><td>31,200원</td><td>187,200원</td></tr><tr><td>100,000원</td><td>3명</td><td>33,333원</td><td>33,400원</td><td>100,200원</td></tr><tr><td>187,000원 + 서비스료 10%</td><td>6명</td><td>34,283원</td><td>34,300원</td><td>205,800원</td></tr></tbody></table></div>
+<h2>정산할 때 이렇게 하면 덜 싸워요</h2>
+<ul>
+<li>먹은 양이 많이 다르면 N분의 1 대신 각자 먹은 만큼 내는 편이 공평해요. 술을 안 마신 사람이 있으면 술값만 따로 나눠도 좋아요.</li>
+<li>올림으로 생긴 차액은 다음 모임 회비나 총무 수고비로 쓰기로 미리 정해 두세요.</li>
+<li>더치페이 앱의 송금 링크를 쓰면 한 사람이 먼저 결제하고 나머지가 보내는 방식으로 정리하기 쉬워요.</li>
+</ul>
+<h2>여행 경비나 룸메이트 정산이라면</h2>
+<p>여러 사람이 서로 다른 항목을 결제했다면 누가 누구에게 얼마를 보내야 하는지 계산해야 해요. 그럴 땐 <a href="tripsplit.html">여행 경비 정산 계산기</a>나 <a href="roommate.html">룸메 공과금 정산 계산기</a>가 더 편해요.</p>
+<h2>팁·서비스료 칸</h2>
+<p>식당에 봉사료가 따로 붙는다면 퍼센트를 넣으면 총액에 반영돼요. 부가세는 보통 이미 총 금액에 포함돼 있으니 중복해서 넣지 마세요.</p>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>나누어떨어지지 않으면?</h3><p>원 단위로 반올림해 표시하고 100원 단위 올림 금액도 함께 보여줍니다.</p><h3>차등 정산은 어떻게 하나요?</h3><p>공통 금액과 개인 금액을 따로 계산해 합산하세요.</p></div><!--fb--><div class="fb" data-slug="splitbill"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="jeonse.html">전월세 전환 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="discount.html">중복 할인 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>

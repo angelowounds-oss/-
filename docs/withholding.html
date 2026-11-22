@@ -5,7 +5,26 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>원천징수 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="k">소득 종류</label><select id="k"><option value="3.3">사업소득 3.3%</option><option value="8.8">기타소득 8.8%</option><option value="15.4">이자·배당소득 15.4%</option></select><label for="a">세전 금액 (원)</label><input type="number" id="a" value="1000000" step="any" min="0"><div class="result" id="res"></div></div><h2>세율 구성</h2><p>표시 세율에는 지방소득세 10%가 포함됩니다. 예를 들어 3.3%는 소득세 3% + 지방소득세 0.3%입니다. 기타소득 8.8%는 필요경비를 60%로 본 경우입니다. 원천징수는 선납이며 종합소득세 신고 때 정산됩니다.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>강연료는 어떤 소득인가요?</h3><p>상황에 따라 사업소득이나 기타소득이 될 수 있으니 지급자 안내를 따르세요.</p><h3>환급받을 수 있나요?</h3><p>종합소득세 신고 결과에 따라 달라집니다.</p></div><!--fb--><div class="fb" data-slug="withholding"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
+<div class="card"><label for="k">소득 종류</label><select id="k"><option value="3.3">사업소득 3.3%</option><option value="8.8">기타소득 8.8%</option><option value="15.4">이자·배당소득 15.4%</option></select><label for="a">세전 금액 (원)</label><input type="number" id="a" value="1000000" step="any" min="0"><div class="result" id="res"></div></div><h2>세율 구성</h2><p>표시 세율에는 지방소득세 10%가 포함됩니다. 예를 들어 3.3%는 소득세 3% + 지방소득세 0.3%입니다. 기타소득 8.8%는 필요경비를 60%로 본 경우입니다. 원천징수는 선납이며 종합소득세 신고 때 정산됩니다.</p><!--guide--><section class="guide">
+<h2>원천징수란</h2>
+<p>소득을 주는 쪽이 세금을 미리 떼어 세무서에 내는 제도예요. 받는 사람은 세금을 뺀 금액을 받고, 이 세금은 대부분 다음 해 종합소득세 신고 때 정산돼요(일용근로소득처럼 원천징수로 끝나는 경우도 있어요).</p>
+<h2>소득 종류별 세율</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>소득</th><th>소득세</th><th>지방소득세 포함</th><th>예 (100만 원 지급)</th></tr></thead><tbody><tr><td>사업소득(프리랜서 등)</td><td>3%</td><td>3.3%</td><td>실수령 967,000원</td></tr><tr><td>기타소득(강연료 등, 필요경비 60% 인정 시)</td><td>20% × 40% = 8%</td><td>8.8%</td><td>실수령 912,000원</td></tr><tr><td>이자·배당소득</td><td>14%</td><td>15.4%</td><td>실수령 846,000원</td></tr></tbody></table></div>
+<p>세금은 10원 미만을 버려서 계산해요. 500만 원 이자라면 소득세 70만 원, 지방소득세 7만 원이 빠져 423만 원을 받아요.</p>
+<h2>기타소득은 경우에 따라 달라요</h2>
+<ul>
+<li>기타소득금액이 지급액의 40%(필요경비 60% 인정)인 소득은 8.8%예요. 상금·강연료·원고료 같은 소득이에요.</li>
+<li>지급액이 12만 5천 원 이하이면 원천징수하지 않는 경우가 있어요. 이 소득은 과세최저한이 적용돼요.</li>
+<li>복권·사행행위 당첨금 등은 세율이 달라요. 이 계산기의 8.8%는 필요경비 60%를 인정하는 일반적인 경우예요.</li>
+</ul>
+<h2>이 계산기로 알 수 없는 것</h2>
+<ul>
+<li>기타소득 12만 5천 원 이하 면제, 일용근로자(소득세 6%에 공제 적용), 근로소득 간이세액, 금융소득 종합과세 대상 여부는 포함하지 않아요.</li>
+<li>월급 실수령액은 <a href="netpay.html">연봉 실수령액 계산기</a>, 3.3%만 따로 보려면 <a href="freelance.html">프리랜서 3.3% 계산기</a>를 쓰세요.</li>
+<li>예적금 이자의 세후 금액은 <a href="deposit.html">예적금 이자 계산기</a>에서 확인할 수 있어요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 정확한 세율과 신고 방법은 국세청 홈택스에서 확인하세요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>강연료는 어떤 소득인가요?</h3><p>상황에 따라 사업소득이나 기타소득이 될 수 있으니 지급자 안내를 따르세요.</p><h3>환급받을 수 있나요?</h3><p>종합소득세 신고 결과에 따라 달라집니다.</p></div><!--fb--><div class="fb" data-slug="withholding"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="vat.html">부가세 계산기</a><a href="wage.html">시급 계산기</a><a href="freelance.html">프리랜서 3.3% 계산기</a><a href="salary.html">연봉 환산 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>

@@ -5,7 +5,25 @@
 <header><a href="index.html" class="logo">간편계산기</a><nav><a href="index.html#mz">갓생</a><a href="index.html#play">놀이</a><a href="index.html#student">대학생 필수</a><a href="index.html#all">전체 계산기</a><a href="about.html">소개</a><a href="en/" lang="en" hreflang="en">English</a></nav></header>
 <main><h1>전월세 전환 계산기</h1>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
-<div class="card"><label for="mode">방향</label><select id="mode"><option value="fwd">전세 → 월세</option><option value="rev">월세 → 전세</option></select><label for="j">전세금 (원, 전세→월세일 때)</label><input type="number" id="j" value="300000000" step="any" min="0"><label for="dep">보증금 (원)</label><input type="number" id="dep" value="50000000" step="any" min="0"><label for="mo">월세 (원, 월세→전세일 때)</label><input type="number" id="mo" value="800000" step="any" min="0"><label for="rate">전월세 전환율 (%)</label><input type="number" id="rate" value="5" step="0.01" min="0"><div class="result" id="res"></div></div><h2>전환율이란?</h2><p>전세금 일부를 월세로 바꿀 때 적용하는 연 이율입니다. 주택임대차보호법상 상한이 정해져 있고 시기와 지역에 따라 달라질 수 있으니 계약 시점의 법정 상한을 확인해 입력하세요.</p><div class="faq-block"><h2>자주 묻는 질문</h2><h3>전환율은 어디서 확인하나요?</h3><p>한국은행 기준금리와 법무부 고시 등을 참고합니다. 계약 시점의 값을 확인하세요.</p><h3>월세 vs 전세 무엇이 유리한가요?</h3><p>전환율이 대출 이자율보다 높으면 전세가 유리한 경우가 많습니다. 대출 이자 계산기와 같이 비교해 보세요.</p></div><!--fb--><div class="fb" data-slug="jeonse"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a><a href="discount.html">중복 할인 계산기</a></div>
+<div class="card"><label for="mode">방향</label><select id="mode"><option value="fwd">전세 → 월세</option><option value="rev">월세 → 전세</option></select><label for="j">전세금 (원, 전세→월세일 때)</label><input type="number" id="j" value="300000000" step="any" min="0"><label for="dep">보증금 (원)</label><input type="number" id="dep" value="50000000" step="any" min="0"><label for="mo">월세 (원, 월세→전세일 때)</label><input type="number" id="mo" value="800000" step="any" min="0"><label for="rate">전월세 전환율 (%)</label><input type="number" id="rate" value="5" step="0.01" min="0"><div class="result" id="res"></div></div><h2>전환율이란?</h2><p>전세금 일부를 월세로 바꿀 때 적용하는 연 이율입니다. 주택임대차보호법상 상한이 정해져 있고 시기와 지역에 따라 달라질 수 있으니 계약 시점의 법정 상한을 확인해 입력하세요.</p><!--guide--><section class="guide">
+<h2>전세와 월세는 이렇게 바꿔요</h2>
+<ul>
+<li><b>전세 → 월세</b>: 월세 = (전세금 − 남기는 보증금) × 전환율 ÷ 12</li>
+<li><b>월세 → 전세</b>: 전세금 = 보증금 + 월세 × 12 ÷ 전환율</li>
+</ul>
+<div class="tbl" tabindex="0" role="region" aria-label="예시 표"><table><thead><tr><th>조건</th><th>결과</th></tr></thead><tbody><tr><td>전세 3억, 보증금 5,000만 원 남김, 전환율 5%</td><td>월 1,041,667원</td></tr><tr><td>같은 조건, 전환율 2.5%</td><td>월 520,833원</td></tr><tr><td>보증금 1억 원을 월세로, 전환율 2.5%</td><td>월 208,333원</td></tr><tr><td>보증금 5,000만 원 + 월세 80만 원, 전환율 4%</td><td>전세 약 2억 9,000만 원</td></tr><tr><td>같은 조건, 전환율 2.5%</td><td>전세 약 4억 3,400만 원</td></tr></tbody></table></div>
+<p>전환율이 낮을수록 같은 월세로 환산한 전세금은 커져요. 위 표처럼 월세 80만 원은 전환율이 4%면 약 2억 4,000만 원, 2.5%면 약 3억 8,400만 원어치 보증금이에요.</p>
+<h2>법에서 정한 전환율 상한</h2>
+<p>보증금 일부를 월세로 바꿀 때 주택임대차보호법은 전환율에 상한을 둬요. 한국은행 기준금리에 일정 비율을 더한 값(기준금리 + 2%p로 알려져 있어요)과 연 10% 중 낮은 쪽이 상한이에요. 기준금리는 수시로 바뀌므로 <b>계약하는 시점의 기준금리와 현행 시행령</b>을 국가법령정보센터에서 확인하세요.</p>
+<p>이 계산기 기본값 5%는 예시일 뿐이에요. 기준금리가 낮을 때는 기본값이 법정 상한을 넘을 수 있으니 실제 계약에서는 확인한 값으로 바꿔 넣으세요.</p>
+<h2>전세와 월세, 무엇이 유리할까요</h2>
+<ul>
+<li>전환율이 대출 이자율보다 높으면, 대출을 받아서라도 전세로 사는 편이 월세보다 유리한 경우가 많아요.</li>
+<li>전세는 보증금을 돌려받지 못할 위험, 월세는 매달 나가는 돈이 단점이에요. 월세 부담은 <a href="rentratio.html">월세 부담 계산기</a>로 소득 대비 비율을 볼 수 있어요.</li>
+<li>대출 이자는 <a href="loan.html">대출 이자 계산기</a>와 함께 비교해 보세요.</li>
+</ul>
+<p class="reviewed">작성 기준일: 2026년 10월 · 전문가 검수를 받지 않은 참고용 계산이에요 · 법정 전환율은 계약 시점의 기준금리와 현행 시행령을 확인하세요</p>
+</section><!--/guide--><div class="faq-block"><h2>자주 묻는 질문</h2><h3>전환율은 어디서 확인하나요?</h3><p>한국은행 기준금리와 법무부 고시 등을 참고합니다. 계약 시점의 값을 확인하세요.</p><h3>월세 vs 전세 무엇이 유리한가요?</h3><p>전환율이 대출 이자율보다 높으면 전세가 유리한 경우가 많습니다. 대출 이자 계산기와 같이 비교해 보세요.</p></div><!--fb--><div class="fb" data-slug="jeonse"><span class="fbq">이 계산기 어땠나요?</span><button type="button" data-v="up">도움됐어요</button><button type="button" data-v="down">아쉬워요</button><span class="fbt" role="status"></span></div><!--/fb--><h2>관련 계산기</h2><div class="tools"><a href="pyeong.html">평수 계산기</a><a href="fuel.html">연비·주유비 계산기</a><a href="splitbill.html">더치페이 계산기</a><a href="discount.html">중복 할인 계산기</a></div>
 <div class="ad"><!-- AdSense 승인 후 여기에 광고 코드 삽입 --></div>
 </main>
 <footer><span class="note">계산 결과는 참고용이에요. 큰 돈은 꼭 한 번 더 확인! 입력한 값은 서버로 전송되지 않아요.</span><span class="theme" role="group" aria-label="포인트 색 고르기">포인트 색 <button type="button" data-c="#c8f542" aria-label="라임"></button><button type="button" data-c="#ffe14d" aria-label="노랑"></button><button type="button" data-c="#7ee0ff" aria-label="하늘"></button><button type="button" data-c="#ff9ec7" aria-label="핑크"></button></span><button type="button" class="modebtn">화면 자동</button><span class="fl"><a href="about.html">소개</a><a href="terms.html">이용약관</a><a href="privacy.html">개인정보처리방침</a></span></footer>
