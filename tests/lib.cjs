@@ -14,8 +14,9 @@ let pw;
 try { pw = require('playwright'); } catch { try { pw = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright'); } catch { pw = null; } }   // null: the runner and the unit tests still load (CI without a browser)
 
 const ROOT = path.resolve(__dirname, '..');
-// one place for the harness's waits, so a slow container is tuned here and not per test
-const TIMEOUT = { boot: 240000, running: 30000, test: 15 * 60 * 1000 };
+// one place for the harness's waits, so a slow container is tuned here and not per test. TEST_TIMEOUT_MIN raises the per-test wall limit
+// for the audits whose distance (traffic-audit 10 km, drive-hitch 10 game minutes) outlasts the default on a software renderer.
+const TIMEOUT = { boot: 240000, running: 30000, test: +(process.env.TEST_TIMEOUT_MIN || 15) * 60 * 1000 };
 const GAME = path.resolve(process.env.GAME_DIR || path.join(ROOT, 'dist', 'Korea', 'game'));
 
 // Serves a game folder on 127.0.0.1 the way launcher/main.go does (fixed MIME types, Range requests answered with 206, nothing compressed), so the
@@ -53,7 +54,9 @@ async function gameUrl(where = GAME) {
 // --expose-gc: a frame of the 1:1 city takes seconds on the software GPU, so the page never idles and V8 gets no idle time to collect; the stepped
 // loop below collects every GC_EVERY updates (or GC_GROW of growth) and shot() before each frame, which keeps the heap readings of one run
 // comparable with the next. (The gigabytes that once piled up in a few frames over Gangnam were the pointer-lock input flood below, not garbage.)
-const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--js-flags=--expose-gc' + (process.env.JS_FLAGS ? ' ' + process.env.JS_FLAGS : ''), '--enable-precise-memory-info'];
+const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--js-flags=--expose-gc' + (process.env.JS_FLAGS ? ' ' + process.env.JS_FLAGS : ''), '--enable-precise-memory-info',
+  // a test run is background work: nothing it plays may reach the machine's speakers, even when a headed run is asked for
+  '--mute-audio', '--disable-audio-output', '--autoplay-policy=user-gesture-required'];
 // The game locks the pointer when it starts (src/input.js lock). Under headless Chromium the lock makes the browser synthesize mouse moves to
 // re-centre a cursor that is not there, in a loop: one coalesced mousemove with 1.6 M callbacks per dispatch, 120 k input replies a second on the
 // browser's main thread, the renderer growing by 2 GB of queued events, a 30-55 s frame and then the kernel's memory kill (EV-91, traced
