@@ -16,7 +16,7 @@ const findGo = () => { for (const g of [process.env.GO, 'go', '/usr/local/go/bin
 const go = findGo();
 if (!go) { metrics.skipped = 'no Go'; done(); process.exit(); }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'neon-launcher-')), bin = path.join(tmp, 'launcher'), env = { ...process.env, XDG_CONFIG_HOME: tmp, HOME: tmp };
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'neon-launcher-')), bin = path.join(tmp, process.platform === 'win32' ? 'launcher.exe' : 'launcher'), env = { ...process.env, XDG_CONFIG_HOME: tmp, HOME: tmp, ...(process.platform === 'win32' ? { LOCALAPPDATA: tmp } : {}) };
 execFileSync(go, ['build', '-o', bin, '.'], { cwd: path.join(ROOT, 'launcher'), env: { ...process.env, CGO_ENABLED: '0' } });
 const exe = path.join(tmp, 'Korea.exe');
 execFileSync(go, ['build', '-trimpath', '-ldflags', '-s -w -H=windowsgui', '-o', exe, '.'], { cwd: path.join(ROOT, 'launcher'), env: { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' } });
@@ -94,5 +94,7 @@ try {
   if (none.code !== 1 || !/압축을 모두 푼 뒤/.test(none.all)) bad.push(['missing folder', none.code]);
 } catch (e) { bad.push(['error', e.message]); }
 for (const p of started) if (p.exitCode === null) p.kill();
-fs.rmSync(tmp, { recursive: true, force: true });
+// Windows keeps a killed process's image locked for a moment: wait for the exit (bounded, an already-reaped child never fires again), then retry the removal
+await Promise.all(started.map((p) => (p.exitCode !== null || p.signalCode !== null ? null : new Promise((r) => { const t = setTimeout(r, 3000); p.once('exit', () => { clearTimeout(t); r(); }); }))));
+fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
 done();
