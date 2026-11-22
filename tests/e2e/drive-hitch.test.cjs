@@ -7,7 +7,10 @@
 const fs = require('fs');
 const path = require('path');
 const { run, freeze, result } = require('../lib.cjs');
-const MIN = +(process.env.MIN || 10), P99_MS = +(process.env.P99_MS || 120), MAX_MS = +(process.env.MAX_MS || 3000), OVER50 = +(process.env.OVER50 || 2000);
+// the limits sit 10-20 % above the 2026-11-22 Windows baseline (docs/PERF-BASELINE.md, EV-93). Two 10-minute runs on this machine: p99
+// 9.0 / 10.1 ms, max 123 / 525 ms (all at the vehicle stage), frames over 50 ms 15 / 57. The gate follows the worse run, because a cap set
+// to the better one fails on the next run; the container's old 120 / 3000 / 2000 let a regression pass unseen.
+const MIN = +(process.env.MIN || 10), P99_MS = +(process.env.P99_MS || 12), MAX_MS = +(process.env.MAX_MS || 580), OVER50 = +(process.env.OVER50 || 68);
 run('drive-hitch', { q: 1, width: 320, height: 180 }, async ({ page }) => {
   await freeze(page);
   const t0 = Date.now();
